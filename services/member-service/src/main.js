@@ -1,0 +1,10 @@
+import express from 'express';
+import cors from 'cors';
+import helmet from 'helmet';
+import morgan from 'morgan';
+const app = express();
+app.use(express.json(), cors(), helmet(), morgan('dev'));
+app.get('/health', (req, res) => res.json({ service: 'member-service', status: 'ok' }));
+app.get('/',        (req, res) => res.json({ message: 'member-service up' }));
+const port = process.env.PORT || 3000;
+app.listen(port, () => console.log('member-service listening on ' + port));

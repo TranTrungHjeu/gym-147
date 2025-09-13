@@ -1,0 +1,1 @@
+import React from 'react';export default function App(){return <div style={{padding:16}}><h1>Gym 147 — Admin</h1><p>Template khởi động.</p></div>;}

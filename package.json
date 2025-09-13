@@ -1,0 +1,15 @@
+{
+  "name": "gym-147",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "services/*",
+    "libs/*",
+    "gateway/*"
+  ],
+  "scripts": {
+    "build": "echo build all (use per package)",
+    "dev": "echo run dev",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0"
+  }
+}

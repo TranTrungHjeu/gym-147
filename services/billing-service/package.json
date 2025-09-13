@@ -1,0 +1,16 @@
+{
+  "name": "billing-service",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "node --watch src/main.js",
+    "start": "node src/main.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0"
+  }
+}
