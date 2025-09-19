@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { JwtPayload } from '../types/common.types.js';
 
 // Mock JWT implementation for now - in real project, install jsonwebtoken

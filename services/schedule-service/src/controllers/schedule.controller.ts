@@ -1,18 +1,18 @@
 import { Request, Response } from 'express';
 import { ScheduleService } from '../services/schedule.service.js';
 import { ApiResponse } from '../types/api.types.js';
-import { 
-  GymClass, 
-  ClassSchedule, 
-  ClassBooking,
-  CreateClassRequest,
-  UpdateClassRequest,
-  CreateScheduleRequest,
-  UpdateScheduleRequest,
-  CreateBookingRequest,
-  UpdateBookingRequest,
-  ScheduleFilters,
-  BookingFilters
+import {
+    BookingFilters,
+    ClassBooking,
+    ClassSchedule,
+    CreateBookingRequest,
+    CreateClassRequest,
+    CreateScheduleRequest,
+    GymClass,
+    ScheduleFilters,
+    UpdateBookingRequest,
+    UpdateClassRequest,
+    UpdateScheduleRequest
 } from '../types/schedule.types.js';
 
 export class ScheduleController {

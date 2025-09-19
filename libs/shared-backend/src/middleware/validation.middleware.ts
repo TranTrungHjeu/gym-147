@@ -1,4 +1,4 @@
-import { Request, Response, NextFunction } from 'express';
+import { NextFunction, Request, Response } from 'express';
 import { ValidationError } from '../types/common.types.js';
 
 // Mock Joi interface for now - in real implementation, install joi package

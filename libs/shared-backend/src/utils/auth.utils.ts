@@ -1,4 +1,4 @@
-import { JwtPayload, JwtConfig } from '../types/common.types.js';
+import { JwtConfig, JwtPayload } from '../types/common.types.js';
 
 // Mock implementations for bcrypt and jwt - in real project, install these packages
 const mockBcrypt = {
