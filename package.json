@@ -8,8 +8,39 @@
     "gateway/*"
   ],
   "scripts": {
-    "build": "echo build all (use per package)",
-    "dev": "echo run dev",
-    "lint": "eslint . --ext .ts,.tsx --max-warnings=0"
+    "build": "npm run build --workspaces",
+    "build:shared": "npm run build -w libs/shared-backend",
+    "build:frontend": "npm run build -w apps/web-admin",
+    "build:services": "npm run build -w services/member-service && npm run build -w services/identity-service && npm run build -w services/schedule-service && npm run build -w services/billing-service",
+    
+    "dev": "echo 'Chạy các service riêng lẻ trong terminal khác nhau'",
+    "dev:frontend": "npm run dev -w apps/web-admin",
+    "dev:member": "npm run dev -w services/member-service",
+    "dev:identity": "npm run dev -w services/identity-service", 
+    "dev:schedule": "npm run dev -w services/schedule-service",
+    "dev:billing": "npm run dev -w services/billing-service",
+    
+    "type-check": "npm run type-check --workspaces --if-present",
+    "lint": "eslint . --ext .ts,.tsx --max-warnings=0",
+    "lint:fix": "eslint . --ext .ts,.tsx --fix",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    
+    "clean": "npm run clean --workspaces --if-present",
+    "clean:deps": "rm -rf node_modules && npm run clean:deps --workspaces --if-present",
+    
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down",
+    "docker:logs": "docker-compose logs -f",
+    "docker:build": "docker-compose build"
+  },
+  "devDependencies": {
+    "eslint": "^8.57.0",
+    "@typescript-eslint/eslint-plugin": "^7.7.0",
+    "@typescript-eslint/parser": "^7.7.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.1.3",
+    "prettier": "^3.2.5",
+    "typescript": "^5.6.0"
   }
 }

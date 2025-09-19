@@ -1,5 +1,5 @@
-import cors from 'cors';
 import express from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { routes } from './routes/index.js';
@@ -16,7 +16,7 @@ app.use(morgan('dev'));
 app.use('/', routes);
 
 // Error handling middleware
-app.use((err, req, res, next) => {
+app.use((err: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error(err.stack);
   res.status(500).json({
     success: false,
@@ -26,7 +26,7 @@ app.use((err, req, res, next) => {
 });
 
 // 404 handler
-app.use('*', (req, res) => {
+app.use('*', (req: express.Request, res: express.Response) => {
   res.status(404).json({
     success: false,
     message: 'Route not found',
@@ -34,7 +34,7 @@ app.use('*', (req, res) => {
   });
 });
 
-const port = process.env.PORT || 3000;
+const port = process.env.PORT || 3003;
 app.listen(port, () => {
-  console.log(`member-service listening on port ${port}`);
+  console.log(`schedule-service listening on port ${port}`);
 });
