@@ -1,6 +1,6 @@
 import React from 'react';
 import Card from '../components/Card';
-import { pingService } from '../api';
+import { pingService } from '../services/api';
 export default function Dashboard(){
   const [health, setHealth] = React.useState<Record<string, any>>({});
   const [loading, setLoading] = React.useState(false);
