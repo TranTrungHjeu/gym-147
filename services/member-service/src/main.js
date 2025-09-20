@@ -28,7 +28,7 @@ async function startServer() {
       res.status(500).json({
         success: false,
         message: 'Internal server error',
-        data: null
+        data: null,
       });
     });
 
@@ -37,7 +37,7 @@ async function startServer() {
       res.status(404).json({
         success: false,
         message: 'Route not found',
-        data: null
+        data: null,
       });
     });
 

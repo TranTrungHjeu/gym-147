@@ -10,7 +10,7 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Email and password are required',
-          data: null
+          data: null,
         });
       }
 
@@ -20,20 +20,20 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password',
-          data: null
+          data: null,
         });
       }
 
       res.json({
         success: true,
         data: result,
-        message: 'Login successful'
+        message: 'Login successful',
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to login',
-        data: null
+        data: null,
       });
     }
   }
@@ -47,7 +47,7 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Email, password, firstName, and lastName are required',
-          data: null
+          data: null,
         });
       }
 
@@ -56,13 +56,13 @@ class AuthController {
       res.status(201).json({
         success: true,
         data: result,
-        message: 'User registered successfully'
+        message: 'User registered successfully',
       });
     } catch (error) {
       res.status(400).json({
         success: false,
         message: error.message || 'Failed to register user',
-        data: null
+        data: null,
       });
     }
   }
@@ -77,20 +77,20 @@ class AuthController {
         return res.status(404).json({
           success: false,
           message: 'User not found',
-          data: null
+          data: null,
         });
       }
 
       res.json({
         success: true,
         data: user,
-        message: 'Profile retrieved successfully'
+        message: 'Profile retrieved successfully',
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to retrieve profile',
-        data: null
+        data: null,
       });
     }
   }
@@ -107,20 +107,20 @@ class AuthController {
         return res.status(404).json({
           success: false,
           message: 'User not found',
-          data: null
+          data: null,
         });
       }
 
       res.json({
         success: true,
         data: user,
-        message: 'Profile updated successfully'
+        message: 'Profile updated successfully',
       });
     } catch (error) {
       res.status(400).json({
         success: false,
         message: error.message || 'Failed to update profile',
-        data: null
+        data: null,
       });
     }
   }
@@ -135,7 +135,7 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Current password and new password are required',
-          data: null
+          data: null,
         });
       }
 
@@ -145,20 +145,20 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Invalid current password',
-          data: null
+          data: null,
         });
       }
 
       res.json({
         success: true,
         data: true,
-        message: 'Password changed successfully'
+        message: 'Password changed successfully',
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to change password',
-        data: null
+        data: null,
       });
     }
   }
@@ -172,7 +172,7 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Token is required',
-          data: null
+          data: null,
         });
       }
 
@@ -182,20 +182,20 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Invalid or expired token',
-          data: null
+          data: null,
         });
       }
 
       res.json({
         success: true,
         data: user,
-        message: 'Token verified successfully'
+        message: 'Token verified successfully',
       });
     } catch (error) {
       res.status(401).json({
         success: false,
         message: error.message || 'Failed to verify token',
-        data: null
+        data: null,
       });
     }
   }
@@ -204,11 +204,11 @@ class AuthController {
   async getAllUsers(req, res) {
     try {
       const { search, role, isActive } = req.query;
-      
+
       const filters = {
         search,
         role,
-        isActive: isActive !== undefined ? isActive === 'true' : undefined
+        isActive: isActive !== undefined ? isActive === 'true' : undefined,
       };
 
       const users = await authService.getAllUsers(filters);
@@ -216,13 +216,13 @@ class AuthController {
       res.json({
         success: true,
         data: users,
-        message: 'Users retrieved successfully'
+        message: 'Users retrieved successfully',
       });
     } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to retrieve users',
-        data: null
+        data: null,
       });
     }
   }
