@@ -41,9 +41,9 @@ async function startServer() {
       });
     });
 
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 3001;
     app.listen(port, () => {
-      console.log(`member-service listening on port ${port}`);
+      console.log(`identity-service listening on port ${port}`);
     });
   } catch (error) {
     console.error('Failed to start server:', error);
