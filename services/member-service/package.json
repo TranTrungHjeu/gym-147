@@ -10,10 +10,12 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@prisma/client": "^6.16.2",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "prisma": "^6.16.2"
   },
   "devDependencies": {
     "@types/cors": "^2.8.13",
