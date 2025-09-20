@@ -1,0 +1,455 @@
+// Billing Service Prisma Schema - IoT Gym Management
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model MembershipPlan {
+  id                String              @id @default(cuid())
+  name              String              @unique
+  description       String?
+  type              PlanType
+  duration_months   Int                 // Plan duration
+  price             Decimal             @db.Decimal(10, 2)
+  setup_fee         Decimal?            @db.Decimal(10, 2)
+  
+  // Access and Benefits
+  benefits          String[]            // Array of benefits
+  class_credits     Int?                // Monthly class credits (null = unlimited)
+  guest_passes      Int                 @default(0) // Monthly guest passes
+  access_hours      Json?               // {"start": "05:00", "end": "23:00"}
+  access_areas      String[]            // Areas member can access
+  
+  // IoT Features
+  equipment_priority Boolean           @default(false) // Priority equipment booking
+  personal_training_sessions Int       @default(0) // Included PT sessions
+  nutritionist_consultations Int       @default(0)
+  smart_workout_plans Boolean          @default(false) // AI-generated plans
+  wearable_integration Boolean         @default(false)
+  advanced_analytics Boolean           @default(false)
+  
+  // Plan Management
+  is_active         Boolean             @default(true)
+  is_featured       Boolean             @default(false)
+  max_members       Int?                // Maximum members for this plan
+  requires_approval Boolean             @default(false)
+  
+  // Billing Configuration
+  billing_interval  BillingInterval     @default(MONTHLY)
+  trial_days        Int                 @default(0)
+  cancellation_policy String?
+  
+  created_at        DateTime            @default(now())
+  updated_at        DateTime            @updatedAt
+
+  // Relations
+  subscriptions     Subscription[]
+  plan_addons       PlanAddon[]
+
+  @@map("membership_plans")
+}
+
+model PlanAddon {
+  id           String    @id @default(cuid())
+  plan_id      String
+  name         String
+  description  String?
+  price        Decimal   @db.Decimal(10, 2)
+  addon_type   AddonType
+  is_recurring Boolean   @default(true)
+  max_quantity Int       @default(1)
+  is_active    Boolean   @default(true)
+  
+  plan MembershipPlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
+
+  @@map("plan_addons")
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  member_id         String             @unique // Reference to member service
+  plan_id           String
+  
+  // Subscription Details
+  status            SubscriptionStatus @default(ACTIVE)
+  start_date        DateTime
+  end_date          DateTime?
+  next_billing_date DateTime
+  current_period_start DateTime
+  current_period_end DateTime
+  
+  // Pricing and Discounts
+  base_amount       Decimal            @db.Decimal(10, 2)
+  discount_amount   Decimal?           @db.Decimal(10, 2)
+  tax_amount        Decimal?           @db.Decimal(10, 2)
+  total_amount      Decimal            @db.Decimal(10, 2)
+  
+  // Usage Tracking
+  classes_used      Int                @default(0)
+  classes_remaining Int?               // For credit-based plans
+  guest_passes_used Int                @default(0)
+  pt_sessions_used  Int                @default(0)
+  
+  // Auto-renewal and Billing
+  auto_renew        Boolean            @default(true)
+  payment_method_id String?            // Default payment method
+  failed_payments   Int                @default(0)
+  
+  // Cancellation
+  cancelled_at      DateTime?
+  cancellation_reason String?
+  cancelled_by      String?            // Member ID or Staff ID
+  
+  // Trial Information
+  trial_start       DateTime?
+  trial_end         DateTime?
+  is_trial          Boolean            @default(false)
+  
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+
+  // Relations
+  plan              MembershipPlan     @relation(fields: [plan_id], references: [id])
+  payments          Payment[]
+  invoices          Invoice[]
+  subscription_addons SubscriptionAddon[]
+
+  @@map("subscriptions")
+}
+
+model SubscriptionAddon {
+  id              String      @id @default(cuid())
+  subscription_id String
+  addon_id        String
+  quantity        Int         @default(1)
+  price_per_unit  Decimal     @db.Decimal(10, 2)
+  total_price     Decimal     @db.Decimal(10, 2)
+  added_at        DateTime    @default(now())
+  removed_at      DateTime?
+  is_active       Boolean     @default(true)
+
+  subscription Subscription @relation(fields: [subscription_id], references: [id])
+
+  @@map("subscription_addons")
+}
+
+model Payment {
+  id                String            @id @default(cuid())
+  subscription_id   String?
+  member_id         String            // Reference to member service
+  
+  // Payment Details
+  amount            Decimal           @db.Decimal(10, 2)
+  currency          String            @default("VND")
+  status            PaymentStatus     @default(PENDING)
+  payment_method    PaymentMethod
+  
+  // Transaction Information
+  transaction_id    String?           @unique // External payment gateway ID
+  gateway           String?           // "STRIPE", "VNPAY", "MOMO"
+  gateway_fee       Decimal?          @db.Decimal(10, 2)
+  net_amount        Decimal           @db.Decimal(10, 2)
+  
+  // Payment Context
+  payment_type      PaymentType
+  reference_id      String?           // Invoice, class booking, etc.
+  description       String?
+  metadata          Json?             // Additional payment data
+  
+  // Processing
+  processed_at      DateTime?
+  failed_at         DateTime?
+  failure_reason    String?
+  retry_count       Int               @default(0)
+  
+  // Refunds
+  refunded_amount   Decimal?          @db.Decimal(10, 2)
+  refunded_at       DateTime?
+  refund_reason     String?
+  
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+
+  // Relations
+  subscription      Subscription?     @relation(fields: [subscription_id], references: [id])
+  invoices          Invoice[]
+  refunds           Refund[]
+
+  @@map("payments")
+}
+
+model Invoice {
+  id              String        @id @default(cuid())
+  subscription_id String?
+  payment_id      String?
+  member_id       String        // Reference to member service
+  
+  // Invoice Details
+  invoice_number  String        @unique // Auto-generated
+  status          InvoiceStatus @default(DRAFT)
+  type            InvoiceType   @default(SUBSCRIPTION)
+  
+  // Amounts
+  subtotal        Decimal       @db.Decimal(10, 2)
+  tax_rate        Decimal?      @db.Decimal(5, 4) // e.g., 0.10 for 10%
+  tax_amount      Decimal?      @db.Decimal(10, 2)
+  discount_amount Decimal?      @db.Decimal(10, 2)
+  total_amount    Decimal       @db.Decimal(10, 2)
+  
+  // Dates
+  issued_date     DateTime      @default(now())
+  due_date        DateTime
+  paid_date       DateTime?
+  
+  // Line Items
+  line_items      Json          // Structured invoice items
+  notes           String?
+  terms           String?       // Payment terms
+  
+  created_at      DateTime      @default(now())
+  updated_at      DateTime      @updatedAt
+
+  // Relations
+  subscription    Subscription? @relation(fields: [subscription_id], references: [id])
+  payment         Payment?      @relation(fields: [payment_id], references: [id])
+
+  @@map("invoices")
+}
+
+model Refund {
+  id            String       @id @default(cuid())
+  payment_id    String
+  amount        Decimal      @db.Decimal(10, 2)
+  reason        RefundReason
+  status        RefundStatus @default(PENDING)
+  
+  // Processing
+  transaction_id String?     // Gateway refund transaction ID
+  processed_at  DateTime?
+  failed_at     DateTime?
+  failure_reason String?
+  
+  // Authorization
+  requested_by  String       // Staff/System ID
+  approved_by   String?      // Manager ID
+  notes         String?
+  
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+
+  // Relations
+  payment       Payment      @relation(fields: [payment_id], references: [id])
+
+  @@map("refunds")
+}
+
+model DiscountCode {
+  id                String          @id @default(cuid())
+  code              String          @unique
+  name              String
+  description       String?
+  
+  // Discount Configuration
+  type              DiscountType
+  value             Decimal         @db.Decimal(10, 2) // Amount or percentage
+  max_discount      Decimal?        @db.Decimal(10, 2) // Max discount for percentage
+  
+  // Usage Limits
+  usage_limit       Int?            // Total usage limit
+  usage_count       Int             @default(0)
+  usage_limit_per_member Int?       // Per-member usage limit
+  
+  // Validity
+  valid_from        DateTime
+  valid_until       DateTime?
+  is_active         Boolean         @default(true)
+  
+  // Applicability
+  applicable_plans  String[]        // Plan IDs this code applies to
+  minimum_amount    Decimal?        @db.Decimal(10, 2)
+  first_time_only   Boolean         @default(false)
+  
+  created_at        DateTime        @default(now())
+  updated_at        DateTime        @updatedAt
+
+  // Relations
+  usage_history     DiscountUsage[]
+
+  @@map("discount_codes")
+}
+
+model DiscountUsage {
+  id               String       @id @default(cuid())
+  discount_code_id String
+  member_id        String       // Reference to member service
+  subscription_id  String?
+  amount_discounted Decimal     @db.Decimal(10, 2)
+  used_at          DateTime     @default(now())
+
+  discount_code DiscountCode @relation(fields: [discount_code_id], references: [id])
+
+  @@map("discount_usage")
+}
+
+// Gym Revenue Analytics
+model RevenueReport {
+  id              String   @id @default(cuid())
+  report_date     DateTime @unique
+  
+  // Daily Revenue Breakdown
+  subscription_revenue Decimal @db.Decimal(12, 2) @default(0)
+  class_revenue   Decimal  @db.Decimal(12, 2) @default(0)
+  addon_revenue   Decimal  @db.Decimal(12, 2) @default(0)
+  other_revenue   Decimal  @db.Decimal(12, 2) @default(0)
+  total_revenue   Decimal  @db.Decimal(12, 2) @default(0)
+  
+  // Membership Metrics
+  new_members     Int      @default(0)
+  cancelled_members Int    @default(0)
+  active_members  Int      @default(0)
+  
+  // Payment Metrics
+  successful_payments Int  @default(0)
+  failed_payments Int      @default(0)
+  refunds_issued  Int      @default(0)
+  refunds_amount  Decimal  @db.Decimal(10, 2) @default(0)
+  
+  created_at      DateTime @default(now())
+
+  @@map("revenue_reports")
+}
+
+// Cross-service references
+model MemberPaymentMethod {
+  id              String              @id @default(cuid())
+  member_id       String              // Reference to member service
+  type            PaymentMethod
+  provider        String?             // "STRIPE", "VNPAY", etc.
+  external_id     String?             // Provider's ID for this method
+  last_four       String?             // Last 4 digits for cards
+  is_default      Boolean             @default(false)
+  is_active       Boolean             @default(true)
+  expires_at      DateTime?           // For cards
+  created_at      DateTime            @default(now())
+  updated_at      DateTime            @updatedAt
+
+  @@map("member_payment_methods")
+}
+
+// Enums
+enum PlanType {
+  BASIC
+  PREMIUM
+  VIP
+  STUDENT
+  SENIOR
+  FAMILY
+  CORPORATE
+  DAY_PASS
+  TRIAL
+}
+
+enum AddonType {
+  PERSONAL_TRAINING
+  NUTRITION_CONSULTATION
+  GUEST_PASS
+  EQUIPMENT_RENTAL
+  MASSAGE_THERAPY
+  LOCKER_RENTAL
+  PARKING
+  OTHER
+}
+
+enum BillingInterval {
+  DAILY
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  ANNUALLY
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  EXPIRED
+  SUSPENDED
+  PENDING
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum PaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  BANK_TRANSFER
+  VNPAY
+  MOMO
+  ZALO_PAY
+  CASH
+  CRYPTO
+}
+
+enum PaymentType {
+  SUBSCRIPTION
+  CLASS_BOOKING
+  ADDON_PURCHASE
+  LATE_FEE
+  EQUIPMENT_DAMAGE
+  GUEST_PASS
+  OTHER
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceType {
+  SUBSCRIPTION
+  ONE_TIME
+  REFUND
+  ADJUSTMENT
+}
+
+enum RefundReason {
+  MEMBER_REQUEST
+  SERVICE_ISSUE
+  BILLING_ERROR
+  CANCELLATION
+  EQUIPMENT_ISSUE
+  CLASS_CANCELLED
+  OTHER
+}
+
+enum RefundStatus {
+  PENDING
+  APPROVED
+  PROCESSED
+  FAILED
+  REJECTED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  FREE_TRIAL
+  FIRST_MONTH_FREE
+}

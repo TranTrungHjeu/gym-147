@@ -2,10 +2,10 @@ import { del, get, post, put } from './api';
 
 export interface Member {
   id: string;
-  name: string;
+  full_name: string;
   phone: string;
   email: string;
-  status: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
+  membership_status: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
   rfid_tag?: string;
   joined_at: string;
 }
@@ -55,5 +55,5 @@ export const memberService = {
   // Get member stats
   async getMemberStats() {
     return get('/member/stats');
-  }
+  },
 };

@@ -1,0 +1,47 @@
+# Docker Compose cho Gym IoT Database
+services:
+  # PostgreSQL Database chung với multiple databases
+  postgres:
+    image: postgres:16
+    container_name: gym-postgres
+    environment:
+      POSTGRES_DB: gymdb
+      POSTGRES_USER: gym_user
+      POSTGRES_PASSWORD: gym_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    networks:
+      - gym-network
+
+  # Redis cho caching và session
+  redis:
+    image: redis:7-alpine
+    container_name: gym-redis
+    ports:
+      - "6379:6379"
+    networks:
+      - gym-network
+
+  # PgAdmin để quản lý database với giao diện đồ họa
+  pgadmin:
+    image: dpage/pgadmin4
+    container_name: gym-pgadmin
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@gym.com
+      PGADMIN_DEFAULT_PASSWORD: admin123
+    ports:
+      - "8081:80"
+    depends_on:
+      - postgres
+    networks:
+      - gym-network
+
+volumes:
+  postgres_data:
+
+networks:
+  gym-network:
+    driver: bridge

@@ -1,0 +1,366 @@
+// Member Service Prisma Schema - IoT Gym Management
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Member {
+  id                String            @id @default(cuid())
+  user_id           String            @unique // Reference to identity service
+  membership_number String            @unique // Auto-generated member ID
+  full_name         String
+  phone             String            @unique
+  email             String            @unique
+  date_of_birth     DateTime?
+  gender            Gender?
+  address           String?
+  emergency_contact String?
+  emergency_phone   String?
+  
+  // Health & Fitness Data
+  height            Float?            // in cm
+  weight            Float?            // in kg
+  body_fat_percent  Float?
+  fitness_goals     String[]          // Array of goals
+  medical_conditions String[]         // Array of medical notes
+  allergies         String[]
+  
+  // Membership Info
+  membership_status MembershipStatus  @default(ACTIVE)
+  membership_type   MembershipType    @default(BASIC)
+  joined_at         DateTime          @default(now())
+  expires_at        DateTime?
+  
+  // Access Control
+  rfid_tag          String?           @unique
+  qr_code           String?           @unique // Generated QR for mobile access
+  access_enabled    Boolean           @default(true)
+  
+  // Profile
+  profile_photo     String?
+  notes             String?
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+
+  // Relations
+  memberships       Membership[]
+  gym_sessions      GymSession[]      // Gym entry/exit sessions
+  equipment_usage   EquipmentUsage[]
+  health_metrics    HealthMetric[]
+  workout_plans     WorkoutPlan[]
+  achievements      Achievement[]
+  notifications     Notification[]
+  bookings          Booking[]
+  payments          Payment[]
+  subscriptions     Subscription[]
+
+  @@map("members")
+}
+
+model Membership {
+  id         String           @id @default(cuid())
+  member_id  String
+  type       MembershipType
+  start_date DateTime
+  end_date   DateTime
+  status     MembershipStatus @default(ACTIVE)
+  price      Decimal          @db.Decimal(10, 2)
+  benefits   String[]         // Array of benefits
+  notes      String?
+  created_at DateTime         @default(now())
+  updated_at DateTime         @updatedAt
+
+  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@map("memberships")
+}
+
+// IoT Integration - Gym Entry/Exit Sessions
+model GymSession {
+  id           String      @id @default(cuid())
+  member_id    String
+  entry_time   DateTime    @default(now())
+  exit_time    DateTime?
+  duration     Int?        // in minutes
+  entry_method AccessMethod
+  exit_method  AccessMethod?
+  entry_gate   String?     // Gate/Reader ID
+  exit_gate    String?
+  calories_burned Int?     // Estimated from session
+  session_rating Int?      // 1-5 rating by member
+  notes        String?
+  
+  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@map("gym_sessions")
+}
+
+// Equipment Usage Tracking (IoT)
+model EquipmentUsage {
+  id           String   @id @default(cuid())
+  member_id    String
+  equipment_id String
+  start_time   DateTime @default(now())
+  end_time     DateTime?
+  duration     Int?     // in minutes
+  calories_burned Int?
+  sets_completed Int?
+  weight_used  Float?   // in kg
+  reps_completed Int?
+  heart_rate_avg Int?   // from wearable devices
+  heart_rate_max Int?
+  
+  // IoT Sensor Data
+  sensor_data  Json?    // Additional IoT sensor readings
+  
+  member    Member    @relation(fields: [member_id], references: [id])
+  equipment Equipment @relation(fields: [equipment_id], references: [id])
+
+  @@map("equipment_usage")
+}
+
+// Health Metrics Tracking
+model HealthMetric {
+  id           String     @id @default(cuid())
+  member_id    String
+  metric_type  MetricType
+  value        Float
+  unit         String     // kg, cm, bpm, etc.
+  recorded_at  DateTime   @default(now())
+  source       String?    // "MANUAL", "SCALE", "WEARABLE", "ASSESSMENT"
+  notes        String?
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("health_metrics")
+}
+
+// AI-Generated Workout Plans
+model WorkoutPlan {
+  id           String   @id @default(cuid())
+  member_id    String
+  name         String
+  description  String?
+  difficulty   Difficulty
+  duration_weeks Int
+  goal         String   // "WEIGHT_LOSS", "MUSCLE_GAIN", etc.
+  exercises    Json     // Structured workout data
+  is_active    Boolean  @default(true)
+  ai_generated Boolean  @default(false)
+  created_by   String?  // Trainer ID
+  created_at   DateTime @default(now())
+  updated_at   DateTime @updatedAt
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("workout_plans")
+}
+
+// Gamification - Achievements
+model Achievement {
+  id          String   @id @default(cuid())
+  member_id   String
+  title       String
+  description String
+  category    String   // "FITNESS", "ATTENDANCE", "SOCIAL"
+  points      Int      @default(0)
+  badge_icon  String?
+  unlocked_at DateTime @default(now())
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("achievements")
+}
+
+// Smart Notifications
+model Notification {
+  id         String           @id @default(cuid())
+  member_id  String
+  type       NotificationType
+  title      String
+  message    String
+  is_read    Boolean          @default(false)
+  is_sent    Boolean          @default(false)
+  send_at    DateTime?        // For scheduled notifications
+  channels   String[]         // ["EMAIL", "SMS", "PUSH", "IN_APP"]
+  data       Json?            // Additional notification data
+  created_at DateTime         @default(now())
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("notifications")
+}
+
+// Equipment Master Data (IoT Devices)
+model Equipment {
+  id                String             @id @default(cuid())
+  name              String
+  category          EquipmentCategory
+  brand             String?
+  model             String?
+  serial_number     String?            @unique
+  purchase_date     DateTime?
+  warranty_until    DateTime?
+  location          String             // Zone/Area in gym
+  status            EquipmentStatus    @default(AVAILABLE)
+  
+  // IoT Integration
+  sensor_id         String?            @unique // IoT sensor identifier
+  last_maintenance  DateTime?
+  next_maintenance  DateTime?
+  usage_hours       Int                @default(0)
+  max_weight        Float?             // in kg
+  
+  // Smart Features
+  has_heart_monitor Boolean            @default(false)
+  has_calorie_counter Boolean          @default(false)
+  has_rep_counter   Boolean            @default(false)
+  wifi_enabled      Boolean            @default(false)
+  
+  maintenance_logs  MaintenanceLog[]
+  usage_logs        EquipmentUsage[]
+  
+  created_at        DateTime           @default(now())
+  updated_at        DateTime           @updatedAt
+
+  @@map("equipment")
+}
+
+model MaintenanceLog {
+  id             String      @id @default(cuid())
+  equipment_id   String
+  maintenance_type String    // "ROUTINE", "REPAIR", "CALIBRATION"
+  description    String
+  performed_by   String      // Staff ID
+  cost           Decimal?    @db.Decimal(10, 2)
+  parts_replaced String[]
+  next_due       DateTime?
+  completed_at   DateTime    @default(now())
+
+  equipment Equipment @relation(fields: [equipment_id], references: [id])
+
+  @@map("maintenance_logs")
+}
+
+// Cross-service references
+model Booking {
+  id           String   @id @default(cuid())
+  member_id    String
+  schedule_id  String   // Reference to schedule service
+  status       String
+  booked_at    DateTime @default(now())
+  cancelled_at DateTime?
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("bookings_ref")
+}
+
+model Payment {
+  id        String   @id @default(cuid())
+  member_id String
+  amount    Decimal  @db.Decimal(10, 2)
+  status    String
+  paid_at   DateTime @default(now())
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("payments_ref")
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  member_id String
+  plan_id   String   // Reference to billing service
+  status    String
+  start_date DateTime
+  end_date  DateTime
+
+  member Member @relation(fields: [member_id], references: [id])
+
+  @@map("subscriptions_ref")
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+  PENDING
+}
+
+enum MembershipType {
+  BASIC
+  PREMIUM
+  VIP
+  STUDENT
+  SENIOR
+  FAMILY
+  CORPORATE
+}
+
+enum AccessMethod {
+  RFID
+  QR_CODE
+  FACE_RECOGNITION
+  MANUAL
+  MOBILE_APP
+}
+
+enum MetricType {
+  WEIGHT
+  HEIGHT
+  BODY_FAT
+  MUSCLE_MASS
+  BMI
+  HEART_RATE
+  BLOOD_PRESSURE
+  FLEXIBILITY
+  ENDURANCE
+}
+
+enum Difficulty {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum NotificationType {
+  WORKOUT_REMINDER
+  MEMBERSHIP_EXPIRY
+  PAYMENT_DUE
+  CLASS_BOOKING
+  ACHIEVEMENT
+  MAINTENANCE
+  PROMOTION
+  SYSTEM
+}
+
+enum EquipmentCategory {
+  CARDIO
+  STRENGTH
+  FREE_WEIGHTS
+  FUNCTIONAL
+  STRETCHING
+  RECOVERY
+  SPECIALIZED
+}
+
+enum EquipmentStatus {
+  AVAILABLE
+  IN_USE
+  MAINTENANCE
+  OUT_OF_ORDER
+  RESERVED
+}

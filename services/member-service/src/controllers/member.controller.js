@@ -1,170 +1,175 @@
-import { Request, Response } from 'express';
-import { memberService } from '../services/member.prisma.service.js';
-import { ApiResponse } from '../types/api.types.js';
+const { memberService } = require('../services/member.prisma.service.js');
 
-export class MemberController {
+class MemberController {
   // Get all members with filtering and pagination
-  async getMembers(req: Request, res: Response) {
+  async getMembers(req, res) {
     try {
-      const { page = 1, limit = 20, search, status } = req.query;
+      const { 
+        page = 1, 
+        limit = 20, 
+        search, 
+        status 
+      } = req.query;
 
       const filters = {
         page: Number(page),
         limit: Number(limit),
-        search: search as string,
-        status: status as string,
+        search: search,
+        status: status,
       };
 
       const result = await memberService.getMembers(filters);
-
-      const response: ApiResponse<typeof result> = {
+      
+      const response = {
         success: true,
         data: result,
-        message: 'Members retrieved successfully',
+        message: 'Members retrieved successfully'
       };
 
       res.json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to retrieve members',
-        data: null,
+        data: null
       });
     }
   }
 
   // Get single member by ID
-  async getMember(req: Request, res: Response) {
+  async getMember(req, res) {
     try {
       const { id } = req.params;
       const member = await memberService.getMemberById(id);
-
+      
       if (!member) {
         return res.status(404).json({
           success: false,
           message: 'Member not found',
-          data: null,
+          data: null
         });
       }
 
-      const response: ApiResponse<typeof member> = {
+      const response = {
         success: true,
         data: member,
-        message: 'Member retrieved successfully',
+        message: 'Member retrieved successfully'
       };
 
       res.json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to retrieve member',
-        data: null,
+        data: null
       });
     }
   }
 
   // Create new member
-  async createMember(req: Request, res: Response) {
+  async createMember(req, res) {
     try {
       const memberData = req.body;
       const member = await memberService.createMember(memberData);
-
-      const response: ApiResponse<typeof member> = {
+      
+      const response = {
         success: true,
         data: member,
-        message: 'Member created successfully',
+        message: 'Member created successfully'
       };
 
       res.status(201).json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(400).json({
         success: false,
         message: error.message || 'Failed to create member',
-        data: null,
+        data: null
       });
     }
   }
 
   // Update member
-  async updateMember(req: Request, res: Response) {
+  async updateMember(req, res) {
     try {
       const { id } = req.params;
       const updates = req.body;
-
+      
       const member = await memberService.updateMember(id, updates);
-
+      
       if (!member) {
         return res.status(404).json({
           success: false,
           message: 'Member not found',
-          data: null,
+          data: null
         });
       }
 
-      const response: ApiResponse<typeof member> = {
+      const response = {
         success: true,
         data: member,
-        message: 'Member updated successfully',
+        message: 'Member updated successfully'
       };
 
       res.json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(400).json({
         success: false,
         message: error.message || 'Failed to update member',
-        data: null,
+        data: null
       });
     }
   }
 
   // Delete member
-  async deleteMember(req: Request, res: Response) {
+  async deleteMember(req, res) {
     try {
       const { id } = req.params;
       const deleted = await memberService.deleteMember(id);
-
+      
       if (!deleted) {
         return res.status(404).json({
           success: false,
           message: 'Member not found',
-          data: null,
+          data: null
         });
       }
 
-      const response: ApiResponse<boolean> = {
+      const response = {
         success: true,
         data: true,
-        message: 'Member deleted successfully',
+        message: 'Member deleted successfully'
       };
 
       res.json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to delete member',
-        data: null,
+        data: null
       });
     }
   }
 
   // Get member statistics
-  async getMemberStats(req: Request, res: Response) {
+  async getMemberStats(req, res) {
     try {
       const stats = await memberService.getMemberStats();
-
-      const response: ApiResponse<typeof stats> = {
+      
+      const response = {
         success: true,
         data: stats,
-        message: 'Member statistics retrieved successfully',
+        message: 'Member statistics retrieved successfully'
       };
 
       res.json(response);
-    } catch (error: any) {
+    } catch (error) {
       res.status(500).json({
         success: false,
         message: error.message || 'Failed to retrieve member statistics',
-        data: null,
+        data: null
       });
     }
   }
 }
+
+module.exports = { MemberController };
