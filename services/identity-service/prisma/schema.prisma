@@ -8,9 +8,12 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+
+
+
 model User {
   id                String    @id @default(cuid())
-  email             String    @unique
+  email             String?   @unique
   password_hash     String
   first_name        String
   last_name         String
@@ -19,10 +22,12 @@ model User {
   is_active         Boolean   @default(true)
   email_verified    Boolean   @default(false)
   email_verified_at DateTime?
+  phone_verified    Boolean   @default(false)
+  phone_verified_at DateTime?
   last_login_at     DateTime?
   
   // Face Recognition Data
-  face_encoding     String?   // Base64 encoded face data
+  face_encoding     Bytes?    // Binary face data for better performance
   face_photo_url    String?   // Profile photo for face recognition
   
   // Security & Access
@@ -38,9 +43,17 @@ model User {
   sessions          Session[]
   password_resets   PasswordReset[]
   access_logs       AccessLog[]
+  email_verifications EmailVerification[]
   member_profile    Member?   // One-to-one with member service
   staff_profile     Staff?    // One-to-one for staff members
 
+  // Indexes for performance
+  @@index([email])
+  @@index([phone])
+  @@index([role, is_active])
+  @@index([last_login_at])
+  @@index([created_at])
+  @@index([phone_verified])
   @@map("users")
 }
 
@@ -60,6 +73,11 @@ model Session {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  // Indexes for performance
+  @@index([user_id])
+  @@index([token])
+  @@index([expires_at])
+  @@index([platform, user_id])
   @@map("sessions")
 }
 
@@ -75,10 +93,16 @@ model AccessLog {
   timestamp      DateTime   @default(now())
   
   // IoT Integration
-  sensor_data    Json?      // Additional sensor data
+  sensor_data    Json?      @db.JsonB // PostgreSQL JSONB for better performance
   
   user User @relation(fields: [user_id], references: [id])
 
+  // Indexes for performance
+  @@index([user_id, timestamp])
+  @@index([access_type, timestamp])
+  @@index([device_id, timestamp])
+  @@index([success, timestamp])
+  @@index([location, timestamp])
   @@map("access_logs")
 }
 
@@ -92,7 +116,42 @@ model PasswordReset {
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
+  // Indexes for performance
+  @@index([token])
+  @@index([expires_at])
+  @@index([user_id, created_at])
   @@map("password_resets")
+}
+
+model OTPVerification {
+  id          String     @id @default(cuid())
+  identifier  String     // Email or phone number
+  otp         String     // Hashed OTP
+  type        OTPType    @default(PHONE)
+  attempts    Int        @default(0)
+  expires_at  DateTime
+  verified_at DateTime?  // Track when OTP was successfully verified
+  created_at  DateTime   @default(now())
+
+  // Indexes for performance
+  @@index([identifier, type])
+  @@index([expires_at])
+  @@index([verified_at])
+  @@map("otp_verifications")
+}
+
+model EmailVerification {
+  id          String   @id @default(cuid())
+  user_id     String
+  token       String   @unique
+  email       String
+  expires_at  DateTime
+  verified_at DateTime?
+  created_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@map("email_verifications")
 }
 
 // Cross-service references
@@ -115,11 +174,7 @@ model Staff {
 enum Role {
   SUPER_ADMIN
   ADMIN
-  MANAGER
   TRAINER
-  NUTRITIONIST
-  RECEPTIONIST
-  MAINTENANCE
   MEMBER
 }
 
@@ -145,4 +200,9 @@ enum AccessMethod {
   FACE_RECOGNITION
   FINGERPRINT
   MANUAL
+}
+
+enum OTPType {
+  PHONE
+  EMAIL
 }

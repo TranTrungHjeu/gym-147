@@ -1,0 +1,442 @@
+import { BookOpen, CalendarRange, MapPin, User, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Card, IconBadge } from '../components';
+import {
+  fetchClasses,
+  fetchInstructors,
+  fetchRooms,
+  fetchScheduleStats,
+  fetchSchedules,
+} from '../services/api';
+
+interface Schedule {
+  id: number;
+  date: string;
+  start_time: string;
+  end_time: string;
+  capacity: number;
+  current_bookings: number;
+  gym_class: {
+    id: number;
+    name: string;
+    description: string;
+  };
+  instructor: {
+    id: number;
+    name: string;
+    specialization: string;
+  };
+  room: {
+    id: number;
+    name: string;
+    capacity: number;
+  };
+}
+
+interface GymClass {
+  id: number;
+  name: string;
+  description: string;
+  duration: number;
+  max_capacity: number;
+  created_at: string;
+}
+
+interface Instructor {
+  id: number;
+  name: string;
+  email: string;
+  phone: string;
+  specialization: string;
+  experience_years: number;
+  created_at: string;
+}
+
+interface Room {
+  id: number;
+  name: string;
+  location: string;
+  capacity: number;
+  equipment: string[];
+  created_at: string;
+}
+
+interface ScheduleStats {
+  totalClasses: number;
+  totalInstructors: number;
+  totalRooms: number;
+  totalSchedules: number;
+}
+
+export default function Schedule() {
+  const [activeTab, setActiveTab] = useState('schedules');
+  const [schedules, setSchedules] = useState<Schedule[]>([]);
+  const [classes, setClasses] = useState<GymClass[]>([]);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [stats, setStats] = useState<ScheduleStats | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    Promise.all([
+      fetchSchedules(),
+      fetchScheduleStats(),
+      fetchClasses(),
+      fetchInstructors(),
+      fetchRooms(),
+    ])
+      .then(([schedulesData, statsData, classesData, instructorsData, roomsData]) => {
+        if (schedulesData.success) {
+          setSchedules(schedulesData.data.schedules);
+        }
+        if (statsData.success) {
+          setStats(statsData.data);
+        }
+        if (classesData.success) {
+          setClasses(classesData.data.classes);
+        }
+        if (instructorsData.success) {
+          setInstructors(instructorsData.data.instructors);
+        }
+        if (roomsData.success) {
+          setRooms(roomsData.data.rooms);
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error('Error loading schedule data:', err);
+        setError('Không thể tải dữ liệu lịch trình');
+        setLoading(false);
+      });
+  }, []);
+
+  const formatTime = (timeString: string) => {
+    return timeString.substring(0, 5); // Extract HH:MM from HH:MM:SS
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('vi-VN', {
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className='space-y-8 text-brand-50'>
+        <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-center'>
+          <div>
+            <div className='flex items-center gap-3'>
+              <IconBadge icon={CalendarRange} tone='brand' />
+              <h1 className='text-3xl font-semibold tracking-wide'>Quản lý lịch trình</h1>
+            </div>
+            <p className='mt-2 text-sm text-ink-300'>Đang tải dữ liệu lịch trình...</p>
+          </div>
+        </div>
+        <Card className='border border-white/10'>
+          <div className='flex min-h-[280px] items-center justify-center text-ink-300'>
+            <div className='flex items-center gap-3'>
+              <div className='h-8 w-8 animate-spin rounded-full border-b-2 border-blue-500'></div>
+              <span className='text-lg font-medium'>Đang tải dữ liệu lịch trình...</span>
+            </div>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className='space-y-8 text-brand-50'>
+        <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-center'>
+          <div>
+            <div className='flex items-center gap-3'>
+              <IconBadge icon={CalendarRange} tone='brand' />
+              <h1 className='text-3xl font-semibold tracking-wide'>Quản lý lịch trình</h1>
+            </div>
+            <p className='mt-2 text-sm text-ink-300'>Lỗi tải dữ liệu.</p>
+          </div>
+        </div>
+        <Card className='border border-red-500/40 bg-red-500/10 text-red-200'>
+          <div className='flex items-center gap-3'>
+            <span>{error}</span>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div className='space-y-8 text-brand-50'>
+      <div className='flex flex-col justify-between gap-4 sm:flex-row sm:items-center'>
+        <div>
+          <div className='flex items-center gap-3'>
+            <IconBadge icon={CalendarRange} tone='brand' />
+            <h1 className='text-3xl font-semibold tracking-wide'>Quản lý lịch trình</h1>
+          </div>
+          <p className='mt-2 text-sm text-ink-300'>Quản lý lịch tập, lớp học và huấn luyện viên.</p>
+        </div>
+      </div>
+
+      {stats && (
+        <div className='grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-4'>
+          <Card className='border border-white/10'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm uppercase tracking-wide text-ink-400'>Tổng lớp học</p>
+                <p className='mt-3 text-3xl font-semibold text-brand-50'>{stats.totalClasses}</p>
+              </div>
+              <IconBadge icon={BookOpen} tone='brand' />
+            </div>
+          </Card>
+
+          <Card className='border border-white/10'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm uppercase tracking-wide text-ink-400'>Huấn luyện viên</p>
+                <p className='mt-3 text-3xl font-semibold text-emerald-300'>
+                  {stats.totalInstructors}
+                </p>
+              </div>
+              <IconBadge icon={Users} tone='success' />
+            </div>
+          </Card>
+
+          <Card className='border border-white/10'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm uppercase tracking-wide text-ink-400'>Phòng tập</p>
+                <p className='mt-3 text-3xl font-semibold text-amber-300'>{stats.totalRooms}</p>
+              </div>
+              <IconBadge icon={MapPin} tone='warning' />
+            </div>
+          </Card>
+
+          <Card className='border border-white/10'>
+            <div className='flex items-center justify-between'>
+              <div>
+                <p className='text-sm uppercase tracking-wide text-ink-400'>Lịch trình</p>
+                <p className='mt-3 text-3xl font-semibold text-sky-300'>{stats.totalSchedules}</p>
+              </div>
+              <IconBadge icon={CalendarRange} tone='info' />
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Tab Navigation */}
+      <Card className='border border-white/10'>
+        <div className='flex gap-2'>
+          {[
+            { key: 'schedules', label: 'Lịch trình', icon: CalendarRange },
+            { key: 'classes', label: 'Lớp học', icon: BookOpen },
+            { key: 'instructors', label: 'Huấn luyện viên', icon: Users },
+            { key: 'rooms', label: 'Phòng tập', icon: MapPin },
+          ].map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all duration-200 ${
+                activeTab === tab.key
+                  ? 'bg-brand-500/20 text-brand-100 border border-brand-500/40'
+                  : 'text-ink-300 hover:text-brand-50 hover:bg-white/5'
+              }`}
+            >
+              <tab.icon className='h-4 w-4' strokeWidth={1.6} />
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {/* Tab Content */}
+      {activeTab === 'schedules' && (
+        <Card className='border border-white/10'>
+          <h2 className='mb-6 text-xl font-semibold text-brand-50'>Lịch trình</h2>
+          {schedules.length === 0 ? (
+            <div className='flex min-h-[240px] flex-col items-center justify-center gap-3 text-ink-300'>
+              <IconBadge icon={CalendarRange} tone='neutral' />
+              <p className='text-base font-semibold text-brand-50'>
+                Chưa có lịch trình nào được tạo
+              </p>
+            </div>
+          ) : (
+            <div className='grid gap-4 md:grid-cols-2'>
+              {schedules.map(schedule => (
+                <Card key={schedule.id} className='border border-white/5'>
+                  <div className='flex items-start justify-between mb-4'>
+                    <div>
+                      <h3 className='text-lg font-semibold text-brand-50'>
+                        {schedule.gym_class.name}
+                      </h3>
+                      <p className='text-sm text-ink-300'>{schedule.gym_class.description}</p>
+                    </div>
+                    <span
+                      className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${
+                        schedule.current_bookings >= schedule.capacity
+                          ? 'border-red-500/40 bg-red-500/10 text-red-300'
+                          : 'border-emerald-500/40 bg-emerald-500/10 text-emerald-200'
+                      }`}
+                    >
+                      {schedule.current_bookings}/{schedule.capacity}
+                    </span>
+                  </div>
+
+                  <div className='grid grid-cols-1 gap-3 text-sm'>
+                    <div className='flex items-center gap-2'>
+                      <User className='h-4 w-4 text-brand-300' strokeWidth={1.6} />
+                      <span className='text-ink-300'>Huấn luyện viên:</span>
+                      <span className='text-brand-50'>{schedule.instructor.name}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <MapPin className='h-4 w-4 text-brand-300' strokeWidth={1.6} />
+                      <span className='text-ink-300'>Phòng:</span>
+                      <span className='text-brand-50'>{schedule.room.name}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <CalendarRange className='h-4 w-4 text-brand-300' strokeWidth={1.6} />
+                      <span className='text-ink-300'>Ngày:</span>
+                      <span className='text-brand-50'>{formatDate(schedule.date)}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <Clock className='h-4 w-4 text-brand-300' strokeWidth={1.6} />
+                      <span className='text-ink-300'>Thời gian:</span>
+                      <span className='text-brand-50'>
+                        {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'classes' && (
+        <Card className='border border-white/10'>
+          <h2 className='mb-6 text-xl font-semibold text-brand-50'>Lớp học</h2>
+          {classes.length === 0 ? (
+            <div className='flex min-h-[240px] flex-col items-center justify-center gap-3 text-ink-300'>
+              <IconBadge icon={BookOpen} tone='neutral' />
+              <p className='text-base font-semibold text-brand-50'>Chưa có lớp học nào được tạo</p>
+            </div>
+          ) : (
+            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+              {classes.map(gymClass => (
+                <Card key={gymClass.id} className='border border-white/5'>
+                  <div className='flex items-center gap-3 mb-4'>
+                    <IconBadge icon={BookOpen} tone='brand' size='sm' />
+                    <h3 className='text-lg font-semibold text-brand-50'>{gymClass.name}</h3>
+                  </div>
+                  <p className='text-sm text-ink-300 mb-4'>{gymClass.description}</p>
+                  <div className='grid grid-cols-2 gap-3 text-sm'>
+                    <div>
+                      <p className='text-ink-400'>Thời lượng</p>
+                      <p className='text-brand-50'>{gymClass.duration} phút</p>
+                    </div>
+                    <div>
+                      <p className='text-ink-400'>Sức chứa</p>
+                      <p className='text-brand-50'>{gymClass.max_capacity} người</p>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'instructors' && (
+        <Card className='border border-white/10'>
+          <h2 className='mb-6 text-xl font-semibold text-brand-50'>Huấn luyện viên</h2>
+          {instructors.length === 0 ? (
+            <div className='flex min-h-[240px] flex-col items-center justify-center gap-3 text-ink-300'>
+              <IconBadge icon={Users} tone='neutral' />
+              <p className='text-base font-semibold text-brand-50'>Chưa có huấn luyện viên nào</p>
+            </div>
+          ) : (
+            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+              {instructors.map(instructor => (
+                <Card key={instructor.id} className='border border-white/5'>
+                  <div className='flex items-center gap-3 mb-4'>
+                    <IconBadge icon={User} tone='brand' size='sm' />
+                    <h3 className='text-lg font-semibold text-brand-50'>{instructor.name}</h3>
+                  </div>
+                  <div className='space-y-2 text-sm'>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Email:</span>
+                      <span className='text-brand-50'>{instructor.email}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Điện thoại:</span>
+                      <span className='text-brand-50'>{instructor.phone}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Chuyên môn:</span>
+                      <span className='text-brand-50'>{instructor.specialization}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Kinh nghiệm:</span>
+                      <span className='text-brand-50'>{instructor.experience_years} năm</span>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {activeTab === 'rooms' && (
+        <Card className='border border-white/10'>
+          <h2 className='mb-6 text-xl font-semibold text-brand-50'>Phòng tập</h2>
+          {rooms.length === 0 ? (
+            <div className='flex min-h-[240px] flex-col items-center justify-center gap-3 text-ink-300'>
+              <IconBadge icon={MapPin} tone='neutral' />
+              <p className='text-base font-semibold text-brand-50'>Chưa có phòng tập nào</p>
+            </div>
+          ) : (
+            <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
+              {rooms.map(room => (
+                <Card key={room.id} className='border border-white/5'>
+                  <div className='flex items-center gap-3 mb-4'>
+                    <IconBadge icon={MapPin} tone='brand' size='sm' />
+                    <h3 className='text-lg font-semibold text-brand-50'>{room.name}</h3>
+                  </div>
+                  <div className='space-y-2 text-sm'>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Vị trí:</span>
+                      <span className='text-brand-50'>{room.location}</span>
+                    </div>
+                    <div className='flex items-center gap-2'>
+                      <span className='text-ink-400'>Sức chứa:</span>
+                      <span className='text-brand-50'>{room.capacity} người</span>
+                    </div>
+                    <div>
+                      <span className='text-ink-400'>Thiết bị:</span>
+                      <div className='mt-1 flex flex-wrap gap-1'>
+                        {room.equipment.map((item, index) => (
+                          <span
+                            key={index}
+                            className='rounded-full border border-brand-500/40 bg-brand-500/10 px-2 py-1 text-xs text-brand-100'
+                          >
+                            {item}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}

@@ -1,1 +1,0 @@
-import React from 'react';export default function Card({title,children}:{title:string,children:React.ReactNode}){return <div style={{border:'1px solid #eee', borderRadius:12, padding:16, marginBottom:16}}><h3 style={{margin:'0 0 8px'}}>{title}</h3><div>{children}</div></div>}

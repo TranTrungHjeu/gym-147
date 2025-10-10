@@ -1,0 +1,1 @@
+export { OwlCarousel } from './OwlCarousel';

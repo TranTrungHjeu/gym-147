@@ -1,0 +1,441 @@
+import { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { EyeCloseIcon, EyeIcon } from '../../icons';
+import Label from '../form/Label';
+import Input from '../form/input/InputField';
+import Checkbox from '../form/input/Checkbox';
+import { ButtonLoading } from '../ui/AppLoading/Loading';
+import { useNavigation } from '../../context/NavigationContext';
+
+interface SignInFormProps {
+  onSwitchToSignUp?: () => void;
+}
+
+export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
+  const { setIsNavigating } = useNavigation();
+  const [showPassword, setShowPassword] = useState(false);
+  const [isChecked, setIsChecked] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [isFormLoaded, setIsFormLoaded] = useState(false);
+  const [loginType, setLoginType] = useState('email'); // 'email' or 'phone'
+  const [isAdminLogin, setIsAdminLogin] = useState(false);
+  const navigate = useNavigate();
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsFormLoaded(true), 200);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Validation functions
+  const validateField = (name: string, value: string): string => {
+    switch (name) {
+      case 'email':
+        if (!value) {
+          return loginType === 'email'
+            ? 'Email không được để trống'
+            : 'Số điện thoại không được để trống';
+        }
+        if (loginType === 'email') {
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Email không hợp lệ';
+        } else {
+          if (!/^[0-9]{10,11}$/.test(value.replace(/\s/g, '')))
+            return 'Số điện thoại phải có 10-11 chữ số';
+        }
+        return '';
+      case 'password':
+        if (!value) return 'Mật khẩu không được để trống';
+        return '';
+      default:
+        return '';
+    }
+  };
+
+  const handleFieldChange = (name: string, value: string) => {
+    if (name === 'email') setEmail(value);
+    if (name === 'password') setPassword(value);
+
+    // Mark field as touched
+    setTouchedFields(prev => ({ ...prev, [name]: true }));
+
+    // Validate field
+    const error = validateField(name, value);
+    setFieldErrors(prev => ({ ...prev, [name]: error }));
+  };
+
+  // Handle login type change
+  const handleLoginTypeChange = (type: string) => {
+    setLoginType(type);
+    // Clear email field error when switching type
+    setFieldErrors(prev => ({ ...prev, email: '' }));
+  };
+
+  const handleFieldBlur = (name: string) => {
+    setTouchedFields(prev => ({ ...prev, [name]: true }));
+    const value = name === 'email' ? email : password;
+    const error = validateField(name, value);
+    setFieldErrors(prev => ({ ...prev, [name]: error }));
+  };
+
+  // Error Message Component
+  const ErrorMessage = ({ fieldName }: { fieldName: string }) => {
+    const error = fieldErrors[fieldName];
+    const isTouched = touchedFields[fieldName];
+
+    if (!isTouched || !error) return null;
+
+    return (
+      <div className='flex items-center gap-1 mt-1'>
+        <svg
+          className='w-3 h-3 text-red-500 dark:text-red-400 flex-shrink-0'
+          fill='currentColor'
+          viewBox='0 0 20 20'
+        >
+          <path
+            fillRule='evenodd'
+            d='M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z'
+            clipRule='evenodd'
+          />
+        </svg>
+        <p className='text-red-600 dark:text-red-300 text-xs leading-relaxed'>{error}</p>
+      </div>
+    );
+  };
+
+  // Mock login function
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsLoading(true);
+
+    // Mark all fields as touched for validation
+    setTouchedFields({ email: true, password: true });
+
+    // Validate all fields
+    const emailError = validateField('email', email);
+    const passwordError = validateField('password', password);
+
+    setFieldErrors({
+      email: emailError,
+      password: passwordError,
+    });
+
+    // If there are validation errors, stop here
+    if (emailError || passwordError) {
+      setIsLoading(false);
+      return;
+    }
+
+    // Simulate API call delay
+    await new Promise(resolve => setTimeout(resolve, 1000));
+
+    // Mock credentials
+    if (email === 'admin@gym147.com' && password === 'admin123') {
+      // Store login state in localStorage
+      localStorage.setItem('isLoggedIn', 'true');
+      localStorage.setItem('userEmail', email);
+
+      // Set navigation loading
+      setIsNavigating(true);
+
+      // Navigate to dashboard
+      navigate('/dashboard');
+    } else {
+      // Set login error
+      setFieldErrors(prev => ({
+        ...prev,
+        password: 'Email hoặc mật khẩu không đúng. Thử: admin@gym147.com / admin123',
+      }));
+    }
+
+    setIsLoading(false);
+  };
+  return (
+    <div
+      className={`flex flex-col h-full transition-all duration-1000 ${isFormLoaded ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}
+    >
+      {/* Back Button */}
+
+      {/* Form Container */}
+      <div className='flex flex-col justify-center flex-1 w-full max-w-md mx-auto py-1'>
+        <div className='bg-white/80 dark:bg-gray-800/80 backdrop-blur-xl rounded-3xl p-4 border border-gray-200 dark:border-gray-700 shadow-2xl auth-form-container'>
+          {/* Header */}
+          <div className='mb-3 text-center'>
+            <div className='inline-flex items-center justify-center w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-2xl mb-2 shadow-lg auth-icon'>
+              <svg
+                className='w-5 h-5 text-white'
+                fill='none'
+                stroke='currentColor'
+                viewBox='0 0 24 24'
+              >
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1'
+                />
+              </svg>
+            </div>
+            <h1
+              className='mb-1 font-bold text-lg animate-fade-in-up delay-200 text-white'
+              style={{ color: 'white !important', textShadow: '0 0 10px rgba(255,255,255,0.5)' }}
+            >
+              ĐĂNG NHẬP
+            </h1>
+            <p className='text-gray-600 dark:text-white/70 text-xs '>
+              Chào mừng bạn quay trở lại Gym 147!
+            </p>
+          </div>
+
+          {/* Login Type Toggle */}
+          <div className='mb-3'>
+            <div className='flex bg-gray-100 dark:bg-gray-700/80 rounded-xl p-1 border border-gray-200 dark:border-gray-600'>
+              <button
+                type='button'
+                onClick={() => handleLoginTypeChange('email')}
+                className={`flex-1 py-2 px-3 text-xs font-medium rounded-lg transition-all duration-300  ${
+                  loginType === 'email'
+                    ? 'bg-orange-500 text-white shadow-lg'
+                    : 'text-gray-600 dark:text-white/70 hover:text-gray-800 dark:hover:text-white'
+                }`}
+              >
+                Email
+              </button>
+              <button
+                type='button'
+                onClick={() => handleLoginTypeChange('phone')}
+                className={`flex-1 py-2 px-3 text-xs font-medium rounded-lg transition-all duration-300  ${
+                  loginType === 'phone'
+                    ? 'bg-orange-500 text-white shadow-lg'
+                    : 'text-gray-600 dark:text-white/70 hover:text-gray-800 dark:hover:text-white'
+                }`}
+              >
+                Số điện thoại
+              </button>
+            </div>
+          </div>
+          {/* Social Login Buttons */}
+          <div className='mb-3'>
+            <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3'>
+              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-white transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+                <svg
+                  width='20'
+                  height='20'
+                  viewBox='0 0 20 20'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                >
+                  <path
+                    d='M18.7511 10.1944C18.7511 9.47495 18.6915 8.94995 18.5626 8.40552H10.1797V11.6527H15.1003C15.0011 12.4597 14.4654 13.675 13.2749 14.4916L13.2582 14.6003L15.9087 16.6126L16.0924 16.6305C17.7788 15.1041 18.7511 12.8583 18.7511 10.1944Z'
+                    fill='#4285F4'
+                  />
+                  <path
+                    d='M10.1788 18.75C12.5895 18.75 14.6133 17.9722 16.0915 16.6305L13.274 14.4916C12.5201 15.0068 11.5081 15.3666 10.1788 15.3666C7.81773 15.3666 5.81379 13.8402 5.09944 11.7305L4.99473 11.7392L2.23868 13.8295L2.20264 13.9277C3.67087 16.786 6.68674 18.75 10.1788 18.75Z'
+                    fill='#34A853'
+                  />
+                  <path
+                    d='M5.10014 11.7305C4.91165 11.186 4.80257 10.6027 4.80257 9.99992C4.80257 9.3971 4.91165 8.81379 5.09022 8.26935L5.08523 8.1534L2.29464 6.02954L2.20333 6.0721C1.5982 7.25823 1.25098 8.5902 1.25098 9.99992C1.25098 11.4096 1.5982 12.7415 2.20333 13.9277L5.10014 11.7305Z'
+                    fill='#FBBC05'
+                  />
+                  <path
+                    d='M10.1789 4.63331C11.8554 4.63331 12.9864 5.34303 13.6312 5.93612L16.1511 3.525C14.6035 2.11528 12.5895 1.25 10.1789 1.25C6.68676 1.25 3.67088 3.21387 2.20264 6.07218L5.08953 8.26943C5.81381 6.15972 7.81776 4.63331 10.1789 4.63331Z'
+                    fill='#EB4335'
+                  />
+                </svg>
+                GOOGLE
+              </button>
+              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-white transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+                <svg
+                  width='20'
+                  height='20'
+                  viewBox='0 0 20 20'
+                  fill='none'
+                  xmlns='http://www.w3.org/2000/svg'
+                  className='fill-current'
+                >
+                  <path d='M20 10C20 4.477 15.523 0 10 0S0 4.477 0 10c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V10h2.54V7.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V10h2.773l-.443 2.89h-2.33v6.988C16.343 19.128 20 14.991 20 10z' />
+                </svg>
+                FACEBOOK
+              </button>
+            </div>
+
+            {/* Divider */}
+            <div className='relative py-3'>
+              <div className='absolute inset-0 flex items-center'>
+                <div className='w-full border-t border-gray-300 dark:border-gray-600'></div>
+              </div>
+              <div className='relative flex justify-center text-sm'>
+                <span className='px-4 py-2 text-gray-500 dark:text-white/60 bg-transparent backdrop-blur-sm rounded-full border border-gray-300 dark:border-gray-600'>
+                  OR
+                </span>
+              </div>
+            </div>
+            {/* Login Form */}
+            <form onSubmit={handleLogin} className='space-y-3'>
+              {/* Email/Phone Field */}
+              <div className='space-y-2'>
+                <Label className='text-gray-700 dark:text-white/90 font-medium '>
+                  {loginType === 'email' ? 'Email' : 'Số điện thoại'}{' '}
+                  <span className='text-orange-400'>*</span>
+                </Label>
+                <div className='relative'>
+                  <Input
+                    type={loginType === 'email' ? 'email' : 'tel'}
+                    name='email'
+                    placeholder={loginType === 'email' ? 'admin@gym147.com' : '0123456789'}
+                    value={email}
+                    onChange={e => handleFieldChange('email', e.target.value)}
+                    onBlur={() => handleFieldBlur('email')}
+                    className={`w-full px-4 py-3 bg-white/90 dark:bg-gray-700/80 border rounded-xl text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-white/50 focus:ring-2 transition-all duration-300 backdrop-blur-sm auth-input ${
+                      touchedFields.email && fieldErrors.email
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                        : 'border-gray-300 dark:border-gray-600 focus:border-orange-400 focus:ring-orange-400/20'
+                    }`}
+                  />
+                  <div className='absolute inset-y-0 right-0 flex items-center pr-3'>
+                    {loginType === 'email' ? (
+                      <svg
+                        className='w-5 h-5 text-gray-500 dark:text-white/50'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth={2}
+                          d='M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207'
+                        />
+                      </svg>
+                    ) : (
+                      <svg
+                        className='w-5 h-5 text-gray-500 dark:text-white/50'
+                        fill='none'
+                        stroke='currentColor'
+                        viewBox='0 0 24 24'
+                      >
+                        <path
+                          strokeLinecap='round'
+                          strokeLinejoin='round'
+                          strokeWidth={2}
+                          d='M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z'
+                        />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+                <ErrorMessage fieldName='email' />
+              </div>
+
+              {/* Password Field */}
+              <div className='space-y-2'>
+                <Label className='text-gray-700 dark:text-white/90 font-medium '>
+                  Mật khẩu <span className='text-orange-400'>*</span>
+                </Label>
+                <div className='relative'>
+                  <div className='absolute inset-y-0 right-0 flex items-center pr-3 z-20 pointer-events-none'>
+                    <svg
+                      className='w-5 h-5 text-gray-500 dark:text-white/50'
+                      fill='none'
+                      stroke='currentColor'
+                      viewBox='0 0 24 24'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z'
+                      />
+                    </svg>
+                  </div>
+                  <Input
+                    type={showPassword ? 'text' : 'password'}
+                    name='password'
+                    placeholder='admin123'
+                    value={password}
+                    onChange={e => handleFieldChange('password', e.target.value)}
+                    onBlur={() => handleFieldBlur('password')}
+                    className={`w-full pl-4 pr-16 py-3 bg-white/90 dark:bg-gray-700/80 border rounded-xl text-gray-800 dark:text-white placeholder-gray-500 dark:placeholder-white/50 focus:ring-2 transition-all duration-300 backdrop-blur-sm auth-input ${
+                      touchedFields.password && fieldErrors.password
+                        ? 'border-red-400 focus:border-red-400 focus:ring-red-400/20'
+                        : 'border-gray-300 dark:border-gray-600 focus:border-orange-400 focus:ring-orange-400/20'
+                    }`}
+                  />
+                  <button
+                    type='button'
+                    onClick={() => setShowPassword(!showPassword)}
+                    className='absolute inset-y-0 right-0 flex items-center pr-12 text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors duration-200 z-30'
+                  >
+                    {showPassword ? (
+                      <img src={EyeIcon} alt='hide' className='w-5 h-5' />
+                    ) : (
+                      <img src={EyeCloseIcon} alt='show' className='w-5 h-5' />
+                    )}
+                  </button>
+                </div>
+                <ErrorMessage fieldName='password' />
+              </div>
+              {/* Admin Login Option */}
+              <div className='flex items-center gap-3'>
+                <Checkbox
+                  className='w-5 h-5 text-orange-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700/80 focus:ring-orange-400/20'
+                  checked={isAdminLogin}
+                  onChange={setIsAdminLogin}
+                />
+                <span className='text-gray-700 dark:text-white/80 text-sm font-medium '>
+                  Đăng nhập với tư cách quản trị viên
+                </span>
+              </div>
+
+              {/* Remember Me & Forgot Password */}
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3'>
+                  <Checkbox
+                    checked={isChecked}
+                    onChange={setIsChecked}
+                    className='w-5 h-5 text-orange-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700/80 focus:ring-orange-400/20'
+                  />
+                  <span className='text-gray-700 dark:text-white/80 text-sm font-medium '>
+                    Ghi nhớ đăng nhập
+                  </span>
+                </div>
+                <Link
+                  to='/reset-password'
+                  className='text-sm text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 transition-colors duration-200 font-medium '
+                >
+                  Quên mật khẩu?
+                </Link>
+              </div>
+
+              {/* Submit Button */}
+              <div>
+                <button
+                  type='submit'
+                  className='w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-orange-500/25 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none  auth-button'
+                  disabled={isLoading}
+                >
+                  {isLoading ? <ButtonLoading /> : 'Đăng Nhập'}
+                </button>
+              </div>
+            </form>
+
+            {/* Sign Up Link */}
+            <div className='mt-6 text-center'>
+              <p className='text-gray-600 dark:text-white/70 text-sm'>
+                Chưa có tài khoản?{' '}
+                <button
+                  onClick={onSwitchToSignUp}
+                  className='text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 font-semibold transition-colors duration-200 hover:underline'
+                >
+                  Đăng ký ngay
+                </button>
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

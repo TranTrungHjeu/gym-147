@@ -1,3 +1,4 @@
+
 // Member Service Prisma Schema - IoT Gym Management
 generator client {
   provider = "prisma-client-js"

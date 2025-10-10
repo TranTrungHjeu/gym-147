@@ -4,3 +4,11 @@ dist
 .DS_Store
 coverage
 */prisma/dev.db
+
+# Large files and executables
+*.exe
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm

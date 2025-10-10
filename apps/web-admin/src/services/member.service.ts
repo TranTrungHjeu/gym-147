@@ -1,59 +1,178 @@
-import { del, get, post, put } from './api';
+import { memberApi } from './api';
 
 export interface Member {
   id: string;
   full_name: string;
   phone: string;
   email: string;
+  date_of_birth?: Date;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  emergency_contact?: string;
   membership_status: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
   rfid_tag?: string;
-  joined_at: string;
+  joined_at: Date;
+  created_at: Date;
+  updated_at: Date;
+  current_membership?: any;
+}
+
+export interface CreateMemberRequest {
+  user_id?: string;
+  full_name: string;
+  phone: string;
+  email: string;
+  date_of_birth?: string;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  emergency_contact?: string;
+  address?: string;
+  membership_type?: string;
+}
+
+export interface UpdateMemberRequest {
+  full_name?: string;
+  phone?: string;
+  email?: string;
+  date_of_birth?: Date;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  emergency_contact?: string;
+  membership_status?: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
 }
 
 export interface MemberFilters {
-  search?: string;
-  status?: string;
   page?: number;
   limit?: number;
+  search?: string;
+  status?: string;
 }
 
-export interface MemberResponse {
-  members: Member[];
+export interface PaginationResult<T> {
+  items: T[];
   pagination: {
     page: number;
     limit: number;
     total: number;
+    totalPages: number;
   };
 }
 
-export const memberService = {
-  // Get all members with filters
-  async getMembers(filters: MemberFilters = {}): Promise<MemberResponse> {
-    return get<MemberResponse>(`/member/members?${new URLSearchParams(filters as any)}`);
-  },
+export interface MemberStats {
+  total: number;
+  active: number;
+  expired: number;
+  suspended: number;
+  newThisMonth: number;
+}
 
-  // Get single member
-  async getMember(id: string): Promise<Member> {
-    return get<Member>(`/member/members/${id}`);
-  },
+export class MemberService {
+  // Get all members with filters and pagination
+  static async getMembers(filters: MemberFilters = {}): Promise<PaginationResult<Member>> {
+    const params = new URLSearchParams();
+    if (filters.page) params.append('page', filters.page.toString());
+    if (filters.limit) params.append('limit', filters.limit.toString());
+    if (filters.search) params.append('search', filters.search);
+    if (filters.status) params.append('status', filters.status);
+
+    const response = await memberApi.get(`/members?${params.toString()}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to get members');
+  }
+
+  // Get member by ID
+  static async getMemberById(id: string): Promise<Member> {
+    const response = await memberApi.get(`/members/${id}`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to get member');
+  }
 
   // Create new member
-  async createMember(member: Omit<Member, 'id' | 'joined_at'>): Promise<Member> {
-    return post<Member>('/member/members', member);
-  },
+  static async createMember(data: CreateMemberRequest): Promise<Member> {
+    const response = await memberApi.post('/members', data);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to create member');
+  }
 
   // Update member
-  async updateMember(id: string, updates: Partial<Member>): Promise<Member> {
-    return put<Member>(`/member/members/${id}`, updates);
-  },
+  static async updateMember(id: string, data: UpdateMemberRequest): Promise<Member> {
+    const response = await memberApi.put(`/members/${id}`, data);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to update member');
+  }
 
   // Delete member
-  async deleteMember(id: string): Promise<void> {
-    return del<void>(`/member/members/${id}`);
-  },
+  static async deleteMember(id: string): Promise<void> {
+    const response = await memberApi.delete(`/members/${id}`);
+    if (!response.data.success) {
+      throw new Error(response.data.message || 'Failed to delete member');
+    }
+  }
 
-  // Get member stats
-  async getMemberStats() {
-    return get('/member/stats');
-  },
-};
+  // Get member statistics
+  static async getMemberStats(): Promise<MemberStats> {
+    const response = await memberApi.get('/members/stats');
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to get member statistics');
+  }
+
+  // Check service health
+  static async health() {
+    const response = await memberApi.get('/health');
+    return response.data;
+  }
+
+  // Get member memberships
+  static async getMemberMemberships(memberId: string) {
+    const response = await memberApi.get(`/members/${memberId}/memberships`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to get member memberships');
+  }
+
+  // Create membership for member
+  static async createMembership(memberId: string, membershipData: any) {
+    const response = await memberApi.post(`/members/${memberId}/memberships`, membershipData);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to create membership');
+  }
+
+  // Get member access logs
+  static async getMemberAccessLogs(memberId: string, page: number = 1, limit: number = 20) {
+    const response = await memberApi.get(
+      `/members/${memberId}/access-logs?page=${page}&limit=${limit}`
+    );
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to get access logs');
+  }
+
+  // Member check-in
+  static async checkInMember(memberId: string, method: string = 'MANUAL', location?: string) {
+    const response = await memberApi.post(`/members/${memberId}/checkin`, { method, location });
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to check in member');
+  }
+
+  // Member check-out
+  static async checkOutMember(memberId: string) {
+    const response = await memberApi.post(`/members/${memberId}/checkout`);
+    if (response.data.success) {
+      return response.data.data;
+    }
+    throw new Error(response.data.message || 'Failed to check out member');
+  }
+}

@@ -1,0 +1,579 @@
+import React, { useEffect, useState } from 'react';
+// @ts-ignore
+import './ScheduleManagement.css';
+
+const SCHEDULE_API_BASE = 'http://localhost:3003';
+
+interface GymClass {
+  id: string;
+  name: string;
+  description?: string;
+  type: string;
+  difficulty: string;
+  duration_minutes: number;
+  max_participants: number;
+  price?: number;
+}
+
+interface Instructor {
+  id: string;
+  full_name: string;
+  email: string;
+  phone?: string;
+  specializations?: string[];
+  bio?: string;
+  experience_years: number;
+}
+
+interface Room {
+  id: string;
+  name: string;
+  capacity: number;
+  location?: string;
+  amenities?: string[];
+  description?: string;
+}
+
+interface Schedule {
+  id: string;
+  class?: GymClass;
+  instructor?: Instructor;
+  room?: Room;
+  start_time: string;
+  end_time: string;
+}
+
+interface Stats {
+  total_classes?: number;
+  total_instructors?: number;
+  total_rooms?: number;
+  total_schedules?: number;
+}
+
+interface FormData {
+  name?: string;
+  description?: string;
+  type?: string;
+  difficulty?: string;
+  duration_minutes?: string;
+  max_participants?: string;
+  price?: string;
+  full_name?: string;
+  email?: string;
+  phone?: string;
+  specializations?: string;
+  bio?: string;
+  experience_years?: string;
+  capacity?: string;
+  location?: string;
+  amenities?: string;
+}
+
+const ScheduleManagement = () => {
+  const [activeTab, setActiveTab] = useState<string>('classes');
+  const [data, setData] = useState<{
+    classes: GymClass[];
+    schedules: Schedule[];
+    instructors: Instructor[];
+    rooms: Room[];
+    stats: Stats;
+  }>({
+    classes: [],
+    schedules: [],
+    instructors: [],
+    rooms: [],
+    stats: {},
+  });
+  const [loading, setLoading] = useState<boolean>(false);
+  const [showCreateForm, setShowCreateForm] = useState<boolean>(false);
+  const [formData, setFormData] = useState<FormData>({});
+
+  // Fetch data
+  const fetchData = async (endpoint: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${SCHEDULE_API_BASE}/${endpoint}`);
+      const result = await response.json();
+
+      if (result.success) {
+        setData(prev => ({
+          ...prev,
+          [endpoint]: result.data.items || result.data.stats || [],
+        }));
+      } else {
+        alert(`Error fetching ${endpoint}: ${result.message}`);
+      }
+    } catch (error) {
+      console.error(`Error fetching ${endpoint}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error fetching ${endpoint}: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create sample data
+  const createSampleData = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${SCHEDULE_API_BASE}/sample-data`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        alert('Sample data created successfully!');
+        // Refresh current tab data
+        fetchData(activeTab);
+      } else {
+        alert(`Error creating sample data: ${result.message}`);
+      }
+    } catch (error) {
+      console.error('Error creating sample data:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Create new item
+  const createItem = async (endpoint: string, itemData: any) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${SCHEDULE_API_BASE}/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData),
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        alert(`${endpoint.slice(0, -1)} created successfully!`);
+        setShowCreateForm(false);
+        setFormData({});
+        fetchData(endpoint);
+      } else {
+        alert(`Error creating ${endpoint.slice(0, -1)}: ${result.message}`);
+      }
+    } catch (error) {
+      console.error(`Error creating ${endpoint.slice(0, -1)}:`, error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      alert(`Error: ${errorMessage}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Handle form submission
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const endpoint = activeTab;
+    let processedData: any = { ...formData };
+
+    // Process form data based on type
+    if (endpoint === 'classes') {
+      processedData = {
+        name: formData.name,
+        description: formData.description,
+        type: formData.type || 'FITNESS',
+        difficulty: formData.difficulty || 'BEGINNER',
+        duration_minutes: parseInt(formData.duration_minutes || '0') || 60,
+        max_participants: parseInt(formData.max_participants || '0') || 20,
+        price: parseFloat(formData.price || '0') || 0,
+      };
+    } else if (endpoint === 'instructors') {
+      processedData = {
+        full_name: formData.full_name,
+        email: formData.email,
+        phone: formData.phone,
+        specializations: formData.specializations
+          ? formData.specializations.split(',').map(s => s.trim())
+          : [],
+        bio: formData.bio,
+        experience_years: parseInt(formData.experience_years || '0') || 0,
+      };
+    } else if (endpoint === 'rooms') {
+      processedData = {
+        name: formData.name,
+        description: formData.description,
+        capacity: parseInt(formData.capacity || '0'),
+        location: formData.location,
+        amenities: formData.amenities ? formData.amenities.split(',').map(a => a.trim()) : [],
+      };
+    }
+
+    createItem(endpoint, processedData);
+  };
+
+  // Load initial data
+  useEffect(() => {
+    fetchData(activeTab);
+    if (activeTab === 'stats') {
+      fetchData('stats');
+    }
+  }, [activeTab]);
+
+  return (
+    <div className='schedule-management'>
+      <div className='header'>
+        <h1>Schedule Management System</h1>
+        <div className='header-actions'>
+          <button onClick={createSampleData} className='btn btn-secondary' disabled={loading}>
+            Create Sample Data
+          </button>
+          {activeTab !== 'schedules' && activeTab !== 'stats' && (
+            <button
+              onClick={() => setShowCreateForm(true)}
+              className='btn btn-primary'
+              disabled={loading}
+            >
+              Add {activeTab.slice(0, -1)}
+            </button>
+          )}
+        </div>
+      </div>
+
+      <div className='tabs'>
+        {['classes', 'schedules', 'instructors', 'rooms', 'stats'].map(tab => (
+          <button
+            key={tab}
+            className={`tab ${activeTab === tab ? 'active' : ''}`}
+            onClick={() => setActiveTab(tab)}
+          >
+            {tab.charAt(0).toUpperCase() + tab.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      <div className='content'>
+        {loading && <div className='loading'>Loading...</div>}
+
+        {/* Classes Tab */}
+        {activeTab === 'classes' && (
+          <div className='classes-section'>
+            <h2>🏋️ Gym Classes ({data.classes.length})</h2>
+            <div className='items-grid'>
+              {data.classes.map(cls => (
+                <div key={cls.id} className='item-card'>
+                  <h3>🎯 {cls.name}</h3>
+                  {cls.description && <p className='description'>{cls.description}</p>}
+                  <div className='card-details'>
+                    <p>
+                      <strong>📋 Type:</strong> <span className='badge badge-type'>{cls.type}</span>
+                    </p>
+                    <p>
+                      <strong>⚡ Difficulty:</strong>{' '}
+                      <span className={`badge badge-${cls.difficulty.toLowerCase()}`}>
+                        {cls.difficulty}
+                      </span>
+                    </p>
+                    <p>
+                      <strong>⏱️ Duration:</strong> {cls.duration_minutes} minutes
+                    </p>
+                    <p>
+                      <strong>👥 Max Participants:</strong> {cls.max_participants}
+                    </p>
+                    {cls.price && (
+                      <p>
+                        <strong>💰 Price:</strong> <span className='price'>${cls.price}</span>
+                      </p>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Instructors Tab */}
+        {activeTab === 'instructors' && (
+          <div className='instructors-section'>
+            <h2>👨‍🏫 Instructors ({data.instructors.length})</h2>
+            <div className='items-grid'>
+              {data.instructors.map(instructor => (
+                <div key={instructor.id} className='item-card'>
+                  <h3>🌟 {instructor.full_name}</h3>
+                  {instructor.bio && <p className='description'>{instructor.bio}</p>}
+                  <div className='card-details'>
+                    <p>
+                      <strong>📧 Email:</strong> {instructor.email}
+                    </p>
+                    {instructor.phone && (
+                      <p>
+                        <strong>📱 Phone:</strong> {instructor.phone}
+                      </p>
+                    )}
+                    <p>
+                      <strong>🎓 Experience:</strong>{' '}
+                      <span className='badge badge-experience'>
+                        {instructor.experience_years} years
+                      </span>
+                    </p>
+                    <p>
+                      <strong>💪 Specializations:</strong>
+                    </p>
+                    <div className='specializations'>
+                      {instructor.specializations?.map((spec, index) => (
+                        <span key={index} className='badge badge-specialization'>
+                          {spec}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Rooms Tab */}
+        {activeTab === 'rooms' && (
+          <div className='rooms-section'>
+            <h2>Rooms ({data.rooms.length})</h2>
+            <div className='items-grid'>
+              {data.rooms.map(room => (
+                <div key={room.id} className='item-card'>
+                  <h3>{room.name}</h3>
+                  <p>
+                    <strong>Capacity:</strong> {room.capacity} people
+                  </p>
+                  {room.location && (
+                    <p>
+                      <strong>Location:</strong> {room.location}
+                    </p>
+                  )}
+                  {room.amenities && (
+                    <p>
+                      <strong>Amenities:</strong> {room.amenities.join(', ')}
+                    </p>
+                  )}
+                  {room.description && <p>{room.description}</p>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Schedules Tab */}
+        {activeTab === 'schedules' && (
+          <div className='schedules-section'>
+            <h2>Schedules ({data.schedules.length})</h2>
+            <div className='items-grid'>
+              {data.schedules.map(schedule => (
+                <div key={schedule.id} className='item-card'>
+                  <h3>{schedule.class?.name}</h3>
+                  <p>
+                    <strong>Instructor:</strong> {schedule.instructor?.full_name}
+                  </p>
+                  <p>
+                    <strong>Room:</strong> {schedule.room?.name}
+                  </p>
+                  <p>
+                    <strong>Start:</strong> {new Date(schedule.start_time).toLocaleString()}
+                  </p>
+                  <p>
+                    <strong>End:</strong> {new Date(schedule.end_time).toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Stats Tab */}
+        {activeTab === 'stats' && (
+          <div className='stats-section'>
+            <h2>Statistics</h2>
+            <div className='stats-grid'>
+              <div className='stat-card'>
+                <h3>Total Classes</h3>
+                <p className='stat-number'>{data.stats.total_classes || 0}</p>
+              </div>
+              <div className='stat-card'>
+                <h3>Total Instructors</h3>
+                <p className='stat-number'>{data.stats.total_instructors || 0}</p>
+              </div>
+              <div className='stat-card'>
+                <h3>Total Rooms</h3>
+                <p className='stat-number'>{data.stats.total_rooms || 0}</p>
+              </div>
+              <div className='stat-card'>
+                <h3>Total Schedules</h3>
+                <p className='stat-number'>{data.stats.total_schedules || 0}</p>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Create Form Modal */}
+      {showCreateForm && (
+        <div className='modal-overlay' onClick={() => setShowCreateForm(false)}>
+          <div className='modal-content' onClick={e => e.stopPropagation()}>
+            <div className='modal-header'>
+              <h2>Create New {activeTab.slice(0, -1)}</h2>
+              <button onClick={() => setShowCreateForm(false)} className='close-btn'>
+                ×
+              </button>
+            </div>
+
+            <form onSubmit={handleSubmit}>
+              {/* Class Form */}
+              {activeTab === 'classes' && (
+                <div className='form-fields'>
+                  <input
+                    type='text'
+                    placeholder='Class Name'
+                    value={formData.name || ''}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                  <textarea
+                    placeholder='Description'
+                    value={formData.description || ''}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  />
+                  <select
+                    value={formData.type || 'FITNESS'}
+                    onChange={e => setFormData({ ...formData, type: e.target.value })}
+                  >
+                    <option value='FITNESS'>FITNESS</option>
+                    <option value='YOGA'>YOGA</option>
+                    <option value='CARDIO'>CARDIO</option>
+                    <option value='STRENGTH'>STRENGTH</option>
+                    <option value='DANCE'>DANCE</option>
+                  </select>
+                  <select
+                    value={formData.difficulty || 'BEGINNER'}
+                    onChange={e => setFormData({ ...formData, difficulty: e.target.value })}
+                  >
+                    <option value='BEGINNER'>BEGINNER</option>
+                    <option value='INTERMEDIATE'>INTERMEDIATE</option>
+                    <option value='ADVANCED'>ADVANCED</option>
+                  </select>
+                  <input
+                    type='number'
+                    placeholder='Duration (minutes)'
+                    value={formData.duration_minutes || ''}
+                    onChange={e => setFormData({ ...formData, duration_minutes: e.target.value })}
+                  />
+                  <input
+                    type='number'
+                    placeholder='Max Participants'
+                    value={formData.max_participants || ''}
+                    onChange={e => setFormData({ ...formData, max_participants: e.target.value })}
+                  />
+                  <input
+                    type='number'
+                    step='0.01'
+                    placeholder='Price'
+                    value={formData.price || ''}
+                    onChange={e => setFormData({ ...formData, price: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {/* Instructor Form */}
+              {activeTab === 'instructors' && (
+                <div className='form-fields'>
+                  <input
+                    type='text'
+                    placeholder='Full Name'
+                    value={formData.full_name || ''}
+                    onChange={e => setFormData({ ...formData, full_name: e.target.value })}
+                    required
+                  />
+                  <input
+                    type='email'
+                    placeholder='Email'
+                    value={formData.email || ''}
+                    onChange={e => setFormData({ ...formData, email: e.target.value })}
+                    required
+                  />
+                  <input
+                    type='tel'
+                    placeholder='Phone'
+                    value={formData.phone || ''}
+                    onChange={e => setFormData({ ...formData, phone: e.target.value })}
+                  />
+                  <input
+                    type='text'
+                    placeholder='Specializations (comma-separated)'
+                    value={formData.specializations || ''}
+                    onChange={e => setFormData({ ...formData, specializations: e.target.value })}
+                  />
+                  <input
+                    type='number'
+                    placeholder='Experience Years'
+                    value={formData.experience_years || ''}
+                    onChange={e => setFormData({ ...formData, experience_years: e.target.value })}
+                  />
+                  <textarea
+                    placeholder='Bio'
+                    value={formData.bio || ''}
+                    onChange={e => setFormData({ ...formData, bio: e.target.value })}
+                  />
+                </div>
+              )}
+
+              {/* Room Form */}
+              {activeTab === 'rooms' && (
+                <div className='form-fields'>
+                  <input
+                    type='text'
+                    placeholder='Room Name'
+                    value={formData.name || ''}
+                    onChange={e => setFormData({ ...formData, name: e.target.value })}
+                    required
+                  />
+                  <input
+                    type='number'
+                    placeholder='Capacity'
+                    value={formData.capacity || ''}
+                    onChange={e => setFormData({ ...formData, capacity: e.target.value })}
+                    required
+                  />
+                  <input
+                    type='text'
+                    placeholder='Location'
+                    value={formData.location || ''}
+                    onChange={e => setFormData({ ...formData, location: e.target.value })}
+                  />
+                  <input
+                    type='text'
+                    placeholder='Amenities (comma-separated)'
+                    value={formData.amenities || ''}
+                    onChange={e => setFormData({ ...formData, amenities: e.target.value })}
+                  />
+                  <textarea
+                    placeholder='Description'
+                    value={formData.description || ''}
+                    onChange={e => setFormData({ ...formData, description: e.target.value })}
+                  />
+                </div>
+              )}
+
+              <div className='form-actions'>
+                <button
+                  type='button'
+                  onClick={() => setShowCreateForm(false)}
+                  className='btn btn-secondary'
+                >
+                  Cancel
+                </button>
+                <button type='submit' className='btn btn-primary' disabled={loading}>
+                  Create
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ScheduleManagement;
