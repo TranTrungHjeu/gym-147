@@ -1,18 +1,29 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { EyeCloseIcon, EyeIcon } from '../../icons';
-import Label from '../form/Label';
-import Input from '../form/input/InputField';
-import Checkbox from '../form/input/Checkbox';
-import { ButtonLoading } from '../ui/AppLoading/Loading';
+import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '../../context/NavigationContext';
+import { useToast } from '../../hooks/useToast';
+import { EyeCloseIcon, EyeIcon } from '../../icons';
+import { authService } from '../../services/auth.service';
+import Label from '../form/Label';
+import Checkbox from '../form/input/Checkbox';
+import Input from '../form/input/InputField';
+import { ButtonLoading } from '../ui/AppLoading/Loading';
 
 interface SignInFormProps {
   onSwitchToSignUp?: () => void;
+  onSwitchToForgotPassword?: () => void;
+  clearErrors?: boolean;
+  autoFillCredentials?: { email?: string; phone?: string; password?: string };
 }
 
-export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
+export default function SignInForm({
+  onSwitchToSignUp,
+  onSwitchToForgotPassword,
+  clearErrors = false,
+  autoFillCredentials,
+}: SignInFormProps) {
   const { setIsNavigating } = useNavigation();
+  const { showToast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
   const [email, setEmail] = useState('');
@@ -29,6 +40,33 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
     const timer = setTimeout(() => setIsFormLoaded(true), 200);
     return () => clearTimeout(timer);
   }, []);
+
+  // Clear errors when clearErrors prop changes
+  useEffect(() => {
+    if (clearErrors) {
+      setFieldErrors({});
+      setTouchedFields({});
+    }
+  }, [clearErrors]);
+
+  // Auto-fill credentials when provided
+  useEffect(() => {
+    if (autoFillCredentials) {
+      if (autoFillCredentials.email) {
+        setEmail(autoFillCredentials.email);
+        setLoginType('email');
+      } else if (autoFillCredentials.phone) {
+        setEmail(autoFillCredentials.phone);
+        setLoginType('phone');
+      }
+      if (autoFillCredentials.password) {
+        setPassword(autoFillCredentials.password);
+      }
+      
+      // Show success toast for auto-fill
+      showToast('Thông tin đăng nhập đã được điền sẵn!', 'success');
+    }
+  }, [autoFillCredentials]);
 
   // Validation functions
   const validateField = (name: string, value: string): string => {
@@ -49,6 +87,11 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
       case 'password':
         if (!value) return 'Mật khẩu không được để trống';
         return '';
+      case 'adminLogin':
+        if (!isAdminLogin && (email.includes('admin') || email.includes('gym147'))) {
+          return 'Vui lòng tick "Đăng nhập với tư cách quản trị viên" để đăng nhập với tài khoản admin';
+        }
+        return '';
       default:
         return '';
     }
@@ -64,6 +107,28 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
     // Validate field
     const error = validateField(name, value);
     setFieldErrors(prev => ({ ...prev, [name]: error }));
+  };
+
+  const handleAdminLoginChange = (checked: boolean) => {
+    setIsAdminLogin(checked);
+    // Clear adminLogin error when checkbox is checked
+    if (checked) {
+      setFieldErrors(prev => ({ ...prev, adminLogin: '' }));
+    }
+  };
+
+  const handleForgotPasswordClick = () => {
+    // Clear all errors before switching to forgot password form
+    setFieldErrors({});
+    setTouchedFields({});
+    onSwitchToForgotPassword?.();
+  };
+
+  const handleSignUpClick = () => {
+    // Clear all errors before switching to sign up form
+    setFieldErrors({});
+    setTouchedFields({});
+    onSwitchToSignUp?.();
   };
 
   // Handle login type change
@@ -105,7 +170,7 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
     );
   };
 
-  // Mock login function
+  // Real login function
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -128,26 +193,81 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
       return;
     }
 
-    // Simulate API call delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
+    // Check if admin login is required but not checked
+    if (!isAdminLogin && (email.includes('admin') || email.includes('gym147'))) {
+      setFieldErrors({
+        email: emailError,
+        password: passwordError,
+        adminLogin:
+          'Vui lòng tick "Đăng nhập với tư cách quản trị viên" để đăng nhập với tài khoản admin',
+      });
+      setIsLoading(false);
+      return;
+    }
 
-    // Mock credentials
-    if (email === 'admin@gym147.com' && password === 'admin123') {
-      // Store login state in localStorage
-      localStorage.setItem('isLoggedIn', 'true');
-      localStorage.setItem('userEmail', email);
+    try {
+      // Call real API
+      const response = await authService.login({
+        identifier: email, // Backend expects 'identifier' field
+        password: password,
+      });
 
-      // Set navigation loading
-      setIsNavigating(true);
+      if (response.success) {
+        // Store tokens and user data
+        localStorage.setItem('accessToken', response.data.accessToken);
+        localStorage.setItem('refreshToken', response.data.refreshToken);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        localStorage.setItem('isLoggedIn', 'true');
 
-      // Navigate to dashboard
-      navigate('/dashboard');
-    } else {
-      // Set login error
-      setFieldErrors(prev => ({
-        ...prev,
-        password: 'Email hoặc mật khẩu không đúng. Thử: admin@gym147.com / admin123',
-      }));
+        // Set navigation loading
+        setIsNavigating(true);
+
+        // Navigate to dashboard based on role
+        const userRole = response.data.user.role;
+        console.log('User role:', userRole);
+
+        if (userRole === 'SUPER_ADMIN') {
+          navigate('/super-admin-dashboard');
+        } else if (userRole === 'ADMIN') {
+          navigate('/admin-dashboard');
+        } else if (userRole === 'TRAINER') {
+          navigate('/trainer-dashboard');
+        } else {
+          navigate('/member-dashboard');
+        }
+      } else {
+        // Handle API error response
+        setFieldErrors(prev => ({
+          ...prev,
+          password: response.message || 'Đăng nhập thất bại',
+        }));
+      }
+    } catch (error: any) {
+      console.error('Login error:', error);
+
+      // Handle different error types
+      if (error.response?.status === 401) {
+        setFieldErrors(prev => ({
+          ...prev,
+          password: 'Email hoặc mật khẩu không đúng',
+        }));
+      } else if (error.response?.status === 423) {
+        setFieldErrors(prev => ({
+          ...prev,
+          password: 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên',
+        }));
+      } else if (error.response?.status === 200 && error.response?.data?.requires2FA) {
+        // Handle 2FA requirement
+        setFieldErrors(prev => ({
+          ...prev,
+          password: 'Cần xác thực 2FA. Vui lòng nhập mã từ ứng dụng xác thực',
+        }));
+      } else {
+        setFieldErrors(prev => ({
+          ...prev,
+          password: error.message || 'Có lỗi xảy ra khi đăng nhập',
+        }));
+      }
     }
 
     setIsLoading(false);
@@ -382,12 +502,15 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
                 <Checkbox
                   className='w-5 h-5 text-orange-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700/80 focus:ring-orange-400/20'
                   checked={isAdminLogin}
-                  onChange={setIsAdminLogin}
+                  onChange={handleAdminLoginChange}
                 />
                 <span className='text-gray-700 dark:text-white/80 text-sm font-medium '>
                   Đăng nhập với tư cách quản trị viên
                 </span>
               </div>
+              {fieldErrors.adminLogin && (
+                <p className='text-red-500 text-xs mt-1'>{fieldErrors.adminLogin}</p>
+              )}
 
               {/* Remember Me & Forgot Password */}
               <div className='flex items-center justify-between'>
@@ -401,12 +524,13 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
                     Ghi nhớ đăng nhập
                   </span>
                 </div>
-                <Link
-                  to='/reset-password'
-                  className='text-sm text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 transition-colors duration-200 font-medium '
+                <button
+                  type='button'
+                  onClick={handleForgotPasswordClick}
+                  className='text-sm text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 transition-colors duration-200 font-medium hover:underline'
                 >
                   Quên mật khẩu?
-                </Link>
+                </button>
               </div>
 
               {/* Submit Button */}
@@ -426,7 +550,8 @@ export default function SignInForm({ onSwitchToSignUp }: SignInFormProps) {
               <p className='text-gray-600 dark:text-white/70 text-sm'>
                 Chưa có tài khoản?{' '}
                 <button
-                  onClick={onSwitchToSignUp}
+                  type='button'
+                  onClick={handleSignUpClick}
                   className='text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 font-semibold transition-colors duration-200 hover:underline'
                 >
                   Đăng ký ngay

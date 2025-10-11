@@ -9,10 +9,11 @@ import Input from '../form/input/InputField';
 import OTPInput from './OTPInput';
 
 interface SignUpFormProps {
-  onSwitchToSignIn?: () => void;
+  onSwitchToSignIn?: (credentials?: { email?: string; phone?: string; password?: string }) => void;
+  clearErrors?: boolean;
 }
 
-export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
+export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: SignUpFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -43,6 +44,25 @@ export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
     const timer = setTimeout(() => setIsFormLoaded(true), 200);
     return () => clearTimeout(timer);
   }, []);
+
+  // Clear errors when clearErrors prop changes
+  useEffect(() => {
+    if (clearErrors) {
+      setFieldErrors({});
+      setTouchedFields({});
+    }
+  }, [clearErrors]);
+
+  const handleBackToSignIn = (credentials?: {
+    email?: string;
+    phone?: string;
+    password?: string;
+  }) => {
+    // Clear all errors before switching back to sign in form
+    setFieldErrors({});
+    setTouchedFields({});
+    onSwitchToSignIn?.(credentials);
+  };
 
   // Validation functions
   const validateField = (name: string, value: string): string => {
@@ -264,12 +284,14 @@ export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
           setOtpSuccessLoading(false);
         }, 1500);
       } else {
-        setOtpError(data.message);
-        showToast(data.message, 'error');
+        const errorMessage = data.message || 'Mã OTP không đúng. Vui lòng kiểm tra lại!';
+        setOtpError(errorMessage);
+        showToast(errorMessage, 'error');
       }
     } catch (error) {
-      setOtpError('Có lỗi xảy ra khi xác thực OTP');
-      showToast('Có lỗi xảy ra khi xác thực OTP', 'error');
+      const errorMessage = 'Mã OTP không đúng hoặc đã hết hạn. Vui lòng thử lại!';
+      setOtpError(errorMessage);
+      showToast(errorMessage, 'error');
     } finally {
       setOtpLoading(false);
     }
@@ -339,9 +361,35 @@ export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
         if (data.success) {
           showToast('Đăng ký thành công!', 'success');
 
-          // Redirect to login or dashboard
+          // Reset form to step 1
+          setCurrentStep(1);
+          setFormData({
+            email: '',
+            phone: '',
+            password: '',
+            firstName: '',
+            lastName: '',
+            emailForPhone: '',
+            age: '',
+            referralCode: '',
+            couponCode: '',
+            otp: '',
+          });
+          setFieldErrors({});
+          setTouchedFields({});
+          setOtpVerified(false);
+          setOtpError('');
+
+          // Prepare credentials for auto-fill
+          const credentials = {
+            email: signupType === 'email' ? formData.email : undefined,
+            phone: signupType === 'phone' ? formData.phone : undefined,
+            password: formData.password,
+          };
+
+          // Redirect to login with credentials
           setTimeout(() => {
-            onSwitchToSignIn?.();
+            handleBackToSignIn(credentials);
           }, 2000);
         } else {
           // Handle specific error cases with user-friendly messages
@@ -962,7 +1010,8 @@ export default function SignUpForm({ onSwitchToSignIn }: SignUpFormProps) {
             <p className='text-gray-600 dark:text-white/70 text-sm'>
               Đã có tài khoản?{' '}
               <button
-                onClick={onSwitchToSignIn}
+                type='button'
+                onClick={() => handleBackToSignIn()}
                 className='text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 font-semibold transition-colors duration-200 hover:underline'
               >
                 Đăng nhập ngay
