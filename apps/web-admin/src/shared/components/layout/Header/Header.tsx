@@ -9,8 +9,8 @@ interface HeaderProps {
 
 const Header: React.FC<HeaderProps> = ({ user }) => {
   const handleLogout = () => {
-    AuthService.logout();
-    window.location.href = '/login';
+    authService.logout();
+    window.location.href = '/auth';
   };
 
   const currentTime = new Date().toLocaleString('vi-VN', {

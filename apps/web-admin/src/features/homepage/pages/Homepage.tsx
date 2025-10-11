@@ -167,7 +167,7 @@ const Homepage: React.FC = () => {
                   <span className='notification-badge'>3</span>
                 </div>
                 <div className='to-login'>
-                  <Link to='/login' className='login-btn' onClick={handleLoginClick}>
+                  <Link to='/auth' className='login-btn' onClick={handleLoginClick}>
                     {isLoginLoading ? (
                       <ButtonLoading />
                     ) : (
@@ -194,14 +194,14 @@ const Homepage: React.FC = () => {
               span: 'HỆ THỐNG GYM 147',
               title: '<span style = "color: #f36100;">CẢI THIỆN</span><br/>SỨC MẠNH',
               buttonText: 'Trải nghiệm ngay',
-              buttonLink: '/login',
+              buttonLink: '/auth',
             },
             {
               backgroundImage: heroImg2,
               span: 'Thiết bị chuyên nghiệp',
               title: '<span style = "color: #f36100;">TẬP LUYỆN</span> LIÊN TỤC',
               buttonText: 'Khám phá ngay',
-              buttonLink: '/login',
+              buttonLink: '/auth',
             },
           ]}
         />
@@ -354,7 +354,7 @@ const Homepage: React.FC = () => {
               <div className='bs-text'>
                 <h2>registration now to get more deals</h2>
                 <div className='bt-tips'>Where health, beauty and fitness meet.</div>
-                <Link to='/login' className='primary-btn btn-normal'>
+                <Link to='/auth' className='primary-btn btn-normal'>
                   Appointment
                 </Link>
               </div>
@@ -390,7 +390,7 @@ const Homepage: React.FC = () => {
                   <li>Month to mouth</li>
                   <li>No time restriction</li>
                 </ul>
-                <Link to='/login' className='primary-btn pricing-btn'>
+                <Link to='/auth' className='primary-btn pricing-btn'>
                   Enroll now
                 </Link>
                 <a href='#' className='thumb-icon'>
@@ -413,7 +413,7 @@ const Homepage: React.FC = () => {
                   <li>Month to mouth</li>
                   <li>No time restriction</li>
                 </ul>
-                <Link to='/login' className='primary-btn pricing-btn'>
+                <Link to='/auth' className='primary-btn pricing-btn'>
                   Enroll now
                 </Link>
                 <a href='#' className='thumb-icon'>
@@ -436,7 +436,7 @@ const Homepage: React.FC = () => {
                   <li>Month to mouth</li>
                   <li>No time restriction</li>
                 </ul>
-                <Link to='/login' className='primary-btn pricing-btn'>
+                <Link to='/auth' className='primary-btn pricing-btn'>
                   Enroll now
                 </Link>
                 <a href='#' className='thumb-icon'>
@@ -679,7 +679,7 @@ const Homepage: React.FC = () => {
                 <h4>Hỗ trợ</h4>
                 <ul>
                   <li>
-                    <Link to='/login'>Đăng nhập</Link>
+                    <Link to='/auth'>Đăng nhập</Link>
                   </li>
                   <li>
                     <a href='#'>Tài khoản</a>

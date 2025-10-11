@@ -36,7 +36,7 @@ const AppLayout: React.FC = () => {
     const isLoggedIn = localStorage.getItem('isLoggedIn');
 
     if (!isLoggedIn) {
-      navigate('/login');
+      navigate('/auth');
     }
   }, [navigate]);
 

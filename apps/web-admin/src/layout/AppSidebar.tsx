@@ -140,7 +140,7 @@ const othersItems: NavItem[] = [
     icon: <Shield className='w-5 h-5' />,
     name: 'Authentication',
     subItems: [
-      { name: 'Sign In', path: '/login', pro: false },
+      { name: 'Sign In', path: '/auth', pro: false },
       { name: 'Sign Up', path: '/signup', pro: false },
     ],
   },

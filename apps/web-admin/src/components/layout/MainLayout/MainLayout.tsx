@@ -61,7 +61,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
   const handleLogout = () => {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_data');
-    window.location.href = '/login';
+    window.location.href = '/auth';
   };
 
   return (
