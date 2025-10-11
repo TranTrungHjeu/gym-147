@@ -1,11 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
 
-// Tạo Prisma client instance cho Member Service
 const prisma = new PrismaClient({
   log: ['query', 'info', 'warn', 'error'],
 });
 
-// Kết nối với database
 async function connectDatabase() {
   try {
     await prisma.$connect();
@@ -16,10 +14,9 @@ async function connectDatabase() {
   }
 }
 
-// Đóng kết nối khi thoát
 process.on('beforeExit', async () => {
   await prisma.$disconnect();
-  console.log('🔌 Disconnected from Member database');
+  console.log('📤 Disconnected from Member database');
 });
 
 module.exports = { prisma, connectDatabase };

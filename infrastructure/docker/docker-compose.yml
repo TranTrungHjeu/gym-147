@@ -1,0 +1,51 @@
+services:
+  gateway:
+    image: nginx:stable
+    container_name: api-gateway
+    volumes:
+      - ../gateway/nginx/nginx-single-app.conf:/etc/nginx/nginx.conf:ro
+      - ../../apps/web-admin/dist:/usr/share/nginx/html/admin:ro
+    ports: ["8080:80"]
+    depends_on: [identity, member, schedule, billing]
+  identity:
+    build: ../../services/identity-service
+    container_name: identity-service
+    env_file: ../../services/identity-service/.env
+    ports: ["3001:3000"]
+    depends_on: [postgres]
+  member:
+    build: ../../services/member-service
+    container_name: member-service
+    env_file: ../../services/member-service/.env
+    ports: ["3002:3000"]
+    depends_on: [postgres]
+  schedule:
+    build: ../../services/schedule-service
+    container_name: schedule-service
+    env_file: ../../services/schedule-service/.env
+    ports: ["3003:3000"]
+    depends_on: [postgres]
+  billing:
+    build: ../../services/billing-service
+    container_name: billing-service
+    env_file: ../../services/billing-service/.env
+    ports: ["3004:3000"]
+    depends_on: [postgres]
+  # Single PostgreSQL Server with Multiple Databases
+  postgres:
+    image: postgres:16
+    container_name: gym-database
+    environment:
+      POSTGRES_USER: gym
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: gym_main
+    ports: ["5432:5432"]
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../database/init:/docker-entrypoint-initdb.d
+  redis:
+    image: redis:7-alpine
+    ports: ["6380:6379"]
+
+volumes:
+  postgres_data:

@@ -1,0 +1,165 @@
+/* Gym Management System - Black & Orange Design System */
+:root {
+  /* Brand Oranges */
+  --brand-50: #fff5eb;
+  --brand-100: #ffe1c7;
+  --brand-200: #ffc194;
+  --brand-300: #ff9f61;
+  --brand-400: #ff7f3d;
+  --brand-500: #ff6422;
+  --brand-600: #e25117;
+  --brand-700: #bc3f11;
+  --brand-800: #96300f;
+  --brand-900: #7a260f;
+
+  /* Surface Blacks */
+  --surface-50: #f5f5f5;
+  --surface-100: #e7e7e7;
+  --surface-200: #cfcfcf;
+  --surface-300: #a5a5a5;
+  --surface-400: #7c7c7c;
+  --surface-500: #555555;
+  --surface-600: #343434;
+  --surface-700: #232323;
+  --surface-800: #151515;
+  --surface-900: #0c0c0c;
+
+  /* Text Tokens */
+  --text-primary: #f8f9fb;
+  --text-secondary: #d4d7dd;
+  --text-muted: #8b8f99;
+  --text-invert: #0a0b0f;
+
+  /* Supporting colors */
+  --accent-amber: #ffb357;
+  --accent-lime: #69f0ae;
+  --accent-cyan: #38bdf8;
+  --accent-rose: #fb7185;
+
+  /* Status Colors */
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-error: #ef4444;
+  --color-info: #3b82f6;
+
+  /* Elevation & Effects */
+  --shadow-soft: 0 18px 40px -22px rgba(255, 107, 53, 0.35);
+  --shadow-strong: 0 24px 60px -30px rgba(255, 107, 53, 0.55);
+  --shadow-surface: 0 24px 45px -28px rgba(0, 0, 0, 0.65);
+
+  /* Radii */
+  --radius-xs: 0.25rem;
+  --radius-sm: 0.5rem;
+  --radius-md: 0.75rem;
+  --radius-lg: 1rem;
+  --radius-xl: 1.5rem;
+  --radius-2xl: 2rem;
+
+  /* Typography */
+  --font-family-body: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-heading: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-family-display: 'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  --font-weight-light: 300;
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --font-size-xs: 0.75rem;
+  --font-size-sm: 0.875rem;
+  --font-size-base: 1rem;
+  --font-size-lg: 1.125rem;
+  --font-size-xl: 1.25rem;
+  --font-size-2xl: 1.5rem;
+  --font-size-3xl: 1.875rem;
+  --font-size-4xl: 2.25rem;
+
+  /* Transitions */
+  --transition-fast: 160ms ease-in-out;
+  --transition-normal: 260ms ease-in-out;
+  --transition-slow: 360ms ease-in-out;
+
+  /* Gradients */
+  --gradient-brand: linear-gradient(
+    135deg,
+    rgba(12, 12, 12, 0.96) 0%,
+    rgba(21, 19, 18, 0.92) 45%,
+    rgba(255, 100, 34, 0.9) 100%
+  );
+  --gradient-surface: radial-gradient(
+    circle at top left,
+    rgba(255, 100, 34, 0.08),
+    rgba(12, 12, 12, 0.94) 55%
+  );
+  --gradient-accent: linear-gradient(120deg, rgba(255, 125, 56, 0.65), rgba(255, 89, 21, 0.9));
+}
+
+/* Base styles */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'Roboto',
+    sans-serif;
+  line-height: 1.6;
+  color: var(--text-primary);
+  background-color: var(--surface-900);
+  background-image: var(--gradient-surface);
+  margin: 0;
+  padding: 0;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+#root {
+  min-height: 100vh;
+  background: transparent;
+}
+
+/* Utility classes */
+.text-brand {
+  color: var(--brand-500);
+}
+
+.bg-brand {
+  background-color: var(--brand-500);
+}
+
+.bg-brand-gradient {
+  background-image: var(--gradient-brand);
+}
+
+.text-on-dark {
+  color: var(--text-primary);
+}
+
+.text-muted {
+  color: var(--text-muted);
+}
+
+.shadow-brand {
+  box-shadow: var(--shadow-soft);
+}
+
+.shadow-surface {
+  box-shadow: var(--shadow-surface);
+}
+
+.transition-fast {
+  transition: var(--transition-fast);
+}
+
+.transition-normal {
+  transition: var(--transition-normal);
+}
+
+/* Global scrollbar - Unified with Gym 147 theme */
+/* Note: Homepage-specific scrollbar is defined in homepage.css */

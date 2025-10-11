@@ -1,67 +1,53 @@
 const jwt = require('jsonwebtoken');
-const { authService } = require('../services/auth.prisma.service.js');
 
-// Middleware to verify JWT token
-async function authenticateToken(req, res, next) {
+const authMiddleware = (req, res, next) => {
   try {
-    const authHeader = req.headers.authorization;
-    const token = authHeader && authHeader.split(' ')[1]; // Bearer TOKEN
+    // Get token from header
+    const authHeader = req.header('Authorization');
 
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({
         success: false,
-        message: 'Access token required',
-        data: null
+        message: 'Access denied. No valid token provided.',
+        data: null,
       });
     }
 
-    const user = await authService.verifyToken(token);
-    
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: 'Invalid or expired token',
-        data: null
-      });
-    }
+    // Extract token (remove 'Bearer ' prefix)
+    const token = authHeader.substring(7);
 
-    req.user = user;
+    // Verify token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+
+    // Add user info to request object
+    req.user = decoded;
+
     next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: 'Invalid token',
-      data: null
-    });
-  }
-}
+    console.error('Auth middleware error:', error);
 
-// Middleware to check if user has specific role
-function requireRole(roles) {
-  return (req, res, next) => {
-    const userRole = req.user?.role;
-    
-    if (!userRole || !roles.includes(userRole)) {
-      return res.status(403).json({
+    if (error.name === 'TokenExpiredError') {
+      return res.status(401).json({
         success: false,
-        message: 'Insufficient permissions',
-        data: null
+        message: 'Token expired',
+        data: null,
       });
     }
-    
-    next();
-  };
-}
 
-// Middleware to check if user is admin
-const requireAdmin = requireRole(['admin']);
+    if (error.name === 'JsonWebTokenError') {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid token',
+        data: null,
+      });
+    }
 
-// Middleware to check if user is staff or admin
-const requireStaff = requireRole(['admin', 'staff']);
-
-module.exports = {
-  authenticateToken,
-  requireRole,
-  requireAdmin,
-  requireStaff
+    res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      data: null,
+    });
+  }
 };
+
+module.exports = { authMiddleware };

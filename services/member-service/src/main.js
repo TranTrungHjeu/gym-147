@@ -1,3 +1,4 @@
+require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
@@ -41,12 +42,12 @@ async function startServer() {
       });
     });
 
-    const port = process.env.PORT || 3000;
+    const port = process.env.PORT || 3002;
     app.listen(port, () => {
       console.log(`member-service listening on port ${port}`);
     });
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 }
