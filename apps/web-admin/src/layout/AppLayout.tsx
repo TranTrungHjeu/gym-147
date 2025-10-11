@@ -1,9 +1,9 @@
-import { SidebarProvider, useSidebar } from '../context/SidebarContext';
-import { Outlet, useNavigate } from 'react-router-dom';
 import { useEffect } from 'react';
+import { Outlet, useNavigate } from 'react-router-dom';
+import { SidebarProvider, useSidebar } from '../context/SidebarContext';
 import AppHeader from './AppHeader';
-import Backdrop from './Backdrop';
 import AppSidebar from './AppSidebar';
+import Backdrop from './Backdrop';
 
 const LayoutContent: React.FC = () => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();

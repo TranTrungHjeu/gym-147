@@ -1,6 +1,20 @@
+import {
+  Calendar,
+  ChevronDown,
+  FileText,
+  Grid3X3,
+  LayoutDashboard,
+  List,
+  PieChart,
+  Shield,
+  Table,
+  User,
+} from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useNavigation } from '../context/NavigationContext';
+import { useSidebar } from '../context/SidebarContext';
+import SidebarWidget from './SidebarWidget';
 
 // Add CSS keyframes for animations (only once)
 if (!document.getElementById('sidebar-animations')) {
@@ -57,20 +71,6 @@ if (!document.getElementById('sidebar-animations')) {
   `;
   document.head.appendChild(style);
 }
-import {
-  Calendar,
-  ChevronDown,
-  Grid3X3,
-  LayoutDashboard,
-  List,
-  PieChart,
-  Table,
-  User,
-  FileText,
-  Shield,
-} from 'lucide-react';
-import { useSidebar } from '../context/SidebarContext';
-import SidebarWidget from './SidebarWidget';
 
 type NavItem = {
   name: string;
