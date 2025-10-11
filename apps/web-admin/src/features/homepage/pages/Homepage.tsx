@@ -1,13 +1,5 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { PageLoading, ButtonLoading } from '../../../components/ui/AppLoading';
-import { useNavigation } from '../../../context/NavigationContext';
-import { HeroSlider } from '../components/HeroSlider';
-import { ImagePopup } from '../../../components/ImagePopup';
-import { OwlCarousel } from '../../../components/OwlCarousel';
-import { SearchModal } from '../../../components/SearchModal';
-import { useHomepageReact } from '../../../hooks/useHomepageReact';
-import '../styles/homepage.css';
 import bannerBg from '../../../assets/images/banner-bg.jpg';
 import classImg1 from '../../../assets/images/classes/class-1.jpg';
 import classImg2 from '../../../assets/images/classes/class-2.jpg';
@@ -29,6 +21,14 @@ import teamImg3 from '../../../assets/images/team/team-3.jpg';
 import teamImg4 from '../../../assets/images/team/team-4.jpg';
 import teamImg5 from '../../../assets/images/team/team-5.jpg';
 import teamImg6 from '../../../assets/images/team/team-6.jpg';
+import { ImagePopup } from '../../../components/ImagePopup';
+import { OwlCarousel } from '../../../components/OwlCarousel';
+import { SearchModal } from '../../../components/SearchModal';
+import { ButtonLoading, PageLoading } from '../../../components/ui/AppLoading';
+import { useNavigation } from '../../../context/NavigationContext';
+import { useHomepageReact } from '../../../hooks/useHomepageReact';
+import { HeroSlider } from '../components/HeroSlider';
+import '../styles/homepage.css';
 
 const Homepage: React.FC = () => {
   const { searchModal, searchIconClicked, handleSearchClick } = useHomepageReact();
