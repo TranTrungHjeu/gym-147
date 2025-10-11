@@ -18,7 +18,7 @@ import {
   Zap,
 } from 'lucide-react';
 import React from 'react';
-import { cn } from '../../../utils/cn';
+import { cn } from '../../../../utils/cn';
 import { Badge } from '../../ui/Badge/Badge';
 
 interface MainLayoutProps {
