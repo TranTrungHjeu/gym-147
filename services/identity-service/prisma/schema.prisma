@@ -43,7 +43,6 @@ model User {
   sessions          Session[]
   password_resets   PasswordReset[]
   access_logs       AccessLog[]
-  email_verifications EmailVerification[]
   member_profile    Member?   // One-to-one with member service
   staff_profile     Staff?    // One-to-one for staff members
 
@@ -140,19 +139,7 @@ model OTPVerification {
   @@map("otp_verifications")
 }
 
-model EmailVerification {
-  id          String   @id @default(cuid())
-  user_id     String
-  token       String   @unique
-  email       String
-  expires_at  DateTime
-  verified_at DateTime?
-  created_at  DateTime @default(now())
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@map("email_verifications")
-}
+// EmailVerification model removed - using OTPVerification for all verification
 
 // Cross-service references
 model Member {
