@@ -5,6 +5,7 @@ class OTPService {
   constructor() {
     this.otpExpiry = 5 * 60 * 1000; // 5 minutes
     this.maxAttempts = 3;
+    this.cleanupInterval = null; // Store cleanup interval reference
   }
 
   // Generate 6-digit OTP
@@ -20,9 +21,12 @@ class OTPService {
   // Store OTP in database
   async storeOTP(identifier, otp, type = 'PHONE') {
     try {
-      // Delete existing OTP for this identifier
+      // Delete existing UNVERIFIED OTP for this identifier
       await prisma.oTPVerification.deleteMany({
-        where: { identifier },
+        where: {
+          identifier,
+          verified_at: null, // Only delete unverified OTPs
+        },
       });
 
       // Create new OTP record
@@ -156,6 +160,46 @@ class OTPService {
     }
   }
 
+  // Send OTP (main method)
+  async sendOTP(identifier, type = 'PHONE') {
+    try {
+      const otp = this.generateOTP();
+
+      // Store OTP in database
+      await this.storeOTP(identifier, otp, type);
+
+      // Send OTP based on type
+      if (type === 'PHONE') {
+        return await this.sendSMSOTP(identifier, otp);
+      } else if (type === 'EMAIL') {
+        return await this.sendEmailOTP(identifier, otp);
+      } else {
+        throw new Error('Invalid OTP type');
+      }
+    } catch (error) {
+      console.error('Error sending OTP:', error);
+      throw new Error('Failed to send OTP');
+    }
+  }
+
+  // Send OTP via Email (mock implementation)
+  async sendEmailOTP(email, otp) {
+    try {
+      // TODO: Integrate with real email service (SendGrid, AWS SES, etc.)
+      console.log(`Email OTP sent to ${email}: ${otp}`);
+
+      // Mock email sending
+      return {
+        success: true,
+        message: 'Mã OTP đã được gửi qua email',
+        otp: otp, // Only for development/testing
+      };
+    } catch (error) {
+      console.error('Error sending email OTP:', error);
+      throw new Error('Failed to send email OTP');
+    }
+  }
+
   // Send verification email (mock implementation)
   async sendEmailVerification(email, verificationToken) {
     try {
@@ -179,17 +223,56 @@ class OTPService {
   // Clean up expired OTPs
   async cleanupExpiredOTPs() {
     try {
+      // Delete OTPs that expired more than 5 minutes ago (keep recent ones for audit)
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+
       const result = await prisma.oTPVerification.deleteMany({
         where: {
-          expires_at: { lt: new Date() },
+          expires_at: { lt: fiveMinutesAgo },
         },
       });
 
-      console.log(`Cleaned up ${result.count} expired OTPs`);
+      console.log(`Cleaned up ${result.count} expired OTPs (older than 5 minutes)`);
       return result.count;
     } catch (error) {
       console.error('Error cleaning up expired OTPs:', error);
       throw new Error('Failed to cleanup expired OTPs');
+    }
+  }
+
+  // Start cleanup job
+  startCleanupJob() {
+    if (this.cleanupInterval) {
+      console.log('Cleanup job already running');
+      return;
+    }
+
+    console.log('Starting OTP cleanup job - runs every 5 minutes');
+
+    this.cleanupInterval = setInterval(
+      async () => {
+        try {
+          const cleanedCount = await this.cleanupExpiredOTPs();
+          console.log(`Cleanup job completed: ${cleanedCount} OTPs removed`);
+        } catch (error) {
+          console.error('Cleanup job error:', error);
+        }
+      },
+      5 * 60 * 1000
+    ); // Run every 5 minutes
+
+    // Run cleanup immediately on start
+    this.cleanupExpiredOTPs().catch(error => {
+      console.error('Initial cleanup error:', error);
+    });
+  }
+
+  // Stop cleanup job
+  stopCleanupJob() {
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
+      console.log('OTP cleanup job stopped');
     }
   }
 

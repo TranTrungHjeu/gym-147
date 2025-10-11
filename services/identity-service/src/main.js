@@ -5,13 +5,27 @@ const helmet = require('helmet');
 const morgan = require('morgan');
 const { routes } = require('./routes/index.js');
 const { connectDatabase } = require('./lib/prisma.js');
+const { OTPService } = require('./services/otp.service.js');
+const { AuthController } = require('./controllers/auth.controller.js');
 
 const app = express();
+
+// Global service instances for graceful shutdown
+let otpService = null;
+let authController = null;
 
 async function startServer() {
   try {
     await connectDatabase();
     console.log('Database connected successfully');
+
+    // Initialize OTP service and start cleanup job
+    otpService = new OTPService();
+    otpService.startCleanupJob();
+
+    // Initialize Auth controller and start password reset cleanup job
+    authController = new AuthController();
+    authController.startPasswordResetCleanupJob();
 
     app.use(express.json());
     app.use(cors());
@@ -47,3 +61,26 @@ async function startServer() {
 }
 
 startServer();
+
+// Graceful shutdown
+process.on('SIGINT', () => {
+  console.log('\nReceived SIGINT. Graceful shutdown...');
+  if (otpService) {
+    otpService.stopCleanupJob();
+  }
+  if (authController) {
+    authController.stopPasswordResetCleanupJob();
+  }
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('\nReceived SIGTERM. Graceful shutdown...');
+  if (otpService) {
+    otpService.stopCleanupJob();
+  }
+  if (authController) {
+    authController.stopPasswordResetCleanupJob();
+  }
+  process.exit(0);
+});

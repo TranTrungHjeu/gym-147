@@ -1,5 +1,6 @@
 ﻿const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
 const { prisma } = require('../lib/prisma.js');
 const { OTPService } = require('../services/otp.service.js');
 
@@ -8,52 +9,177 @@ class AuthController {
     this.otpService = new OTPService();
     this.rateLimitStore = new Map(); // In-memory store for rate limiting
     this.otpCooldownStore = new Map(); // Store for OTP cooldown (30 seconds)
+    this.passwordResetCleanupInterval = null;
   }
 
-  // Rate limiting helper methods
+  // ==================== RATE LIMITING HELPERS ====================
+
   async getRateLimitCount(key) {
-    const now = Date.now();
-    const windowMs = 60 * 60 * 1000; // 1 hour
-    const attempts = this.rateLimitStore.get(key) || [];
-
-    // Remove expired attempts
-    const validAttempts = attempts.filter(timestamp => now - timestamp < windowMs);
-    this.rateLimitStore.set(key, validAttempts);
-
-    return validAttempts.length;
-  }
-
-  async incrementRateLimit(key) {
-    const now = Date.now();
-    const attempts = this.rateLimitStore.get(key) || [];
-    attempts.push(now);
-    this.rateLimitStore.set(key, attempts);
-  }
-
-  // OTP cooldown helper methods
-  async getOTPCooldown(key) {
-    const lastSent = this.otpCooldownStore.get(key);
-    if (!lastSent) return 0;
+    const record = this.rateLimitStore.get(key);
+    if (!record) return 0;
 
     const now = Date.now();
-    const cooldownMs = 30 * 1000; // 30 seconds cooldown
-    const timeSinceLastSent = now - lastSent;
+    const oneHour = 60 * 60 * 1000;
 
-    if (timeSinceLastSent >= cooldownMs) {
-      this.otpCooldownStore.delete(key);
+    if (now - record.timestamp > oneHour) {
+      this.rateLimitStore.delete(key);
       return 0;
     }
 
-    return Math.ceil((cooldownMs - timeSinceLastSent) / 1000);
+    return record.count;
+  }
+
+  async incrementRateLimit(key) {
+    const record = this.rateLimitStore.get(key);
+    const now = Date.now();
+
+    if (!record || now - record.timestamp > 60 * 60 * 1000) {
+      this.rateLimitStore.set(key, { count: 1, timestamp: now });
+    } else {
+      record.count++;
+      this.rateLimitStore.set(key, record);
+    }
+  }
+
+  async getOTPCooldown(key) {
+    const timestamp = this.otpCooldownStore.get(key);
+    if (!timestamp) return 0;
+
+    const now = Date.now();
+    const cooldownTime = 30 * 1000; // 30 seconds
+    const remaining = Math.max(0, cooldownTime - (now - timestamp));
+
+    if (remaining === 0) {
+      this.otpCooldownStore.delete(key);
+    }
+
+    return Math.ceil(remaining / 1000);
   }
 
   async setOTPCooldown(key) {
     this.otpCooldownStore.set(key, Date.now());
   }
 
+  // ==================== PASSWORD RESET CLEANUP ====================
+
+  /**
+   * Cleanup expired password reset tokens
+   */
+  async cleanupExpiredPasswordResetTokens() {
+    try {
+      const result = await prisma.passwordReset.deleteMany({
+        where: {
+          expires_at: { lt: new Date() },
+        },
+      });
+
+      if (result.count > 0) {
+        console.log(`Cleaned up ${result.count} expired password reset tokens`);
+      }
+
+      return result.count;
+    } catch (error) {
+      console.error('Error cleaning up expired password reset tokens:', error);
+      return 0;
+    }
+  }
+
+  /**
+   * Start password reset cleanup job
+   */
+  startPasswordResetCleanupJob() {
+    // Run cleanup every 2 minutes
+    this.passwordResetCleanupInterval = setInterval(
+      async () => {
+        try {
+          await this.cleanupExpiredPasswordResetTokens();
+        } catch (error) {
+          console.error('Password reset cleanup job error:', error);
+        }
+      },
+      2 * 60 * 1000
+    ); // 2 minutes
+
+    // Run initial cleanup
+    this.cleanupExpiredPasswordResetTokens();
+    console.log('Password reset cleanup job started - runs every 2 minutes');
+  }
+
+  /**
+   * Stop password reset cleanup job
+   */
+  stopPasswordResetCleanupJob() {
+    if (this.passwordResetCleanupInterval) {
+      clearInterval(this.passwordResetCleanupInterval);
+      this.passwordResetCleanupInterval = null;
+      console.log('Password reset cleanup job stopped');
+    }
+  }
+
+  // ==================== VALIDATION HELPERS ====================
+
+  validatePassword(password) {
+    if (!password || password.length < 8) {
+      return {
+        isValid: false,
+        message: 'Mật khẩu phải có ít nhất 8 ký tự',
+      };
+    }
+
+    if (!/(?=.*[a-z])/.test(password)) {
+      return {
+        isValid: false,
+        message: 'Mật khẩu phải có ít nhất 1 chữ thường',
+      };
+    }
+
+    if (!/(?=.*[A-Z])/.test(password)) {
+      return {
+        isValid: false,
+        message: 'Mật khẩu phải có ít nhất 1 chữ hoa',
+      };
+    }
+
+    if (!/(?=.*\d)/.test(password)) {
+      return {
+        isValid: false,
+        message: 'Mật khẩu phải có ít nhất 1 số',
+      };
+    }
+
+    return { isValid: true };
+  }
+
+  validatePhone(phone) {
+    const phoneRegex = /^(\+84|84|0)[1-9][0-9]{8}$/;
+    if (!phoneRegex.test(phone)) {
+      return {
+        isValid: false,
+        message: 'Số điện thoại không hợp lệ. Vui lòng nhập số điện thoại Việt Nam',
+      };
+    }
+    return { isValid: true };
+  }
+
+  validateEmail(email) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return {
+        isValid: false,
+        message: 'Email không hợp lệ',
+      };
+    }
+    return { isValid: true };
+  }
+
+  // ==================== CORE AUTHENTICATION ====================
+
+  /**
+   * User login
+   */
   async login(req, res) {
     try {
-      const { identifier, password } = req.body; // identifier can be email or phone
+      const { identifier, password, twoFactorToken } = req.body; // identifier can be email or phone
 
       if (!identifier || !password) {
         return res.status(400).json({
@@ -78,6 +204,15 @@ class AuthController {
         });
       }
 
+      // Check if account is active
+      if (!user.is_active) {
+        return res.status(401).json({
+          success: false,
+          message: 'Tài khoản đã bị vô hiệu hóa',
+          data: null,
+        });
+      }
+
       // Verify password
       const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
@@ -89,28 +224,72 @@ class AuthController {
         });
       }
 
+      // Check if 2FA is enabled
+      if (user.two_factor_enabled) {
+        if (!twoFactorToken) {
+          return res.status(200).json({
+            success: false,
+            message: '2FA token required',
+            data: {
+              requires2FA: true,
+              userId: user.id,
+            },
+          });
+        }
+
+        // Verify 2FA token
+        const is2FAValid = this.verifyTOTPToken(user.two_factor_secret, twoFactorToken);
+        if (!is2FAValid) {
+          return res.status(401).json({
+            success: false,
+            message: '2FA token không hợp lệ',
+            data: null,
+          });
+        }
+      }
+
       // Update last login time
       await prisma.user.update({
         where: { id: user.id },
         data: { last_login_at: new Date() },
       });
 
-      // Generate JWT token
+      // Create session
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const session = await prisma.session.create({
+        data: {
+          user_id: user.id,
+          token: accessToken,
+          refresh_token: refreshToken,
+          device_info: req.headers['user-agent'] || 'Unknown',
+          ip_address: req.ip || req.connection.remoteAddress,
+          user_agent: req.headers['user-agent'] || 'Unknown',
+          expires_at: expiresAt,
+        },
+      });
+
+      // Generate JWT token with sessionId
       const token = jwt.sign(
         {
           userId: user.id,
           email: user.email,
           role: user.role,
+          sessionId: session.id,
         },
         process.env.JWT_SECRET || 'dev-secret',
-        { expiresIn: '24h' }
+        { expiresIn: '15m' } // Short-lived access token
       );
 
       res.json({
         success: true,
         message: 'Login successful',
         data: {
-          token,
+          accessToken: token,
+          refreshToken: refreshToken,
+          expiresIn: 900, // 15 minutes
           user: {
             id: user.id,
             email: user.email,
@@ -131,10 +310,254 @@ class AuthController {
     }
   }
 
-  // Gửi OTP cho đăng ký
+  /**
+   * User logout
+   */
+  async logout(req, res) {
+    try {
+      const sessionId = req.user.sessionId;
+
+      if (sessionId) {
+        // Delete the current session
+        await prisma.session.delete({
+          where: { id: sessionId },
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Logout successful',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Logout error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Register new member
+   */
+  async registerMember(req, res) {
+    try {
+      const {
+        email,
+        phone,
+        password,
+        firstName,
+        lastName,
+        otp,
+        otpType,
+        primaryMethod,
+        age,
+        referralCode,
+        couponCode,
+      } = req.body;
+
+      // Validate required fields
+      if (!password || !firstName || !lastName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Mật khẩu, họ và tên là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Validate primary method
+      if (!primaryMethod || !['EMAIL', 'PHONE'].includes(primaryMethod)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Phương thức đăng ký chính phải là EMAIL hoặc PHONE',
+          data: null,
+        });
+      }
+
+      // Validate based on primary method
+      if (primaryMethod === 'EMAIL' && !email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email là bắt buộc khi chọn đăng ký bằng email',
+          data: null,
+        });
+      }
+
+      if (primaryMethod === 'PHONE' && !phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Số điện thoại là bắt buộc khi chọn đăng ký bằng số điện thoại',
+          data: null,
+        });
+      }
+
+      // Validate email format if provided
+      if (email) {
+        const emailValidation = this.validateEmail(email);
+        if (!emailValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: emailValidation.message,
+            data: null,
+          });
+        }
+      }
+
+      // Validate phone format if provided
+      if (phone) {
+        const phoneValidation = this.validatePhone(phone);
+        if (!phoneValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: phoneValidation.message,
+            data: null,
+          });
+        }
+      }
+
+      // Validate password strength
+      const passwordValidation = this.validatePassword(password);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: passwordValidation.message,
+          data: null,
+        });
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
+        },
+      });
+
+      if (existingUser) {
+        let message = 'Tài khoản với thông tin này đã tồn tại';
+        if (existingUser.email === email) {
+          message = 'Email này đã được sử dụng';
+        } else if (existingUser.phone === phone) {
+          message = 'Số điện thoại này đã được sử dụng';
+        }
+        return res.status(400).json({
+          success: false,
+          message,
+          data: null,
+        });
+      }
+
+      // Verify OTP if provided
+      if (otp && otpType) {
+        const otpResult = await this.otpService.verifyOTP(
+          primaryMethod === 'EMAIL' ? email : phone,
+          otp,
+          otpType
+        );
+
+        if (!otpResult.success) {
+          return res.status(400).json({
+            success: false,
+            message: otpResult.message,
+            data: null,
+          });
+        }
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+      // Determine verification status based on primary method
+      const emailVerified = primaryMethod === 'EMAIL';
+      const phoneVerified = primaryMethod === 'PHONE';
+
+      // Create user
+      const newUser = await prisma.user.create({
+        data: {
+          email: email || null,
+          phone: phone || null,
+          password_hash: hashedPassword,
+          first_name: firstName,
+          last_name: lastName,
+          role: 'MEMBER',
+          is_active: true,
+          email_verified: emailVerified,
+          email_verified_at: emailVerified ? new Date() : null,
+          phone_verified: phoneVerified,
+          phone_verified_at: phoneVerified ? new Date() : null,
+        },
+      });
+
+      // Email verification is handled by OTPVerification table
+      // No need for separate EmailVerification table
+
+      // Create session
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const session = await prisma.session.create({
+        data: {
+          user_id: newUser.id,
+          token: accessToken,
+          refresh_token: refreshToken,
+          device_info: req.headers['user-agent'] || 'Unknown',
+          ip_address: req.ip || req.connection.remoteAddress,
+          user_agent: req.headers['user-agent'] || 'Unknown',
+          expires_at: expiresAt,
+        },
+      });
+
+      // Generate JWT token with sessionId
+      const token = jwt.sign(
+        {
+          userId: newUser.id,
+          email: newUser.email,
+          role: newUser.role,
+          sessionId: session.id,
+        },
+        process.env.JWT_SECRET || 'default_secret',
+        { expiresIn: '15m' } // Short-lived access token
+      );
+
+      res.status(201).json({
+        success: true,
+        message: 'Member registered successfully',
+        data: {
+          accessToken: token,
+          refreshToken: refreshToken,
+          expiresIn: 900, // 15 minutes
+          user: {
+            id: newUser.id,
+            email: newUser.email,
+            phone: newUser.phone,
+            firstName: newUser.first_name,
+            lastName: newUser.last_name,
+            role: newUser.role,
+            emailVerified: newUser.email_verified,
+            phoneVerified: newUser.phone_verified,
+          },
+          requiresEmailVerification: !emailVerified,
+        },
+      });
+    } catch (error) {
+      console.error('Member register error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Send OTP for registration
+   */
   async sendRegistrationOTP(req, res) {
     try {
-      const { identifier, type = 'PHONE' } = req.body; // identifier = email or phone
+      const { identifier, type = 'PHONE' } = req.body;
 
       if (!identifier) {
         return res.status(400).json({
@@ -199,25 +622,20 @@ class AuthController {
         });
       }
 
-      // Generate OTP
-      const otp = this.otpService.generateOTP();
-
-      // Store OTP
-      await this.otpService.storeOTP(identifier, otp, type);
-
-      // Increment rate limit counter
-      await this.incrementRateLimit(rateLimitKey);
-
-      // Set OTP cooldown
-      await this.setOTPCooldown(cooldownKey);
-
       // Send OTP
-      let sendResult;
-      if (type === 'PHONE') {
-        sendResult = await this.otpService.sendSMSOTP(identifier, otp);
-      } else {
-        sendResult = await this.otpService.sendEmailVerification(identifier, otp);
+      const sendResult = await this.otpService.sendOTP(identifier, type);
+
+      if (!sendResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: sendResult.message,
+          data: null,
+        });
       }
+
+      // Increment rate limit and set cooldown
+      await this.incrementRateLimit(rateLimitKey);
+      await this.setOTPCooldown(cooldownKey);
 
       res.json({
         success: true,
@@ -226,8 +644,7 @@ class AuthController {
           identifier,
           type,
           remainingAttempts: 5 - (await this.getRateLimitCount(rateLimitKey)),
-          // Only include OTP in development
-          ...(process.env.NODE_ENV === 'development' && { otp }),
+          ...(process.env.NODE_ENV === 'development' && { otp: sendResult.otp }),
         },
       });
     } catch (error) {
@@ -240,7 +657,9 @@ class AuthController {
     }
   }
 
-  // Xác thực OTP
+  /**
+   * Verify OTP for registration
+   */
   async verifyRegistrationOTP(req, res) {
     try {
       const { identifier, otp, type = 'PHONE' } = req.body;
@@ -248,33 +667,26 @@ class AuthController {
       if (!identifier || !otp) {
         return res.status(400).json({
           success: false,
-          message: 'Email/số điện thoại và mã OTP là bắt buộc',
+          message: 'Email/phone và OTP là bắt buộc',
           data: null,
         });
       }
 
-      // Verify OTP
-      const verificationResult = await this.otpService.verifyOTP(identifier, otp, type);
+      const result = await this.otpService.verifyOTP(identifier, otp, type);
 
-      if (!verificationResult.success) {
-        return res.status(400).json({
+      if (result.success) {
+        res.json({
+          success: true,
+          message: result.message,
+          data: result.data,
+        });
+      } else {
+        res.status(400).json({
           success: false,
-          message: verificationResult.message,
-          data: {
-            remainingAttempts: verificationResult.remainingAttempts,
-          },
+          message: result.message,
+          data: null,
         });
       }
-
-      res.json({
-        success: true,
-        message: 'Xác thực thành công',
-        data: {
-          identifier,
-          type,
-          verified: true,
-        },
-      });
     } catch (error) {
       console.error('Verify OTP error:', error);
       res.status(500).json({
@@ -285,607 +697,13 @@ class AuthController {
     }
   }
 
-  // Đăng ký thành viên thường (sau khi xác thực OTP)
-  async registerMember(req, res) {
-    try {
-      const {
-        email,
-        password,
-        firstName,
-        lastName,
-        phone,
-        otp,
-        otpType = 'PHONE',
-        primaryMethod,
-      } = req.body;
-
-      // Determine primary method if not provided
-      const primaryMethodType = primaryMethod || (email ? 'EMAIL' : 'PHONE');
-
-      // Validate required fields - email OR phone is required
-      if ((!email && !phone) || !password || !firstName || !lastName) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email or phone, password, firstName, and lastName are required',
-          data: null,
-        });
-      }
-
-      // Validate primary method consistency
-      if (primaryMethodType === 'EMAIL' && !email) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email is required when primary method is EMAIL',
-          data: null,
-        });
-      }
-
-      if (primaryMethodType === 'PHONE' && !phone) {
-        return res.status(400).json({
-          success: false,
-          message: 'Phone is required when primary method is PHONE',
-          data: null,
-        });
-      }
-
-      // Validate OTP is required for primary method
-      if (!otp) {
-        return res.status(400).json({
-          success: false,
-          message: 'OTP is required for primary method verification',
-          data: null,
-        });
-      }
-
-      // Validate email format if provided
-      if (email) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        if (!emailRegex.test(email)) {
-          return res.status(400).json({
-            success: false,
-            message: 'Email format is invalid',
-            data: null,
-          });
-        }
-      }
-
-      // Validate phone format if provided
-      if (phone) {
-        const phoneRegex = /^(\+84|84|0)[0-9]{9,10}$/;
-        if (!phoneRegex.test(phone)) {
-          return res.status(400).json({
-            success: false,
-            message:
-              'Phone format is invalid. Please use Vietnamese format (0xxxxxxxxx or +84xxxxxxxxx)',
-            data: null,
-          });
-        }
-      }
-
-      // Validate password strength
-      if (password.length < 8) {
-        return res.status(400).json({
-          success: false,
-          message: 'Password must be at least 8 characters long',
-          data: null,
-        });
-      }
-
-      const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/;
-      if (!passwordRegex.test(password)) {
-        return res.status(400).json({
-          success: false,
-          message:
-            'Password must contain at least one uppercase letter, one lowercase letter, and one number',
-          data: null,
-        });
-      }
-
-      // Check if user already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [{ email }, ...(phone ? [{ phone }] : [])],
-        },
-      });
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'User with this email or phone already exists',
-          data: null,
-        });
-      }
-
-      // Check if OTP was already verified (for registration flow)
-      if (otp) {
-        const identifier = phone || email;
-        const otpRecord = await prisma.oTPVerification.findFirst({
-          where: {
-            identifier,
-            type: otpType,
-            expires_at: { gt: new Date() },
-            verified_at: { not: null }, // Only accept already verified OTPs
-          },
-        });
-
-        if (!otpRecord) {
-          return res.status(400).json({
-            success: false,
-            message: 'OTP chưa được xác thực hoặc đã hết hạn. Vui lòng xác thực OTP trước',
-            data: null,
-          });
-        }
-      }
-
-      // Hash password
-      const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-      // Determine verification status based on primary method
-      const now = new Date();
-      const emailVerified = primaryMethodType === 'EMAIL' ? true : false;
-      const phoneVerified = primaryMethodType === 'PHONE' ? true : false;
-
-      // Create new user with MEMBER role only
-      const newUser = await prisma.user.create({
-        data: {
-          email: email || null,
-          password_hash: hashedPassword,
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || null,
-          role: 'MEMBER', // Chỉ cho phép tạo MEMBER
-          is_active: true,
-          email_verified: emailVerified,
-          email_verified_at: emailVerified ? now : null,
-          phone_verified: phoneVerified,
-          phone_verified_at: phoneVerified ? now : null,
-        },
-      });
-
-      // Create email verification record if email not verified and email exists
-      if (!emailVerified && newUser.email) {
-        const emailToken = jwt.sign(
-          { userId: newUser.id, email: newUser.email },
-          process.env.JWT_SECRET || 'default_secret',
-          { expiresIn: '24h' }
-        );
-
-        await prisma.emailVerification.create({
-          data: {
-            user_id: newUser.id,
-            token: emailToken,
-            email: newUser.email,
-            expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-          },
-        });
-      }
-
-      // Delete used OTP after successful user creation
-      if (otp) {
-        const identifier = phone || email;
-        await prisma.oTPVerification.deleteMany({
-          where: {
-            identifier,
-            type: otpType,
-            verified_at: { not: null },
-          },
-        });
-      }
-
-      // Log registration
-      await prisma.accessLog.create({
-        data: {
-          user_id: newUser.id,
-          access_type: 'LOGIN',
-          access_method: 'PASSWORD',
-          success: true,
-          location: 'Registration',
-          sensor_data: {
-            action: 'REGISTER_MEMBER',
-            registration_method: phone ? 'PHONE_OTP' : 'EMAIL_ONLY',
-            phone_verified: phoneVerified,
-            email_verified: emailVerified,
-          },
-        },
-      });
-
-      // Generate JWT token
-      const token = jwt.sign(
-        {
-          userId: newUser.id,
-          email: newUser.email,
-          role: newUser.role,
-        },
-        process.env.JWT_SECRET || 'default_secret',
-        { expiresIn: '24h' }
-      );
-
-      res.status(201).json({
-        success: true,
-        message: 'Member registered successfully',
-        data: {
-          token,
-          user: {
-            id: newUser.id,
-            email: newUser.email,
-            phone: newUser.phone,
-            firstName: newUser.first_name,
-            lastName: newUser.last_name,
-            role: newUser.role,
-            emailVerified: newUser.email_verified,
-            phoneVerified: newUser.phone_verified,
-          },
-          requiresEmailVerification: !emailVerified,
-        },
-      });
-    } catch (error) {
-      console.error('Member register error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    }
-  }
-
-  // Đăng ký ADMIN (chỉ SUPER_ADMIN mới có thể tạo)
-  async registerAdmin(req, res) {
-    try {
-      const { email, password, firstName, lastName, adminSecret } = req.body;
-
-      // Validate admin secret key
-      if (adminSecret !== process.env.ADMIN_REGISTRATION_SECRET) {
-        return res.status(403).json({
-          success: false,
-          message: 'Invalid admin registration secret',
-          data: null,
-        });
-      }
-
-      // Validate required fields
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email, password, firstName, and lastName are required',
-          data: null,
-        });
-      }
-
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'User with this email already exists',
-          data: null,
-        });
-      }
-
-      // Hash password
-      const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-      // Create new admin user
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          password_hash: hashedPassword,
-          first_name: firstName,
-          last_name: lastName,
-          role: 'ADMIN',
-          is_active: true,
-          email_verified: true, // Admin accounts auto-verified
-        },
-      });
-
-      // Log admin creation
-      await prisma.accessLog.create({
-        data: {
-          user_id: req.user.id,
-          access_type: 'LOGIN',
-          access_method: 'PASSWORD',
-          success: true,
-          location: 'Admin Panel',
-          sensor_data: {
-            action: 'CREATE_ADMIN',
-            created_user_id: newUser.id,
-            created_user_role: 'ADMIN',
-          },
-        },
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Admin user created successfully',
-        data: {
-          user: {
-            id: newUser.id,
-            email: newUser.email,
-            firstName: newUser.first_name,
-            lastName: newUser.last_name,
-            role: newUser.role,
-          },
-        },
-      });
-    } catch (error) {
-      console.error('Admin register error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    }
-  }
-
-  // Đăng ký TRAINER (SUPER_ADMIN và ADMIN có thể tạo)
-  async registerTrainer(req, res) {
-    try {
-      const { email, password, firstName, lastName, phone, specialization } = req.body;
-
-      // Validate required fields
-      if (!email || !password || !firstName || !lastName) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email, password, firstName, and lastName are required',
-          data: null,
-        });
-      }
-
-      // Check if user already exists
-      const existingUser = await prisma.user.findUnique({
-        where: { email },
-      });
-
-      if (existingUser) {
-        return res.status(400).json({
-          success: false,
-          message: 'User with this email already exists',
-          data: null,
-        });
-      }
-
-      // Hash password
-      const saltRounds = 10;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-      // Create new trainer user
-      const newUser = await prisma.user.create({
-        data: {
-          email,
-          password_hash: hashedPassword,
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || null,
-          role: 'TRAINER',
-          is_active: true,
-          email_verified: true, // Trainer accounts auto-verified
-        },
-      });
-
-      // Log trainer creation
-      await prisma.accessLog.create({
-        data: {
-          user_id: req.user.id,
-          access_type: 'LOGIN',
-          access_method: 'PASSWORD',
-          success: true,
-          location: 'Admin Panel',
-          sensor_data: {
-            action: 'CREATE_TRAINER',
-            created_user_id: newUser.id,
-            created_user_role: 'TRAINER',
-            specialization: specialization || null,
-          },
-        },
-      });
-
-      res.status(201).json({
-        success: true,
-        message: 'Trainer user created successfully',
-        data: {
-          user: {
-            id: newUser.id,
-            email: newUser.email,
-            firstName: newUser.first_name,
-            lastName: newUser.last_name,
-            role: newUser.role,
-            phone: newUser.phone,
-          },
-        },
-      });
-    } catch (error) {
-      console.error('Trainer register error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    }
-  }
-
-  async logout(req, res) {
-    try {
-      res.json({
-        success: true,
-        message: 'Logout successful',
-        data: null,
-      });
-    } catch (error) {
-      res.status(500).json({
-        success: false,
-        message: 'Logout error',
-        data: null,
-      });
-    }
-  }
-
-  // Verify email address
-  async verifyEmail(req, res) {
-    try {
-      const { token } = req.body;
-
-      if (!token) {
-        return res.status(400).json({
-          success: false,
-          message: 'Verification token is required',
-          data: null,
-        });
-      }
-
-      // Find email verification record
-      const emailVerification = await prisma.emailVerification.findUnique({
-        where: { token },
-        include: { user: true },
-      });
-
-      if (!emailVerification) {
-        return res.status(400).json({
-          success: false,
-          message: 'Invalid verification token',
-          data: null,
-        });
-      }
-
-      // Check if token is expired
-      if (emailVerification.expires_at < new Date()) {
-        return res.status(400).json({
-          success: false,
-          message: 'Verification token has expired',
-          data: null,
-        });
-      }
-
-      // Check if already verified
-      if (emailVerification.verified_at) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already verified',
-          data: null,
-        });
-      }
-
-      // Update email verification status
-      const now = new Date();
-      await prisma.$transaction([
-        // Update user email verification status
-        prisma.user.update({
-          where: { id: emailVerification.user_id },
-          data: {
-            email_verified: true,
-            email_verified_at: now,
-          },
-        }),
-        // Mark email verification as completed
-        prisma.emailVerification.update({
-          where: { id: emailVerification.id },
-          data: { verified_at: now },
-        }),
-      ]);
-
-      res.json({
-        success: true,
-        message: 'Email verified successfully',
-        data: {
-          user: {
-            id: emailVerification.user.id,
-            email: emailVerification.user.email,
-            emailVerified: true,
-          },
-        },
-      });
-    } catch (error) {
-      console.error('Email verification error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    }
-  }
-
-  // Resend email verification
-  async resendEmailVerification(req, res) {
-    try {
-      const userId = req.user?.userId;
-
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Unauthorized',
-          data: null,
-        });
-      }
-
-      // Get user
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-      });
-
-      if (!user) {
-        return res.status(404).json({
-          success: false,
-          message: 'User not found',
-          data: null,
-        });
-      }
-
-      if (user.email_verified) {
-        return res.status(400).json({
-          success: false,
-          message: 'Email already verified',
-          data: null,
-        });
-      }
-
-      // Create new email verification token
-      const emailToken = jwt.sign(
-        { userId: user.id, email: user.email },
-        process.env.JWT_SECRET || 'default_secret',
-        { expiresIn: '24h' }
-      );
-
-      await prisma.emailVerification.create({
-        data: {
-          user_id: user.id,
-          token: emailToken,
-          email: user.email,
-          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 hours
-        },
-      });
-
-      res.json({
-        success: true,
-        message: 'Email verification sent successfully',
-        data: null,
-      });
-    } catch (error) {
-      console.error('Resend email verification error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    }
-  }
-
+  /**
+   * Get user profile
+   */
   async getProfile(req, res) {
     try {
-      // Get user ID from JWT middleware (req.user should be set by auth middleware)
-      const userId = req.user?.userId;
+      const userId = req.user.id;
 
-      if (!userId) {
-        return res.status(401).json({
-          success: false,
-          message: 'Unauthorized - No user ID found',
-          data: null,
-        });
-      }
-
-      // Get user from database
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -895,8 +713,12 @@ class AuthController {
           first_name: true,
           last_name: true,
           role: true,
+          is_active: true,
           email_verified: true,
+          email_verified_at: true,
           phone_verified: true,
+          phone_verified_at: true,
+          last_login_at: true,
           created_at: true,
           updated_at: true,
         },
@@ -930,6 +752,718 @@ class AuthController {
       });
     } catch (error) {
       console.error('Get profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== PASSWORD RESET FLOW ====================
+
+  /**
+   * Send email reset password
+   */
+  async forgotPassword(req, res) {
+    try {
+      const { email, phone } = req.body;
+
+      if (!email && !phone) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email hoặc số điện thoại là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Rate limiting cho forgot password
+      const identifier = email || phone;
+      const rateLimitKey = `forgot_password:${identifier}`;
+      const lastRequest = this.otpCooldownStore.get(rateLimitKey);
+
+      if (lastRequest && Date.now() - lastRequest < 5 * 60 * 1000) {
+        // 5 phút
+        const remainingTime = Math.ceil((5 * 60 * 1000 - (Date.now() - lastRequest)) / 1000);
+        return res.status(429).json({
+          success: false,
+          message: `Vui lòng đợi ${remainingTime} giây trước khi yêu cầu reset password lại`,
+          data: {
+            remainingTime,
+            cooldownPeriod: 300, // 5 phút
+          },
+        });
+      }
+
+      // Tìm user theo email hoặc phone
+      const user = await prisma.user.findFirst({
+        where: {
+          ...(email ? { email } : {}),
+          ...(phone ? { phone } : {}),
+        },
+      });
+
+      if (!user) {
+        // Thông báo rõ ràng rằng tài khoản chưa được tạo
+        return res.status(404).json({
+          success: false,
+          message: email
+            ? 'Email này chưa được đăng ký tài khoản. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.'
+            : 'Số điện thoại này chưa được đăng ký tài khoản. Vui lòng kiểm tra lại hoặc đăng ký tài khoản mới.',
+          data: {
+            accountExists: false,
+            suggestion: 'Vui lòng đăng ký tài khoản trước khi sử dụng tính năng quên mật khẩu',
+          },
+        });
+      }
+
+      // Xóa các reset token cũ của user này
+      await prisma.passwordReset.deleteMany({
+        where: {
+          user_id: user.id,
+          used_at: null, // Chỉ xóa token chưa dùng
+        },
+      });
+
+      // Tạo reset token
+      const resetToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 phút
+
+      // Lưu reset token vào database
+      await prisma.passwordReset.create({
+        data: {
+          user_id: user.id,
+          token: resetToken,
+          expires_at: expiresAt,
+        },
+      });
+
+      // Set rate limiting
+      this.otpCooldownStore.set(rateLimitKey, Date.now());
+
+      // Gửi reset link qua email hoặc SMS
+      if (email) {
+        // TODO: Gửi email với reset link
+        // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+        // await emailService.sendPasswordResetEmail(user.email, resetLink);
+        console.log(`Password reset requested for email: ${email}`);
+      } else if (phone) {
+        // TODO: Gửi SMS với reset link
+        // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+        // await smsService.sendPasswordResetSMS(user.phone, resetLink);
+        console.log(`Password reset requested for phone: ${phone}`);
+      }
+
+      res.json({
+        success: true,
+        message: email
+          ? 'Link đặt lại mật khẩu đã được gửi đến email của bạn. Vui lòng kiểm tra hộp thư.'
+          : 'Link đặt lại mật khẩu đã được gửi đến số điện thoại của bạn. Vui lòng kiểm tra tin nhắn SMS.',
+        data: {
+          accountExists: true,
+          resetMethod: email ? 'email' : 'phone',
+          expiresIn: 300, // 5 phút
+          ...(process.env.NODE_ENV === 'development' && { resetToken }),
+        },
+      });
+    } catch (error) {
+      console.error('Forgot password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Reset password với token
+   */
+  async resetPassword(req, res) {
+    try {
+      const { token, newPassword } = req.body;
+
+      if (!token || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Token và mật khẩu mới là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Validate password strength
+      const passwordValidation = this.validatePassword(newPassword);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: passwordValidation.message,
+          data: null,
+        });
+      }
+
+      // Tìm reset token
+      const resetRecord = await prisma.passwordReset.findFirst({
+        where: {
+          token,
+          expires_at: { gt: new Date() },
+          used_at: null, // Chưa được sử dụng
+        },
+        include: { user: true },
+      });
+
+      if (!resetRecord) {
+        return res.status(400).json({
+          success: false,
+          message: 'Token không hợp lệ hoặc đã hết hạn',
+          data: null,
+        });
+      }
+
+      // Hash password mới
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+
+      // Cập nhật password và đánh dấu token đã sử dụng
+      await prisma.$transaction([
+        prisma.user.update({
+          where: { id: resetRecord.user_id },
+        data: {
+          password_hash: hashedPassword,
+            failed_login_attempts: 0, // Reset failed attempts
+            locked_until: null, // Unlock account
+          },
+        }),
+        prisma.passwordReset.update({
+          where: { id: resetRecord.id },
+          data: { used_at: new Date() },
+        }),
+      ]);
+
+      res.json({
+          success: true,
+        message: 'Mật khẩu đã được reset thành công',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Reset password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Validate reset token
+   */
+  async validateResetToken(req, res) {
+    try {
+      const { token } = req.params;
+
+      const resetRecord = await prisma.passwordReset.findFirst({
+        where: {
+          token,
+          expires_at: { gt: new Date() },
+          used_at: null, // Chưa được sử dụng
+        },
+      });
+
+      if (!resetRecord) {
+        return res.status(400).json({
+          success: false,
+          message: 'Token không hợp lệ hoặc đã hết hạn',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Token hợp lệ',
+        data: { valid: true },
+      });
+    } catch (error) {
+      console.error('Validate reset token error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== EMAIL VERIFICATION ====================
+
+  /**
+   * Verify email address using OTP
+   */
+  async verifyEmail(req, res) {
+    try {
+      const { email, otp } = req.body;
+
+      if (!email || !otp) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email và OTP là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Find user by email
+      const user = await prisma.user.findUnique({
+        where: { email },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      if (user.email_verified) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email đã được xác thực',
+          data: null,
+        });
+      }
+
+      // Verify OTP
+      const otpResult = await this.otpService.verifyOTP(email, otp, 'EMAIL');
+
+      if (!otpResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: otpResult.message,
+          data: null,
+        });
+      }
+
+      // Update user email verification status
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          email_verified: true,
+          email_verified_at: new Date(),
+        },
+      });
+
+      res.json({
+          success: true,
+        message: 'Email đã được xác thực thành công',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Verify email error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Resend email verification OTP
+   */
+  async resendEmailVerification(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, email: true, email_verified: true },
+      });
+
+      if (!user || !user.email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email không tồn tại',
+          data: null,
+        });
+      }
+
+      if (user.email_verified) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email đã được xác thực',
+          data: null,
+        });
+      }
+
+      // Send OTP for email verification
+      const sendResult = await this.otpService.sendOTP(user.email, 'EMAIL');
+
+      if (!sendResult.success) {
+        return res.status(400).json({
+          success: false,
+          message: sendResult.message,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Email OTP đã được gửi lại',
+        data: {
+          ...(process.env.NODE_ENV === 'development' && { otp: sendResult.otp }),
+        },
+      });
+    } catch (error) {
+      console.error('Resend email verification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== SESSION REFRESH ====================
+
+  /**
+   * Refresh access token
+   */
+  async refreshToken(req, res) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'Refresh token là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Verify refresh token
+      const session = await prisma.session.findFirst({
+        where: {
+          refresh_token: refreshToken,
+          expires_at: { gt: new Date() },
+        },
+        include: { user: true },
+      });
+
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: 'Refresh token không hợp lệ hoặc đã hết hạn',
+          data: null,
+        });
+      }
+
+      // Generate new tokens
+      const accessToken = jwt.sign(
+        {
+          userId: session.user.id,
+          email: session.user.email,
+          role: session.user.role,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '15m' }
+      );
+
+      const newRefreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      // Update session with new refresh token
+      await prisma.session.update({
+        where: { id: session.id },
+        data: {
+          refresh_token: newRefreshToken,
+          expires_at: expiresAt,
+          last_used_at: new Date(),
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Token refreshed successfully',
+        data: {
+          accessToken,
+          refreshToken: newRefreshToken,
+          expiresIn: 900, // 15 minutes
+        },
+      });
+    } catch (error) {
+      console.error('Refresh token error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== TWO-FACTOR AUTHENTICATION (2FA) ====================
+
+  /**
+   * Verify 2FA token for login
+   */
+  async verify2FALogin(req, res) {
+    try {
+      const { userId, twoFactorToken } = req.body;
+
+      if (!userId || !twoFactorToken) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID và 2FA token là bắt buộc',
+          data: null,
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          two_factor_secret: true,
+          two_factor_enabled: true,
+          is_active: true,
+          email: true,
+          role: true,
+          first_name: true,
+          last_name: true,
+          phone: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      if (!user.is_active) {
+        return res.status(401).json({
+          success: false,
+          message: 'Tài khoản đã bị vô hiệu hóa',
+          data: null,
+        });
+      }
+
+      if (!user.two_factor_enabled) {
+        return res.status(400).json({
+          success: false,
+          message: '2FA chưa được bật cho tài khoản này',
+          data: null,
+        });
+      }
+
+      // Verify 2FA token
+      const is2FAValid = this.verifyTOTPToken(user.two_factor_secret, twoFactorToken);
+      if (!is2FAValid) {
+        return res.status(401).json({
+          success: false,
+          message: '2FA token không hợp lệ',
+          data: null,
+        });
+      }
+
+      // Generate tokens and create session
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const session = await prisma.session.create({
+        data: {
+          user_id: user.id,
+          token: accessToken,
+          refresh_token: refreshToken,
+          device_info: req.headers['user-agent'] || 'Unknown',
+          ip_address: req.ip || req.connection.remoteAddress,
+          user_agent: req.headers['user-agent'] || 'Unknown',
+          expires_at: expiresAt,
+        },
+      });
+
+      // Generate JWT token with sessionId
+      const jwtToken = jwt.sign(
+        {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+          sessionId: session.id,
+        },
+        process.env.JWT_SECRET || 'dev-secret',
+        { expiresIn: '15m' } // Short-lived access token
+      );
+
+      // Update last login time
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { last_login_at: new Date() },
+      });
+
+      res.json({
+        success: true,
+        message: '2FA verification successful',
+        data: {
+          accessToken: jwtToken,
+          refreshToken,
+          expiresIn: 900, // 15 minutes
+          user: {
+            id: user.id,
+            email: user.email,
+            phone: user.phone,
+            firstName: user.first_name,
+            lastName: user.last_name,
+            role: user.role,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Verify 2FA login error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Verify TOTP token (helper method)
+   */
+  verifyTOTPToken(secret, token) {
+    // This is a simplified TOTP verification
+    // In production, you should use a proper TOTP library like 'speakeasy'
+    // For now, we'll implement a basic version
+
+    const time = Math.floor(Date.now() / 1000 / 30); // 30-second window
+    const expectedToken = this.generateTOTP(secret, time);
+
+    return expectedToken === token;
+  }
+
+  /**
+   * Generate TOTP token (helper method)
+   */
+  generateTOTP(secret, time) {
+    // This is a simplified TOTP generation
+    // In production, use a proper TOTP library
+    const hmac = crypto.createHmac('sha1', Buffer.from(secret, 'base32'));
+    hmac.update(Buffer.from(time.toString(16).padStart(16, '0'), 'hex'));
+    const hash = hmac.digest();
+
+    const offset = hash[hash.length - 1] & 0xf;
+    const code =
+      ((hash[offset] & 0x7f) << 24) |
+      ((hash[offset + 1] & 0xff) << 16) |
+      ((hash[offset + 2] & 0xff) << 8) |
+      (hash[offset + 3] & 0xff);
+
+    return (code % 1000000).toString().padStart(6, '0');
+  }
+
+  // ==================== ADMIN REGISTRATION ====================
+
+  /**
+   * Register admin (Super Admin only)
+   */
+  async registerAdmin(req, res) {
+    try {
+      const { email, phone, password, firstName, lastName, role = 'ADMIN' } = req.body;
+
+      // Validate required fields
+      if (!email || !password || !firstName || !lastName) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email, mật khẩu, họ và tên là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Validate email format
+      const emailValidation = this.validateEmail(email);
+      if (!emailValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: emailValidation.message,
+          data: null,
+        });
+      }
+
+      // Validate phone format if provided
+      if (phone) {
+        const phoneValidation = this.validatePhone(phone);
+        if (!phoneValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: phoneValidation.message,
+            data: null,
+          });
+        }
+      }
+
+      // Validate password strength
+      const passwordValidation = this.validatePassword(password);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: passwordValidation.message,
+          data: null,
+        });
+      }
+
+      // Check if user already exists
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          OR: [{ email }, ...(phone ? [{ phone }] : [])],
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Tài khoản với thông tin này đã tồn tại',
+          data: null,
+        });
+      }
+
+      // Hash password
+      const saltRounds = 12;
+      const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+      // Create admin user
+      const newAdmin = await prisma.user.create({
+        data: {
+          email,
+          phone: phone || null,
+          password_hash: hashedPassword,
+          first_name: firstName,
+          last_name: lastName,
+          role: role.toUpperCase(),
+          is_active: true,
+          email_verified: true,
+          email_verified_at: new Date(),
+          phone_verified: phone ? true : false,
+          phone_verified_at: phone ? new Date() : null,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Admin đã được tạo thành công',
+        data: {
+          user: {
+            id: newAdmin.id,
+            email: newAdmin.email,
+            phone: newAdmin.phone,
+            firstName: newAdmin.first_name,
+            lastName: newAdmin.last_name,
+            role: newAdmin.role,
+            emailVerified: newAdmin.email_verified,
+            phoneVerified: newAdmin.phone_verified,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Register admin error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
