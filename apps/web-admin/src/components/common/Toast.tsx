@@ -6,22 +6,54 @@ interface ToastProps {
   isVisible: boolean;
   onClose: () => void;
   duration?: number;
+  countdown?: number; // Thời gian countdown (giây)
 }
 
-export default function Toast({ message, type, isVisible, onClose, duration = 5000 }: ToastProps) {
+export default function Toast({
+  message,
+  type,
+  isVisible,
+  onClose,
+  duration = 5000,
+  countdown,
+}: ToastProps) {
   const [isAnimating, setIsAnimating] = useState(false);
+  const [countdownTime, setCountdownTime] = useState(countdown || 0);
 
   useEffect(() => {
     if (isVisible) {
       setIsAnimating(true);
+
+      // Nếu có countdown, sử dụng countdown thay vì duration
+      const actualDuration = countdown ? countdown * 1000 : duration;
+
       const timer = setTimeout(() => {
         setIsAnimating(false);
         setTimeout(onClose, 300); // Wait for animation to complete
-      }, duration);
+      }, actualDuration);
 
       return () => clearTimeout(timer);
     }
-  }, [isVisible, duration, onClose]);
+  }, [isVisible, duration, countdown, onClose]);
+
+  // Countdown effect
+  useEffect(() => {
+    if (countdown && countdown > 0) {
+      setCountdownTime(countdown);
+
+      const countdownInterval = setInterval(() => {
+        setCountdownTime(prev => {
+          if (prev <= 1) {
+            clearInterval(countdownInterval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(countdownInterval);
+    }
+  }, [countdown]);
 
   if (!isVisible) return null;
 
@@ -144,7 +176,12 @@ export default function Toast({ message, type, isVisible, onClose, duration = 50
 
         {/* Message */}
         <div className='flex-1'>
-          <p className='text-white font-medium text-sm leading-relaxed'>{message}</p>
+          <p className='text-white font-medium text-sm leading-relaxed'>
+            {message}
+            {countdown && countdownTime > 0 && (
+              <span className='ml-2 text-orange-300 font-bold'>({countdownTime}s)</span>
+            )}
+          </p>
         </div>
 
         {/* Close Button */}
