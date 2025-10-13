@@ -9,6 +9,7 @@ import { ToastProvider } from './context/ToastContext';
 import Homepage from './features/homepage/pages/Homepage';
 import './index.css';
 import AppLayout from './layout/AppLayout';
+import TrainerLayout from './layout/TrainerLayout';
 import Auth from './pages/AuthPages/Auth';
 import ResetPassword from './pages/AuthPages/ResetPassword';
 import Blank from './pages/Blank';
@@ -19,6 +20,18 @@ import CreateAdmin from './pages/CreateAdmin';
 import CreateTrainer from './pages/CreateTrainer';
 import Home from './pages/Dashboard/Home';
 import RealDashboard from './pages/Dashboard/RealDashboard';
+import TrainerAttendance from './pages/Dashboard/TrainerAttendance';
+import TrainerBookings from './pages/Dashboard/TrainerBookings';
+import TrainerCalendar from './pages/Dashboard/TrainerCalendar';
+import TrainerClasses from './pages/Dashboard/TrainerClasses';
+import TrainerFeedback from './pages/Dashboard/TrainerFeedback';
+import TrainerLegacyDashboard from './pages/Dashboard/TrainerLegacyDashboard';
+import TrainerPerformance from './pages/Dashboard/TrainerPerformance';
+import TrainerProfile from './pages/Dashboard/TrainerProfile';
+import TrainerRatings from './pages/Dashboard/TrainerRatings';
+import TrainerReviews from './pages/Dashboard/TrainerReviews';
+import TrainerSchedule from './pages/Dashboard/TrainerSchedule';
+import TrainerStats from './pages/Dashboard/TrainerStats';
 import FormElements from './pages/Forms/FormElements';
 import NotFound from './pages/OtherPage/NotFound';
 import BasicTables from './pages/Tables/BasicTables';
@@ -86,7 +99,9 @@ export default function App() {
             path='/trainer-dashboard'
             element={
               <ProtectedRoute requiredRole='TRAINER'>
-                <RoleBasedRouter userRole='TRAINER' />
+                <TrainerLayout>
+                  <RoleBasedRouter userRole='TRAINER' />
+                </TrainerLayout>
               </ProtectedRoute>
             }
           />
@@ -123,6 +138,135 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <CreateTrainer />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/user-management'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <UserManagement />
+              </ProtectedRoute>
+            }
+          />
+          {/* Trainer routes with TrainerLayout */}
+          <Route
+            path='/trainer-dashboard'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerLegacyDashboard />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/classes'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerClasses />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/schedule'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerSchedule />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/attendance'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerAttendance />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/bookings'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerBookings />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/reviews'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerReviews />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/profile'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerProfile />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/calendar'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerCalendar />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/ratings'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerRatings />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/feedback'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerFeedback />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/trainer-stats'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerStats />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/dashboard/performance'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerPerformance />
+                </TrainerLayout>
               </ProtectedRoute>
             }
           />
