@@ -1,4 +1,4 @@
-// Schedule Service Prisma Schema - IoT Gym Management
+// Schedule Service Prisma Schema - Gym Management
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,54 +8,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Instructor {
+model Trainer {
   id                String              @id @default(cuid())
   user_id           String              @unique // Reference to identity service
   full_name         String
   phone             String              @unique
   email             String              @unique
   specializations   String[]            // Array of specializations
-  certifications    Certification[]
   bio               String?
   experience_years  Int                 @default(0)
   hourly_rate       Decimal?            @db.Decimal(10, 2)
   profile_photo     String?
-  status            InstructorStatus    @default(ACTIVE)
-  
-  // Smart scheduling
-  availability      Json?               // Weekly availability patterns
-  max_classes_per_day Int              @default(8)
-  preferred_time_slots String[]         // "MORNING", "AFTERNOON", "EVENING"
+  status            TrainerStatus       @default(ACTIVE)
   
   // Performance tracking
   rating_average    Float?              @default(0)
   total_classes     Int                 @default(0)
-  member_feedback   InstructorFeedback[]
   
   created_at        DateTime            @default(now())
   updated_at        DateTime            @updatedAt
 
   // Relations
   schedules         Schedule[]
-  class_instructors ClassInstructor[]   // Many-to-many with classes
 
-  @@map("instructors")
+  @@map("trainers")
 }
 
-model Certification {
-  id            String      @id @default(cuid())
-  instructor_id String
-  name          String
-  organization  String
-  issued_date   DateTime
-  expiry_date   DateTime?
-  certificate_url String?   // File/image URL
-  status        CertStatus  @default(ACTIVE)
-  
-  instructor Instructor @relation(fields: [instructor_id], references: [id], onDelete: Cascade)
-
-  @@map("certifications")
-}
 
 model GymClass {
   id              String            @id @default(cuid())
@@ -67,19 +45,11 @@ model GymClass {
   difficulty      Difficulty
   equipment_needed String[]         // Required equipment list
   
-  // IoT & Smart Features
-  calories_per_session Int?         // Estimated calories burned
-  heart_rate_zones Json?           // Target HR zones for class
-  music_playlist   String?         // Spotify/Music service ID
-  room_requirements Json?          // {"temperature": 22, "humidity": 50}
-  
   // Pricing
   price           Decimal?          @db.Decimal(10, 2)
-  credits_required Int?             // For credit-based systems
   
   // Media
   thumbnail       String?
-  video_preview   String?           // Class preview video URL
   
   is_active       Boolean           @default(true)
   created_at      DateTime          @default(now())
@@ -87,25 +57,10 @@ model GymClass {
 
   // Relations
   schedules       Schedule[]
-  class_instructors ClassInstructor[]
 
   @@map("gym_classes")
 }
 
-// Instructor assignment to classes (many-to-many)
-model ClassInstructor {
-  id            String     @id @default(cuid())
-  class_id      String
-  instructor_id String
-  role          String     @default("PRIMARY") // "PRIMARY", "ASSISTANT", "SUBSTITUTE"
-  assigned_at   DateTime   @default(now())
-
-  gym_class  GymClass   @relation(fields: [class_id], references: [id], onDelete: Cascade)
-  instructor Instructor @relation(fields: [instructor_id], references: [id], onDelete: Cascade)
-
-  @@unique([class_id, instructor_id, role])
-  @@map("class_instructors")
-}
 
 model Room {
   id              String       @id @default(cuid())
@@ -113,22 +68,7 @@ model Room {
   capacity        Int
   area_sqm        Float?       // Room area in square meters
   equipment       String[]     // Available equipment
-  
-  // IoT Integration
-  smart_controls  Boolean      @default(false)
-  climate_control Boolean      @default(false)
-  sound_system    Boolean      @default(false)
-  lighting_control Boolean     @default(false)
-  occupancy_sensors Boolean    @default(false)
-  
-  // Environmental monitoring
-  temperature_sensor_id String? @unique
-  humidity_sensor_id   String? @unique
-  air_quality_sensor_id String? @unique
-  
   amenities       String[]     // ["MIRRORS", "PROJECTOR", "SOUND_SYSTEM"]
-  floor_type      String?      // "HARDWOOD", "RUBBER", "CARPET"
-  special_features String[]    // ["DANCE_BARRE", "CLIMBING_WALL"]
   
   status          RoomStatus   @default(AVAILABLE)
   maintenance_notes String?
@@ -138,55 +78,27 @@ model Room {
 
   // Relations
   schedules       Schedule[]
-  room_sensors    RoomSensor[]
 
   @@map("rooms")
 }
 
-// IoT Environmental Monitoring
-model RoomSensor {
-  id             String      @id @default(cuid())
-  room_id        String
-  sensor_type    SensorType
-  sensor_id      String      // Physical sensor identifier
-  current_value  Float?
-  unit           String      // °C, %, ppm, etc.
-  last_reading   DateTime?
-  status         SensorStatus @default(ACTIVE)
-  
-  room Room @relation(fields: [room_id], references: [id])
-
-  @@map("room_sensors")
-}
 
 model Schedule {
   id             String          @id @default(cuid())
   class_id       String
-  instructor_id  String?
+  trainer_id     String?
   room_id        String
   
   // Scheduling details
   date           DateTime        // Date of the class
   start_time     DateTime        // Full datetime
   end_time       DateTime        // Full datetime
-  recurrence     RecurrenceType? // For recurring classes
-  recurrence_end DateTime?       // When recurring stops
   
   // Class status and capacity
   status         ScheduleStatus  @default(SCHEDULED)
   current_bookings Int           @default(0)
   max_capacity   Int             // Can override class default
   waitlist_count Int             @default(0)
-  
-  // Smart scheduling features
-  auto_confirm   Boolean         @default(true)
-  reminder_sent  Boolean         @default(false)
-  feedback_collected Boolean     @default(false)
-  
-  // IoT integration
-  room_prepared  Boolean         @default(false) // Room setup complete
-  equipment_checked Boolean      @default(false)
-  climate_optimized Boolean      @default(false)
   
   // Pricing override
   price_override Decimal?        @db.Decimal(10, 2)
@@ -197,7 +109,7 @@ model Schedule {
 
   // Relations
   gym_class      GymClass        @relation(fields: [class_id], references: [id])
-  instructor     Instructor?     @relation(fields: [instructor_id], references: [id])
+  trainer        Trainer?        @relation(fields: [trainer_id], references: [id])
   room           Room            @relation(fields: [room_id], references: [id])
   bookings       Booking[]
   attendance     Attendance[]
@@ -216,33 +128,26 @@ model Booking {
   cancelled_at DateTime?
   cancellation_reason String?
   
-  // Payment and credits
-  payment_status PaymentStatus @default(PENDING)
-  credits_used   Int?          // If using credit system
-  amount_paid    Decimal?      @db.Decimal(10, 2)
+  // Payment
+  payment_status String      @default("PENDING") // PENDING, PAID, REFUNDED, FAILED
+  amount_paid    Decimal?    @db.Decimal(10, 2)
   
   // Special requirements
-  special_needs  String?       // Accessibility, equipment needs
-  is_waitlist    Boolean       @default(false)
+  special_needs  String?     // Accessibility, equipment needs
+  is_waitlist    Boolean     @default(false)
   waitlist_position Int?
   
-  // Notifications
-  reminder_sent  Boolean       @default(false)
-  confirmed_attendance Boolean @default(false)
-  
   notes          String?
-  created_at     DateTime      @default(now())
-  updated_at     DateTime      @updatedAt
+  created_at     DateTime    @default(now())
+  updated_at     DateTime    @updatedAt
 
   // Relations
-  schedule       Schedule      @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
-  payments       Payment[]     // For booking payments
+  schedule       Schedule    @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
 
   @@unique([schedule_id, member_id])
   @@map("bookings")
 }
 
-// Actual attendance tracking (IoT integration)
 model Attendance {
   id           String         @id @default(cuid())
   schedule_id  String
@@ -253,19 +158,10 @@ model Attendance {
   checked_out_at DateTime?
   attendance_method AttendanceMethod @default(MANUAL)
   
-  // Performance metrics
-  calories_burned Int?         // From wearables/estimates
-  heart_rate_avg  Int?
-  heart_rate_max  Int?
-  workout_intensity Float?     // 1-10 scale
-  
   // Feedback
   class_rating    Int?         // 1-5 stars
-  instructor_rating Int?       // 1-5 stars
+  trainer_rating  Int?         // 1-5 stars
   feedback_notes  String?
-  
-  // IoT sensor data
-  sensor_data     Json?        // Additional IoT readings
   
   created_at      DateTime     @default(now())
   updated_at      DateTime     @updatedAt
@@ -277,51 +173,13 @@ model Attendance {
   @@map("attendance")
 }
 
-// Instructor performance tracking
-model InstructorFeedback {
-  id            String    @id @default(cuid())
-  instructor_id String
-  member_id     String    // Who gave the feedback
-  schedule_id   String?   // Specific class session
-  
-  rating        Int       // 1-5 stars
-  category      FeedbackCategory
-  comments      String?
-  is_anonymous  Boolean   @default(false)
-  
-  created_at    DateTime  @default(now())
-
-  instructor Instructor @relation(fields: [instructor_id], references: [id])
-
-  @@map("instructor_feedback")
-}
-
-// Cross-service payment reference
-model Payment {
-  id          String   @id @default(cuid())
-  booking_id  String   @unique
-  amount      Decimal  @db.Decimal(10, 2)
-  status      String
-  payment_method String
-  paid_at     DateTime @default(now())
-
-  booking Booking @relation(fields: [booking_id], references: [id])
-
-  @@map("payments_ref")
-}
 
 // Enums
-enum InstructorStatus {
+enum TrainerStatus {
   ACTIVE
   INACTIVE
   ON_LEAVE
   TERMINATED
-}
-
-enum CertStatus {
-  ACTIVE
-  EXPIRED
-  REVOKED
 }
 
 enum ClassCategory {
@@ -352,29 +210,6 @@ enum RoomStatus {
   RESERVED
 }
 
-enum SensorType {
-  TEMPERATURE
-  HUMIDITY
-  AIR_QUALITY
-  NOISE_LEVEL
-  OCCUPANCY
-  LIGHT_LEVEL
-}
-
-enum SensorStatus {
-  ACTIVE
-  INACTIVE
-  MAINTENANCE
-  ERROR
-}
-
-enum RecurrenceType {
-  DAILY
-  WEEKLY
-  MONTHLY
-  CUSTOM
-}
-
 enum ScheduleStatus {
   SCHEDULED
   IN_PROGRESS
@@ -391,27 +226,9 @@ enum BookingStatus {
   COMPLETED
 }
 
-enum PaymentStatus {
-  PENDING
-  PAID
-  REFUNDED
-  FAILED
-}
 
 enum AttendanceMethod {
   MANUAL
-  RFID
   QR_CODE
-  FACE_RECOGNITION
   MOBILE_APP
-}
-
-enum FeedbackCategory {
-  INSTRUCTION_QUALITY
-  CLASS_CONTENT
-  COMMUNICATION
-  PUNCTUALITY
-  PROFESSIONALISM
-  MOTIVATION
-  OVERALL
 }
