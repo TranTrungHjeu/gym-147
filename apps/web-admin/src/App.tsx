@@ -67,16 +67,18 @@ export default function App() {
             path='/dashboard'
             element={
               <ProtectedRoute>
-                <RoleBasedRouter
-                  userRole={(() => {
-                    try {
-                      const user = localStorage.getItem('user');
-                      return user ? JSON.parse(user).role : 'MEMBER';
-                    } catch {
-                      return 'MEMBER';
-                    }
-                  })()}
-                />
+                <AppLayout>
+                  <RoleBasedRouter
+                    userRole={(() => {
+                      try {
+                        const user = localStorage.getItem('user');
+                        return user ? JSON.parse(user).role : 'MEMBER';
+                      } catch {
+                        return 'MEMBER';
+                      }
+                    })()}
+                  />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -84,7 +86,9 @@ export default function App() {
             path='/super-admin-dashboard'
             element={
               <ProtectedRoute requiredRole='SUPER_ADMIN'>
-                <RoleBasedRouter userRole='SUPER_ADMIN' />
+                <AppLayout>
+                  <RoleBasedRouter userRole='SUPER_ADMIN' />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -92,7 +96,9 @@ export default function App() {
             path='/admin-dashboard'
             element={
               <ProtectedRoute requiredRole='ADMIN'>
-                <RoleBasedRouter userRole='ADMIN' />
+                <AppLayout>
+                  <RoleBasedRouter userRole='ADMIN' />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -110,7 +116,9 @@ export default function App() {
             path='/member-dashboard'
             element={
               <ProtectedRoute requiredRole='MEMBER'>
-                <RoleBasedRouter userRole='MEMBER' />
+                <AppLayout>
+                  <RoleBasedRouter userRole='MEMBER' />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
