@@ -9,14 +9,19 @@
     "type-check": "echo 'No type check needed for JS'"
   },
   "dependencies": {
+    "@aws-sdk/client-sns": "^3.908.0",
     "@prisma/client": "^6.12.0",
+    "@sendgrid/mail": "^8.1.6",
+    "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^17.2.2",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0"
+    "morgan": "^1.10.0",
+    "resend": "^6.1.2",
+    "twilio": "^5.10.2"
   },
   "devDependencies": {
     "prisma": "^6.12.0"

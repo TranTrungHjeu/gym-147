@@ -38,4 +38,18 @@ router.post('/register-admin', authMiddleware, requireSuperAdmin, (req, res) =>
   authController.registerAdmin(req, res)
 );
 
+// User management routes (for admin)
+router.get('/users', authMiddleware, requireAdmin, (req, res) =>
+  authController.getAllUsers(req, res)
+);
+router.get('/users/:id', authMiddleware, requireAdmin, (req, res) =>
+  authController.getUserById(req, res)
+);
+router.put('/users/:id', authMiddleware, requireAdmin, (req, res) =>
+  authController.updateUser(req, res)
+);
+router.delete('/users/:id', authMiddleware, requireSuperAdmin, (req, res) =>
+  authController.deleteUser(req, res)
+);
+
 module.exports = { authRoutes: router };

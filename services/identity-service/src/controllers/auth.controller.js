@@ -3,6 +3,7 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { prisma } = require('../lib/prisma.js');
 const { OTPService } = require('../services/otp.service.js');
+const scheduleService = require('../services/schedule.service.js');
 
 class AuthController {
   constructor() {
@@ -46,7 +47,7 @@ class AuthController {
     if (!timestamp) return 0;
 
     const now = Date.now();
-    const cooldownTime = 30 * 1000; // 30 seconds
+    const cooldownTime = 60 * 1000; // 30 seconds
     const remaining = Math.max(0, cooldownTime - (now - timestamp));
 
     if (remaining === 0) {
@@ -702,7 +703,7 @@ class AuthController {
    */
   async getProfile(req, res) {
     try {
-      const userId = req.user.id;
+      const userId = req.user.userId || req.user.id;
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -742,7 +743,10 @@ class AuthController {
             phone: user.phone,
             firstName: user.first_name,
             lastName: user.last_name,
+            first_name: user.first_name,
+            last_name: user.last_name,
             role: user.role,
+            isActive: user.is_active,
             emailVerified: user.email_verified,
             phoneVerified: user.phone_verified,
             createdAt: user.created_at,
@@ -927,8 +931,8 @@ class AuthController {
       await prisma.$transaction([
         prisma.user.update({
           where: { id: resetRecord.user_id },
-        data: {
-          password_hash: hashedPassword,
+          data: {
+            password_hash: hashedPassword,
             failed_login_attempts: 0, // Reset failed attempts
             locked_until: null, // Unlock account
           },
@@ -940,7 +944,7 @@ class AuthController {
       ]);
 
       res.json({
-          success: true,
+        success: true,
         message: 'Mật khẩu đã được reset thành công',
         data: null,
       });
@@ -1051,7 +1055,7 @@ class AuthController {
       });
 
       res.json({
-          success: true,
+        success: true,
         message: 'Email đã được xác thực thành công',
         data: null,
       });
@@ -1446,6 +1450,27 @@ class AuthController {
         },
       });
 
+      // If role is TRAINER, create trainer in schedule service
+      if (role.toUpperCase() === 'TRAINER') {
+        try {
+          const trainerResult = await scheduleService.createTrainer({
+            id: newAdmin.id,
+            firstName: newAdmin.first_name,
+            lastName: newAdmin.last_name,
+            phone: newAdmin.phone,
+            email: newAdmin.email,
+          });
+
+          if (!trainerResult.success) {
+            console.warn('Failed to create trainer in schedule service:', trainerResult.error);
+            // Continue with response even if schedule service fails
+          }
+        } catch (error) {
+          console.error('Error creating trainer in schedule service:', error);
+          // Continue with response even if schedule service fails
+        }
+      }
+
       res.status(201).json({
         success: true,
         message: 'Admin đã được tạo thành công',
@@ -1464,6 +1489,234 @@ class AuthController {
       });
     } catch (error) {
       console.error('Register admin error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Update user profile
+  async updateUser(req, res) {
+    try {
+      const { id } = req.params;
+      const { firstName, lastName, phone, email } = req.body;
+
+      // Check if user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // Update user
+      const updatedUser = await prisma.user.update({
+        where: { id },
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          phone: phone || null,
+          email,
+        },
+      });
+
+      // If user is TRAINER, update trainer in schedule service
+      if (existingUser.role === 'TRAINER') {
+        try {
+          const trainerResult = await scheduleService.updateTrainer(id, {
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            phone: updatedUser.phone,
+            email: updatedUser.email,
+          });
+
+          if (!trainerResult.success) {
+            console.warn('Failed to update trainer in schedule service:', trainerResult.error);
+            // Continue with response even if schedule service fails
+          }
+        } catch (error) {
+          console.error('Error updating trainer in schedule service:', error);
+          // Continue with response even if schedule service fails
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'User updated successfully',
+        data: {
+          user: {
+            id: updatedUser.id,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            role: updatedUser.role,
+            emailVerified: updatedUser.email_verified,
+            phoneVerified: updatedUser.phone_verified,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Update user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Delete user
+  async deleteUser(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Check if user exists
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // If user is TRAINER, delete trainer from schedule service first
+      if (existingUser.role === 'TRAINER') {
+        try {
+          const trainerResult = await scheduleService.deleteTrainer(id);
+
+          if (!trainerResult.success) {
+            console.warn('Failed to delete trainer in schedule service:', trainerResult.error);
+            // Continue with user deletion even if schedule service fails
+          }
+        } catch (error) {
+          console.error('Error deleting trainer in schedule service:', error);
+          // Continue with user deletion even if schedule service fails
+        }
+      }
+
+      // Delete user from identity service
+      await prisma.user.delete({
+        where: { id },
+      });
+
+      res.json({
+        success: true,
+        message: 'User deleted successfully',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Delete user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Get user by ID
+  async getUserById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          first_name: true,
+          last_name: true,
+          role: true,
+          is_active: true,
+          email_verified: true,
+          phone_verified: true,
+          created_at: true,
+          updated_at: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'User retrieved successfully',
+        data: { user },
+      });
+    } catch (error) {
+      console.error('Get user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Get all users (for admin)
+  async getAllUsers(req, res) {
+    try {
+      const { role, page = 1, limit = 10 } = req.query;
+      const skip = (parseInt(page) - 1) * parseInt(limit);
+
+      const whereClause = role ? { role: role.toUpperCase() } : {};
+
+      const [users, total] = await Promise.all([
+        prisma.user.findMany({
+          where: whereClause,
+          select: {
+            id: true,
+            email: true,
+            phone: true,
+            first_name: true,
+            last_name: true,
+            role: true,
+            is_active: true,
+            email_verified: true,
+            phone_verified: true,
+            created_at: true,
+            updated_at: true,
+          },
+          orderBy: { created_at: 'desc' },
+          skip,
+          take: parseInt(limit),
+        }),
+        prisma.user.count({ where: whereClause }),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Users retrieved successfully',
+        data: {
+          users,
+          pagination: {
+            page: parseInt(page),
+            limit: parseInt(limit),
+            total,
+            pages: Math.ceil(total / parseInt(limit)),
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Get users error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

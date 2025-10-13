@@ -18,7 +18,7 @@ async function startServer() {
   try {
     await connectDatabase();
     console.log('Database connected successfully');
-
+    console.log('Loading env from:', process.env.NODE_ENV);
     // Initialize OTP service and start cleanup job
     otpService = new OTPService();
     otpService.startCleanupJob();
