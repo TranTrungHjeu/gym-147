@@ -42,6 +42,7 @@ import Buttons from './pages/UiElements/Buttons';
 import Images from './pages/UiElements/Images';
 import Videos from './pages/UiElements/Videos';
 import Unauthorized from './pages/Unauthorized';
+import UserManagement from './pages/UserManagement';
 import UserProfiles from './pages/UserProfiles';
 export default function App() {
   return (
