@@ -1,28 +1,27 @@
 import react from '@vitejs/plugin-react';
+import path from 'path';
 import { defineConfig } from 'vite';
+import svgr from 'vite-plugin-svgr';
 
-// https://vitejs.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), svgr()],
+  root: __dirname, // đảm bảo Vite không nhảy ra ngoài apps/web-admin
   server: {
     port: 5173,
     host: true,
+    fs: {
+      // chỉ cho phép đọc file trong apps/web-admin
+      allow: [path.resolve(__dirname)],
+      deny: [
+        path.resolve(__dirname, '../../services'),
+        path.resolve(__dirname, '../../node_modules'),
+      ],
+    },
     proxy: {
       '/api/suggest': {
         target: 'https://suggestqueries.google.com',
         changeOrigin: true,
         rewrite: path => path.replace(/^\/api\/suggest/, ''),
-        configure: (proxy, _options) => {
-          proxy.on('error', (err, _req, _res) => {
-            console.log('proxy error', err);
-          });
-          proxy.on('proxyReq', (proxyReq, req, _res) => {
-            console.log('Sending Request to the Target:', req.method, req.url);
-          });
-          proxy.on('proxyRes', (proxyRes, req, _res) => {
-            console.log('Received Response from the Target:', proxyRes.statusCode, req.url);
-          });
-        },
       },
     },
   },
@@ -36,6 +35,16 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['jquery'],
+    exclude: [
+      // 🧱 bỏ qua các service backend
+      'services/member-service',
+      'services/schedule-service',
+    ],
+  },
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
   },
   define: {
     global: 'globalThis',

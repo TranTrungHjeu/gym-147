@@ -1,9 +1,9 @@
-import Chart from 'react-apexcharts';
 import { ApexOptions } from 'apexcharts';
+import { MoreHorizontal } from 'lucide-react';
+import { useState } from 'react';
+import Chart from 'react-apexcharts';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
-import { MoreDotIcon } from '../../icons';
-import { useState } from 'react';
 
 export default function MonthlySalesChart() {
   const options: ApexOptions = {
@@ -109,7 +109,7 @@ export default function MonthlySalesChart() {
         <div className='relative inline-block'>
           <button className='dropdown-toggle' onClick={toggleDropdown}>
             <img
-              src={MoreDotIcon}
+              src={MoreHorizontal}
               alt='More'
               className='text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6'
             />

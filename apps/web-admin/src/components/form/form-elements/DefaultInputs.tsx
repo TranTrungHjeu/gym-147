@@ -1,10 +1,10 @@
+import { Clock, Eye, EyeOff } from 'lucide-react';
 import { useState } from 'react';
 import ComponentCard from '../../common/ComponentCard';
 import Label from '../Label';
-import Input from '../input/InputField';
 import Select from '../Select';
-import { EyeCloseIcon, EyeIcon, TimeIcon } from '../../../icons';
 import DatePicker from '../date-picker.tsx';
+import Input from '../input/InputField';
 
 export default function DefaultInputs() {
   const [showPassword, setShowPassword] = useState(false);
@@ -46,13 +46,9 @@ export default function DefaultInputs() {
               className='absolute z-30 -translate-y-1/2 cursor-pointer right-4 top-1/2'
             >
               {showPassword ? (
-                <img src={EyeIcon} alt='Show' className='fill-gray-500 dark:fill-gray-400 size-5' />
+                <img src={Eye} alt='Show' className='fill-gray-500 dark:fill-gray-400 size-5' />
               ) : (
-                <img
-                  src={EyeCloseIcon}
-                  alt='Hide'
-                  className='fill-gray-500 dark:fill-gray-400 size-5'
-                />
+                <img src={EyeOff} alt='Hide' className='fill-gray-500 dark:fill-gray-400 size-5' />
               )}
             </button>
           </div>
@@ -75,7 +71,7 @@ export default function DefaultInputs() {
           <div className='relative'>
             <Input type='time' id='tm' name='tm' onChange={e => console.log(e.target.value)} />
             <span className='absolute text-gray-500 -translate-y-1/2 pointer-events-none right-3 top-1/2 dark:text-gray-400'>
-              <img src={TimeIcon} alt='Time' className='size-6' />
+              <img src={Clock} alt='Time' className='size-6' />
             </span>
           </div>
         </div>

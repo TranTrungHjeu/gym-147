@@ -1,5 +1,5 @@
 // a4fSearch.service.ts
-const A4F_API_KEY = import.meta.env.VITE_A4F_API_KEY || 'ddc-a4f-87933f2111994f48a5ed59ef87d14481';
+const A4F_API_KEY = import.meta.env.VITE_A4F_API_KEY;
 const A4F_URL = 'https://api.a4f.co/v1/chat/completions';
 
 class A4FSearchService {

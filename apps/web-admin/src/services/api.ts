@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 // API Gateway endpoints - routed through nginx
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080';
+export const API_BASE_URL = 'http://localhost:8080';
 
 const SERVICES = {
   IDENTITY: `${API_BASE_URL}/api/identity`,

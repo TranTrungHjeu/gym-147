@@ -1,5 +1,16 @@
 const { Router } = require('express');
+const trainerRoutes = require('./trainer.routes.js');
+const classRoutes = require('./class.routes.js');
+const roomRoutes = require('./room.routes.js');
 const scheduleRoutes = require('./schedule.routes.js');
+const bookingRoutes = require('./booking.routes.js');
+const attendanceRoutes = require('./attendance.routes.js');
+const certificationRoutes = require('./certification.routes.js');
+const notificationRoutes = require('./notification.routes.js');
+const utilityRoutes = require('./utility.routes.js');
+const autoUpdateRoutes = require('./auto-update.routes.js');
+const favoriteRoutes = require('./favorite.routes.js');
+const adminRoutes = require('./admin.routes.js');
 
 const router = Router();
 
@@ -13,32 +24,35 @@ router.get('/', (req, res) => {
       version: '1.0.0',
       endpoints: {
         health: '/health',
-        classes: '/api/classes',
-        schedules: '/api/schedules',
-        instructors: '/api/instructors',
-        rooms: '/api/rooms',
-        stats: '/api/stats',
-        sampleData: '/api/sample-data',
+        trainers: '/trainers',
+        classes: '/classes',
+        rooms: '/rooms',
+        schedules: '/schedules',
+        bookings: '/bookings',
+        attendance: '/attendance',
+        certifications: '/certifications',
+        notifications: '/notifications',
+        autoUpdate: '/auto-update',
+        stats: '/stats',
+        sampleData: '/sample-data',
       },
     },
   });
 });
 
-// Health check
-router.get('/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Schedule service is healthy',
-    data: {
-      service: 'schedule-service',
-      status: 'running',
-      timestamp: new Date().toISOString(),
-    },
-  });
-});
-
-// Schedule routes - mounted directly without /api prefix
-router.use('/', scheduleRoutes);
+// Mount all route modules
+router.use('/trainers', trainerRoutes);
+router.use('/classes', classRoutes);
+router.use('/rooms', roomRoutes);
+router.use('/schedules', scheduleRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/attendance', attendanceRoutes);
+router.use('/auto-update', autoUpdateRoutes);
+router.use('/', certificationRoutes); // Certification routes (includes /certifications, /admin/certifications, etc.)
+router.use('/', notificationRoutes); // Notification routes
+router.use('/', utilityRoutes); // Health, stats, sample-data
+router.use('/', favoriteRoutes); // Favorite routes
+router.use('/', adminRoutes); // Admin routes
 
 const routes = router;
 module.exports = { routes };

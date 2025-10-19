@@ -1,6 +1,6 @@
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
-import { EyeCloseIcon, EyeIcon } from '../../icons';
 import { authService } from '../../services/auth.service';
 import Toast from '../common/Toast';
 import Label from '../form/Label';
@@ -835,11 +835,7 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: Si
                     onClick={() => setShowPassword(!showPassword)}
                     className='absolute inset-y-0 right-0 flex items-center pr-12 text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors duration-200 z-30'
                   >
-                    {showPassword ? (
-                      <img src={EyeIcon} alt='hide' className='w-5 h-5' />
-                    ) : (
-                      <img src={EyeCloseIcon} alt='show' className='w-5 h-5' />
-                    )}
+                    {showPassword ? <Eye className='w-5 h-5' /> : <EyeOff className='w-5 h-5' />}
                   </button>
                 </div>
                 <ErrorMessage fieldName='password' />

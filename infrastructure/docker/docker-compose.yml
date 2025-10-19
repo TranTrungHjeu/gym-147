@@ -39,6 +39,11 @@ services:
       POSTGRES_USER: gym
       POSTGRES_PASSWORD: secret
       POSTGRES_DB: gym_main
+      TZ: Asia/Ho_Chi_Minh
+    command: >
+      postgres 
+        -c timezone=Asia/Ho_Chi_Minh
+        -c log_timezone=Asia/Ho_Chi_Minh
     ports: ["5432:5432"]
     volumes:
       - postgres_data:/var/lib/postgresql/data

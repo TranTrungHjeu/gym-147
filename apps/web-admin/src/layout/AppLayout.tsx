@@ -1,11 +1,15 @@
 import { useEffect } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
 import Backdrop from './Backdrop';
 
-const LayoutContent: React.FC = () => {
+interface LayoutContentProps {
+  children?: React.ReactNode;
+}
+
+const LayoutContent: React.FC<LayoutContentProps> = ({ children }) => {
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
 
   return (
@@ -20,15 +24,17 @@ const LayoutContent: React.FC = () => {
         } ${isMobileOpen ? 'ml-0' : ''} w-full`}
       >
         <AppHeader />
-        <div className='p-4 mx-auto max-w-full md:p-6 w-full'>
-          <Outlet />
-        </div>
+        <div className='p-4 mx-auto max-w-full md:p-6 w-full'>{children}</div>
       </div>
     </div>
   );
 };
 
-const AppLayout: React.FC = () => {
+interface AppLayoutProps {
+  children?: React.ReactNode;
+}
+
+const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -42,7 +48,7 @@ const AppLayout: React.FC = () => {
 
   return (
     <SidebarProvider>
-      <LayoutContent />
+      <LayoutContent>{children}</LayoutContent>
     </SidebarProvider>
   );
 };

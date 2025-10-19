@@ -1,30 +1,52 @@
-const { Router } = require('express');
-const { MemberController } = require('../controllers/member.controller.js');
+const express = require('express');
+const router = express.Router();
+const memberController = require('../controllers/member.controller');
 
-const router = Router();
-const memberController = new MemberController();
+// ==================== MEMBER CRUD ROUTES ====================
 
-// Member CRUD routes
+// Get all members with pagination and filters
 router.get('/members', (req, res) => memberController.getAllMembers(req, res));
-router.get('/members/stats', (req, res) => memberController.getMemberStats(req, res));
+
+// Get member by ID
 router.get('/members/:id', (req, res) => memberController.getMemberById(req, res));
+
+// Get member by user_id (for cross-service integration)
+router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
+
+// Create new member
 router.post('/members', (req, res) => memberController.createMember(req, res));
+
+// Get multiple members by user_ids (for cross-service integration)
+router.post('/members/batch', (req, res) => memberController.getMembersByIds(req, res));
+
+// Update member
 router.put('/members/:id', (req, res) => memberController.updateMember(req, res));
+
+// Update member by user_id (for cross-service integration)
+router.put('/members/user/:user_id', (req, res) => memberController.updateMemberByUserId(req, res));
+
+// Delete member
 router.delete('/members/:id', (req, res) => memberController.deleteMember(req, res));
 
-// Member membership management
+// ==================== MEMBERSHIP MANAGEMENT ROUTES ====================
+
+// Get member's memberships
 router.get('/members/:id/memberships', (req, res) =>
   memberController.getMemberMemberships(req, res)
 );
+
+// Create new membership
 router.post('/members/:id/memberships', (req, res) => memberController.createMembership(req, res));
 
-// Member access logs
-router.get('/members/:id/access-logs', (req, res) =>
-  memberController.getMemberAccessLogs(req, res)
-);
+// ==================== ACCESS CONTROL ROUTES ====================
 
-// Check-in/Check-out
-router.post('/members/:id/checkin', (req, res) => memberController.memberCheckIn(req, res));
-router.post('/members/:id/checkout', (req, res) => memberController.memberCheckOut(req, res));
+// Generate RFID tag
+router.post('/members/:id/rfid', (req, res) => memberController.generateRFIDTag(req, res));
 
-module.exports = { memberRoutes: router };
+// Generate QR code
+router.post('/members/:id/qr-code', (req, res) => memberController.generateQRCode(req, res));
+
+// Toggle access
+router.put('/members/:id/access', (req, res) => memberController.toggleAccess(req, res));
+
+module.exports = router;

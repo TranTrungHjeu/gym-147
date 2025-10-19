@@ -97,7 +97,7 @@ export const getDashboardPath = (role?: string): string => {
     case 'ADMIN':
       return '/admin-dashboard';
     case 'TRAINER':
-      return '/trainer-dashboard';
+      return '/trainerdashboard/homepage';
     case 'MEMBER':
       return '/member-dashboard';
     default:

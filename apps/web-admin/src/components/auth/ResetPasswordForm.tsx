@@ -1,6 +1,6 @@
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { EyeCloseIcon, EyeIcon } from '../../icons';
 import { authService } from '../../services/auth.service';
 import Label from '../form/Label';
 import Input from '../form/input/InputField';
@@ -359,11 +359,7 @@ export default function ResetPasswordForm() {
                   onClick={() => setShowPassword(!showPassword)}
                   className='absolute inset-y-0 right-0 flex items-center pr-12 text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors duration-200 z-30'
                 >
-                  {showPassword ? (
-                    <img src={EyeIcon} alt='hide' className='w-5 h-5' />
-                  ) : (
-                    <img src={EyeCloseIcon} alt='show' className='w-5 h-5' />
-                  )}
+                  {showPassword ? <Eye className='w-5 h-5' /> : <EyeOff className='w-5 h-5' />}
                 </button>
               </div>
               <ErrorMessage fieldName='password' />
@@ -409,9 +405,9 @@ export default function ResetPasswordForm() {
                   className='absolute inset-y-0 right-0 flex items-center pr-12 text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors duration-200 z-30'
                 >
                   {showConfirmPassword ? (
-                    <img src={EyeIcon} alt='hide' className='w-5 h-5' />
+                    <Eye className='w-5 h-5' />
                   ) : (
-                    <img src={EyeCloseIcon} alt='show' className='w-5 h-5' />
+                    <EyeOff className='w-5 h-5' />
                   )}
                 </button>
               </div>
