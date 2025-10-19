@@ -90,8 +90,8 @@ button:focus,
   outline: none;
 }
 
-a:hover,
-.homepage-wrapper a:focus {
+a:hover:not(.user-dropdown-item),
+.homepage-wrapper a:focus:not(.user-dropdown-item) {
   text-decoration: none;
   outline: none;
   color: #fff;

@@ -284,6 +284,53 @@ class DashboardController {
       });
     }
   }
+
+  /**
+   * Get all trainers
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async getTrainers(req, res) {
+    try {
+      const trainers = await prisma.user.findMany({
+        where: {
+          role: 'TRAINER',
+          is_active: true,
+        },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          email: true,
+          phone: true,
+          role: true,
+          is_active: true,
+          email_verified: true,
+          phone_verified: true,
+          created_at: true,
+          updated_at: true,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Trainers retrieved successfully',
+        data: {
+          users: trainers,
+        },
+      });
+    } catch (error) {
+      console.error('Get trainers error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
 }
 
 module.exports = { DashboardController };

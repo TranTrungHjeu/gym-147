@@ -4,6 +4,11 @@ const scheduleController = require('../controllers/schedule.controller.js');
 const router = Router();
 
 // ==================== SCHEDULE ROUTES ====================
+// Specific routes must come before parameterized routes
+router.get('/filter-options', (req, res) => scheduleController.getScheduleFilterOptions(req, res));
+router.get('/upcoming', (req, res) => scheduleController.getUpcomingSchedules(req, res));
+router.get('/stats', (req, res) => scheduleController.getScheduleStats(req, res));
+router.get('/date/:date', (req, res) => scheduleController.getSchedulesByDate(req, res));
 router.get('/', (req, res) => scheduleController.getAllSchedules(req, res));
 router.get('/:id', (req, res) => scheduleController.getScheduleById(req, res));
 router.post('/', (req, res) => scheduleController.createSchedule(req, res));

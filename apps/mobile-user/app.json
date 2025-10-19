@@ -1,30 +1,43 @@
 {
   "expo": {
-    "name": "mobile-user",
-    "slug": "mobile-user",
+    "name": "Gym147",
+    "slug": "gym147-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "icon": "./assets/images/icon.png",
+    "scheme": "gym147",
+    "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gym147.mobile"
     },
     "android": {
+      "package": "com.gym147.mobile",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
-        "backgroundColor": "#ffffff"
-      },
-      "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#000000"
+      }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "bundler": "metro",
+      "output": "single",
+      "favicon": "./assets/images/favicon.png"
+    },
+    "experiments": {
+      "typedRoutes": true
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "extra": {
+      "API_URL": "http://10.0.2.2:3001",
+      "APP_NAME": "Gym147",
+      "APP_VERSION": "1.0.0",
+      "ENVIRONMENT": "development"
+    },
+    "plugins": [
+      "expo-font"
+    ]
   }
 }

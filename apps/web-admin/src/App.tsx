@@ -22,10 +22,12 @@ import Home from './pages/Dashboard/Home';
 import RealDashboard from './pages/Dashboard/RealDashboard';
 import TrainerAttendance from './pages/Dashboard/TrainerAttendance';
 import TrainerBookings from './pages/Dashboard/TrainerBookings';
-import TrainerCalendar from './pages/Dashboard/TrainerCalendar';
+import TrainerCalendarSplitView from './pages/Dashboard/TrainerCalendarSplitView';
+import TrainerCalendarWithFilters from './pages/Dashboard/TrainerCalendarWithFilters';
+import TrainerCertifications from './pages/Dashboard/TrainerCertifications';
 import TrainerClasses from './pages/Dashboard/TrainerClasses';
 import TrainerFeedback from './pages/Dashboard/TrainerFeedback';
-import TrainerLegacyDashboard from './pages/Dashboard/TrainerLegacyDashboard';
+import TrainerHomePage from './pages/Dashboard/TrainerHomePage';
 import TrainerPerformance from './pages/Dashboard/TrainerPerformance';
 import TrainerProfile from './pages/Dashboard/TrainerProfile';
 import TrainerRatings from './pages/Dashboard/TrainerRatings';
@@ -103,16 +105,6 @@ export default function App() {
             }
           />
           <Route
-            path='/trainer-dashboard'
-            element={
-              <ProtectedRoute requiredRole='TRAINER'>
-                <TrainerLayout>
-                  <RoleBasedRouter userRole='TRAINER' />
-                </TrainerLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
             path='/member-dashboard'
             element={
               <ProtectedRoute requiredRole='MEMBER'>
@@ -160,17 +152,17 @@ export default function App() {
           />
           {/* Trainer routes with TrainerLayout */}
           <Route
-            path='/trainer-dashboard'
+            path='/trainerdashboard/homepage'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
-                  <TrainerLegacyDashboard />
+                  <TrainerHomePage />
                 </TrainerLayout>
               </ProtectedRoute>
             }
           />
           <Route
-            path='/dashboard/classes'
+            path='/trainerdashboard/classes'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -180,7 +172,17 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/schedule'
+            path='/trainerdashboard/certifications'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerCertifications />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/trainerdashboard/schedule'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -190,7 +192,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/attendance'
+            path='/trainerdashboard/attendance'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -200,7 +202,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/bookings'
+            path='/trainerdashboard/bookings'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -210,7 +212,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/reviews'
+            path='/trainerdashboard/reviews'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -220,7 +222,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/profile'
+            path='/trainerdashboard/profile'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -230,17 +232,27 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/calendar'
+            path='/trainerdashboard/calendar'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
-                  <TrainerCalendar />
+                  <TrainerCalendarSplitView />
                 </TrainerLayout>
               </ProtectedRoute>
             }
           />
           <Route
-            path='/dashboard/ratings'
+            path='/trainerdashboard/calendar-filters'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerCalendarWithFilters />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/trainerdashboard/ratings'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -250,7 +262,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/feedback'
+            path='/trainerdashboard/feedback'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -260,7 +272,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/trainer-stats'
+            path='/trainerdashboard/trainer-stats'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
@@ -270,7 +282,7 @@ export default function App() {
             }
           />
           <Route
-            path='/dashboard/performance'
+            path='/trainerdashboard/performance'
             element={
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>

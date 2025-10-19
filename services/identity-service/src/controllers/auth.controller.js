@@ -764,6 +764,145 @@ class AuthController {
     }
   }
 
+  /**
+   * Update user profile
+   */
+  async updateProfile(req, res) {
+    try {
+      const userId = req.user.userId || req.user.id;
+      const { firstName, lastName, email, phone } = req.body;
+
+      // Validate required fields
+      if (!firstName || !lastName || !email) {
+        return res.status(400).json({
+          success: false,
+          message: 'First name, last name, and email are required',
+          data: null,
+        });
+      }
+
+      // Check if email is already taken by another user
+      const existingUser = await prisma.user.findFirst({
+        where: {
+          email: email,
+          id: { not: userId },
+        },
+      });
+
+      if (existingUser) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken by another user',
+          data: null,
+        });
+      }
+
+      // Update user profile
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          email: email,
+          phone: phone || null,
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          first_name: true,
+          last_name: true,
+          role: true,
+          is_active: true,
+          email_verified: true,
+          email_verified_at: true,
+          phone_verified: true,
+          phone_verified_at: true,
+          last_login_at: true,
+          created_at: true,
+          updated_at: true,
+        },
+      });
+
+      // Update related tables based on user role
+      if (updatedUser.role === 'TRAINER') {
+        try {
+          // Update trainer table in schedule service
+          const axios = require('axios');
+          await axios.put(
+            `http://localhost:3003/trainers/user/${userId}`,
+            {
+              full_name: `${firstName} ${lastName}`,
+              email: email,
+              phone: phone || null,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+        } catch (trainerError) {
+          console.error('Error updating trainer table:', trainerError);
+          // Don't fail the entire request if trainer update fails
+        }
+      }
+      // TODO: Update member table when member service is ready
+      // else if (updatedUser.role === 'MEMBER') {
+      //   try {
+      //     // Update member table in member service
+      //     const axios = require('axios');
+      //     await axios.put(
+      //       `http://localhost:3002/members/user/${userId}`,
+      //       {
+      //         full_name: `${firstName} ${lastName}`,
+      //         email: email,
+      //         phone: phone || null,
+      //       },
+      //       {
+      //         headers: {
+      //           'Content-Type': 'application/json',
+      //         },
+      //       }
+      //     );
+      //   } catch (memberError) {
+      //     console.error('Error updating member table:', memberError);
+      //     // Don't fail the entire request if member update fails
+      //   }
+      // }
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: {
+          user: {
+            id: updatedUser.id,
+            email: updatedUser.email,
+            phone: updatedUser.phone,
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            first_name: updatedUser.first_name,
+            last_name: updatedUser.last_name,
+            role: updatedUser.role,
+            isActive: updatedUser.is_active,
+            emailVerified: updatedUser.email_verified,
+            phoneVerified: updatedUser.phone_verified,
+            createdAt: updatedUser.created_at,
+            updatedAt: updatedUser.updated_at,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Update profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
   // ==================== PASSWORD RESET FLOW ====================
 
   /**
@@ -931,8 +1070,8 @@ class AuthController {
       await prisma.$transaction([
         prisma.user.update({
           where: { id: resetRecord.user_id },
-          data: {
-            password_hash: hashedPassword,
+        data: {
+          password_hash: hashedPassword,
             failed_login_attempts: 0, // Reset failed attempts
             locked_until: null, // Unlock account
           },
@@ -1055,7 +1194,7 @@ class AuthController {
       });
 
       res.json({
-        success: true,
+          success: true,
         message: 'Email đã được xác thực thành công',
         data: null,
       });
@@ -1717,6 +1856,53 @@ class AuthController {
       });
     } catch (error) {
       console.error('Get users error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get all trainers (public route for other services)
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async getTrainers(req, res) {
+    try {
+      const trainers = await prisma.user.findMany({
+        where: {
+          role: 'TRAINER',
+          is_active: true,
+        },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          email: true,
+          phone: true,
+          role: true,
+          is_active: true,
+          email_verified: true,
+          phone_verified: true,
+          created_at: true,
+          updated_at: true,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Trainers retrieved successfully',
+        data: {
+          users: trainers,
+        },
+      });
+    } catch (error) {
+      console.error('Get trainers error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

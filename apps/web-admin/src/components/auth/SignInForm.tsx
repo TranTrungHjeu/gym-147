@@ -1,8 +1,8 @@
+import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNavigation } from '../../context/NavigationContext';
 import { useToast } from '../../hooks/useToast';
-import { EyeCloseIcon, EyeIcon } from '../../icons';
 import { authService } from '../../services/auth.service';
 import Label from '../form/Label';
 import Checkbox from '../form/input/Checkbox';
@@ -62,7 +62,7 @@ export default function SignInForm({
       if (autoFillCredentials.password) {
         setPassword(autoFillCredentials.password);
       }
-      
+
       // Show success toast for auto-fill
       showToast('Thông tin đăng nhập đã được điền sẵn!', 'success');
     }
@@ -231,7 +231,7 @@ export default function SignInForm({
         } else if (userRole === 'ADMIN') {
           navigate('/admin-dashboard');
         } else if (userRole === 'TRAINER') {
-          navigate('/trainer-dashboard');
+          navigate('/trainerdashboard/homepage');
         } else {
           navigate('/member-dashboard');
         }
@@ -488,11 +488,7 @@ export default function SignInForm({
                     onClick={() => setShowPassword(!showPassword)}
                     className='absolute inset-y-0 right-0 flex items-center pr-12 text-gray-500 dark:text-white/50 hover:text-gray-700 dark:hover:text-white/80 transition-colors duration-200 z-30'
                   >
-                    {showPassword ? (
-                      <img src={EyeIcon} alt='hide' className='w-5 h-5' />
-                    ) : (
-                      <img src={EyeCloseIcon} alt='show' className='w-5 h-5' />
-                    )}
+                    {showPassword ? <Eye className='w-5 h-5' /> : <EyeOff className='w-5 h-5' />}
                   </button>
                 </div>
                 <ErrorMessage fieldName='password' />

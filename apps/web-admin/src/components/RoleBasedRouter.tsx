@@ -15,7 +15,7 @@ const RoleBasedRouter: React.FC<RoleBasedRouterProps> = ({ userRole }) => {
     case 'ADMIN':
       return <AdminDashboard />;
     case 'TRAINER':
-      return <Navigate to='/trainer-dashboard' replace />;
+      return <Navigate to='/trainerdashboard/homepage' replace />;
     case 'MEMBER':
       return <MemberIntroPage />;
     default:

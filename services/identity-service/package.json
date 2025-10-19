@@ -6,7 +6,8 @@
     "dev": "node src/main.js",
     "start": "node src/main.js",
     "build": "echo 'No build needed for JS'",
-    "type-check": "echo 'No type check needed for JS'"
+    "type-check": "echo 'No type check needed for JS'",
+    "prisma:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@aws-sdk/client-sns": "^3.908.0",
@@ -15,7 +16,7 @@
     "axios": "^1.12.2",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.2",
+    "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",

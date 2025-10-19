@@ -49,4 +49,11 @@ router.get(
   dashboardController.getRecentActivities
 );
 
+/**
+ * @route GET /users/trainers
+ * @desc Get all trainers
+ * @access Public (for other services)
+ */
+router.get('/users/trainers', dashboardController.getTrainers);
+
 module.exports = router;

@@ -13,6 +13,9 @@ router.post('/verify-otp', (req, res) => authController.verifyRegistrationOTP(re
 router.post('/register', (req, res) => authController.registerMember(req, res)); // Chỉ tạo MEMBER
 router.post('/verify-email', (req, res) => authController.verifyEmail(req, res)); // Verify email với token
 
+// Public route for other services to get trainers
+router.get('/users/trainers', (req, res) => authController.getTrainers(req, res));
+
 // Password reset routes (public)
 router.post('/forgot-password', (req, res) => authController.forgotPassword(req, res));
 router.post('/reset-password', (req, res) => authController.resetPassword(req, res));
@@ -26,6 +29,7 @@ router.post('/verify-2fa-login', (req, res) => authController.verify2FALogin(req
 // Protected routes (cần authentication)
 router.post('/logout', authMiddleware, (req, res) => authController.logout(req, res));
 router.get('/profile', authMiddleware, (req, res) => authController.getProfile(req, res));
+router.put('/profile', authMiddleware, (req, res) => authController.updateProfile(req, res));
 router.post('/resend-email-verification', authMiddleware, (req, res) =>
   authController.resendEmailVerification(req, res)
 );

@@ -305,9 +305,6 @@ enum MembershipType {
   PREMIUM
   VIP
   STUDENT
-  SENIOR
-  FAMILY
-  CORPORATE
 }
 
 enum AccessMethod {

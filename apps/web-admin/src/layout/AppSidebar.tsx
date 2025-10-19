@@ -14,6 +14,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useNavigation } from '../context/NavigationContext';
 import { useSidebar } from '../context/SidebarContext';
+import { getDashboardPath } from '../utils/auth';
 import SidebarWidget from './SidebarWidget';
 
 // Add CSS keyframes for animations (only once)
@@ -150,6 +151,20 @@ const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { setIsNavigating } = useNavigation();
   const location = useLocation();
+
+  // Get dashboard path based on user role
+  const getDashboardPathForCurrentUser = () => {
+    try {
+      const user = localStorage.getItem('user');
+      if (user) {
+        const userData = JSON.parse(user);
+        return getDashboardPath(userData.role);
+      }
+    } catch (error) {
+      console.error('Error getting user role:', error);
+    }
+    return '/dashboard'; // fallback
+  };
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: 'main' | 'others';
@@ -383,8 +398,8 @@ const AppSidebar: React.FC = () => {
     >
       <div className={`py-6 px-6 flex justify-center`}>
         <Link
-          to='/dashboard'
-          onClick={() => handleNavigation('/dashboard')}
+          to={getDashboardPathForCurrentUser()}
+          onClick={() => handleNavigation(getDashboardPathForCurrentUser())}
           className='flex items-center gap-3 group'
         >
           {isExpanded || isHovered || isMobileOpen ? (

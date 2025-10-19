@@ -14,7 +14,7 @@ model Trainer {
   full_name         String
   phone             String              @unique
   email             String              @unique
-  specializations   String[]            // Array of specializations
+  specializations   ClassCategory[]     // Array of specializations - now uses enum
   bio               String?
   experience_years  Int                 @default(0)
   hourly_rate       Decimal?            @db.Decimal(10, 2)
@@ -30,6 +30,8 @@ model Trainer {
 
   // Relations
   schedules         Schedule[]
+  certifications    TrainerCertification[]
+  room_change_requests RoomChangeRequest[]
 
   @@map("trainers")
 }
@@ -50,6 +52,9 @@ model GymClass {
   
   // Media
   thumbnail       String?
+  
+  // Certification requirements
+  required_certification_level CertificationLevel @default(BASIC)
   
   is_active       Boolean           @default(true)
   created_at      DateTime          @default(now())
@@ -100,6 +105,13 @@ model Schedule {
   max_capacity   Int             // Can override class default
   waitlist_count Int             @default(0)
   
+  // Check-in/Check-out management
+  check_in_enabled Boolean       @default(false)
+  check_in_opened_at DateTime?
+  check_in_opened_by String?     // trainer_id
+  auto_checkout_completed Boolean @default(false)
+  auto_checkout_at DateTime?
+  
   // Pricing override
   price_override Decimal?        @db.Decimal(10, 2)
   special_notes  String?
@@ -108,11 +120,15 @@ model Schedule {
   updated_at     DateTime        @updatedAt
 
   // Relations
-  gym_class      GymClass        @relation(fields: [class_id], references: [id])
-  trainer        Trainer?        @relation(fields: [trainer_id], references: [id])
-  room           Room            @relation(fields: [room_id], references: [id])
+  gym_class      GymClass        @relation(fields: [class_id], references: [id], onDelete: Cascade)
+  trainer        Trainer?        @relation(fields: [trainer_id], references: [id], onDelete: SetNull)
+  room           Room            @relation(fields: [room_id], references: [id], onDelete: Restrict)
   bookings       Booking[]
   attendance     Attendance[]
+  room_change_requests RoomChangeRequest[]
+
+  // Note: Trainer certification validation will be handled by application logic
+  // or database triggers to ensure trainer can teach the class category
 
   @@map("schedules")
 }
@@ -158,6 +174,11 @@ model Attendance {
   checked_out_at DateTime?
   attendance_method AttendanceMethod @default(MANUAL)
   
+  // Check-in/Check-out method tracking
+  is_auto_checkout Boolean     @default(false)
+  check_in_method CheckInMethod @default(SELF)
+  check_out_method CheckOutMethod @default(SELF)
+  
   // Feedback
   class_rating    Int?         // 1-5 stars
   trainer_rating  Int?         // 1-5 stars
@@ -167,12 +188,41 @@ model Attendance {
   updated_at      DateTime     @updatedAt
 
   // Relations
-  schedule        Schedule     @relation(fields: [schedule_id], references: [id])
+  schedule        Schedule     @relation(fields: [schedule_id], references: [id], onDelete: Cascade)
 
   @@unique([schedule_id, member_id])
   @@map("attendance")
 }
 
+model MemberFavorite {
+  id          String   @id @default(cuid())
+  member_id   String
+  favorite_type FavoriteType // CLASS, TRAINER
+  favorite_id String   // class_id hoặc trainer_id
+  created_at  DateTime @default(now())
+  
+  @@unique([member_id, favorite_type, favorite_id])
+  @@map("member_favorites")
+}
+
+model RoomChangeRequest {
+  id            String   @id @default(cuid())
+  schedule_id   String
+  trainer_id    String
+  current_room_id String
+  requested_room_id String?
+  reason        String
+  waitlist_count Int
+  status        RequestStatus @default(PENDING)
+  admin_notes   String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+  
+  schedule      Schedule @relation(fields: [schedule_id], references: [id])
+  trainer       Trainer  @relation(fields: [trainer_id], references: [id])
+  
+  @@map("room_change_requests")
+}
 
 // Enums
 enum TrainerStatus {
@@ -231,4 +281,124 @@ enum AttendanceMethod {
   MANUAL
   QR_CODE
   MOBILE_APP
+}
+
+model TrainerCertification {
+  id                   String              @id @default(cuid())
+  trainer_id           String
+  category             ClassCategory       // CARDIO, STRENGTH, YOGA, etc.
+  certification_name   String
+  certification_issuer String
+  certification_level  CertificationLevel  @default(BASIC)
+  
+  // Dates
+  issued_date          DateTime
+  expiration_date      DateTime?
+  
+  // Verification
+  verification_status  VerificationStatus  @default(PENDING)
+  verified_by          String?             // Admin user_id
+  verified_at          DateTime?
+  rejection_reason     String?
+  
+  // File storage
+  certificate_file_url String?
+  certificate_file_type String?           // PDF, JPG, PNG
+  
+  // Status
+  is_active            Boolean             @default(true)
+  
+  created_at           DateTime            @default(now())
+  updated_at           DateTime            @updatedAt
+  
+  // Relations
+  trainer              Trainer             @relation(fields: [trainer_id], references: [id], onDelete: Cascade)
+  
+  // Unique constraint to prevent duplicate active verified certifications for same category
+  @@unique([trainer_id, category], name: "unique_active_certification_per_category")
+  @@index([trainer_id])
+  @@index([category])
+  @@index([verification_status])
+  @@index([expiration_date])
+  @@map("trainer_certifications")
+}
+
+// Database triggers để tự động cập nhật specializations
+// Trigger sẽ được tạo thông qua migration SQL
+
+enum CertificationLevel {
+  BASIC
+  INTERMEDIATE
+  ADVANCED
+  EXPERT
+}
+
+enum VerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  EXPIRED
+  SUSPENDED
+}
+
+model Notification {
+  id          String            @id @default(cuid())
+  user_id     String            // Reference to identity service user
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?             // Additional data as JSON
+  is_read     Boolean           @default(false)
+  read_at     DateTime?
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  @@index([user_id])
+  @@index([type])
+  @@index([is_read])
+  @@index([created_at])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  CERTIFICATION_UPLOAD
+  CERTIFICATION_VERIFIED
+  CERTIFICATION_REJECTED
+  CERTIFICATION_AUTO_VERIFIED
+  CERTIFICATION_EXPIRED
+  CLASS_BOOKING
+  CLASS_CANCELLED
+  CLASS_REMINDER
+  MEMBERSHIP_EXPIRING
+  MEMBERSHIP_EXPIRED
+  ACHIEVEMENT_UNLOCKED
+  SYSTEM_ANNOUNCEMENT
+  WAITLIST_ADDED
+  WAITLIST_PROMOTED
+  SCHEDULE_CANCELLED
+  ROOM_CHANGED
+  MEMBER_CHECKED_IN
+  GENERAL
+}
+
+enum FavoriteType {
+  CLASS
+  TRAINER
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum CheckInMethod {
+  SELF
+  TRAINER_MANUAL
+}
+
+enum CheckOutMethod {
+  SELF
+  TRAINER_MANUAL
+  AUTO
 }

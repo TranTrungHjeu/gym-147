@@ -186,9 +186,9 @@ class OTPService {
         });
 
         if (response.data.CodeResult === 100 || response.data.CodeResult === '100') {
-          return {
-            success: true,
-            message: 'Mã OTP đã được gửi qua SMS',
+      return {
+        success: true,
+        message: 'Mã OTP đã được gửi qua SMS',
             smsId: response.data.SMSID,
           };
         } else {
@@ -201,8 +201,8 @@ class OTPService {
         return {
           success: true,
           message: 'Mã OTP đã được gửi qua SMS (Mock)',
-          otp: otp, // Only for development/testing
-        };
+        otp: otp, // Only for development/testing
+      };
       }
     } catch (error) {
       console.error('Error sending SMS OTP:', error);
@@ -444,9 +444,9 @@ class OTPService {
           throw new Error('Failed to send email');
         }
 
-        return {
-          success: true,
-          message: 'Email xác thực đã được gửi',
+      return {
+        success: true,
+        message: 'Email xác thực đã được gửi',
           messageId: data.id,
         };
       } else {
@@ -455,8 +455,8 @@ class OTPService {
         return {
           success: true,
           message: 'Email xác thực đã được gửi (Mock)',
-          verificationUrl: verificationUrl, // Only for development/testing
-        };
+        verificationUrl: verificationUrl, // Only for development/testing
+      };
       }
     } catch (error) {
       console.error('Error sending verification email:', error);

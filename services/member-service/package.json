@@ -6,13 +6,15 @@
     "dev": "node src/main.js",
     "start": "node src/main.js",
     "build": "echo 'No build needed for JS'",
-    "type-check": "echo 'No type check needed for JS'"
+    "type-check": "echo 'No type check needed for JS'",
+    "prisma:seed": "node prisma/seed.js"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",
     "cors": "^2.8.5",
-    "dotenv": "^16.0.0",
+    "dotenv": "^16.6.1",
     "express": "^4.18.0",
+    "express-rate-limit": "^7.1.5",
     "helmet": "^7.0.0",
     "morgan": "^1.10.0"
   },

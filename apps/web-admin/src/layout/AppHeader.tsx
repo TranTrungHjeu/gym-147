@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 
 import { Link } from 'react-router-dom';
-import { useSidebar } from '../context/SidebarContext';
+import logoTextDark from '../assets/images/logo-text-2.png';
+import NotificationDropdown from '../components/NotificationDropdown';
 import { ThemeToggleButton } from '../components/common/ThemeToggleButton';
-import NotificationDropdown from '../components/header/NotificationDropdown';
 import UserDropdown from '../components/header/UserDropdown';
-
+import { useSidebar } from '../context/SidebarContext';
 const AppHeader: React.FC = () => {
   const [isApplicationMenuOpen, setApplicationMenuOpen] = useState(false);
 
@@ -83,9 +83,9 @@ const AppHeader: React.FC = () => {
             {/* Cross Icon */}
           </button>
 
-          <Link to='/' className='lg:hidden'>
-            <img className='dark:hidden' src='./images/logo/logo.svg' alt='Logo' />
-            <img className='hidden dark:block' src='./images/logo/logo-dark.svg' alt='Logo' />
+          <Link to='/' className='lg:hidden' style={{ width: '100px', height: '30px' }}>
+            <img className='dark:hidden' src={logoTextDark} alt='Logo' />
+            <img className='hidden dark:block' src={logoTextDark} alt='Logo' />
           </Link>
 
           <button
@@ -152,7 +152,16 @@ const AppHeader: React.FC = () => {
             {/* <!-- Dark Mode Toggler --> */}
             <ThemeToggleButton />
             {/* <!-- Dark Mode Toggler --> */}
-            <NotificationDropdown />
+            <NotificationDropdown
+              userId={(() => {
+                try {
+                  const user = localStorage.getItem('user');
+                  return user ? JSON.parse(user).id : '';
+                } catch {
+                  return '';
+                }
+              })()}
+            />
             {/* <!-- Notification Menu Area --> */}
           </div>
           {/* <!-- User Area --> */}
