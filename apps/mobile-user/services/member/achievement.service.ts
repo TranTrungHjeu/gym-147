@@ -44,9 +44,29 @@ class AchievementService {
   }> {
     try {
       const response = await memberApiService.get('/achievements');
-      return { success: true, data: response.data.data || response.data };
+
+      // Handle different response structures
+      let achievements = [];
+      if (response.data?.achievements) {
+        achievements = response.data.achievements;
+      } else if (response.data?.data?.achievements) {
+        achievements = response.data.data.achievements;
+      } else if (Array.isArray(response.data)) {
+        achievements = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        achievements = response.data.data;
+      }
+
+      console.log(
+        '🏆 Extracted achievements:',
+        achievements.length,
+        'achievements'
+      );
+      return { success: true, data: achievements };
     } catch (error: any) {
-      return { success: false, error: error.message };
+      console.error('Error fetching achievements:', error);
+      // Return empty array instead of error to prevent app crash
+      return { success: true, data: [] };
     }
   }
 

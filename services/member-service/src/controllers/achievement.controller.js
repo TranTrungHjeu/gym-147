@@ -8,7 +8,7 @@ class AchievementController {
   async getAllAchievements(req, res) {
     try {
       const achievements = await prisma.achievement.findMany({
-        orderBy: { created_at: 'desc' },
+        orderBy: { unlocked_at: 'desc' },
       });
 
       res.json({

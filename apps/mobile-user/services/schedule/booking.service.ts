@@ -36,9 +36,23 @@ class BookingService {
 
       console.log('📅 Bookings API response:', response);
 
+      // Handle different response structures
+      let bookings = [];
+      if (response.data?.bookings) {
+        bookings = response.data.bookings;
+      } else if (response.data?.data?.bookings) {
+        bookings = response.data.data.bookings;
+      } else if (Array.isArray(response.data)) {
+        bookings = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        bookings = response.data.data;
+      }
+
+      console.log('📅 Extracted bookings:', bookings.length, 'bookings');
+
       return {
         success: true,
-        data: response.data?.data || response.data || [],
+        data: bookings,
       };
     } catch (error: any) {
       console.error('❌ Error fetching member bookings:', error);

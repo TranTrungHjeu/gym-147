@@ -50,6 +50,9 @@ export default function StatsScreen() {
         healthService.getHealthTrends(user.id, 'weekly'),
       ]);
 
+      console.log('📊 Health metrics data:', metrics);
+      console.log('📊 Health trends data:', trends);
+
       setHealthMetrics(metrics);
       setHealthTrends(trends);
     } catch (error) {
@@ -184,7 +187,7 @@ export default function StatsScreen() {
           >
             <View style={styles.metricInfo}>
               <Text style={[Typography.body, { color: theme.colors.text }]}>
-                {metric.type.replace('_', ' ')}
+                {metric.metric_type?.replace('_', ' ') || 'Unknown'}
               </Text>
               <Text
                 style={[
@@ -192,7 +195,9 @@ export default function StatsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {new Date(metric.recordedAt).toLocaleDateString()}
+                {metric.recorded_at
+                  ? new Date(metric.recorded_at).toLocaleDateString()
+                  : 'Unknown Date'}
               </Text>
             </View>
             <Text style={[Typography.body, { color: theme.colors.text }]}>
@@ -212,13 +217,13 @@ export default function StatsScreen() {
 
   const renderHealth = () => {
     const weightMetrics = healthMetrics.filter(
-      (m) => m.type === MetricType.WEIGHT
+      (m) => m.metric_type === 'WEIGHT'
     );
     const bodyFatMetrics = healthMetrics.filter(
-      (m) => m.type === MetricType.BODY_FAT
+      (m) => m.metric_type === 'BODY_FAT'
     );
     const heartRateMetrics = healthMetrics.filter(
-      (m) => m.type === MetricType.HEART_RATE
+      (m) => m.metric_type === 'HEART_RATE'
     );
 
     return (
@@ -293,14 +298,14 @@ export default function StatsScreen() {
             />
           </View>
 
-          {healthTrends.map((trend) => (
+          {healthTrends.map((trend, index) => (
             <View
-              key={trend.type}
+              key={trend.metric_type || index}
               style={[styles.trendItem, { borderColor: theme.colors.border }]}
             >
               <View style={styles.trendInfo}>
                 <Text style={[Typography.body, { color: theme.colors.text }]}>
-                  {trend.type.replace('_', ' ')}
+                  {trend.metric_type?.replace('_', ' ') || 'Unknown'}
                 </Text>
                 <Text
                   style={[
@@ -308,29 +313,14 @@ export default function StatsScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {trend.period} trend
+                  {trend.recorded_at
+                    ? new Date(trend.recorded_at).toLocaleDateString()
+                    : 'Recent'}
                 </Text>
               </View>
               <View style={styles.trendValue}>
-                <Text
-                  style={[
-                    Typography.body,
-                    {
-                      color:
-                        trend.direction === 'UP'
-                          ? theme.colors.success
-                          : trend.direction === 'DOWN'
-                          ? theme.colors.error
-                          : theme.colors.textSecondary,
-                    },
-                  ]}
-                >
-                  {trend.direction === 'UP'
-                    ? '↗'
-                    : trend.direction === 'DOWN'
-                    ? '↘'
-                    : '→'}
-                  {Math.abs(trend.changePercentage).toFixed(1)}%
+                <Text style={[Typography.body, { color: theme.colors.text }]}>
+                  {trend.value?.toFixed(1) || 'N/A'} {trend.unit || ''}
                 </Text>
               </View>
             </View>

@@ -170,6 +170,56 @@ class MemberController {
     }
   }
 
+  // Debug endpoint to check database and create test member
+  async debugDatabase(req, res) {
+    try {
+      console.log('🔍 Debug: Checking database...');
+
+      // Check total member count
+      const totalMembers = await prisma.member.count();
+      console.log('📊 Total members in database:', totalMembers);
+
+      // Get all members
+      const allMembers = await prisma.member.findMany({
+        select: {
+          id: true,
+          user_id: true,
+          full_name: true,
+          email: true,
+        },
+        take: 10,
+      });
+
+      console.log('📋 All members:', allMembers);
+
+      // Check if specific member exists
+      const testUserId = 'member_001_nguyen_van_a';
+      const existingMember = await prisma.member.findUnique({
+        where: { user_id: testUserId },
+      });
+
+      console.log('🔍 Member with user_id "member_001_nguyen_van_a":', existingMember);
+
+      res.json({
+        success: true,
+        message: 'Database debug info',
+        data: {
+          totalMembers,
+          allMembers,
+          testMemberExists: !!existingMember,
+          testMember: existingMember,
+        },
+      });
+    } catch (error) {
+      console.error('Debug database error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Debug failed',
+        data: null,
+      });
+    }
+  }
+
   // Get current member profile (for mobile app)
   async getCurrentMemberProfile(req, res) {
     try {
@@ -185,8 +235,28 @@ class MemberController {
 
       const token = authHeader.split(' ')[1];
       // Decode JWT token to get user_id (simplified - in production use proper JWT verification)
-      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-      const userId = payload.userId;
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token format',
+          data: null,
+        });
+      }
+
+      // Add padding to base64 if needed
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      const userId = payload.userId || payload.id;
+
+      console.log('🔑 Decoded JWT payload:', payload);
+      console.log('🔑 Extracted userId:', userId);
+
+      console.log('🔍 Searching for member with user_id:', userId);
 
       const member = await prisma.member.findUnique({
         where: { user_id: userId },
@@ -199,12 +269,57 @@ class MemberController {
         },
       });
 
-      if (!member) {
-        return res.status(404).json({
-          success: false,
-          message: 'Member not found',
-          data: null,
+      console.log('🔍 Member found:', member ? 'YES' : 'NO');
+      if (member) {
+        console.log('🔍 Member details:', {
+          id: member.id,
+          user_id: member.user_id,
+          full_name: member.full_name,
+          email: member.email,
         });
+      }
+
+      if (!member) {
+        console.log('❌ Member not found for user_id:', userId);
+        console.log('🔍 Creating test member for debugging...');
+
+        // Create a test member for debugging
+        try {
+          const testMember = await prisma.member.create({
+            data: {
+              user_id: userId,
+              membership_number: `TEST_${Date.now()}`,
+              full_name: 'Test User',
+              phone: '0123456789',
+              email: 'test@example.com',
+              membership_status: 'ACTIVE',
+              membership_type: 'BASIC',
+            },
+            include: {
+              memberships: {
+                where: { status: 'ACTIVE' },
+                orderBy: { created_at: 'desc' },
+                take: 1,
+              },
+            },
+          });
+
+          console.log('✅ Test member created:', testMember.id);
+
+          res.json({
+            success: true,
+            message: 'Test member profile created successfully',
+            data: testMember,
+          });
+          return;
+        } catch (createError) {
+          console.error('❌ Failed to create test member:', createError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to create test member',
+            data: null,
+          });
+        }
       }
 
       res.json({

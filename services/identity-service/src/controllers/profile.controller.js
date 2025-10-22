@@ -62,7 +62,9 @@ class ProfileController {
    */
   async getProfile(req, res) {
     try {
-      const userId = req.user.id;
+      console.log('🔑 Identity Service - req.user:', req.user);
+      const userId = req.user.userId || req.user.id;
+      console.log('🔑 Identity Service - userId:', userId);
 
       const user = await prisma.user.findUnique({
         where: { id: userId },

@@ -7,21 +7,39 @@ class HealthController {
    */
   async getHealthTrends(req, res) {
     try {
-      const { metricType } = req.params;
-      const { period = '30' } = req.query;
+      const { memberId } = req.params;
+      const { period = '30', metricType } = req.query;
+
+      // Validate period parameter
+      const periodDays = parseInt(period);
+      if (isNaN(periodDays) || periodDays <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid period parameter',
+        });
+      }
 
       const startDate = new Date();
-      startDate.setDate(startDate.getDate() - parseInt(period));
+      startDate.setDate(startDate.getDate() - periodDays);
+
+      // Build where clause
+      const whereClause = {
+        member_id: memberId,
+        recorded_at: { gte: startDate },
+      };
+
+      // Add metric type filter if provided
+      if (metricType && metricType !== 'undefined') {
+        whereClause.metric_type = metricType;
+      }
 
       const trends = await prisma.healthMetric.findMany({
-        where: {
-          metric_type: metricType,
-          recorded_at: { gte: startDate },
-        },
+        where: whereClause,
         orderBy: { recorded_at: 'asc' },
         select: {
           value: true,
           recorded_at: true,
+          metric_type: true,
         },
       });
 
@@ -32,6 +50,41 @@ class HealthController {
       });
     } catch (error) {
       console.error('Get health trends error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get member health metrics
+   */
+  async getMemberHealthMetrics(req, res) {
+    try {
+      const { memberId } = req.params;
+      const { metricType, startDate, endDate, limit = 50, offset = 0 } = req.query;
+
+      const where = { member_id: memberId };
+      if (metricType) where.metric_type = metricType;
+      if (startDate) where.recorded_at = { ...where.recorded_at, gte: new Date(startDate) };
+      if (endDate) where.recorded_at = { ...where.recorded_at, lte: new Date(endDate) };
+
+      const metrics = await prisma.healthMetric.findMany({
+        where,
+        orderBy: { recorded_at: 'desc' },
+        take: parseInt(limit),
+        skip: parseInt(offset),
+      });
+
+      res.json({
+        success: true,
+        message: 'Health metrics retrieved successfully',
+        data: metrics,
+      });
+    } catch (error) {
+      console.error('Get member health metrics error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

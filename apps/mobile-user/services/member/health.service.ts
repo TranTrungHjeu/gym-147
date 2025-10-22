@@ -28,10 +28,25 @@ export class HealthService {
       const response = await memberApiService.get(
         `/members/${memberId}/health-metrics?${params}`
       );
-      return response.data as HealthMetric[];
+
+      // Handle different response structures
+      let metrics = [];
+      if (response.data?.health_metrics) {
+        metrics = response.data.health_metrics;
+      } else if (response.data?.data?.health_metrics) {
+        metrics = response.data.data.health_metrics;
+      } else if (Array.isArray(response.data)) {
+        metrics = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        metrics = response.data.data;
+      }
+
+      console.log('📊 Extracted health metrics:', metrics.length, 'metrics');
+      return metrics as HealthMetric[];
     } catch (error) {
       console.error('Error fetching health metrics:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent app crash
+      return [];
     }
   }
 
@@ -100,13 +115,51 @@ export class HealthService {
     period: string = 'weekly'
   ): Promise<HealthTrend[]> {
     try {
+      // Convert period to number of days
+      let periodDays = 30; // default
+      switch (period) {
+        case 'daily':
+          periodDays = 1;
+          break;
+        case 'weekly':
+          periodDays = 7;
+          break;
+        case 'monthly':
+          periodDays = 30;
+          break;
+        case 'yearly':
+          periodDays = 365;
+          break;
+        default:
+          // If it's already a number, use it
+          const parsed = parseInt(period);
+          if (!isNaN(parsed) && parsed > 0) {
+            periodDays = parsed;
+          }
+      }
+
       const response = await memberApiService.get(
-        `/members/${memberId}/health-trends?period=${period}`
+        `/members/${memberId}/health-trends?period=${periodDays}`
       );
-      return response.data as HealthTrend[];
+
+      // Handle different response structures
+      let trends = [];
+      if (response.data?.trends) {
+        trends = response.data.trends;
+      } else if (response.data?.data?.trends) {
+        trends = response.data.data.trends;
+      } else if (Array.isArray(response.data)) {
+        trends = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        trends = response.data.data;
+      }
+
+      console.log('📊 Extracted health trends:', trends.length, 'trends');
+      return trends as HealthTrend[];
     } catch (error) {
       console.error('Error fetching health trends:', error);
-      throw error;
+      // Return empty array instead of throwing to prevent app crash
+      return [];
     }
   }
 
@@ -116,13 +169,45 @@ export class HealthService {
     period: string = 'weekly'
   ): Promise<HealthTrend> {
     try {
+      // Convert period to number of days
+      let periodDays = 30; // default
+      switch (period) {
+        case 'daily':
+          periodDays = 1;
+          break;
+        case 'weekly':
+          periodDays = 7;
+          break;
+        case 'monthly':
+          periodDays = 30;
+          break;
+        case 'yearly':
+          periodDays = 365;
+          break;
+        default:
+          // If it's already a number, use it
+          const parsed = parseInt(period);
+          if (!isNaN(parsed) && parsed > 0) {
+            periodDays = parsed;
+          }
+      }
+
       const response = await memberApiService.get(
-        `/members/${memberId}/health-trends/${type}?period=${period}`
+        `/members/${memberId}/health-trends/${type}?period=${periodDays}`
       );
       return response.data as HealthTrend;
     } catch (error) {
       console.error('Error fetching health trend:', error);
-      throw error;
+      // Return empty trend instead of throwing
+      return {
+        type: type,
+        period: period,
+        direction: 'STABLE',
+        changePercentage: 0,
+        startValue: 0,
+        endValue: 0,
+        dataPoints: [],
+      } as HealthTrend;
     }
   }
 

@@ -50,8 +50,13 @@ class MemberService {
         console.log('🔑 Token header:', tokenParts[0]);
         console.log('🔑 Token payload (raw):', tokenParts[1]);
 
-        // Try to decode the payload
-        const decodedPayload = atob(tokenParts[1]);
+        // Try to decode the payload with proper base64 padding
+        let payloadBase64 = tokenParts[1];
+        while (payloadBase64.length % 4) {
+          payloadBase64 += '=';
+        }
+
+        const decodedPayload = atob(payloadBase64);
         console.log('🔑 Token payload (decoded string):', decodedPayload);
 
         const payload = JSON.parse(decodedPayload);

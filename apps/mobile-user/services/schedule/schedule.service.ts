@@ -22,9 +22,23 @@ class ScheduleService {
 
       console.log('📅 Schedules API response:', response);
 
+      // Handle different response structures
+      let schedules = [];
+      if (response.data?.schedules) {
+        schedules = response.data.schedules;
+      } else if (response.data?.data?.schedules) {
+        schedules = response.data.data.schedules;
+      } else if (Array.isArray(response.data)) {
+        schedules = response.data;
+      } else if (Array.isArray(response.data?.data)) {
+        schedules = response.data.data;
+      }
+
+      console.log('📅 Extracted schedules:', schedules.length, 'schedules');
+
       return {
         success: true,
-        data: response.data?.data || response.data || [],
+        data: schedules,
       };
     } catch (error: any) {
       console.error('❌ Error fetching schedules:', error);

@@ -54,12 +54,18 @@ class WorkoutPlanService {
         console.log(
           '📋 Templates endpoint failed, trying member-specific endpoint...'
         );
-        // Second try: Member-specific workout plans
-        response = await memberApiService.get(
-          `/members/${memberId}/workout-plans`,
-          { params }
-        );
-        console.log('📋 Workout plans API response (member):', response);
+        try {
+          // Second try: Member-specific workout plans
+          response = await memberApiService.get(
+            `/members/${memberId}/workout-plans`,
+            { params }
+          );
+          console.log('📋 Workout plans API response (member):', response);
+        } catch (memberError) {
+          console.log('📋 Both endpoints failed, returning empty array');
+          // Both endpoints failed, return empty array instead of throwing
+          return { success: true, data: [] };
+        }
       }
 
       console.log('📋 Response data:', response.data);

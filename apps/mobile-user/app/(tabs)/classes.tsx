@@ -5,11 +5,11 @@ import {
   bookingService,
   scheduleService,
   type Booking,
-  type ClassCategory,
   type CreateBookingRequest,
   type Schedule,
   type ScheduleFilters,
 } from '@/services';
+import { ClassCategory } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { useRouter } from 'expo-router';
 import { Calendar, Filter, Search } from 'lucide-react-native';
@@ -29,16 +29,16 @@ import {
 } from 'react-native';
 
 const CATEGORIES: ClassCategory[] = [
-  'CARDIO',
-  'STRENGTH',
-  'YOGA',
-  'PILATES',
-  'DANCE',
-  'MARTIAL_ARTS',
-  'AQUA',
-  'FUNCTIONAL',
-  'RECOVERY',
-  'SPECIALIZED',
+  ClassCategory.CARDIO,
+  ClassCategory.STRENGTH,
+  ClassCategory.YOGA,
+  ClassCategory.PILATES,
+  ClassCategory.DANCE,
+  ClassCategory.MARTIAL_ARTS,
+  ClassCategory.AQUA,
+  ClassCategory.FUNCTIONAL,
+  ClassCategory.RECOVERY,
+  ClassCategory.SPECIALIZED,
 ];
 
 export default function ClassesScreen() {
@@ -191,7 +191,7 @@ export default function ClassesScreen() {
     router.push('/classes/my-bookings');
   };
 
-  const filteredSchedules = schedules.filter((schedule) => {
+  const filteredSchedules = (schedules || []).filter((schedule) => {
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       return (

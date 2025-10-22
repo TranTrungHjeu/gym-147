@@ -15,6 +15,9 @@ router.get('/members/:id', (req, res) => memberController.getMemberById(req, res
 // Get member by user_id (for cross-service integration)
 router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
 
+// Debug endpoint
+router.get('/debug/database', (req, res) => memberController.debugDatabase(req, res));
+
 // Get current member profile (for mobile app)
 router.get('/members/profile', (req, res) => memberController.getCurrentMemberProfile(req, res));
 
