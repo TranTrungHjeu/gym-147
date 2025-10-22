@@ -1,6 +1,7 @@
+import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Typography, FontFamily, TextColors } from '@/utils/typography';
+import { StyleSheet, Text, View } from 'react-native';
 
 interface StatsCardProps {
   title: string;
@@ -15,32 +16,48 @@ const StatsCard: React.FC<StatsCardProps> = ({
   value,
   subtitle,
   icon,
-  color = '#3B82F6',
+  color,
 }) => {
+  const { theme } = useTheme();
   return (
-    <View style={styles.container}>
+    <View
+      style={[
+        styles.container,
+        {
+          backgroundColor: theme.colors.surface,
+          shadowColor: theme.colors.text,
+        },
+      ]}
+    >
       <View style={styles.header}>
-        <Text style={styles.title}>{title}</Text>
+        <Text style={[styles.title, { color: theme.colors.textSecondary }]}>
+          {title}
+        </Text>
         {icon && (
           <View
-            style={[styles.iconContainer, { backgroundColor: color + '20' }]}
+            style={[
+              styles.iconContainer,
+              { backgroundColor: (color || theme.colors.primary) + '20' },
+            ]}
           >
             {icon}
           </View>
         )}
       </View>
-      <Text style={styles.value}>{value}</Text>
-      {subtitle && <Text style={styles.subtitle}>{subtitle}</Text>}
+      <Text style={[styles.value, { color: theme.colors.text }]}>{value}</Text>
+      {subtitle && (
+        <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+          {subtitle}
+        </Text>
+      )}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -56,16 +73,13 @@ const styles = StyleSheet.create({
   },
   title: {
     ...Typography.bodySmallMedium,
-    color: TextColors.secondary,
   },
   value: {
     ...Typography.numberSmall,
-    color: TextColors.primary,
     marginBottom: 4,
   },
   subtitle: {
     ...Typography.caption,
-    color: TextColors.secondary,
   },
   iconContainer: {
     width: 32,

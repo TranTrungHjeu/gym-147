@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import { ChevronRight } from 'lucide-react-native';
-import { Typography, TextColors } from '@/utils/typography';
+import React from 'react';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface ProfileSectionProps {
   title: string;
@@ -10,14 +11,26 @@ interface ProfileSectionProps {
     label: string;
     icon: React.ReactNode;
     onPress: () => void;
+    badge?: number;
   }[];
 }
 
 const ProfileSection: React.FC<ProfileSectionProps> = ({ title, items }) => {
+  const { theme } = useTheme();
   return (
     <View style={styles.container}>
-      <Text style={styles.sectionTitle}>{title}</Text>
-      <View style={styles.sectionContent}>
+      <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        {title}
+      </Text>
+      <View
+        style={[
+          styles.sectionContent,
+          {
+            backgroundColor: theme.colors.surface,
+            shadowColor: theme.colors.text,
+          },
+        ]}
+      >
         {items.map((item, index) => (
           <TouchableOpacity
             key={item.id}
@@ -28,10 +41,35 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ title, items }) => {
             onPress={item.onPress}
           >
             <View style={styles.itemLeftContent}>
-              <View style={styles.iconContainer}>{item.icon}</View>
-              <Text style={styles.itemLabel}>{item.label}</Text>
+              <View
+                style={[
+                  styles.iconContainer,
+                  { backgroundColor: theme.colors.gray },
+                ]}
+              >
+                {item.icon}
+              </View>
+              <Text style={[styles.itemLabel, { color: theme.colors.text }]}>
+                {item.label}
+              </Text>
             </View>
-            <ChevronRight size={20} color="#94A3B8" />
+            <View style={styles.itemRightContent}>
+              {item.badge && item.badge > 0 && (
+                <View
+                  style={[
+                    styles.badge,
+                    { backgroundColor: theme.colors.error },
+                  ]}
+                >
+                  <Text
+                    style={[styles.badgeText, { color: theme.colors.surface }]}
+                  >
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </Text>
+                </View>
+              )}
+              <ChevronRight size={20} color={theme.colors.textTertiary} />
+            </View>
           </TouchableOpacity>
         ))}
       </View>
@@ -45,14 +83,11 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     ...Typography.h6,
-    color: TextColors.primary,
     marginBottom: 12,
   },
   sectionContent: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     overflow: 'hidden',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 6,
@@ -66,7 +101,7 @@ const styles = StyleSheet.create({
   },
   itemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
+    borderBottomColor: 'transparent',
   },
   itemLeftContent: {
     flexDirection: 'row',
@@ -76,14 +111,30 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
   },
   itemLabel: {
     ...Typography.bodyMedium,
-    color: TextColors.primary,
+  },
+  itemRightContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  badge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    ...Typography.caption,
+    fontSize: 12,
+    fontWeight: '600',
   },
 });
 

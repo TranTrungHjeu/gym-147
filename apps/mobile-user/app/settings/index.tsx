@@ -242,14 +242,14 @@ export default function SettingsScreen() {
             icon={Bell}
             title={t('settings.pushNotifications')}
             subtitle="Get notified about workouts and achievements"
-            onPress={() => {}}
+            onPress={() => router.push('/settings/notifications')}
           />
 
           <SettingItem
             icon={Bell}
             title={t('settings.workoutReminders')}
             subtitle="Daily workout reminders"
-            onPress={() => {}}
+            onPress={() => router.push('/settings/notifications')}
           />
         </View>
 
@@ -267,13 +267,13 @@ export default function SettingsScreen() {
             icon={Shield}
             title={t('settings.dataUsage')}
             subtitle="Manage your data usage"
-            onPress={() => {}}
+            onPress={() => router.push('/settings/privacy')}
           />
 
           <SettingItem
             icon={Shield}
             title={t('settings.privacyPolicy')}
-            onPress={() => {}}
+            onPress={() => router.push('/settings/privacy')}
           />
         </View>
 
@@ -291,13 +291,15 @@ export default function SettingsScreen() {
             icon={Info}
             title={t('settings.version')}
             subtitle="Gym147 v1.0.0"
-            onPress={() => {}}
+            onPress={() =>
+              Alert.alert('App Version', 'Gym App v1.0.0\nBuild 2024.01.01')
+            }
           />
 
           <SettingItem
             icon={Info}
             title={t('settings.contactSupport')}
-            onPress={() => {}}
+            onPress={() => router.push('/settings/support')}
           />
         </View>
       </ScrollView>
@@ -315,7 +317,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: 'transparent',
   },
   backButton: {
     padding: 8,
@@ -337,7 +339,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 16,
     paddingHorizontal: 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: 'transparent',
     borderRadius: 12,
     marginBottom: 8,
   },

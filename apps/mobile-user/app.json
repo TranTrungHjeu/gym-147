@@ -27,17 +27,14 @@
     "experiments": {
       "typedRoutes": true
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "extra": {
       "API_URL": "http://10.0.2.2:3001",
       "APP_NAME": "Gym147",
       "APP_VERSION": "1.0.0",
-      "ENVIRONMENT": "development"
+      "ENVIRONMENT": "development",
+      "YOUTUBE_API_KEY": "AIzaSyCjBveZYEH951NlmM7HaKpTqXZxQU3lTLg"
     },
-    "plugins": [
-      "expo-font"
-    ]
+    "plugins": ["expo-font", "expo-localization"]
   }
 }

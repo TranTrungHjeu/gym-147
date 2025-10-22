@@ -4,6 +4,7 @@ import { Tabs } from 'expo-router';
 import {
   SquareActivity as ActivitySquare,
   ChartBar as BarChart3,
+  Calendar,
   Chrome as Home,
   Trophy,
   CircleUser as UserCircle,
@@ -52,6 +53,15 @@ export default function TabLayout() {
           title: t('navigation.workouts'),
           tabBarIcon: ({ color, size }) => (
             <ActivitySquare size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="classes"
+        options={{
+          title: t('navigation.classes'),
+          tabBarIcon: ({ color, size }) => (
+            <Calendar size={size} color={color} />
           ),
         }}
       />

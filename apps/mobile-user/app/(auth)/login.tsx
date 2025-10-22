@@ -28,6 +28,7 @@ export default function LoginScreen() {
   const [secureEntry, setSecureEntry] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<any[]>([]);
 
   const handleGoBack = () => {
@@ -43,7 +44,11 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    const credentials: LoginCredentials = { identifier: email, password };
+    const credentials: LoginCredentials & { rememberMe?: boolean } = {
+      identifier: email,
+      password,
+      rememberMe: rememberMe,
+    };
     const validationErrors = validateLoginCredentials(credentials);
 
     if (validationErrors.length > 0) {
@@ -156,6 +161,33 @@ export default function LoginScreen() {
             {getFieldError(errors, 'password')}
           </Text>
         )}
+
+        {/* Remember Me Checkbox */}
+        <View style={styles.rememberMeContainer}>
+          <TouchableOpacity
+            style={styles.checkboxContainer}
+            onPress={() => setRememberMe(!rememberMe)}
+          >
+            <View
+              style={[
+                styles.checkbox,
+                {
+                  backgroundColor: rememberMe
+                    ? theme.colors.primary
+                    : 'transparent',
+                  borderColor: theme.colors.border,
+                },
+              ]}
+            >
+              {rememberMe && (
+                <Ionicons name="checkmark" size={16} color="white" />
+              )}
+            </View>
+            <Text style={[styles.rememberMeText, { color: theme.colors.text }]}>
+              Ghi nhớ đăng nhập
+            </Text>
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity onPress={handleForgotPassword}>
           <Text
@@ -274,6 +306,26 @@ const styles = StyleSheet.create({
     ...Typography.bodySmallMedium,
     textAlign: 'right',
     marginVertical: 10,
+  },
+  rememberMeContainer: {
+    marginVertical: 10,
+  },
+  checkboxContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  checkbox: {
+    width: 20,
+    height: 20,
+    borderRadius: 4,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rememberMeText: {
+    ...Typography.bodySmall,
+    flex: 1,
   },
   loginButtonWrapper: {
     borderRadius: 16,

@@ -75,6 +75,7 @@ export interface ResetPasswordData {
 export interface AuthContextType {
   // State
   user: User | null;
+  token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;

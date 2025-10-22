@@ -1,7 +1,7 @@
 import { AuthProvider } from '@/contexts/AuthContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import '@/locales/i18n'; // Initialize i18n
-import { ThemeProvider } from '@/utils/theme';
+import { ThemeProvider, useTheme } from '@/utils/theme';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -52,7 +52,7 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <StatusBar style="auto" />
+        <ThemedStatusBar />
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="index" options={{ headerShown: false }} />
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
@@ -65,4 +65,9 @@ export default function RootLayout() {
       </AuthProvider>
     </ThemeProvider>
   );
+}
+
+function ThemedStatusBar() {
+  const { theme } = useTheme();
+  return <StatusBar style={theme.isDark ? 'light' : 'dark'} />;
 }

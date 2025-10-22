@@ -25,6 +25,13 @@ class ApiService {
   }
 
   /**
+   * Get stored token
+   */
+  async getStoredToken(): Promise<string | null> {
+    return await getToken();
+  }
+
+  /**
    * Get authorization headers
    */
   private async getHeaders(): Promise<HeadersInit> {
@@ -78,22 +85,42 @@ class ApiService {
    */
   async get<T>(
     endpoint: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | { baseURL?: string; [key: string]: any }
   ): Promise<ApiResponse<T>> {
-    const url = new URL(`${this.baseURL}${endpoint}`);
+    const baseURL =
+      params && 'baseURL' in params ? params.baseURL : this.baseURL;
+    const queryParams =
+      params && 'baseURL' in params
+        ? Object.fromEntries(
+            Object.entries(params).filter(([key]) => key !== 'baseURL')
+          )
+        : params;
 
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
+    const url = new URL(`${baseURL}${endpoint}`);
+
+    if (queryParams) {
+      Object.entries(queryParams).forEach(([key, value]) => {
         if (value !== undefined && value !== null) {
           url.searchParams.append(key, String(value));
         }
       });
     }
 
+    const headers = await this.getHeaders();
+
+    console.log('🌐 API GET Request:');
+    console.log('🌐 URL:', url.toString());
+    console.log('🌐 Headers:', headers);
+
     const response = await fetch(url.toString(), {
       method: 'GET',
-      headers: await this.getHeaders(),
+      headers,
     });
+
+    console.log('🌐 API Response:');
+    console.log('🌐 Status:', response.status);
+    console.log('🌐 Status Text:', response.statusText);
+    console.log('🌐 Headers:', Object.fromEntries(response.headers.entries()));
 
     return this.handleResponse<T>(response);
   }
@@ -183,6 +210,7 @@ class ApiService {
   }
 }
 
-// Export singleton instance
+// Export class and singleton instance
+export { ApiService };
 export const apiService = new ApiService();
 export default apiService;

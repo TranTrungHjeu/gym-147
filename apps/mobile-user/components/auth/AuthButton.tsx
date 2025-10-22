@@ -1,14 +1,15 @@
+import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import React from 'react';
 import {
-  TouchableOpacity,
-  Text,
-  StyleSheet,
   ActivityIndicator,
-  ViewStyle,
+  StyleSheet,
+  Text,
   TextStyle,
+  TouchableOpacity,
   TouchableOpacityProps,
+  ViewStyle,
 } from 'react-native';
-import { Typography, TextColors } from '@/utils/typography';
 
 interface AuthButtonProps extends TouchableOpacityProps {
   title: string;
@@ -32,12 +33,22 @@ const AuthButton: React.FC<AuthButtonProps> = ({
   style,
   ...touchableProps
 }) => {
+  const { theme } = useTheme();
+
+  if (!theme) {
+    console.error('Theme is not available in AuthButton');
+    return null;
+  }
   const buttonStyle: ViewStyle[] = [
     styles.button,
     styles[`button_${variant}`],
     styles[`button_${size}`],
     ...(fullWidth ? [styles.fullWidth] : []),
     ...(disabled ? [styles.disabled] : []),
+    // Dynamic colors
+    variant === 'primary' && { backgroundColor: theme.colors.primary },
+    variant === 'secondary' && { backgroundColor: theme.colors.secondary },
+    variant === 'outline' && { borderColor: theme.colors.primary },
   ];
 
   const textStyle: TextStyle[] = [
@@ -48,6 +59,11 @@ const AuthButton: React.FC<AuthButtonProps> = ({
       : Typography.buttonSmall,
     styles[`text_${variant}`],
     ...(disabled ? [styles.textDisabled] : []),
+    // Dynamic text colors
+    variant === 'primary' && { color: theme.colors.textInverse },
+    variant === 'secondary' && { color: theme.colors.textInverse },
+    variant === 'outline' && { color: theme.colors.primary },
+    variant === 'ghost' && { color: theme.colors.text },
   ];
 
   return (
@@ -60,7 +76,11 @@ const AuthButton: React.FC<AuthButtonProps> = ({
     >
       {isLoading ? (
         <ActivityIndicator
-          color={variant === 'primary' ? '#FFFFFF' : TextColors.accent}
+          color={
+            variant === 'primary'
+              ? theme.colors.textInverse
+              : theme.colors.primary
+          }
           size="small"
         />
       ) : (
@@ -101,15 +121,15 @@ const styles = StyleSheet.create({
 
   // Variants
   button_primary: {
-    backgroundColor: TextColors.accent,
+    // backgroundColor will be set inline
   },
   button_secondary: {
-    backgroundColor: '#F3F4F6',
+    // backgroundColor will be set inline
   },
   button_outline: {
     backgroundColor: 'transparent',
     borderWidth: 1.5,
-    borderColor: TextColors.accent,
+    // borderColor will be set inline
   },
   button_ghost: {
     backgroundColor: 'transparent',
@@ -117,16 +137,16 @@ const styles = StyleSheet.create({
 
   // Text colors
   text_primary: {
-    color: '#FFFFFF',
+    // color will be set inline
   },
   text_secondary: {
-    color: TextColors.primary,
+    // color will be set inline
   },
   text_outline: {
-    color: TextColors.accent,
+    // color will be set inline
   },
   text_ghost: {
-    color: TextColors.accent,
+    // color will be set inline
   },
 
   // Disabled state

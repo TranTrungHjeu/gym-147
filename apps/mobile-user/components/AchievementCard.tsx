@@ -47,7 +47,12 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
         </Text>
 
         {!completed && progress > 0 && (
-          <View style={styles.progressContainer}>
+          <View
+            style={[
+              styles.progressContainer,
+              { backgroundColor: theme.colors.border },
+            ]}
+          >
             <View
               style={[
                 styles.progressBar,
@@ -57,7 +62,14 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
                 },
               ]}
             />
-            <Text style={styles.progressText}>{progress}%</Text>
+            <Text
+              style={[
+                styles.progressText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {progress}%
+            </Text>
           </View>
         )}
 
@@ -113,7 +125,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     height: 6,
-    backgroundColor: 'rgba(0,0,0,0.1)',
     borderRadius: 3,
     marginTop: 8,
     overflow: 'hidden',

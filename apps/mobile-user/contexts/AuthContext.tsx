@@ -1,6 +1,4 @@
-import { authService } from '@/services/auth.service';
-import { userService } from '@/services/user.service';
-import { debugApi } from '@/utils/debug';
+import { authService, userService } from '@/services';
 import {
   AuthContextType,
   ForgotPasswordData,
@@ -11,11 +9,14 @@ import {
 } from '@/types/authTypes';
 import {
   clearAuthData,
+  getRememberMe,
   getToken,
   getUser,
+  storeRememberMe,
   storeToken,
   storeUser,
 } from '@/utils/auth/storage';
+import { debugApi } from '@/utils/debug';
 import React, {
   ReactNode,
   createContext,
@@ -32,9 +33,10 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isAuthenticated = !!user;
+  const isAuthenticated = !!user && !!token;
 
   // Check for existing auth session on mount
   useEffect(() => {
@@ -44,19 +46,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuthStatus = async () => {
     try {
       setIsLoading(true);
-      const [token, userData] = await Promise.all([getToken(), getUser()]);
+      const [token, userData, rememberMe] = await Promise.all([
+        getToken(),
+        getUser(),
+        getRememberMe(),
+      ]);
 
       if (token && userData) {
         setUser(userData);
+        setToken(token);
+        console.log('✅ Auth session restored');
+      } else if (!rememberMe) {
+        // Only clear auth data if user didn't choose to remember login
+        console.log('❌ No auth session found and remember me is false');
+        setUser(null);
+        setToken(null);
+      } else {
+        // If rememberMe is true but no token/userData, keep current session
+        console.log(
+          '❌ No auth session found but remember me is true - keeping current session'
+        );
+        // Don't clear user and token - keep them as they are
       }
     } catch (err) {
       console.error('Error checking auth status:', err);
+      setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (
+    credentials: LoginCredentials & { rememberMe?: boolean }
+  ) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -65,19 +88,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       console.log('🔍 Testing API connection before login...');
       const isConnected = await debugApi.testConnection();
       if (!isConnected) {
-        throw new Error('Cannot connect to API server. Please check your network connection and server status.');
+        throw new Error(
+          'Cannot connect to API server. Please check your network connection and server status.'
+        );
       }
 
-      console.log('🔐 Attempting login with credentials:', { email: credentials.email });
+      console.log('🔐 Attempting login with credentials:', {
+        email: credentials.email,
+      });
       const response = await authService.login(credentials);
 
-      if (response.success && response.user && response.token) {
+      if (response.success && response.data) {
+        const { user, accessToken } = response.data;
+
         // Store auth data
-        await Promise.all([
-          storeToken(response.token),
-          storeUser(response.user),
-        ]);
-        setUser(response.user);
+        await Promise.all([storeToken(accessToken), storeUser(user)]);
+
+        // Store remember me preference
+        if (credentials.rememberMe) {
+          await storeRememberMe(true);
+        }
+
+        setUser(user);
+        setToken(accessToken);
         console.log('✅ Login successful');
       } else {
         console.log('❌ Login failed:', response.message);
@@ -130,11 +163,13 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Clear local auth data
       await clearAuthData();
       setUser(null);
+      setToken(null);
     } catch (err) {
       console.error('Logout error:', err);
       // Even if API call fails, clear local data
       await clearAuthData();
       setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
@@ -212,6 +247,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const value: AuthContextType = {
     user,
+    token,
     isAuthenticated,
     isLoading,
     error,

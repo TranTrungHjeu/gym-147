@@ -3,34 +3,34 @@ import { ThemeColors } from './types';
 export const lightThemeColors: ThemeColors = {
   // Primary colors
   primary: '#f36100', // Orange - main brand color
-  secondary: '#7c7c7cff', // Gray
+  secondary: '#6B7280', // Gray
 
   // Background colors
-  background: '#F8FAFC', // Light gray background
-  surface: '#FFFFFF', // White surface
+  background: '#FFFFFF', // Pure white background for better contrast
+  surface: '#F8F9FA', // Light gray surface
 
   // Text colors
-  text: '#1F2937', // Dark gray for primary text
-  textSecondary: '#6B7280', // Medium gray for secondary text
-  textTertiary: '#9CA3AF', // Light gray for tertiary text
+  text: '#000000', // Pure black for maximum contrast
+  textSecondary: '#374151', // Dark gray for secondary text
+  textTertiary: '#6B7280', // Medium gray for tertiary text
   textInverse: '#FFFFFF', // White text on dark backgrounds
 
   // UI colors
-  border: '#E2E8F0', // Light border
-  divider: '#F3F4F6', // Divider color
+  border: '#CBD5E1', // Darker border for better visibility
+  divider: '#E2E8F0', // Darker divider
 
   // Status colors
-  success: '#10B981', // Green
-  warning: '#F59E0B', // Orange
-  error: '#EF4444', // Red
-  info: '#3B82F6', // Blue
+  success: '#059669', // Darker green for better contrast
+  warning: '#D97706', // Darker orange for better contrast
+  error: '#DC2626', // Darker red for better contrast
+  info: '#2563EB', // Darker blue for better contrast
 
   // Interactive colors
   accent: '#f36100', // Same as primary
-  disabled: '#D1D5DB', // Disabled state
+  disabled: '#9CA3AF', // Better contrast disabled state
 
   // Legacy colors (for backward compatibility)
   white: '#FFFFFF',
   black: '#000000',
-  gray: '#F3F4F6',
+  gray: '#E2E8F0',
 };

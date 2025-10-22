@@ -96,6 +96,7 @@ model GymSession {
   notes        String?
   
   member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  equipment_usage EquipmentUsage[] // Equipment used during this session
 
   @@map("gym_sessions")
 }
@@ -105,6 +106,7 @@ model EquipmentUsage {
   id           String   @id @default(cuid())
   member_id    String
   equipment_id String
+  session_id   String?  // Link to gym session
   start_time   DateTime @default(now())
   end_time     DateTime?
   duration     Int?     // in minutes
@@ -118,8 +120,9 @@ model EquipmentUsage {
   // IoT Sensor Data
   sensor_data  Json?    // Additional IoT sensor readings
   
-  member    Member    @relation(fields: [member_id], references: [id])
-  equipment Equipment @relation(fields: [equipment_id], references: [id])
+  member    Member      @relation(fields: [member_id], references: [id])
+  equipment Equipment   @relation(fields: [equipment_id], references: [id])
+  session   GymSession? @relation(fields: [session_id], references: [id], onDelete: SetNull)
 
   @@map("equipment_usage")
 }

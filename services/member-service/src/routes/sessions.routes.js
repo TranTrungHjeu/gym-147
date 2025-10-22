@@ -23,6 +23,12 @@ router.get('/members/:id/sessions/stats', (req, res) =>
   sessionController.getSessionStats(req, res)
 );
 
+// Get session details with equipment usage
+router.get('/sessions/:sessionId', (req, res) => {
+  const memberController = require('../controllers/member.controller');
+  memberController.getSessionDetails(req, res);
+});
+
 // ==================== GLOBAL SESSION ROUTES ====================
 
 // Get all active sessions

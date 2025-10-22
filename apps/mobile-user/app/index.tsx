@@ -28,7 +28,7 @@ const WelcomeScreen = () => {
       {/* Banner Image - Thay bằng ảnh của bạn */}
       <Image
         source={require('@/assets/images/logo-full.png')}
-        style={styles.bannerImage}
+        style={[styles.bannerImage, { shadowColor: theme.colors.text }]}
       />
 
       {/* Title */}
@@ -43,7 +43,13 @@ const WelcomeScreen = () => {
 
       {/* Button Container */}
       <View
-        style={[styles.buttonContainer, { borderColor: theme.colors.border }]}
+        style={[
+          styles.buttonContainer,
+          {
+            borderColor: theme.colors.border,
+            shadowColor: theme.colors.text,
+          },
+        ]}
       >
         <TouchableOpacity
           style={[
@@ -103,7 +109,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 350,
     borderRadius: 24,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -130,7 +135,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1.5,
     overflow: 'hidden',
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,

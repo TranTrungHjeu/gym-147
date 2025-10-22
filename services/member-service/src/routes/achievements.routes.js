@@ -4,6 +4,9 @@ const achievementController = require('../controllers/achievement.controller');
 
 // ==================== ACHIEVEMENT ROUTES ====================
 
+// Get all achievements
+router.get('/achievements', (req, res) => achievementController.getAllAchievements(req, res));
+
 // Get member's achievements
 router.get('/members/:id/achievements', (req, res) =>
   achievementController.getMemberAchievements(req, res)

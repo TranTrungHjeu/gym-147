@@ -1,6 +1,7 @@
+import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, View, Image } from 'react-native';
-import { Typography, TextColors } from '@/utils/typography';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface SocialButtonProps {
   provider: 'google' | 'apple' | 'facebook';
@@ -13,28 +14,33 @@ const SocialButton: React.FC<SocialButtonProps> = ({
   onPress,
   disabled,
 }) => {
+  const { theme } = useTheme();
   const getProviderConfig = () => {
     switch (provider) {
       case 'google':
         return {
           text: 'Continue with Google',
           icon: '🔍', // Replace with actual icon/image
-          backgroundColor: '#FFFFFF',
-          textColor: TextColors.primary,
+          backgroundColor: theme.colors.surface,
+          textColor: theme.colors.text,
         };
       case 'apple':
         return {
           text: 'Continue with Apple',
           icon: '🍎', // Replace with actual icon/image
-          backgroundColor: '#000000',
-          textColor: '#FFFFFF',
+          backgroundColor: theme.isDark
+            ? theme.colors.text
+            : theme.colors.textInverse,
+          textColor: theme.isDark
+            ? theme.colors.textInverse
+            : theme.colors.text,
         };
       case 'facebook':
         return {
           text: 'Continue with Facebook',
           icon: '📘', // Replace with actual icon/image
-          backgroundColor: '#1877F2',
-          textColor: '#FFFFFF',
+          backgroundColor: theme.colors.info,
+          textColor: theme.colors.textInverse,
         };
     }
   };
@@ -45,7 +51,10 @@ const SocialButton: React.FC<SocialButtonProps> = ({
     <TouchableOpacity
       style={[
         styles.button,
-        { backgroundColor: config.backgroundColor },
+        {
+          backgroundColor: config.backgroundColor,
+          borderColor: theme.colors.border,
+        },
         disabled && styles.disabled,
       ]}
       onPress={onPress}
@@ -72,7 +81,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: 'transparent',
   },
   iconContainer: {
     marginRight: 12,

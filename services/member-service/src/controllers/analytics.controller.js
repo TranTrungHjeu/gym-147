@@ -2,9 +2,9 @@ const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
 class AnalyticsController {
-  // ==================== MEMBER ANALYTICS ====================
+  // ==================== PHÂN TÍCH THÀNH VIÊN ====================
 
-  // Get member analytics
+  // Lấy phân tích thành viên
   async getMemberAnalytics(req, res) {
     try {
       const { period = '30' } = req.query;
@@ -34,34 +34,39 @@ class AnalyticsController {
 
       res.json({
         success: true,
-        message: 'Member analytics retrieved successfully',
+        message: 'Lấy phân tích thành viên thành công',
         data: {
           analytics: {
-            totalMembers,
-            activeMembers,
-            newMembers,
-            membershipDistribution,
+            totalMembers: Number(totalMembers),
+            activeMembers: Number(activeMembers),
+            newMembers: Number(newMembers),
+            membershipDistribution: membershipDistribution.map(item => ({
+              ...item,
+              _count: {
+                id: Number(item._count.id),
+              },
+            })),
             memberGrowth,
             period: parseInt(period),
           },
         },
       });
     } catch (error) {
-      console.error('Get member analytics error:', error);
+      console.error('Lỗi lấy phân tích thành viên:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
   }
 
-  // Get member growth data
+  // Lấy dữ liệu tăng trưởng thành viên
   async getMemberGrowthData(period) {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(period));
 
-    // Get daily member registrations
+    // Lấy đăng ký thành viên hàng ngày
     const dailyGrowth = await prisma.$queryRaw`
       SELECT 
         DATE(created_at) as date,
@@ -72,12 +77,15 @@ class AnalyticsController {
       ORDER BY date ASC
     `;
 
-    return dailyGrowth;
+    return dailyGrowth.map(item => ({
+      ...item,
+      new_members: Number(item.new_members),
+    }));
   }
 
-  // ==================== EQUIPMENT ANALYTICS ====================
+  // ==================== PHÂN TÍCH THIẾT BỊ ====================
 
-  // Get equipment analytics
+  // Lấy phân tích thiết bị
   async getEquipmentAnalytics(req, res) {
     try {
       const { period = '30' } = req.query;
@@ -127,7 +135,7 @@ class AnalyticsController {
       console.error('Get equipment analytics error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -275,7 +283,7 @@ class AnalyticsController {
       console.error('Get session analytics error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -362,7 +370,7 @@ class AnalyticsController {
       console.error('Get health analytics error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -425,7 +433,7 @@ class AnalyticsController {
       console.error('Get achievement analytics error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -486,7 +494,7 @@ class AnalyticsController {
 
   // ==================== COMPREHENSIVE DASHBOARD ====================
 
-  // Get comprehensive dashboard data
+  // Get comprehensive dashboard data (admin view)
   async getDashboardData(req, res) {
     try {
       const { period = '30' } = req.query;
@@ -521,6 +529,82 @@ class AnalyticsController {
       });
     } catch (error) {
       console.error('Get dashboard data error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi máy chủ nội bộ',
+        data: null,
+      });
+    }
+  }
+
+  // Get member-specific dashboard data
+  async getMemberDashboardData(req, res) {
+    try {
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      // Decode JWT token to get user_id (simplified - in production use proper JWT verification)
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      const userId = payload.userId;
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true, full_name: true, membership_number: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      const { period = '30' } = req.query;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - parseInt(period));
+
+      const [memberStats, recentSessions, recentAchievements, healthMetrics, workoutPlans] =
+        await Promise.all([
+          this.getMemberStatsData(member.id, period),
+          this.getMemberRecentSessions(member.id, 5),
+          this.getMemberRecentAchievements(member.id, 5),
+          this.getMemberHealthMetrics(member.id, period),
+          this.getMemberWorkoutPlans(member.id),
+        ]);
+
+      res.json({
+        success: true,
+        message: 'Member dashboard data retrieved successfully',
+        data: {
+          dashboard: {
+            member: {
+              id: member.id,
+              full_name: member.full_name,
+              membership_number: member.membership_number,
+            },
+            stats: memberStats,
+            recentActivity: {
+              recentSessions,
+              recentAchievements,
+            },
+            healthMetrics,
+            workoutPlans,
+            period: parseInt(period),
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Get member dashboard data error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -615,6 +699,8 @@ class AnalyticsController {
   }
 
   async getRecentActivityData() {
+    console.log('✅ Sử dụng phiên bản truy vấn đã sửa (không null)');
+
     const [recentSessions, recentAchievements, recentMembers] = await Promise.all([
       prisma.gymSession.findMany({
         orderBy: { entry_time: 'desc' },
@@ -630,7 +716,6 @@ class AnalyticsController {
         },
       }),
       prisma.achievement.findMany({
-        where: { unlocked_at: { not: null } },
         orderBy: { unlocked_at: 'desc' },
         take: 5,
         include: {
@@ -661,6 +746,170 @@ class AnalyticsController {
       recentAchievements,
       recentMembers,
     };
+  }
+
+  // Member-specific helper methods
+  async getMemberStatsData(memberId, period) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const [totalSessions, totalCalories, avgDuration, currentStreak] = await Promise.all([
+      prisma.gymSession.count({
+        where: {
+          member_id: memberId,
+          entry_time: { gte: startDate },
+        },
+      }),
+      prisma.gymSession.aggregate({
+        where: {
+          member_id: memberId,
+          entry_time: { gte: startDate },
+          calories_burned: { not: null },
+        },
+        _sum: { calories_burned: true },
+      }),
+      prisma.gymSession.aggregate({
+        where: {
+          member_id: memberId,
+          entry_time: { gte: startDate },
+          duration: { not: null },
+        },
+        _avg: { duration: true },
+      }),
+      this.getMemberCurrentStreak(memberId),
+    ]);
+
+    return {
+      totalSessions,
+      totalCalories: totalCalories._sum.calories_burned || 0,
+      avgDuration: Math.round(avgDuration._avg.duration || 0),
+      currentStreak,
+    };
+  }
+
+  async getMemberRecentSessions(memberId, limit = 5) {
+    return await prisma.gymSession.findMany({
+      where: { member_id: memberId },
+      orderBy: { entry_time: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        entry_time: true,
+        exit_time: true,
+        duration: true,
+        calories_burned: true,
+        session_rating: true,
+        entry_method: true,
+        exit_method: true,
+      },
+    });
+  }
+
+  async getMemberRecentAchievements(memberId, limit = 5) {
+    return await prisma.achievement.findMany({
+      where: { member_id: memberId },
+      orderBy: { unlocked_at: 'desc' },
+      take: limit,
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        category: true,
+        points: true,
+        badge_icon: true,
+        unlocked_at: true,
+      },
+    });
+  }
+
+  async getMemberHealthMetrics(memberId, period) {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - parseInt(period));
+
+    const [weight, bodyFat, heartRate] = await Promise.all([
+      prisma.healthMetric.findFirst({
+        where: {
+          member_id: memberId,
+          metric_type: 'WEIGHT',
+          recorded_at: { gte: startDate },
+        },
+        orderBy: { recorded_at: 'desc' },
+      }),
+      prisma.healthMetric.findFirst({
+        where: {
+          member_id: memberId,
+          metric_type: 'BODY_FAT',
+          recorded_at: { gte: startDate },
+        },
+        orderBy: { recorded_at: 'desc' },
+      }),
+      prisma.healthMetric.findFirst({
+        where: {
+          member_id: memberId,
+          metric_type: 'HEART_RATE',
+          recorded_at: { gte: startDate },
+        },
+        orderBy: { recorded_at: 'desc' },
+      }),
+    ]);
+
+    return {
+      weight: weight?.value || null,
+      bodyFat: bodyFat?.value || null,
+      heartRate: heartRate?.value || null,
+    };
+  }
+
+  async getMemberWorkoutPlans(memberId) {
+    return await prisma.workoutPlan.findMany({
+      where: {
+        member_id: memberId,
+        is_active: true,
+      },
+      orderBy: { created_at: 'desc' },
+      take: 3,
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        difficulty: true,
+        duration_weeks: true,
+        goal: true,
+      },
+    });
+  }
+
+  async getMemberCurrentStreak(memberId) {
+    // Calculate current streak of consecutive days with gym sessions
+    const sessions = await prisma.gymSession.findMany({
+      where: { member_id: memberId },
+      orderBy: { entry_time: 'desc' },
+      select: { entry_time: true },
+    });
+
+    if (sessions.length === 0) return 0;
+
+    let streak = 0;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    for (let i = 0; i < sessions.length; i++) {
+      const sessionDate = new Date(sessions[i].entry_time);
+      sessionDate.setHours(0, 0, 0, 0);
+
+      const daysDiff = Math.floor((today - sessionDate) / (1000 * 60 * 60 * 24));
+
+      if (daysDiff === streak) {
+        streak++;
+      } else if (daysDiff === streak + 1) {
+        streak++;
+        today.setDate(today.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+
+    return streak;
   }
 
   // ==================== REPORTS ====================
@@ -707,7 +956,7 @@ class AnalyticsController {
       console.error('Generate membership report error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -750,7 +999,7 @@ class AnalyticsController {
       console.error('Generate usage report error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }
@@ -795,7 +1044,7 @@ class AnalyticsController {
       console.error('Generate health report error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: 'Lỗi máy chủ nội bộ',
         data: null,
       });
     }

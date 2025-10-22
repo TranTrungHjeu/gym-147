@@ -170,6 +170,58 @@ class MemberController {
     }
   }
 
+  // Get current member profile (for mobile app)
+  async getCurrentMemberProfile(req, res) {
+    try {
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      // Decode JWT token to get user_id (simplified - in production use proper JWT verification)
+      const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
+      const userId = payload.userId;
+
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        include: {
+          memberships: {
+            where: { status: 'ACTIVE' },
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Member profile retrieved successfully',
+        data: member,
+      });
+    } catch (error) {
+      console.error('Get current member profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
   // Create new member
   async createMember(req, res) {
     try {
@@ -572,6 +624,222 @@ class MemberController {
       });
     } catch (error) {
       console.error('Get members by IDs error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get member sessions
+   */
+  async getMemberSessions(req, res) {
+    try {
+      const { startDate, endDate, limit = 50, offset = 0 } = req.query;
+
+      const where = {};
+      if (startDate) where.check_in_time = { ...where.check_in_time, gte: new Date(startDate) };
+      if (endDate) where.check_in_time = { ...where.check_in_time, lte: new Date(endDate) };
+
+      const sessions = await prisma.gymSession.findMany({
+        where,
+        orderBy: { check_in_time: 'desc' },
+        take: parseInt(limit),
+        skip: parseInt(offset),
+      });
+
+      res.json({
+        success: true,
+        message: 'Member sessions retrieved successfully',
+        data: sessions,
+      });
+    } catch (error) {
+      console.error('Get member sessions error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get current session
+   */
+  async getCurrentSession(req, res) {
+    try {
+      const session = await prisma.gymSession.findFirst({
+        where: { check_out_time: null },
+        orderBy: { check_in_time: 'desc' },
+      });
+
+      res.json({
+        success: true,
+        message: 'Current session retrieved successfully',
+        data: session,
+      });
+    } catch (error) {
+      console.error('Get current session error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Record gym entry
+   */
+  async recordGymEntry(req, res) {
+    try {
+      const { memberId, workoutType = 'General' } = req.body;
+
+      const session = await prisma.gymSession.create({
+        data: {
+          member_id: memberId,
+          check_in_time: new Date(),
+          workout_type: workoutType,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Gym entry recorded successfully',
+        data: session,
+      });
+    } catch (error) {
+      console.error('Record gym entry error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Record gym exit
+   */
+  async recordGymExit(req, res) {
+    try {
+      const { sessionId } = req.body;
+
+      const session = await prisma.gymSession.update({
+        where: { id: sessionId },
+        data: { check_out_time: new Date() },
+      });
+
+      res.json({
+        success: true,
+        message: 'Gym exit recorded successfully',
+        data: session,
+      });
+    } catch (error) {
+      console.error('Record gym exit error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get session details with equipment usage
+   */
+  async getSessionDetails(req, res) {
+    try {
+      const { sessionId } = req.params;
+
+      // Get session with equipment usage
+      const session = await prisma.gymSession.findUnique({
+        where: { id: sessionId },
+        include: {
+          member: {
+            select: {
+              id: true,
+              full_name: true,
+              membership_number: true,
+            },
+          },
+          equipment_usage: {
+            include: {
+              equipment: {
+                select: {
+                  id: true,
+                  name: true,
+                  category: true,
+                  location: true,
+                },
+              },
+            },
+            orderBy: { start_time: 'asc' },
+          },
+        },
+      });
+
+      if (!session) {
+        return res.status(404).json({
+          success: false,
+          message: 'Session not found',
+          data: null,
+        });
+      }
+
+      // Calculate total calories from equipment usage
+      const totalEquipmentCalories = session.equipment_usage.reduce(
+        (sum, usage) => sum + (usage.calories_burned || 0),
+        0
+      );
+
+      // Calculate total duration from equipment usage
+      const totalEquipmentDuration = session.equipment_usage.reduce(
+        (sum, usage) => sum + (usage.duration || 0),
+        0
+      );
+
+      // Group equipment usage by category
+      const equipmentByCategory = session.equipment_usage.reduce((acc, usage) => {
+        const category = usage.equipment.category;
+        if (!acc[category]) {
+          acc[category] = [];
+        }
+        acc[category].push(usage);
+        return acc;
+      }, {});
+
+      res.json({
+        success: true,
+        message: 'Session details retrieved successfully',
+        data: {
+          session: {
+            id: session.id,
+            entry_time: session.entry_time,
+            exit_time: session.exit_time,
+            duration: session.duration,
+            entry_method: session.entry_method,
+            exit_method: session.exit_method,
+            entry_gate: session.entry_gate,
+            exit_gate: session.exit_gate,
+            calories_burned: session.calories_burned,
+            session_rating: session.session_rating,
+            notes: session.notes,
+            member: session.member,
+          },
+          equipmentUsage: {
+            totalSessions: session.equipment_usage.length,
+            totalCalories: totalEquipmentCalories,
+            totalDuration: totalEquipmentDuration,
+            byCategory: equipmentByCategory,
+            details: session.equipment_usage,
+          },
+        },
+      });
+    } catch (error) {
+      console.error('Get session details error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

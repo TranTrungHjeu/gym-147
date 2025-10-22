@@ -51,7 +51,7 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
           />
           <ChevronRight
             size={20}
-            color={theme.colors.textTertiary}
+            color={theme.colors.textSecondary}
             style={styles.chevron}
           />
         </View>

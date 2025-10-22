@@ -1,8 +1,8 @@
 import ProfileSection from '@/components/ProfileSection';
-import { colors } from '@/utils/colors';
-import { userData } from '@/utils/mockData';
+import { authService, memberService, notificationService } from '@/services';
+import { type Member } from '@/types/memberTypes';
 import { useTheme } from '@/utils/theme';
-import { TextColors, Typography } from '@/utils/typography';
+import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import {
   Bell,
@@ -17,10 +17,13 @@ import {
   CircleUser as UserCircle,
   Weight,
 } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
+  Alert,
   Image,
+  RefreshControl,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -34,30 +37,165 @@ export default function ProfileScreen() {
   const { t } = useTranslation();
   const router = useRouter();
 
+  // State for API data
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [userProfile, setUserProfile] = useState<Member | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Load profile data on component mount
+  useEffect(() => {
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await memberService.getMemberProfile();
+
+      if (response.success && response.data) {
+        setUserProfile(response.data);
+
+        // Load notification count
+        try {
+          const count = await notificationService.getUnreadCount(
+            response.data.id
+          );
+          setUnreadCount(count);
+        } catch (error) {
+          console.error('Error loading notification count:', error);
+        }
+      } else {
+        setError(response.error || 'Failed to load profile');
+      }
+    } catch (err: any) {
+      console.error('Error loading profile:', err);
+      setError(err.message || 'Failed to load profile');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadProfile();
+    setRefreshing(false);
+  };
+
+  const handleEditProfile = () => {
+    // Navigate to profile edit options
+    router.push('/profile/edit-personal');
+  };
+
+  // Show loading state
+  if (loading) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+            Loading profile...
+          </Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show error state
+  if (error) {
+    return (
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <View style={styles.errorContainer}>
+          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={[
+              styles.retryButton,
+              { backgroundColor: theme.colors.primary },
+            ]}
+            onPress={loadProfile}
+          >
+            <Text
+              style={[
+                styles.retryButtonText,
+                { color: theme.colors.textInverse },
+              ]}
+            >
+              Retry
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  const handleLogout = async () => {
+    Alert.alert('Log Out', 'Are you sure you want to log out?', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Log Out',
+        style: 'destructive',
+        onPress: async () => {
+          try {
+            await authService.logout();
+            router.replace('/(auth)/login');
+          } catch (error) {
+            console.error('Logout error:', error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
+          }
+        },
+      },
+    ]);
+  };
+
+  const healthItems = [
+    {
+      id: 'add-metric',
+      label: 'Add Health Metric',
+      icon: <HeartPulse size={20} color={theme.colors.primary} />,
+      onPress: () => router.push('/health/add-metric'),
+    },
+    {
+      id: 'health-trends',
+      label: 'Health Trends',
+      icon: <Target size={20} color={theme.colors.info} />,
+      onPress: () => router.push('/health/trends'),
+    },
+  ];
+
   const accountItems = [
     {
       id: 'settings',
       label: t('common.settings'),
       icon: <Settings size={20} color={theme.colors.primary} />,
-      onPress: () => router.push('/settings/'),
+      onPress: () => router.push('/settings'),
     },
     {
       id: 'notifications',
       label: 'Notifications',
-      icon: <Bell size={20} color="#3B82F6" />,
-      onPress: () => console.log('Notifications pressed'),
+      icon: <Bell size={20} color={theme.colors.info} />,
+      onPress: () => router.push('/notifications'),
+      badge: unreadCount > 0 ? unreadCount : undefined,
     },
     {
       id: 'privacy',
       label: 'Privacy',
-      icon: <Shield size={20} color="#3B82F6" />,
-      onPress: () => console.log('Privacy pressed'),
+      icon: <Shield size={20} color={theme.colors.info} />,
+      onPress: () => router.push('/settings/privacy'),
     },
     {
       id: 'logout',
       label: 'Log Out',
-      icon: <LogOut size={20} color="#EF4444" />,
-      onPress: () => console.log('Log Out pressed'),
+      icon: <LogOut size={20} color={theme.colors.error} />,
+      onPress: handleLogout,
     },
   ];
 
@@ -65,14 +203,16 @@ export default function ProfileScreen() {
     {
       id: 'help',
       label: 'Help & Support',
-      icon: <HelpCircle size={20} color="#3B82F6" />,
-      onPress: () => console.log('Help pressed'),
+      icon: <HelpCircle size={20} color={theme.colors.info} />,
+      onPress: () => router.push('/settings/support'),
     },
     {
       id: 'premium',
       label: 'Upgrade to Premium',
-      icon: <Gift size={20} color="#F59E0B" />,
-      onPress: () => console.log('Premium pressed'),
+      icon: <Gift size={20} color={theme.colors.warning} />,
+      onPress: () => {
+        Alert.alert('Premium', 'Premium features coming soon!');
+      },
     },
   ];
 
@@ -91,12 +231,23 @@ export default function ProfileScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
         <View style={styles.profileHeader}>
           <View style={styles.profileImageContainer}>
-            {userData.profileImage ? (
+            {userProfile?.profile_photo ? (
               <Image
-                source={{ uri: userData.profileImage }}
+                source={{ uri: userProfile.profile_photo }}
                 style={styles.profileImage}
               />
             ) : (
@@ -104,29 +255,55 @@ export default function ProfileScreen() {
             )}
           </View>
           <Text style={[styles.profileName, { color: theme.colors.text }]}>
-            {userData.name}
+            {userProfile?.full_name || 'User'}
           </Text>
           <Text
             style={[styles.profileEmail, { color: theme.colors.textSecondary }]}
           >
-            {userData.email}
+            {userProfile?.email || 'user@example.com'}
           </Text>
 
-          <TouchableOpacity
-            style={[
-              styles.editProfileButton,
-              { backgroundColor: theme.colors.primary + '20' },
-            ]}
-          >
-            <Text
+          <View style={styles.editButtonsContainer}>
+            <TouchableOpacity
               style={[
-                styles.editProfileButtonText,
-                { color: theme.colors.primary },
+                styles.editButton,
+                { backgroundColor: theme.colors.primary + '20' },
               ]}
+              onPress={() => router.push('/profile/edit-personal')}
             >
-              {t('profile.editProfile')}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[styles.editButtonText, { color: theme.colors.primary }]}
+              >
+                Personal
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.editButton,
+                { backgroundColor: theme.colors.primary + '20' },
+              ]}
+              onPress={() => router.push('/profile/edit-health')}
+            >
+              <Text
+                style={[styles.editButtonText, { color: theme.colors.primary }]}
+              >
+                Health
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.editButton,
+                { backgroundColor: theme.colors.primary + '20' },
+              ]}
+              onPress={() => router.push('/profile/edit-goals')}
+            >
+              <Text
+                style={[styles.editButtonText, { color: theme.colors.primary }]}
+              >
+                Goals
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.statsContainer}>
@@ -144,51 +321,90 @@ export default function ProfileScreen() {
             >
               {t('profile.goals')}
             </Text>
-            <Text style={styles.statsValue}>
-              {userData.fitnessGoal === 'gain_muscle'
+            <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+              {userProfile?.fitness_goals?.[0] === 'gain_muscle'
                 ? 'Gain Muscle'
-                : userData.fitnessGoal === 'lose_weight'
+                : userProfile?.fitness_goals?.[0] === 'lose_weight'
                 ? 'Lose Weight'
-                : userData.fitnessGoal === 'increase_endurance'
+                : userProfile?.fitness_goals?.[0] === 'increase_endurance'
                 ? 'Endurance'
-                : userData.fitnessGoal === 'improve_flexibility'
+                : userProfile?.fitness_goals?.[0] === 'improve_flexibility'
                 ? 'Flexibility'
                 : 'Maintain'}
             </Text>
           </View>
 
           <View style={styles.statsItem}>
-            <View style={styles.statsIconContainer}>
-              <HeartPulse size={20} color="#3B82F6" />
+            <View
+              style={[
+                styles.statsIconContainer,
+                { backgroundColor: theme.colors.info + '20' },
+              ]}
+            >
+              <HeartPulse size={20} color={theme.colors.info} />
             </View>
-            <Text style={styles.statsLabel}>Weekly Goal</Text>
-            <Text style={styles.statsValue}>
-              {userData.weeklyGoal} workouts
+            <Text
+              style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
+            >
+              Weekly Goal
+            </Text>
+            <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+              4 workouts
             </Text>
           </View>
 
           <View style={styles.statsItem}>
-            <View style={styles.statsIconContainer}>
-              <Weight size={20} color="#3B82F6" />
+            <View
+              style={[
+                styles.statsIconContainer,
+                { backgroundColor: theme.colors.info + '20' },
+              ]}
+            >
+              <Weight size={20} color={theme.colors.info} />
             </View>
-            <Text style={styles.statsLabel}>Weight</Text>
-            <Text style={styles.statsValue}>{userData.weight} kg</Text>
+            <Text
+              style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
+            >
+              Weight
+            </Text>
+            <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+              {userProfile?.weight || 0} kg
+            </Text>
           </View>
 
           <View style={styles.statsItem}>
-            <View style={styles.statsIconContainer}>
-              <Ruler size={20} color="#3B82F6" />
+            <View
+              style={[
+                styles.statsIconContainer,
+                { backgroundColor: theme.colors.info + '20' },
+              ]}
+            >
+              <Ruler size={20} color={theme.colors.info} />
             </View>
-            <Text style={styles.statsLabel}>Height</Text>
-            <Text style={styles.statsValue}>{userData.height} cm</Text>
+            <Text
+              style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
+            >
+              Height
+            </Text>
+            <Text style={[styles.statsValue, { color: theme.colors.text }]}>
+              {userProfile?.height || 0} cm
+            </Text>
           </View>
         </View>
 
+        <ProfileSection title="Health" items={healthItems} />
         <ProfileSection title="Account" items={accountItems} />
         <ProfileSection title="Support" items={supportItems} />
 
         <View style={styles.appVersion}>
-          <Text style={styles.appVersionText}>GYM147 v1.0.0</Text>
+          <Text
+            style={[
+              styles.appVersionText,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            GYM147 v1.0.0
+          </Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -198,7 +414,6 @@ export default function ProfileScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
   },
   header: {
     flexDirection: 'row',
@@ -210,13 +425,11 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     ...Typography.h2,
-    color: TextColors.primary,
   },
   iconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.gray,
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -232,7 +445,6 @@ const styles = StyleSheet.create({
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: colors.gray,
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -244,23 +456,26 @@ const styles = StyleSheet.create({
   },
   profileName: {
     ...Typography.h4,
-    color: TextColors.primary,
     marginBottom: 4,
   },
   profileEmail: {
     ...Typography.bodySmall,
-    color: TextColors.secondary,
     marginBottom: 16,
   },
-  editProfileButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    backgroundColor: colors.primary + '20', // 20% opacity
+  editButtonsContainer: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 12,
+    justifyContent: 'center',
+  },
+  editButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
     borderRadius: 8,
   },
-  editProfileButtonText: {
-    ...Typography.bodySmallMedium,
-    color: colors.primary,
+  editButtonText: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',
@@ -276,19 +491,16 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: colors.primary + '20', // 20% opacity
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 8,
   },
   statsLabel: {
     ...Typography.bodySmall,
-    color: TextColors.secondary,
     marginBottom: 4,
   },
   statsValue: {
     ...Typography.h6,
-    color: TextColors.primary,
   },
   appVersion: {
     alignItems: 'center',
@@ -296,6 +508,34 @@ const styles = StyleSheet.create({
   },
   appVersionText: {
     ...Typography.bodySmall,
-    color: TextColors.tertiary,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    ...Typography.bodyRegular,
+    marginTop: 12,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    ...Typography.bodyRegular,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    ...Typography.bodyMedium,
   },
 });

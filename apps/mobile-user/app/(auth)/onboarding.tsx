@@ -1,18 +1,19 @@
+import AuthButton from '@/components/auth/AuthButton';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/utils/theme';
+import { TextColors, Typography } from '@/utils/typography';
+import { useRouter } from 'expo-router';
+import { Target, TrendingUp, Weight } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
+  Dimensions,
   SafeAreaView,
   ScrollView,
+  StyleSheet,
+  Text,
   TouchableOpacity,
-  Dimensions,
+  View,
 } from 'react-native';
-import { useRouter } from 'expo-router';
-import { Target, TrendingUp, Ruler, Weight } from 'lucide-react-native';
-import AuthButton from '@/components/auth/AuthButton';
-import { Typography, TextColors } from '@/utils/typography';
-import { useAuth } from '@/contexts/AuthContext';
 
 const { width } = Dimensions.get('window');
 
@@ -47,6 +48,7 @@ const ONBOARDING_STEPS: OnboardingStep[] = [
 export default function OnboardingScreen() {
   const router = useRouter();
   const { updateProfile } = useAuth();
+  const { theme } = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
 
   const handleNext = () => {
@@ -76,7 +78,9 @@ export default function OnboardingScreen() {
   const currentData = ONBOARDING_STEPS[currentStep];
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <View style={styles.header}>
         <TouchableOpacity onPress={handleSkip}>
           <Text style={styles.skipText}>Skip</Text>
@@ -102,7 +106,11 @@ export default function OnboardingScreen() {
                 key={index}
                 style={[
                   styles.paginationDot,
+                  { backgroundColor: theme.colors.border },
                   index === currentStep && styles.paginationDotActive,
+                  index === currentStep && {
+                    backgroundColor: theme.colors.primary,
+                  },
                 ]}
               />
             ))}
@@ -125,7 +133,7 @@ export default function OnboardingScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000ff',
+    // backgroundColor will be set inline
   },
   header: {
     flexDirection: 'row',
@@ -177,11 +185,11 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#E2E8F0',
+    // backgroundColor will be set inline
   },
   paginationDotActive: {
     width: 24,
-    backgroundColor: TextColors.accent,
+    // backgroundColor will be set inline
   },
   footer: {
     paddingHorizontal: 24,

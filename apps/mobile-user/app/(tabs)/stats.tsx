@@ -1,19 +1,21 @@
-import StatsCard from '@/components/StatsCard';
-import { colors } from '@/utils/colors';
-import { mockStats, mockWorkoutHistory } from '@/utils/mockData';
-import { TextColors, Typography } from '@/utils/typography';
+import CaloriesChart from '@/components/charts/CaloriesChart';
+import { HealthMetricChart } from '@/components/charts/HealthMetricChart';
+import ProgressChart from '@/components/charts/ProgressChart';
+import WorkoutFrequencyChart from '@/components/charts/WorkoutFrequencyChart';
+import { Button } from '@/components/ui/Button';
+import { useAuth } from '@/contexts/AuthContext';
+import { healthService } from '@/services/member/health.service';
 import {
-  Activity,
-  ChartBar as BarChart3,
-  Calendar,
-  ClipboardList,
-  Clock,
-  Dumbbell,
-  Flame,
-} from 'lucide-react-native';
-import React from 'react';
+  MetricType,
+  type HealthMetric,
+  type HealthTrend,
+} from '@/types/healthTypes';
+import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
+import { useRouter } from 'expo-router';
+import React, { useEffect, useState } from 'react';
 import {
-  SafeAreaView,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,364 +23,479 @@ import {
   View,
 } from 'react-native';
 
-function formatDate(dateString: string): string {
-  const date = new Date(dateString);
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
 export default function StatsScreen() {
-  const [activeTab, setActiveTab] = React.useState('overview');
+  const router = useRouter();
+  const { theme } = useTheme();
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [selectedTab, setSelectedTab] = useState<
+    'overview' | 'health' | 'workouts'
+  >('overview');
+  const [healthMetrics, setHealthMetrics] = useState<HealthMetric[]>([]);
+  const [healthTrends, setHealthTrends] = useState<HealthTrend[]>([]);
 
-  const renderOverview = () => (
-    <>
-      <View style={styles.periodSelector}>
-        {['Week', 'Month', 'Year'].map((period) => (
-          <TouchableOpacity
-            key={period}
+  const tabs = [
+    { key: 'overview', label: 'Overview' },
+    { key: 'health', label: 'Health' },
+    { key: 'workouts', label: 'Workouts' },
+  ];
+
+  const loadHealthData = async () => {
+    if (!user?.id) return;
+
+    try {
+      const [metrics, trends] = await Promise.all([
+        healthService.getHealthMetrics(user.id, { limit: 50 }),
+        healthService.getHealthTrends(user.id, 'weekly'),
+      ]);
+
+      setHealthMetrics(metrics);
+      setHealthTrends(trends);
+    } catch (error) {
+      console.error('Error loading health data:', error);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadHealthData();
+    setRefreshing(false);
+  };
+
+  const handleAddMetric = () => {
+    router.push('/health/add-metric');
+  };
+
+  const handleViewTrends = () => {
+    router.push('/health/trends');
+  };
+
+  useEffect(() => {
+    loadHealthData();
+    setLoading(false);
+  }, [user?.id]);
+
+  if (loading) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <View style={styles.loadingContainer}>
+          <Text
             style={[
-              styles.periodButton,
-              period === 'Month' && styles.activePeriodButton,
+              Typography.bodyLarge,
+              { color: theme.colors.textSecondary },
             ]}
           >
-            <Text
-              style={[
-                styles.periodButtonText,
-                period === 'Month' && styles.activePeriodButtonText,
-              ]}
-            >
-              {period}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={styles.statsGrid}>
-        {mockStats.map((stat, index) => (
-          <View key={index} style={styles.statsCardWrapper}>
-            <StatsCard
-              title={stat.title}
-              value={stat.value}
-              subtitle={stat.subtitle}
-              icon={
-                stat.icon === 'activity-square' ? (
-                  <ActivitySquare size={20} color={stat.color} />
-                ) : stat.icon === 'flame' ? (
-                  <Flame size={20} color={stat.color} />
-                ) : stat.icon === 'clock' ? (
-                  <Clock size={20} color={stat.color} />
-                ) : (
-                  <Dumbbell size={20} color={stat.color} />
-                )
-              }
-              color={stat.color}
-            />
-          </View>
-        ))}
-      </View>
-
-      <View style={styles.chartSection}>
-        <View style={styles.chartHeader}>
-          <Text style={styles.chartTitle}>Workout Frequency</Text>
-          <TouchableOpacity>
-            <Text style={styles.chartOptionText}>Last 30 Days</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.chartPlaceholder}>
-          <BarChart3 size={64} color="#CBD5E1" />
-          <Text style={styles.chartPlaceholderText}>
-            Workout data visualization
+            Loading statistics...
           </Text>
         </View>
       </View>
-    </>
+    );
+  }
+
+  const renderOverview = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.section}>
+        <Text style={[Typography.h3, { color: theme.colors.text }]}>
+          Quick Stats
+        </Text>
+        <View style={styles.statsGrid}>
+          <View
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={[Typography.h2, { color: theme.colors.primary }]}>
+              {healthMetrics.length}
+            </Text>
+            <Text
+              style={[
+                Typography.caption,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Health Records
+            </Text>
+          </View>
+          <View
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={[Typography.h2, { color: theme.colors.success }]}>
+              {healthTrends.filter((trend) => trend.direction === 'UP').length}
+            </Text>
+            <Text
+              style={[
+                Typography.caption,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Improving
+            </Text>
+          </View>
+          <View
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text style={[Typography.h2, { color: theme.colors.error }]}>
+              {
+                healthTrends.filter((trend) => trend.direction === 'DOWN')
+                  .length
+              }
+            </Text>
+            <Text
+              style={[
+                Typography.caption,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Declining
+            </Text>
+          </View>
+          <View
+            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
+          >
+            <Text
+              style={[Typography.h2, { color: theme.colors.textSecondary }]}
+            >
+              {
+                healthTrends.filter((trend) => trend.direction === 'STABLE')
+                  .length
+              }
+            </Text>
+            <Text
+              style={[
+                Typography.caption,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              Stable
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.section}>
+        <Text style={[Typography.h3, { color: theme.colors.text }]}>
+          Recent Health Metrics
+        </Text>
+        {healthMetrics.slice(0, 3).map((metric) => (
+          <View
+            key={metric.id}
+            style={[styles.metricItem, { borderColor: theme.colors.border }]}
+          >
+            <View style={styles.metricInfo}>
+              <Text style={[Typography.body, { color: theme.colors.text }]}>
+                {metric.type.replace('_', ' ')}
+              </Text>
+              <Text
+                style={[
+                  Typography.caption,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {new Date(metric.recordedAt).toLocaleDateString()}
+              </Text>
+            </View>
+            <Text style={[Typography.body, { color: theme.colors.text }]}>
+              {metric.value.toFixed(1)} {metric.unit}
+            </Text>
+          </View>
+        ))}
+        <Button
+          title="View All Metrics"
+          onPress={() => setSelectedTab('health')}
+          variant="outline"
+          style={styles.viewAllButton}
+        />
+      </View>
+    </View>
   );
 
-  const renderHistory = () => (
-    <View style={styles.historyContainer}>
-      {mockWorkoutHistory.map((workout, index) => (
-        <View key={workout.id} style={styles.historyItem}>
-          <View style={styles.historyDateContainer}>
-            <Text style={styles.historyDate}>{formatDate(workout.date)}</Text>
+  const renderHealth = () => {
+    const weightMetrics = healthMetrics.filter(
+      (m) => m.type === MetricType.WEIGHT
+    );
+    const bodyFatMetrics = healthMetrics.filter(
+      (m) => m.type === MetricType.BODY_FAT
+    );
+    const heartRateMetrics = healthMetrics.filter(
+      (m) => m.type === MetricType.HEART_RATE
+    );
+
+    return (
+      <View style={styles.tabContent}>
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[Typography.h3, { color: theme.colors.text }]}>
+              Health Metrics
+            </Text>
+            <Button title="Add Metric" onPress={handleAddMetric} size="small" />
           </View>
-          <View style={styles.historyCard}>
-            <Text style={styles.historyWorkoutType}>{workout.workoutType}</Text>
-            <View style={styles.historyDetailsContainer}>
-              <View style={styles.historyDetail}>
-                <Clock size={14} color="#6B7280" />
-                <Text style={styles.historyDetailText}>
-                  {workout.duration} min
+
+          {weightMetrics.length > 0 && (
+            <HealthMetricChart
+              data={weightMetrics}
+              type={MetricType.WEIGHT}
+              period="weekly"
+              showTrend={true}
+            />
+          )}
+
+          {bodyFatMetrics.length > 0 && (
+            <HealthMetricChart
+              data={bodyFatMetrics}
+              type={MetricType.BODY_FAT}
+              period="weekly"
+              showTrend={true}
+            />
+          )}
+
+          {heartRateMetrics.length > 0 && (
+            <HealthMetricChart
+              data={heartRateMetrics}
+              type={MetricType.HEART_RATE}
+              period="weekly"
+              showTrend={true}
+            />
+          )}
+
+          {healthMetrics.length === 0 && (
+            <View style={styles.emptyContainer}>
+              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+                No Health Data
+              </Text>
+              <Text
+                style={[
+                  Typography.bodyLarge,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                Start tracking your health metrics to see detailed analytics
+              </Text>
+              <Button
+                title="Add First Metric"
+                onPress={handleAddMetric}
+                style={styles.emptyButton}
+              />
+            </View>
+          )}
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <Text style={[Typography.h3, { color: theme.colors.text }]}>
+              Health Trends
+            </Text>
+            <Button
+              title="View Trends"
+              onPress={handleViewTrends}
+              variant="outline"
+              size="small"
+            />
+          </View>
+
+          {healthTrends.map((trend) => (
+            <View
+              key={trend.type}
+              style={[styles.trendItem, { borderColor: theme.colors.border }]}
+            >
+              <View style={styles.trendInfo}>
+                <Text style={[Typography.body, { color: theme.colors.text }]}>
+                  {trend.type.replace('_', ' ')}
+                </Text>
+                <Text
+                  style={[
+                    Typography.caption,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {trend.period} trend
                 </Text>
               </View>
-              <View style={styles.historyDetail}>
-                <Dumbbell size={14} color="#6B7280" />
-                <Text style={styles.historyDetailText}>
-                  {workout.exercises} exercises
-                </Text>
-              </View>
-              <View style={styles.historyDetail}>
-                <Flame size={14} color="#6B7280" />
-                <Text style={styles.historyDetailText}>
-                  {workout.calories} kcal
+              <View style={styles.trendValue}>
+                <Text
+                  style={[
+                    Typography.body,
+                    {
+                      color:
+                        trend.direction === 'UP'
+                          ? theme.colors.success
+                          : trend.direction === 'DOWN'
+                          ? theme.colors.error
+                          : theme.colors.textSecondary,
+                    },
+                  ]}
+                >
+                  {trend.direction === 'UP'
+                    ? '↗'
+                    : trend.direction === 'DOWN'
+                    ? '↘'
+                    : '→'}
+                  {Math.abs(trend.changePercentage).toFixed(1)}%
                 </Text>
               </View>
             </View>
-          </View>
+          ))}
         </View>
-      ))}
+      </View>
+    );
+  };
+
+  const renderWorkouts = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.section}>
+        <Text style={[Typography.h3, { color: theme.colors.text }]}>
+          Workout Statistics
+        </Text>
+        <WorkoutFrequencyChart />
+        <CaloriesChart />
+        <ProgressChart />
+      </View>
     </View>
   );
 
   return (
-    <SafeAreaView style={styles.container}>
+    <View
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Statistics</Text>
+        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+          Statistics
+        </Text>
+        <View style={styles.tabContainer}>
+          {tabs.map((tab) => (
+            <TouchableOpacity
+              key={tab.key}
+              style={[
+                styles.tab,
+                selectedTab === tab.key && {
+                  backgroundColor: theme.colors.primary,
+                },
+              ]}
+              onPress={() => setSelectedTab(tab.key as any)}
+            >
+              <Text
+                style={[
+                  Typography.caption,
+                  {
+                    color:
+                      selectedTab === tab.key
+                        ? theme.colors.surface
+                        : theme.colors.textSecondary,
+                  },
+                ]}
+              >
+                {tab.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
       </View>
 
-      <View style={styles.tabContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'overview' && styles.activeTabButton,
-          ]}
-          onPress={() => setActiveTab('overview')}
-        >
-          <BarChart3
-            size={20}
-            color={activeTab === 'overview' ? '#3B82F6' : '#6B7280'}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'overview' && styles.activeTabText,
-            ]}
-          >
-            Overview
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'history' && styles.activeTabButton,
-          ]}
-          onPress={() => setActiveTab('history')}
-        >
-          <ClipboardList
-            size={20}
-            color={activeTab === 'history' ? '#3B82F6' : '#6B7280'}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'history' && styles.activeTabText,
-            ]}
-          >
-            History
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tabButton,
-            activeTab === 'calendar' && styles.activeTabButton,
-          ]}
-          onPress={() => setActiveTab('calendar')}
-        >
-          <Calendar
-            size={20}
-            color={activeTab === 'calendar' ? '#3B82F6' : '#6B7280'}
-          />
-          <Text
-            style={[
-              styles.tabText,
-              activeTab === 'calendar' && styles.activeTabText,
-            ]}
-          >
-            Calendar
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {activeTab === 'overview' && renderOverview()}
-        {activeTab === 'history' && renderHistory()}
-        {activeTab === 'calendar' && (
-          <View style={styles.comingSoonContainer}>
-            <Calendar size={64} color="#CBD5E1" />
-            <Text style={styles.comingSoonText}>Calendar view coming soon</Text>
-          </View>
-        )}
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
+      >
+        {selectedTab === 'overview' && renderOverview()}
+        {selectedTab === 'health' && renderHealth()}
+        {selectedTab === 'workouts' && renderWorkouts()}
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
-}
-
-// Special case for the ActivitySquare icon which seems to be referenced in the code
-function ActivitySquare({ size, color }: { size: number; color: string }) {
-  return <Activity size={size} color={color} />;
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   header: {
-    paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    ...Typography.h2,
-    color: TextColors.primary,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
   },
   tabContainer: {
     flexDirection: 'row',
-    paddingHorizontal: 16,
-    marginBottom: 16,
-  },
-  tabButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    marginTop: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
     borderRadius: 8,
-    marginRight: 8,
+    padding: 4,
   },
-  activeTabButton: {
-    backgroundColor: colors.primary + '20', // 20% opacity
-  },
-  tabText: {
-    ...Typography.bodySmallMedium,
-    color: TextColors.secondary,
-    marginLeft: 8,
-  },
-  activeTabText: {
-    color: colors.primary,
-  },
-  content: {
+  tab: {
     flex: 1,
-    paddingHorizontal: 16,
-  },
-  periodSelector: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 24,
-  },
-  periodButton: {
-    paddingHorizontal: 16,
     paddingVertical: 8,
-    borderRadius: 8,
-    marginHorizontal: 4,
+    paddingHorizontal: 16,
+    borderRadius: 6,
+    alignItems: 'center',
   },
-  activePeriodButton: {
-    backgroundColor: colors.primary,
+  scrollView: {
+    flex: 1,
   },
-  periodButtonText: {
-    ...Typography.bodySmallMedium,
-    color: TextColors.secondary,
-  },
-  activePeriodButtonText: {
-    color: colors.white,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginHorizontal: -8,
-    marginBottom: 24,
-  },
-  statsCardWrapper: {
-    width: '50%',
-    paddingHorizontal: 8,
-    marginBottom: 16,
-  },
-  chartSection: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
+  tabContent: {
     padding: 16,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
   },
-  chartHeader: {
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     marginBottom: 16,
   },
-  chartTitle: {
-    ...Typography.h6,
-    color: TextColors.primary,
-  },
-  chartOptionText: {
-    ...Typography.bodySmallMedium,
-    color: colors.primary,
-  },
-  chartPlaceholder: {
-    height: 200,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: colors.background,
-    borderRadius: 8,
-  },
-  chartPlaceholderText: {
-    ...Typography.bodySmallMedium,
-    color: TextColors.tertiary,
-    marginTop: 8,
-  },
-  historyContainer: {
-    marginBottom: 24,
-  },
-  historyItem: {
-    marginBottom: 20,
-  },
-  historyDateContainer: {
-    marginBottom: 8,
-  },
-  historyDate: {
-    ...Typography.bodySmallMedium,
-    color: TextColors.secondary,
-  },
-  historyCard: {
-    backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 6,
-    elevation: 2,
-  },
-  historyWorkoutType: {
-    ...Typography.h6,
-    color: TextColors.primary,
-    marginBottom: 8,
-  },
-  historyDetailsContainer: {
+  statsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
+    gap: 12,
   },
-  historyDetail: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 16,
-    marginBottom: 4,
-  },
-  historyDetailText: {
-    ...Typography.bodySmall,
-    color: TextColors.secondary,
-    marginLeft: 4,
-  },
-  comingSoonContainer: {
+  statCard: {
     flex: 1,
-    justifyContent: 'center',
+    minWidth: '45%',
+    padding: 16,
+    borderRadius: 12,
     alignItems: 'center',
-    paddingVertical: 64,
   },
-  comingSoonText: {
-    ...Typography.bodyMedium,
-    color: TextColors.tertiary,
+  metricItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  metricInfo: {
+    flex: 1,
+  },
+  viewAllButton: {
+    marginTop: 8,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 32,
+  },
+  emptyButton: {
     marginTop: 16,
+  },
+  trendItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  trendInfo: {
+    flex: 1,
+  },
+  trendValue: {
+    alignItems: 'flex-end',
   },
 });
