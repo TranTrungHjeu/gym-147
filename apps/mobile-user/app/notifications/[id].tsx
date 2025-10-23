@@ -6,6 +6,7 @@ import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { ArrowLeft, Calendar, Clock, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -21,6 +22,7 @@ export default function NotificationDetailScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
@@ -40,7 +42,7 @@ export default function NotificationDetailScreen() {
       }
     } catch (error) {
       console.error('Error loading notification:', error);
-      Alert.alert('Error', 'Failed to load notification');
+      Alert.alert(t('common.error'), t('notifications.failedToLoadDetail'));
     } finally {
       setLoading(false);
     }
@@ -56,12 +58,12 @@ export default function NotificationDetailScreen() {
     if (!notification) return;
 
     Alert.alert(
-      'Delete Notification',
-      'Are you sure you want to delete this notification?',
+      t('notifications.confirmDelete'),
+      t('notifications.confirmDeleteMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -69,7 +71,10 @@ export default function NotificationDetailScreen() {
               router.back();
             } catch (error) {
               console.error('Error deleting notification:', error);
-              Alert.alert('Error', 'Failed to delete notification');
+              Alert.alert(
+                t('common.error'),
+                t('notifications.failedToDeleteDetail')
+              );
             }
           },
         },
@@ -117,7 +122,7 @@ export default function NotificationDetailScreen() {
 
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
-    return date.toLocaleString();
+    return date.toLocaleString(i18n.language);
   };
 
   const getRelativeTime = (dateString: string) => {
@@ -132,7 +137,7 @@ export default function NotificationDetailScreen() {
     } else if (diffInHours < 168) {
       return `${Math.floor(diffInHours / 24)}d ago`;
     } else {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString(i18n.language);
     }
   };
 

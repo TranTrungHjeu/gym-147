@@ -7,6 +7,7 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Check, Crown, Star, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -20,6 +21,7 @@ export default function PlansScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
@@ -40,7 +42,7 @@ export default function PlansScreen() {
       setCurrentSubscription(subscriptionData);
     } catch (error) {
       console.error('Error loading plans data:', error);
-      Alert.alert('Error', 'Failed to load membership plans');
+      Alert.alert(t('common.error'), t('subscription.plans.failedToLoad'));
     }
   };
 
@@ -56,7 +58,7 @@ export default function PlansScreen() {
 
   const handleSubscribe = async () => {
     if (!selectedPlan || !user?.id) {
-      Alert.alert('Error', 'Please select a plan');
+      Alert.alert(t('common.error'), t('subscription.plans.pleaseSelectPlan'));
       return;
     }
 
@@ -65,12 +67,14 @@ export default function PlansScreen() {
         planId: selectedPlan,
         autoRenew: true,
       });
-      Alert.alert('Success', 'Subscription created successfully!', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        t('common.success'),
+        t('subscription.plans.subscriptionCreated'),
+        [{ text: t('common.ok'), onPress: () => router.back() }]
+      );
     } catch (error) {
       console.error('Error creating subscription:', error);
-      Alert.alert('Error', 'Failed to create subscription');
+      Alert.alert(t('common.error'), t('subscription.plans.failedToCreate'));
     }
   };
 
@@ -81,12 +85,14 @@ export default function PlansScreen() {
       await subscriptionService.updateSubscription(currentSubscription.id, {
         planId: planId,
       });
-      Alert.alert('Success', 'Subscription upgraded successfully!', [
-        { text: 'OK', onPress: () => router.back() },
-      ]);
+      Alert.alert(
+        t('common.success'),
+        t('subscription.plans.subscriptionUpgraded'),
+        [{ text: t('common.ok'), onPress: () => router.back() }]
+      );
     } catch (error) {
       console.error('Error upgrading subscription:', error);
-      Alert.alert('Error', 'Failed to upgrade subscription');
+      Alert.alert(t('common.error'), t('subscription.plans.failedToUpgrade'));
     }
   };
 

@@ -83,17 +83,17 @@ export default function PrivacySettingsScreen() {
       });
 
       if (response.success) {
-        Alert.alert('Success', 'Privacy preferences updated successfully', [
-          { text: 'OK', onPress: () => router.back() },
+        Alert.alert(t('common.success'), t('settings.privacyUpdated'), [
+          { text: t('common.ok'), onPress: () => router.back() },
         ]);
       } else {
         Alert.alert(
-          'Error',
-          response.message || 'Failed to update preferences'
+          t('common.error'),
+          response.message || t('settings.failedToUpdatePrivacy')
         );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update privacy preferences');
+      Alert.alert(t('common.error'), t('settings.failedToUpdatePrivacy'));
     } finally {
       setSaving(false);
     }
@@ -105,57 +105,56 @@ export default function PrivacySettingsScreen() {
 
   const handleExportData = async () => {
     try {
-      Alert.alert(
-        'Export Data',
-        'This will generate a download link for your personal data. Continue?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Export',
-            onPress: async () => {
-              const response = await userService.exportUserData();
-              if (response.success) {
-                Alert.alert(
-                  'Export Ready',
-                  'Your data export is ready. Check your email for the download link.',
-                  [{ text: 'OK' }]
-                );
-              } else {
-                Alert.alert(
-                  'Error',
-                  response.message || 'Failed to export data'
-                );
-              }
-            },
+      Alert.alert(t('settings.exportData'), t('settings.exportDataMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.confirm'),
+          onPress: async () => {
+            const response = await userService.exportUserData();
+            if (response.success) {
+              Alert.alert(
+                t('settings.exportReady'),
+                t('settings.exportReadyMessage'),
+                [{ text: t('common.ok') }]
+              );
+            } else {
+              Alert.alert(
+                t('common.error'),
+                response.message || t('settings.exportFailed')
+              );
+            }
           },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to export data');
+      Alert.alert(t('common.error'), t('settings.exportFailed'));
     }
   };
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      'Delete Account',
-      'This action cannot be undone. All your data will be permanently deleted. Are you sure?',
+      t('settings.deleteAccount'),
+      t('settings.deleteAccountMessage'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: () => {
             Alert.prompt(
-              'Confirm Deletion',
-              'Please enter your password to confirm account deletion:',
+              t('common.confirm'),
+              t('auth.password'),
               [
-                { text: 'Cancel', style: 'cancel' },
+                { text: t('common.cancel'), style: 'cancel' },
                 {
-                  text: 'Delete',
+                  text: t('common.delete'),
                   style: 'destructive',
                   onPress: async (password) => {
                     if (!password) {
-                      Alert.alert('Error', 'Password is required');
+                      Alert.alert(
+                        t('common.error'),
+                        t('settings.passwordRequired')
+                      );
                       return;
                     }
 
@@ -167,23 +166,27 @@ export default function PrivacySettingsScreen() {
 
                       if (response.success) {
                         Alert.alert(
-                          'Account Deleted',
-                          'Your account has been successfully deleted.',
+                          t('settings.accountDeleted'),
+                          t('settings.accountDeletedMessage'),
                           [
                             {
-                              text: 'OK',
+                              text: t('common.ok'),
                               onPress: () => router.replace('/(auth)/login'),
                             },
                           ]
                         );
                       } else {
                         Alert.alert(
-                          'Error',
-                          response.message || 'Failed to delete account'
+                          t('common.error'),
+                          response.message ||
+                            t('settings.failedToDeleteAccount')
                         );
                       }
                     } catch (error) {
-                      Alert.alert('Error', 'Failed to delete account');
+                      Alert.alert(
+                        t('common.error'),
+                        t('settings.failedToDeleteAccount')
+                      );
                     }
                   },
                 },

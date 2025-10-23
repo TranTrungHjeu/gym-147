@@ -2,6 +2,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { ChevronRight, Clock, Dumbbell } from 'lucide-react-native';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface WorkoutCardProps {
@@ -20,6 +21,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({
   onPress,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={styles.container}
@@ -56,7 +58,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({
               <Text
                 style={[styles.detailText, { color: theme.colors.textInverse }]}
               >
-                {exercises} exercises
+                {exercises} {t('workouts.exercises')}
               </Text>
             </View>
           </View>

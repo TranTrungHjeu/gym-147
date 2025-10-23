@@ -7,8 +7,8 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Award, Crown, Medal, Star, Trophy } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -20,6 +20,7 @@ export default function LeaderboardScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState('monthly');
@@ -27,26 +28,34 @@ export default function LeaderboardScreen() {
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
 
   const periods = [
-    { label: 'Weekly', value: 'weekly' },
-    { label: 'Monthly', value: 'monthly' },
-    { label: 'Yearly', value: 'yearly' },
-    { label: 'All Time', value: 'alltime' },
+    { label: t('achievements.periods.weekly'), value: 'weekly' },
+    { label: t('achievements.periods.monthly'), value: 'monthly' },
+    { label: t('achievements.periods.yearly'), value: 'yearly' },
+    { label: t('achievements.periods.allTime'), value: 'alltime' },
   ];
 
   const loadLeaderboard = async () => {
     if (!user?.id) return;
 
     try {
-      const [leaderboardData, userRankData] = await Promise.all([
-        achievementService.getLeaderboard(selectedPeriod),
+      const [leaderboardResponse, userRankData] = await Promise.all([
+        achievementService.getLeaderboard({ period: selectedPeriod as any }),
         achievementService.getUserRank(user.id, selectedPeriod),
       ]);
 
-      setLeaderboard(leaderboardData);
+      // Handle leaderboard response
+      if (leaderboardResponse.success && leaderboardResponse.data) {
+        setLeaderboard(leaderboardResponse.data);
+      } else {
+        setLeaderboard([]);
+      }
+
+      // Handle user rank data
       setUserRank(userRankData);
     } catch (error) {
       console.error('Error loading leaderboard:', error);
-      Alert.alert('Error', 'Failed to load leaderboard');
+      setLeaderboard([]);
+      setUserRank(null);
     }
   };
 
@@ -92,9 +101,12 @@ export default function LeaderboardScreen() {
       >
         <View style={styles.loadingContainer}>
           <Text
-            style={[Typography.body, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.bodyRegular,
+              { color: theme.colors.textSecondary },
+            ]}
           >
-            Loading leaderboard...
+            {t('achievements.leaderboard.loading')}
           </Text>
         </View>
       </View>
@@ -107,7 +119,7 @@ export default function LeaderboardScreen() {
     >
       <View style={styles.header}>
         <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Leaderboard
+          {t('achievements.leaderboard')}
         </Text>
         <View style={styles.periodSelector}>
           <Picker
@@ -137,7 +149,7 @@ export default function LeaderboardScreen() {
           >
             <View style={styles.userRankHeader}>
               <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                Your Rank
+                {t('achievements.yourRank')}
               </Text>
               <View style={styles.userRankBadge}>
                 <Text
@@ -163,7 +175,7 @@ export default function LeaderboardScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {formatPoints(userRank.points)} points
+                  {formatPoints(userRank.points)} {t('achievements.points')}
                 </Text>
               </View>
               <View style={styles.userRankStats}>
@@ -173,7 +185,7 @@ export default function LeaderboardScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {userRank.achievements} achievements
+                  {userRank.achievements} {t('achievements.achievements')}
                 </Text>
                 <Text
                   style={[
@@ -181,7 +193,7 @@ export default function LeaderboardScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {userRank.workouts} workouts
+                  {userRank.workouts} {t('achievements.workouts')}
                 </Text>
               </View>
             </View>
@@ -190,7 +202,7 @@ export default function LeaderboardScreen() {
 
         <View style={styles.leaderboardContainer}>
           <Text style={[Typography.h3, { color: theme.colors.text }]}>
-            Top Performers
+            {t('achievements.topPerformers')}
           </Text>
 
           {leaderboard.length > 0 ? (
@@ -236,8 +248,8 @@ export default function LeaderboardScreen() {
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {entry.achievements} achievements • {entry.workouts}{' '}
-                      workouts
+                      {entry.achievements} {t('achievements.achievements')} •{' '}
+                      {entry.workouts} {t('achievements.workouts')}
                     </Text>
                   </View>
                 </View>
@@ -252,7 +264,7 @@ export default function LeaderboardScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    points
+                    {t('achievements.points')}
                   </Text>
                 </View>
               </View>
@@ -261,12 +273,12 @@ export default function LeaderboardScreen() {
             <View style={styles.emptyContainer}>
               <Trophy size={48} color={theme.colors.textSecondary} />
               <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                No Data Available
+                {t('achievements.noDataAvailable')}
               </Text>
               <Text
                 style={[Typography.body, { color: theme.colors.textSecondary }]}
               >
-                No leaderboard data for this period
+                {t('achievements.noLeaderboardData')}
               </Text>
             </View>
           )}
@@ -276,8 +288,7 @@ export default function LeaderboardScreen() {
           <Text
             style={[Typography.caption, { color: theme.colors.textSecondary }]}
           >
-            Points are earned by completing workouts, achieving goals, and
-            maintaining streaks. The leaderboard is updated in real-time.
+            {t('achievements.pointsDescription')}
           </Text>
         </View>
       </ScrollView>

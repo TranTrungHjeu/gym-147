@@ -7,6 +7,7 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Check, CreditCard, Edit, Plus, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -21,6 +22,7 @@ export default function PaymentMethodsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<MemberPaymentMethod[]>(
@@ -35,7 +37,7 @@ export default function PaymentMethodsScreen() {
       setPaymentMethods(methodsData);
     } catch (error) {
       console.error('Error loading payment methods:', error);
-      Alert.alert('Error', 'Failed to load payment methods');
+      Alert.alert(t('common.error'), t('subscription.payment.addFailed'));
     }
   };
 
@@ -48,7 +50,7 @@ export default function PaymentMethodsScreen() {
   const handleAddPaymentMethod = () => {
     // TODO: Navigate to add payment method screen
     Alert.alert(
-      'Add Payment Method',
+      t('subscription.payment.addCard'),
       'Add payment method screen not implemented yet'
     );
   };
@@ -56,28 +58,34 @@ export default function PaymentMethodsScreen() {
   const handleEditPaymentMethod = (method: MemberPaymentMethod) => {
     // TODO: Navigate to edit payment method screen
     Alert.alert(
-      'Edit Payment Method',
+      t('common.edit'),
       'Edit payment method screen not implemented yet'
     );
   };
 
   const handleDeletePaymentMethod = (method: MemberPaymentMethod) => {
     Alert.alert(
-      'Delete Payment Method',
-      'Are you sure you want to delete this payment method?',
+      t('subscription.payment.removeCard'),
+      t('subscription.payment.removeConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await paymentService.deletePaymentMethod(method.id);
-              Alert.alert('Success', 'Payment method deleted successfully');
+              Alert.alert(
+                t('common.success'),
+                t('subscription.payment.removeSuccess')
+              );
               loadData();
             } catch (error) {
               console.error('Error deleting payment method:', error);
-              Alert.alert('Error', 'Failed to delete payment method');
+              Alert.alert(
+                t('common.error'),
+                t('subscription.payment.removeFailed')
+              );
             }
           },
         },
@@ -90,11 +98,11 @@ export default function PaymentMethodsScreen() {
 
     try {
       await paymentService.setDefaultPaymentMethod(user.id, method.id);
-      Alert.alert('Success', 'Default payment method updated');
+      Alert.alert(t('common.success'), t('subscription.payment.setDefault'));
       loadData();
     } catch (error) {
       console.error('Error setting default payment method:', error);
-      Alert.alert('Error', 'Failed to update default payment method');
+      Alert.alert(t('common.error'), t('subscription.payment.addFailed'));
     }
   };
 

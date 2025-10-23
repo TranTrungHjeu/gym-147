@@ -14,6 +14,7 @@ import {
   Smartphone,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   ScrollView,
@@ -27,6 +28,7 @@ export default function NotificationSettingsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [preferences, setPreferences] =
@@ -41,7 +43,7 @@ export default function NotificationSettingsScreen() {
       setPreferences(preferencesData);
     } catch (error) {
       console.error('Error loading notification preferences:', error);
-      Alert.alert('Error', 'Failed to load notification preferences');
+      Alert.alert(t('common.error'), t('settings.failedToUpdateNotifications'));
     } finally {
       setLoading(false);
     }
@@ -56,10 +58,13 @@ export default function NotificationSettingsScreen() {
         user.id,
         preferences
       );
-      Alert.alert('Success', 'Notification preferences updated successfully');
+      Alert.alert(
+        t('common.success'),
+        t('settings.notificationSettingsUpdated')
+      );
     } catch (error) {
       console.error('Error saving notification preferences:', error);
-      Alert.alert('Error', 'Failed to save notification preferences');
+      Alert.alert(t('common.error'), t('settings.failedToUpdateNotifications'));
     } finally {
       setSaving(false);
     }

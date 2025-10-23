@@ -134,16 +134,17 @@ export default function EditGoalsScreen() {
       });
 
       if (response.success) {
-        Alert.alert(
-          'Success',
-          'Goals and emergency contact updated successfully',
-          [{ text: 'OK', onPress: () => router.back() }]
-        );
+        Alert.alert(t('common.success'), t('profile.goalsUpdated'), [
+          { text: t('common.ok'), onPress: () => router.back() },
+        ]);
       } else {
-        Alert.alert('Error', response.error || 'Failed to update profile');
+        Alert.alert(
+          t('common.error'),
+          response.error || t('profile.failedToUpdateProfile')
+        );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
+      Alert.alert(t('common.error'), t('profile.failedToUpdateProfile'));
     } finally {
       setSaving(false);
     }

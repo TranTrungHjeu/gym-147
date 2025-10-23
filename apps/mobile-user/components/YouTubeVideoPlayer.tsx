@@ -137,23 +137,22 @@ function YouTubeVideoPlayer({
 
   const styles = StyleSheet.create({
     container: {
-      marginVertical: 12,
+      marginVertical: theme.spacing.sm,
     },
     videoCard: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      padding: 16,
-      marginTop: 8,
-      shadowColor: theme.colors.text,
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.1,
-      shadowRadius: 4,
-      elevation: 3,
+      borderRadius: theme.radius.lg,
+      overflow: 'hidden',
+      ...theme.shadows.md,
+    },
+    thumbnailContainer: {
+      position: 'relative',
+      width: '100%',
+      aspectRatio: 16 / 9,
     },
     videoThumbnail: {
       width: '100%',
-      height: 200,
-      borderRadius: 8,
+      height: '100%',
       backgroundColor: theme.colors.border,
     },
     playOverlay: {
@@ -162,106 +161,115 @@ function YouTubeVideoPlayer({
       left: 0,
       right: 0,
       bottom: 0,
-      backgroundColor: 'rgba(0, 0, 0, 0.3)',
+      backgroundColor: 'rgba(0, 0, 0, 0.4)',
       justifyContent: 'center',
       alignItems: 'center',
-      borderRadius: 8,
     },
     playButton: {
-      width: 60,
-      height: 60,
-      borderRadius: 30,
-      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+      width: 64,
+      height: 64,
+      borderRadius: theme.radius.round,
+      backgroundColor: 'rgba(255, 255, 255, 0.95)',
       justifyContent: 'center',
       alignItems: 'center',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 5,
+      ...theme.shadows.lg,
+    },
+    durationBadge: {
+      position: 'absolute',
+      bottom: theme.spacing.sm,
+      right: theme.spacing.sm,
+      backgroundColor: 'rgba(0, 0, 0, 0.85)',
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    durationText: {
+      ...Typography.caption,
+      color: '#fff',
     },
     videoInfo: {
-      marginTop: 12,
+      padding: theme.spacing.md,
     },
     videoTitle: {
-      ...Typography.h4,
+      ...Typography.h5,
       color: theme.colors.text,
-      marginBottom: 8,
-      lineHeight: 22,
+      marginBottom: theme.spacing.sm,
     },
     videoMeta: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginBottom: 8,
+      flexWrap: 'wrap',
+      gap: theme.spacing.md,
+      marginBottom: theme.spacing.md,
     },
     metaItem: {
       flexDirection: 'row',
       alignItems: 'center',
-      marginRight: 16,
+      gap: 4,
     },
     metaText: {
-      ...Typography.caption,
+      ...Typography.bodySmall,
       color: theme.colors.textSecondary,
-      marginLeft: 4,
     },
     videoButton: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 8,
-      marginTop: 8,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.md,
+      ...theme.shadows.sm,
     },
     videoButtonDisabled: {
       backgroundColor: theme.colors.border,
     },
     videoButtonText: {
-      ...Typography.bodyLarge,
+      ...Typography.buttonMedium,
       color: theme.colors.textInverse,
-      marginLeft: 8,
-      fontWeight: '600',
+      marginLeft: theme.spacing.xs,
     },
     videoButtonTextDisabled: {
       color: theme.colors.textSecondary,
     },
     setupCard: {
       backgroundColor: theme.colors.surface,
-      borderRadius: 12,
-      padding: 20,
-      marginTop: 8,
-      borderWidth: 1,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.xl,
+      borderWidth: 2,
       borderColor: theme.colors.border,
       borderStyle: 'dashed',
+      alignItems: 'center',
     },
     setupIcon: {
-      alignSelf: 'center',
-      marginBottom: 12,
+      marginBottom: theme.spacing.md,
     },
     setupTitle: {
-      ...Typography.h4,
+      ...Typography.h5,
       color: theme.colors.text,
       textAlign: 'center',
-      marginBottom: 8,
+      marginBottom: theme.spacing.sm,
     },
     setupDescription: {
       ...Typography.bodyMedium,
       color: theme.colors.textSecondary,
       textAlign: 'center',
-      marginBottom: 16,
+      marginBottom: theme.spacing.lg,
+      lineHeight: 20,
     },
     setupButton: {
       backgroundColor: theme.colors.primary,
-      paddingHorizontal: 20,
-      paddingVertical: 12,
-      borderRadius: 8,
-      alignSelf: 'center',
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.md,
+      ...theme.shadows.sm,
     },
     setupButtonText: {
-      ...Typography.bodyLarge,
+      ...Typography.buttonMedium,
       color: theme.colors.textInverse,
-      fontWeight: '600',
     },
     modalOverlay: {
       flex: 1,
@@ -273,34 +281,29 @@ function YouTubeVideoPlayer({
       width: screenWidth * 0.95,
       height: screenHeight * 0.85,
       backgroundColor: theme.colors.background,
-      borderRadius: 16,
+      borderRadius: theme.radius.xl,
       overflow: 'hidden',
-      shadowColor: '#000',
-      shadowOffset: { width: 0, height: 10 },
-      shadowOpacity: 0.3,
-      shadowRadius: 20,
-      elevation: 10,
+      ...theme.shadows.lg,
     },
     modalHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: 20,
+      padding: theme.spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
     },
     modalTitle: {
-      ...Typography.h3,
+      ...Typography.h4,
       color: theme.colors.text,
       flex: 1,
-      marginRight: 16,
-      lineHeight: 24,
+      marginRight: theme.spacing.md,
     },
     closeButton: {
       width: 40,
       height: 40,
-      borderRadius: 20,
+      borderRadius: theme.radius.round,
       backgroundColor: theme.colors.border,
       justifyContent: 'center',
       alignItems: 'center',
@@ -316,7 +319,7 @@ function YouTubeVideoPlayer({
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      padding: 20,
+      padding: theme.spacing.lg,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
@@ -325,63 +328,59 @@ function YouTubeVideoPlayer({
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+      gap: theme.spacing.xs,
     },
     authorText: {
       ...Typography.bodyMedium,
       color: theme.colors.text,
-      marginLeft: 8,
     },
     openYouTubeButton: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: '#FF0000',
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      borderRadius: 8,
-      shadowColor: '#FF0000',
-      shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.3,
-      shadowRadius: 4,
-      elevation: 3,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      gap: theme.spacing.xs,
+      ...theme.shadows.md,
     },
     openYouTubeButtonText: {
-      ...Typography.bodyMedium,
+      ...Typography.buttonSmall,
       color: '#fff',
-      marginLeft: 6,
-      fontWeight: '600',
     },
     errorContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
       backgroundColor: '#000',
-      padding: 40,
+      padding: theme.spacing.xxl,
     },
     errorIcon: {
-      marginBottom: 20,
+      marginBottom: theme.spacing.lg,
     },
     errorText: {
       ...Typography.h4,
       color: '#fff',
       textAlign: 'center',
-      marginBottom: 12,
+      marginBottom: theme.spacing.sm,
     },
     errorSubtext: {
       ...Typography.bodyMedium,
       color: '#ccc',
       textAlign: 'center',
-      marginBottom: 24,
+      marginBottom: theme.spacing.xl,
+      lineHeight: 20,
     },
     retryButton: {
       backgroundColor: theme.colors.primary,
-      paddingHorizontal: 24,
-      paddingVertical: 12,
-      borderRadius: 8,
+      paddingHorizontal: theme.spacing.xl,
+      paddingVertical: theme.spacing.sm + 2,
+      borderRadius: theme.radius.md,
+      ...theme.shadows.sm,
     },
     retryButtonText: {
-      ...Typography.bodyLarge,
+      ...Typography.buttonMedium,
       color: theme.colors.textInverse,
-      fontWeight: '600',
     },
   });
 
@@ -389,7 +388,7 @@ function YouTubeVideoPlayer({
     <View style={[styles.container, style]}>
       {video ? (
         <View style={styles.videoCard}>
-          <View style={{ position: 'relative' }}>
+          <View style={styles.thumbnailContainer}>
             <Image
               source={{ uri: video.thumbnail }}
               style={styles.videoThumbnail}
@@ -398,15 +397,23 @@ function YouTubeVideoPlayer({
             <TouchableOpacity
               style={styles.playOverlay}
               onPress={handlePlayVideo}
+              activeOpacity={0.8}
             >
               <View style={styles.playButton}>
                 <Play
-                  size={24}
+                  size={28}
                   color={theme.colors.primary}
                   fill={theme.colors.primary}
                 />
               </View>
             </TouchableOpacity>
+
+            {video.duration !== 'N/A' && (
+              <View style={styles.durationBadge}>
+                <Clock size={12} color="#fff" />
+                <Text style={styles.durationText}>{video.duration}</Text>
+              </View>
+            )}
           </View>
 
           <View style={styles.videoInfo}>
@@ -417,11 +424,9 @@ function YouTubeVideoPlayer({
             <View style={styles.videoMeta}>
               <View style={styles.metaItem}>
                 <User size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.metaText}>{video.author}</Text>
-              </View>
-              <View style={styles.metaItem}>
-                <Clock size={14} color={theme.colors.textSecondary} />
-                <Text style={styles.metaText}>{video.duration}</Text>
+                <Text style={styles.metaText} numberOfLines={1}>
+                  {video.author}
+                </Text>
               </View>
               <View style={styles.metaItem}>
                 <Youtube size={14} color="#FF0000" />
@@ -434,9 +439,16 @@ function YouTubeVideoPlayer({
             <TouchableOpacity
               style={styles.videoButton}
               onPress={handlePlayVideo}
+              activeOpacity={0.8}
             >
-              <Play size={18} color={theme.colors.textInverse} />
-              <Text style={styles.videoButtonText}>Watch Tutorial</Text>
+              <Play
+                size={18}
+                color={theme.colors.textInverse}
+                fill={theme.colors.textInverse}
+              />
+              <Text style={styles.videoButtonText}>
+                {t('workouts.watchTutorial')}
+              </Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -447,13 +459,14 @@ function YouTubeVideoPlayer({
             color={theme.colors.textSecondary}
             style={styles.setupIcon}
           />
-          <Text style={styles.setupTitle}>Video Tutorial Not Available</Text>
+          <Text style={styles.setupTitle}>
+            {t('workouts.videoNotAvailable')}
+          </Text>
           <Text style={styles.setupDescription}>
-            To enable exercise video tutorials, please configure the YouTube API
-            key in the app settings.
+            {t('workouts.videoSetupInstructions')}
           </Text>
           <TouchableOpacity style={styles.setupButton} onPress={onLoadVideo}>
-            <Text style={styles.setupButtonText}>Try Again</Text>
+            <Text style={styles.setupButtonText}>{t('common.tryAgain')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -513,18 +526,17 @@ function YouTubeVideoPlayer({
             <View style={styles.videoControls}>
               <View style={styles.authorInfo}>
                 <User size={16} color={theme.colors.textSecondary} />
-                <Text style={styles.authorText}>
-                  By {video?.author || 'Unknown'}
+                <Text style={styles.authorText} numberOfLines={1}>
+                  {video?.author || 'Unknown'}
                 </Text>
               </View>
               <TouchableOpacity
                 style={styles.openYouTubeButton}
                 onPress={handleOpenInYouTube}
+                activeOpacity={0.8}
               >
                 <Youtube size={16} color="#fff" />
-                <Text style={styles.openYouTubeButtonText}>
-                  Open in YouTube
-                </Text>
+                <Text style={styles.openYouTubeButtonText}>YouTube</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -34,7 +34,7 @@ import {
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
   // State for API data
@@ -99,7 +99,7 @@ export default function ProfileScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading profile...
+            {t('profile.loadingProfile')}
           </Text>
         </View>
       </SafeAreaView>
@@ -129,7 +129,7 @@ export default function ProfileScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Retry
+              {t('common.retry')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -138,10 +138,10 @@ export default function ProfileScreen() {
   }
 
   const handleLogout = async () => {
-    Alert.alert('Log Out', 'Are you sure you want to log out?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('auth.logout'), t('profile.logoutConfirm'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Log Out',
+        text: t('auth.logout'),
         style: 'destructive',
         onPress: async () => {
           try {
@@ -149,7 +149,7 @@ export default function ProfileScreen() {
             router.replace('/(auth)/login');
           } catch (error) {
             console.error('Logout error:', error);
-            Alert.alert('Error', 'Failed to log out. Please try again.');
+            Alert.alert(t('common.error'), t('profile.logoutFailed'));
           }
         },
       },
@@ -159,13 +159,13 @@ export default function ProfileScreen() {
   const healthItems = [
     {
       id: 'add-metric',
-      label: 'Add Health Metric',
+      label: t('health.addHealthMetric'),
       icon: <HeartPulse size={20} color={theme.colors.primary} />,
       onPress: () => router.push('/health/add-metric'),
     },
     {
       id: 'health-trends',
-      label: 'Health Trends',
+      label: t('health.healthTrends'),
       icon: <Target size={20} color={theme.colors.info} />,
       onPress: () => router.push('/health/trends'),
     },
@@ -180,20 +180,20 @@ export default function ProfileScreen() {
     },
     {
       id: 'notifications',
-      label: 'Notifications',
+      label: t('profile.notifications'),
       icon: <Bell size={20} color={theme.colors.info} />,
       onPress: () => router.push('/notifications'),
       badge: unreadCount > 0 ? unreadCount : undefined,
     },
     {
       id: 'privacy',
-      label: 'Privacy',
+      label: t('profile.privacy'),
       icon: <Shield size={20} color={theme.colors.info} />,
       onPress: () => router.push('/settings/privacy'),
     },
     {
       id: 'logout',
-      label: 'Log Out',
+      label: t('auth.logout'),
       icon: <LogOut size={20} color={theme.colors.error} />,
       onPress: handleLogout,
     },
@@ -202,16 +202,16 @@ export default function ProfileScreen() {
   const supportItems = [
     {
       id: 'help',
-      label: 'Help & Support',
+      label: t('profile.help'),
       icon: <HelpCircle size={20} color={theme.colors.info} />,
       onPress: () => router.push('/settings/support'),
     },
     {
       id: 'premium',
-      label: 'Upgrade to Premium',
+      label: t('profile.upgradeToPremium'),
       icon: <Gift size={20} color={theme.colors.warning} />,
       onPress: () => {
-        Alert.alert('Premium', 'Premium features coming soon!');
+        Alert.alert(t('profile.premium'), t('profile.premiumComingSoon'));
       },
     },
   ];
@@ -274,7 +274,7 @@ export default function ProfileScreen() {
               <Text
                 style={[styles.editButtonText, { color: theme.colors.primary }]}
               >
-                Personal
+                {t('profile.personal')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -287,7 +287,7 @@ export default function ProfileScreen() {
               <Text
                 style={[styles.editButtonText, { color: theme.colors.primary }]}
               >
-                Health
+                {t('profile.health')}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -300,7 +300,7 @@ export default function ProfileScreen() {
               <Text
                 style={[styles.editButtonText, { color: theme.colors.primary }]}
               >
-                Goals
+                {t('profile.goals')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -323,14 +323,14 @@ export default function ProfileScreen() {
             </Text>
             <Text style={[styles.statsValue, { color: theme.colors.text }]}>
               {userProfile?.fitness_goals?.[0] === 'gain_muscle'
-                ? 'Gain Muscle'
+                ? t('profile.fitnessGoalOptions.gainMuscle')
                 : userProfile?.fitness_goals?.[0] === 'lose_weight'
-                ? 'Lose Weight'
+                ? t('profile.fitnessGoalOptions.loseWeight')
                 : userProfile?.fitness_goals?.[0] === 'increase_endurance'
-                ? 'Endurance'
+                ? t('profile.fitnessGoalOptions.increaseEndurance')
                 : userProfile?.fitness_goals?.[0] === 'improve_flexibility'
-                ? 'Flexibility'
-                : 'Maintain'}
+                ? t('profile.fitnessGoalOptions.improveFlexibility')
+                : t('profile.fitnessGoalOptions.maintain')}
             </Text>
           </View>
 
@@ -346,10 +346,10 @@ export default function ProfileScreen() {
             <Text
               style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
             >
-              Weekly Goal
+              {t('profile.weeklyGoal')}
             </Text>
             <Text style={[styles.statsValue, { color: theme.colors.text }]}>
-              4 workouts
+              4 {t('profile.workouts')}
             </Text>
           </View>
 
@@ -365,7 +365,7 @@ export default function ProfileScreen() {
             <Text
               style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
             >
-              Weight
+              {t('profile.weight')}
             </Text>
             <Text style={[styles.statsValue, { color: theme.colors.text }]}>
               {userProfile?.weight || 0} kg
@@ -384,7 +384,7 @@ export default function ProfileScreen() {
             <Text
               style={[styles.statsLabel, { color: theme.colors.textSecondary }]}
             >
-              Height
+              {t('profile.height')}
             </Text>
             <Text style={[styles.statsValue, { color: theme.colors.text }]}>
               {userProfile?.height || 0} cm
@@ -392,9 +392,9 @@ export default function ProfileScreen() {
           </View>
         </View>
 
-        <ProfileSection title="Health" items={healthItems} />
-        <ProfileSection title="Account" items={accountItems} />
-        <ProfileSection title="Support" items={supportItems} />
+        <ProfileSection title={t('profile.health')} items={healthItems} />
+        <ProfileSection title={t('profile.account')} items={accountItems} />
+        <ProfileSection title={t('profile.support')} items={supportItems} />
 
         <View style={styles.appVersion}>
           <Text

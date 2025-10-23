@@ -19,6 +19,7 @@ import {
   Users,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -34,6 +35,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 export default function ClassDetailScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
 
@@ -113,16 +115,22 @@ export default function ClassDetailScreen() {
       if (response.success) {
         console.log('✅ Booking created successfully');
         setShowBookingModal(false);
-        Alert.alert('Success', 'Class booked successfully!');
+        Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'));
         // Update local state
         setIsBooked(true);
         setIsWaitlisted(false);
       } else {
-        Alert.alert('Error', response.error || 'Failed to book class');
+        Alert.alert(
+          t('common.error'),
+          response.error || t('classes.booking.bookingFailed')
+        );
       }
     } catch (error: any) {
       console.error('❌ Error creating booking:', error);
-      Alert.alert('Error', error.message || 'Failed to book class');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('classes.booking.bookingFailed')
+      );
     }
   };
 
@@ -142,7 +150,10 @@ export default function ClassDetailScreen() {
             userBooking.id
           );
           if (cancelResponse.success) {
-            Alert.alert('Success', 'Booking cancelled successfully!');
+            Alert.alert(
+              t('common.success'),
+              t('classes.booking.bookingCancelled')
+            );
             setIsBooked(false);
             setIsWaitlisted(false);
           } else {
@@ -166,11 +177,11 @@ export default function ClassDetailScreen() {
 
   const handleShare = () => {
     // TODO: Implement share functionality
-    Alert.alert('Share', 'Share functionality coming soon!');
+    Alert.alert(t('classes.share'), t('classes.shareComingSoon'));
   };
 
   const formatTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleTimeString('en-US', {
+    return new Date(dateTime).toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -178,7 +189,7 @@ export default function ClassDetailScreen() {
   };
 
   const formatDate = (dateTime: string) => {
-    return new Date(dateTime).toLocaleDateString('en-US', {
+    return new Date(dateTime).toLocaleDateString(i18n.language, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -202,7 +213,7 @@ export default function ClassDetailScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading class details...
+            {t('classes.loadingClasses')}
           </Text>
         </View>
       </SafeAreaView>
@@ -217,7 +228,7 @@ export default function ClassDetailScreen() {
       >
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error || 'Class not found'}
+            {error || t('classes.classNotFound')}
           </Text>
           <TouchableOpacity
             style={[
@@ -232,7 +243,7 @@ export default function ClassDetailScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Go Back
+              {t('common.goBack')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -307,7 +318,7 @@ export default function ClassDetailScreen() {
           style={[styles.section, { backgroundColor: theme.colors.surface }]}
         >
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Schedule Details
+            {t('classes.scheduleDetails')}
           </Text>
 
           <View style={styles.detailRow}>
@@ -335,8 +346,10 @@ export default function ClassDetailScreen() {
           <View style={styles.detailRow}>
             <Users size={20} color={theme.colors.primary} />
             <Text style={[styles.detailText, { color: theme.colors.text }]}>
-              {schedule.current_bookings}/{schedule.max_capacity} booked
-              {!isFullyBooked && ` (${spotsAvailable} spots available)`}
+              {schedule.current_bookings}/{schedule.max_capacity}{' '}
+              {t('classes.booked')}
+              {!isFullyBooked &&
+                ` (${spotsAvailable} ${t('classes.spotsAvailable')})`}
             </Text>
           </View>
         </View>
@@ -404,7 +417,7 @@ export default function ClassDetailScreen() {
               ]}
             >
               <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                Equipment Needed
+                {t('classes.equipmentNeeded')}
               </Text>
               <View style={styles.equipmentList}>
                 {schedule.gym_class.equipment_needed.map((equipment, index) => (
@@ -435,7 +448,7 @@ export default function ClassDetailScreen() {
             style={[styles.section, { backgroundColor: theme.colors.surface }]}
           >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Special Notes
+              {t('classes.specialNotes')}
             </Text>
             <Text style={[styles.notesText, { color: theme.colors.text }]}>
               {schedule.special_notes}
@@ -454,7 +467,7 @@ export default function ClassDetailScreen() {
             <Text
               style={[styles.cancelButtonText, { color: theme.colors.error }]}
             >
-              Cancel Booking
+              {t('classes.booking.cancelBooking')}
             </Text>
           </TouchableOpacity>
         ) : isWaitlisted ? (
@@ -471,7 +484,7 @@ export default function ClassDetailScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Remove from Waitlist
+              {t('classes.booking.removeFromWaitlist')}
             </Text>
           </TouchableOpacity>
         ) : (
@@ -489,7 +502,9 @@ export default function ClassDetailScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              {isFullyBooked ? 'Fully Booked' : 'Book Class'}
+              {isFullyBooked
+                ? t('classes.booking.fullyBooked')
+                : t('classes.booking.book')}
             </Text>
           </TouchableOpacity>
         )}

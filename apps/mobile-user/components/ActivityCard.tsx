@@ -36,10 +36,10 @@ const ActivityCard: React.FC<ActivityCardProps> = ({
             {title}
           </Text>
           <Text style={[styles.metric, { color: theme.colors.textSecondary }]}>
+            {metric}:{' '}
             <Text style={[styles.metricValue, { color: theme.colors.text }]}>
               {metricValue}
-            </Text>{' '}
-            {metric}
+            </Text>
           </Text>
         </View>
         <View style={styles.rightContent}>

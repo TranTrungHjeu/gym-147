@@ -131,10 +131,10 @@ export default function WorkoutDetailScreen() {
   };
 
   const handleStartWorkout = () => {
-    Alert.alert('Start Workout', 'Are you ready to begin this workout?', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('workouts.startWorkout'), t('workouts.readyToStart'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Start',
+        text: t('common.confirm'),
         onPress: () => {
           // Navigate to workout session screen
           router.push(`/workouts/${id}/session` as any);
@@ -156,15 +156,22 @@ export default function WorkoutDetailScreen() {
     }
   };
 
+  const themedStyles = styles(theme);
+
   if (loading) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <View style={styles.loadingContainer}>
+        <View style={themedStyles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading workout...
+          <Text
+            style={[themedStyles.loadingText, { color: theme.colors.text }]}
+          >
+            {t('workouts.loadingWorkout')}
           </Text>
         </View>
       </SafeAreaView>
@@ -174,26 +181,29 @@ export default function WorkoutDetailScreen() {
   if (error || !workout) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error || 'Workout not found'}
+        <View style={themedStyles.errorContainer}>
+          <Text style={[themedStyles.errorText, { color: theme.colors.error }]}>
+            {error || t('workouts.workoutNotFound')}
           </Text>
           <TouchableOpacity
             style={[
-              styles.retryButton,
+              themedStyles.retryButton,
               { backgroundColor: theme.colors.primary },
             ]}
             onPress={loadWorkout}
           >
             <Text
               style={[
-                styles.retryButtonText,
+                themedStyles.retryButtonText,
                 { color: theme.colors.textInverse },
               ]}
             >
-              Retry
+              {t('common.retry')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -203,41 +213,49 @@ export default function WorkoutDetailScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={themedStyles.header}>
         <TouchableOpacity
-          style={styles.backButton}
+          style={themedStyles.backButton}
           onPress={() => router.back()}
         >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Workout Details
+        <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
+          {t('workouts.workoutDetails')}
         </Text>
-        <View style={styles.headerSpacer} />
+        <View style={themedStyles.headerSpacer} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={themedStyles.content}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Workout Image */}
         <Image
           source={{
             uri: 'https://images.pexels.com/photos/1229356/pexels-photo-1229356.jpeg?auto=compress&cs=tinysrgb&w=800',
           }}
-          style={styles.workoutImage}
+          style={themedStyles.workoutImage}
         />
 
         {/* Workout Info */}
-        <View style={styles.workoutInfo}>
-          <Text style={[styles.workoutName, { color: theme.colors.text }]}>
+        <View style={themedStyles.workoutInfo}>
+          <Text
+            style={[themedStyles.workoutName, { color: theme.colors.text }]}
+          >
             {workout.name}
           </Text>
 
           {workout.description && (
             <Text
               style={[
-                styles.workoutDescription,
+                themedStyles.workoutDescription,
                 { color: theme.colors.textSecondary },
               ]}
             >
@@ -246,40 +264,51 @@ export default function WorkoutDetailScreen() {
           )}
 
           {/* Workout Stats */}
-          <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
-              <Clock size={16} color={theme.colors.primary} />
-              <Text style={[styles.statText, { color: theme.colors.text }]}>
-                {workout.duration_weeks} weeks
+          <View style={themedStyles.statsContainer}>
+            <View style={themedStyles.statItem}>
+              <Clock size={18} color={theme.colors.primary} />
+              <Text
+                style={[themedStyles.statText, { color: theme.colors.text }]}
+                numberOfLines={1}
+              >
+                {workout.duration_weeks} {t('common.week')}
               </Text>
             </View>
 
-            <View style={styles.statItem}>
+            <View style={themedStyles.statItem}>
               <Target
-                size={16}
+                size={18}
                 color={getDifficultyColor(workout.difficulty)}
               />
-              <Text style={[styles.statText, { color: theme.colors.text }]}>
-                {workout.difficulty}
+              <Text
+                style={[themedStyles.statText, { color: theme.colors.text }]}
+                numberOfLines={1}
+              >
+                {workout.difficulty.charAt(0) +
+                  workout.difficulty.slice(1).toLowerCase()}
               </Text>
             </View>
 
-            <View style={styles.statItem}>
-              <Dumbbell size={16} color={theme.colors.primary} />
-              <Text style={[styles.statText, { color: theme.colors.text }]}>
+            <View style={themedStyles.statItem}>
+              <Dumbbell size={18} color={theme.colors.primary} />
+              <Text
+                style={[themedStyles.statText, { color: theme.colors.text }]}
+                numberOfLines={1}
+              >
                 {Array.isArray(workout.exercises)
                   ? workout.exercises.length
-                  : 0}{' '}
-                exercises
+                  : 0}
               </Text>
             </View>
           </View>
         </View>
 
         {/* Exercises List */}
-        <View style={styles.exercisesSection}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Exercises
+        <View style={themedStyles.exercisesSection}>
+          <Text
+            style={[themedStyles.sectionTitle, { color: theme.colors.primary }]}
+          >
+            {t('workouts.exercises')}
           </Text>
 
           {(Array.isArray(workout.exercises) ? workout.exercises : []).length >
@@ -289,37 +318,37 @@ export default function WorkoutDetailScreen() {
                 <View
                   key={exercise.id || index}
                   style={[
-                    styles.exerciseCard,
+                    themedStyles.exerciseCard,
                     {
                       backgroundColor: theme.colors.surface,
                       borderColor: theme.colors.border,
                     },
                   ]}
                 >
-                  <View style={styles.exerciseHeader}>
-                    <View style={styles.exerciseNumber}>
+                  <View style={themedStyles.exerciseHeader}>
+                    <View style={themedStyles.exerciseNumber}>
                       <Text
                         style={[
-                          styles.exerciseNumberText,
+                          themedStyles.exerciseNumberText,
                           { color: theme.colors.textInverse },
                         ]}
                       >
                         {index + 1}
                       </Text>
                     </View>
-                    <View style={styles.exerciseInfo}>
+                    <View style={themedStyles.exerciseInfo}>
                       <Text
                         style={[
-                          styles.exerciseName,
+                          themedStyles.exerciseName,
                           { color: theme.colors.text },
                         ]}
                       >
-                        {exercise.name || 'Exercise'}
+                        {exercise.name || t('workouts.exercises')}
                       </Text>
                       {exercise.equipment && (
                         <Text
                           style={[
-                            styles.exerciseEquipment,
+                            themedStyles.exerciseEquipment,
                             { color: theme.colors.textSecondary },
                           ]}
                         >
@@ -327,64 +356,43 @@ export default function WorkoutDetailScreen() {
                         </Text>
                       )}
                     </View>
+
+                    {(exercise.sets || exercise.reps || exercise.duration) && (
+                      <View style={themedStyles.exerciseStats}>
+                        {exercise.sets && exercise.reps && (
+                          <Text
+                            style={[
+                              themedStyles.exerciseStatsText,
+                              { color: theme.colors.primary },
+                            ]}
+                          >
+                            {exercise.sets} × {exercise.reps}
+                          </Text>
+                        )}
+                        {exercise.duration && (
+                          <Text
+                            style={[
+                              themedStyles.exerciseStatsText,
+                              { color: theme.colors.primary },
+                            ]}
+                          >
+                            {exercise.duration} {t('workouts.duration')}
+                          </Text>
+                        )}
+                      </View>
+                    )}
                   </View>
 
                   {exercise.description && (
                     <Text
                       style={[
-                        styles.exerciseDescription,
+                        themedStyles.exerciseDescription,
                         { color: theme.colors.textSecondary },
                       ]}
                     >
                       {exercise.description}
                     </Text>
                   )}
-
-                  <View style={styles.exerciseDetails}>
-                    {exercise.sets && (
-                      <View style={styles.exerciseDetail}>
-                        <Text
-                          style={[
-                            styles.exerciseDetailLabel,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          Sets
-                        </Text>
-                        <Text
-                          style={[
-                            styles.exerciseDetailValue,
-                            { color: theme.colors.text },
-                          ]}
-                        >
-                          {exercise.sets}
-                        </Text>
-                      </View>
-                    )}
-
-                    {(exercise.reps || exercise.duration) && (
-                      <View style={styles.exerciseDetail}>
-                        <Text
-                          style={[
-                            styles.exerciseDetailLabel,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          {exercise.duration ? 'Duration' : 'Reps'}
-                        </Text>
-                        <Text
-                          style={[
-                            styles.exerciseDetailValue,
-                            { color: theme.colors.text },
-                          ]}
-                        >
-                          {exercise.duration
-                            ? `${exercise.duration}s`
-                            : exercise.reps}
-                        </Text>
-                      </View>
-                    )}
-                  </View>
 
                   {/* Exercise Video Player */}
                   <YouTubeVideoPlayer
@@ -398,17 +406,17 @@ export default function WorkoutDetailScreen() {
           ) : (
             <View
               style={[
-                styles.exerciseCard,
+                themedStyles.exerciseCard,
                 { backgroundColor: theme.colors.surface },
               ]}
             >
               <Text
                 style={[
-                  styles.exerciseDescription,
+                  themedStyles.exerciseDescription,
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                No exercises available for this workout plan.
+                {t('workouts.noExercises')}
               </Text>
             </View>
           )}
@@ -417,19 +425,24 @@ export default function WorkoutDetailScreen() {
         {/* Start Workout Button */}
         <TouchableOpacity
           style={[
-            styles.startButton,
+            themedStyles.startButton,
             { backgroundColor: theme.colors.primary },
           ]}
           onPress={handleStartWorkout}
+          activeOpacity={0.8}
         >
-          <Play size={20} color={theme.colors.textInverse} />
+          <Play
+            size={24}
+            color={theme.colors.textInverse}
+            fill={theme.colors.textInverse}
+          />
           <Text
             style={[
-              styles.startButtonText,
+              themedStyles.startButtonText,
               { color: theme.colors.textInverse },
             ]}
           >
-            Start Workout
+            {t('workouts.startWorkout')}
           </Text>
         </TouchableOpacity>
       </ScrollView>
@@ -437,168 +450,192 @@ export default function WorkoutDetailScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
-  },
-  backButton: {
-    padding: 8,
-  },
-  headerTitle: {
-    ...Typography.h3,
-    flex: 1,
-    textAlign: 'center',
-    marginHorizontal: 16,
-  },
-  headerSpacer: {
-    width: 40,
-  },
-  content: {
-    flex: 1,
-  },
-  workoutImage: {
-    width: '100%',
-    height: 200,
-    resizeMode: 'cover',
-  },
-  workoutInfo: {
-    padding: 20,
-  },
-  workoutName: {
-    ...Typography.h3,
-    marginBottom: 8,
-  },
-  workoutDescription: {
-    ...Typography.bodyMedium,
-    marginBottom: 16,
-    lineHeight: 22,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  statItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  statText: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-  },
-  exercisesSection: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  sectionTitle: {
-    ...Typography.h4,
-    marginBottom: 16,
-  },
-  exerciseCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  exerciseHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  exerciseNumber: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: '#007AFF',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  exerciseNumberText: {
-    ...Typography.bodySmall,
-    fontWeight: '600',
-  },
-  exerciseInfo: {
-    flex: 1,
-  },
-  exerciseName: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    marginBottom: 2,
-  },
-  exerciseEquipment: {
-    ...Typography.bodySmall,
-  },
-  exerciseDescription: {
-    ...Typography.bodySmall,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  exerciseDetails: {
-    flexDirection: 'row',
-    gap: 20,
-  },
-  exerciseDetail: {
-    alignItems: 'center',
-  },
-  exerciseDetailLabel: {
-    ...Typography.bodySmall,
-    marginBottom: 2,
-  },
-  exerciseDetailValue: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-  startButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    marginHorizontal: 20,
-    marginBottom: 20,
-    borderRadius: 12,
-    gap: 8,
-  },
-  startButtonText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  loadingText: {
-    ...Typography.bodyMedium,
-    marginTop: 12,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    ...Typography.bodyMedium,
-    textAlign: 'center',
-    marginBottom: 20,
-  },
-  retryButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: 'transparent',
+    },
+    backButton: {
+      padding: theme.spacing.sm,
+    },
+    headerTitle: {
+      ...Typography.h3,
+      flex: 1,
+      textAlign: 'center',
+      marginHorizontal: theme.spacing.md,
+    },
+    headerSpacer: {
+      width: 40,
+    },
+    content: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    workoutImage: {
+      width: '100%',
+      height: 240,
+      resizeMode: 'cover',
+    },
+    workoutInfo: {
+      marginTop: -theme.spacing.xl,
+      marginHorizontal: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.xl,
+      ...theme.shadows.lg,
+    },
+    workoutName: {
+      ...Typography.h2,
+      marginBottom: theme.spacing.xs,
+    },
+    workoutDescription: {
+      ...Typography.bodyMedium,
+      marginBottom: theme.spacing.lg,
+      lineHeight: 22,
+      opacity: 0.8,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    statItem: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: theme.spacing.xs,
+      backgroundColor: theme.isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : 'rgba(0, 0, 0, 0.03)',
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+      borderRadius: theme.radius.md,
+    },
+    statText: {
+      ...Typography.bodySmall,
+    },
+    exercisesSection: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.xl,
+      marginBottom: theme.spacing.xl,
+    },
+    sectionTitle: {
+      ...Typography.h3,
+      marginBottom: theme.spacing.lg,
+      paddingBottom: theme.spacing.sm,
+      borderBottomWidth: 2,
+      borderBottomColor: theme.colors.primary,
+      alignSelf: 'flex-start',
+    },
+    exerciseCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      marginBottom: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      ...theme.shadows.md,
+    },
+    exerciseHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    exerciseNumber: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.primary,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: theme.spacing.md,
+      ...theme.shadows.sm,
+    },
+    exerciseNumberText: {
+      ...Typography.h6,
+    },
+    exerciseInfo: {
+      flex: 1,
+    },
+    exerciseName: {
+      ...Typography.h5,
+      marginBottom: theme.spacing.xs,
+    },
+    exerciseEquipment: {
+      ...Typography.bodySmall,
+      opacity: 0.7,
+    },
+    exerciseStats: {
+      alignItems: 'flex-end',
+      justifyContent: 'center',
+      paddingLeft: theme.spacing.md,
+      backgroundColor: theme.isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : 'rgba(0, 0, 0, 0.03)',
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+    },
+    exerciseStatsText: {
+      ...Typography.h4,
+    },
+    exerciseDescription: {
+      ...Typography.bodyMedium,
+      marginBottom: theme.spacing.md,
+      lineHeight: 20,
+      opacity: 0.8,
+      paddingLeft: theme.spacing.xxl + theme.spacing.md,
+    },
+    startButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.lg,
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.xl,
+      marginTop: theme.spacing.lg,
+      borderRadius: theme.radius.xl,
+      gap: theme.spacing.sm,
+      ...theme.shadows.lg,
+    },
+    startButtonText: {
+      ...Typography.h5,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    loadingText: {
+      ...Typography.bodyMedium,
+      marginTop: theme.spacing.sm,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+    },
+    errorText: {
+      ...Typography.bodyMedium,
+      textAlign: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    retryButton: {
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.radius.sm,
+      ...theme.shadows.sm,
+    },
+    retryButtonText: {
+      ...Typography.buttonMedium,
+    },
+  });

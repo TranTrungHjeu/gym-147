@@ -17,6 +17,7 @@ import {
   Trophy,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   RefreshControl,
@@ -31,6 +32,7 @@ import {
 export default function AchievementsScreen() {
   const { theme } = useTheme();
   const router = useRouter();
+  const { t } = useTranslation();
 
   // State for API data
   const [loading, setLoading] = useState(true);
@@ -113,7 +115,7 @@ export default function AchievementsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading achievements...
+            {t('achievements.loadingAchievements')}
           </Text>
         </View>
       </SafeAreaView>
@@ -143,7 +145,7 @@ export default function AchievementsScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Retry
+              {t('common.retry')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -157,7 +159,7 @@ export default function AchievementsScreen() {
     >
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Achievements
+          {t('achievements.title')}
         </Text>
         <TouchableOpacity
           style={[
@@ -173,7 +175,7 @@ export default function AchievementsScreen() {
               { color: theme.colors.primary },
             ]}
           >
-            Leaderboard
+            {t('achievements.leaderboard')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -188,7 +190,7 @@ export default function AchievementsScreen() {
           <Text
             style={[styles.statLabel, { color: theme.colors.textSecondary }]}
           >
-            Completed
+            {t('achievements.completed')}
           </Text>
         </View>
         <View
@@ -200,7 +202,7 @@ export default function AchievementsScreen() {
           <Text
             style={[styles.statLabel, { color: theme.colors.textSecondary }]}
           >
-            In Progress
+            {t('achievements.inProgress')}
           </Text>
         </View>
         <View
@@ -212,7 +214,7 @@ export default function AchievementsScreen() {
           <Text
             style={[styles.statLabel, { color: theme.colors.textSecondary }]}
           >
-            Total
+            {t('achievements.totalAchievements')}
           </Text>
         </View>
       </View>
@@ -231,7 +233,7 @@ export default function AchievementsScreen() {
       >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Completed
+            {t('achievements.completed')}
           </Text>
           {completedAchievements.length > 0 ? (
             completedAchievements.map((achievement) => (
@@ -252,7 +254,7 @@ export default function AchievementsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                No completed achievements yet
+                {t('achievements.noAchievements')}
               </Text>
             </View>
           )}
@@ -260,7 +262,7 @@ export default function AchievementsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            In Progress
+            {t('achievements.inProgress')}
           </Text>
           {inProgressAchievements.length > 0 ? (
             inProgressAchievements.map((achievement) => (
@@ -281,7 +283,7 @@ export default function AchievementsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                No achievements in progress
+                {t('achievements.noAchievements')}
               </Text>
             </View>
           )}
@@ -314,9 +316,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   leaderboardButtonText: {
-    ...Typography.caption,
+    ...Typography.captionMedium,
     marginLeft: 4,
-    fontWeight: '600',
   },
   statsContainer: {
     flexDirection: 'row',

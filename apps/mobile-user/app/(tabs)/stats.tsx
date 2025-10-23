@@ -13,7 +13,9 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
+import { Activity, TrendingUp } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   RefreshControl,
   ScrollView,
@@ -27,6 +29,7 @@ export default function StatsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [selectedTab, setSelectedTab] = useState<
@@ -36,9 +39,9 @@ export default function StatsScreen() {
   const [healthTrends, setHealthTrends] = useState<HealthTrend[]>([]);
 
   const tabs = [
-    { key: 'overview', label: 'Overview' },
-    { key: 'health', label: 'Health' },
-    { key: 'workouts', label: 'Workouts' },
+    { key: 'overview', label: t('stats.overview') },
+    { key: 'health', label: t('health.title') },
+    { key: 'workouts', label: t('workouts.title') },
   ];
 
   const loadHealthData = async () => {
@@ -79,161 +82,274 @@ export default function StatsScreen() {
     setLoading(false);
   }, [user?.id]);
 
+  // Helper function to convert SNAKE_CASE to camelCase for translation keys
+  const getMetricTranslationKey = (type: string): string => {
+    return type
+      .toLowerCase()
+      .replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
+  };
+
+  const themedStyles = styles(theme);
+
   if (loading) {
     return (
       <View
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <View style={styles.loadingContainer}>
+        <View style={themedStyles.loadingContainer}>
           <Text
             style={[
               Typography.bodyLarge,
               { color: theme.colors.textSecondary },
             ]}
           >
-            Loading statistics...
+            {t('common.loading')}
           </Text>
         </View>
       </View>
     );
   }
 
-  const renderOverview = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.section}>
-        <Text style={[Typography.h3, { color: theme.colors.text }]}>
-          Quick Stats
-        </Text>
-        <View style={styles.statsGrid}>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[Typography.h2, { color: theme.colors.primary }]}>
-              {healthMetrics.length}
-            </Text>
-            <Text
-              style={[
-                Typography.caption,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              Health Records
-            </Text>
-          </View>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[Typography.h2, { color: theme.colors.success }]}>
-              {healthTrends.filter((trend) => trend.direction === 'UP').length}
-            </Text>
-            <Text
-              style={[
-                Typography.caption,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              Improving
-            </Text>
-          </View>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[Typography.h2, { color: theme.colors.error }]}>
-              {
-                healthTrends.filter((trend) => trend.direction === 'DOWN')
-                  .length
-              }
-            </Text>
-            <Text
-              style={[
-                Typography.caption,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              Declining
-            </Text>
-          </View>
-          <View
-            style={[styles.statCard, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text
-              style={[Typography.h2, { color: theme.colors.textSecondary }]}
-            >
-              {
-                healthTrends.filter((trend) => trend.direction === 'STABLE')
-                  .length
-              }
-            </Text>
-            <Text
-              style={[
-                Typography.caption,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              Stable
-            </Text>
-          </View>
-        </View>
-      </View>
+  const renderOverview = () => {
+    // Calculate unique metric types
+    const uniqueMetricTypes = new Set(
+      healthMetrics.map((m) => (m as any).metric_type)
+    ).size;
 
-      <View style={styles.section}>
-        <Text style={[Typography.h3, { color: theme.colors.text }]}>
-          Recent Health Metrics
-        </Text>
-        {healthMetrics.slice(0, 3).map((metric) => (
-          <View
-            key={metric.id}
-            style={[styles.metricItem, { borderColor: theme.colors.border }]}
+    // Calculate total recorded metrics
+    const totalMetrics = healthMetrics.length;
+
+    // Calculate metrics this week
+    const oneWeekAgo = new Date();
+    oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+    const metricsThisWeek = healthMetrics.filter((m) => {
+      const recordedDate = new Date((m as any).recorded_at);
+      return recordedDate >= oneWeekAgo;
+    }).length;
+
+    return (
+      <View style={themedStyles.tabContent}>
+        <View style={themedStyles.overviewSection}>
+          <Text
+            style={[
+              Typography.h3,
+              { color: theme.colors.text, marginBottom: theme.spacing.lg },
+            ]}
           >
-            <View style={styles.metricInfo}>
-              <Text style={[Typography.body, { color: theme.colors.text }]}>
-                {metric.metric_type?.replace('_', ' ') || 'Unknown'}
+            {t('stats.overview')}
+          </Text>
+
+          {/* Row 1 */}
+          <View style={themedStyles.statsRow}>
+            <View style={themedStyles.statCard}>
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.primary + '15' },
+                ]}
+              >
+                <Activity size={24} color={theme.colors.primary} />
+              </View>
+              <Text
+                style={[
+                  Typography.h2,
+                  {
+                    color: theme.colors.text,
+                    marginVertical: theme.spacing.xs,
+                  },
+                ]}
+              >
+                {totalMetrics}
               </Text>
               <Text
                 style={[
                   Typography.caption,
-                  { color: theme.colors.textSecondary },
+                  { color: theme.colors.textSecondary, textAlign: 'center' },
                 ]}
               >
-                {metric.recorded_at
-                  ? new Date(metric.recorded_at).toLocaleDateString()
-                  : 'Unknown Date'}
+                {t('health.totalMetrics')}
               </Text>
             </View>
-            <Text style={[Typography.body, { color: theme.colors.text }]}>
-              {metric.value.toFixed(1)} {metric.unit}
-            </Text>
+            <View style={themedStyles.statCard}>
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.success + '15' },
+                ]}
+              >
+                <TrendingUp size={24} color={theme.colors.success} />
+              </View>
+              <Text
+                style={[
+                  Typography.h2,
+                  {
+                    color: theme.colors.text,
+                    marginVertical: theme.spacing.xs,
+                  },
+                ]}
+              >
+                {metricsThisWeek}
+              </Text>
+              <Text
+                style={[
+                  Typography.caption,
+                  { color: theme.colors.textSecondary, textAlign: 'center' },
+                ]}
+              >
+                {t('health.thisWeek')}
+              </Text>
+            </View>
           </View>
-        ))}
-        <Button
-          title="View All Metrics"
-          onPress={() => setSelectedTab('health')}
-          variant="outline"
-          style={styles.viewAllButton}
-        />
+
+          {/* Row 2 */}
+          <View style={themedStyles.statsRow}>
+            <View style={themedStyles.statCard}>
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.secondary + '15' },
+                ]}
+              >
+                <Activity size={24} color={theme.colors.secondary} />
+              </View>
+              <Text
+                style={[
+                  Typography.h2,
+                  {
+                    color: theme.colors.text,
+                    marginVertical: theme.spacing.xs,
+                  },
+                ]}
+              >
+                {uniqueMetricTypes}
+              </Text>
+              <Text
+                style={[
+                  Typography.caption,
+                  { color: theme.colors.textSecondary, textAlign: 'center' },
+                ]}
+              >
+                {t('health.metricTypes.title')}
+              </Text>
+            </View>
+            <View style={themedStyles.statCard}>
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.warning + '15' },
+                ]}
+              >
+                <TrendingUp size={24} color={theme.colors.warning} />
+              </View>
+              <Text
+                style={[
+                  Typography.h2,
+                  {
+                    color: theme.colors.text,
+                    marginVertical: theme.spacing.xs,
+                  },
+                ]}
+              >
+                {healthTrends.length}
+              </Text>
+              <Text
+                style={[
+                  Typography.caption,
+                  { color: theme.colors.textSecondary, textAlign: 'center' },
+                ]}
+              >
+                {t('health.trends.title')}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        <View style={themedStyles.section}>
+          <Text
+            style={[
+              Typography.h3,
+              { color: theme.colors.text, marginBottom: theme.spacing.lg },
+            ]}
+          >
+            {t('health.recentMetrics')}
+          </Text>
+          {healthMetrics.slice(0, 3).map((metric) => (
+            <View key={metric.id} style={themedStyles.metricItem}>
+              <View style={themedStyles.metricInfo}>
+                <Text
+                  style={[Typography.bodyRegular, { color: theme.colors.text }]}
+                >
+                  {(metric as any).metric_type
+                    ? t(
+                        `health.metricTypes.${getMetricTranslationKey(
+                          (metric as any).metric_type
+                        )}`
+                      )
+                    : t('common.unknown')}
+                </Text>
+                <Text
+                  style={[
+                    Typography.caption,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {(metric as any).recorded_at
+                    ? new Date((metric as any).recorded_at).toLocaleDateString(
+                        i18n.language
+                      )
+                    : t('common.unknownDate')}
+                </Text>
+              </View>
+              <Text style={[Typography.h5, { color: theme.colors.primary }]}>
+                {metric.value != null
+                  ? `${metric.value.toFixed(1)} ${metric.unit || ''}`
+                  : t('common.notAvailable')}
+              </Text>
+            </View>
+          ))}
+          <Button
+            title={t('common.viewAll')}
+            onPress={() => setSelectedTab('health')}
+            variant="outline"
+            style={themedStyles.viewAllButton}
+          />
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   const renderHealth = () => {
     const weightMetrics = healthMetrics.filter(
-      (m) => m.metric_type === 'WEIGHT'
+      (m) => (m as any).metric_type === 'WEIGHT'
     );
     const bodyFatMetrics = healthMetrics.filter(
-      (m) => m.metric_type === 'BODY_FAT'
+      (m) => (m as any).metric_type === 'BODY_FAT'
     );
     const heartRateMetrics = healthMetrics.filter(
-      (m) => m.metric_type === 'HEART_RATE'
+      (m) => (m as any).metric_type === 'HEART_RATE'
+    );
+
+    // Filter out trends that are already shown in charts section
+    const mainMetricTypes = ['WEIGHT', 'BODY_FAT', 'HEART_RATE'];
+    const otherTrends = healthTrends.filter(
+      (trend) => !mainMetricTypes.includes((trend as any).metric_type)
     );
 
     return (
-      <View style={styles.tabContent}>
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+      <View style={themedStyles.tabContent}>
+        <View style={themedStyles.section}>
+          <View style={themedStyles.sectionHeader}>
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              Health Metrics
+              {t('health.metrics')}
             </Text>
-            <Button title="Add Metric" onPress={handleAddMetric} size="small" />
+            <Button
+              title={t('health.addMetric')}
+              onPress={handleAddMetric}
+              size="small"
+            />
           </View>
 
           {weightMetrics.length > 0 && (
@@ -264,9 +380,9 @@ export default function StatsScreen() {
           )}
 
           {healthMetrics.length === 0 && (
-            <View style={styles.emptyContainer}>
+            <View style={themedStyles.emptyContainer}>
               <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                No Health Data
+                {t('health.trends.noData')}
               </Text>
               <Text
                 style={[
@@ -274,67 +390,91 @@ export default function StatsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Start tracking your health metrics to see detailed analytics
+                {t('health.trends.loadingTrends')}
               </Text>
               <Button
-                title="Add First Metric"
+                title={t('health.addMetric')}
                 onPress={handleAddMetric}
-                style={styles.emptyButton}
+                style={themedStyles.emptyButton}
               />
             </View>
           )}
         </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              Health Trends
-            </Text>
-            <Button
-              title="View Trends"
-              onPress={handleViewTrends}
-              variant="outline"
-              size="small"
-            />
-          </View>
-
-          {healthTrends.map((trend, index) => (
-            <View
-              key={trend.metric_type || index}
-              style={[styles.trendItem, { borderColor: theme.colors.border }]}
-            >
-              <View style={styles.trendInfo}>
-                <Text style={[Typography.body, { color: theme.colors.text }]}>
-                  {trend.metric_type?.replace('_', ' ') || 'Unknown'}
-                </Text>
-                <Text
-                  style={[
-                    Typography.caption,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {trend.recorded_at
-                    ? new Date(trend.recorded_at).toLocaleDateString()
-                    : 'Recent'}
-                </Text>
-              </View>
-              <View style={styles.trendValue}>
-                <Text style={[Typography.body, { color: theme.colors.text }]}>
-                  {trend.value?.toFixed(1) || 'N/A'} {trend.unit || ''}
-                </Text>
-              </View>
+        {otherTrends.length > 0 && (
+          <View style={themedStyles.section}>
+            <View style={themedStyles.sectionHeader}>
+              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+                {t('health.trends.title')}
+              </Text>
+              <Button
+                title={t('common.view')}
+                onPress={handleViewTrends}
+                variant="outline"
+                size="small"
+              />
             </View>
-          ))}
-        </View>
+
+            {otherTrends.map((trend, index) => (
+              <View
+                key={(trend as any).metric_type || index}
+                style={[
+                  themedStyles.trendItem,
+                  { borderColor: theme.colors.border },
+                ]}
+              >
+                <View style={themedStyles.trendInfo}>
+                  <Text
+                    style={[
+                      Typography.bodyRegular,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    {(trend as any).metric_type
+                      ? t(
+                          `health.metricTypes.${getMetricTranslationKey(
+                            (trend as any).metric_type
+                          )}`
+                        )
+                      : t('common.unknown')}
+                  </Text>
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {(trend as any).recorded_at
+                      ? new Date((trend as any).recorded_at).toLocaleDateString(
+                          i18n.language
+                        )
+                      : t('common.recent')}
+                  </Text>
+                </View>
+                <View style={themedStyles.trendValue}>
+                  <Text
+                    style={[Typography.h5, { color: theme.colors.secondary }]}
+                  >
+                    {(trend as any).value != null
+                      ? `${(trend as any).value.toFixed(1)} ${
+                          (trend as any).unit || ''
+                        }`
+                      : t('common.notAvailable')}
+                  </Text>
+                </View>
+              </View>
+            ))}
+          </View>
+        )}
       </View>
     );
   };
 
   const renderWorkouts = () => (
-    <View style={styles.tabContent}>
-      <View style={styles.section}>
+    <View style={themedStyles.tabContent}>
+      <View style={themedStyles.section}>
         <Text style={[Typography.h3, { color: theme.colors.text }]}>
-          Workout Statistics
+          {t('stats.title')}
         </Text>
         <WorkoutFrequencyChart />
         <CaloriesChart />
@@ -345,18 +485,21 @@ export default function StatsScreen() {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
     >
-      <View style={styles.header}>
+      <View style={themedStyles.header}>
         <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Statistics
+          {t('stats.title')}
         </Text>
-        <View style={styles.tabContainer}>
+        <View style={themedStyles.tabContainer}>
           {tabs.map((tab) => (
             <TouchableOpacity
               key={tab.key}
               style={[
-                styles.tab,
+                themedStyles.tab,
                 selectedTab === tab.key && {
                   backgroundColor: theme.colors.primary,
                 },
@@ -382,7 +525,7 @@ export default function StatsScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={themedStyles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
@@ -396,96 +539,116 @@ export default function StatsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  tabContainer: {
-    flexDirection: 'row',
-    marginTop: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-    padding: 4,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 6,
-    alignItems: 'center',
-  },
-  scrollView: {
-    flex: 1,
-  },
-  tabContent: {
-    padding: 16,
-  },
-  section: {
-    marginBottom: 24,
-  },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    minWidth: '45%',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  metricItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  metricInfo: {
-    flex: 1,
-  },
-  viewAllButton: {
-    marginTop: 8,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  emptyButton: {
-    marginTop: 16,
-  },
-  trendItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  trendInfo: {
-    flex: 1,
-  },
-  trendValue: {
-    alignItems: 'flex-end',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    header: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.xxl,
+      paddingBottom: theme.spacing.lg,
+      backgroundColor: theme.colors.surface,
+    },
+    tabContainer: {
+      flexDirection: 'row',
+      marginTop: theme.spacing.lg,
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.05)'
+        : 'rgba(0,0,0,0.05)',
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.xs,
+    },
+    tab: {
+      flex: 1,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      borderRadius: theme.radius.sm,
+      alignItems: 'center',
+    },
+    scrollView: {
+      flex: 1,
+    },
+    tabContent: {
+      padding: theme.spacing.lg,
+    },
+    section: {
+      marginBottom: theme.spacing.xl,
+    },
+    overviewSection: {
+      marginBottom: theme.spacing.xxl,
+    },
+    sectionHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+    },
+    statCard: {
+      flex: 1,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surface,
+      ...theme.shadows.md,
+    },
+    statIconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radius.round,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    metricItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      marginBottom: theme.spacing.sm,
+      ...theme.shadows.sm,
+    },
+    metricInfo: {
+      flex: 1,
+    },
+    viewAllButton: {
+      marginTop: theme.spacing.sm,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      padding: theme.spacing.xxl,
+    },
+    emptyButton: {
+      marginTop: theme.spacing.lg,
+    },
+    trendItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      marginBottom: theme.spacing.sm,
+      ...theme.shadows.sm,
+    },
+    trendInfo: {
+      flex: 1,
+    },
+    trendValue: {
+      alignItems: 'flex-end',
+    },
+  });

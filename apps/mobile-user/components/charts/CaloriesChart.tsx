@@ -1,6 +1,7 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
   StyleSheet,
@@ -30,16 +31,44 @@ export default function CaloriesChart({
   onPeriodChange,
 }: CaloriesChartProps) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
+  const themedStyles = styles(theme);
+
+  // Get labels based on period
+  const getLabels = () => {
+    if (selectedPeriod === 'week') {
+      return [
+        t('stats.days.mon'),
+        t('stats.days.tue'),
+        t('stats.days.wed'),
+        t('stats.days.thu'),
+        t('stats.days.fri'),
+        t('stats.days.sat'),
+        t('stats.days.sun'),
+      ];
+    } else if (selectedPeriod === 'month') {
+      return [
+        t('stats.weeks.week1'),
+        t('stats.weeks.week2'),
+        t('stats.weeks.week3'),
+        t('stats.weeks.week4'),
+      ];
+    } else {
+      return [
+        t('stats.months.jan'),
+        t('stats.months.feb'),
+        t('stats.months.mar'),
+        t('stats.months.apr'),
+        t('stats.months.may'),
+        t('stats.months.jun'),
+      ];
+    }
+  };
 
   // Default data if none provided
   const defaultData = {
-    labels:
-      selectedPeriod === 'week'
-        ? ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-        : selectedPeriod === 'month'
-        ? ['Week 1', 'Week 2', 'Week 3', 'Week 4']
-        : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+    labels: getLabels(),
     datasets: [
       {
         data:
@@ -68,10 +97,13 @@ export default function CaloriesChart({
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surface,
     decimalPlaces: 0,
-    color: (opacity = 1) => `rgba(255, 107, 107, ${opacity})`, // Use specific color
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`, // Use black for labels
+    color: (opacity = 1) => `rgba(255, 107, 107, ${opacity})`,
+    labelColor: (opacity = 1) =>
+      theme.isDark
+        ? `rgba(255, 255, 255, ${opacity})`
+        : `rgba(0, 0, 0, ${opacity})`,
     style: {
-      borderRadius: 16,
+      borderRadius: theme.radius.lg,
     },
     propsForBackgroundLines: {
       strokeDasharray: '',
@@ -87,9 +119,9 @@ export default function CaloriesChart({
   };
 
   const periods = [
-    { key: 'week', label: 'Week' },
-    { key: 'month', label: 'Month' },
-    { key: 'year', label: 'Year' },
+    { key: 'week', label: t('stats.weekly') },
+    { key: 'month', label: t('stats.monthly') },
+    { key: 'year', label: t('stats.yearly') },
   ] as const;
 
   const totalCalories = chartData.datasets[0].data.reduce((a, b) => a + b, 0);
@@ -97,18 +129,23 @@ export default function CaloriesChart({
   const maxCalories = Math.max(...chartData.datasets[0].data);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Calories Burned
+    <View
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.surface },
+      ]}
+    >
+      <View style={themedStyles.headerContainer}>
+        <Text style={[Typography.h4, { color: theme.colors.text }]}>
+          {t('stats.caloriesBurned')}
         </Text>
 
-        <View style={styles.periodSelector}>
+        <View style={themedStyles.periodSelector}>
           {periods.map((periodOption) => (
             <TouchableOpacity
               key={periodOption.key}
               style={[
-                styles.periodButton,
+                themedStyles.periodButton,
                 {
                   backgroundColor:
                     selectedPeriod === periodOption.key
@@ -121,7 +158,7 @@ export default function CaloriesChart({
             >
               <Text
                 style={[
-                  styles.periodButtonText,
+                  Typography.labelSmall,
                   {
                     color:
                       selectedPeriod === periodOption.key
@@ -137,13 +174,13 @@ export default function CaloriesChart({
         </View>
       </View>
 
-      <View style={styles.chartContainer}>
+      <View style={themedStyles.chartContainer}>
         <BarChart
           data={chartData}
           width={screenWidth - 32}
           height={220}
           chartConfig={chartConfig}
-          style={styles.chart}
+          style={themedStyles.chart}
           withVerticalLabels={true}
           withHorizontalLabels={true}
           showValuesOnTopOfBars={true}
@@ -153,37 +190,50 @@ export default function CaloriesChart({
         />
       </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: theme.colors.primary }]}>
+      <View style={themedStyles.statsContainer}>
+        <View style={themedStyles.statItem}>
+          <Text style={[Typography.h5, { color: theme.colors.primary }]}>
             {totalCalories.toLocaleString()}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Total Calories
+            {t('stats.totalCalories')}
           </Text>
         </View>
 
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: theme.colors.success }]}>
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
+          <Text style={[Typography.h5, { color: theme.colors.success }]}>
             {maxCalories.toLocaleString()}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Peak Day
+            {t('stats.peakDay')}
           </Text>
         </View>
 
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: theme.colors.warning }]}>
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
+          <Text style={[Typography.h5, { color: theme.colors.warning }]}>
             {Math.round(averageCalories).toLocaleString()}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Daily Average
+            {t('stats.average')}
           </Text>
         </View>
       </View>
@@ -191,57 +241,53 @@ export default function CaloriesChart({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    ...Typography.h4,
-    fontWeight: '600',
-  },
-  periodSelector: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  periodButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  periodButtonText: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-  },
-  chartContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  chart: {
-    borderRadius: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    ...Typography.h3,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  statLabel: {
-    ...Typography.bodySmall,
-    textAlign: 'center',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      marginVertical: theme.spacing.sm,
+      ...theme.shadows.md,
+    },
+    headerContainer: {
+      marginBottom: theme.spacing.md,
+    },
+    periodSelector: {
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
+      flexWrap: 'wrap',
+    },
+    periodButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.round,
+      borderWidth: 1,
+      minWidth: 80,
+      alignItems: 'center',
+    },
+    chartContainer: {
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    chart: {
+      borderRadius: theme.radius.lg,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    statItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    statDivider: {
+      width: 1,
+      height: '80%',
+      backgroundColor: theme.colors.border,
+    },
+  });

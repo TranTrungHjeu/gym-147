@@ -28,7 +28,7 @@ import {
 
 export default function HomeScreen() {
   const { theme } = useTheme();
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const router = useRouter();
 
   // State for API data
@@ -175,12 +175,12 @@ export default function HomeScreen() {
         const transformedActivities = recentSessions.map(
           (session: any, index: number) => ({
             id: session.id,
-            title: `Gym Session - ${new Date(
+            title: `${t('session.gymSession')} - ${new Date(
               session.entry_time
-            ).toLocaleDateString()}`,
-            progress: Math.min((session.duration || 0) / 120, 1), // Normalize to 0-1, max 120 minutes
-            metric: 'Duration',
-            metricValue: `${session.duration || 0} min`,
+            ).toLocaleDateString(i18n.language)}`,
+            progress: Math.min((session.duration || 0) / 120, 1) * 100, // Normalize to 0-100, max 120 minutes
+            metric: t('session.durationMetric'),
+            metricValue: `${session.duration || 0} ${t('session.minutes')}`,
             progressColor:
               session.session_rating >= 4
                 ? '#4CAF50'
@@ -337,7 +337,7 @@ export default function HomeScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading...
+            {t('common.loading')}
           </Text>
         </View>
       </SafeAreaView>
@@ -508,7 +508,7 @@ export default function HomeScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Loading workout plans...
+                  {t('workouts.loadingWorkouts')}
                 </Text>
               </View>
             ) : workouts.length > 0 ? (
@@ -518,7 +518,7 @@ export default function HomeScreen() {
                   <WorkoutCard
                     key={workout.id}
                     title={workout.name}
-                    duration={`${workout.duration_weeks} weeks`}
+                    duration={`${workout.duration_weeks} ${t('common.weeks')}`}
                     exercises={workout.exercises?.length || 0}
                     image="https://images.pexels.com/photos/1229356/pexels-photo-1229356.jpeg?auto=compress&cs=tinysrgb&w=800"
                     onPress={() => router.push(`/workouts/${workout.id}`)}

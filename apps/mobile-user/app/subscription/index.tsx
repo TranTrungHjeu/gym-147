@@ -13,6 +13,7 @@ import {
   TrendingUp,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -27,6 +28,26 @@ export default function SubscriptionScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
+
+  // Helper function to get subscription status translation
+  const getStatusTranslation = (status: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return t('subscription.status.active');
+      case 'INACTIVE':
+        return t('subscription.status.inactive');
+      case 'CANCELLED':
+        return t('subscription.status.cancelled');
+      case 'EXPIRED':
+        return t('subscription.status.expired');
+      case 'PENDING':
+        return t('subscription.status.pending');
+      default:
+        return status;
+    }
+  };
+
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -48,7 +69,7 @@ export default function SubscriptionScreen() {
       setUpcomingInvoices(invoicesData);
     } catch (error) {
       console.error('Error loading subscription data:', error);
-      Alert.alert('Error', 'Failed to load subscription data');
+      Alert.alert(t('common.error'), t('subscription.failedToLoad'));
     }
   };
 
@@ -79,24 +100,20 @@ export default function SubscriptionScreen() {
   };
 
   const handleCancelSubscription = () => {
-    Alert.alert(
-      'Cancel Subscription',
-      'Are you sure you want to cancel your subscription? You will lose access to premium features.',
-      [
-        { text: 'Keep Subscription', style: 'cancel' },
-        {
-          text: 'Cancel Subscription',
-          style: 'destructive',
-          onPress: () => {
-            // TODO: Implement cancellation
-            Alert.alert(
-              'Cancellation',
-              'Subscription cancellation not implemented yet'
-            );
-          },
+    Alert.alert(t('common.cancel'), t('subscription.cancelConfirm'), [
+      { text: t('common.no'), style: 'cancel' },
+      {
+        text: t('common.yes'),
+        style: 'destructive',
+        onPress: () => {
+          // TODO: Implement cancellation
+          Alert.alert(
+            t('common.cancel'),
+            'Subscription cancellation not implemented yet'
+          );
         },
-      ]
-    );
+      },
+    ]);
   };
 
   useEffect(() => {
@@ -116,7 +133,7 @@ export default function SubscriptionScreen() {
               { color: theme.colors.textSecondary },
             ]}
           >
-            Loading subscription...
+            {t('common.loading')}...
           </Text>
         </View>
       </View>
@@ -129,7 +146,7 @@ export default function SubscriptionScreen() {
     >
       <View style={styles.header}>
         <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Subscription
+          {t('subscription.title')}
         </Text>
       </View>
 
@@ -174,7 +191,7 @@ export default function SubscriptionScreen() {
                       },
                     ]}
                   >
-                    {subscription.status}
+                    {getStatusTranslation(subscription.status)}
                   </Text>
                 </View>
               </View>
@@ -196,12 +213,12 @@ export default function SubscriptionScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    Next Billing
+                    {t('subscription.nextBilling')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    {new Date(
-                      subscription.nextBillingDate
-                    ).toLocaleDateString()}
+                    {new Date(subscription.nextBillingDate).toLocaleDateString(
+                      i18n.language
+                    )}
                   </Text>
                 </View>
                 <View style={styles.detailItem}>
@@ -211,7 +228,7 @@ export default function SubscriptionScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    Amount
+                    {t('subscription.amount')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
                     ${subscription.amount} {subscription.currency}
@@ -224,23 +241,23 @@ export default function SubscriptionScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    Auto Renew
+                    {t('subscription.autoRenew')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    {subscription.autoRenew ? 'Yes' : 'No'}
+                    {subscription.autoRenew ? t('common.yes') : t('common.no')}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.subscriptionActions}>
                 <Button
-                  title="Upgrade Plan"
+                  title={t('subscription.upgradePlan')}
                   onPress={handleUpgradeSubscription}
                   variant="outline"
                   style={styles.actionButton}
                 />
                 <Button
-                  title="Cancel"
+                  title={t('common.cancel')}
                   onPress={handleCancelSubscription}
                   variant="outline"
                   style={[
@@ -254,7 +271,7 @@ export default function SubscriptionScreen() {
             {subscription.addons.length > 0 && (
               <View style={styles.addonsContainer}>
                 <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                  Active Add-ons
+                  {t('subscription.activeAddons')}
                 </Text>
                 {subscription.addons.map((addon) => (
                   <View
@@ -285,7 +302,7 @@ export default function SubscriptionScreen() {
         ) : (
           <View style={styles.noSubscriptionContainer}>
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              No Active Subscription
+              {t('subscription.noActiveSubscription')}
             </Text>
             <Text
               style={[
@@ -293,10 +310,10 @@ export default function SubscriptionScreen() {
                 { color: theme.colors.textSecondary },
               ]}
             >
-              Choose a plan to get started with premium features
+              {t('subscription.choosePlan')}
             </Text>
             <Button
-              title="View Plans"
+              title={t('subscription.viewPlans')}
               onPress={handleViewPlans}
               style={styles.viewPlansButton}
             />
@@ -305,7 +322,7 @@ export default function SubscriptionScreen() {
 
         <View style={styles.quickActions}>
           <Text style={[Typography.h3, { color: theme.colors.text }]}>
-            Quick Actions
+            {t('subscription.quickActions')}
           </Text>
 
           <View style={styles.actionGrid}>
@@ -318,7 +335,7 @@ export default function SubscriptionScreen() {
             >
               <TrendingUp size={24} color={theme.colors.primary} />
               <Text style={[Typography.body, { color: theme.colors.text }]}>
-                View Plans
+                {t('subscription.viewPlans')}
               </Text>
             </TouchableOpacity>
 

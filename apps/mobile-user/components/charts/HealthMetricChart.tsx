@@ -2,6 +2,7 @@ import type { HealthMetricChartProps } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dimensions, StyleSheet, Text, View } from 'react-native';
 
 const screenWidth = Dimensions.get('window').width;
@@ -15,16 +16,16 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
   goalValue,
 }) => {
   const { theme } = useTheme();
+  const { t, i18n } = useTranslation();
+  const themedStyles = styles(theme);
 
   if (!data || data.length === 0) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.surface }]}
-      >
+      <View style={themedStyles.container}>
         <Text
           style={[Typography.bodyLarge, { color: theme.colors.textSecondary }]}
         >
-          No data available
+          {t('health.trends.noData')}
         </Text>
       </View>
     );
@@ -42,12 +43,15 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
   if (validData.length === 0) {
     return (
       <View
-        style={[styles.container, { backgroundColor: theme.colors.surface }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.surface },
+        ]}
       >
         <Text
           style={[Typography.bodyLarge, { color: theme.colors.textSecondary }]}
         >
-          No valid data available
+          {t('health.trends.noData')}
         </Text>
       </View>
     );
@@ -69,17 +73,17 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
           return `Point ${index + 1}`;
         }
         if (period === 'daily') {
-          return date.toLocaleDateString('en-US', {
+          return date.toLocaleDateString(i18n.language, {
             month: 'short',
             day: 'numeric',
           });
         } else if (period === 'weekly') {
-          return date.toLocaleDateString('en-US', {
+          return date.toLocaleDateString(i18n.language, {
             month: 'short',
             day: 'numeric',
           });
         } else {
-          return date.toLocaleDateString('en-US', { month: 'short' });
+          return date.toLocaleDateString(i18n.language, { month: 'short' });
         }
       } catch (error) {
         return `Point ${index + 1}`;
@@ -152,30 +156,30 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
 
   const getMetricDisplayName = (metricType: string) => {
     const names: Record<string, string> = {
-      WEIGHT: 'Weight',
-      BODY_FAT: 'Body Fat',
-      MUSCLE_MASS: 'Muscle Mass',
-      BMI: 'BMI',
-      HEART_RATE: 'Heart Rate',
-      BLOOD_PRESSURE: 'Blood Pressure',
-      BODY_TEMPERATURE: 'Body Temperature',
-      SLEEP_HOURS: 'Sleep Hours',
-      WATER_INTAKE: 'Water Intake',
-      STEPS: 'Steps',
-      CALORIES_BURNED: 'Calories Burned',
-      CALORIES_CONSUMED: 'Calories Consumed',
+      WEIGHT: t('health.metricTypes.weight'),
+      BODY_FAT: t('health.metricTypes.bodyFat'),
+      MUSCLE_MASS: t('health.metricTypes.muscleMass'),
+      BMI: t('health.metricTypes.bmi'),
+      HEART_RATE: t('health.metricTypes.heartRate'),
+      BLOOD_PRESSURE: t('health.metricTypes.bloodPressure'),
+      BODY_TEMPERATURE: t('health.metricTypes.bodyTemperature'),
+      SLEEP_HOURS: t('health.metricTypes.sleepHours'),
+      WATER_INTAKE: t('health.metricTypes.waterIntake'),
+      STEPS: t('health.metricTypes.steps'),
+      CALORIES_BURNED: t('health.metricTypes.caloriesBurned'),
+      CALORIES_CONSUMED: t('health.metricTypes.caloriesConsumed'),
     };
     return names[metricType] || metricType;
   };
 
   const getMetricUnit = (metricType: string) => {
     const units: Record<string, string> = {
-      WEIGHT: 'kg',
-      BODY_FAT: '%',
-      MUSCLE_MASS: 'kg',
+      WEIGHT: t('health.units.kg'),
+      BODY_FAT: t('health.units.percent'),
+      MUSCLE_MASS: t('health.units.kg'),
       BMI: '',
-      HEART_RATE: 'bpm',
-      BLOOD_PRESSURE: 'mmHg',
+      HEART_RATE: t('health.units.bpm'),
+      BLOOD_PRESSURE: t('health.units.mmHg'),
       BODY_TEMPERATURE: '°C',
       SLEEP_HOURS: 'h',
       WATER_INTAKE: 'L',
@@ -208,16 +212,33 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.header}>
-        <Text style={[Typography.h3, { color: theme.colors.text }]}>
+    <View
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.surface },
+      ]}
+    >
+      <View style={themedStyles.header}>
+        <Text style={[Typography.h4, { color: theme.colors.text }]}>
           {getMetricDisplayName(type)}
         </Text>
         {showTrend && trend && (
-          <View style={styles.trendContainer}>
+          <View
+            style={[
+              themedStyles.trendBadge,
+              {
+                backgroundColor:
+                  trend.direction === 'UP'
+                    ? theme.colors.success + '15'
+                    : trend.direction === 'DOWN'
+                    ? theme.colors.error + '15'
+                    : theme.colors.textSecondary + '15',
+              },
+            ]}
+          >
             <Text
               style={[
-                Typography.caption,
+                Typography.labelSmall,
                 {
                   color:
                     trend.direction === 'UP'
@@ -229,10 +250,10 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
               ]}
             >
               {trend.direction === 'UP'
-                ? '↗'
+                ? '↗ '
                 : trend.direction === 'DOWN'
-                ? '↘'
-                : '→'}
+                ? '↘ '
+                : '→ '}
               {Math.abs(trend.changePercentage).toFixed(1)}%
             </Text>
           </View>
@@ -240,47 +261,51 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
       </View>
 
       {!isValidChartData ? (
-        <View style={styles.errorContainer}>
+        <View style={themedStyles.errorContainer}>
           <Text
             style={[
               Typography.bodyLarge,
               { color: theme.colors.textSecondary },
             ]}
           >
-            No valid data to display
+            {t('health.trends.noData')}
           </Text>
         </View>
       ) : (
-        <View style={styles.simpleChartContainer}>
-          <Text
-            style={[
-              Typography.h4,
-              { color: theme.colors.text, marginBottom: 16 },
-            ]}
-          >
-            {getMetricDisplayName(type)} Trend
-          </Text>
-
-          {/* Simple data visualization */}
-          <View style={styles.dataContainer}>
-            {sortedData.slice(-5).map((metric, index) => {
+        <View style={themedStyles.chartWrapper}>
+          {/* Data visualization */}
+          <View style={themedStyles.dataContainer}>
+            {sortedData.slice(-5).map((metric, index, array) => {
               const date = new Date(
                 metric.recordedAt || (metric as any).recorded_at
               );
+              const isLastItem = index === array.length - 1;
               return (
-                <View key={metric.id || index} style={styles.dataRow}>
+                <View
+                  key={metric.id || index}
+                  style={[
+                    themedStyles.dataRow,
+                    isLastItem && { borderBottomWidth: 0 },
+                  ]}
+                >
                   <Text
                     style={[
-                      Typography.caption,
+                      Typography.labelSmall,
                       { color: theme.colors.textSecondary },
                     ]}
                   >
                     {isNaN(date.getTime())
                       ? `Point ${index + 1}`
-                      : date.toLocaleDateString()}
+                      : date.toLocaleDateString(i18n.language, {
+                          month: 'short',
+                          day: 'numeric',
+                        })}
                   </Text>
                   <Text
-                    style={[Typography.bodyLarge, { color: theme.colors.text }]}
+                    style={[
+                      Typography.bodyMedium,
+                      { color: theme.colors.text },
+                    ]}
                   >
                     {metric.value.toFixed(1)} {metric.unit}
                   </Text>
@@ -291,10 +316,29 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
 
           {/* Trend indicator */}
           {trend && (
-            <View style={styles.trendIndicator}>
+            <View
+              style={[
+                themedStyles.trendIndicator,
+                {
+                  backgroundColor:
+                    trend.direction === 'UP'
+                      ? theme.colors.success + '10'
+                      : trend.direction === 'DOWN'
+                      ? theme.colors.error + '10'
+                      : theme.colors.textSecondary + '10',
+                  borderLeftWidth: 3,
+                  borderLeftColor:
+                    trend.direction === 'UP'
+                      ? theme.colors.success
+                      : trend.direction === 'DOWN'
+                      ? theme.colors.error
+                      : theme.colors.textSecondary,
+                },
+              ]}
+            >
               <Text
                 style={[
-                  Typography.caption,
+                  Typography.labelSmall,
                   {
                     color:
                       trend.direction === 'UP'
@@ -306,11 +350,12 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
                 ]}
               >
                 {trend.direction === 'UP'
-                  ? '↗'
+                  ? '↗ '
                   : trend.direction === 'DOWN'
-                  ? '↘'
-                  : '→'}
-                {Math.abs(trend.changePercentage).toFixed(1)}% change
+                  ? '↘ '
+                  : '→ '}
+                {Math.abs(trend.changePercentage).toFixed(1)}%{' '}
+                {t('health.change')}
               </Text>
             </View>
           )}
@@ -318,49 +363,101 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
       )}
 
       {showGoal && goalValue && (
-        <View style={styles.goalContainer}>
+        <View style={themedStyles.goalContainer}>
           <Text
-            style={[Typography.caption, { color: theme.colors.textSecondary }]}
+            style={[Typography.labelSmall, { color: theme.colors.success }]}
           >
-            Goal: {goalValue} {getMetricUnit(type)}
+            🎯 {t('health.goal')}: {goalValue} {getMetricUnit(type)}
           </Text>
         </View>
       )}
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
+      <View style={themedStyles.statsContainer}>
+        <View style={themedStyles.statItem}>
           <Text
-            style={[Typography.caption, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary },
+            ]}
           >
-            Current
+            {t('health.current')}
           </Text>
-          <Text style={[Typography.bodyLarge, { color: theme.colors.text }]}>
-            {sortedData[sortedData.length - 1]?.value.toFixed(1)}{' '}
+          <Text
+            style={[
+              Typography.h5,
+              { color: theme.colors.primary, marginTop: theme.spacing.xs },
+            ]}
+          >
+            {sortedData[sortedData.length - 1]?.value.toFixed(1)}
+          </Text>
+          <Text
+            style={[
+              Typography.caption,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
+          >
             {getMetricUnit(type)}
           </Text>
         </View>
-        <View style={styles.statItem}>
+
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
           <Text
-            style={[Typography.caption, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary },
+            ]}
           >
-            Average
+            {t('health.average')}
           </Text>
-          <Text style={[Typography.bodyLarge, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              Typography.h5,
+              { color: theme.colors.text, marginTop: theme.spacing.xs },
+            ]}
+          >
             {(
               sortedData.reduce((sum, metric) => sum + metric.value, 0) /
               sortedData.length
-            ).toFixed(1)}{' '}
+            ).toFixed(1)}
+          </Text>
+          <Text
+            style={[
+              Typography.caption,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
+          >
             {getMetricUnit(type)}
           </Text>
         </View>
-        <View style={styles.statItem}>
+
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
           <Text
-            style={[Typography.caption, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary },
+            ]}
           >
-            Records
+            {t('health.records')}
           </Text>
-          <Text style={[Typography.bodyLarge, { color: theme.colors.text }]}>
+          <Text
+            style={[
+              Typography.h5,
+              { color: theme.colors.text, marginTop: theme.spacing.xs },
+            ]}
+          >
             {sortedData.length}
+          </Text>
+          <Text
+            style={[
+              Typography.caption,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
+          >
+            {t('health.records').toLowerCase()}
           </Text>
         </View>
       </View>
@@ -368,80 +465,98 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  container: {
-    padding: 16,
-    borderRadius: 12,
-    marginVertical: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  trendContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  chart: {
-    marginVertical: 8,
-    borderRadius: 16,
-  },
-  goalContainer: {
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginTop: 16,
-    paddingTop: 16,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  errorContainer: {
-    height: 220,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  chartWrapper: {
-    alignItems: 'center',
-    marginVertical: 8,
-  },
-  simpleChartContainer: {
-    height: 220,
-    padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.02)',
-    borderRadius: 8,
-    marginVertical: 8,
-  },
-  dataContainer: {
-    flex: 1,
-    justifyContent: 'space-around',
-  },
-  dataRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  trendIndicator: {
-    alignItems: 'center',
-    marginTop: 8,
-    padding: 8,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    borderRadius: 6,
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      marginVertical: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      ...theme.shadows.md,
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    trendBadge: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.round,
+      ...theme.shadows.sm,
+    },
+    chart: {
+      marginVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+    },
+    goalContainer: {
+      marginTop: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.success + '10',
+      borderRadius: theme.radius.md,
+      alignItems: 'center',
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.success,
+    },
+    chartWrapper: {
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.03)'
+        : 'rgba(0,0,0,0.03)',
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      marginVertical: theme.spacing.sm,
+    },
+    dataContainer: {
+      gap: theme.spacing.xs,
+    },
+    dataRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border + '40',
+    },
+    trendIndicator: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginTop: theme.spacing.md,
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginTop: theme.spacing.lg,
+      paddingTop: theme.spacing.lg,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    statItem: {
+      alignItems: 'center',
+      flex: 1,
+      paddingVertical: theme.spacing.xs,
+    },
+    statDivider: {
+      width: 1,
+      height: '80%',
+      backgroundColor: theme.colors.border,
+    },
+    errorContainer: {
+      minHeight: 180,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.03)'
+        : 'rgba(0,0,0,0.03)',
+      borderRadius: theme.radius.md,
+      marginVertical: theme.spacing.md,
+      padding: theme.spacing.xl,
+    },
+  });

@@ -47,14 +47,15 @@ class AchievementService {
 
       // Handle different response structures
       let achievements = [];
-      if (response.data?.achievements) {
-        achievements = response.data.achievements;
-      } else if (response.data?.data?.achievements) {
-        achievements = response.data.data.achievements;
-      } else if (Array.isArray(response.data)) {
-        achievements = response.data;
-      } else if (Array.isArray(response.data?.data)) {
-        achievements = response.data.data;
+      const data = response.data as any;
+      if (data?.achievements) {
+        achievements = data.achievements;
+      } else if (data?.data?.achievements) {
+        achievements = data.data.achievements;
+      } else if (Array.isArray(data)) {
+        achievements = data;
+      } else if (Array.isArray(data?.data)) {
+        achievements = data.data;
       }
 
       console.log(
@@ -78,7 +79,7 @@ class AchievementService {
   ): Promise<{ success: boolean; data?: Achievement; error?: string }> {
     try {
       const response = await memberApiService.get(`/achievements/${id}`);
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as Achievement };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -94,7 +95,7 @@ class AchievementService {
   }> {
     try {
       const response = await memberApiService.get('/achievements/summary');
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as AchievementSummary };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -108,7 +109,7 @@ class AchievementService {
   ): Promise<{ success: boolean; data?: Achievement; error?: string }> {
     try {
       const response = await memberApiService.post('/achievements', data);
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as Achievement };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -123,7 +124,7 @@ class AchievementService {
   ): Promise<{ success: boolean; data?: Achievement; error?: string }> {
     try {
       const response = await memberApiService.put(`/achievements/${id}`, data);
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as Achievement };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -139,7 +140,7 @@ class AchievementService {
   }> {
     try {
       const response = await memberApiService.post('/achievements/check');
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as Achievement[] };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -150,16 +151,49 @@ class AchievementService {
    * @param params - Query parameters for filtering leaderboard (e.g., period, limit)
    */
   async getLeaderboard(params?: {
-    period?: 'week' | 'month' | 'all_time';
+    period?:
+      | 'weekly'
+      | 'monthly'
+      | 'yearly'
+      | 'alltime'
+      | 'week'
+      | 'month'
+      | 'all_time';
     limit?: number;
   }): Promise<{ success: boolean; data?: LeaderboardEntry[]; error?: string }> {
     try {
-      const response = await memberApiService.get('/achievements/leaderboard', {
-        params,
-      });
-      return { success: true, data: response.data };
+      const response = await memberApiService.get(
+        '/achievements/leaderboard',
+        params
+      );
+      // Return empty array if no data
+      const data = response.data as any;
+      const leaderboardData = data?.data || data || [];
+      return { success: true, data: leaderboardData as LeaderboardEntry[] };
     } catch (error: any) {
-      return { success: false, error: error.message };
+      console.error('Error fetching leaderboard:', error);
+      return { success: true, data: [] }; // Return empty array to prevent crashes
+    }
+  }
+
+  /**
+   * Get user rank in leaderboard
+   * @param userId - User ID
+   * @param period - Time period (weekly, monthly, alltime)
+   */
+  async getUserRank(
+    userId: string,
+    period?: string
+  ): Promise<LeaderboardEntry | null> {
+    try {
+      const response = await memberApiService.get(
+        `/achievements/leaderboard/user/${userId}`,
+        period ? { period } : undefined
+      );
+      return response.data as LeaderboardEntry;
+    } catch (error: any) {
+      console.error('Error fetching user rank:', error);
+      return null;
     }
   }
 
@@ -173,7 +207,7 @@ class AchievementService {
       const response = await memberApiService.post(
         `/achievements/${achievementId}/unlock`
       );
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as Achievement };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
@@ -203,7 +237,7 @@ class AchievementService {
   }> {
     try {
       const response = await memberApiService.get('/achievements/categories');
-      return { success: true, data: response.data };
+      return { success: true, data: response.data as AchievementCategory[] };
     } catch (error: any) {
       return { success: false, error: error.message };
     }

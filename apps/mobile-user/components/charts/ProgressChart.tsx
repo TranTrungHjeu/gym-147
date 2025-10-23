@@ -1,6 +1,7 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
   StyleSheet,
@@ -41,12 +42,24 @@ export default function ProgressChart({
   onMetricChange,
 }: ProgressChartProps) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [selectedMetric, setSelectedMetric] = useState(metric);
+  const themedStyles = styles(theme);
+
+  // Default labels
+  const defaultLabels = [
+    t('stats.months.jan'),
+    t('stats.months.feb'),
+    t('stats.months.mar'),
+    t('stats.months.apr'),
+    t('stats.months.may'),
+    t('stats.months.jun'),
+  ];
 
   // Default data if none provided
   const defaultData = {
     weight: {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      labels: defaultLabels,
       datasets: [
         {
           data: [75.2, 74.8, 74.1, 73.5, 72.9, 72.3],
@@ -60,7 +73,7 @@ export default function ProgressChart({
       ],
     },
     bodyFat: {
-      labels: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+      labels: defaultLabels,
       datasets: [
         {
           data: [18.5, 18.2, 17.8, 17.4, 17.0, 16.7],
@@ -83,10 +96,13 @@ export default function ProgressChart({
     backgroundGradientFrom: theme.colors.surface,
     backgroundGradientTo: theme.colors.surface,
     decimalPlaces: 1,
-    color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`, // Blue color
-    labelColor: (opacity = 1) => `rgba(0, 0, 0, ${opacity})`,
+    color: (opacity = 1) => `rgba(33, 150, 243, ${opacity})`,
+    labelColor: (opacity = 1) =>
+      theme.isDark
+        ? `rgba(255, 255, 255, ${opacity})`
+        : `rgba(0, 0, 0, ${opacity})`,
     style: {
-      borderRadius: 16,
+      borderRadius: theme.radius.lg,
     },
     propsForDots: {
       r: '6',
@@ -109,8 +125,16 @@ export default function ProgressChart({
   };
 
   const metrics = [
-    { key: 'weight', label: 'Weight', unit: 'kg' },
-    { key: 'bodyFat', label: 'Body Fat', unit: '%' },
+    {
+      key: 'weight',
+      label: t('health.metricTypes.weight'),
+      unit: t('health.units.kg'),
+    },
+    {
+      key: 'bodyFat',
+      label: t('health.metricTypes.bodyFat'),
+      unit: t('health.units.percent'),
+    },
   ] as const;
 
   const currentValues = currentData.datasets[0].data;
@@ -120,18 +144,23 @@ export default function ProgressChart({
   const changePercent = ((change / startValue) * 100).toFixed(1);
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.surface }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.colors.text }]}>
-          Progress Tracking
+    <View
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.surface },
+      ]}
+    >
+      <View style={themedStyles.headerContainer}>
+        <Text style={[Typography.h4, { color: theme.colors.text }]}>
+          {t('stats.progressTracking')}
         </Text>
 
-        <View style={styles.metricSelector}>
+        <View style={themedStyles.metricSelector}>
           {metrics.map((metricOption) => (
             <TouchableOpacity
               key={metricOption.key}
               style={[
-                styles.metricButton,
+                themedStyles.metricButton,
                 {
                   backgroundColor:
                     selectedMetric === metricOption.key
@@ -146,7 +175,7 @@ export default function ProgressChart({
             >
               <Text
                 style={[
-                  styles.metricButtonText,
+                  Typography.labelSmall,
                   {
                     color:
                       selectedMetric === metricOption.key
@@ -162,14 +191,14 @@ export default function ProgressChart({
         </View>
       </View>
 
-      <View style={styles.chartContainer}>
+      <View style={themedStyles.chartContainer}>
         <LineChart
           data={currentData}
           width={screenWidth - 32}
           height={220}
           chartConfig={chartConfig}
           bezier
-          style={styles.chart}
+          style={themedStyles.chart}
           withInnerLines={true}
           withOuterLines={true}
           withVerticalLines={true}
@@ -180,33 +209,47 @@ export default function ProgressChart({
         />
       </View>
 
-      <View style={styles.statsContainer}>
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: theme.colors.text }]}>
+      <View style={themedStyles.statsContainer}>
+        <View style={themedStyles.statItem}>
+          <Text style={[Typography.h5, { color: theme.colors.text }]}>
             {startValue.toFixed(1)}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Starting {selectedMetric === 'weight' ? 'Weight' : 'Body Fat'}
+            {selectedMetric === 'weight'
+              ? t('stats.startingWeight')
+              : t('stats.startingBodyFat')}
           </Text>
         </View>
 
-        <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: theme.colors.text }]}>
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
+          <Text style={[Typography.h5, { color: theme.colors.text }]}>
             {endValue.toFixed(1)}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Current {selectedMetric === 'weight' ? 'Weight' : 'Body Fat'}
+            {selectedMetric === 'weight'
+              ? t('stats.currentWeight')
+              : t('stats.currentBodyFat')}
           </Text>
         </View>
 
-        <View style={styles.statItem}>
+        <View style={themedStyles.statDivider} />
+
+        <View style={themedStyles.statItem}>
           <Text
             style={[
-              styles.statValue,
+              Typography.h5,
               {
                 color:
                   change >= 0
@@ -223,81 +266,82 @@ export default function ProgressChart({
             {change.toFixed(1)}
           </Text>
           <Text
-            style={[styles.statLabel, { color: theme.colors.textSecondary }]}
+            style={[
+              Typography.labelSmall,
+              { color: theme.colors.textSecondary, marginTop: 2 },
+            ]}
           >
-            Change ({changePercent}%)
+            {t('stats.change')} ({changePercent}%)
           </Text>
         </View>
       </View>
 
-      <View style={styles.unitContainer}>
-        <Text style={[styles.unitText, { color: theme.colors.textSecondary }]}>
-          Unit: {metrics.find((m) => m.key === selectedMetric)?.unit}
+      <View style={themedStyles.unitContainer}>
+        <Text
+          style={[
+            Typography.caption,
+            { color: theme.colors.textSecondary, fontStyle: 'italic' },
+          ]}
+        >
+          {t('stats.unit')}:{' '}
+          {metrics.find((m) => m.key === selectedMetric)?.unit}
         </Text>
       </View>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 16,
-    padding: 16,
-    marginVertical: 8,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  title: {
-    ...Typography.h4,
-    fontWeight: '600',
-  },
-  metricSelector: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  metricButton: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  metricButtonText: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-  },
-  chartContainer: {
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  chart: {
-    borderRadius: 16,
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    marginBottom: 8,
-  },
-  statItem: {
-    alignItems: 'center',
-  },
-  statValue: {
-    ...Typography.h3,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  statLabel: {
-    ...Typography.bodySmall,
-    textAlign: 'center',
-  },
-  unitContainer: {
-    alignItems: 'center',
-  },
-  unitText: {
-    ...Typography.bodySmall,
-    fontStyle: 'italic',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      marginVertical: theme.spacing.sm,
+      ...theme.shadows.md,
+    },
+    headerContainer: {
+      marginBottom: theme.spacing.md,
+    },
+    metricSelector: {
+      flexDirection: 'row',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
+      flexWrap: 'wrap',
+    },
+    metricButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.round,
+      borderWidth: 1,
+      minWidth: 100,
+      alignItems: 'center',
+    },
+    chartContainer: {
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    chart: {
+      borderRadius: theme.radius.lg,
+    },
+    statsContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+      marginBottom: theme.spacing.sm,
+    },
+    statItem: {
+      alignItems: 'center',
+      flex: 1,
+    },
+    statDivider: {
+      width: 1,
+      height: '80%',
+      backgroundColor: theme.colors.border,
+    },
+    unitContainer: {
+      alignItems: 'center',
+    },
+  });

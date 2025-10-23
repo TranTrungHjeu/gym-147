@@ -4,6 +4,7 @@ import { useTheme } from '@/utils/theme';
 import { useRouter } from 'expo-router';
 import { Activity, ArrowLeft, Clock, Flame } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   FlatList,
@@ -22,6 +23,7 @@ export default function MyUsageScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
 
   // State for data
   const [loading, setLoading] = useState(true);
@@ -99,7 +101,7 @@ export default function MyUsageScreen() {
   };
 
   const formatDate = (dateTime: string) => {
-    return new Date(dateTime).toLocaleDateString('en-US', {
+    return new Date(dateTime).toLocaleDateString(i18n.language, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -107,7 +109,7 @@ export default function MyUsageScreen() {
   };
 
   const formatTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleTimeString('en-US', {
+    return new Date(dateTime).toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -121,7 +123,7 @@ export default function MyUsageScreen() {
   const getUsageByDate = () => {
     const grouped: { [key: string]: EquipmentUsage[] } = {};
     usageHistory.forEach((usage) => {
-      const date = new Date(usage.start_time).toLocaleDateString();
+      const date = new Date(usage.start_time).toLocaleDateString(i18n.language);
       if (!grouped[date]) {
         grouped[date] = [];
       }
@@ -390,7 +392,7 @@ export default function MyUsageScreen() {
         {dates.map((date) => (
           <View key={date} style={styles.dateGroup}>
             <Text style={[styles.dateHeader, { color: theme.colors.text }]}>
-              {new Date(date).toLocaleDateString('en-US', {
+              {new Date(date).toLocaleDateString(i18n.language, {
                 weekday: 'long',
                 month: 'long',
                 day: 'numeric',

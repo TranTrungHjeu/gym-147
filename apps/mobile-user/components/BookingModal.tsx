@@ -2,6 +2,7 @@ import { BookingModalProps, CreateBookingRequest } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { Calendar, Clock, MapPin, Star, Users, X } from 'lucide-react-native';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -22,11 +23,12 @@ export default function BookingModal({
   loading = false,
 }: BookingModalProps) {
   const { theme } = useTheme();
+  const { t, i18n } = useTranslation();
   const [specialNeeds, setSpecialNeeds] = useState('');
   const [notes, setNotes] = useState('');
 
   const formatTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleTimeString('en-US', {
+    return new Date(dateTime).toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -34,7 +36,7 @@ export default function BookingModal({
   };
 
   const formatDate = (dateTime: string) => {
-    return new Date(dateTime).toLocaleDateString('en-US', {
+    return new Date(dateTime).toLocaleDateString(i18n.language, {
       weekday: 'long',
       month: 'long',
       day: 'numeric',
@@ -119,7 +121,7 @@ export default function BookingModal({
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {schedule.gym_class?.duration} minutes
+                {schedule.gym_class?.duration} {t('classes.minutes')}
               </Text>
             </View>
           </View>
@@ -127,7 +129,7 @@ export default function BookingModal({
           {/* Schedule Details */}
           <View style={styles.scheduleDetails}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Class Details
+              {t('classes.classDetails')}
             </Text>
 
             <View style={styles.detailRow}>
@@ -196,7 +198,7 @@ export default function BookingModal({
                         ]}
                       >
                         {schedule.trainer.rating_average.toFixed(1)} (
-                        {schedule.trainer.total_classes} classes)
+                        {schedule.trainer.total_classes} {t('classes.classes')})
                       </Text>
                     </View>
                   )}
@@ -208,7 +210,7 @@ export default function BookingModal({
           {/* Special Requirements */}
           <View style={styles.requirementsSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Special Requirements
+              {t('classes.specialRequirements')}
             </Text>
             <TextInput
               style={[
@@ -219,7 +221,7 @@ export default function BookingModal({
                   color: theme.colors.text,
                 },
               ]}
-              placeholder="Any special needs or requirements?"
+              placeholder={t('classes.specialNeedsPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               value={specialNeeds}
               onChangeText={setSpecialNeeds}
@@ -232,7 +234,7 @@ export default function BookingModal({
           {/* Additional Notes */}
           <View style={styles.notesSection}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Additional Notes
+              {t('classes.additionalNotes')}
             </Text>
             <TextInput
               style={[
@@ -243,7 +245,7 @@ export default function BookingModal({
                   color: theme.colors.text,
                 },
               ]}
-              placeholder="Any additional notes for the trainer?"
+              placeholder={t('classes.additionalNotesPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               value={notes}
               onChangeText={setNotes}
@@ -258,9 +260,8 @@ export default function BookingModal({
             <Text
               style={[styles.termsText, { color: theme.colors.textSecondary }]}
             >
-              By booking this class, you agree to our terms and conditions.
-              {isFullyBooked &&
-                ' You will be added to the waitlist and notified if a spot becomes available.'}
+              {t('classes.bookingTerms')}
+              {isFullyBooked && ` ${t('classes.waitlistNotice')}`}
             </Text>
           </View>
         </ScrollView>
@@ -275,7 +276,7 @@ export default function BookingModal({
             <Text
               style={[styles.cancelButtonText, { color: theme.colors.text }]}
             >
-              Cancel
+              {t('common.cancel')}
             </Text>
           </TouchableOpacity>
 
@@ -299,7 +300,9 @@ export default function BookingModal({
                   { color: theme.colors.textInverse },
                 ]}
               >
-                {isFullyBooked ? 'Join Waitlist' : 'Book Class'}
+                {isFullyBooked
+                  ? t('classes.joinWaitlist')
+                  : t('classes.booking.book')}
               </Text>
             )}
           </TouchableOpacity>

@@ -122,7 +122,7 @@ export default function SupportScreen() {
       description: 'Available 24/7',
       icon: <MessageCircle size={20} color={theme.colors.primary} />,
       action: () => {
-        Alert.alert('Live Chat', 'Live chat feature coming soon!');
+        Alert.alert(t('common.info'), 'Live chat feature coming soon!');
       },
     },
   ];
@@ -133,7 +133,7 @@ export default function SupportScreen() {
 
   const handleSubmitTicket = async () => {
     if (!ticket.subject.trim() || !ticket.message.trim()) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common.error'), t('workouts.fillAllFields'));
       return;
     }
 
@@ -144,24 +144,17 @@ export default function SupportScreen() {
       // For now, we'll simulate the submission
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      Alert.alert(
-        'Ticket Submitted',
-        'Your support ticket has been submitted successfully. We will get back to you within 24 hours.',
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              setShowContactForm(false);
-              setTicket({ subject: '', message: '', category: 'general' });
-            },
+      Alert.alert(t('common.success'), t('settings.supportMessageSent'), [
+        {
+          text: t('common.ok'),
+          onPress: () => {
+            setShowContactForm(false);
+            setTicket({ subject: '', message: '', category: 'general' });
           },
-        ]
-      );
+        },
+      ]);
     } catch (error) {
-      Alert.alert(
-        'Error',
-        'Failed to submit support ticket. Please try again.'
-      );
+      Alert.alert(t('common.error'), t('settings.supportMessageFailed'));
     } finally {
       setSubmitting(false);
     }
@@ -271,7 +264,7 @@ export default function SupportScreen() {
                   onChangeText={(text) =>
                     setTicket((prev) => ({ ...prev, subject: text }))
                   }
-                  placeholder="Brief description of your issue"
+                  placeholder={t('settings.subjectPlaceholder')}
                   placeholderTextColor={theme.colors.textSecondary}
                 />
               </View>
@@ -293,7 +286,7 @@ export default function SupportScreen() {
                   onChangeText={(text) =>
                     setTicket((prev) => ({ ...prev, message: text }))
                   }
-                  placeholder="Please provide detailed information about your issue..."
+                  placeholder={t('settings.detailedMessagePlaceholder')}
                   placeholderTextColor={theme.colors.textSecondary}
                   multiline
                   numberOfLines={4}

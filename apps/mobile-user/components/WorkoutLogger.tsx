@@ -5,6 +5,7 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Activity, Clock, Flame, Save, X } from 'lucide-react-native';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Modal,
@@ -23,6 +24,7 @@ export default function WorkoutLogger({
   loading = false,
 }: WorkoutLoggerProps) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
 
   // Form state
   const [setsCompleted, setSetsCompleted] = useState(usage.sets_completed || 0);
@@ -126,7 +128,7 @@ export default function WorkoutLogger({
             ]}
           >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Workout Statistics
+              {t('equipment.usage.workoutStatistics')}
             </Text>
 
             <View style={styles.statsGrid}>
@@ -138,10 +140,10 @@ export default function WorkoutLogger({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Duration
+                  {t('equipment.usage.duration')}
                 </Text>
                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
-                  {getDurationMinutes()} min
+                  {getDurationMinutes()} {t('equipment.usage.minutes')}
                 </Text>
               </View>
 
@@ -153,7 +155,7 @@ export default function WorkoutLogger({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Calories
+                  {t('equipment.usage.caloriesBurned')}
                 </Text>
                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
                   {caloriesBurned || 0}
@@ -170,13 +172,13 @@ export default function WorkoutLogger({
             ]}
           >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Sets & Reps
+              {t('equipment.usage.setsAndReps')}
             </Text>
 
             <View style={styles.inputRow}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                  Sets Completed
+                  {t('equipment.usage.setsCompleted')}
                 </Text>
                 <TextInput
                   style={[
@@ -197,7 +199,7 @@ export default function WorkoutLogger({
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                  Reps per Set
+                  {t('equipment.usage.repsPerSet')}
                 </Text>
                 <TextInput
                   style={[
@@ -219,7 +221,7 @@ export default function WorkoutLogger({
 
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                Weight Used (kg)
+                {t('equipment.usage.weightUsed')}
               </Text>
               <TextInput
                 style={[
@@ -247,13 +249,13 @@ export default function WorkoutLogger({
             ]}
           >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Health Metrics
+              {t('equipment.usage.healthMetrics')}
             </Text>
 
             <View style={styles.inputRow}>
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                  Calories Burned
+                  {t('equipment.usage.caloriesBurned')}
                 </Text>
                 <TextInput
                   style={[
@@ -276,7 +278,7 @@ export default function WorkoutLogger({
 
               <View style={styles.inputGroup}>
                 <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                  Avg Heart Rate
+                  {t('equipment.usage.avgHeartRate')}
                 </Text>
                 <TextInput
                   style={[
@@ -298,7 +300,7 @@ export default function WorkoutLogger({
 
             <View style={styles.inputGroup}>
               <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-                Max Heart Rate
+                {t('equipment.usage.maxHeartRate')}
               </Text>
               <TextInput
                 style={[
@@ -326,7 +328,7 @@ export default function WorkoutLogger({
             ]}
           >
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Notes
+              {t('equipment.usage.notes')}
             </Text>
             <TextInput
               style={[
@@ -339,7 +341,7 @@ export default function WorkoutLogger({
               ]}
               value={notes}
               onChangeText={setNotes}
-              placeholder="Add any notes about your workout..."
+              placeholder={t('equipment.usage.notesPlaceholder')}
               placeholderTextColor={theme.colors.textSecondary}
               multiline
               numberOfLines={4}
@@ -358,7 +360,7 @@ export default function WorkoutLogger({
             <Text
               style={[styles.cancelButtonText, { color: theme.colors.text }]}
             >
-              Cancel
+              {t('common.cancel')}
             </Text>
           </TouchableOpacity>
 
@@ -384,7 +386,7 @@ export default function WorkoutLogger({
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  Save Workout
+                  {t('equipment.usage.saveWorkout')}
                 </Text>
               </>
             )}

@@ -11,6 +11,7 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { CreditCard, Download, Eye } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -25,6 +26,7 @@ export default function PaymentHistoryScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -37,22 +39,40 @@ export default function PaymentHistoryScreen() {
   );
 
   const statusOptions = [
-    { label: 'All Status', value: 'ALL' },
-    { label: 'Completed', value: 'COMPLETED' },
-    { label: 'Pending', value: 'PENDING' },
-    { label: 'Failed', value: 'FAILED' },
-    { label: 'Cancelled', value: 'CANCELLED' },
-    { label: 'Refunded', value: 'REFUNDED' },
+    { label: t('subscription.billing.statusOptions.all'), value: 'ALL' },
+    {
+      label: t('subscription.billing.statusOptions.completed'),
+      value: 'COMPLETED',
+    },
+    {
+      label: t('subscription.billing.statusOptions.pending'),
+      value: 'PENDING',
+    },
+    { label: t('subscription.billing.statusOptions.failed'), value: 'FAILED' },
+    {
+      label: t('subscription.billing.statusOptions.cancelled'),
+      value: 'CANCELLED',
+    },
+    {
+      label: t('subscription.billing.statusOptions.refunded'),
+      value: 'REFUNDED',
+    },
   ];
 
   const methodOptions = [
-    { label: 'All Methods', value: 'ALL' },
-    { label: 'Credit Card', value: 'CREDIT_CARD' },
-    { label: 'Debit Card', value: 'DEBIT_CARD' },
-    { label: 'Bank Transfer', value: 'BANK_TRANSFER' },
-    { label: 'PayPal', value: 'PAYPAL' },
-    { label: 'Apple Pay', value: 'APPLE_PAY' },
-    { label: 'Google Pay', value: 'GOOGLE_PAY' },
+    { label: t('subscription.paymentMethods.all'), value: 'ALL' },
+    {
+      label: t('subscription.paymentMethods.creditCard'),
+      value: 'CREDIT_CARD',
+    },
+    { label: t('subscription.paymentMethods.debitCard'), value: 'DEBIT_CARD' },
+    {
+      label: t('subscription.paymentMethods.bankTransfer'),
+      value: 'BANK_TRANSFER',
+    },
+    { label: t('subscription.paymentMethods.paypal'), value: 'PAYPAL' },
+    { label: t('subscription.paymentMethods.applePay'), value: 'APPLE_PAY' },
+    { label: t('subscription.paymentMethods.googlePay'), value: 'GOOGLE_PAY' },
   ];
 
   const loadData = async () => {
@@ -170,7 +190,7 @@ export default function PaymentHistoryScreen() {
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
+    return new Date(dateString).toLocaleDateString(i18n.language, {
       year: 'numeric',
       month: 'short',
       day: 'numeric',

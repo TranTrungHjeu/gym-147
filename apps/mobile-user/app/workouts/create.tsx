@@ -62,12 +62,12 @@ export default function CreateWorkoutScreen() {
       !formData.description.trim() ||
       !formData.goal.trim()
     ) {
-      Alert.alert('Error', 'Please fill in all required fields');
+      Alert.alert(t('common.error'), t('workouts.fillAllFields'));
       return;
     }
 
     if (formData.exercises.length === 0) {
-      Alert.alert('Error', 'Please add at least one exercise');
+      Alert.alert(t('common.error'), t('workouts.addAtLeastOneExercise'));
       return;
     }
 
@@ -80,14 +80,14 @@ export default function CreateWorkoutScreen() {
       // For now, simulate the API call
       await new Promise((resolve) => setTimeout(resolve, 2000));
 
-      Alert.alert('Success', 'Workout plan created successfully!', [
+      Alert.alert(t('common.success'), t('workouts.workoutCreated'), [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => router.back(),
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Failed to create workout plan');
+      Alert.alert(t('common.error'), t('workouts.failedToCreate'));
     } finally {
       setLoading(false);
     }
@@ -95,7 +95,7 @@ export default function CreateWorkoutScreen() {
 
   const addExercise = () => {
     if (!newExercise.name.trim()) {
-      Alert.alert('Error', 'Please enter exercise name');
+      Alert.alert(t('common.error'), t('workouts.enterExerciseName'));
       return;
     }
 
@@ -170,12 +170,12 @@ export default function CreateWorkoutScreen() {
           {/* Basic Information */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Basic Information
+              {t('workouts.basicInformation')}
             </Text>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Workout Name *
+                {t('workouts.workoutName')} {t('workouts.requiredField')}
               </Text>
               <TextInput
                 style={[
@@ -188,14 +188,14 @@ export default function CreateWorkoutScreen() {
                 ]}
                 value={formData.name}
                 onChangeText={(value) => updateField('name', value)}
-                placeholder="Enter workout name"
+                placeholder={t('workouts.enterWorkoutName')}
                 placeholderTextColor={theme.colors.textSecondary}
               />
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Description *
+                {t('workouts.workoutDescription')} {t('workouts.requiredField')}
               </Text>
               <TextInput
                 style={[
@@ -209,7 +209,7 @@ export default function CreateWorkoutScreen() {
                 ]}
                 value={formData.description}
                 onChangeText={(value) => updateField('description', value)}
-                placeholder="Describe your workout plan"
+                placeholder={t('workouts.describeWorkout')}
                 placeholderTextColor={theme.colors.textSecondary}
                 multiline
                 numberOfLines={3}
@@ -218,7 +218,7 @@ export default function CreateWorkoutScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Goal *
+                {t('workouts.workoutGoal')} {t('workouts.requiredField')}
               </Text>
               <TextInput
                 style={[
@@ -231,14 +231,14 @@ export default function CreateWorkoutScreen() {
                 ]}
                 value={formData.goal}
                 onChangeText={(value) => updateField('goal', value)}
-                placeholder="e.g., Build muscle, Lose weight, Improve endurance"
+                placeholder={t('workouts.workoutGoalsPlaceholder')}
                 placeholderTextColor={theme.colors.textSecondary}
               />
             </View>
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Difficulty
+                {t('workouts.workoutDifficulty')}
               </Text>
               <View style={styles.difficultyContainer}>
                 {(['BEGINNER', 'INTERMEDIATE', 'ADVANCED'] as const).map(
@@ -278,7 +278,7 @@ export default function CreateWorkoutScreen() {
 
             <View style={styles.inputGroup}>
               <Text style={[styles.label, { color: theme.colors.text }]}>
-                Duration (weeks)
+                {t('workouts.workoutDuration')}
               </Text>
               <TextInput
                 style={[
@@ -293,7 +293,7 @@ export default function CreateWorkoutScreen() {
                 onChangeText={(value) =>
                   updateField('duration_weeks', parseInt(value) || 4)
                 }
-                placeholder="4"
+                placeholder={t('workouts.setsPlaceholder')}
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="numeric"
               />
@@ -303,7 +303,7 @@ export default function CreateWorkoutScreen() {
           {/* Exercises */}
           <View style={styles.section}>
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Exercises ({formData.exercises.length})
+              {t('workouts.exercisesSection')} ({formData.exercises.length})
             </Text>
 
             {/* Add Exercise Form */}
@@ -316,7 +316,7 @@ export default function CreateWorkoutScreen() {
               <View style={styles.inputRow}>
                 <View style={styles.inputGroupSmall}>
                   <Text style={[styles.label, { color: theme.colors.text }]}>
-                    Exercise Name *
+                    {t('workouts.exerciseName')} {t('workouts.requiredField')}
                   </Text>
                   <TextInput
                     style={[
@@ -329,7 +329,7 @@ export default function CreateWorkoutScreen() {
                     ]}
                     value={newExercise.name}
                     onChangeText={(value) => updateExerciseField('name', value)}
-                    placeholder="e.g., Push-ups"
+                    placeholder={t('workouts.exerciseNamePlaceholder')}
                     placeholderTextColor={theme.colors.textSecondary}
                   />
                 </View>
@@ -338,7 +338,7 @@ export default function CreateWorkoutScreen() {
               <View style={styles.inputRow}>
                 <View style={styles.inputGroupSmall}>
                   <Text style={[styles.label, { color: theme.colors.text }]}>
-                    Sets
+                    {t('workouts.exerciseSets')}
                   </Text>
                   <TextInput
                     style={[
@@ -353,7 +353,7 @@ export default function CreateWorkoutScreen() {
                     onChangeText={(value) =>
                       updateExerciseField('sets', parseInt(value) || 3)
                     }
-                    placeholder="3"
+                    placeholder={t('workouts.setsPlaceholder')}
                     placeholderTextColor={theme.colors.textSecondary}
                     keyboardType="numeric"
                   />
@@ -361,7 +361,7 @@ export default function CreateWorkoutScreen() {
 
                 <View style={styles.inputGroupSmall}>
                   <Text style={[styles.label, { color: theme.colors.text }]}>
-                    Reps
+                    {t('workouts.exerciseReps')}
                   </Text>
                   <TextInput
                     style={[
@@ -386,7 +386,7 @@ export default function CreateWorkoutScreen() {
               <View style={styles.inputRow}>
                 <View style={styles.inputGroupSmall}>
                   <Text style={[styles.label, { color: theme.colors.text }]}>
-                    Equipment
+                    {t('workouts.exerciseEquipment')}
                   </Text>
                   <TextInput
                     style={[
@@ -401,7 +401,7 @@ export default function CreateWorkoutScreen() {
                     onChangeText={(value) =>
                       updateExerciseField('equipment', value)
                     }
-                    placeholder="e.g., Dumbbells"
+                    placeholder={t('workouts.equipmentPlaceholder')}
                     placeholderTextColor={theme.colors.textSecondary}
                   />
                 </View>
@@ -421,7 +421,7 @@ export default function CreateWorkoutScreen() {
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  Add Exercise
+                  {t('workouts.addExerciseButton')}
                 </Text>
               </TouchableOpacity>
             </View>

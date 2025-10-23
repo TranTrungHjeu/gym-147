@@ -12,6 +12,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -23,6 +24,7 @@ import {
 } from 'react-native';
 
 export default function HealthTrendsScreen() {
+  const { t, i18n } = useTranslation();
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -72,7 +74,7 @@ export default function HealthTrendsScreen() {
       setMetrics(metricsData);
     } catch (error) {
       console.error('Error loading health trends:', error);
-      Alert.alert('Error', 'Failed to load health trends');
+      Alert.alert(t('common.error'), t('health.trends.failedToLoad'));
     }
   };
 
@@ -84,7 +86,10 @@ export default function HealthTrendsScreen() {
 
   const handleMetricSelect = (metric: HealthMetric) => {
     // TODO: Navigate to metric detail
-    Alert.alert('Metric Detail', 'Metric detail screen not implemented yet');
+    Alert.alert(
+      t('health.trends.metricDetail'),
+      t('health.trends.metricDetailNotImplemented')
+    );
   };
 
   const handleAddMetric = () => {
@@ -259,7 +264,9 @@ export default function HealthTrendsScreen() {
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    {new Date(metric.recordedAt).toLocaleDateString()}
+                    {new Date(metric.recordedAt).toLocaleDateString(
+                      i18n.language
+                    )}
                   </Text>
                 </View>
                 <Text

@@ -292,7 +292,10 @@ export default function SettingsScreen() {
             title={t('settings.version')}
             subtitle="Gym147 v1.0.0"
             onPress={() =>
-              Alert.alert('App Version', 'Gym App v1.0.0\nBuild 2024.01.01')
+              Alert.alert(
+                t('settings.version'),
+                'Gym App v1.0.0\nBuild 2024.01.01'
+              )
             }
           />
 

@@ -1,6 +1,7 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface AchievementCardProps {
@@ -19,6 +20,7 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
   icon,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   return (
     <View
       style={[
@@ -83,7 +85,7 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
             <Text
               style={[styles.completedText, { color: theme.colors.success }]}
             >
-              Completed
+              {t('achievements.completed')}
             </Text>
           </View>
         )}

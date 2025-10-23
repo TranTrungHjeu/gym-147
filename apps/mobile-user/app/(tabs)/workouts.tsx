@@ -10,6 +10,7 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Filter, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Image,
@@ -62,6 +63,28 @@ export default function WorkoutsScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const { t } = useTranslation();
+
+  // Helper function to get workout category translation
+  const getWorkoutCategoryTranslation = (category: string) => {
+    switch (category) {
+      case 'All':
+        return t('workouts.all');
+      case 'Strength':
+        return t('workouts.strength');
+      case 'Cardio':
+        return t('workouts.cardio');
+      case 'HIIT':
+        return t('workouts.hiit');
+      case 'Yoga':
+        return t('workouts.yoga');
+      case 'Stretching':
+        return t('workouts.stretching');
+      default:
+        return category;
+    }
+  };
+
   const [activeCategory, setActiveCategory] = React.useState('All');
   const [showFilterModal, setShowFilterModal] = useState(false);
   const [filters, setFilters] = useState({
@@ -233,7 +256,7 @@ export default function WorkoutsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading workouts...
+            {t('common.loading')}...
           </Text>
         </View>
       </SafeAreaView>
@@ -263,7 +286,7 @@ export default function WorkoutsScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Retry
+              {t('common.retry')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -277,7 +300,7 @@ export default function WorkoutsScreen() {
     >
       <View style={styles.header}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Workouts
+          {t('workouts.title')}
         </Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
@@ -298,7 +321,7 @@ export default function WorkoutsScreen() {
           (category) => (
             <WorkoutCategory
               key={category}
-              title={category}
+              title={getWorkoutCategoryTranslation(category)}
               active={activeCategory === category}
               onPress={() => setActiveCategory(category)}
             />
@@ -320,7 +343,7 @@ export default function WorkoutsScreen() {
       >
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Featured Workouts
+            {t('workouts.featured')}
           </Text>
           {workoutPlans.length > 0 ? (
             <View style={styles.featuredWorkout}>
@@ -364,7 +387,7 @@ export default function WorkoutsScreen() {
                       { color: theme.colors.textInverse },
                     ]}
                   >
-                    View Details
+                    {t('common.view')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -377,7 +400,7 @@ export default function WorkoutsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                No featured workouts available
+                {t('workouts.noWorkouts')}
               </Text>
             </View>
           )}
@@ -385,7 +408,7 @@ export default function WorkoutsScreen() {
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            All Workouts
+            {t('workouts.all')}
           </Text>
           <View style={styles.workoutsContainer}>
             {filteredWorkouts.length > 0 ? (
@@ -407,7 +430,7 @@ export default function WorkoutsScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  No workouts found for this category
+                  {t('workouts.noWorkouts')}
                 </Text>
               </View>
             )}
@@ -440,13 +463,13 @@ export default function WorkoutsScreen() {
             ]}
           >
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-              Filter Workouts
+              {t('common.filter')}
             </Text>
 
             {/* Difficulty Filter */}
             <View style={styles.filterSection}>
               <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
-                Difficulty
+                {t('workouts.difficulty')}
               </Text>
               <View style={styles.filterOptions}>
                 {['all', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'].map(
@@ -489,7 +512,7 @@ export default function WorkoutsScreen() {
             {/* Duration Filter */}
             <View style={styles.filterSection}>
               <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
-                Duration
+                {t('workouts.duration')}
               </Text>
               <View style={styles.filterOptions}>
                 {['all', 'short', 'medium', 'long'].map((duration) => (
@@ -536,7 +559,7 @@ export default function WorkoutsScreen() {
             {/* Equipment Filter */}
             <View style={styles.filterSection}>
               <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
-                Equipment
+                {t('workouts.equipment')}
               </Text>
               <View style={styles.filterOptions}>
                 {['all', 'bodyweight', 'dumbbells', 'barbell', 'machine'].map(
@@ -598,7 +621,7 @@ export default function WorkoutsScreen() {
                 <Text
                   style={[styles.modalButtonText, { color: theme.colors.text }]}
                 >
-                  Reset
+                  {t('common.reset')}
                 </Text>
               </TouchableOpacity>
 
@@ -615,7 +638,7 @@ export default function WorkoutsScreen() {
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  Apply
+                  {t('common.apply')}
                 </Text>
               </TouchableOpacity>
             </View>

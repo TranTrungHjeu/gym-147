@@ -101,14 +101,17 @@ export default function EditPersonalScreen() {
       const response = await memberService.updateMemberProfile(formData);
 
       if (response.success) {
-        Alert.alert('Success', 'Personal information updated successfully', [
-          { text: 'OK', onPress: () => router.back() },
+        Alert.alert(t('common.success'), t('profile.personalInfoUpdated'), [
+          { text: t('common.ok'), onPress: () => router.back() },
         ]);
       } else {
-        Alert.alert('Error', response.error || 'Failed to update profile');
+        Alert.alert(
+          t('common.error'),
+          response.error || t('profile.failedToUpdateProfile')
+        );
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to update profile');
+      Alert.alert(t('common.error'), t('profile.failedToUpdateProfile'));
     } finally {
       setSaving(false);
     }

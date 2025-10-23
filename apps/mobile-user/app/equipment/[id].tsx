@@ -19,6 +19,7 @@ import {
   Wrench,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -35,6 +36,7 @@ export default function EquipmentDetailScreen() {
   const { user } = useAuth();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { t, i18n } = useTranslation();
 
   // State for data
   const [loading, setLoading] = useState(true);
@@ -104,7 +106,7 @@ export default function EquipmentDetailScreen() {
 
   const handleStartUsage = async () => {
     if (!user?.id || !equipment) {
-      Alert.alert('Error', 'Please login to start equipment usage');
+      Alert.alert(t('common.error'), t('equipment.errors.loginRequired'));
       return;
     }
 
@@ -126,13 +128,16 @@ export default function EquipmentDetailScreen() {
         setShowWorkoutLogger(true);
       } else {
         Alert.alert(
-          'Error',
-          response.error || 'Failed to start equipment usage'
+          t('common.error'),
+          response.error || t('equipment.errors.startUsageFailed')
         );
       }
     } catch (error: any) {
       console.error('❌ Error starting equipment usage:', error);
-      Alert.alert('Error', error.message || 'Failed to start equipment usage');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('equipment.errors.startUsageFailed')
+      );
     }
   };
 
@@ -152,15 +157,21 @@ export default function EquipmentDetailScreen() {
         console.log('✅ Workout saved successfully');
         setShowWorkoutLogger(false);
         setCurrentUsage(null);
-        Alert.alert('Success', 'Workout saved successfully!');
+        Alert.alert(t('common.success'), t('equipment.workoutSaved'));
         // Refresh equipment data
         await loadEquipmentData();
       } else {
-        Alert.alert('Error', response.error || 'Failed to save workout');
+        Alert.alert(
+          t('common.error'),
+          response.error || t('equipment.errors.saveWorkoutFailed')
+        );
       }
     } catch (error: any) {
       console.error('❌ Error saving workout:', error);
-      Alert.alert('Error', error.message || 'Failed to save workout');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('equipment.errors.saveWorkoutFailed')
+      );
     }
   };
 
@@ -379,7 +390,9 @@ export default function EquipmentDetailScreen() {
                 ]}
               >
                 Started:{' '}
-                {new Date(currentUsage.start_time).toLocaleTimeString()}
+                {new Date(currentUsage.start_time).toLocaleTimeString(
+                  i18n.language
+                )}
               </Text>
             </View>
           </View>
@@ -402,7 +415,9 @@ export default function EquipmentDetailScreen() {
                 ]}
               >
                 Next maintenance:{' '}
-                {new Date(equipment.next_maintenance).toLocaleDateString()}
+                {new Date(equipment.next_maintenance).toLocaleDateString(
+                  i18n.language
+                )}
               </Text>
             </View>
           </View>
@@ -422,7 +437,9 @@ export default function EquipmentDetailScreen() {
                   <Text
                     style={[styles.usageDate, { color: theme.colors.text }]}
                   >
-                    {new Date(usage.start_time).toLocaleDateString()}
+                    {new Date(usage.start_time).toLocaleDateString(
+                      i18n.language
+                    )}
                   </Text>
                   <Text
                     style={[

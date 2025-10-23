@@ -33,7 +33,7 @@ export default function RFIDScannerScreen() {
 
   const handleScanRFID = async () => {
     if (!rfidTag.trim()) {
-      Alert.alert('Error', 'Please enter an RFID tag');
+      Alert.alert(t('common.error'), 'Please enter an RFID tag');
       return;
     }
 

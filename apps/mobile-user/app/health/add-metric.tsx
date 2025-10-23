@@ -9,6 +9,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   KeyboardAvoidingView,
@@ -23,6 +24,42 @@ export default function AddMetricScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
+
+  // Helper function to get metric type translation
+  const getMetricTypeTranslation = (type: MetricType) => {
+    switch (type) {
+      case MetricType.WEIGHT:
+        return t('health.metricTypes.weight');
+      case MetricType.HEIGHT:
+        return t('health.metricTypes.height');
+      case MetricType.BODY_FAT:
+        return t('health.metricTypes.bodyFat');
+      case MetricType.MUSCLE_MASS:
+        return t('health.metricTypes.muscleMass');
+      case MetricType.BMI:
+        return t('health.metricTypes.bmi');
+      case MetricType.BLOOD_PRESSURE:
+        return t('health.metricTypes.bloodPressure');
+      case MetricType.HEART_RATE:
+        return t('health.metricTypes.heartRate');
+      case MetricType.SLEEP_HOURS:
+        return t('health.metricTypes.sleepHours');
+      case MetricType.WATER_INTAKE:
+        return t('health.metricTypes.waterIntake');
+      case MetricType.STEPS:
+        return t('health.metricTypes.steps');
+      case MetricType.CALORIES_BURNED:
+        return t('health.metricTypes.caloriesBurned');
+      case MetricType.CALORIES_CONSUMED:
+        return t('health.metricTypes.caloriesConsumed');
+      case MetricType.BODY_TEMPERATURE:
+        return t('health.metricTypes.bodyTemperature');
+      default:
+        return type;
+    }
+  };
+
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState<AddMetricRequest>({
     type: MetricType.WEIGHT,
@@ -34,28 +71,64 @@ export default function AddMetricScreen() {
   });
 
   const metricTypes = [
-    { value: MetricType.WEIGHT, label: 'Weight', unit: 'kg' },
-    { value: MetricType.BODY_FAT, label: 'Body Fat', unit: '%' },
-    { value: MetricType.MUSCLE_MASS, label: 'Muscle Mass', unit: 'kg' },
-    { value: MetricType.BMI, label: 'BMI', unit: '' },
-    { value: MetricType.HEART_RATE, label: 'Heart Rate', unit: 'bpm' },
-    { value: MetricType.BLOOD_PRESSURE, label: 'Blood Pressure', unit: 'mmHg' },
+    {
+      value: MetricType.WEIGHT,
+      label: getMetricTypeTranslation(MetricType.WEIGHT),
+      unit: 'kg',
+    },
+    {
+      value: MetricType.BODY_FAT,
+      label: getMetricTypeTranslation(MetricType.BODY_FAT),
+      unit: '%',
+    },
+    {
+      value: MetricType.MUSCLE_MASS,
+      label: getMetricTypeTranslation(MetricType.MUSCLE_MASS),
+      unit: 'kg',
+    },
+    {
+      value: MetricType.BMI,
+      label: getMetricTypeTranslation(MetricType.BMI),
+      unit: '',
+    },
+    {
+      value: MetricType.HEART_RATE,
+      label: getMetricTypeTranslation(MetricType.HEART_RATE),
+      unit: 'bpm',
+    },
+    {
+      value: MetricType.BLOOD_PRESSURE,
+      label: getMetricTypeTranslation(MetricType.BLOOD_PRESSURE),
+      unit: 'mmHg',
+    },
     {
       value: MetricType.BODY_TEMPERATURE,
-      label: 'Body Temperature',
+      label: getMetricTypeTranslation(MetricType.BODY_TEMPERATURE),
       unit: '°C',
     },
-    { value: MetricType.SLEEP_HOURS, label: 'Sleep Hours', unit: 'h' },
-    { value: MetricType.WATER_INTAKE, label: 'Water Intake', unit: 'L' },
-    { value: MetricType.STEPS, label: 'Steps', unit: 'steps' },
+    {
+      value: MetricType.SLEEP_HOURS,
+      label: getMetricTypeTranslation(MetricType.SLEEP_HOURS),
+      unit: 'h',
+    },
+    {
+      value: MetricType.WATER_INTAKE,
+      label: getMetricTypeTranslation(MetricType.WATER_INTAKE),
+      unit: 'L',
+    },
+    {
+      value: MetricType.STEPS,
+      label: getMetricTypeTranslation(MetricType.STEPS),
+      unit: 'steps',
+    },
     {
       value: MetricType.CALORIES_BURNED,
-      label: 'Calories Burned',
+      label: getMetricTypeTranslation(MetricType.CALORIES_BURNED),
       unit: 'cal',
     },
     {
       value: MetricType.CALORIES_CONSUMED,
-      label: 'Calories Consumed',
+      label: getMetricTypeTranslation(MetricType.CALORIES_CONSUMED),
       unit: 'cal',
     },
   ];
@@ -99,24 +172,24 @@ export default function AddMetricScreen() {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'User not found');
+      Alert.alert(t('common.error'), t('health.userNotFound'));
       return;
     }
 
     if (formData.value <= 0) {
-      Alert.alert('Error', 'Please enter a valid value');
+      Alert.alert(t('common.error'), t('health.pleaseEnterValidValue'));
       return;
     }
 
     setLoading(true);
     try {
       await healthService.addHealthMetric(user.id, formData);
-      Alert.alert('Success', 'Health metric added successfully', [
-        { text: 'OK', onPress: () => router.back() },
+      Alert.alert(t('health.addMetricSuccess'), t('health.addMetricSuccess'), [
+        { text: t('common.ok'), onPress: () => router.back() },
       ]);
     } catch (error) {
       console.error('Error adding health metric:', error);
-      Alert.alert('Error', 'Failed to add health metric');
+      Alert.alert(t('common.error'), t('health.addMetricError'));
     } finally {
       setLoading(false);
     }
@@ -137,19 +210,19 @@ export default function AddMetricScreen() {
       >
         <View style={styles.header}>
           <Text style={[Typography.h2, { color: theme.colors.text }]}>
-            Add Health Metric
+            {t('health.addMetric')}
           </Text>
           <Text
             style={[Typography.body, { color: theme.colors.textSecondary }]}
           >
-            Record your health data
+            {t('health.form.description')}
           </Text>
         </View>
 
         <View style={styles.form}>
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Metric Type
+              {t('health.form.type')}
             </Text>
             <Picker
               selectedValue={formData.type}
@@ -163,13 +236,13 @@ export default function AddMetricScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Value
+              {t('health.form.value')}
             </Text>
             <View style={styles.valueInputContainer}>
               <Input
                 value={formData.value.toString()}
                 onChangeText={handleValueChange}
-                placeholder="Enter value"
+                placeholder={t('health.form.enterValue')}
                 keyboardType="numeric"
                 style={styles.valueInput}
               />
@@ -186,22 +259,27 @@ export default function AddMetricScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Date & Time
+              {t('health.form.dateTime')}
             </Text>
             <Input
-              value={new Date(formData.recordedAt).toLocaleString()}
-              placeholder="Select date and time"
+              value={new Date(formData.recordedAt).toLocaleString(
+                i18n.language
+              )}
+              placeholder={t('health.form.selectDateTime')}
               editable={false}
               onPress={() => {
                 // TODO: Implement date picker
-                Alert.alert('Date Picker', 'Date picker not implemented yet');
+                Alert.alert(
+                  t('health.form.datePicker'),
+                  t('health.form.datePickerNotImplemented')
+                );
               }}
             />
           </View>
 
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Source
+              {t('health.form.source')}
             </Text>
             <Picker
               selectedValue={formData.source}
@@ -216,12 +294,12 @@ export default function AddMetricScreen() {
 
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Notes (Optional)
+              {t('health.form.notesOptional')}
             </Text>
             <TextArea
               value={formData.notes}
               onChangeText={handleNotesChange}
-              placeholder="Add any notes about this measurement..."
+              placeholder={t('health.form.notesPlaceholder')}
               numberOfLines={3}
             />
           </View>
@@ -229,13 +307,13 @@ export default function AddMetricScreen() {
 
         <View style={styles.buttonContainer}>
           <Button
-            title="Cancel"
+            title={t('common.cancel')}
             onPress={handleCancel}
             variant="outline"
             style={styles.button}
           />
           <Button
-            title="Add Metric"
+            title={t('health.addMetric')}
             onPress={handleSubmit}
             loading={loading}
             style={styles.button}

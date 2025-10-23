@@ -5,6 +5,7 @@ import { useTheme } from '@/utils/theme';
 import { useRouter } from 'expo-router';
 import { ArrowLeft } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -24,6 +25,7 @@ export default function MyBookingsScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
 
   // State for data
   const [loading, setLoading] = useState(true);
@@ -77,28 +79,34 @@ export default function MyBookingsScreen() {
 
   const handleCancelBooking = async (booking: Booking) => {
     Alert.alert(
-      'Cancel Booking',
-      'Are you sure you want to cancel this booking?',
+      t('classes.booking.cancelBooking'),
+      t('classes.booking.cancelConfirm'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Yes, Cancel',
+          text: t('common.yes'),
           style: 'destructive',
           onPress: async () => {
             try {
               const response = await bookingService.cancelBooking(booking.id);
               if (response.success) {
-                Alert.alert('Success', 'Booking cancelled successfully!');
+                Alert.alert(
+                  t('common.success'),
+                  t('classes.booking.cancelSuccess')
+                );
                 await loadBookings(); // Refresh the list
               } else {
                 Alert.alert(
-                  'Error',
-                  response.error || 'Failed to cancel booking'
+                  t('common.error'),
+                  response.error || t('classes.booking.cancelFailed')
                 );
               }
             } catch (error: any) {
               console.error('❌ Error cancelling booking:', error);
-              Alert.alert('Error', error.message || 'Failed to cancel booking');
+              Alert.alert(
+                t('common.error'),
+                error.message || t('classes.booking.cancelFailed')
+              );
             }
           },
         },

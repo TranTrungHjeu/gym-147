@@ -12,6 +12,7 @@ import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Bell, Check, MoreVertical, Search, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   RefreshControl,
@@ -27,6 +28,7 @@ export default function NotificationCenterScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
+  const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -47,21 +49,21 @@ export default function NotificationCenterScreen() {
   const [isSelectionMode, setIsSelectionMode] = useState(false);
 
   const typeOptions = [
-    { label: 'All Types', value: 'ALL' },
-    { label: 'Workout Reminder', value: 'WORKOUT_REMINDER' },
+    { label: t('notifications.all'), value: 'ALL' },
+    { label: t('notifications.types.workout'), value: 'WORKOUT_REMINDER' },
     { label: 'Membership Expiry', value: 'MEMBERSHIP_EXPIRY' },
-    { label: 'Payment Due', value: 'PAYMENT_DUE' },
-    { label: 'Class Booking', value: 'CLASS_BOOKING' },
-    { label: 'Achievement', value: 'ACHIEVEMENT' },
+    { label: t('notifications.types.payment'), value: 'PAYMENT_DUE' },
+    { label: t('notifications.types.class'), value: 'CLASS_BOOKING' },
+    { label: t('notifications.types.achievement'), value: 'ACHIEVEMENT' },
     { label: 'Maintenance', value: 'MAINTENANCE' },
     { label: 'Promotion', value: 'PROMOTION' },
-    { label: 'System', value: 'SYSTEM' },
+    { label: t('notifications.types.system'), value: 'SYSTEM' },
   ];
 
   const statusOptions = [
-    { label: 'All Status', value: 'ALL' },
-    { label: 'Unread', value: 'UNREAD' },
-    { label: 'Read', value: 'READ' },
+    { label: t('notifications.all'), value: 'ALL' },
+    { label: t('notifications.unread'), value: 'UNREAD' },
+    { label: t('notifications.read'), value: 'READ' },
     { label: 'Archived', value: 'ARCHIVED' },
   ];
 
@@ -79,7 +81,7 @@ export default function NotificationCenterScreen() {
       setUnreadCount(unreadCountData);
     } catch (error) {
       console.error('Error loading notifications:', error);
-      Alert.alert('Error', 'Failed to load notifications');
+      Alert.alert(t('common.error'), t('notifications.failedToLoad'));
     }
   };
 
@@ -153,7 +155,7 @@ export default function NotificationCenterScreen() {
       loadData();
     } catch (error) {
       console.error('Error marking notification as read:', error);
-      Alert.alert('Error', 'Failed to mark notification as read');
+      Alert.alert(t('common.error'), t('notifications.failedToMarkAsRead'));
     }
   };
 
@@ -162,9 +164,9 @@ export default function NotificationCenterScreen() {
       'Delete Notification',
       'Are you sure you want to delete this notification?',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('notifications.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -175,7 +177,7 @@ export default function NotificationCenterScreen() {
               loadData();
             } catch (error) {
               console.error('Error deleting notification:', error);
-              Alert.alert('Error', 'Failed to delete notification');
+              Alert.alert(t('common.error'), t('notifications.failedToDelete'));
             }
           },
         },
@@ -192,7 +194,7 @@ export default function NotificationCenterScreen() {
       loadData();
     } catch (error) {
       console.error('Error marking all as read:', error);
-      Alert.alert('Error', 'Failed to mark all notifications as read');
+      Alert.alert(t('common.error'), t('notifications.failedToMarkAllAsRead'));
     }
   };
 
@@ -200,12 +202,12 @@ export default function NotificationCenterScreen() {
     if (!user?.id) return;
 
     Alert.alert(
-      'Delete All Read',
-      'Are you sure you want to delete all read notifications?',
+      t('notifications.deleteAll'),
+      t('notifications.confirmDeleteAll'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete All',
+          text: t('notifications.deleteAll'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -213,7 +215,10 @@ export default function NotificationCenterScreen() {
               loadData();
             } catch (error) {
               console.error('Error deleting all read notifications:', error);
-              Alert.alert('Error', 'Failed to delete all read notifications');
+              Alert.alert(
+                t('common.error'),
+                t('notifications.failedToDeleteAll')
+              );
             }
           },
         },
@@ -242,7 +247,10 @@ export default function NotificationCenterScreen() {
       loadData();
     } catch (error) {
       console.error('Error bulk marking as read:', error);
-      Alert.alert('Error', 'Failed to mark selected notifications as read');
+      Alert.alert(
+        t('common.error'),
+        t('notifications.failedToMarkSelectedAsRead')
+      );
     }
   };
 
@@ -250,12 +258,14 @@ export default function NotificationCenterScreen() {
     if (!user?.id || selectedNotifications.length === 0) return;
 
     Alert.alert(
-      'Delete Selected',
-      `Are you sure you want to delete ${selectedNotifications.length} notifications?`,
+      t('notifications.deleteSelected'),
+      t('notifications.confirmDeleteSelected', {
+        count: selectedNotifications.length,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('notifications.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
@@ -268,7 +278,10 @@ export default function NotificationCenterScreen() {
               loadData();
             } catch (error) {
               console.error('Error bulk deleting:', error);
-              Alert.alert('Error', 'Failed to delete selected notifications');
+              Alert.alert(
+                t('common.error'),
+                t('notifications.failedToDeleteSelected')
+              );
             }
           },
         },
@@ -326,7 +339,7 @@ export default function NotificationCenterScreen() {
     } else if (diffInHours < 168) {
       return `${Math.floor(diffInHours / 24)}d ago`;
     } else {
-      return date.toLocaleDateString();
+      return date.toLocaleDateString(i18n.language);
     }
   };
 
@@ -347,7 +360,7 @@ export default function NotificationCenterScreen() {
               { color: theme.colors.textSecondary },
             ]}
           >
-            Loading notifications...
+            {t('notifications.loadingNotifications')}
           </Text>
         </View>
       </View>
@@ -361,7 +374,7 @@ export default function NotificationCenterScreen() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <Text style={[Typography.h2, { color: theme.colors.text }]}>
-            Notifications
+            {t('notifications.title')}
           </Text>
           {unreadCount > 0 && (
             <View
@@ -404,7 +417,7 @@ export default function NotificationCenterScreen() {
           <Search size={20} color={theme.colors.textSecondary} />
           <TextInput
             style={[styles.searchText, { color: theme.colors.text }]}
-            placeholder="Search notifications..."
+            placeholder={t('notifications.searchPlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             value={searchQuery}
             onChangeText={handleSearch}
@@ -437,17 +450,19 @@ export default function NotificationCenterScreen() {
           ]}
         >
           <Text style={[Typography.body, { color: theme.colors.text }]}>
-            {selectedNotifications.length} selected
+            {t('notifications.selectedCount', {
+              count: selectedNotifications.length,
+            })}
           </Text>
           <View style={styles.bulkButtons}>
             <Button
-              title="Mark Read"
+              title={t('notifications.markAsRead')}
               onPress={handleBulkMarkAsRead}
               size="small"
               variant="outline"
             />
             <Button
-              title="Delete"
+              title={t('notifications.delete')}
               onPress={handleBulkDelete}
               size="small"
               variant="outline"
@@ -583,14 +598,14 @@ export default function NotificationCenterScreen() {
           <View style={styles.emptyContainer}>
             <Bell size={48} color={theme.colors.textSecondary} />
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              No Notifications
+              {t('notifications.noNotifications')}
             </Text>
             <Text
               style={[Typography.body, { color: theme.colors.textSecondary }]}
             >
               {notifications.length === 0
-                ? 'You have no notifications yet'
-                : 'No notifications match your current filters'}
+                ? t('notifications.noNotifications')
+                : t('notifications.noNotifications')}
             </Text>
           </View>
         )}
@@ -604,13 +619,13 @@ export default function NotificationCenterScreen() {
           ]}
         >
           <Button
-            title="Mark All Read"
+            title={t('notifications.markAllAsRead')}
             onPress={handleMarkAllAsRead}
             variant="outline"
             size="small"
           />
           <Button
-            title="Delete All Read"
+            title={t('notifications.deleteAll')}
             onPress={handleDeleteAllRead}
             variant="outline"
             size="small"

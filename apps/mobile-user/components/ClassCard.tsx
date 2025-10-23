@@ -1,9 +1,32 @@
 import { ClassCardProps } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Calendar, Clock, MapPin, Star, Users } from 'lucide-react-native';
 import React from 'react';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useTranslation } from 'react-i18next';
+import {
+  Image,
+  ImageSourcePropType,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+// Import local images
+const classImages: Record<string, ImageSourcePropType> = {
+  CARDIO: require('@/assets/images/gymclass/cadio.webp'),
+  STRENGTH: require('@/assets/images/gymclass/strength.jpg'),
+  YOGA: require('@/assets/images/gymclass/yoga.jpg'),
+  PILATES: require('@/assets/images/gymclass/pilates.webp'),
+  DANCE: require('@/assets/images/gymclass/dance.jpg'),
+  MARTIAL_ARTS: require('@/assets/images/gymclass/martial_arts.jpg'),
+  AQUA: require('@/assets/images/gymclass/aqua.jpg'),
+  FUNCTIONAL: require('@/assets/images/gymclass/functional.jpg'),
+  RECOVERY: require('@/assets/images/gymclass/recovery.jpg'),
+  SPECIALIZED: require('@/assets/images/gymclass/specialized.jpg'),
+};
 
 export default function ClassCard({
   schedule,
@@ -14,9 +37,10 @@ export default function ClassCard({
 }: ClassCardProps) {
   const { theme } = useTheme();
   const router = useRouter();
+  const { t, i18n } = useTranslation();
 
   const formatTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleTimeString('en-US', {
+    return new Date(dateTime).toLocaleTimeString(i18n.language, {
       hour: '2-digit',
       minute: '2-digit',
       hour12: true,
@@ -24,7 +48,7 @@ export default function ClassCard({
   };
 
   const formatDate = (dateTime: string) => {
-    return new Date(dateTime).toLocaleDateString('en-US', {
+    return new Date(dateTime).toLocaleDateString(i18n.language, {
       weekday: 'short',
       month: 'short',
       day: 'numeric',
@@ -61,14 +85,59 @@ export default function ClassCard({
     }
   };
 
+  const getDifficultyTranslation = (difficulty: string) => {
+    switch (difficulty) {
+      case 'BEGINNER':
+        return t('classes.difficulty.beginner');
+      case 'INTERMEDIATE':
+        return t('classes.difficulty.intermediate');
+      case 'ADVANCED':
+        return t('classes.difficulty.advanced');
+      case 'ALL_LEVELS':
+        return t('classes.difficulty.all_levels');
+      default:
+        return difficulty;
+    }
+  };
+
+  const getStatusTranslation = (status: string) => {
+    switch (status) {
+      case 'SCHEDULED':
+        return t('classes.status.scheduled');
+      case 'IN_PROGRESS':
+        return t('classes.status.inProgress');
+      case 'COMPLETED':
+        return t('classes.status.completed');
+      case 'CANCELLED':
+        return t('classes.status.cancelled');
+      default:
+        return status;
+    }
+  };
+
+  const getClassImage = () => {
+    const category = schedule.gym_class?.category;
+    if (category && classImages[category]) {
+      return classImages[category];
+    }
+    // Fallback to URL if category not found or thumbnail exists
+    if (schedule.gym_class?.thumbnail) {
+      return { uri: schedule.gym_class.thumbnail };
+    }
+    // Default fallback
+    return classImages.CARDIO;
+  };
+
   const isFullyBooked = schedule.current_bookings >= schedule.max_capacity;
   const hasWaitlist = schedule.waitlist_count > 0;
   const spotsAvailable = schedule.max_capacity - schedule.current_bookings;
 
+  const themedStyles = styles(theme);
+
   return (
     <TouchableOpacity
       style={[
-        styles.container,
+        themedStyles.container,
         {
           backgroundColor: theme.colors.surface,
           borderColor: theme.colors.border,
@@ -78,38 +147,34 @@ export default function ClassCard({
       activeOpacity={0.7}
     >
       {/* Header with class image and status */}
-      <View style={styles.header}>
+      <View style={themedStyles.header}>
         <Image
-          source={{
-            uri:
-              schedule.gym_class?.thumbnail ||
-              'https://images.pexels.com/photos/1229356/pexels-photo-1229356.jpeg?auto=compress&cs=tinysrgb&w=800',
-          }}
-          style={styles.classImage}
+          source={getClassImage()}
+          style={themedStyles.classImage}
           resizeMode="cover"
         />
-        <View style={styles.statusBadge}>
+        <View style={themedStyles.statusBadge}>
           <View
             style={[
-              styles.statusIndicator,
+              themedStyles.statusIndicator,
               { backgroundColor: getStatusColor(schedule.status) },
             ]}
           />
-          <Text style={[styles.statusText, { color: theme.colors.text }]}>
-            {schedule.status.replace('_', ' ')}
+          <Text style={[themedStyles.statusText, { color: theme.colors.text }]}>
+            {getStatusTranslation(schedule.status)}
           </Text>
         </View>
       </View>
 
       {/* Class Info */}
-      <View style={styles.content}>
-        <View style={styles.classHeader}>
-          <Text style={[styles.className, { color: theme.colors.text }]}>
+      <View style={themedStyles.content}>
+        <View style={themedStyles.classHeader}>
+          <Text style={[themedStyles.className, { color: theme.colors.text }]}>
             {schedule.gym_class?.name}
           </Text>
           <View
             style={[
-              styles.difficultyBadge,
+              themedStyles.difficultyBadge,
               {
                 backgroundColor: getDifficultyColor(
                   schedule.gym_class?.difficulty || ''
@@ -117,15 +182,15 @@ export default function ClassCard({
               },
             ]}
           >
-            <Text style={styles.difficultyText}>
-              {schedule.gym_class?.difficulty}
+            <Text style={themedStyles.difficultyText}>
+              {getDifficultyTranslation(schedule.gym_class?.difficulty || '')}
             </Text>
           </View>
         </View>
 
         <Text
           style={[
-            styles.classDescription,
+            themedStyles.classDescription,
             { color: theme.colors.textSecondary },
           ]}
           numberOfLines={2}
@@ -135,13 +200,15 @@ export default function ClassCard({
 
         {/* Trainer Info */}
         {schedule.trainer && (
-          <View style={styles.trainerInfo}>
-            <View style={styles.trainerDetails}>
-              <Text style={[styles.trainerName, { color: theme.colors.text }]}>
+          <View style={themedStyles.trainerInfo}>
+            <View style={themedStyles.trainerDetails}>
+              <Text
+                style={[themedStyles.trainerName, { color: theme.colors.text }]}
+              >
                 {schedule.trainer.full_name}
               </Text>
               {schedule.trainer.rating_average && (
-                <View style={styles.ratingContainer}>
+                <View style={themedStyles.ratingContainer}>
                   <Star
                     size={14}
                     color={theme.colors.warning}
@@ -149,7 +216,7 @@ export default function ClassCard({
                   />
                   <Text
                     style={[
-                      styles.ratingText,
+                      themedStyles.ratingText,
                       { color: theme.colors.textSecondary },
                     ]}
                   >
@@ -162,23 +229,23 @@ export default function ClassCard({
         )}
 
         {/* Schedule Info */}
-        <View style={styles.scheduleInfo}>
-          <View style={styles.scheduleItem}>
+        <View style={themedStyles.scheduleInfo}>
+          <View style={themedStyles.scheduleItem}>
             <Calendar size={16} color={theme.colors.textSecondary} />
             <Text
               style={[
-                styles.scheduleText,
+                themedStyles.scheduleText,
                 { color: theme.colors.textSecondary },
               ]}
             >
               {formatDate(schedule.start_time)}
             </Text>
           </View>
-          <View style={styles.scheduleItem}>
+          <View style={themedStyles.scheduleItem}>
             <Clock size={16} color={theme.colors.textSecondary} />
             <Text
               style={[
-                styles.scheduleText,
+                themedStyles.scheduleText,
                 { color: theme.colors.textSecondary },
               ]}
             >
@@ -186,11 +253,11 @@ export default function ClassCard({
               {formatTime(schedule.end_time)}
             </Text>
           </View>
-          <View style={styles.scheduleItem}>
+          <View style={themedStyles.scheduleItem}>
             <MapPin size={16} color={theme.colors.textSecondary} />
             <Text
               style={[
-                styles.scheduleText,
+                themedStyles.scheduleText,
                 { color: theme.colors.textSecondary },
               ]}
             >
@@ -200,38 +267,46 @@ export default function ClassCard({
         </View>
 
         {/* Capacity Info */}
-        <View style={styles.capacityInfo}>
-          <View style={styles.capacityItem}>
+        <View style={themedStyles.capacityInfo}>
+          <View style={themedStyles.capacityItem}>
             <Users size={16} color={theme.colors.textSecondary} />
             <Text
               style={[
-                styles.capacityText,
+                themedStyles.capacityText,
                 { color: theme.colors.textSecondary },
               ]}
             >
-              {schedule.current_bookings}/{schedule.max_capacity} booked
+              {schedule.current_bookings}/{schedule.max_capacity}{' '}
+              {t('classes.booked')}
             </Text>
           </View>
           {isFullyBooked && (
             <Text
-              style={[styles.waitlistText, { color: theme.colors.warning }]}
+              style={[
+                themedStyles.waitlistText,
+                { color: theme.colors.warning },
+              ]}
             >
               {hasWaitlist
-                ? `${schedule.waitlist_count} on waitlist`
-                : 'Fully booked'}
+                ? `${schedule.waitlist_count} ${t('classes.onWaitlist')}`
+                : t('classes.booking.fullyBooked')}
             </Text>
           )}
           {!isFullyBooked && spotsAvailable <= 5 && (
-            <Text style={[styles.spotsText, { color: theme.colors.error }]}>
-              Only {spotsAvailable} spots left!
+            <Text
+              style={[themedStyles.spotsText, { color: theme.colors.error }]}
+            >
+              {t('classes.onlySpotsLeft', { count: spotsAvailable })}
             </Text>
           )}
         </View>
 
         {/* Price */}
         {schedule.price_override && (
-          <View style={styles.priceContainer}>
-            <Text style={[styles.priceText, { color: theme.colors.primary }]}>
+          <View style={themedStyles.priceContainer}>
+            <Text
+              style={[themedStyles.priceText, { color: theme.colors.primary }]}
+            >
               ${schedule.price_override}
             </Text>
           </View>
@@ -240,52 +315,58 @@ export default function ClassCard({
 
       {/* Action Buttons */}
       {showBookingActions && (
-        <View style={styles.actions}>
+        <View style={themedStyles.actions}>
           {schedule.status === 'SCHEDULED' && !isFullyBooked && (
             <TouchableOpacity
               style={[
-                styles.bookButton,
+                themedStyles.bookButton,
                 { backgroundColor: theme.colors.primary },
               ]}
               onPress={onBook}
             >
               <Text
                 style={[
-                  styles.bookButtonText,
+                  themedStyles.bookButtonText,
                   { color: theme.colors.textInverse },
                 ]}
               >
-                Book Class
+                {t('classes.booking.book')}
               </Text>
             </TouchableOpacity>
           )}
           {schedule.status === 'SCHEDULED' && isFullyBooked && !hasWaitlist && (
             <TouchableOpacity
               style={[
-                styles.waitlistButton,
+                themedStyles.waitlistButton,
                 { backgroundColor: theme.colors.warning },
               ]}
               onPress={onBook}
             >
               <Text
                 style={[
-                  styles.waitlistButtonText,
+                  themedStyles.waitlistButtonText,
                   { color: theme.colors.textInverse },
                 ]}
               >
-                Join Waitlist
+                {t('classes.joinWaitlist')}
               </Text>
             </TouchableOpacity>
           )}
           {onCancel && (
             <TouchableOpacity
-              style={[styles.cancelButton, { borderColor: theme.colors.error }]}
+              style={[
+                themedStyles.cancelButton,
+                { borderColor: theme.colors.error },
+              ]}
               onPress={onCancel}
             >
               <Text
-                style={[styles.cancelButtonText, { color: theme.colors.error }]}
+                style={[
+                  themedStyles.cancelButtonText,
+                  { color: theme.colors.error },
+                ]}
               >
-                Cancel
+                {t('classes.booking.cancel')}
               </Text>
             </TouchableOpacity>
           )}
@@ -295,174 +376,183 @@ export default function ClassCard({
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    borderRadius: 12,
-    borderWidth: 1,
-    marginBottom: 16,
-    overflow: 'hidden',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  header: {
-    position: 'relative',
-    height: 120,
-  },
-  classImage: {
-    width: '100%',
-    height: '100%',
-  },
-  statusBadge: {
-    position: 'absolute',
-    top: 8,
-    right: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  statusIndicator: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 4,
-  },
-  statusText: {
-    fontSize: 12,
-    fontWeight: '500',
-    color: '#fff',
-  },
-  content: {
-    padding: 16,
-  },
-  classHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  className: {
-    flex: 1,
-    fontSize: 18,
-    fontWeight: '600',
-    marginRight: 8,
-  },
-  difficultyBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  difficultyText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  classDescription: {
-    fontSize: 14,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  trainerInfo: {
-    marginBottom: 12,
-  },
-  trainerDetails: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  trainerName: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  ratingText: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  scheduleInfo: {
-    marginBottom: 12,
-  },
-  scheduleItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  scheduleText: {
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  capacityInfo: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  capacityItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  capacityText: {
-    fontSize: 14,
-    marginLeft: 8,
-  },
-  waitlistText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  spotsText: {
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  priceContainer: {
-    alignItems: 'flex-end',
-  },
-  priceText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  actions: {
-    flexDirection: 'row',
-    padding: 16,
-    paddingTop: 0,
-    gap: 8,
-  },
-  bookButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  bookButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  waitlistButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  waitlistButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-  },
-  cancelButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      borderRadius: theme.radius.xl,
+      borderWidth: 1,
+      marginBottom: theme.spacing.lg,
+      overflow: 'hidden',
+      ...theme.shadows.lg,
+    },
+    header: {
+      position: 'relative',
+      height: 180,
+    },
+    classImage: {
+      width: '100%',
+      height: '100%',
+    },
+    statusBadge: {
+      position: 'absolute',
+      top: theme.spacing.sm,
+      right: theme.spacing.sm,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      paddingHorizontal: theme.spacing.sm + 2,
+      paddingVertical: theme.spacing.xs + 2,
+      borderRadius: theme.radius.round,
+      ...theme.shadows.sm,
+    },
+    statusIndicator: {
+      width: 8,
+      height: 8,
+      borderRadius: theme.radius.round,
+    },
+    statusText: {
+      ...Typography.labelSmall,
+      color: '#fff',
+    },
+    content: {
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    classHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      gap: theme.spacing.sm,
+    },
+    className: {
+      ...Typography.h5,
+      flex: 1,
+    },
+    difficultyBadge: {
+      paddingHorizontal: theme.spacing.sm + 2,
+      paddingVertical: theme.spacing.xs + 2,
+      borderRadius: theme.radius.md,
+      ...theme.shadows.sm,
+    },
+    difficultyText: {
+      ...Typography.labelSmall,
+      color: '#fff',
+    },
+    classDescription: {
+      ...Typography.bodySmall,
+      lineHeight: 20,
+      opacity: 0.8,
+    },
+    trainerInfo: {
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.05)'
+        : 'rgba(0,0,0,0.03)',
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      borderLeftWidth: 3,
+      borderLeftColor: theme.colors.primary,
+    },
+    trainerDetails: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+    },
+    trainerName: {
+      ...Typography.bodyMedium,
+    },
+    ratingContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.08)'
+        : 'rgba(0,0,0,0.05)',
+      paddingHorizontal: theme.spacing.xs + 2,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.sm,
+      gap: theme.spacing.xs,
+    },
+    ratingText: {
+      ...Typography.labelSmall,
+    },
+    scheduleInfo: {
+      gap: theme.spacing.xs + 2,
+    },
+    scheduleItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    scheduleText: {
+      ...Typography.bodySmall,
+    },
+    capacityInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      backgroundColor: theme.isDark
+        ? 'rgba(255,255,255,0.05)'
+        : 'rgba(0,0,0,0.03)',
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+    },
+    capacityItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs + 2,
+    },
+    capacityText: {
+      ...Typography.bodySmallMedium,
+    },
+    waitlistText: {
+      ...Typography.labelSmall,
+    },
+    spotsText: {
+      ...Typography.labelSmall,
+    },
+    priceContainer: {
+      alignItems: 'flex-end',
+      backgroundColor: theme.colors.primary + '15',
+      padding: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+    },
+    priceText: {
+      ...Typography.h6,
+    },
+    actions: {
+      flexDirection: 'row',
+      padding: theme.spacing.lg,
+      paddingTop: 0,
+      gap: theme.spacing.sm,
+    },
+    bookButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      ...theme.shadows.md,
+    },
+    bookButtonText: {
+      ...Typography.buttonMedium,
+    },
+    waitlistButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      ...theme.shadows.md,
+    },
+    waitlistButtonText: {
+      ...Typography.buttonMedium,
+    },
+    cancelButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      borderWidth: 2,
+      alignItems: 'center',
+    },
+    cancelButtonText: {
+      ...Typography.buttonMedium,
+    },
+  });

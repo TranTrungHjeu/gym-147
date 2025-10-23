@@ -13,6 +13,7 @@ import { useTheme } from '@/utils/theme';
 import { useRouter } from 'expo-router';
 import { Activity, Filter, Search } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
@@ -41,6 +42,29 @@ export default function EquipmentScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const { t } = useTranslation();
+
+  // Helper function to get equipment category translation
+  const getCategoryTranslation = (category: string) => {
+    switch (category) {
+      case 'CARDIO':
+        return t('equipment.categories.cardio');
+      case 'STRENGTH':
+        return t('equipment.categories.strength');
+      case 'FREE_WEIGHTS':
+        return t('equipment.categories.freeWeights');
+      case 'MACHINES':
+        return t('equipment.categories.machines');
+      case 'FUNCTIONAL':
+        return t('equipment.categories.functional');
+      case 'RECOVERY':
+        return t('equipment.categories.recovery');
+      case 'SPECIALIZED':
+        return t('equipment.categories.specialized');
+      default:
+        return category;
+    }
+  };
 
   // State for data
   const [loading, setLoading] = useState(true);
@@ -121,7 +145,7 @@ export default function EquipmentScreen() {
 
   const handleStartUsage = async (equipment: Equipment) => {
     if (!user?.id) {
-      Alert.alert('Error', 'Please login to start equipment usage');
+      Alert.alert(t('common.error'), t('equipment.errors.loginRequired'));
       return;
     }
 
@@ -143,13 +167,16 @@ export default function EquipmentScreen() {
         setShowWorkoutLogger(true);
       } else {
         Alert.alert(
-          'Error',
-          response.error || 'Failed to start equipment usage'
+          t('common.error'),
+          response.error || t('equipment.errors.startUsageFailed')
         );
       }
     } catch (error: any) {
       console.error('❌ Error starting equipment usage:', error);
-      Alert.alert('Error', error.message || 'Failed to start equipment usage');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('equipment.errors.startUsageFailed')
+      );
     }
   };
 
@@ -169,15 +196,21 @@ export default function EquipmentScreen() {
         console.log('✅ Workout saved successfully');
         setShowWorkoutLogger(false);
         setCurrentUsage(null);
-        Alert.alert('Success', 'Workout saved successfully!');
+        Alert.alert(t('common.success'), t('equipment.workoutSaved'));
         // Refresh equipment list to update status
         await loadEquipment();
       } else {
-        Alert.alert('Error', response.error || 'Failed to save workout');
+        Alert.alert(
+          t('common.error'),
+          response.error || t('equipment.errors.saveWorkoutFailed')
+        );
       }
     } catch (error: any) {
       console.error('❌ Error saving workout:', error);
-      Alert.alert('Error', error.message || 'Failed to save workout');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('equipment.errors.saveWorkoutFailed')
+      );
     }
   };
 
@@ -237,7 +270,7 @@ export default function EquipmentScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Retry
+              {t('common.retry')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -252,7 +285,7 @@ export default function EquipmentScreen() {
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Equipment
+          {t('equipment.title')}
         </Text>
         <TouchableOpacity
           style={styles.headerButton}
@@ -273,7 +306,7 @@ export default function EquipmentScreen() {
           <Search size={20} color={theme.colors.textSecondary} />
           <TextInput
             style={[styles.searchInput, { color: theme.colors.text }]}
-            placeholder="Search equipment..."
+            placeholder={t('equipment.searchPlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             value={searchQuery}
             onChangeText={handleSearch}
@@ -312,7 +345,7 @@ export default function EquipmentScreen() {
               selectedCategory === 'ALL' && { color: theme.colors.textInverse },
             ]}
           >
-            All
+            {t('equipment.all')}
           </Text>
         </TouchableOpacity>
         {CATEGORIES.map((category) => (
@@ -334,7 +367,7 @@ export default function EquipmentScreen() {
                 },
               ]}
             >
-              {category}
+              {getCategoryTranslation(category)}
             </Text>
           </TouchableOpacity>
         ))}
@@ -375,7 +408,7 @@ export default function EquipmentScreen() {
                 { color: theme.colors.textSecondary },
               ]}
             >
-              Try adjusting your search or filters
+              {t('equipment.tryAdjustingFilters')}
             </Text>
           </View>
         }

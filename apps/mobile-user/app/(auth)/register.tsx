@@ -95,19 +95,19 @@ const SignupScreen = () => {
         confirmPassword: password, // Same as password
       });
 
-      Alert.alert('Success', 'Account created successfully!', [
+      Alert.alert(t('common.success'), t('auth.accountCreated'), [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => router.replace('/(tabs)'),
         },
       ]);
     } catch (error) {
-      Alert.alert('Error', 'Registration failed. Please try again.');
+      Alert.alert(t('common.error'), t('auth.registrationFailed'));
     }
   };
 
   const handleGoogleSignup = () => {
-    Alert.alert('Google Signup', 'Google signup will be implemented');
+    Alert.alert(t('auth.googleSignup'), t('auth.googleSignupNotImplemented'));
   };
 
   return (
