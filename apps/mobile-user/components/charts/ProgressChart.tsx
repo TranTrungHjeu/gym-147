@@ -1,6 +1,8 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { progressService } from '@/services/member/progress.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
@@ -43,52 +45,92 @@ export default function ProgressChart({
 }: ProgressChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState(metric);
+  const [apiData, setApiData] = useState<any>(null);
   const themedStyles = styles(theme);
 
-  // Default labels
-  const defaultLabels = [
-    t('stats.months.jan'),
-    t('stats.months.feb'),
-    t('stats.months.mar'),
-    t('stats.months.apr'),
-    t('stats.months.may'),
-    t('stats.months.jun'),
-  ];
+  // Fetch real data silently
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      const result = await progressService.getProgressData(user.id);
+      if (result) setApiData(result);
+    };
+    fetchData();
+  }, [user?.id]);
 
-  // Default data if none provided
-  const defaultData = {
-    weight: {
-      labels: defaultLabels,
-      datasets: [
-        {
-          data: [75.2, 74.8, 74.1, 73.5, 72.9, 72.3],
-          color: (opacity = 1) =>
-            theme.colors.primary +
-            Math.floor(opacity * 255)
-              .toString(16)
-              .padStart(2, '0'),
-          strokeWidth: 3,
-        },
-      ],
-    },
-    bodyFat: {
-      labels: defaultLabels,
-      datasets: [
-        {
-          data: [18.5, 18.2, 17.8, 17.4, 17.0, 16.7],
-          color: (opacity = 1) =>
-            theme.colors.success +
-            Math.floor(opacity * 255)
-              .toString(16)
-              .padStart(2, '0'),
-          strokeWidth: 3,
-        },
-      ],
-    },
+  // Get translated labels (last 12 months, same as backend)
+  const getLabels = () => {
+    const monthKeys = [
+      'jan',
+      'feb',
+      'mar',
+      'apr',
+      'may',
+      'jun',
+      'jul',
+      'aug',
+      'sep',
+      'oct',
+      'nov',
+      'dec',
+    ];
+    const labels = [];
+
+    // Generate last 12 months (same logic as backend)
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date();
+      date.setMonth(date.getMonth() - i);
+      const monthIndex = date.getMonth(); // 0-11
+      labels.push(t(`stats.months.${monthKeys[monthIndex]}`));
+    }
+
+    return labels;
   };
 
-  const chartData = data || defaultData;
+  // Use API data with translated labels
+  const chartData = apiData
+    ? {
+        weight: {
+          labels: getLabels(),
+          datasets: [
+            {
+              data: apiData.weight.datasets[0].data,
+              color: (opacity = 1) =>
+                theme.colors.primary +
+                Math.floor(opacity * 255)
+                  .toString(16)
+                  .padStart(2, '0'),
+              strokeWidth: 3,
+            },
+          ],
+        },
+        bodyFat: {
+          labels: getLabels(),
+          datasets: [
+            {
+              data: apiData.bodyFat.datasets[0].data,
+              color: (opacity = 1) =>
+                theme.colors.success +
+                Math.floor(opacity * 255)
+                  .toString(16)
+                  .padStart(2, '0'),
+              strokeWidth: 3,
+            },
+          ],
+        },
+      }
+    : data || {
+        weight: {
+          labels: getLabels(),
+          datasets: [{ data: [], color: () => '', strokeWidth: 3 }],
+        },
+        bodyFat: {
+          labels: getLabels(),
+          datasets: [{ data: [], color: () => '', strokeWidth: 3 }],
+        },
+      };
   const currentData = chartData[selectedMetric];
 
   const chartConfig = {
@@ -138,10 +180,11 @@ export default function ProgressChart({
   ] as const;
 
   const currentValues = currentData.datasets[0].data;
-  const startValue = currentValues[0];
-  const endValue = currentValues[currentValues.length - 1];
+  const startValue = currentValues[0] || 0;
+  const endValue = currentValues[currentValues.length - 1] || 0;
   const change = endValue - startValue;
-  const changePercent = ((change / startValue) * 100).toFixed(1);
+  const changePercent =
+    startValue > 0 ? ((change / startValue) * 100).toFixed(1) : '0.0';
 
   return (
     <View
@@ -192,21 +235,35 @@ export default function ProgressChart({
       </View>
 
       <View style={themedStyles.chartContainer}>
-        <LineChart
-          data={currentData}
-          width={screenWidth - 32}
-          height={220}
-          chartConfig={chartConfig}
-          bezier
-          style={themedStyles.chart}
-          withInnerLines={true}
-          withOuterLines={true}
-          withVerticalLines={true}
-          withHorizontalLines={true}
-          withDots={true}
-          withShadow={false}
-          withScrollableDot={false}
-        />
+        {currentValues.some((val) => val > 0) ? (
+          <LineChart
+            data={currentData}
+            width={screenWidth - 32}
+            height={220}
+            chartConfig={chartConfig}
+            bezier
+            style={themedStyles.chart}
+            withInnerLines={true}
+            withOuterLines={true}
+            withVerticalLines={true}
+            withHorizontalLines={true}
+            withDots={true}
+            withShadow={false}
+            withScrollableDot={false}
+          />
+        ) : (
+          <View
+            style={{
+              height: 220,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <Text style={{ color: theme.colors.textSecondary }}>
+              {t('stats.noDataAvailable') || 'No data available'}
+            </Text>
+          </View>
+        )}
       </View>
 
       <View style={themedStyles.statsContainer}>

@@ -1,6 +1,8 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { caloriesService } from '@/services/member/calories.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
@@ -32,8 +34,23 @@ export default function CaloriesChart({
 }: CaloriesChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
+  const [apiData, setApiData] = useState<any>(null);
   const themedStyles = styles(theme);
+
+  // Fetch real data silently
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      const result = await caloriesService.getCaloriesData(
+        user.id,
+        selectedPeriod
+      );
+      if (result) setApiData(result);
+    };
+    fetchData();
+  }, [user?.id, selectedPeriod]);
 
   // Get labels based on period
   const getLabels = () => {
@@ -55,42 +72,55 @@ export default function CaloriesChart({
         t('stats.weeks.week4'),
       ];
     } else {
-      return [
-        t('stats.months.jan'),
-        t('stats.months.feb'),
-        t('stats.months.mar'),
-        t('stats.months.apr'),
-        t('stats.months.may'),
-        t('stats.months.jun'),
+      // Year: Only show last 6 months (or less if current month < 6)
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth(); // 0-11
+      const monthsToShow = Math.min(currentMonth + 1, 6);
+
+      const monthKeys = [
+        'jan',
+        'feb',
+        'mar',
+        'apr',
+        'may',
+        'jun',
+        'jul',
+        'aug',
+        'sep',
+        'oct',
+        'nov',
+        'dec',
       ];
+      const labels = [];
+
+      for (let i = monthsToShow - 1; i >= 0; i--) {
+        const monthIndex = currentMonth - i;
+        labels.push(t(`stats.months.${monthKeys[monthIndex]}`));
+      }
+
+      return labels;
     }
   };
 
-  // Default data if none provided
-  const defaultData = {
-    labels: getLabels(),
-    datasets: [
-      {
-        data:
-          selectedPeriod === 'week'
-            ? [450, 320, 680, 520, 750, 280, 420]
-            : selectedPeriod === 'month'
-            ? [1800, 2400, 2100, 2800]
-            : [8500, 9200, 8800, 10500, 9500, 9800],
-        colors: [
-          (opacity = 1) => `rgba(255, 107, 107, ${opacity})`,
-          (opacity = 1) => `rgba(78, 205, 196, ${opacity})`,
-          (opacity = 1) => `rgba(69, 183, 209, ${opacity})`,
-          (opacity = 1) => `rgba(150, 206, 180, ${opacity})`,
-          (opacity = 1) => `rgba(255, 234, 167, ${opacity})`,
-          (opacity = 1) => `rgba(221, 160, 221, ${opacity})`,
-          (opacity = 1) => `rgba(152, 216, 200, ${opacity})`,
+  // Use API data with translated labels
+  const chartData = apiData
+    ? {
+        labels: getLabels(),
+        datasets: [
+          {
+            data: apiData.datasets[0].data,
+            colors: [
+              (opacity = 1) => `rgba(255, 107, 107, ${opacity})`,
+              (opacity = 1) => `rgba(78, 205, 196, ${opacity})`,
+              (opacity = 1) => `rgba(69, 183, 209, ${opacity})`,
+              (opacity = 1) => `rgba(150, 206, 180, ${opacity})`,
+              (opacity = 1) => `rgba(255, 234, 167, ${opacity})`,
+              (opacity = 1) => `rgba(221, 160, 221, ${opacity})`,
+            ],
+          },
         ],
-      },
-    ],
-  };
-
-  const chartData = data || defaultData;
+      }
+    : data || { labels: getLabels(), datasets: [{ data: [], colors: [] }] };
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,
@@ -124,7 +154,10 @@ export default function CaloriesChart({
     { key: 'year', label: t('stats.yearly') },
   ] as const;
 
-  const totalCalories = chartData.datasets[0].data.reduce((a, b) => a + b, 0);
+  const totalCalories = chartData.datasets[0].data.reduce(
+    (a: number, b: number) => a + b,
+    0
+  );
   const averageCalories = totalCalories / chartData.datasets[0].data.length;
   const maxCalories = Math.max(...chartData.datasets[0].data);
 

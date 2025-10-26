@@ -388,6 +388,253 @@ class SessionController {
       });
     }
   }
+
+  // Get calories burned data for charts
+  async getCaloriesData(req, res) {
+    try {
+      const { id: memberId } = req.params;
+      const { period = 'week' } = req.query;
+
+      console.log('🔍 getCaloriesData called with:', { memberId, period });
+
+      // Convert user_id to member_id if needed
+      let actualMemberId = memberId;
+
+      if (memberId) {
+        const memberByUserId = await prisma.member.findUnique({
+          where: { user_id: memberId },
+          select: { id: true },
+        });
+
+        if (memberByUserId) {
+          actualMemberId = memberByUserId.id;
+          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
+        }
+      }
+
+      // Calculate date range and labels
+      let startDate = new Date();
+      let labels = [];
+
+      if (period === 'week') {
+        startDate.setDate(startDate.getDate() - 7);
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          labels.push(date.toISOString().split('T')[0]);
+        }
+      } else if (period === 'month') {
+        startDate.setDate(startDate.getDate() - 30);
+        labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      } else if (period === 'year') {
+        // Only show last 6 months (or less if current month < 6)
+        const currentDate = new Date();
+        const currentMonth = currentDate.getMonth(); // 0-11
+        const monthsToShow = Math.min(currentMonth + 1, 6); // +1 because month is 0-indexed
+
+        startDate.setMonth(startDate.getMonth() - monthsToShow);
+        for (let i = monthsToShow - 1; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          labels.push(date.toISOString().substring(0, 7));
+        }
+      }
+
+      // Get gym sessions with calories
+      const sessions = await prisma.gymSession.findMany({
+        where: {
+          member_id: actualMemberId,
+          entry_time: {
+            gte: startDate,
+          },
+        },
+        orderBy: {
+          entry_time: 'asc',
+        },
+      });
+
+      console.log(
+        `🔥 Found ${sessions.length} sessions with calories for member ${actualMemberId}`
+      );
+
+      // Group calories by period
+      const caloriesMap = {};
+
+      if (period === 'week') {
+        sessions.forEach(session => {
+          const dateKey = session.entry_time.toISOString().split('T')[0];
+          caloriesMap[dateKey] = (caloriesMap[dateKey] || 0) + (session.calories_burned || 0);
+        });
+      } else if (period === 'month') {
+        sessions.forEach(session => {
+          const daysDiff = Math.floor((new Date() - session.entry_time) / (1000 * 60 * 60 * 24));
+          const weekIndex = Math.floor(daysDiff / 7);
+          if (weekIndex < 4) {
+            const weekKey = `Week ${4 - weekIndex}`;
+            caloriesMap[weekKey] = (caloriesMap[weekKey] || 0) + (session.calories_burned || 0);
+          }
+        });
+      } else if (period === 'year') {
+        sessions.forEach(session => {
+          const monthKey = session.entry_time.toISOString().substring(0, 7);
+          caloriesMap[monthKey] = (caloriesMap[monthKey] || 0) + (session.calories_burned || 0);
+        });
+      }
+
+      // Build data array
+      const data = labels.map(label => Math.round(caloriesMap[label] || 0));
+
+      console.log('🔥 Calories data:', { labels, data });
+
+      res.json({
+        success: true,
+        message: 'Calories data retrieved successfully',
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              label: 'Calories',
+            },
+          ],
+          period,
+          totalCalories: data.reduce((a, b) => a + b, 0),
+        },
+      });
+    } catch (error) {
+      console.error('Get calories data error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Get workout frequency for charts
+  async getWorkoutFrequency(req, res) {
+    try {
+      const { id: memberId } = req.params;
+      const { period = 'week' } = req.query;
+
+      console.log('🔍 getWorkoutFrequency called with:', { memberId, period });
+
+      // Convert user_id to member_id if needed
+      let actualMemberId = memberId;
+
+      if (memberId) {
+        const memberByUserId = await prisma.member.findUnique({
+          where: { user_id: memberId },
+          select: { id: true },
+        });
+
+        if (memberByUserId) {
+          actualMemberId = memberByUserId.id;
+          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
+        }
+      }
+
+      // Calculate date range based on period
+      let startDate = new Date();
+      let groupBy = 'day';
+      let labels = [];
+
+      if (period === 'week') {
+        startDate.setDate(startDate.getDate() - 7);
+        groupBy = 'day';
+        // Get last 7 days
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date();
+          date.setDate(date.getDate() - i);
+          labels.push(date.toISOString().split('T')[0]);
+        }
+      } else if (period === 'month') {
+        startDate.setDate(startDate.getDate() - 30);
+        groupBy = 'week';
+        // Get last 4 weeks
+        labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4'];
+      } else if (period === 'year') {
+        startDate.setMonth(startDate.getMonth() - 12);
+        groupBy = 'month';
+        // Get last 12 months
+        for (let i = 11; i >= 0; i--) {
+          const date = new Date();
+          date.setMonth(date.getMonth() - i);
+          labels.push(date.toISOString().substring(0, 7)); // YYYY-MM
+        }
+      }
+
+      // Get gym sessions for the period
+      const sessions = await prisma.gymSession.findMany({
+        where: {
+          member_id: actualMemberId,
+          entry_time: {
+            gte: startDate,
+          },
+        },
+        orderBy: {
+          entry_time: 'asc',
+        },
+      });
+
+      console.log(`📊 Found ${sessions.length} sessions for member ${actualMemberId}`);
+
+      // Group sessions by period
+      const frequencyMap = {};
+
+      if (period === 'week') {
+        // Group by day
+        sessions.forEach(session => {
+          const dateKey = session.entry_time.toISOString().split('T')[0];
+          frequencyMap[dateKey] = (frequencyMap[dateKey] || 0) + 1;
+        });
+      } else if (period === 'month') {
+        // Group by week
+        sessions.forEach(session => {
+          const daysDiff = Math.floor((new Date() - session.entry_time) / (1000 * 60 * 60 * 24));
+          const weekIndex = Math.floor(daysDiff / 7);
+          if (weekIndex < 4) {
+            const weekKey = `Week ${4 - weekIndex}`;
+            frequencyMap[weekKey] = (frequencyMap[weekKey] || 0) + 1;
+          }
+        });
+      } else if (period === 'year') {
+        // Group by month
+        sessions.forEach(session => {
+          const monthKey = session.entry_time.toISOString().substring(0, 7);
+          frequencyMap[monthKey] = (frequencyMap[monthKey] || 0) + 1;
+        });
+      }
+
+      // Build data array matching labels
+      const data = labels.map(label => frequencyMap[label] || 0);
+
+      console.log('📊 Workout frequency data:', { labels, data });
+
+      res.json({
+        success: true,
+        message: 'Workout frequency retrieved successfully',
+        data: {
+          labels,
+          datasets: [
+            {
+              data,
+              label: 'Workouts',
+            },
+          ],
+          period,
+          totalWorkouts: sessions.length,
+        },
+      });
+    } catch (error) {
+      console.error('Get workout frequency error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
 }
 
 module.exports = new SessionController();

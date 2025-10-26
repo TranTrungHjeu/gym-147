@@ -1,6 +1,8 @@
+import { useAuth } from '@/contexts/AuthContext';
+import { workoutFrequencyService } from '@/services/member/workout-frequency.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Dimensions,
@@ -33,8 +35,23 @@ export default function WorkoutFrequencyChart({
 }: WorkoutFrequencyChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { user } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
+  const [apiData, setApiData] = useState<any>(null);
   const themedStyles = styles(theme);
+
+  // Fetch real data silently
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!user?.id) return;
+      const result = await workoutFrequencyService.getWorkoutFrequency(
+        user.id,
+        selectedPeriod
+      );
+      if (result) setApiData(result);
+    };
+    fetchData();
+  }, [user?.id, selectedPeriod]);
 
   // Get labels based on period
   const getLabels = () => {
@@ -63,6 +80,12 @@ export default function WorkoutFrequencyChart({
         t('stats.months.apr'),
         t('stats.months.may'),
         t('stats.months.jun'),
+        t('stats.months.jul'),
+        t('stats.months.aug'),
+        t('stats.months.sep'),
+        t('stats.months.oct'),
+        t('stats.months.nov'),
+        t('stats.months.dec'),
       ];
     }
   };
@@ -77,7 +100,7 @@ export default function WorkoutFrequencyChart({
             ? [2, 1, 3, 2, 4, 1, 2]
             : selectedPeriod === 'month'
             ? [8, 12, 10, 14]
-            : [45, 52, 48, 61, 55, 58],
+            : [45, 52, 48, 61, 55, 58, 62, 59, 54, 57, 60, 56],
         color: (opacity = 1) =>
           theme.colors.primary +
           Math.floor(opacity * 255)
@@ -88,7 +111,23 @@ export default function WorkoutFrequencyChart({
     ],
   };
 
-  const chartData = data || defaultData;
+  // Use API data if available, with translated labels
+  const chartData = apiData
+    ? {
+        labels: getLabels(),
+        datasets: [
+          {
+            data: apiData.datasets[0].data,
+            color: (opacity = 1) =>
+              theme.colors.primary +
+              Math.floor(opacity * 255)
+                .toString(16)
+                .padStart(2, '0'),
+            strokeWidth: 3,
+          },
+        ],
+      }
+    : data || defaultData;
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,
@@ -106,11 +145,11 @@ export default function WorkoutFrequencyChart({
     propsForDots: {
       r: '6',
       strokeWidth: '2',
-      stroke: theme.colors.primary,
+      stroke: theme.colors.primary, // This is OK - primary is a string
     },
     propsForBackgroundLines: {
       strokeDasharray: '',
-      stroke: theme.colors.border,
+      stroke: theme.colors.border, // This is OK - border is a string
       strokeWidth: 1,
     },
   };
