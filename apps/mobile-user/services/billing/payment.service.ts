@@ -289,6 +289,61 @@ export class PaymentService {
       throw error;
     }
   }
+
+  // Bank Transfer (Sepay Integration)
+  async createBankTransfer(
+    paymentId: string,
+    memberId: string,
+    amount: number
+  ): Promise<any> {
+    try {
+      const response = await billingApiService.post('/bank-transfers/create', {
+        payment_id: paymentId,
+        member_id: memberId,
+        amount: amount,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Error creating bank transfer:', error);
+      throw error;
+    }
+  }
+
+  async getBankTransfer(paymentId: string): Promise<any> {
+    try {
+      const response = await billingApiService.get(
+        `/bank-transfers/${paymentId}`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error fetching bank transfer:', error);
+      throw error;
+    }
+  }
+
+  async verifyBankTransfer(bankTransferId: string): Promise<any> {
+    try {
+      const response = await billingApiService.post(
+        `/bank-transfers/${bankTransferId}/verify`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error verifying bank transfer:', error);
+      throw error;
+    }
+  }
+
+  async cancelBankTransfer(bankTransferId: string): Promise<any> {
+    try {
+      const response = await billingApiService.post(
+        `/bank-transfers/${bankTransferId}/cancel`
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error cancelling bank transfer:', error);
+      throw error;
+    }
+  }
 }
 
 export const paymentService = new PaymentService();

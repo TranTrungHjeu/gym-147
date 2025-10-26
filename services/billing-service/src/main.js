@@ -28,10 +28,12 @@ app.get('/health', (req, res) => {
 // Import routes
 try {
   const { billingRoutes } = require('./routes/billing.routes.js');
+  const bankTransferRoutes = require('./routes/bankTransfer.routes.js');
   console.log('✅ Routes imported successfully');
 
   // Use routes
   app.use('/', billingRoutes);
+  app.use('/bank-transfers', bankTransferRoutes);
   console.log('✅ Routes registered successfully');
 } catch (error) {
   console.error('❌ Error importing routes:', error.message);

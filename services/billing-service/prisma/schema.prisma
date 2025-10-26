@@ -178,6 +178,7 @@ model Payment {
   subscription      Subscription?     @relation(fields: [subscription_id], references: [id])
   invoices          Invoice[]
   refunds           Refund[]
+  bank_transfer     BankTransfer?     // One-to-one for bank transfer payments
 
   @@map("payments")
 }
@@ -247,6 +248,57 @@ model Refund {
   @@map("refunds")
 }
 
+model BankTransfer {
+  id                String            @id @default(cuid())
+  payment_id        String            @unique // Link to Payment record
+  member_id         String            // Reference to member service
+  
+  // Transfer Details
+  transfer_content  String            // Expected transfer content with code
+  amount            Decimal           @db.Decimal(10, 2)
+  status            BankTransferStatus @default(PENDING)
+  
+  // Bank Account Information
+  bank_name         String            // e.g., "VietcomBank"
+  bank_code         String            // e.g., "VCB"
+  account_number    String            // Bank account number
+  account_name      String            // Account holder name
+  
+  // QR Code
+  qr_code_url       String?           // QR code for quick transfer
+  qr_data           String?           // QR code data string
+  
+  // Sepay Integration
+  sepay_account_id  String?           // Sepay account ID
+  sepay_transaction_id String?        @unique // Transaction ID from Sepay
+  sepay_webhook_data Json?            // Full webhook payload from Sepay
+  
+  // Verification
+  verified_at       DateTime?
+  verified_amount   Decimal?          @db.Decimal(10, 2)
+  verified_content  String?           // Actual transfer content received
+  bank_transaction_id String?         // Bank's transaction ID
+  
+  // Timing
+  expires_at        DateTime          // Transfer must complete before this
+  completed_at      DateTime?
+  
+  // Notes
+  notes             String?
+  metadata          Json?             // Additional data
+  
+  created_at        DateTime          @default(now())
+  updated_at        DateTime          @updatedAt
+
+  // Relations
+  payment           Payment           @relation(fields: [payment_id], references: [id])
+
+  @@map("bank_transfers")
+  @@index([member_id])
+  @@index([status])
+  @@index([sepay_transaction_id])
+}
+
 model DiscountCode {
   id                String          @id @default(cuid())
   code              String          @unique
@@ -273,6 +325,11 @@ model DiscountCode {
   minimum_amount    Decimal?        @db.Decimal(10, 2)
   first_time_only   Boolean         @default(false)
   
+  // Referral System (Improved)
+  referrer_member_id String?        // Member who created referral code
+  bonus_days        Int?            // Bonus days for referee (người được giới thiệu)
+  referral_reward   Decimal?        @db.Decimal(10, 2) // Reward for referrer
+  
   created_at        DateTime        @default(now())
   updated_at        DateTime        @updatedAt
 
@@ -285,9 +342,12 @@ model DiscountCode {
 model DiscountUsage {
   id               String       @id @default(cuid())
   discount_code_id String
-  member_id        String       // Reference to member service
+  member_id        String       // Reference to member service (referee)
   subscription_id  String?
   amount_discounted Decimal     @db.Decimal(10, 2)
+  bonus_days_added Int?         // Bonus days added from referral
+  referrer_member_id String?    // Referrer who gets reward
+  referrer_reward  Decimal?     @db.Decimal(10, 2) // Reward given to referrer
   used_at          DateTime     @default(now())
 
   discount_code DiscountCode @relation(fields: [discount_code_id], references: [id])
@@ -323,6 +383,66 @@ model RevenueReport {
   @@map("revenue_reports")
 }
 
+// Subscription History Tracking (Improved)
+model SubscriptionHistory {
+  id              String   @id @default(cuid())
+  subscription_id String
+  member_id       String   // Reference to member service
+  
+  // Change Details
+  from_plan_id    String?  // Previous plan (null if first subscription)
+  to_plan_id      String   // New plan
+  from_status     SubscriptionStatus?
+  to_status       SubscriptionStatus
+  
+  // Pricing
+  old_price       Decimal? @db.Decimal(10, 2)
+  new_price       Decimal  @db.Decimal(10, 2)
+  price_difference Decimal @db.Decimal(10, 2) // Positive = charge more, Negative = refund
+  
+  // Metadata
+  change_reason   String?  // "UPGRADE", "DOWNGRADE", "RENEWAL", "CANCELLATION"
+  changed_by      String?  // member_id/staff_id/system
+  notes           String?
+  
+  created_at      DateTime @default(now())
+
+  @@map("subscription_history")
+  @@index([subscription_id])
+  @@index([member_id])
+}
+
+// Member Lifetime Value & Analytics (Improved)
+model MemberLifetimeValue {
+  member_id           String   @id // Reference to member service
+  
+  // Financial Metrics
+  total_spent         Decimal  @db.Decimal(12, 2) @default(0) // Tổng đã chi
+  avg_monthly_spend   Decimal  @db.Decimal(10, 2) @default(0) // Trung bình/tháng
+  predicted_ltv       Decimal  @db.Decimal(12, 2) @default(0) // Dự đoán lifetime value
+  
+  // Subscription Metrics
+  subscription_months Int      @default(0) // Đã subscribe bao nhiêu tháng
+  total_renewals      Int      @default(0) // Số lần gia hạn
+  total_upgrades      Int      @default(0) // Số lần nâng cấp
+  total_downgrades    Int      @default(0) // Số lần hạ cấp
+  
+  // Dates
+  first_payment_date  DateTime?
+  last_payment_date   DateTime?
+  next_expected_payment DateTime?
+  
+  // Behavior Metrics
+  churn_risk_score    Float?   // 0-1, xác suất member sẽ cancel
+  engagement_score    Float?   // 0-1, mức độ active
+  
+  // Timestamps
+  created_at          DateTime @default(now())
+  updated_at          DateTime @updatedAt
+
+  @@map("member_lifetime_values")
+}
+
 // Cross-service references
 model MemberPaymentMethod {
   id              String              @id @default(cuid())
@@ -342,15 +462,11 @@ model MemberPaymentMethod {
 
 // Enums
 enum PlanType {
-  BASIC
-  PREMIUM
-  VIP
-  STUDENT
-  SENIOR
-  FAMILY
-  CORPORATE
-  DAY_PASS
-  TRIAL
+  BASIC     // Gói cơ bản - 299k/tháng
+  PREMIUM   // Gói phổ biến - 599k/tháng
+  VIP       // Gói cao cấp - 999k/tháng
+  STUDENT   // Gói sinh viên - 199k/tháng
+  // Note: TRIAL, SENIOR, FAMILY, CORPORATE, DAY_PASS được xử lý qua DiscountCode/Addon
 }
 
 enum AddonType {
@@ -452,4 +568,14 @@ enum DiscountType {
   FIXED_AMOUNT
   FREE_TRIAL
   FIRST_MONTH_FREE
+}
+
+enum BankTransferStatus {
+  PENDING         // Waiting for transfer
+  CHECKING        // Checking transaction with Sepay
+  VERIFIED        // Transfer confirmed by Sepay
+  COMPLETED       // Payment processed
+  EXPIRED         // Transfer window expired
+  FAILED          // Verification failed
+  CANCELLED       // Cancelled by user
 }
