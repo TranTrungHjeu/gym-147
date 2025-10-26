@@ -10,11 +10,13 @@
   },
   "dependencies": {
     "@prisma/client": "^6.16.2",
+    "axios": "^1.12.2",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
-    "prisma": "^6.16.2"
+    "prisma": "^6.16.2",
+    "qrcode": "^1.5.4"
   }
 }
