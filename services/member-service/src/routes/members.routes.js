@@ -9,20 +9,31 @@ const healthController = require('../controllers/health.controller');
 // Get all members with pagination and filters
 router.get('/members', (req, res) => memberController.getAllMembers(req, res));
 
-// Get member by ID
-router.get('/members/:id', (req, res) => memberController.getMemberById(req, res));
-
-// Get member by user_id (for cross-service integration)
-router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
-
-// Debug endpoint
+// Debug endpoint (static route - must be before dynamic routes)
 router.get('/debug/database', (req, res) => memberController.debugDatabase(req, res));
 
-// Get current member profile (for mobile app)
+// Get current member profile (static route - must be before dynamic routes)
 router.get('/members/profile', (req, res) => memberController.getCurrentMemberProfile(req, res));
+
+// Update current member profile (static route - must be before dynamic routes)
+router.put('/members/profile', (req, res) => memberController.updateCurrentMemberProfile(req, res));
+
+// Upload avatar (static route - must be before dynamic routes)
+router.post('/members/avatar/upload', (req, res) => memberController.uploadAvatar(req, res));
+
+// Get member by user_id (static route - must be before :id)
+router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
+
+// Get member by ID (dynamic route)
+router.get('/members/:id', (req, res) => memberController.getMemberById(req, res));
 
 // Create new member
 router.post('/members', (req, res) => memberController.createMember(req, res));
+
+// Create member with user (called from Billing Service after payment)
+router.post('/members/create-with-user', (req, res) =>
+  memberController.createMemberWithUser(req, res)
+);
 
 // Get multiple members by user_ids (for cross-service integration)
 router.post('/members/batch', (req, res) => memberController.getMembersByIds(req, res));
@@ -57,27 +68,11 @@ router.post('/members/:id/qr-code', (req, res) => memberController.generateQRCod
 // Toggle access
 router.put('/members/:id/access', (req, res) => memberController.toggleAccess(req, res));
 
-// ==================== ACHIEVEMENT ROUTES ====================
-
-// Get all achievements
-router.get('/achievements', (req, res) => achievementController.getAllAchievements(req, res));
-
-// Get achievement by ID
-router.get('/achievements/:id', (req, res) => achievementController.getAchievementById(req, res));
-
-// Get achievement summary
-router.get('/achievements/summary', (req, res) =>
-  achievementController.getAchievementSummary(req, res)
-);
+// ==================== MEMBER-SCOPED ACHIEVEMENT ROUTES ====================
 
 // Get member achievements
 router.get('/members/:id/achievements', (req, res) =>
   achievementController.getMemberAchievements(req, res)
-);
-
-// Unlock achievement
-router.post('/achievements/:id/unlock', (req, res) =>
-  achievementController.unlockAchievement(req, res)
 );
 
 // ==================== HEALTH ROUTES ====================

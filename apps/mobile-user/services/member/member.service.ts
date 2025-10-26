@@ -5,6 +5,37 @@ class MemberService {
   private baseUrl = 'http://10.0.2.2:3002/members'; // Direct connection to Member Service
 
   /**
+   * Check if current user has a member record
+   * Returns true if member exists, false otherwise
+   */
+  async checkMemberExists(): Promise<boolean> {
+    try {
+      console.log('🔍 Checking if member exists...');
+      const token = await memberApiService.getStoredToken();
+
+      if (!token) {
+        console.log('❌ No token found');
+        return false;
+      }
+
+      // Try to get member profile
+      const response = await memberApiService.get('/members/profile');
+
+      if (response.data && (response.data as any).id) {
+        console.log('✅ Member exists:', (response.data as any).id);
+        return true;
+      }
+
+      console.log('❌ Member not found');
+      return false;
+    } catch (error: any) {
+      console.log('❌ Error checking member existence:', error.message);
+      // If 404 or any error, assume member doesn't exist
+      return false;
+    }
+  }
+
+  /**
    * Get current member profile
    */
   async getMemberProfile(): Promise<{
@@ -136,9 +167,12 @@ class MemberService {
             console.log('🔑 Member Service response:', memberResponse);
 
             // Combine user and member data
+            const memberData: any =
+              (memberResponse.data as any)?.member || memberResponse.data || {};
             response = {
               data: {
-                ...(memberResponse.data || {}),
+                ...memberData,
+                id: memberData.id || userData.id, // Ensure id is always present
                 full_name: `${userData.firstName} ${userData.lastName}`,
                 email: userData.email,
                 phone: userData.phone,
@@ -162,7 +196,7 @@ class MemberService {
                 address: '',
                 height: 0,
                 weight: 0,
-                body_fat_percentage: 0,
+                body_fat_percent: 0,
                 medical_conditions: [],
                 allergies: [],
                 fitness_goals: [],
@@ -173,6 +207,7 @@ class MemberService {
                 },
                 profile_photo: '',
                 membership_type: 'basic',
+                membership_status: 'ACTIVE',
                 membership_start_date: '',
                 membership_end_date: '',
                 is_active: userData.emailVerified,
@@ -241,7 +276,7 @@ class MemberService {
             address: '',
             height: 0,
             weight: 0,
-            body_fat_percentage: 0,
+            body_fat_percent: 0,
             medical_conditions: [],
             allergies: [],
             fitness_goals: [],
@@ -254,7 +289,7 @@ class MemberService {
             membership_type: 'basic',
             membership_start_date: '',
             membership_end_date: '',
-            membership_status: 'active',
+            membership_status: 'ACTIVE',
             is_active: false,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -396,6 +431,27 @@ class MemberService {
       const response = await memberApiService.get(`/sessions/${sessionId}`);
       return { success: true, data: response.data as GymSession };
     } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Upload avatar image
+   */
+  async uploadAvatar(
+    base64Image: string,
+    mimeType: string = 'image/jpeg',
+    filename: string = 'avatar.jpg'
+  ): Promise<{ success: boolean; data?: any; error?: string }> {
+    try {
+      const response = await memberApiService.post('/members/avatar/upload', {
+        base64Image,
+        mimeType,
+        filename,
+      });
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('Upload avatar error:', error);
       return { success: false, error: error.message };
     }
   }

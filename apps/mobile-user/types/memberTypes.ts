@@ -7,8 +7,13 @@ export interface Member {
   gender?: Gender;
   height?: number;
   weight?: number;
+  body_fat_percent?: number;
   profile_photo?: string;
   fitness_goals?: string[];
+  medical_conditions?: string[];
+  allergies?: string[];
+  emergency_contact?: string;
+  emergency_phone?: string;
   membership_status: MembershipStatus;
   membership_type: MembershipType;
   created_at: string;
