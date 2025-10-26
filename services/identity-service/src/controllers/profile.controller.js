@@ -130,18 +130,20 @@ class ProfileController {
       const userId = req.user.id;
       const { firstName, lastName, phone } = req.body;
 
-      // Validate input
-      if (!firstName || !lastName) {
-        return res.status(400).json({
-          success: false,
-          message: 'Họ và tên là bắt buộc',
-          data: null,
-        });
+      const updateData = {};
+
+      // Add firstName and lastName if provided
+      if (firstName !== undefined) {
+        updateData.first_name = firstName.trim();
+      }
+      if (lastName !== undefined) {
+        updateData.last_name = lastName.trim();
       }
 
       // Validate phone if provided
       if (phone) {
-        const phoneValidation = this.validatePhone(phone);
+        const trimmedPhone = phone.trim();
+        const phoneValidation = this.validatePhone(trimmedPhone);
         if (!phoneValidation.isValid) {
           return res.status(400).json({
             success: false,
@@ -153,7 +155,7 @@ class ProfileController {
         // Check if phone is already used by another user
         const existingUser = await prisma.user.findFirst({
           where: {
-            phone,
+            phone: trimmedPhone,
             id: { not: userId },
           },
         });
@@ -165,17 +167,24 @@ class ProfileController {
             data: null,
           });
         }
+
+        updateData.phone = trimmedPhone;
+      }
+
+      // Check if there's anything to update
+      if (Object.keys(updateData).length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không có dữ liệu để cập nhật',
+          data: null,
+        });
       }
 
       // Update user profile
+      updateData.updated_at = new Date();
       const updatedUser = await prisma.user.update({
         where: { id: userId },
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || null,
-          updated_at: new Date(),
-        },
+        data: updateData,
         select: {
           id: true,
           email: true,

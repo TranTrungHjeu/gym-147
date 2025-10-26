@@ -1,14 +1,15 @@
-import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
-  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -16,64 +17,81 @@ import {
   View,
 } from 'react-native';
 
-const SignupScreen = () => {
+const RegisterScreen = () => {
   const router = useRouter();
-  const { register, isLoading } = useAuth();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const [isLoading, setIsLoading] = useState(false);
 
+  const [primaryMethod, setPrimaryMethod] = useState<'EMAIL' | 'PHONE'>(
+    'EMAIL'
+  );
   const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const [phone, setPhone] = useState('');
-  const [secureEntry, setSecureEntry] = useState(true);
+  const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
 
   const [errors, setErrors] = useState({
     email: '',
-    password: '',
     phone: '',
+    password: '',
+    firstName: '',
+    lastName: '',
   });
-
-  const handleGoBack = () => {
-    router.push('/');
-  };
-
-  const handleLogin = () => {
-    router.push('/(auth)/login');
-  };
 
   const validateForm = () => {
     const newErrors = {
       email: '',
-      password: '',
       phone: '',
+      password: '',
+      firstName: '',
+      lastName: '',
     };
 
     let isValid = true;
 
-    // Validate email
-    if (!email.trim()) {
-      newErrors.email = 'Email is required';
+    // Validate first name
+    if (!firstName.trim()) {
+      newErrors.firstName = t('validation.firstNameRequired');
       isValid = false;
-    } else if (!/\S+@\S+\.\S+/.test(email)) {
-      newErrors.email = 'Email is invalid';
+    }
+
+    // Validate last name
+    if (!lastName.trim()) {
+      newErrors.lastName = t('validation.lastNameRequired');
       isValid = false;
+    }
+
+    // Validate based on primary method
+    if (primaryMethod === 'EMAIL') {
+      if (!email.trim()) {
+        newErrors.email = t('validation.emailRequired');
+        isValid = false;
+      } else if (!/\S+@\S+\.\S+/.test(email)) {
+        newErrors.email = t('validation.emailInvalid');
+        isValid = false;
+      }
+    } else {
+      if (!phone.trim()) {
+        newErrors.phone = t('validation.phoneRequired');
+        isValid = false;
+      } else if (!/^(\+84|84|0)[1-9][0-9]{8}$/.test(phone.replace(/\s/g, ''))) {
+        newErrors.phone = t('validation.phoneInvalid');
+        isValid = false;
+      }
     }
 
     // Validate password
     if (!password) {
-      newErrors.password = 'Password is required';
+      newErrors.password = t('validation.passwordRequired');
       isValid = false;
     } else if (password.length < 8) {
-      newErrors.password = 'Password must be at least 8 characters';
+      newErrors.password = t('validation.passwordMinLength');
       isValid = false;
-    }
-
-    // Validate phone
-    if (!phone.trim()) {
-      newErrors.phone = 'Phone number is required';
-      isValid = false;
-    } else if (!/^\d{10,}$/.test(phone.replace(/[\s\-\(\)]/g, ''))) {
-      newErrors.phone = 'Phone number is invalid';
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      newErrors.password = t('validation.passwordWeak');
       isValid = false;
     }
 
@@ -81,341 +99,408 @@ const SignupScreen = () => {
     return isValid;
   };
 
-  const handleSignup = async () => {
-    if (!validateForm()) {
-      return;
-    }
+  const handleSendOTP = async () => {
+    if (!validateForm()) return;
 
+    setIsLoading(true);
     try {
-      // Use email as name since this template doesn't have name field
-      await register({
-        name: email,
-        email: email,
-        password: password,
-        confirmPassword: password, // Same as password
+      // Import from services/identity/api.service.ts
+      const { identityApiService } = await import(
+        '@/services/identity/api.service'
+      );
+
+      const identifier = primaryMethod === 'EMAIL' ? email : phone;
+
+      await identityApiService.post('/auth/send-otp', {
+        identifier,
+        type: primaryMethod,
       });
 
-      Alert.alert(t('common.success'), t('auth.accountCreated'), [
+      Alert.alert(t('common.success'), t('registration.otpSent'), [
         {
           text: t('common.ok'),
-          onPress: () => router.replace('/(tabs)'),
+          onPress: () => {
+            // Navigate to OTP screen with registration data
+            router.push({
+              pathname: '/(auth)/register-otp',
+              params: {
+                email,
+                phone,
+                password,
+                firstName,
+                lastName,
+                primaryMethod,
+              },
+            });
+          },
         },
       ]);
-    } catch (error) {
-      Alert.alert(t('common.error'), t('auth.registrationFailed'));
+    } catch (error: any) {
+      console.error('Send OTP error:', error);
+      Alert.alert(
+        t('common.error'),
+        error.response?.data?.message || t('registration.otpSendFailed')
+      );
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  const handleGoogleSignup = () => {
-    Alert.alert(t('auth.googleSignup'), t('auth.googleSignupNotImplemented'));
-  };
+  const themedStyles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    scrollContent: {
+      flexGrow: 1,
+      padding: theme.spacing.lg,
+    },
+    header: {
+      marginTop: theme.spacing.xl,
+      marginBottom: theme.spacing.xl,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surface,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: theme.spacing.lg,
+    },
+    title: {
+      ...Typography.h1,
+      color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
+    },
+    subtitle: {
+      ...Typography.bodyRegular,
+      color: theme.colors.textSecondary,
+    },
+    methodToggle: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.xl,
+    },
+    methodButton: {
+      flex: 1,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+    },
+    methodButtonActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: `${theme.colors.primary}10`,
+    },
+    methodButtonText: {
+      ...Typography.bodyBold,
+      color: theme.colors.text,
+    },
+    methodButtonTextActive: {
+      color: theme.colors.primary,
+    },
+    form: {
+      gap: theme.spacing.md,
+    },
+    inputContainer: {
+      gap: theme.spacing.xs,
+    },
+    label: {
+      ...Typography.bodyMedium,
+      color: theme.colors.text,
+    },
+    input: {
+      ...Typography.bodyRegular,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.md,
+      padding: theme.spacing.md,
+      minHeight: 48,
+    },
+    inputError: {
+      borderColor: theme.colors.error,
+    },
+    inputRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+    },
+    inputHalf: {
+      flex: 1,
+    },
+    passwordContainer: {
+      position: 'relative',
+    },
+    passwordToggle: {
+      position: 'absolute',
+      right: theme.spacing.md,
+      top: '50%',
+      transform: [{ translateY: -12 }],
+    },
+    errorText: {
+      ...Typography.caption,
+      color: theme.colors.error,
+    },
+    submitButton: {
+      marginTop: theme.spacing.xl,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      ...theme.shadows.md,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      ...Typography.bodyBold,
+      color: theme.colors.textInverse,
+    },
+    footer: {
+      marginTop: theme.spacing.xl,
+      alignItems: 'center',
+    },
+    footerText: {
+      ...Typography.bodyRegular,
+      color: theme.colors.textSecondary,
+    },
+    loginButton: {
+      ...Typography.bodyBold,
+      color: theme.colors.primary,
+    },
+  });
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={themedStyles.container}
     >
-      <TouchableOpacity style={styles.backButtonWrapper} onPress={handleGoBack}>
-        <Ionicons
-          name={'arrow-back-outline'}
-          color={theme.colors.text}
-          size={25}
-        />
-      </TouchableOpacity>
-      <View style={styles.textContainer}>
-        <Text style={[styles.headingText, { color: theme.colors.text }]}>
-          {t('auth.welcome')}
-        </Text>
-        <Text style={[styles.headingText, { color: theme.colors.text }]}>
-          {t('auth.signUp')}
-        </Text>
-      </View>
-      {/* form  */}
-      <View style={styles.formContainer}>
-        <View
-          style={[
-            styles.inputContainer,
-            {
-              borderColor: errors.email
-                ? theme.colors.error
-                : theme.colors.border,
-              backgroundColor: theme.colors.surface,
-            },
-            errors.email ? styles.inputContainerError : null,
-          ]}
-        >
-          <Ionicons
-            name={'mail-outline'}
-            size={24}
-            color={theme.colors.textSecondary}
-          />
-          <TextInput
-            style={[styles.textInput, { color: theme.colors.text }]}
-            placeholder={t('auth.email')}
-            placeholderTextColor={theme.colors.textSecondary}
-            keyboardType="email-address"
-            value={email}
-            onChangeText={(text) => {
-              setEmail(text);
-              if (errors.email) {
-                setErrors({ ...errors, email: '' });
-              }
-            }}
-            autoCapitalize="none"
-          />
-        </View>
-        {errors.email ? (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {errors.email}
-          </Text>
-        ) : null}
-
-        <View
-          style={[
-            styles.inputContainer,
-            {
-              borderColor: errors.password
-                ? theme.colors.error
-                : theme.colors.border,
-              backgroundColor: theme.colors.surface,
-            },
-            errors.password ? styles.inputContainerError : null,
-          ]}
-        >
-          <SimpleLineIcons
-            name={'lock'}
-            size={24}
-            color={theme.colors.textSecondary}
-          />
-          <TextInput
-            style={[styles.textInput, { color: theme.colors.text }]}
-            placeholder={t('auth.password')}
-            placeholderTextColor={theme.colors.textSecondary}
-            secureTextEntry={secureEntry}
-            value={password}
-            onChangeText={(text) => {
-              setPassword(text);
-              if (errors.password) {
-                setErrors({ ...errors, password: '' });
-              }
-            }}
-            autoCapitalize="none"
-          />
+      <ScrollView
+        contentContainerStyle={themedStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={themedStyles.header}>
           <TouchableOpacity
-            onPress={() => {
-              setSecureEntry((prev) => !prev);
-            }}
+            style={themedStyles.backButton}
+            onPress={() => router.back()}
           >
-            <SimpleLineIcons
-              name={secureEntry ? 'eye' : 'eye'}
-              size={20}
-              color={theme.colors.textSecondary}
+            <Ionicons
+              name="arrow-back"
+              size={24}
+              color={theme.colors.text}
             />
           </TouchableOpacity>
-        </View>
-        {errors.password ? (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {errors.password}
-          </Text>
-        ) : null}
 
-        <View
-          style={[
-            styles.inputContainer,
-            {
-              borderColor: errors.phone
-                ? theme.colors.error
-                : theme.colors.border,
-              backgroundColor: theme.colors.surface,
-            },
-            errors.phone ? styles.inputContainerError : null,
-          ]}
-        >
-          <SimpleLineIcons
-            name={'screen-smartphone'}
-            size={24}
-            color={theme.colors.textSecondary}
-          />
-          <TextInput
-            style={[styles.textInput, { color: theme.colors.text }]}
-            placeholder={t('auth.phone')}
-            placeholderTextColor={theme.colors.textSecondary}
-            keyboardType="phone-pad"
-            value={phone}
-            onChangeText={(text) => {
-              setPhone(text);
-              if (errors.phone) {
-                setErrors({ ...errors, phone: '' });
-              }
-            }}
-          />
-        </View>
-        {errors.phone ? (
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {errors.phone}
+          <Text style={themedStyles.title}>
+            {t('registration.createAccount')}
           </Text>
-        ) : null}
+          <Text style={themedStyles.subtitle}>
+            {t('registration.createAccountSubtitle')}
+          </Text>
+        </View>
+
+        <View style={themedStyles.methodToggle}>
+          <TouchableOpacity
+            style={[
+              themedStyles.methodButton,
+              primaryMethod === 'EMAIL' && themedStyles.methodButtonActive,
+            ]}
+            onPress={() => setPrimaryMethod('EMAIL')}
+          >
+            <Text
+              style={[
+                themedStyles.methodButtonText,
+                primaryMethod === 'EMAIL' &&
+                  themedStyles.methodButtonTextActive,
+              ]}
+            >
+              {t('registration.registerByEmail')}
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              themedStyles.methodButton,
+              primaryMethod === 'PHONE' && themedStyles.methodButtonActive,
+            ]}
+            onPress={() => setPrimaryMethod('PHONE')}
+          >
+            <Text
+              style={[
+                themedStyles.methodButtonText,
+                primaryMethod === 'PHONE' &&
+                  themedStyles.methodButtonTextActive,
+              ]}
+            >
+              {t('registration.registerByPhone')}
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={themedStyles.form}>
+          <View style={themedStyles.inputRow}>
+            <View style={[themedStyles.inputContainer, themedStyles.inputHalf]}>
+              <Text style={themedStyles.label}>
+                {t('registration.firstName')}
+              </Text>
+              <TextInput
+                style={[
+                  themedStyles.input,
+                  errors.firstName && themedStyles.inputError,
+                ]}
+                value={firstName}
+                onChangeText={(text) => {
+                  setFirstName(text);
+                  setErrors({ ...errors, firstName: '' });
+                }}
+                placeholder={t('registration.firstNamePlaceholder')}
+                placeholderTextColor={theme.colors.textTertiary}
+                autoCapitalize="words"
+              />
+              {errors.firstName && (
+                <Text style={themedStyles.errorText}>{errors.firstName}</Text>
+              )}
+            </View>
+
+            <View style={[themedStyles.inputContainer, themedStyles.inputHalf]}>
+              <Text style={themedStyles.label}>
+                {t('registration.lastName')}
+              </Text>
+              <TextInput
+                style={[
+                  themedStyles.input,
+                  errors.lastName && themedStyles.inputError,
+                ]}
+                value={lastName}
+                onChangeText={(text) => {
+                  setLastName(text);
+                  setErrors({ ...errors, lastName: '' });
+                }}
+                placeholder={t('registration.lastNamePlaceholder')}
+                placeholderTextColor={theme.colors.textTertiary}
+                autoCapitalize="words"
+              />
+              {errors.lastName && (
+                <Text style={themedStyles.errorText}>{errors.lastName}</Text>
+              )}
+            </View>
+          </View>
+
+          {primaryMethod === 'EMAIL' ? (
+            <View style={themedStyles.inputContainer}>
+              <Text style={themedStyles.label}>{t('registration.email')}</Text>
+              <TextInput
+                style={[
+                  themedStyles.input,
+                  errors.email && themedStyles.inputError,
+                ]}
+                value={email}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setErrors({ ...errors, email: '' });
+                }}
+                placeholder={t('registration.emailPlaceholder')}
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              {errors.email && (
+                <Text style={themedStyles.errorText}>{errors.email}</Text>
+              )}
+            </View>
+          ) : (
+            <View style={themedStyles.inputContainer}>
+              <Text style={themedStyles.label}>{t('registration.phone')}</Text>
+              <TextInput
+                style={[
+                  themedStyles.input,
+                  errors.phone && themedStyles.inputError,
+                ]}
+                value={phone}
+                onChangeText={(text) => {
+                  setPhone(text);
+                  setErrors({ ...errors, phone: '' });
+                }}
+                placeholder={t('registration.phonePlaceholder')}
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="phone-pad"
+              />
+              {errors.phone && (
+                <Text style={themedStyles.errorText}>{errors.phone}</Text>
+              )}
+            </View>
+          )}
+
+          <View style={themedStyles.inputContainer}>
+            <Text style={themedStyles.label}>{t('registration.password')}</Text>
+            <View style={themedStyles.passwordContainer}>
+              <TextInput
+                style={[
+                  themedStyles.input,
+                  errors.password && themedStyles.inputError,
+                ]}
+                value={password}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setErrors({ ...errors, password: '' });
+                }}
+                placeholder={t('registration.passwordPlaceholder')}
+                placeholderTextColor={theme.colors.textTertiary}
+                secureTextEntry={!showPassword}
+                autoCapitalize="none"
+              />
+              <TouchableOpacity
+                style={themedStyles.passwordToggle}
+                onPress={() => setShowPassword(!showPassword)}
+              >
+                <Ionicons
+                  name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                  size={24}
+                  color={theme.colors.textTertiary}
+                />
+              </TouchableOpacity>
+            </View>
+            {errors.password && (
+              <Text style={themedStyles.errorText}>{errors.password}</Text>
+            )}
+          </View>
+        </View>
 
         <TouchableOpacity
           style={[
-            styles.loginButtonWrapper,
-            { backgroundColor: theme.colors.primary },
+            themedStyles.submitButton,
+            isLoading && themedStyles.submitButtonDisabled,
           ]}
-          onPress={handleSignup}
+          onPress={handleSendOTP}
           disabled={isLoading}
         >
           {isLoading ? (
-            <ActivityIndicator color={theme.colors.textInverse} />
+            <ActivityIndicator size="small" color={theme.colors.textInverse} />
           ) : (
-            <Text
-              style={[styles.loginText, { color: theme.colors.textInverse }]}
-            >
-              {t('auth.register')}
+            <Text style={themedStyles.submitButtonText}>
+              {t('registration.continue')}
             </Text>
           )}
         </TouchableOpacity>
 
-        <Text
-          style={[styles.continueText, { color: theme.colors.textSecondary }]}
-        >
-          or continue with
-        </Text>
-        <TouchableOpacity
-          style={[
-            styles.googleButtonContainer,
-            {
-              borderColor: theme.colors.border,
-              backgroundColor: theme.colors.surface,
-            },
-          ]}
-          onPress={handleGoogleSignup}
-        >
-          <Image
-            source={{ uri: 'https://img.icons8.com/color/48/google-logo.png' }}
-            style={styles.googleImage}
-          />
-          <Text style={[styles.googleText, { color: theme.colors.text }]}>
-            Google
-          </Text>
-        </TouchableOpacity>
-        <View style={styles.footerContainer}>
-          <Text
-            style={[styles.accountText, { color: theme.colors.textSecondary }]}
-          >
-            {t('auth.alreadyHaveAccount')}
-          </Text>
-          <TouchableOpacity onPress={handleLogin}>
-            <Text style={[styles.signupText, { color: theme.colors.primary }]}>
+        <View style={themedStyles.footer}>
+          <Text style={themedStyles.footerText}>
+            {t('registration.alreadyHaveAccount')}{' '}
+            <Text
+              style={themedStyles.loginButton}
+              onPress={() => router.push('/(auth)/login')}
+            >
               {t('auth.login')}
             </Text>
-          </TouchableOpacity>
+          </Text>
         </View>
-      </View>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
-export default SignupScreen;
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  backButtonWrapper: {
-    height: 40,
-    width: 40,
-    backgroundColor: 'transparent',
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  textContainer: {
-    marginVertical: 20,
-  },
-  headingText: {
-    ...Typography.h1,
-  },
-  formContainer: {
-    marginTop: 20,
-  },
-  inputContainer: {
-    borderWidth: 1.5,
-    borderRadius: 16,
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginVertical: 8,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  inputContainerError: {
-    borderWidth: 2,
-  },
-  textInput: {
-    flex: 1,
-    paddingHorizontal: 12,
-    ...Typography.bodyMedium,
-    minHeight: 24,
-  },
-  errorText: {
-    ...Typography.bodySmall,
-    marginLeft: 20,
-    marginTop: -2,
-    marginBottom: 8,
-  },
-  loginButtonWrapper: {
-    borderRadius: 16,
-    marginTop: 24,
-    paddingVertical: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  loginText: {
-    ...Typography.buttonLarge,
-    textAlign: 'center',
-  },
-  continueText: {
-    ...Typography.bodySmall,
-    textAlign: 'center',
-    marginVertical: 20,
-  },
-  googleButtonContainer: {
-    flexDirection: 'row',
-    borderWidth: 1.5,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    gap: 12,
-    marginBottom: 20,
-  },
-  googleImage: {
-    height: 20,
-    width: 20,
-  },
-  googleText: {
-    ...Typography.buttonMedium,
-  },
-  footerContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginVertical: 20,
-    gap: 8,
-  },
-  accountText: {
-    ...Typography.bodyMedium,
-  },
-  signupText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-});
+export default RegisterScreen;

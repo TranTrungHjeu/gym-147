@@ -21,7 +21,7 @@ import {
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading } = useAuth();
+  const { login, isLoading, hasMember, user } = useAuth();
   const { theme } = useTheme();
   const { t } = useTranslation();
 
@@ -57,8 +57,45 @@ export default function LoginScreen() {
     }
 
     try {
-      await login(credentials);
-      router.replace('/(tabs)');
+      const result = await login(credentials);
+
+      // Check registration completion status
+      const registrationStatus = result.registrationStatus || {};
+
+      console.log('📊 Registration status:', {
+        hasMember: result.hasMember,
+        hasSubscription: registrationStatus.hasSubscription,
+        hasCompletedProfile: registrationStatus.hasCompletedProfile,
+      });
+
+      // Priority: Subscription > Member > Profile
+      if (!registrationStatus.hasSubscription) {
+        console.log('⚠️ No subscription - redirecting to plan selection');
+        router.replace({
+          pathname: '/(auth)/register-plan',
+          params: {
+            userId: result.user.id,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+          },
+        });
+      } else if (!result.hasMember || !registrationStatus.hasCompletedProfile) {
+        console.log(
+          '⚠️ Subscription OK but profile incomplete - redirecting to profile'
+        );
+        router.replace({
+          pathname: '/(auth)/register-profile',
+          params: {
+            userId: result.user.id,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+            paymentVerified: 'true',
+          },
+        });
+      } else {
+        console.log('✅ Complete registration - redirecting to home');
+        router.replace('/(tabs)');
+      }
     } catch (error) {
       console.error('Login error:', error);
     }
@@ -107,7 +144,7 @@ export default function LoginScreen() {
           <TextInput
             style={[styles.textInput, { color: theme.colors.text }]}
             placeholder={t('auth.email')}
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textTertiary}
             keyboardType="email-address"
             value={email}
             onChangeText={setEmail}
@@ -138,7 +175,7 @@ export default function LoginScreen() {
           <TextInput
             style={[styles.textInput, { color: theme.colors.text }]}
             placeholder={t('auth.password')}
-            placeholderTextColor={theme.colors.textSecondary}
+            placeholderTextColor={theme.colors.textTertiary}
             secureTextEntry={secureEntry}
             value={password}
             onChangeText={setPassword}
@@ -184,7 +221,7 @@ export default function LoginScreen() {
               )}
             </View>
             <Text style={[styles.rememberMeText, { color: theme.colors.text }]}>
-              Ghi nhớ đăng nhập
+              {t('auth.rememberMe')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -213,7 +250,7 @@ export default function LoginScreen() {
         <Text
           style={[styles.continueText, { color: theme.colors.textSecondary }]}
         >
-          or continue with
+          {t('auth.orContinueWith')}
         </Text>
 
         <TouchableOpacity
@@ -301,6 +338,7 @@ const styles = StyleSheet.create({
     marginLeft: 20,
     marginTop: -2,
     marginBottom: 8,
+    color: '#EF4444', // theme.colors.error - hardcoded vì không access được theme trong StyleSheet
   },
   forgotPasswordText: {
     ...Typography.bodySmallMedium,
@@ -340,6 +378,7 @@ const styles = StyleSheet.create({
   loginText: {
     ...Typography.buttonLarge,
     textAlign: 'center',
+    color: '#FFFFFF', // theme.colors.textInverse - hardcoded vì không access được theme trong StyleSheet
   },
   continueText: {
     ...Typography.bodySmall,

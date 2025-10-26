@@ -9,7 +9,7 @@ class AuthController {
   constructor() {
     this.otpService = new OTPService();
     this.rateLimitStore = new Map(); // In-memory store for rate limiting
-    this.otpCooldownStore = new Map(); // Store for OTP cooldown (30 seconds)
+    this.otpCooldownStore = new Map(); // Store for OTP cooldown (60 seconds)
     this.passwordResetCleanupInterval = null;
   }
 
@@ -47,7 +47,7 @@ class AuthController {
     if (!timestamp) return 0;
 
     const now = Date.now();
-    const cooldownTime = 60 * 1000; // 30 seconds
+    const cooldownTime = 60 * 1000; // 60 seconds (as per registration plan)
     const remaining = Math.max(0, cooldownTime - (now - timestamp));
 
     if (remaining === 0) {
@@ -90,16 +90,13 @@ class AuthController {
    */
   startPasswordResetCleanupJob() {
     // Run cleanup every 2 minutes
-    this.passwordResetCleanupInterval = setInterval(
-      async () => {
-        try {
-          await this.cleanupExpiredPasswordResetTokens();
-        } catch (error) {
-          console.error('Password reset cleanup job error:', error);
-        }
-      },
-      2 * 60 * 1000
-    ); // 2 minutes
+    this.passwordResetCleanupInterval = setInterval(async () => {
+      try {
+        await this.cleanupExpiredPasswordResetTokens();
+      } catch (error) {
+        console.error('Password reset cleanup job error:', error);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
 
     // Run initial cleanup
     this.cleanupExpiredPasswordResetTokens();
@@ -450,11 +447,11 @@ class AuthController {
       }
 
       // Verify OTP if provided
-      if (otp && otpType) {
+      if (otp) {
         const otpResult = await this.otpService.verifyOTP(
           primaryMethod === 'EMAIL' ? email : phone,
           otp,
-          otpType
+          primaryMethod // Use primaryMethod ('EMAIL' or 'PHONE'), not otpType
         );
 
         if (!otpResult.success) {
@@ -584,7 +581,7 @@ class AuthController {
         });
       }
 
-      // OTP cooldown check (30 seconds between sends)
+      // OTP cooldown check (60 seconds between sends)
       const cooldownKey = `otp_cooldown:${identifier}`;
       const cooldownRemaining = await this.getOTPCooldown(cooldownKey);
 
@@ -1070,8 +1067,8 @@ class AuthController {
       await prisma.$transaction([
         prisma.user.update({
           where: { id: resetRecord.user_id },
-        data: {
-          password_hash: hashedPassword,
+          data: {
+            password_hash: hashedPassword,
             failed_login_attempts: 0, // Reset failed attempts
             locked_until: null, // Unlock account
           },
@@ -1194,7 +1191,7 @@ class AuthController {
       });
 
       res.json({
-          success: true,
+        success: true,
         message: 'Email đã được xác thực thành công',
         data: null,
       });

@@ -1,4 +1,6 @@
 import { authService, userService } from '@/services';
+import { billingService } from '@/services/billing/billing.service';
+import { memberService } from '@/services/member/member.service';
 import {
   AuthContextType,
   ForgotPasswordData,
@@ -14,6 +16,7 @@ import {
   getUser,
   storeRememberMe,
   storeToken,
+  storeTokens,
   storeUser,
 } from '@/utils/auth/storage';
 import { debugApi } from '@/utils/debug';
@@ -36,6 +39,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [hasMember, setHasMember] = useState<boolean | null>(null);
   const isAuthenticated = !!user && !!token;
 
   // Check for existing auth session on mount
@@ -79,7 +83,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const login = async (
     credentials: LoginCredentials & { rememberMe?: boolean }
-  ) => {
+  ): Promise<{
+    hasMember: boolean;
+    user: any;
+    accessToken: string;
+    refreshToken?: string;
+    registrationStatus?: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }> => {
     try {
       setIsLoading(true);
       setError(null);
@@ -99,7 +112,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       const response = await authService.login(credentials);
 
       if (response.success && response.data) {
-        const { user, accessToken } = response.data;
+        const { user, accessToken, refreshToken } = response.data;
 
         // Store auth data
         await Promise.all([storeToken(accessToken), storeUser(user)]);
@@ -111,7 +124,98 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
         setUser(user);
         setToken(accessToken);
-        console.log('✅ Login successful');
+
+        // Check subscription status first (more important than member record)
+        console.log('🔍 Checking subscription status after login...');
+        let registrationStatus = {
+          hasSubscription: false,
+          hasCompletedProfile: false,
+        };
+
+        try {
+          console.log('🔍 Fetching subscriptions for user:', user.id);
+          const subscriptions = await billingService.getMemberSubscriptions(
+            user.id
+          );
+          console.log('📋 Subscriptions response:', subscriptions);
+          console.log('📋 Subscriptions count:', subscriptions?.length || 0);
+
+          const activeSubscription = subscriptions.find((sub: any) => {
+            const latestPayment = sub.payments?.[0]; // Get latest payment
+            console.log('  🔎 Checking subscription:', {
+              id: sub.id,
+              status: sub.status,
+              payment_status: latestPayment?.status,
+              payment_count: sub.payments?.length || 0,
+            });
+            return (
+              sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+            );
+          });
+
+          registrationStatus.hasSubscription = !!activeSubscription;
+          console.log(
+            `📋 Has subscription: ${registrationStatus.hasSubscription}`,
+            activeSubscription ? `(ID: ${activeSubscription.id})` : ''
+          );
+        } catch (err) {
+          console.log('⚠️ Error checking subscription:', err);
+        }
+
+        // Check if user has member record
+        console.log('🔍 Checking member status after login...');
+        const memberExists = await memberService.checkMemberExists();
+        setHasMember(memberExists);
+
+        if (memberExists) {
+          console.log('✅ Member record found, checking profile completion...');
+
+          // Check profile completion
+          try {
+            const profileResponse = await memberService.getMemberProfile();
+            const profile = profileResponse?.data; // ✅ Extract data from response
+
+            console.log('🔍 Full profile response:', profileResponse);
+            console.log('🔍 Profile data:', {
+              date_of_birth: profile?.date_of_birth,
+              height: profile?.height,
+              weight: profile?.weight,
+              phone: profile?.phone,
+            });
+
+            // Profile is complete if has essential fields:
+            // 1. Has date_of_birth
+            // 2. Has basic info (height & weight)
+            // Note: Phone is optional, can be added later
+            const hasDateOfBirth = !!profile?.date_of_birth;
+            const hasBasicInfo = !!(profile?.height && profile?.weight);
+
+            registrationStatus.hasCompletedProfile =
+              hasDateOfBirth && hasBasicInfo;
+
+            console.log(`👤 Profile completion check:`, {
+              hasDateOfBirth: hasDateOfBirth ? '✅' : '❌',
+              hasBasicInfo: hasBasicInfo
+                ? `✅ (h:${profile?.height}, w:${profile?.weight})`
+                : `❌ (h:${profile?.height}, w:${profile?.weight})`,
+              result: registrationStatus.hasCompletedProfile
+                ? '✅ Complete'
+                : '❌ Incomplete',
+            });
+          } catch (err) {
+            console.log('⚠️ Error checking profile:', err);
+          }
+        } else {
+          console.log('⚠️ User logged in but no member record found');
+        }
+
+        return {
+          hasMember: memberExists,
+          user,
+          accessToken,
+          refreshToken,
+          registrationStatus,
+        };
       } else {
         console.log('❌ Login failed:', response.message);
         throw new Error(response.message || 'Login failed');
@@ -245,18 +349,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
   };
 
+  const setTokens = async (accessToken: string, refreshToken: string) => {
+    setToken(accessToken);
+    // Store tokens
+    await storeTokens(accessToken, refreshToken);
+    console.log('✅ Tokens set in AuthContext');
+
+    // Check if member exists after setting tokens
+    try {
+      const memberExists = await memberService.checkMemberExists();
+      setHasMember(memberExists);
+      console.log('✅ Member status updated:', memberExists);
+    } catch (err) {
+      console.log('⚠️ Error checking member after setTokens:', err);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     token,
     isAuthenticated,
     isLoading,
     error,
+    hasMember,
     login,
     register,
     logout,
     forgotPassword,
     resetPassword,
     updateProfile,
+    setTokens,
     clearError,
   };
 

@@ -79,14 +79,25 @@ export interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
+  hasMember: boolean | null; // null = not checked yet, true = has member, false = no member
 
   // Actions
-  login: (credentials: LoginCredentials) => Promise<void>;
+  login: (credentials: LoginCredentials) => Promise<{
+    hasMember: boolean;
+    user: any;
+    accessToken: string;
+    refreshToken?: string;
+    registrationStatus?: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;
   resetPassword: (data: ResetPasswordData) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
+  setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
   clearError: () => void;
 }
 
