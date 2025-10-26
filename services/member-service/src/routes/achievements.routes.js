@@ -27,8 +27,13 @@ router.get('/achievements/debug-routes', (req, res) => {
 // Get all achievements
 router.get('/achievements', (req, res) => achievementController.getAllAchievements(req, res));
 
-// ==================== LEADERBOARD ROUTES ====================
+// ==================== SPECIFIC ACHIEVEMENT ROUTES ====================
 // IMPORTANT: These must come BEFORE /achievements/:id to avoid route conflicts
+
+// Get achievement summary (global)
+router.get('/achievements/summary', (req, res) =>
+  achievementController.getAchievementSummary(req, res)
+);
 
 // Get achievement leaderboard
 router.get('/achievements/leaderboard', (req, res) =>

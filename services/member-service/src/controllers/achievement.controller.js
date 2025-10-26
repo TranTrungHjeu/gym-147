@@ -31,6 +31,7 @@ class AchievementController {
    */
   async getAchievementById(req, res) {
     try {
+      console.log('📌 getAchievementById called with ID:', req.params.id);
       const { id } = req.params;
       const achievement = await prisma.achievement.findUnique({
         where: { id },
@@ -214,13 +215,14 @@ class AchievementController {
 
           return {
             rank: index + 1,
-            member_id: entry.member_id,
-            member_name: member?.full_name || 'Unknown',
-            avatar_url: member?.profile_photo || null,
-            membership_type: member?.membership_type || 'BASIC',
-            total_points: entry._sum.points || 0,
-            achievements_count: entry._count.id || 0,
-            is_current_user: false, // Will be set by frontend
+            memberId: entry.member_id,
+            memberName: member?.full_name || 'Unknown',
+            avatarUrl: member?.profile_photo || null,
+            membershipType: member?.membership_type || 'BASIC',
+            points: entry._sum.points || 0,
+            achievements: entry._count.id || 0,
+            workouts: 0, // Will be calculated separately if needed
+            isCurrentUser: false, // Will be set by frontend
           };
         })
       );
@@ -248,6 +250,36 @@ class AchievementController {
       const { userId } = req.params;
       const { period } = req.query;
 
+      console.log('🔍 getUserRank called with userId:', userId, 'period:', period);
+
+      // Find member by user_id first (since frontend sends identity service user_id)
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: {
+          id: true,
+          full_name: true,
+          profile_photo: true,
+          membership_type: true,
+        },
+      });
+
+      console.log('👤 Member found:', member ? 'YES ✅' : 'NO ❌');
+      if (member) {
+        console.log('   Member ID:', member.id);
+        console.log('   Name:', member.full_name);
+      }
+
+      if (!member) {
+        console.log('❌ Returning 404 - Member not found');
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      const memberId = member.id;
+
       // Build date filter based on period
       const dateFilter = this.getPeriodFilter(period || 'monthly');
 
@@ -260,7 +292,7 @@ class AchievementController {
           id: true,
         },
         where: {
-          member_id: userId,
+          member_id: memberId,
           ...dateFilter,
         },
       });
@@ -286,37 +318,19 @@ class AchievementController {
 
       const rank = usersAbove.length + 1;
 
-      // Get member details
-      const member = await prisma.member.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          full_name: true,
-          profile_photo: true,
-          membership_type: true,
-        },
-      });
-
-      if (!member) {
-        return res.status(404).json({
-          success: false,
-          message: 'Member not found',
-          data: null,
-        });
-      }
-
       res.json({
         success: true,
         message: 'User rank retrieved successfully',
         data: {
           rank,
-          member_id: userId,
-          member_name: member.full_name,
-          avatar_url: member.profile_photo,
-          membership_type: member.membership_type,
-          total_points: totalPoints,
-          achievements_count: achievementsCount,
-          is_current_user: true,
+          memberId: memberId,
+          memberName: member.full_name,
+          avatarUrl: member.profile_photo,
+          membershipType: member.membership_type,
+          points: totalPoints,
+          achievements: achievementsCount,
+          workouts: 0, // Will be calculated separately if needed
+          isCurrentUser: true,
         },
       });
     } catch (error) {
@@ -381,7 +395,7 @@ class AchievementController {
           total_points: totalPoints._sum.points || 0,
           total_achievements: totalAchievements,
           recent_achievements: recentAchievements,
-          categories: categories.map((cat) => ({
+          categories: categories.map(cat => ({
             category: cat.category,
             count: cat._count.id,
           })),

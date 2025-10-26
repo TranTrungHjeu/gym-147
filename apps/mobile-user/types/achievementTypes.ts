@@ -24,12 +24,14 @@ export interface AchievementSummary {
 
 export interface LeaderboardEntry {
   rank: number;
-  member_id: string;
-  member_name: string;
-  member_photo?: string;
-  total_points: number;
-  achievements_count: number;
-  is_current_user: boolean;
+  memberId: string;
+  memberName: string;
+  avatarUrl?: string;
+  points: number;
+  achievements: number;
+  workouts: number;
+  membershipType?: string;
+  isCurrentUser: boolean;
 }
 
 export interface AchievementCriteria {

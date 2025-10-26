@@ -9,6 +9,11 @@ router.get('/members/:id/notifications', (req, res) =>
   notificationController.getMemberNotifications(req, res)
 );
 
+// Get unread notification count
+router.get('/members/:id/notifications/unread-count', (req, res) =>
+  notificationController.getUnreadCount(req, res)
+);
+
 // Get notification by ID
 router.get('/notifications/:id', (req, res) =>
   notificationController.getNotificationById(req, res)

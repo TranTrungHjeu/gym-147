@@ -52,6 +52,33 @@ class NotificationController {
     }
   }
 
+  // Get unread notification count
+  async getUnreadCount(req, res) {
+    try {
+      const { id } = req.params;
+
+      const count = await prisma.notification.count({
+        where: {
+          member_id: id,
+          is_read: false,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Unread count retrieved successfully',
+        data: { count },
+      });
+    } catch (error) {
+      console.error('Get unread count error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
   // Get notification by ID
   async getNotificationById(req, res) {
     try {

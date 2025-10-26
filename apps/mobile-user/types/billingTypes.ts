@@ -3,35 +3,13 @@ export enum PlanType {
   PREMIUM = 'PREMIUM',
   VIP = 'VIP',
   STUDENT = 'STUDENT',
-  SENIOR = 'SENIOR',
-  CORPORATE = 'CORPORATE',
-}
-
-export enum AddonType {
-  PERSONAL_TRAINING = 'PERSONAL_TRAINING',
-  NUTRITIONIST = 'NUTRITIONIST',
-  MASSAGE = 'MASSAGE',
-  SAUNA_ACCESS = 'SAUNA_ACCESS',
-  POOL_ACCESS = 'POOL_ACCESS',
-  LOCKER = 'LOCKER',
-  TOWEL_SERVICE = 'TOWEL_SERVICE',
-  GUEST_PASS = 'GUEST_PASS',
-}
-
-export enum BillingInterval {
-  MONTHLY = 'MONTHLY',
-  QUARTERLY = 'QUARTERLY',
-  YEARLY = 'YEARLY',
-  LIFETIME = 'LIFETIME',
 }
 
 export enum SubscriptionStatus {
   ACTIVE = 'ACTIVE',
-  INACTIVE = 'INACTIVE',
-  SUSPENDED = 'SUSPENDED',
+  PENDING = 'PENDING',
   CANCELLED = 'CANCELLED',
   EXPIRED = 'EXPIRED',
-  PENDING = 'PENDING',
   TRIAL = 'TRIAL',
 }
 
@@ -39,64 +17,20 @@ export enum PaymentStatus {
   PENDING = 'PENDING',
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
-  CANCELLED = 'CANCELLED',
   REFUNDED = 'REFUNDED',
-  PARTIALLY_REFUNDED = 'PARTIALLY_REFUNDED',
 }
 
 export enum PaymentMethod {
-  CREDIT_CARD = 'CREDIT_CARD',
-  DEBIT_CARD = 'DEBIT_CARD',
+  VNPAY = 'VNPAY',
+  MOMO = 'MOMO',
   BANK_TRANSFER = 'BANK_TRANSFER',
-  PAYPAL = 'PAYPAL',
-  APPLE_PAY = 'APPLE_PAY',
-  GOOGLE_PAY = 'GOOGLE_PAY',
-  CASH = 'CASH',
-  CHECK = 'CHECK',
-}
-
-export enum PaymentType {
-  SUBSCRIPTION = 'SUBSCRIPTION',
-  ONE_TIME = 'ONE_TIME',
-  REFUND = 'REFUND',
-  ADDON = 'ADDON',
-  LATE_FEE = 'LATE_FEE',
-}
-
-export enum InvoiceStatus {
-  DRAFT = 'DRAFT',
-  SENT = 'SENT',
-  PAID = 'PAID',
-  OVERDUE = 'OVERDUE',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum InvoiceType {
-  SUBSCRIPTION = 'SUBSCRIPTION',
-  ONE_TIME = 'ONE_TIME',
-  ADDON = 'ADDON',
-  REFUND = 'REFUND',
-}
-
-export enum RefundReason {
-  CANCELLATION = 'CANCELLATION',
-  DISSATISFACTION = 'DISSATISFACTION',
-  TECHNICAL_ISSUE = 'TECHNICAL_ISSUE',
-  BILLING_ERROR = 'BILLING_ERROR',
-  OTHER = 'OTHER',
-}
-
-export enum RefundStatus {
-  PENDING = 'PENDING',
-  APPROVED = 'APPROVED',
-  REJECTED = 'REJECTED',
-  PROCESSED = 'PROCESSED',
 }
 
 export enum DiscountType {
   PERCENTAGE = 'PERCENTAGE',
   FIXED_AMOUNT = 'FIXED_AMOUNT',
   FREE_TRIAL = 'FREE_TRIAL',
+  FIRST_MONTH_FREE = 'FIRST_MONTH_FREE',
 }
 
 export interface MembershipPlan {
@@ -104,335 +38,106 @@ export interface MembershipPlan {
   name: string;
   description: string;
   type: PlanType;
-  duration: number; // in months
+  duration_months: number;
   price: number;
-  currency: string;
+  setup_fee?: number;
   benefits: string[];
-  classCredits: number;
-  guestPasses: number;
-  accessHours: string;
-  accessAreas: string[];
-  iotFeatures: {
-    equipmentPriority: boolean;
-    ptSessions: number;
-    nutritionist: boolean;
-    smartWorkoutPlans: boolean;
-    wearableIntegration: boolean;
-    advancedAnalytics: boolean;
-  };
-  billingConfig: {
-    interval: BillingInterval;
-    autoRenew: boolean;
-    trialPeriod: number; // in days
-  };
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PlanAddon {
-  id: string;
-  planId: string;
-  name: string;
-  description: string;
-  price: number;
-  type: AddonType;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
+  class_credits?: number;
+  guest_passes?: number;
+  personal_training_sessions?: number;
+  nutritionist_consultations?: number;
+  smart_workout_plans: boolean;
+  wearable_integration: boolean;
+  advanced_analytics: boolean;
+  equipment_priority: boolean;
+  is_featured: boolean;
 }
 
 export interface Subscription {
   id: string;
-  memberId: string;
-  planId: string;
+  member_id: string;
+  plan_id: string;
   status: SubscriptionStatus;
-  startDate: string;
-  endDate: string;
-  nextBillingDate: string;
-  amount: number;
-  currency: string;
-  usageTracking: {
-    classCredits: number;
-    guestPasses: number;
-    ptSessions: number;
-  };
-  autoRenew: boolean;
-  paymentMethodId?: string;
-  cancellationDate?: string;
-  cancellationReason?: string;
-  trialInfo?: {
-    startDate: string;
-    endDate: string;
-    isActive: boolean;
-  };
-  createdAt: string;
-  updatedAt: string;
-  plan: MembershipPlan;
-  addons: SubscriptionAddon[];
-}
-
-export interface SubscriptionAddon {
-  id: string;
-  subscriptionId: string;
-  addonId: string;
-  quantity: number;
-  price: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  addon: PlanAddon;
+  start_date: Date;
+  end_date: Date;
+  base_amount: number;
+  discount_amount?: number;
+  total_amount: number;
+  classes_remaining?: number;
+  auto_renew: boolean;
+  plan?: MembershipPlan;
 }
 
 export interface Payment {
   id: string;
-  subscriptionId?: string;
-  memberId: string;
+  subscription_id?: string;
+  member_id: string;
   amount: number;
   currency: string;
   status: PaymentStatus;
-  method: PaymentMethod;
-  type: PaymentType;
-  transactionId?: string;
-  gateway: string;
-  reference?: string;
-  description?: string;
-  metadata?: any;
-  processing: {
-    initiatedAt: string;
-    completedAt?: string;
-    failedAt?: string;
-    failureReason?: string;
-  };
-  refunds: Refund[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Invoice {
-  id: string;
-  subscriptionId?: string;
-  paymentId?: string;
-  memberId: string;
-  invoiceNumber: string;
-  status: InvoiceStatus;
-  type: InvoiceType;
-  amount: number;
-  currency: string;
-  taxAmount: number;
-  totalAmount: number;
-  dueDate: string;
-  paidDate?: string;
-  lineItems: InvoiceLineItem[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface InvoiceLineItem {
-  id: string;
-  description: string;
-  quantity: number;
-  unitPrice: number;
-  totalPrice: number;
-  taxRate: number;
-  taxAmount: number;
-}
-
-export interface Refund {
-  id: string;
-  paymentId: string;
-  amount: number;
-  reason: RefundReason;
-  status: RefundStatus;
-  processedAt?: string;
-  createdAt: string;
-  updatedAt: string;
+  payment_method: PaymentMethod;
+  transaction_id?: string;
+  gateway?: string;
+  processed_at?: Date;
+  failed_at?: Date;
+  failure_reason?: string;
 }
 
 export interface DiscountCode {
-  id: string;
   code: string;
-  name: string;
-  description: string;
   type: DiscountType;
   value: number;
-  currency?: string;
-  usageLimits: {
-    maxUses: number;
-    maxUsesPerMember: number;
-    currentUses: number;
-  };
-  validity: {
-    startDate: string;
-    endDate: string;
-    isActive: boolean;
-  };
-  applicability: {
-    planIds: string[];
-    memberIds: string[];
-    minAmount?: number;
-  };
-  createdAt: string;
-  updatedAt: string;
+  maxDiscount?: number;
+  bonusDays?: number;
 }
 
-export interface DiscountUsage {
-  id: string;
-  discountCodeId: string;
-  memberId: string;
-  subscriptionId: string;
-  amount: number;
-  usedAt: string;
-}
-
-export interface RevenueReport {
-  id: string;
-  date: string;
-  totalRevenue: number;
-  subscriptionRevenue: number;
-  addonRevenue: number;
-  refunds: number;
-  netRevenue: number;
-  currency: string;
-  metrics: {
-    newSubscriptions: number;
-    cancellations: number;
-    renewals: number;
-    churnRate: number;
+export interface PaymentGatewayResponse {
+  payment: Payment;
+  paymentUrl?: string;
+  gatewayData: {
+    paymentId: string;
+    gateway: string;
+    amount: number;
+    bankInfo?: {
+      bankName: string;
+      accountNumber: string;
+      accountName: string;
+      content: string;
+    };
   };
-  createdAt: string;
 }
 
-export interface MemberPaymentMethod {
-  id: string;
-  memberId: string;
-  type: PaymentMethod;
-  isDefault: boolean;
-  details: {
-    last4: string;
-    brand: string;
-    expiryMonth: number;
-    expiryYear: number;
-    holderName: string;
-  };
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
+export interface RegistrationData {
+  // Step 1: Basic info
+  email?: string;
+  phone?: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  primaryMethod: 'EMAIL' | 'PHONE';
 
-export interface CreateSubscriptionRequest {
-  planId: string;
-  paymentMethodId?: string;
-  startDate?: string;
-  addons?: string[];
-  discountCode?: string;
-  autoRenew?: boolean;
-}
+  // Step 2: OTP
+  otp?: string;
 
-export interface UpdateSubscriptionRequest {
+  // Step 3: Plan
   planId?: string;
-  paymentMethodId?: string;
-  autoRenew?: boolean;
-  addons?: string[];
-}
 
-export interface CreatePaymentRequest {
-  memberId: string;
-  subscriptionId?: string;
-  amount: number;
-  currency: string;
-  method: PaymentMethod;
-  type: PaymentType;
-  description?: string;
-  metadata?: any;
-}
+  // Step 4: Discount
+  discountCode?: string;
 
-export interface CreatePaymentMethodRequest {
-  type: PaymentMethod;
-  details: {
-    token: string;
-    holderName: string;
-  };
-  isDefault?: boolean;
-}
+  // Step 5: Payment
+  paymentMethod?: PaymentMethod;
 
-export interface PaymentFilters {
-  status?: PaymentStatus;
-  method?: PaymentMethod;
-  type?: PaymentType;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}
-
-export interface SubscriptionFilters {
-  status?: SubscriptionStatus;
-  planType?: PlanType;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}
-
-// UI Component Props
-export interface SubscriptionCardProps {
-  subscription: Subscription;
-  onViewDetails?: (subscription: Subscription) => void;
-  onUpgrade?: (subscription: Subscription) => void;
-  onCancel?: (subscription: Subscription) => void;
-}
-
-export interface PaymentMethodCardProps {
-  paymentMethod: MemberPaymentMethod;
-  onEdit?: (paymentMethod: MemberPaymentMethod) => void;
-  onDelete?: (paymentMethod: MemberPaymentMethod) => void;
-  onSetDefault?: (paymentMethod: MemberPaymentMethod) => void;
-}
-
-export interface InvoiceCardProps {
-  invoice: Invoice;
-  onView?: (invoice: Invoice) => void;
-  onDownload?: (invoice: Invoice) => void;
-  onPay?: (invoice: Invoice) => void;
-}
-
-export interface PlanCardProps {
-  plan: MembershipPlan;
-  isSelected?: boolean;
-  onSelect?: (plan: MembershipPlan) => void;
-  onViewDetails?: (plan: MembershipPlan) => void;
-}
-
-export interface AddonCardProps {
-  addon: PlanAddon;
-  isSelected?: boolean;
-  onSelect?: (addon: PlanAddon) => void;
-  onViewDetails?: (addon: PlanAddon) => void;
-}
-
-export interface DiscountCodeProps {
-  code: DiscountCode;
-  onApply?: (code: DiscountCode) => void;
-  onViewDetails?: (code: DiscountCode) => void;
-}
-
-export interface PaymentHistoryProps {
-  memberId: string;
-  onPaymentSelect?: (payment: Payment) => void;
-  onRefresh?: () => void;
-}
-
-export interface SubscriptionManagementProps {
-  memberId: string;
-  onSubscriptionChange?: (subscription: Subscription) => void;
-  onPaymentMethodChange?: (method: MemberPaymentMethod) => void;
-}
-
-export interface BillingDashboardProps {
-  memberId: string;
-  onSubscriptionView?: () => void;
-  onPaymentHistory?: () => void;
-  onInvoices?: () => void;
-  onPaymentMethods?: () => void;
+  // Step 6: Personal info
+  dateOfBirth?: Date;
+  gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  height?: number;
+  weight?: number;
+  bodyFatPercent?: number;
+  fitnessGoals?: string[];
+  medicalConditions?: string;
+  allergies?: string;
+  emergencyContactName?: string;
+  emergencyContactPhone?: string;
+  emergencyContactRelationship?: string;
 }
