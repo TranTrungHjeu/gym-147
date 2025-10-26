@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const s3UploadService = require('../services/s3-upload.service');
 
 class MemberController {
   // ==================== MEMBER CRUD OPERATIONS ====================
@@ -220,6 +221,93 @@ class MemberController {
     }
   }
 
+  // Create member with user (called from Billing Service after payment)
+  async createMemberWithUser(req, res) {
+    try {
+      const { user_id, membership_type, membership_start_date, membership_end_date } = req.body;
+
+      if (!user_id || !membership_type) {
+        return res.status(400).json({
+          success: false,
+          message: 'user_id và membership_type là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Check if member already exists
+      const existingMember = await prisma.member.findUnique({
+        where: { user_id },
+      });
+
+      if (existingMember) {
+        // Update existing member
+        const updatedMember = await prisma.member.update({
+          where: { user_id },
+          data: {
+            membership_type,
+            membership_status: 'ACTIVE',
+            expires_at: membership_end_date ? new Date(membership_end_date) : null,
+            updated_at: new Date(),
+          },
+        });
+
+        return res.json({
+          success: true,
+          message: 'Cập nhật thành viên thành công',
+          data: updatedMember,
+        });
+      }
+
+      // Fetch user info from Identity Service
+      const axios = require('axios');
+      const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://identity-service:3001';
+
+      let userData = null;
+      try {
+        const userResponse = await axios.get(`${identityServiceUrl}/users/${user_id}`);
+        userData = userResponse.data.data;
+      } catch (error) {
+        console.error('Failed to fetch user from Identity Service:', error);
+        return res.status(404).json({
+          success: false,
+          message: 'Không tìm thấy thông tin người dùng',
+          data: null,
+        });
+      }
+
+      // Generate membership number
+      const memberCount = await prisma.member.count();
+      const membership_number = `GYM147-${String(memberCount + 1).padStart(6, '0')}`;
+
+      // Create new member
+      const newMember = await prisma.member.create({
+        data: {
+          user_id,
+          membership_number,
+          full_name: `${userData.first_name} ${userData.last_name}`.trim(),
+          email: userData.email,
+          phone: userData.phone || null,
+          membership_type,
+          membership_status: 'ACTIVE',
+          expires_at: membership_end_date ? new Date(membership_end_date) : null,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Tạo thành viên thành công',
+        data: newMember,
+      });
+    } catch (error) {
+      console.error('Create member with user error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Lỗi khi tạo thành viên',
+        data: null,
+      });
+    }
+  }
+
   // Get current member profile (for mobile app)
   async getCurrentMemberProfile(req, res) {
     try {
@@ -281,45 +369,11 @@ class MemberController {
 
       if (!member) {
         console.log('❌ Member not found for user_id:', userId);
-        console.log('🔍 Creating test member for debugging...');
-
-        // Create a test member for debugging
-        try {
-          const testMember = await prisma.member.create({
-            data: {
-              user_id: userId,
-              membership_number: `TEST_${Date.now()}`,
-              full_name: 'Test User',
-              phone: '0123456789',
-              email: 'test@example.com',
-              membership_status: 'ACTIVE',
-              membership_type: 'BASIC',
-            },
-            include: {
-              memberships: {
-                where: { status: 'ACTIVE' },
-                orderBy: { created_at: 'desc' },
-                take: 1,
-              },
-            },
-          });
-
-          console.log('✅ Test member created:', testMember.id);
-
-          res.json({
-            success: true,
-            message: 'Test member profile created successfully',
-            data: testMember,
-          });
-          return;
-        } catch (createError) {
-          console.error('❌ Failed to create test member:', createError);
-          return res.status(500).json({
-            success: false,
-            message: 'Failed to create test member',
-            data: null,
-          });
-        }
+        return res.status(404).json({
+          success: false,
+          message: 'Member profile not found',
+          data: null,
+        });
       }
 
       res.json({
@@ -329,6 +383,341 @@ class MemberController {
       });
     } catch (error) {
       console.error('Get current member profile error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Update current member profile (for mobile app)
+  async updateCurrentMemberProfile(req, res) {
+    try {
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token format',
+          data: null,
+        });
+      }
+
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      const userId = payload.userId || payload.id;
+
+      const updateData = req.body;
+
+      // Remove fields that shouldn't be updated directly
+      delete updateData.id;
+      delete updateData.user_id;
+      delete updateData.membership_number;
+      delete updateData.created_at;
+
+      // Normalize phone and email (trim whitespace)
+      if (updateData.phone) {
+        updateData.phone = updateData.phone.trim();
+      }
+      if (updateData.email) {
+        updateData.email = updateData.email.trim().toLowerCase();
+      }
+
+      // Convert date strings to Date objects
+      if (updateData.date_of_birth) {
+        updateData.date_of_birth = new Date(updateData.date_of_birth);
+      }
+      if (updateData.expires_at) {
+        updateData.expires_at = new Date(updateData.expires_at);
+      }
+
+      // Check if member exists, if not create one
+      let existingMember = await prisma.member.findUnique({
+        where: { user_id: userId },
+      });
+
+      if (!existingMember) {
+        console.log('⚠️ Member not found for user_id:', userId);
+        console.log('🆕 Creating new member record...');
+
+        // Get user info from Identity Service
+        try {
+          const axios = require('axios');
+          const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+          const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
+            headers: {
+              Authorization: authHeader,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          console.log('👤 Full response from Identity Service:', userResponse.data);
+
+          // Extract user data from nested structure
+          const userData =
+            userResponse.data.data?.user || userResponse.data.user || userResponse.data;
+
+          console.log('👤 Extracted user data:', userData);
+
+          // Prepare member data
+          const firstName = userData.firstName || userData.first_name || '';
+          const lastName = userData.lastName || userData.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim() || 'New Member';
+          const email = userData.email || updateData.email || `member_${userId}@temp.com`;
+          const phone = userData.phone || updateData.phone || undefined; // Allow null phone
+
+          console.log('📋 Creating member with:', {
+            user_id: userId,
+            full_name: fullName,
+            email,
+            phone: phone || 'null (will be filled during registration)',
+          });
+
+          // Create member record
+          existingMember = await prisma.member.create({
+            data: {
+              user_id: userId,
+              membership_number: `MEM${Date.now()}`,
+              full_name: fullName,
+              email: email,
+              phone: phone, // Can be undefined/null
+              membership_status: 'ACTIVE',
+              membership_type: 'BASIC',
+            },
+          });
+
+          console.log('✅ Member record created:', existingMember.id);
+        } catch (createError) {
+          console.error('❌ Failed to create member:', createError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to create member profile',
+            data: null,
+          });
+        }
+      }
+
+      // Check if phone is already used by another member
+      if (updateData.phone) {
+        const phoneExists = await prisma.member.findFirst({
+          where: {
+            phone: updateData.phone,
+            id: { not: existingMember.id },
+          },
+        });
+
+        if (phoneExists) {
+          return res.status(400).json({
+            success: false,
+            message: 'Số điện thoại này đã được sử dụng bởi thành viên khác',
+            data: null,
+          });
+        }
+      }
+
+      // Check if email is already used by another member
+      if (updateData.email) {
+        const emailExists = await prisma.member.findFirst({
+          where: {
+            email: updateData.email,
+            id: { not: existingMember.id },
+          },
+        });
+
+        if (emailExists) {
+          return res.status(400).json({
+            success: false,
+            message: 'Email này đã được sử dụng bởi thành viên khác',
+            data: null,
+          });
+        }
+      }
+
+      // Update user in Identity Service if needed
+      if (updateData.full_name || updateData.phone) {
+        try {
+          const axios = require('axios');
+          const identityServiceUrl =
+            process.env.IDENTITY_SERVICE_URL || 'http://identity-service:3001';
+
+          const userUpdateData = {};
+
+          // Split full_name into first_name and last_name
+          if (updateData.full_name) {
+            const nameParts = updateData.full_name.trim().split(' ');
+            if (nameParts.length > 1) {
+              userUpdateData.firstName = nameParts[0];
+              userUpdateData.lastName = nameParts.slice(1).join(' ');
+            } else {
+              userUpdateData.firstName = nameParts[0];
+              userUpdateData.lastName = '';
+            }
+          }
+
+          // Update phone
+          if (updateData.phone) {
+            userUpdateData.phone = updateData.phone;
+          }
+
+          // Call Identity Service to update user
+          if (Object.keys(userUpdateData).length > 0) {
+            console.log('🔄 Updating user in Identity Service:', userUpdateData);
+            await axios.put(`${identityServiceUrl}/profile`, userUpdateData, {
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': 'application/json',
+              },
+            });
+            console.log('✅ User updated in Identity Service');
+          }
+        } catch (identityError) {
+          console.error('⚠️ Failed to update user in Identity Service:', identityError.message);
+          // Don't fail the whole request if Identity Service update fails
+          // Just log the error and continue with member update
+        }
+      }
+
+      // Update member
+      const member = await prisma.member.update({
+        where: { user_id: userId },
+        data: {
+          ...updateData,
+          updated_at: new Date(),
+        },
+        include: {
+          memberships: {
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      // Auto-create health metrics if weight or body_fat_percent is provided
+      const healthMetricsToCreate = [];
+
+      if (updateData.weight && updateData.weight > 0) {
+        // Check if a weight metric already exists for today
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const existingWeightMetric = await prisma.healthMetric.findFirst({
+          where: {
+            member_id: member.id,
+            metric_type: 'WEIGHT',
+            recorded_at: {
+              gte: today,
+              lt: tomorrow,
+            },
+          },
+        });
+
+        if (!existingWeightMetric) {
+          healthMetricsToCreate.push({
+            member_id: member.id,
+            metric_type: 'WEIGHT',
+            value: updateData.weight,
+            unit: 'kg',
+            recorded_at: new Date(),
+            notes: 'Initial weight from profile registration',
+          });
+        }
+      }
+
+      if (updateData.body_fat_percent && updateData.body_fat_percent > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const existingBodyFatMetric = await prisma.healthMetric.findFirst({
+          where: {
+            member_id: member.id,
+            metric_type: 'BODY_FAT',
+            recorded_at: {
+              gte: today,
+              lt: tomorrow,
+            },
+          },
+        });
+
+        if (!existingBodyFatMetric) {
+          healthMetricsToCreate.push({
+            member_id: member.id,
+            metric_type: 'BODY_FAT',
+            value: updateData.body_fat_percent,
+            unit: '%',
+            recorded_at: new Date(),
+            notes: 'Initial body fat from profile registration',
+          });
+        }
+      }
+
+      if (updateData.height && updateData.height > 0) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+
+        const existingHeightMetric = await prisma.healthMetric.findFirst({
+          where: {
+            member_id: member.id,
+            metric_type: 'HEIGHT',
+            recorded_at: {
+              gte: today,
+              lt: tomorrow,
+            },
+          },
+        });
+
+        if (!existingHeightMetric) {
+          healthMetricsToCreate.push({
+            member_id: member.id,
+            metric_type: 'HEIGHT',
+            value: updateData.height,
+            unit: 'cm',
+            recorded_at: new Date(),
+            notes: 'Initial height from profile registration',
+          });
+        }
+      }
+
+      // Create health metrics in bulk if any
+      if (healthMetricsToCreate.length > 0) {
+        try {
+          await prisma.healthMetric.createMany({
+            data: healthMetricsToCreate,
+          });
+        } catch (healthMetricError) {
+          console.error('Failed to create health metrics:', healthMetricError);
+          // Don't fail the whole request, just log the error
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Profile updated successfully',
+        data: member,
+      });
+    } catch (error) {
+      console.error('Update current member profile error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -959,6 +1348,174 @@ class MemberController {
         success: false,
         message: 'Internal server error',
         data: null,
+      });
+    }
+  }
+
+  // ==================== AVATAR UPLOAD ====================
+
+  // Upload avatar (base64 from mobile)
+  async uploadAvatar(req, res) {
+    try {
+      console.log('📤 Avatar upload request received');
+
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token format',
+          data: null,
+        });
+      }
+
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      const userId = payload.userId || payload.id;
+
+      // Check if member exists, if not create one
+      let member = await prisma.member.findUnique({
+        where: { user_id: userId },
+      });
+
+      if (!member) {
+        console.log('⚠️ Member not found, creating new member for avatar upload...');
+
+        // Get user info from Identity Service
+        try {
+          const axios = require('axios');
+          const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+          const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
+            headers: {
+              Authorization: authHeader,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          console.log('👤 Full response from Identity Service:', userResponse.data);
+
+          // Extract user data from nested structure
+          const userData =
+            userResponse.data.data?.user || userResponse.data.user || userResponse.data;
+
+          console.log('👤 Extracted user data:', userData);
+
+          // Prepare member data
+          const firstName = userData.firstName || userData.first_name || '';
+          const lastName = userData.lastName || userData.last_name || '';
+          const fullName = `${firstName} ${lastName}`.trim() || 'New Member';
+          const email = userData.email || `member_${userId}@temp.com`;
+          const phone = userData.phone || undefined; // Allow null phone
+
+          // Create member record
+          member = await prisma.member.create({
+            data: {
+              user_id: userId,
+              membership_number: `MEM${Date.now()}`,
+              full_name: fullName,
+              email: email,
+              phone: phone, // Can be undefined/null
+              membership_status: 'ACTIVE',
+              membership_type: 'BASIC',
+            },
+          });
+
+          console.log('✅ Member record created for avatar upload:', member.id);
+        } catch (createError) {
+          console.error('❌ Failed to create member:', createError);
+          return res.status(500).json({
+            success: false,
+            message: 'Failed to create member profile',
+            error: createError.message,
+          });
+        }
+      }
+
+      // Get base64 image from request body
+      const { base64Image, mimeType = 'image/jpeg', filename = 'avatar.jpg' } = req.body;
+
+      if (!base64Image) {
+        return res.status(400).json({
+          success: false,
+          message: 'No image data provided',
+          data: null,
+        });
+      }
+
+      // Remove data:image/xxx;base64, prefix if present
+      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+
+      // Convert base64 to buffer
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      console.log(`📷 Uploading avatar for member: ${member.id}`);
+      console.log(`📏 Image size: ${imageBuffer.length} bytes`);
+
+      // Upload to S3
+      const uploadResult = await s3UploadService.uploadFile(
+        imageBuffer,
+        filename,
+        mimeType,
+        userId
+      );
+
+      if (!uploadResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload avatar',
+          error: uploadResult.error,
+        });
+      }
+
+      // Delete old avatar if exists
+      if (member.profile_photo) {
+        const oldKey = s3UploadService.extractKeyFromUrl(member.profile_photo);
+        if (oldKey) {
+          console.log(`🗑️ Deleting old avatar: ${oldKey}`);
+          await s3UploadService.deleteFile(oldKey);
+        }
+      }
+
+      // Update member with new avatar URL
+      const updatedMember = await prisma.member.update({
+        where: { user_id: userId },
+        data: {
+          profile_photo: uploadResult.url,
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(`✅ Avatar uploaded successfully: ${uploadResult.url}`);
+
+      res.json({
+        success: true,
+        message: 'Avatar uploaded successfully',
+        data: {
+          avatarUrl: uploadResult.url,
+          member: updatedMember,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Upload avatar error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
       });
     }
   }
