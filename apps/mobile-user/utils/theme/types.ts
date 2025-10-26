@@ -5,11 +5,11 @@ export interface ThemeColors {
   primary: string;
   secondary: string;
 
-  // Background colors
+  // Background colors - KEEP FLAT for backward compatibility
   background: string;
   surface: string;
 
-  // Text colors
+  // Text colors - KEEP FLAT for backward compatibility
   text: string;
   textSecondary: string;
   textTertiary: string;
@@ -29,7 +29,7 @@ export interface ThemeColors {
   accent: string;
   disabled: string;
 
-  // Legacy colors (for backward compatibility)
+  // Legacy colors
   white: string;
   black: string;
   gray: string;
@@ -52,6 +52,7 @@ export interface ThemeRadius {
   xl: number;
   xxl: number;
   round: number;
+  full: number; // Alias for round (9999)
 }
 
 export interface ThemeShadows {

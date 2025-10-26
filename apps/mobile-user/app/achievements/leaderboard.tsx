@@ -27,6 +27,8 @@ export default function LeaderboardScreen() {
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
 
+  const themedStyles = styles(theme);
+
   const periods = [
     { label: t('achievements.periods.weekly'), value: 'weekly' },
     { label: t('achievements.periods.monthly'), value: 'monthly' },
@@ -96,17 +98,15 @@ export default function LeaderboardScreen() {
 
   if (loading) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-      >
-        <View style={styles.loadingContainer}>
+      <View style={themedStyles.container}>
+        <View style={themedStyles.loadingContainer}>
           <Text
             style={[
               Typography.bodyRegular,
               { color: theme.colors.textSecondary },
             ]}
           >
-            {t('achievements.leaderboard.loading')}
+            {t('achievements.leaderboardLoading')}
           </Text>
         </View>
       </View>
@@ -114,14 +114,26 @@ export default function LeaderboardScreen() {
   }
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
-    >
-      <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          {t('achievements.leaderboard')}
+    <View style={themedStyles.container}>
+      <View style={themedStyles.header}>
+        <View style={themedStyles.titleContainer}>
+          <Trophy size={24} color={theme.colors.primary} />
+          <Text
+            style={[
+              Typography.h2,
+              { color: theme.colors.text, marginLeft: theme.spacing.sm },
+            ]}
+          >
+            {t('achievements.leaderboard')}
+          </Text>
+        </View>
+      </View>
+
+      <View style={themedStyles.filterContainer}>
+        <Text style={[Typography.bodyBold, { color: theme.colors.text }]}>
+          {t('common.period')}:
         </Text>
-        <View style={styles.periodSelector}>
+        <View style={themedStyles.periodSelector}>
           <Picker
             selectedValue={selectedPeriod}
             onValueChange={handlePeriodChange}
@@ -131,61 +143,69 @@ export default function LeaderboardScreen() {
       </View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={themedStyles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
         {userRank && (
-          <View
-            style={[
-              styles.userRankCard,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.primary,
-              },
-            ]}
-          >
-            <View style={styles.userRankHeader}>
-              <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                {t('achievements.yourRank')}
-              </Text>
-              <View style={styles.userRankBadge}>
+          <View style={themedStyles.userRankCard}>
+            <View style={themedStyles.userRankHeader}>
+              <View style={themedStyles.userRankTitleContainer}>
+                <Trophy size={20} color={theme.colors.primary} />
                 <Text
-                  style={[Typography.caption, { color: theme.colors.primary }]}
+                  style={[
+                    Typography.h3,
+                    { color: theme.colors.text, marginLeft: theme.spacing.sm },
+                  ]}
+                >
+                  {t('achievements.yourRank')}
+                </Text>
+              </View>
+              <View style={themedStyles.userRankBadge}>
+                <Text
+                  style={[Typography.bodyBold, { color: theme.colors.primary }]}
                 >
                   #{userRank.rank}
                 </Text>
               </View>
             </View>
-            <View style={styles.userRankInfo}>
-              <View style={styles.userRankAvatar}>
-                <Text style={[Typography.h4, { color: theme.colors.text }]}>
+            <View style={themedStyles.userRankInfo}>
+              <View style={themedStyles.userRankAvatar}>
+                <Text style={[Typography.h3, { color: theme.colors.primary }]}>
                   {userRank.memberName.charAt(0).toUpperCase()}
                 </Text>
               </View>
-              <View style={styles.userRankDetails}>
-                <Text style={[Typography.body, { color: theme.colors.text }]}>
+              <View style={themedStyles.userRankDetails}>
+                <Text
+                  style={[Typography.bodyBold, { color: theme.colors.text }]}
+                >
                   {userRank.memberName}
                 </Text>
-                <Text
-                  style={[
-                    Typography.caption,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {formatPoints(userRank.points)} {t('achievements.points')}
-                </Text>
+                <View style={themedStyles.statsRow}>
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {userRank.achievements} {t('achievements.achievements')}
+                  </Text>
+                  <View style={themedStyles.dot} />
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {userRank.workouts} {t('achievements.workouts')}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.userRankStats}>
-                <Text
-                  style={[
-                    Typography.caption,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {userRank.achievements} {t('achievements.achievements')}
+              <View style={themedStyles.userRankPoints}>
+                <Text style={[Typography.h2, { color: theme.colors.primary }]}>
+                  {formatPoints(userRank.points)}
                 </Text>
                 <Text
                   style={[
@@ -193,54 +213,93 @@ export default function LeaderboardScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {userRank.workouts} {t('achievements.workouts')}
+                  {t('achievements.points')}
                 </Text>
               </View>
             </View>
           </View>
         )}
 
-        <View style={styles.leaderboardContainer}>
-          <Text style={[Typography.h3, { color: theme.colors.text }]}>
+        <View style={themedStyles.leaderboardContainer}>
+          <Text
+            style={[
+              Typography.h3,
+              { color: theme.colors.text, marginBottom: theme.spacing.md },
+            ]}
+          >
             {t('achievements.topPerformers')}
           </Text>
 
           {leaderboard.length > 0 ? (
-            leaderboard.map((entry, index) => (
-              <View
-                key={entry.memberId}
-                style={[
-                  styles.leaderboardItem,
-                  { borderColor: theme.colors.border },
-                ]}
-              >
-                <View style={styles.rankContainer}>
-                  {getRankIcon(entry.rank)}
-                  <Text
-                    style={[Typography.h4, { color: getRankColor(entry.rank) }]}
-                  >
-                    #{entry.rank}
-                  </Text>
-                </View>
-
-                <View style={styles.memberInfo}>
-                  <View
-                    style={[
-                      styles.memberAvatar,
-                      { backgroundColor: theme.colors.primary + '20' },
-                    ]}
-                  >
+            leaderboard.map((entry, index) => {
+              const isTopThree = entry.rank <= 3;
+              return (
+                <View
+                  key={entry.memberId}
+                  style={[
+                    themedStyles.leaderboardItem,
+                    isTopThree && themedStyles.topThreeItem,
+                  ]}
+                >
+                  <View style={themedStyles.rankContainer}>
+                    <View style={themedStyles.rankIconContainer}>
+                      {getRankIcon(entry.rank)}
+                    </View>
                     <Text
-                      style={[Typography.h4, { color: theme.colors.primary }]}
+                      style={[
+                        Typography.bodyBold,
+                        { color: getRankColor(entry.rank) },
+                      ]}
                     >
-                      {entry.memberName.charAt(0).toUpperCase()}
+                      #{entry.rank}
                     </Text>
                   </View>
-                  <View style={styles.memberDetails}>
-                    <Text
-                      style={[Typography.body, { color: theme.colors.text }]}
-                    >
-                      {entry.memberName}
+
+                  <View style={themedStyles.memberInfo}>
+                    <View style={themedStyles.memberAvatar}>
+                      <Text
+                        style={[
+                          Typography.bodyBold,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {entry.memberName.charAt(0).toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={themedStyles.memberDetails}>
+                      <Text
+                        style={[
+                          Typography.bodyRegular,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {entry.memberName}
+                      </Text>
+                      <View style={themedStyles.statsRow}>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {entry.achievements} {t('achievements.achievements')}
+                        </Text>
+                        <View style={themedStyles.dot} />
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {entry.workouts} {t('achievements.workouts')}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={themedStyles.pointsContainer}>
+                    <Text style={[Typography.h4, { color: theme.colors.text }]}>
+                      {formatPoints(entry.points)}
                     </Text>
                     <Text
                       style={[
@@ -248,35 +307,32 @@ export default function LeaderboardScreen() {
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {entry.achievements} {t('achievements.achievements')} •{' '}
-                      {entry.workouts} {t('achievements.workouts')}
+                      {t('achievements.points')}
                     </Text>
                   </View>
                 </View>
-
-                <View style={styles.pointsContainer}>
-                  <Text style={[Typography.h4, { color: theme.colors.text }]}>
-                    {formatPoints(entry.points)}
-                  </Text>
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {t('achievements.points')}
-                  </Text>
-                </View>
-              </View>
-            ))
+              );
+            })
           ) : (
-            <View style={styles.emptyContainer}>
-              <Trophy size={48} color={theme.colors.textSecondary} />
-              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+            <View style={themedStyles.emptyContainer}>
+              <Trophy size={64} color={theme.colors.textSecondary} />
+              <Text
+                style={[
+                  Typography.h3,
+                  { color: theme.colors.text, marginTop: theme.spacing.md },
+                ]}
+              >
                 {t('achievements.noDataAvailable')}
               </Text>
               <Text
-                style={[Typography.body, { color: theme.colors.textSecondary }]}
+                style={[
+                  Typography.bodyRegular,
+                  {
+                    color: theme.colors.textSecondary,
+                    marginTop: theme.spacing.sm,
+                    textAlign: 'center',
+                  },
+                ]}
               >
                 {t('achievements.noLeaderboardData')}
               </Text>
@@ -284,7 +340,7 @@ export default function LeaderboardScreen() {
           )}
         </View>
 
-        <View style={styles.infoContainer}>
+        <View style={themedStyles.infoContainer}>
           <Text
             style={[Typography.caption, { color: theme.colors.textSecondary }]}
           >
@@ -296,110 +352,173 @@ export default function LeaderboardScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  periodSelector: {
-    minWidth: 120,
-  },
-  scrollView: {
-    flex: 1,
-  },
-  userRankCard: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    borderWidth: 2,
-  },
-  userRankHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  userRankBadge: {
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  userRankInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  userRankAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(34, 197, 94, 0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  userRankDetails: {
-    flex: 1,
-  },
-  userRankStats: {
-    alignItems: 'flex-end',
-  },
-  leaderboardContainer: {
-    margin: 16,
-  },
-  leaderboardItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 8,
-    marginBottom: 8,
-  },
-  rankContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginRight: 12,
-    minWidth: 60,
-  },
-  memberInfo: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  memberAvatar: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  memberDetails: {
-    flex: 1,
-  },
-  pointsContainer: {
-    alignItems: 'flex-end',
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 32,
-  },
-  infoContainer: {
-    margin: 16,
-    padding: 12,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    borderRadius: 8,
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.background,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    header: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+    },
+    titleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    filterContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      gap: theme.spacing.md,
+    },
+    periodSelector: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    userRankCard: {
+      margin: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 2,
+      borderColor: theme.colors.primary,
+      ...theme.shadows.md,
+    },
+    userRankHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    userRankTitleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    userRankBadge: {
+      backgroundColor: theme.colors.primary + '15',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.full,
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
+    },
+    userRankInfo: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+    },
+    userRankAvatar: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.primary + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: theme.colors.primary + '30',
+    },
+    userRankDetails: {
+      flex: 1,
+      gap: theme.spacing.xs,
+    },
+    userRankPoints: {
+      alignItems: 'flex-end',
+      gap: theme.spacing.xs,
+    },
+    statsRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    dot: {
+      width: 3,
+      height: 3,
+      borderRadius: 1.5,
+      backgroundColor: theme.colors.textSecondary,
+    },
+    leaderboardContainer: {
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.xl,
+    },
+    leaderboardItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      marginBottom: theme.spacing.sm,
+      gap: theme.spacing.sm,
+      ...theme.shadows.sm,
+    },
+    topThreeItem: {
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.md,
+    },
+    rankContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      minWidth: 64,
+    },
+    rankIconContainer: {
+      width: 28,
+      height: 28,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    memberInfo: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    memberAvatar: {
+      width: 40,
+      height: 40,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.primary + '15',
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
+    },
+    memberDetails: {
+      flex: 1,
+      gap: theme.spacing.xs,
+    },
+    pointsContainer: {
+      alignItems: 'flex-end',
+      gap: theme.spacing.xs,
+      minWidth: 70,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.xxxl,
+      paddingHorizontal: theme.spacing.xl,
+    },
+    infoContainer: {
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.lg,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+  });

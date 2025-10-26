@@ -33,15 +33,15 @@ export const darkThemeColors: ThemeColors = {
   primary: '#ff7a33', // Lighter orange for dark mode
   secondary: '#9CA3AF', // Lighter gray for dark mode
 
-  // Background colors
+  // Background colors - FLAT structure
   background: '#121212', // Pure dark background for better contrast
   surface: '#1E1E1E', // Slightly lighter dark surface
 
-  // Text colors
+  // Text colors - FLAT structure
   text: '#FFFFFF', // Pure white for maximum contrast
   textSecondary: '#E0E0E0', // High contrast light gray
   textTertiary: '#B0B0B0', // Medium light gray
-  textInverse: '#FFFFFF', // White text on dark backgrounds for better visibility
+  textInverse: '#FFFFFF', // White text on colored buttons (primary, etc.)
 
   // UI colors
   border: '#4A4A4A', // Lighter border for better visibility
@@ -57,7 +57,7 @@ export const darkThemeColors: ThemeColors = {
   accent: '#ff7a33', // Same as primary
   disabled: '#666666', // Better contrast disabled state
 
-  // Legacy colors (for backward compatibility)
+  // Legacy colors
   white: '#FFFFFF',
   black: '#000000',
   gray: '#4A4A4A', // Better contrast gray

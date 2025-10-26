@@ -35,6 +35,8 @@ export const Picker: React.FC<PickerProps> = ({
   const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
 
+  const themedStyles = styles(theme);
+
   const selectedItem = items.find((item) => item.value === selectedValue);
 
   const handleSelect = (value: string | number) => {
@@ -46,10 +48,8 @@ export const Picker: React.FC<PickerProps> = ({
     <>
       <Pressable
         style={[
-          styles.picker,
+          themedStyles.picker,
           {
-            backgroundColor: theme.colors.surface,
-            borderColor: theme.colors.border,
             opacity: disabled ? 0.5 : 1,
           },
         ]}
@@ -58,13 +58,15 @@ export const Picker: React.FC<PickerProps> = ({
       >
         <Text
           style={[
-            styles.pickerText,
+            themedStyles.pickerText,
             {
               color: selectedItem
                 ? theme.colors.text
                 : theme.colors.textSecondary,
             },
           ]}
+          numberOfLines={1}
+          ellipsizeMode="tail"
         >
           {selectedItem ? selectedItem.label : placeholder}
         </Text>
@@ -80,19 +82,16 @@ export const Picker: React.FC<PickerProps> = ({
         animationType="fade"
         onRequestClose={() => setIsOpen(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View
-            style={[
-              styles.modalContent,
-              { backgroundColor: theme.colors.surface },
-            ]}
-          >
-            <View style={styles.modalHeader}>
-              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+        <View style={themedStyles.modalOverlay}>
+          <View style={themedStyles.modalContent}>
+            <View style={themedStyles.modalHeader}>
+              <Text
+                style={[Typography.h3, { color: theme.colors.text }]}
+              >
                 Select Option
               </Text>
               <TouchableOpacity
-                style={styles.closeButton}
+                style={themedStyles.closeButton}
                 onPress={() => setIsOpen(false)}
               >
                 <Text
@@ -104,47 +103,40 @@ export const Picker: React.FC<PickerProps> = ({
             </View>
 
             <ScrollView
-              style={styles.optionsList}
+              style={themedStyles.optionsList}
               showsVerticalScrollIndicator={false}
             >
               {items.map((item, index) => (
                 <TouchableOpacity
                   key={item.value}
                   style={[
-                    styles.optionItem,
+                    themedStyles.optionItem,
                     {
-                      borderBottomColor: theme.colors.border,
                       backgroundColor:
                         item.value === selectedValue
                           ? theme.colors.primary + '10'
                           : 'transparent',
                     },
-                    index === items.length - 1 && styles.lastOption,
+                    index === items.length - 1 && themedStyles.lastOption,
                   ]}
                   onPress={() => handleSelect(item.value)}
                 >
                   <Text
                     style={[
-                      styles.optionText,
+                      themedStyles.optionText,
                       {
                         color:
                           item.value === selectedValue
                             ? theme.colors.primary
                             : theme.colors.text,
-                        fontWeight:
-                          item.value === selectedValue ? '600' : '400',
                       },
+                      item.value === selectedValue && Typography.bodyBold,
                     ]}
                   >
                     {item.label}
                   </Text>
                   {item.value === selectedValue && (
-                    <View
-                      style={[
-                        styles.checkmark,
-                        { backgroundColor: theme.colors.primary },
-                      ]}
-                    />
+                    <View style={themedStyles.checkmark} />
                   )}
                 </TouchableOpacity>
               ))}
@@ -156,70 +148,77 @@ export const Picker: React.FC<PickerProps> = ({
   );
 };
 
-const styles = StyleSheet.create({
-  picker: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    minHeight: 48,
-  },
-  pickerText: {
-    ...Typography.body,
-    flex: 1,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'flex-end',
-  },
-  modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    maxHeight: '70%',
-    minHeight: 200,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  closeButton: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  optionsList: {
-    maxHeight: 300,
-  },
-  optionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  lastOption: {
-    borderBottomWidth: 0,
-  },
-  optionText: {
-    ...Typography.body,
-    flex: 1,
-  },
-  checkmark: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    picker: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      minHeight: 48,
+      backgroundColor: theme.colors.surface,
+      borderColor: theme.colors.border,
+    },
+    pickerText: {
+      ...Typography.bodyRegular,
+      flex: 1,
+      marginRight: theme.spacing.sm,
+    },
+    modalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+      justifyContent: 'flex-end',
+    },
+    modalContent: {
+      borderTopLeftRadius: theme.radius.xl,
+      borderTopRightRadius: theme.radius.xl,
+      maxHeight: '70%',
+      minHeight: 200,
+      backgroundColor: theme.colors.surface,
+    },
+    modalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    closeButton: {
+      paddingVertical: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+    },
+    optionsList: {
+      maxHeight: 300,
+    },
+    optionItem: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    lastOption: {
+      borderBottomWidth: 0,
+    },
+    optionText: {
+      ...Typography.bodyRegular,
+      flex: 1,
+    },
+    checkmark: {
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.full,
+      backgroundColor: theme.colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+  });
 
 export default Picker;
