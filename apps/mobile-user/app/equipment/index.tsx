@@ -1,26 +1,23 @@
 import EquipmentCard from '@/components/EquipmentCard';
-import WorkoutLogger from '@/components/WorkoutLogger';
+import EquipmentFilterModal from '@/components/EquipmentFilterModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { equipmentService } from '@/services/member/equipment.service';
 import {
-  equipmentService,
-  type Equipment,
-  type EquipmentFilters,
-  type EquipmentUsage,
-  type StartEquipmentUsageRequest,
-  type StopEquipmentUsageRequest,
-} from '@/services';
+  Equipment,
+  EquipmentCategory,
+  EquipmentStatus,
+} from '@/types/equipmentTypes';
 import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Activity, Filter, Search } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import { ArrowLeft, Filter, QrCode, Search } from 'lucide-react-native';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   RefreshControl,
   SafeAreaView,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -28,211 +25,167 @@ import {
   View,
 } from 'react-native';
 
-const CATEGORIES = [
-  'CARDIO',
-  'STRENGTH',
-  'FREE_WEIGHTS',
-  'MACHINES',
-  'FUNCTIONAL',
-  'RECOVERY',
-  'SPECIALIZED',
-];
-
-export default function EquipmentScreen() {
+export default function EquipmentListScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
 
-  // Helper function to get equipment category translation
-  const getCategoryTranslation = (category: string) => {
-    switch (category) {
-      case 'CARDIO':
-        return t('equipment.categories.cardio');
-      case 'STRENGTH':
-        return t('equipment.categories.strength');
-      case 'FREE_WEIGHTS':
-        return t('equipment.categories.freeWeights');
-      case 'MACHINES':
-        return t('equipment.categories.machines');
-      case 'FUNCTIONAL':
-        return t('equipment.categories.functional');
-      case 'RECOVERY':
-        return t('equipment.categories.recovery');
-      case 'SPECIALIZED':
-        return t('equipment.categories.specialized');
-      default:
-        return category;
-    }
-  };
-
-  // State for data
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Data states
   const [equipment, setEquipment] = useState<Equipment[]>([]);
-  const [currentUsage, setCurrentUsage] = useState<EquipmentUsage | null>(null);
-
-  // UI state
+  const [filteredEquipment, setFilteredEquipment] = useState<Equipment[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | 'ALL'>(
-    'ALL'
-  );
-  const [showFilters, setShowFilters] = useState(false);
-  const [showWorkoutLogger, setShowWorkoutLogger] = useState(false);
+  const [activeCategory, setActiveCategory] = useState<
+    EquipmentCategory | 'ALL'
+  >('ALL');
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filters, setFilters] = useState<{
+    category?: EquipmentCategory;
+    status?: EquipmentStatus;
+  }>({});
 
-  // Load data on component mount
-  useEffect(() => {
-    loadEquipment();
-  }, [selectedCategory]);
+  // Categories
+  const categories = ['ALL', ...Object.values(EquipmentCategory)];
 
-  const loadEquipment = async () => {
+  // Load equipment data
+  const loadEquipment = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('🏋️ Loading equipment...');
-      console.log('👤 User:', user);
-
-      if (!user?.id) {
-        setError('Please login to view equipment');
-        return;
-      }
-
-      // Create filters
-      const filters: EquipmentFilters = {
-        category:
-          selectedCategory !== 'ALL' ? (selectedCategory as any) : undefined,
-      };
-
-      const response = await equipmentService.getEquipment(filters);
+      const response = await equipmentService.getEquipment({
+        category: filters.category,
+        status: filters.status,
+        limit: 100,
+      });
 
       if (response.success && response.data) {
-        console.log('✅ Equipment loaded:', response.data.length, 'items');
-        setEquipment(response.data);
+        setEquipment(response.data.equipment);
       } else {
-        console.log('❌ Failed to load equipment:', response.error);
-        setError(response.error || 'Failed to load equipment');
+        setError('Failed to load equipment');
       }
     } catch (err: any) {
-      console.error('❌ Error loading equipment:', err);
+      console.error('Error loading equipment:', err);
       setError(err.message || 'Failed to load equipment');
     } finally {
       setLoading(false);
     }
-  };
+  }, [filters]);
 
+  // Initial load
+  useEffect(() => {
+    loadEquipment();
+  }, [loadEquipment]);
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    equipmentService.initWebSocket();
+
+    // Subscribe to general equipment updates
+    const handleUpdate = () => {
+      loadEquipment();
+    };
+
+    // Listen for updates
+    equipmentService.subscribeToEquipment('all', handleUpdate);
+
+    return () => {
+      equipmentService.unsubscribeFromEquipment('all');
+    };
+  }, [loadEquipment]);
+
+  // Filter equipment based on search and category
+  useEffect(() => {
+    let filtered = equipment;
+
+    // Apply category filter
+    if (activeCategory !== 'ALL') {
+      filtered = filtered.filter((eq) => eq.category === activeCategory);
+    }
+
+    // Apply search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        (eq) =>
+          eq.name.toLowerCase().includes(query) ||
+          eq.brand?.toLowerCase().includes(query) ||
+          eq.location.toLowerCase().includes(query)
+      );
+    }
+
+    setFilteredEquipment(filtered);
+  }, [equipment, activeCategory, searchQuery]);
+
+  // Handle refresh
   const handleRefresh = async () => {
     setRefreshing(true);
     await loadEquipment();
     setRefreshing(false);
   };
 
-  const handleSearch = (query: string) => {
-    setSearchQuery(query);
-    // TODO: Implement search functionality
-  };
-
-  const handleCategorySelect = (category: string | 'ALL') => {
-    setSelectedCategory(category);
-  };
-
-  const handleEquipmentPress = (equipment: Equipment) => {
-    router.push(`/equipment/${equipment.id}`);
-  };
-
-  const handleStartUsage = async (equipment: Equipment) => {
-    if (!user?.id) {
-      Alert.alert(t('common.error'), t('equipment.errors.loginRequired'));
-      return;
-    }
-
-    try {
-      console.log('🏋️ Starting equipment usage for:', equipment.name);
-
-      const usageData: StartEquipmentUsageRequest = {
-        equipment_id: equipment.id,
-      };
-
-      const response = await equipmentService.startEquipmentUsage(
-        user.id,
-        usageData
-      );
-
-      if (response.success && response.data) {
-        console.log('✅ Equipment usage started:', response.data);
-        setCurrentUsage(response.data);
-        setShowWorkoutLogger(true);
-      } else {
-        Alert.alert(
-          t('common.error'),
-          response.error || t('equipment.errors.startUsageFailed')
-        );
-      }
-    } catch (error: any) {
-      console.error('❌ Error starting equipment usage:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || t('equipment.errors.startUsageFailed')
-      );
+  // Handle filter apply
+  const handleApplyFilters = (newFilters: {
+    category?: EquipmentCategory;
+    status?: EquipmentStatus;
+  }) => {
+    setFilters(newFilters);
+    if (newFilters.category) {
+      setActiveCategory(newFilters.category);
     }
   };
 
-  const handleSaveWorkout = async (saveData: StopEquipmentUsageRequest) => {
-    if (!user?.id || !currentUsage) return;
-
-    try {
-      console.log('🏋️ Saving workout data:', saveData);
-
-      const response = await equipmentService.stopEquipmentUsage(
-        user.id,
-        currentUsage.id,
-        saveData
-      );
-
-      if (response.success) {
-        console.log('✅ Workout saved successfully');
-        setShowWorkoutLogger(false);
-        setCurrentUsage(null);
-        Alert.alert(t('common.success'), t('equipment.workoutSaved'));
-        // Refresh equipment list to update status
-        await loadEquipment();
-      } else {
-        Alert.alert(
-          t('common.error'),
-          response.error || t('equipment.errors.saveWorkoutFailed')
-        );
-      }
-    } catch (error: any) {
-      console.error('❌ Error saving workout:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || t('equipment.errors.saveWorkoutFailed')
-      );
-    }
+  // Render category button
+  const renderCategoryButton = (category: string) => {
+    const isActive = activeCategory === category;
+    return (
+      <TouchableOpacity
+        key={category}
+        style={[
+          styles.categoryButton,
+          {
+            backgroundColor: isActive
+              ? theme.colors.primary
+              : theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
+        onPress={() => setActiveCategory(category as EquipmentCategory | 'ALL')}
+      >
+        <Text
+          style={[
+            styles.categoryText,
+            {
+              color: isActive ? '#fff' : theme.colors.textSecondary,
+            },
+          ]}
+        >
+          {category === 'ALL'
+            ? t('equipment.all')
+            : t(
+                `equipment.categories.${category
+                  .toLowerCase()
+                  .replaceAll('_', '')}`,
+                category
+              )}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
-  const handleCancelWorkout = () => {
-    setShowWorkoutLogger(false);
-    setCurrentUsage(null);
-  };
-
-  const filteredEquipment = equipment.filter((item) => {
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      return (
-        item.name.toLowerCase().includes(query) ||
-        item.description?.toLowerCase().includes(query) ||
-        item.location.toLowerCase().includes(query)
-      );
-    }
-    return true;
-  });
+  // Render equipment item
+  const renderEquipmentItem = ({ item }: { item: Equipment }) => (
+    <EquipmentCard
+      equipment={item}
+      onPress={() => router.push(`/equipment/${item.id}`)}
+    />
+  );
 
   // Show loading state
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -240,39 +193,8 @@ export default function EquipmentScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading equipment...
+            {t('equipment.loadingEquipment')}
           </Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  // Show error state
-  if (error) {
-    return (
-      <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
-      >
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error}
-          </Text>
-          <TouchableOpacity
-            style={[
-              styles.retryButton,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={loadEquipment}
-          >
-            <Text
-              style={[
-                styles.retryButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              {t('common.retry')}
-            </Text>
-          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -283,24 +205,47 @@ export default function EquipmentScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+      <View style={styles.header}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
           {t('equipment.title')}
         </Text>
-        <TouchableOpacity
-          style={styles.headerButton}
-          onPress={() => router.push('/equipment/my-usage')}
-        >
-          <Activity size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={[
+              styles.iconButton,
+              { backgroundColor: theme.colors.surface },
+            ]}
+            onPress={() => router.push('/equipment/qr-scanner')}
+          >
+            <QrCode size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.iconButton,
+              { backgroundColor: theme.colors.surface, marginLeft: 8 },
+            ]}
+            onPress={() => setShowFilterModal(true)}
+          >
+            <Filter size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Search and Filters */}
+      {/* Search Bar */}
       <View style={styles.searchContainer}>
         <View
           style={[
-            styles.searchInputContainer,
-            { backgroundColor: theme.colors.surface },
+            styles.searchBar,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
           ]}
         >
           <Search size={20} color={theme.colors.textSecondary} />
@@ -309,84 +254,34 @@ export default function EquipmentScreen() {
             placeholder={t('equipment.searchPlaceholder')}
             placeholderTextColor={theme.colors.textSecondary}
             value={searchQuery}
-            onChangeText={handleSearch}
+            onChangeText={setSearchQuery}
           />
         </View>
-        <TouchableOpacity
-          style={[
-            styles.filterButton,
-            { backgroundColor: theme.colors.surface },
-          ]}
-          onPress={() => setShowFilters(!showFilters)}
-        >
-          <Filter size={20} color={theme.colors.text} />
-        </TouchableOpacity>
       </View>
 
-      {/* Category Filter */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.categoryContainer}
-        contentContainerStyle={styles.categoryContent}
+      {/* Category Tabs */}
+      <View
+        style={[
+          styles.categoriesWrapper,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <TouchableOpacity
-          style={[
-            styles.categoryChip,
-            selectedCategory === 'ALL' && {
-              backgroundColor: theme.colors.primary,
-            },
-          ]}
-          onPress={() => handleCategorySelect('ALL')}
-        >
-          <Text
-            style={[
-              styles.categoryText,
-              selectedCategory === 'ALL' && { color: theme.colors.textInverse },
-            ]}
-          >
-            {t('equipment.all')}
-          </Text>
-        </TouchableOpacity>
-        {CATEGORIES.map((category) => (
-          <TouchableOpacity
-            key={category}
-            style={[
-              styles.categoryChip,
-              selectedCategory === category && {
-                backgroundColor: theme.colors.primary,
-              },
-            ]}
-            onPress={() => handleCategorySelect(category)}
-          >
-            <Text
-              style={[
-                styles.categoryText,
-                selectedCategory === category && {
-                  color: theme.colors.textInverse,
-                },
-              ]}
-            >
-              {getCategoryTranslation(category)}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
+        <FlatList
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          data={categories}
+          renderItem={({ item }) => renderCategoryButton(item)}
+          keyExtractor={(item) => item}
+          contentContainerStyle={styles.categoriesContainer}
+        />
+      </View>
 
       {/* Equipment List */}
       <FlatList
         data={filteredEquipment}
+        renderItem={renderEquipmentItem}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <EquipmentCard
-            equipment={item}
-            onPress={() => handleEquipmentPress(item)}
-            onStartUsage={() => handleStartUsage(item)}
-            showUsageActions={true}
-          />
-        )}
-        contentContainerStyle={styles.listContent}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.listContainer}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -396,33 +291,36 @@ export default function EquipmentScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text
-              style={[styles.emptyText, { color: theme.colors.textSecondary }]}
-            >
-              No equipment found
-            </Text>
+          <View style={styles.emptyState}>
             <Text
               style={[
-                styles.emptySubtext,
+                styles.emptyStateText,
                 { color: theme.colors.textSecondary },
               ]}
             >
-              {t('equipment.tryAdjustingFilters')}
+              {error || t('equipment.noEquipmentFound')}
             </Text>
+            {!error && (
+              <Text
+                style={[
+                  styles.emptyStateSubtext,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('equipment.tryAdjustingFilters')}
+              </Text>
+            )}
           </View>
         }
       />
 
-      {/* Workout Logger Modal */}
-      {currentUsage && (
-        <WorkoutLogger
-          usage={currentUsage}
-          onSave={handleSaveWorkout}
-          onCancel={handleCancelWorkout}
-          loading={false}
-        />
-      )}
+      {/* Filter Modal */}
+      <EquipmentFilterModal
+        visible={showFilterModal}
+        onClose={() => setShowFilterModal(false)}
+        onApply={handleApplyFilters}
+        initialFilters={filters}
+      />
     </SafeAreaView>
   );
 }
@@ -431,113 +329,92 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  backButton: {
+    padding: 4,
+  },
+  headerTitle: {
+    ...Typography.h4,
+    flex: 1,
+    marginLeft: 12,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  searchContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+  },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    gap: 12,
+  },
+  searchInput: {
+    flex: 1,
+    ...Typography.bodyMedium,
+  },
+  categoriesWrapper: {
+    paddingBottom: 4,
+  },
+  categoriesContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  categoryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1,
+    marginRight: 8,
+  },
+  categoryText: {
+    ...Typography.bodySmall,
+    fontWeight: '500',
+  },
+  listContainer: {
+    padding: 16,
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    padding: 20,
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    ...Typography.bodyMedium,
+    marginTop: 12,
   },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
+  emptyState: {
+    padding: 40,
     alignItems: 'center',
-    paddingHorizontal: 20,
   },
-  errorText: {
-    fontSize: 16,
+  emptyStateText: {
+    ...Typography.h6,
     textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  headerButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  searchInputContainer: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 8,
-    gap: 8,
-  },
-  searchInput: {
-    flex: 1,
-    fontSize: 16,
-  },
-  filterButton: {
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryContainer: {
-    paddingVertical: 8,
-  },
-  categoryContent: {
-    paddingHorizontal: 20,
-    gap: 8,
-  },
-  categoryChip: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-  },
-  categoryText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#666',
-  },
-  listContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 40,
-  },
-  emptyText: {
-    fontSize: 16,
-    fontWeight: '500',
     marginBottom: 8,
-    textAlign: 'center',
   },
-  emptySubtext: {
-    fontSize: 14,
+  emptyStateSubtext: {
+    ...Typography.bodySmall,
     textAlign: 'center',
   },
 });

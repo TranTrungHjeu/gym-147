@@ -17,9 +17,9 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
     API_URL:
       process.env.EXPO_PUBLIC_API_URL ||
       config.API_URL ||
-      'http://10.0.2.2:3001', // Android emulator - Identity Service
+      'http://192.168.2.19:3001', // Real device - Identity Service
+    // 'http://10.0.2.2:3001', // Android emulator - Identity Service
     // 'http://localhost:3001', // iOS simulator - Identity Service
-    // 'http://192.168.1.100:3001', // Real device - Identity Service
     APP_NAME: process.env.EXPO_PUBLIC_APP_NAME || config.APP_NAME || 'Gym147',
     APP_VERSION:
       process.env.EXPO_PUBLIC_APP_VERSION || config.APP_VERSION || '1.0.0',
@@ -107,10 +107,10 @@ export const API_ENDPOINTS = {
 
 // Service URLs for direct connections
 export const SERVICE_URLS = {
-  IDENTITY: 'http://10.0.2.2:3001', // Android emulator
-  MEMBER: 'http://10.0.2.2:3002',
-  SCHEDULE: 'http://10.0.2.2:3003',
-  BILLING: 'http://10.0.2.2:3004',
+  IDENTITY: 'http://192.168.2.19:3001', // Real device
+  MEMBER: 'http://192.168.2.19:3002',
+  SCHEDULE: 'http://192.168.2.19:3003',
+  BILLING: 'http://192.168.2.19:3004',
 } as const;
 
 // App Configuration

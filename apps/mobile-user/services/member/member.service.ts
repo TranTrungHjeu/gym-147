@@ -148,7 +148,7 @@ class MemberService {
       try {
         // Try Identity Service profile endpoint (port 3001)
         const identityResponse = await memberApiService.get('/profile', {
-          baseURL: 'http://10.0.2.2:3001',
+          baseURL: 'http://192.168.2.19:3001',
         });
         console.log('🔑 Identity Service profile response:', identityResponse);
 

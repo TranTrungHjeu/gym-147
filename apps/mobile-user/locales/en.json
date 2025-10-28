@@ -523,18 +523,23 @@
     "all": "All",
     "searchPlaceholder": "Search equipment...",
     "filter": "Filter",
+    "categoryLabel": "Category",
+    "statusLabel": "Status",
     "categories": {
       "cardio": "Cardio",
       "strength": "Strength",
+      "freeweights": "Free Weights",
       "functional": "Functional",
-      "freeWeights": "Free Weights",
-      "machines": "Machines"
+      "stretching": "Stretching",
+      "recovery": "Recovery",
+      "specialized": "Specialized"
     },
     "status": {
       "available": "Available",
-      "inUse": "In Use",
+      "inuse": "In Use",
       "maintenance": "Maintenance",
-      "outOfOrder": "Out of Order"
+      "outoforder": "Out of Order",
+      "reserved": "Reserved"
     },
     "actions": {
       "startUsage": "Start Usage",
@@ -549,7 +554,19 @@
       "workoutType": "Workout Type",
       "notes": "Notes",
       "noUsageFound": "No usage history found",
-      "logNewWorkout": "Log New Workout"
+      "logNewWorkout": "Log New Workout",
+      "workoutStatistics": "Workout Statistics",
+      "minutes": "min",
+      "setsAndReps": "Sets & Reps",
+      "setsCompleted": "Sets Completed",
+      "repsPerSet": "Reps per Set",
+      "weightUsed": "Weight Used (kg)",
+      "healthMetrics": "Health Metrics",
+      "caloriesBurned": "Calories Burned",
+      "avgHeartRate": "Avg Heart Rate",
+      "maxHeartRate": "Max Heart Rate",
+      "notesPlaceholder": "Add any notes about your workout...",
+      "saveWorkout": "Save Workout"
     },
     "noEquipmentFound": "No equipment found",
     "loadingEquipment": "Loading equipment...",
@@ -560,17 +577,51 @@
       "loginRequired": "Please login to start equipment usage"
     },
     "tryAdjustingFilters": "Try adjusting your search or filters",
-    "workoutStatistics": "Workout Statistics",
-    "minutes": "min",
-    "setsAndReps": "Sets & Reps",
-    "setsCompleted": "Sets Completed",
-    "repsPerSet": "Reps per Set",
-    "weightUsed": "Weight Used (kg)",
-    "healthMetrics": "Health Metrics",
-    "avgHeartRate": "Avg Heart Rate",
-    "maxHeartRate": "Max Heart Rate",
-    "notesPlaceholder": "Add any notes about your workout...",
-    "saveWorkout": "Save Workout"
+    "inQueue": "in queue",
+    "queue": {
+      "title": "Queue",
+      "position": "Position",
+      "joinQueue": "Join Queue",
+      "leaveQueue": "Leave Queue",
+      "inQueue": "In Queue",
+      "estimatedWait": "Estimated Wait",
+      "queueEmpty": "No one in queue",
+      "yourTurn": "Your turn!",
+      "joinedQueue": "Joined queue successfully",
+      "leftQueue": "Left queue successfully"
+    },
+    "issue": {
+      "reportIssue": "Report Issue",
+      "issueType": "Issue Type",
+      "description": "Description",
+      "severityLabel": "Severity",
+      "addPhotos": "Add Photos",
+      "submit": "Submit Report",
+      "reported": "Issue reported successfully",
+      "types": {
+        "broken": "Broken",
+        "damaged": "Damaged",
+        "dirty": "Dirty",
+        "missingparts": "Missing Parts",
+        "unsafe": "Unsafe",
+        "other": "Other"
+      },
+      "severities": {
+        "low": "Low",
+        "medium": "Medium",
+        "high": "High",
+        "critical": "Critical"
+      }
+    },
+    "scanQR": "Scan QR Code",
+    "qrScanner": "QR Scanner",
+    "scanToStart": "Scan equipment QR code to start using",
+    "invalidQR": "Invalid QR code",
+    "cameraPermissionRequired": "Camera Permission Required",
+    "cameraPermissionMessage": "We need camera access to scan QR codes on equipment",
+    "grantPermission": "Grant Permission",
+    "alignQRCode": "Align QR code within frame",
+    "scanAgain": "Scan Again"
   },
   "access": {
     "rfid": {

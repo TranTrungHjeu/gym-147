@@ -8,7 +8,7 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Filter, Plus } from 'lucide-react-native';
+import { Dumbbell, Filter, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -305,6 +305,12 @@ export default function WorkoutsScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={[styles.iconButton, { backgroundColor: theme.colors.gray }]}
+            onPress={() => router.push('/equipment')}
+          >
+            <Dumbbell size={20} color={theme.colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.iconButton, { backgroundColor: theme.colors.gray, marginLeft: 8 }]}
             onPress={() => setShowFilterModal(true)}
           >
             <Filter size={20} color={theme.colors.text} />

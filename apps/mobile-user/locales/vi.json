@@ -523,18 +523,23 @@
     "all": "Tất cả",
     "searchPlaceholder": "Tìm kiếm thiết bị...",
     "filter": "Lọc",
+    "categoryLabel": "Loại thiết bị",
+    "statusLabel": "Trạng thái",
     "categories": {
       "cardio": "Cardio",
       "strength": "Sức mạnh",
+      "freeweights": "Tạ tự do",
       "functional": "Chức năng",
-      "freeWeights": "Tạ tự do",
-      "machines": "Máy tập"
+      "stretching": "Kéo giãn",
+      "recovery": "Phục hồi",
+      "specialized": "Chuyên biệt"
     },
     "status": {
       "available": "Có sẵn",
-      "inUse": "Đang sử dụng",
+      "inuse": "Đang sử dụng",
       "maintenance": "Bảo trì",
-      "outOfOrder": "Hỏng"
+      "outoforder": "Hỏng",
+      "reserved": "Đã đặt trước"
     },
     "actions": {
       "startUsage": "Bắt đầu sử dụng",
@@ -549,7 +554,19 @@
       "workoutType": "Loại bài tập",
       "notes": "Ghi chú",
       "noUsageFound": "Không có lịch sử sử dụng",
-      "logNewWorkout": "Ghi nhận bài tập mới"
+      "logNewWorkout": "Ghi nhận bài tập mới",
+      "workoutStatistics": "Thống kê bài tập",
+      "minutes": "phút",
+      "setsAndReps": "Hiệp & Lặp lại",
+      "setsCompleted": "Hiệp đã hoàn thành",
+      "repsPerSet": "Lặp lại mỗi hiệp",
+      "weightUsed": "Trọng lượng sử dụng (kg)",
+      "healthMetrics": "Chỉ số sức khỏe",
+      "caloriesBurned": "Calo tiêu thụ",
+      "avgHeartRate": "Nhịp tim trung bình",
+      "maxHeartRate": "Nhịp tim tối đa",
+      "notesPlaceholder": "Thêm ghi chú về bài tập của bạn...",
+      "saveWorkout": "Lưu bài tập"
     },
     "noEquipmentFound": "Không tìm thấy thiết bị",
     "loadingEquipment": "Đang tải thiết bị...",
@@ -560,17 +577,51 @@
       "loginRequired": "Vui lòng đăng nhập để sử dụng thiết bị"
     },
     "tryAdjustingFilters": "Thử điều chỉnh tìm kiếm hoặc bộ lọc",
-    "workoutStatistics": "Thống kê bài tập",
-    "minutes": "phút",
-    "setsAndReps": "Hiệp & Lặp lại",
-    "setsCompleted": "Hiệp đã hoàn thành",
-    "repsPerSet": "Lặp lại mỗi hiệp",
-    "weightUsed": "Trọng lượng sử dụng (kg)",
-    "healthMetrics": "Chỉ số sức khỏe",
-    "avgHeartRate": "Nhịp tim trung bình",
-    "maxHeartRate": "Nhịp tim tối đa",
-    "notesPlaceholder": "Thêm ghi chú về bài tập của bạn...",
-    "saveWorkout": "Lưu bài tập"
+    "inQueue": "đang chờ",
+    "queue": {
+      "title": "Hàng đợi",
+      "position": "Vị trí",
+      "joinQueue": "Vào hàng đợi",
+      "leaveQueue": "Rời hàng đợi",
+      "inQueue": "Đang chờ",
+      "estimatedWait": "Thời gian chờ dự kiến",
+      "queueEmpty": "Không có người chờ",
+      "yourTurn": "Đến lượt bạn!",
+      "joinedQueue": "Đã vào hàng đợi thành công",
+      "leftQueue": "Đã rời hàng đợi thành công"
+    },
+    "issue": {
+      "reportIssue": "Báo cáo sự cố",
+      "issueType": "Loại sự cố",
+      "description": "Mô tả",
+      "severityLabel": "Mức độ nghiêm trọng",
+      "addPhotos": "Thêm ảnh",
+      "submit": "Gửi báo cáo",
+      "reported": "Đã báo cáo sự cố thành công",
+      "types": {
+        "broken": "Hỏng",
+        "damaged": "Hư hại",
+        "dirty": "Bẩn",
+        "missingparts": "Thiếu bộ phận",
+        "unsafe": "Không an toàn",
+        "other": "Khác"
+      },
+      "severities": {
+        "low": "Thấp",
+        "medium": "Trung bình",
+        "high": "Cao",
+        "critical": "Nghiêm trọng"
+      }
+    },
+    "scanQR": "Quét mã QR",
+    "qrScanner": "Máy quét QR",
+    "scanToStart": "Quét mã QR thiết bị để bắt đầu sử dụng",
+    "invalidQR": "Mã QR không hợp lệ",
+    "cameraPermissionRequired": "Cần quyền truy cập Camera",
+    "cameraPermissionMessage": "Chúng tôi cần quyền truy cập camera để quét mã QR trên thiết bị",
+    "grantPermission": "Cấp quyền",
+    "alignQRCode": "Căn chỉnh mã QR trong khung",
+    "scanAgain": "Quét lại"
   },
   "access": {
     "rfid": {

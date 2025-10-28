@@ -1,21 +1,25 @@
-import WorkoutLogger from '@/components/WorkoutLogger';
+import EquipmentReportModal from '@/components/EquipmentReportModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { equipmentService } from '@/services/member/equipment.service';
 import {
-  equipmentService,
-  type Equipment,
-  type EquipmentUsage,
-  type StartEquipmentUsageRequest,
-  type StopEquipmentUsageRequest,
-} from '@/services';
+  Equipment,
+  EquipmentQueue,
+  EquipmentStatus,
+  IssueType,
+  Severity,
+} from '@/types/equipmentTypes';
 import { useTheme } from '@/utils/theme';
+import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Activity,
+  AlertCircle,
   ArrowLeft,
-  Flame,
+  Clock,
   MapPin,
   Play,
-  Square,
+  Settings,
+  Users,
   Wrench,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -23,222 +27,221 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  RefreshControl,
+  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function EquipmentDetailScreen() {
   const { theme } = useTheme();
   const { user } = useAuth();
   const router = useRouter();
+  const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { t, i18n } = useTranslation();
 
-  // State for data
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [equipment, setEquipment] = useState<Equipment | null>(null);
-  const [currentUsage, setCurrentUsage] = useState<EquipmentUsage | null>(null);
-  const [recentUsage, setRecentUsage] = useState<EquipmentUsage[]>([]);
+  const [queue, setQueue] = useState<EquipmentQueue[]>([]);
+  const [userQueueEntry, setUserQueueEntry] = useState<EquipmentQueue | null>(
+    null
+  );
+  const [showReportModal, setShowReportModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // UI state
-  const [showWorkoutLogger, setShowWorkoutLogger] = useState(false);
+  // Load equipment details
+  const loadEquipmentDetails = async () => {
+    if (!id) return;
 
-  // Load data on component mount
-  useEffect(() => {
-    if (id) {
-      loadEquipmentData();
-    }
-  }, [id]);
-
-  const loadEquipmentData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      console.log('🏋️ Loading equipment data for ID:', id);
-
-      if (!user?.id) {
-        setError('Please login to view equipment details');
-        return;
-      }
-
-      // Load equipment details
-      const equipmentResponse = await equipmentService.getEquipmentById(id!);
+      const [equipmentResponse, queueResponse] = await Promise.all([
+        equipmentService.getEquipmentById(id),
+        equipmentService.getEquipmentQueue(id),
+      ]);
 
       if (equipmentResponse.success && equipmentResponse.data) {
-        console.log('✅ Equipment loaded:', equipmentResponse.data);
-        setEquipment(equipmentResponse.data);
-
-        // Load current usage for this equipment
-        const currentUsageResponse = await equipmentService.getCurrentUsage(
-          id!
-        );
-        if (currentUsageResponse.success && currentUsageResponse.data) {
-          setCurrentUsage(currentUsageResponse.data[0] || null);
-        }
-
-        // Load recent usage history
-        const usageResponse = await equipmentService.getMemberUsageHistory(
-          user.id,
-          {
-            equipment_id: id,
-          }
-        );
-        if (usageResponse.success && usageResponse.data) {
-          setRecentUsage(usageResponse.data.slice(0, 5)); // Show last 5 sessions
-        }
+        setEquipment(equipmentResponse.data.equipment);
       } else {
-        console.log('❌ Failed to load equipment:', equipmentResponse.error);
-        setError(equipmentResponse.error || 'Failed to load equipment details');
+        setError('Failed to load equipment');
+      }
+
+      if (queueResponse.success && queueResponse.data) {
+        setQueue(queueResponse.data.queue);
+        // Find user's queue entry
+        const userEntry = queueResponse.data.queue.find(
+          (entry) => entry.member_id === user?.id
+        );
+        setUserQueueEntry(userEntry || null);
       }
     } catch (err: any) {
-      console.error('❌ Error loading equipment data:', err);
-      setError(err.message || 'Failed to load equipment details');
+      console.error('Error loading equipment:', err);
+      setError(err.message || 'Failed to load equipment');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleStartUsage = async () => {
-    if (!user?.id || !equipment) {
-      Alert.alert(t('common.error'), t('equipment.errors.loginRequired'));
-      return;
-    }
+  // Initial load
+  useEffect(() => {
+    loadEquipmentDetails();
+  }, [id]);
+
+  // Subscribe to real-time updates
+  useEffect(() => {
+    if (!id) return;
+
+    equipmentService.initWebSocket();
+    equipmentService.subscribeToEquipment(id, () => {
+      loadEquipmentDetails();
+    });
+
+    return () => {
+      equipmentService.unsubscribeFromEquipment(id);
+    };
+  }, [id]);
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadEquipmentDetails();
+    setRefreshing(false);
+  };
+
+  // Handle start using
+  const handleStartUsing = async () => {
+    if (!user?.id || !id) return;
 
     try {
-      console.log('🏋️ Starting equipment usage for:', equipment.name);
-
-      const usageData: StartEquipmentUsageRequest = {
-        equipment_id: equipment.id,
-      };
-
-      const response = await equipmentService.startEquipmentUsage(
-        user.id,
-        usageData
-      );
-
-      if (response.success && response.data) {
-        console.log('✅ Equipment usage started:', response.data);
-        setCurrentUsage(response.data);
-        setShowWorkoutLogger(true);
+      const response = await equipmentService.startEquipmentUsage(user.id, id);
+      if (response.success) {
+        Alert.alert(
+          t('common.success'),
+          t('equipment.actions.startUsage') +
+            ' ' +
+            t('common.success').toLowerCase()
+        );
+        loadEquipmentDetails();
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || t('equipment.errors.startUsageFailed')
+          response.error || 'Failed to start usage'
         );
       }
-    } catch (error: any) {
-      console.error('❌ Error starting equipment usage:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || t('equipment.errors.startUsageFailed')
-      );
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err.message || 'Failed to start usage');
     }
   };
 
-  const handleSaveWorkout = async (saveData: StopEquipmentUsageRequest) => {
-    if (!user?.id || !currentUsage) return;
+  // Handle join queue
+  const handleJoinQueue = async () => {
+    if (!user?.id || !id) return;
 
     try {
-      console.log('🏋️ Saving workout data:', saveData);
+      const response = await equipmentService.joinQueue(id, user.id);
+      if (response.success) {
+        Alert.alert(t('common.success'), t('equipment.queue.joinedQueue'));
+        loadEquipmentDetails();
+      } else {
+        Alert.alert(
+          t('common.error'),
+          response.error || 'Failed to join queue'
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err.message || 'Failed to join queue');
+    }
+  };
 
-      const response = await equipmentService.stopEquipmentUsage(
-        user.id,
-        currentUsage.id,
-        saveData
-      );
+  // Handle leave queue
+  const handleLeaveQueue = async () => {
+    if (!userQueueEntry) return;
+
+    try {
+      const response = await equipmentService.leaveQueue(userQueueEntry.id);
+      if (response.success) {
+        Alert.alert(t('common.success'), t('equipment.queue.leftQueue'));
+        loadEquipmentDetails();
+      } else {
+        Alert.alert(
+          t('common.error'),
+          response.error || 'Failed to leave queue'
+        );
+      }
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err.message || 'Failed to leave queue');
+    }
+  };
+
+  // Handle report issue
+  const handleReportIssue = async (data: {
+    issue_type: IssueType;
+    description: string;
+    severity: Severity;
+    images?: string[];
+  }) => {
+    if (!user?.id || !id) return;
+
+    try {
+      const response = await equipmentService.reportIssue(id, {
+        member_id: user.id,
+        ...data,
+      });
 
       if (response.success) {
-        console.log('✅ Workout saved successfully');
-        setShowWorkoutLogger(false);
-        setCurrentUsage(null);
-        Alert.alert(t('common.success'), t('equipment.workoutSaved'));
-        // Refresh equipment data
-        await loadEquipmentData();
+        Alert.alert(t('common.success'), t('equipment.issue.reported'));
+        loadEquipmentDetails();
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || t('equipment.errors.saveWorkoutFailed')
+          response.error || 'Failed to report issue'
         );
       }
-    } catch (error: any) {
-      console.error('❌ Error saving workout:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || t('equipment.errors.saveWorkoutFailed')
-      );
+    } catch (err: any) {
+      Alert.alert(t('common.error'), err.message || 'Failed to report issue');
     }
   };
 
-  const handleCancelWorkout = () => {
-    setShowWorkoutLogger(false);
-    setCurrentUsage(null);
+  // Get status icon
+  const getStatusIcon = (status: EquipmentStatus) => {
+    const color = getStatusColor(status);
+    switch (status) {
+      case EquipmentStatus.AVAILABLE:
+        return <Activity size={24} color={color} />;
+      case EquipmentStatus.IN_USE:
+        return <Clock size={24} color={color} />;
+      case EquipmentStatus.MAINTENANCE:
+        return <Settings size={24} color={color} />;
+      case EquipmentStatus.OUT_OF_ORDER:
+        return <AlertCircle size={24} color={color} />;
+      default:
+        return <Wrench size={24} color={color} />;
+    }
   };
 
-  const getStatusColor = (status: string) => {
+  // Get status color
+  const getStatusColor = (status: EquipmentStatus) => {
     switch (status) {
-      case 'AVAILABLE':
+      case EquipmentStatus.AVAILABLE:
         return theme.colors.success;
-      case 'IN_USE':
+      case EquipmentStatus.IN_USE:
         return theme.colors.warning;
-      case 'MAINTENANCE':
+      case EquipmentStatus.MAINTENANCE:
+        return theme.colors.secondary;
+      case EquipmentStatus.OUT_OF_ORDER:
         return theme.colors.error;
-      case 'OUT_OF_ORDER':
-        return theme.colors.error;
-      case 'RESERVED':
-        return theme.colors.primary;
       default:
         return theme.colors.textSecondary;
     }
   };
 
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return 'Available';
-      case 'IN_USE':
-        return 'In Use';
-      case 'MAINTENANCE':
-        return 'Under Maintenance';
-      case 'OUT_OF_ORDER':
-        return 'Out of Order';
-      case 'RESERVED':
-        return 'Reserved';
-      default:
-        return status;
-    }
-  };
-
-  const getCategoryIcon = (category: string) => {
-    switch (category) {
-      case 'CARDIO':
-        return '🏃‍♂️';
-      case 'STRENGTH':
-        return '💪';
-      case 'FREE_WEIGHTS':
-        return '🏋️‍♂️';
-      case 'MACHINES':
-        return '⚙️';
-      case 'FUNCTIONAL':
-        return '🤸‍♂️';
-      case 'RECOVERY':
-        return '🧘‍♀️';
-      case 'SPECIALIZED':
-        return '🎯';
-      default:
-        return '🏋️';
-    }
-  };
-
-  const canStartUsage = equipment?.status === 'AVAILABLE' && !currentUsage;
-
-  // Show loading state
-  if (loading) {
+  if (loading && !refreshing) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -246,38 +249,32 @@ export default function EquipmentDetailScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading equipment details...
+            {t('common.loading')}
           </Text>
         </View>
       </SafeAreaView>
     );
   }
 
-  // Show error state
   if (error || !equipment) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <ArrowLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
             {error || 'Equipment not found'}
           </Text>
           <TouchableOpacity
-            style={[
-              styles.retryButton,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={() => router.back()}
+            style={[styles.button, { backgroundColor: theme.colors.primary }]}
+            onPress={loadEquipmentDetails}
           >
-            <Text
-              style={[
-                styles.retryButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              Go Back
-            </Text>
+            <Text style={styles.buttonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
@@ -289,271 +286,224 @@ export default function EquipmentDetailScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Header */}
-      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => router.back()}>
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Equipment Details
+          {t('equipment.title')}
         </Text>
-        <View style={styles.headerSpacer} />
+        <View style={{ width: 24 }} />
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Equipment Image */}
-        <View style={styles.imageContainer}>
-          <Text style={styles.categoryIcon}>
-            {getCategoryIcon(equipment.category)}
-          </Text>
-        </View>
-
-        {/* Equipment Info */}
-        <View style={styles.equipmentInfo}>
-          <Text style={[styles.equipmentName, { color: theme.colors.text }]}>
-            {equipment.name}
-          </Text>
-          <Text
-            style={[
-              styles.equipmentCategory,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            {equipment.category}
-          </Text>
-          {equipment.description && (
-            <Text
-              style={[
-                styles.equipmentDescription,
-                { color: theme.colors.text },
-              ]}
-            >
-              {equipment.description}
-            </Text>
-          )}
-        </View>
-
-        {/* Status and Location */}
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            colors={[theme.colors.primary]}
+            tintColor={theme.colors.primary}
+          />
+        }
+      >
+        {/* Equipment Info Card */}
         <View
-          style={[styles.section, { backgroundColor: theme.colors.surface }]}
+          style={[
+            styles.card,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
+          ]}
         >
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Equipment Details
-          </Text>
-
-          <View style={styles.detailRow}>
+          <View style={styles.equipmentHeader}>
+            <View style={styles.equipmentInfo}>
+              <Text
+                style={[styles.equipmentName, { color: theme.colors.text }]}
+              >
+                {equipment.name}
+              </Text>
+              {equipment.brand && (
+                <Text
+                  style={[
+                    styles.equipmentBrand,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {equipment.brand} {equipment.model}
+                </Text>
+              )}
+            </View>
             <View
               style={[
                 styles.statusBadge,
-                { backgroundColor: getStatusColor(equipment.status) },
+                { backgroundColor: getStatusColor(equipment.status) + '20' },
               ]}
             >
-              <Text style={styles.statusText}>
-                {getStatusText(equipment.status)}
+              {getStatusIcon(equipment.status)}
+              <Text
+                style={[
+                  styles.statusText,
+                  { color: getStatusColor(equipment.status) },
+                ]}
+              >
+                {t(
+                  `equipment.status.${equipment.status
+                    .toLowerCase()
+                    .replaceAll('_', '')}`,
+                  equipment.status
+                )}
               </Text>
             </View>
           </View>
 
-          <View style={styles.detailRow}>
-            <MapPin size={20} color={theme.colors.primary} />
-            <Text style={[styles.detailText, { color: theme.colors.text }]}>
-              {equipment.location}
-            </Text>
-          </View>
+          <View style={styles.divider} />
 
-          <View style={styles.detailRow}>
-            <Activity size={20} color={theme.colors.primary} />
-            <Text style={[styles.detailText, { color: theme.colors.text }]}>
-              {equipment.usage_count} total uses
-            </Text>
-          </View>
-        </View>
-
-        {/* Current Usage */}
-        {currentUsage && (
-          <View
-            style={[styles.section, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Current Usage
-            </Text>
-            <View style={styles.usageInfo}>
-              <Text style={[styles.usageText, { color: theme.colors.text }]}>
-                Equipment is currently in use
-              </Text>
+          <View style={styles.detailsGrid}>
+            <View style={styles.detailItem}>
+              <MapPin size={16} color={theme.colors.textSecondary} />
               <Text
                 style={[
-                  styles.usageTime,
+                  styles.detailLabel,
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Started:{' '}
-                {new Date(currentUsage.start_time).toLocaleTimeString(
-                  i18n.language
-                )}
+                {equipment.location}
               </Text>
             </View>
-          </View>
-        )}
 
-        {/* Maintenance Info */}
-        {equipment.next_maintenance && (
+            {equipment.max_weight && (
+              <View style={styles.detailItem}>
+                <Wrench size={16} color={theme.colors.textSecondary} />
+                <Text
+                  style={[
+                    styles.detailLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  Max: {equipment.max_weight}kg
+                </Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Queue Section */}
+        {queue.length > 0 && (
           <View
-            style={[styles.section, { backgroundColor: theme.colors.surface }]}
+            style={[styles.card, { backgroundColor: theme.colors.surface }]}
           >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Maintenance
-            </Text>
-            <View style={styles.maintenanceInfo}>
-              <Wrench size={20} color={theme.colors.warning} />
-              <Text
+            <View style={styles.sectionHeader}>
+              <Users size={20} color={theme.colors.text} />
+              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+                {t('equipment.queue.title')} ({queue.length})
+              </Text>
+            </View>
+
+            {queue.map((entry, index) => (
+              <View
+                key={entry.id}
                 style={[
-                  styles.maintenanceText,
-                  { color: theme.colors.warning },
+                  styles.queueItem,
+                  {
+                    backgroundColor:
+                      entry.member_id === user?.id
+                        ? theme.colors.primary + '10'
+                        : 'transparent',
+                  },
                 ]}
               >
-                Next maintenance:{' '}
-                {new Date(equipment.next_maintenance).toLocaleDateString(
-                  i18n.language
-                )}
-              </Text>
-            </View>
-          </View>
-        )}
-
-        {/* Recent Usage History */}
-        {recentUsage.length > 0 && (
-          <View
-            style={[styles.section, { backgroundColor: theme.colors.surface }]}
-          >
-            <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-              Recent Usage
-            </Text>
-            {recentUsage.map((usage, index) => (
-              <View key={usage.id} style={styles.usageItem}>
-                <View style={styles.usageHeader}>
-                  <Text
-                    style={[styles.usageDate, { color: theme.colors.text }]}
-                  >
-                    {new Date(usage.start_time).toLocaleDateString(
-                      i18n.language
-                    )}
-                  </Text>
+                <View style={styles.queuePosition}>
                   <Text
                     style={[
-                      styles.usageDuration,
-                      { color: theme.colors.textSecondary },
+                      styles.positionNumber,
+                      { color: theme.colors.primary },
                     ]}
                   >
-                    {usage.duration_minutes || 0} min
+                    #{index + 1}
                   </Text>
                 </View>
-                {usage.calories_burned && (
-                  <View style={styles.usageStats}>
-                    <Flame size={14} color={theme.colors.warning} />
-                    <Text
-                      style={[
-                        styles.usageStat,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {usage.calories_burned} calories
-                    </Text>
-                  </View>
-                )}
+                <Text
+                  style={[styles.queueMemberName, { color: theme.colors.text }]}
+                >
+                  {entry.member_id === user?.id
+                    ? t('profile.title')
+                    : entry.member?.full_name || 'Member'}
+                </Text>
               </View>
             ))}
           </View>
         )}
+
+        {/* Action Buttons */}
+        <View style={styles.actionsContainer}>
+          {equipment.status === EquipmentStatus.AVAILABLE && (
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: theme.colors.primary }]}
+              onPress={handleStartUsing}
+            >
+              <Play size={20} color="#fff" />
+              <Text style={styles.buttonText}>
+                {t('equipment.actions.startUsage')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {equipment.status === EquipmentStatus.IN_USE && !userQueueEntry && (
+            <TouchableOpacity
+              style={[styles.button, { backgroundColor: theme.colors.warning }]}
+              onPress={handleJoinQueue}
+            >
+              <Clock size={20} color="#fff" />
+              <Text style={styles.buttonText}>
+                {t('equipment.queue.joinQueue')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          {userQueueEntry && (
+            <TouchableOpacity
+              style={[
+                styles.button,
+                {
+                  backgroundColor: theme.colors.error,
+                  borderColor: theme.colors.border,
+                },
+              ]}
+              onPress={handleLeaveQueue}
+            >
+              <Text style={styles.buttonText}>
+                {t('equipment.queue.leaveQueue')}
+              </Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity
+            style={[
+              styles.button,
+              styles.outlineButton,
+              { borderColor: theme.colors.border },
+            ]}
+            onPress={() => setShowReportModal(true)}
+          >
+            <AlertCircle size={20} color={theme.colors.error} />
+            <Text
+              style={[styles.outlineButtonText, { color: theme.colors.error }]}
+            >
+              {t('equipment.issue.reportIssue')}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
 
-      {/* Action Buttons */}
-      <View style={[styles.actions, { borderTopColor: theme.colors.border }]}>
-        {canStartUsage ? (
-          <TouchableOpacity
-            style={[
-              styles.startButton,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={handleStartUsage}
-          >
-            <Play size={20} color={theme.colors.textInverse} />
-            <Text
-              style={[
-                styles.startButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              Start Usage
-            </Text>
-          </TouchableOpacity>
-        ) : equipment.status === 'IN_USE' ? (
-          <TouchableOpacity
-            style={[
-              styles.inUseButton,
-              { backgroundColor: theme.colors.warning },
-            ]}
-            disabled
-          >
-            <Square size={20} color={theme.colors.textInverse} />
-            <Text
-              style={[
-                styles.inUseButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              In Use
-            </Text>
-          </TouchableOpacity>
-        ) : equipment.status === 'MAINTENANCE' ? (
-          <TouchableOpacity
-            style={[
-              styles.maintenanceButton,
-              { backgroundColor: theme.colors.error },
-            ]}
-            disabled
-          >
-            <Wrench size={20} color={theme.colors.textInverse} />
-            <Text
-              style={[
-                styles.maintenanceButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              Under Maintenance
-            </Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity
-            style={[
-              styles.unavailableButton,
-              { backgroundColor: theme.colors.textSecondary },
-            ]}
-            disabled
-          >
-            <Text
-              style={[
-                styles.unavailableButtonText,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              {getStatusText(equipment.status)}
-            </Text>
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Workout Logger Modal */}
-      {currentUsage && (
-        <WorkoutLogger
-          usage={currentUsage}
-          onSave={handleSaveWorkout}
-          onCancel={handleCancelWorkout}
-          loading={false}
-        />
-      )}
+      {/* Report Issue Modal */}
+      <EquipmentReportModal
+        visible={showReportModal}
+        onClose={() => setShowReportModal(false)}
+        onSubmit={handleReportIssue}
+        equipmentName={equipment.name}
+      />
     </SafeAreaView>
   );
 }
@@ -562,215 +512,141 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 16,
+    paddingBottom: 12,
+  },
+  headerTitle: {
+    ...Typography.h5,
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  card: {
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  equipmentHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  equipmentInfo: {
+    flex: 1,
+  },
+  equipmentName: {
+    ...Typography.h4,
+    marginBottom: 4,
+  },
+  equipmentBrand: {
+    ...Typography.bodyMedium,
+  },
+  statusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    gap: 6,
+  },
+  statusText: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
+  },
+  divider: {
+    height: 1,
+    backgroundColor: '#E0E0E0',
+    marginVertical: 16,
+  },
+  detailsGrid: {
+    gap: 12,
+  },
+  detailItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  detailLabel: {
+    ...Typography.bodyMedium,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    ...Typography.h6,
+  },
+  queueItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  queuePosition: {
+    width: 32,
+    marginRight: 12,
+  },
+  positionNumber: {
+    ...Typography.h6,
+  },
+  queueMemberName: {
+    ...Typography.bodyMedium,
+    flex: 1,
+  },
+  actionsContainer: {
+    gap: 12,
+    marginBottom: 24,
+  },
+  button: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+  },
+  buttonText: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    color: '#fff',
+  },
+  outlineButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+  },
+  outlineButtonText: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
-    fontSize: 16,
+    ...Typography.bodyMedium,
+    marginTop: 12,
   },
   errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  errorText: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  backButton: {
-    padding: 4,
-    marginRight: 12,
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    flex: 1,
-  },
-  headerSpacer: {
-    width: 32,
-  },
-  content: {
-    flex: 1,
-  },
-  imageContainer: {
-    height: 200,
-    backgroundColor: 'rgba(0, 0, 0, 0.05)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  categoryIcon: {
-    fontSize: 80,
-  },
-  equipmentInfo: {
     padding: 20,
   },
-  equipmentName: {
-    fontSize: 24,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  equipmentCategory: {
-    fontSize: 16,
-    marginBottom: 8,
-  },
-  equipmentDescription: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  section: {
-    margin: 20,
-    padding: 16,
-    borderRadius: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  detailRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  statusText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#fff',
-  },
-  detailText: {
-    fontSize: 16,
-    marginLeft: 12,
-  },
-  usageInfo: {
-    padding: 12,
-    backgroundColor: 'rgba(59, 130, 246, 0.1)',
-    borderRadius: 8,
-  },
-  usageText: {
-    fontSize: 16,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  usageTime: {
-    fontSize: 14,
-  },
-  maintenanceInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    backgroundColor: 'rgba(255, 193, 7, 0.1)',
-    borderRadius: 8,
-  },
-  maintenanceText: {
-    fontSize: 14,
-    marginLeft: 8,
-    fontWeight: '500',
-  },
-  usageItem: {
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
-  },
-  usageHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 4,
-  },
-  usageDate: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  usageDuration: {
-    fontSize: 14,
-  },
-  usageStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  usageStat: {
-    fontSize: 12,
-    marginLeft: 4,
-  },
-  actions: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderTopWidth: 1,
-  },
-  startButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
-    gap: 8,
-  },
-  startButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  inUseButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
-    gap: 8,
-  },
-  inUseButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  maintenanceButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
-    gap: 8,
-  },
-  maintenanceButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  unavailableButton: {
-    flex: 1,
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderRadius: 8,
-  },
-  unavailableButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
+  errorText: {
+    ...Typography.bodyMedium,
+    textAlign: 'center',
+    marginBottom: 16,
   },
 });
