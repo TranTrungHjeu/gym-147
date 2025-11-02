@@ -1,14 +1,73 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Animated,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 const WelcomeScreen = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { isAuthenticated, isLoading, checkRegistrationStatus, user } = useAuth();
+  const [loginScale] = React.useState(new Animated.Value(1));
+  const [signupScale] = React.useState(new Animated.Value(1));
+  const [hasChecked, setHasChecked] = React.useState(false);
+
+  // Auto-redirect if already logged in - check registration status first
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.id && !hasChecked) {
+      setHasChecked(true);
+      const handleRedirect = async () => {
+        const status = await checkRegistrationStatus();
+        
+        console.log('📊 Registration status check:', {
+          hasMember: status.hasMember,
+          hasSubscription: status.registrationStatus.hasSubscription,
+          hasCompletedProfile: status.registrationStatus.hasCompletedProfile,
+        });
+
+        // Priority: Subscription > Member > Profile
+        if (!status.registrationStatus.hasSubscription) {
+          console.log('⚠️ No subscription - redirecting to plan selection');
+          router.replace({
+            pathname: '/(auth)/register-plan',
+            params: {
+              userId: user.id,
+              accessToken: '', // Will be retrieved from storage if needed
+              refreshToken: '',
+            },
+          });
+        } else if (!status.hasMember || !status.registrationStatus.hasCompletedProfile) {
+          console.log('⚠️ Subscription OK but profile incomplete - redirecting to profile');
+          router.replace({
+            pathname: '/(auth)/register-profile',
+            params: {
+              userId: user.id,
+              accessToken: '',
+              refreshToken: '',
+              paymentVerified: 'true',
+            },
+          });
+        } else {
+          console.log('✅ Complete registration - redirecting to home');
+      router.replace('/(tabs)');
+    }
+      };
+      
+      handleRedirect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isAuthenticated, user?.id, hasChecked]);
 
   const handleLogin = () => {
     router.push('/(auth)/login');
@@ -17,6 +76,35 @@ const WelcomeScreen = () => {
   const handleSignup = () => {
     router.push('/(auth)/register');
   };
+
+  const animatePress = (scale: Animated.Value, toValue: number) => {
+    Animated.spring(scale, {
+      toValue,
+      useNativeDriver: true,
+      friction: 3,
+      tension: 40,
+    }).start();
+  };
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.logo}
+        />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text
+          style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+        >
+          {t('common.loading')}...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -28,7 +116,7 @@ const WelcomeScreen = () => {
       {/* Banner Image - Thay bằng ảnh của bạn */}
       <Image
         source={require('@/assets/images/logo-full.png')}
-        style={styles.bannerImage}
+        style={[styles.bannerImage, { shadowColor: theme.colors.text }]}
       />
 
       {/* Title */}
@@ -42,41 +130,74 @@ const WelcomeScreen = () => {
       </Text>
 
       {/* Button Container */}
-      <View
-        style={[styles.buttonContainer, { borderColor: theme.colors.border }]}
-      >
-        <TouchableOpacity
-          style={[
-            styles.loginButtonWrapper,
-            { backgroundColor: theme.colors.primary },
-          ]}
+      <View style={styles.buttonContainer}>
+        <Pressable
           onPress={handleLogin}
-        >
-          <Text
-            style={[
-              styles.loginButtonText,
-              { color: theme.colors.textInverse },
-            ]}
-          >
-            {t('auth.login')}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.loginButtonWrapper,
+          onPressIn={() => animatePress(loginScale, 0.96)}
+          onPressOut={() => animatePress(loginScale, 1)}
+          style={({ pressed }) => [
+            styles.pressableWrapper,
             {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.border,
+              opacity: pressed ? 0.9 : 1,
             },
           ]}
-          onPress={handleSignup}
         >
-          <Text
-            style={[styles.signupButtonText, { color: theme.colors.primary }]}
+          <Animated.View
+            style={[
+              styles.loginButtonWrapper,
+              {
+                backgroundColor: theme.colors.primary,
+                borderTopLeftRadius: 16,
+                borderBottomLeftRadius: 16,
+                transform: [{ scale: loginScale }],
+              },
+            ]}
           >
-            {t('auth.register')}
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                styles.loginButtonText,
+                { color: theme.colors.textInverse },
+              ]}
+            >
+              {t('auth.login')}
+            </Text>
+          </Animated.View>
+        </Pressable>
+
+        {/* Divider between buttons */}
+        <View
+          style={[styles.divider, { backgroundColor: theme.colors.border }]}
+        />
+
+        <Pressable
+          onPress={handleSignup}
+          onPressIn={() => animatePress(signupScale, 0.96)}
+          onPressOut={() => animatePress(signupScale, 1)}
+          style={({ pressed }) => [
+            styles.pressableWrapper,
+            {
+              opacity: pressed ? 0.9 : 1,
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.loginButtonWrapper,
+              {
+                backgroundColor: theme.colors.surface,
+                borderTopRightRadius: 16,
+                borderBottomRightRadius: 16,
+                transform: [{ scale: signupScale }],
+              },
+            ]}
+          >
+            <Text
+              style={[styles.signupButtonText, { color: theme.colors.primary }]}
+            >
+              {t('auth.register')}
+            </Text>
+          </Animated.View>
+        </Pressable>
       </View>
     </View>
   );
@@ -103,7 +224,6 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 350,
     borderRadius: 24,
-    shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -127,19 +247,19 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 320,
     height: 56,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
+    alignItems: 'center',
+  },
+  pressableWrapper: {
+    flex: 1,
+    height: '100%',
   },
   loginButtonWrapper: {
     justifyContent: 'center',
     alignItems: 'center',
-    width: '50%',
+    height: '100%',
+  },
+  divider: {
+    width: 1.5,
     height: '100%',
   },
   loginButtonText: {
@@ -147,5 +267,9 @@ const styles = StyleSheet.create({
   },
   signupButtonText: {
     ...Typography.buttonLarge,
+  },
+  loadingText: {
+    ...Typography.bodyMedium,
+    marginTop: 16,
   },
 });

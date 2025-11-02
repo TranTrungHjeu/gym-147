@@ -1,8 +1,9 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User } from '@/types/authTypes';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const TOKEN_KEY = '@fittrack_auth_token';
 const USER_KEY = '@fittrack_user';
+const REMEMBER_ME_KEY = '@fittrack_remember_me';
 
 /**
  * Store auth token
@@ -78,16 +79,96 @@ export const removeUser = async (): Promise<void> => {
 };
 
 /**
+ * Store both access and refresh tokens
+ */
+export const storeTokens = async (
+  accessToken: string,
+  refreshToken: string
+): Promise<void> => {
+  try {
+    await Promise.all([
+      storeToken(accessToken),
+      AsyncStorage.setItem('@fittrack_refresh_token', refreshToken),
+    ]);
+  } catch (error) {
+    console.error('Error storing tokens:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get refresh token
+ */
+export const getRefreshToken = async (): Promise<string | null> => {
+  try {
+    return await AsyncStorage.getItem('@fittrack_refresh_token');
+  } catch (error) {
+    console.error('Error getting refresh token:', error);
+    return null;
+  }
+};
+
+/**
+ * Get both access and refresh tokens
+ */
+export const getTokens = async (): Promise<{ accessToken: string | null; refreshToken: string | null }> => {
+  try {
+    const [accessToken, refreshToken] = await Promise.all([
+      getToken(),
+      getRefreshToken(),
+    ]);
+    return { accessToken, refreshToken };
+  } catch (error) {
+    console.error('Error getting tokens:', error);
+    return { accessToken: null, refreshToken: null };
+  }
+};
+
+/**
+ * Remove refresh token
+ */
+export const removeRefreshToken = async (): Promise<void> => {
+  try {
+    await AsyncStorage.removeItem('@fittrack_refresh_token');
+  } catch (error) {
+    console.error('Error removing refresh token:', error);
+    throw error;
+  }
+};
+
+/**
  * Clear all auth data
  */
 export const clearAuthData = async (): Promise<void> => {
   try {
-    await Promise.all([
-      removeToken(),
-      removeUser(),
-    ]);
+    await Promise.all([removeToken(), removeRefreshToken(), removeUser()]);
   } catch (error) {
     console.error('Error clearing auth data:', error);
     throw error;
+  }
+};
+
+/**
+ * Store remember me preference
+ */
+export const storeRememberMe = async (rememberMe: boolean): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(REMEMBER_ME_KEY, JSON.stringify(rememberMe));
+  } catch (error) {
+    console.error('Error storing remember me preference:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get remember me preference
+ */
+export const getRememberMe = async (): Promise<boolean> => {
+  try {
+    const value = await AsyncStorage.getItem(REMEMBER_ME_KEY);
+    return value ? JSON.parse(value) : false;
+  } catch (error) {
+    console.error('Error getting remember me preference:', error);
+    return false;
   }
 };

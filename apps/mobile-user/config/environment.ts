@@ -17,9 +17,9 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
     API_URL:
       process.env.EXPO_PUBLIC_API_URL ||
       config.API_URL ||
-      'http://10.0.2.2:3001', // Android emulator - Identity Service
+      'http://192.168.2.19:3001', // Real device - Identity Service
+    // 'http://10.0.2.2:3001', // Android emulator - Identity Service
     // 'http://localhost:3001', // iOS simulator - Identity Service
-    // 'http://192.168.1.100:3001', // Real device - Identity Service
     APP_NAME: process.env.EXPO_PUBLIC_APP_NAME || config.APP_NAME || 'Gym147',
     APP_VERSION:
       process.env.EXPO_PUBLIC_APP_VERSION || config.APP_VERSION || '1.0.0',
@@ -105,12 +105,41 @@ export const API_ENDPOINTS = {
   },
 } as const;
 
-// Service URLs for direct connections
+// ================================
+// 🔧 SERVICE URLS CONFIGURATION
+// ================================
+// Centralized service URLs - modify here to switch between different environments
+//
+// 📱 For REAL DEVICE (same WiFi network):
+//    - Find your computer's IP: Run 'ipconfig' (Windows) or 'ifconfig' (Mac/Linux)
+//    - Use format: http://[YOUR_IP]:PORT
+//
+// 🖥️  For ANDROID EMULATOR:
+//    - Use: http://10.0.2.2:PORT
+//
+// 🍎 For iOS SIMULATOR:
+//    - Use: http://localhost:PORT
+//
+// ================================
+
 export const SERVICE_URLS = {
-  IDENTITY: 'http://10.0.2.2:3001', // Android emulator
-  MEMBER: 'http://10.0.2.2:3002',
-  SCHEDULE: 'http://10.0.2.2:3003',
-  BILLING: 'http://10.0.2.2:3004',
+  // 📱 REAL DEVICE (current configuration)
+  IDENTITY: 'http://192.168.2.19:3001',
+  MEMBER: 'http://192.168.2.19:3002',
+  SCHEDULE: 'http://192.168.2.19:3003',
+  BILLING: 'http://192.168.2.19:3004',
+
+  // 🖥️ ANDROID EMULATOR (uncomment to use)
+  // IDENTITY: 'http://10.0.2.2:3001',
+  // MEMBER: 'http://10.0.2.2:3002',
+  // SCHEDULE: 'http://10.0.2.2:3003',
+  // BILLING: 'http://10.0.2.2:3004',
+
+  // 🍎 iOS SIMULATOR (uncomment to use)
+  // IDENTITY: 'http://localhost:3001',
+  // MEMBER: 'http://localhost:3002',
+  // SCHEDULE: 'http://localhost:3003',
+  // BILLING: 'http://localhost:3004',
 } as const;
 
 // App Configuration

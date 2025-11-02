@@ -223,10 +223,46 @@ const deleteNotification = async (req, res) => {
   }
 };
 
+// Get unread count for a user
+const getUnreadCount = async (req, res) => {
+  try {
+    const { user_id } = req.params;
+
+    if (!user_id) {
+      return res.status(400).json({
+        success: false,
+        message: 'User ID is required',
+        data: null,
+      });
+    }
+
+    const count = await prisma.notification.count({
+      where: {
+        user_id,
+        is_read: false,
+      },
+    });
+
+    res.json({
+      success: true,
+      message: 'Unread count retrieved successfully',
+      data: { unreadCount: count },
+    });
+  } catch (error) {
+    console.error('Get unread count error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error retrieving unread count',
+      data: null,
+    });
+  }
+};
+
 module.exports = {
   getUnreadNotifications,
   markNotificationAsRead,
   markAllNotificationsAsRead,
   getAllNotifications,
   deleteNotification,
+  getUnreadCount,
 };

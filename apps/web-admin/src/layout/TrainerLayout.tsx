@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
+import { socketService } from '../services/socket.service';
 import AppHeader from './AppHeader';
 import Backdrop from './Backdrop';
 import TrainerSidebar from './TrainerSidebar';
@@ -43,6 +44,51 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
 
     if (!isLoggedIn) {
       navigate('/auth');
+      return;
+    }
+
+    // Get user ID and connect socket for real-time notifications
+    const userDataStr = localStorage.getItem('userData') || localStorage.getItem('user');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        const userId = userData.id || userData.userId;
+
+        if (userId) {
+          // Connect socket and subscribe to user notifications
+          const socket = socketService.connect(userId);
+
+          // Setup booking notification listeners
+          // Note: Toast notifications are disabled - notifications will be shown in dropdown only
+          socket.on('booking:new', (data: any) => {
+            // Refresh schedule if on schedule page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
+            }
+          });
+
+          socket.on('booking:pending_payment', (data: any) => {
+            // Just refresh notifications, no toast
+          });
+
+          socket.on('booking:confirmed', (data: any) => {
+            // Refresh schedule if on schedule page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
+            }
+          });
+
+          // Cleanup on unmount
+          return () => {
+            socket.off('booking:new');
+            socket.off('booking:pending_payment');
+            socket.off('booking:confirmed');
+            socketService.disconnect();
+          };
+        }
+      } catch (err) {
+        console.error('Error parsing user data for socket:', err);
+      }
     }
   }, [navigate]);
 

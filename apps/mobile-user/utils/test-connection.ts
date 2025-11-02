@@ -57,7 +57,7 @@ export const testNetworkConnectivity = async () => {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
 
-    const response = await fetch('http://10.0.2.2:3001', {
+    const response = await fetch(environment.API_URL, {
       method: 'GET',
       signal: controller.signal,
     });

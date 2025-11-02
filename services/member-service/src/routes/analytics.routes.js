@@ -25,8 +25,13 @@ router.get('/analytics/achievements', (req, res) =>
 
 // ==================== DASHBOARD ROUTES ====================
 
-// Get comprehensive dashboard data
+// Get comprehensive dashboard data (admin view)
 router.get('/analytics/dashboard', (req, res) => analyticsController.getDashboardData(req, res));
+
+// Get member-specific dashboard data
+router.get('/analytics/member-dashboard', (req, res) =>
+  analyticsController.getMemberDashboardData(req, res)
+);
 
 // ==================== REPORT ROUTES ====================
 

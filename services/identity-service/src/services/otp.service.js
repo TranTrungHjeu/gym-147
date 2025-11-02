@@ -186,9 +186,9 @@ class OTPService {
         });
 
         if (response.data.CodeResult === 100 || response.data.CodeResult === '100') {
-      return {
-        success: true,
-        message: 'Mã OTP đã được gửi qua SMS',
+          return {
+            success: true,
+            message: 'Mã OTP đã được gửi qua SMS',
             smsId: response.data.SMSID,
           };
         } else {
@@ -201,8 +201,8 @@ class OTPService {
         return {
           success: true,
           message: 'Mã OTP đã được gửi qua SMS (Mock)',
-        otp: otp, // Only for development/testing
-      };
+          otp: otp, // Only for development/testing
+        };
       }
     } catch (error) {
       console.error('Error sending SMS OTP:', error);
@@ -234,17 +234,18 @@ class OTPService {
 
   // Send OTP via Email (Resend)
   async sendEmailOTP(email, otp, userName = '') {
-    try {
-      if (config.email.provider === 'resend' && this.resend) {
-        // Extract name from email if userName is not provided
-        const displayName = userName || email.split('@')[0];
+    if (!this.resend) {
+      throw new Error('Email service not initialized. Please configure RESEND_API_KEY.');
+    }
 
-        // Real Resend implementation
-        const { data, error } = await this.resend.emails.send({
-          from: config.email.resend.fromEmail,
-          to: [email],
-          subject: 'Mã OTP xác thực tài khoản - GYM147',
-          html: `
+    // Extract name from email if userName is not provided
+    const displayName = userName || email.split('@')[0];
+
+    const { data, error } = await this.resend.emails.send({
+      from: config.email.resend.fromEmail,
+      to: [email],
+      subject: 'Mã OTP xác thực tài khoản - GYM147',
+      html: `
 <!DOCTYPE html>
 <html lang="vi">
   <head>
@@ -266,7 +267,9 @@ class OTPService {
                 <img alt="Gym147 Logo" src="https://i.postimg.cc/VNq14wJc/Black-and-Red-Bold-Gym-You-Tube-Channel-Logo.png" height="50px" />
               </td>
               <td style="text-align: right">
-                <span style="font-size: 16px; line-height: 30px; color: #ffffff">${new Date().toLocaleDateString('vi-VN')}</span>
+                <span style="font-size: 16px; line-height: 30px; color: #ffffff">${new Date().toLocaleDateString(
+                  'vi-VN'
+                )}</span>
               </td>
             </tr>
           </tbody>
@@ -317,48 +320,36 @@ class OTPService {
   </body>
 </html>
           `,
-        });
+    });
 
-        if (error) {
-          console.error('Resend error:', error);
-          throw new Error('Failed to send email');
-        }
-
-        return {
-          success: true,
-          message: 'Mã OTP đã được gửi qua email',
-          messageId: data.id,
-        };
-      } else {
-        // Mock implementation for development/testing
-        console.log(`[MOCK EMAIL] OTP sent to ${email}: ${otp}`);
-        return {
-          success: true,
-          message: 'Mã OTP đã được gửi qua email (Mock)',
-          otp: otp, // Only for development/testing
-        };
-      }
-    } catch (error) {
-      console.error('Error sending email OTP:', error);
-      throw new Error('Failed to send email OTP');
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error('Failed to send email');
     }
+
+    return {
+      success: true,
+      message: 'Mã OTP đã được gửi qua email',
+      messageId: data.id,
+    };
   }
 
   // Send verification email (Resend)
   async sendEmailVerification(email, verificationToken, userName = '') {
-    try {
-      const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
+    const verificationUrl = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}`;
 
-      if (config.email.provider === 'resend' && this.resend) {
-        // Extract name from email if userName is not provided
-        const displayName = userName || email.split('@')[0];
+    if (!this.resend) {
+      throw new Error('Email service not initialized. Please configure RESEND_API_KEY.');
+    }
 
-        // Real Resend implementation
-        const { data, error } = await this.resend.emails.send({
-          from: config.email.resend.fromEmail,
-          to: [email],
-          subject: 'Xác thực email tài khoản - Gym147',
-          html: `
+    // Extract name from email if userName is not provided
+    const displayName = userName || email.split('@')[0];
+
+    const { data, error } = await this.resend.emails.send({
+      from: config.email.resend.fromEmail,
+      to: [email],
+      subject: 'Xác thực email tài khoản - Gym147',
+      html: `
 <!DOCTYPE html>
 <html lang="vi">
   <head>
@@ -380,7 +371,9 @@ class OTPService {
                 <img alt="Gym147 Logo" src="https://gym147.com/assets/images/logo.png" height="50px" />
               </td>
               <td style="text-align: right">
-                <span style="font-size: 16px; line-height: 30px; color: #ffffff">${new Date().toLocaleDateString('vi-VN')}</span>
+                <span style="font-size: 16px; line-height: 30px; color: #ffffff">${new Date().toLocaleDateString(
+                  'vi-VN'
+                )}</span>
               </td>
             </tr>
           </tbody>
@@ -437,31 +430,18 @@ class OTPService {
   </body>
 </html>
           `,
-        });
+    });
 
-        if (error) {
-          console.error('Resend error:', error);
-          throw new Error('Failed to send email');
-        }
-
-      return {
-        success: true,
-        message: 'Email xác thực đã được gửi',
-          messageId: data.id,
-        };
-      } else {
-        // Mock implementation for development/testing
-        console.log(`[MOCK EMAIL] Verification email sent to ${email}: ${verificationUrl}`);
-        return {
-          success: true,
-          message: 'Email xác thực đã được gửi (Mock)',
-        verificationUrl: verificationUrl, // Only for development/testing
-      };
-      }
-    } catch (error) {
-      console.error('Error sending verification email:', error);
-      throw new Error('Failed to send verification email');
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error('Failed to send email');
     }
+
+    return {
+      success: true,
+      message: 'Email xác thực đã được gửi',
+      messageId: data.id,
+    };
   }
 
   // Clean up expired OTPs
@@ -493,17 +473,14 @@ class OTPService {
 
     console.log('Starting OTP cleanup job - runs every 5 minutes');
 
-    this.cleanupInterval = setInterval(
-      async () => {
-        try {
-          const cleanedCount = await this.cleanupExpiredOTPs();
-          console.log(`Cleanup job completed: ${cleanedCount} OTPs removed`);
-        } catch (error) {
-          console.error('Cleanup job error:', error);
-        }
-      },
-      5 * 60 * 1000
-    ); // Run every 5 minutes
+    this.cleanupInterval = setInterval(async () => {
+      try {
+        const cleanedCount = await this.cleanupExpiredOTPs();
+        console.log(`Cleanup job completed: ${cleanedCount} OTPs removed`);
+      } catch (error) {
+        console.error('Cleanup job error:', error);
+      }
+    }, 5 * 60 * 1000); // Run every 5 minutes
 
     // Run cleanup immediately on start
     this.cleanupExpiredOTPs().catch(error => {
@@ -548,6 +525,121 @@ class OTPService {
       console.error('Error getting OTP status:', error);
       throw new Error('Failed to get OTP status');
     }
+  }
+
+  // Send password reset email
+  async sendPasswordResetEmail(email, resetToken, userName = '') {
+    const resetUrl = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+
+    if (!this.resend) {
+      throw new Error('Email service not initialized. Please configure RESEND_API_KEY.');
+    }
+
+    // Extract name from email if userName is not provided
+    const displayName = userName || email.split('@')[0];
+
+    const { data, error } = await this.resend.emails.send({
+      from: config.email.resend.fromEmail,
+      to: [email],
+      subject: 'Đặt lại mật khẩu - GYM147',
+      html: `
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>GYM147 - Đặt lại mật khẩu</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  </head>
+  <body style="margin: 0; font-family: 'Inter', 'Space Grotesk', sans-serif; background: #ffffff; font-size: 14px;">
+    <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url('https://i.postimg.cc/dtP6cK19/Orange-Geometic-Modern-Zoom-Virtual-Background.png'); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; font-size: 14px; color: #434343;">
+      
+      <!-- Header -->
+      <header>
+        <table style="width: 100%">
+          <tbody>
+            <tr style="height: 0">
+              <td>
+                <img alt="Gym147 Logo" src="https://i.postimg.cc/VNq14wJc/Black-and-Red-Bold-Gym-You-Tube-Channel-Logo.png" height="50px" />
+              </td>
+              <td style="text-align: right">
+                <span style="font-size: 16px; line-height: 30px; color: #ffffff">${new Date().toLocaleDateString(
+                  'vi-VN'
+                )}</span>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </header>
+
+      <!-- Main Content -->
+      <main>
+        <div style="margin: 0; margin-top: 70px; padding: 92px 30px 115px; background: #ffffff; border-radius: 30px; text-align: center;">
+          <div style="width: 100%; max-width: 489px; margin: 0 auto">
+            <h1 style="margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f; font-family: 'Space Grotesk', sans-serif;">Đặt Lại Mật Khẩu</h1>
+            <p style="margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500; font-family: 'Inter', sans-serif;">Xin chào ${displayName},</p>
+            <p style="margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px; font-family: 'Inter', sans-serif;">
+              Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Gym147 của bạn. 
+              Nhấn vào nút bên dưới để tạo mật khẩu mới. 
+              Link này có hiệu lực trong <span style="font-weight: 600; color: #1f1f1f">5 phút</span>.
+            </p>
+            <div style="text-align: center; margin: 60px 0;">
+              <a href="${resetUrl}" style="background: #ba3d4f; color: white; padding: 20px 40px; text-decoration: none; border-radius: 12px; font-weight: 600; display: inline-block; font-family: 'Space Grotesk', sans-serif; font-size: 16px;">
+                Đặt Lại Mật Khẩu
+              </a>
+            </div>
+            <p style="margin: 0; margin-top: 30px; font-weight: 500; color: #8c8c8c; font-family: 'Inter', sans-serif;">
+              Nếu nút không hoạt động, bạn có thể copy link này:
+            </p>
+            <p style="margin: 0; margin-top: 10px; color: #499fb6; font-size: 12px; word-break: break-all; background: #e9ecef; padding: 10px; border-radius: 4px; font-family: 'Inter', sans-serif;">${resetUrl}</p>
+            <p style="margin: 0; margin-top: 30px; font-weight: 500; color: #d32f2f; font-family: 'Inter', sans-serif;">
+              ⚠️ Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+            </p>
+          </div>
+        </div>
+
+        <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c; font-family: 'Inter', sans-serif;">
+          Cần hỗ trợ? Liên hệ tại 
+          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a> 
+          hoặc truy cập 
+          <a href="https://gym147.com/help" target="_blank" style="color: #499fb6; text-decoration: none">Trung tâm trợ giúp</a>
+        </p>
+      </main>
+
+      <!-- Footer -->
+      <footer style="width: 100%; max-width: 490px; margin: 20px auto 0; text-align: center; border-top: 1px solid #e6ebf1;">
+        <p style="margin: 0; margin-top: 40px; font-size: 16px; font-weight: 600; color: #434343; font-family: 'Space Grotesk', sans-serif;">Gym147</p>
+        <p style="margin: 0; margin-top: 8px; color: #434343; font-family: 'Inter', sans-serif;">Hệ thống quản lý phòng gym chuyên nghiệp</p>
+        <div style="margin: 0; margin-top: 16px">
+          <a href="https://facebook.com/gym147" target="_blank" style="display: inline-block">
+            <img width="36px" alt="Facebook" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661502815169_682499/email-template-icon-facebook" />
+          </a>
+          <a href="https://instagram.com/gym147" target="_blank" style="display: inline-block; margin-left: 8px">
+            <img width="36px" alt="Instagram" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661504218208_684135/email-template-icon-instagram" />
+          </a>
+          <a href="https://youtube.com/gym147" target="_blank" style="display: inline-block; margin-left: 8px">
+            <img width="36px" alt="Youtube" src="https://archisketch-resources.s3.ap-northeast-2.amazonaws.com/vrstyler/1661503195931_210869/email-template-icon-youtube" />
+          </a>
+        </div>
+        <p style="margin: 0; margin-top: 16px; color: #434343; font-family: 'Inter', sans-serif;">Copyright © 2024 Gym147. Tất cả quyền được bảo lưu.</p>
+      </footer>
+    </div>
+  </body>
+</html>
+      `,
+    });
+
+    if (error) {
+      console.error('Resend error:', error);
+      throw new Error('Failed to send password reset email');
+    }
+
+    return {
+      success: true,
+      message: 'Email đặt lại mật khẩu đã được gửi',
+      messageId: data.id,
+    };
   }
 }
 

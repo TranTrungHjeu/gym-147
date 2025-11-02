@@ -5,11 +5,11 @@ export interface ThemeColors {
   primary: string;
   secondary: string;
 
-  // Background colors
+  // Background colors - KEEP FLAT for backward compatibility
   background: string;
   surface: string;
 
-  // Text colors
+  // Text colors - KEEP FLAT for backward compatibility
   text: string;
   textSecondary: string;
   textTertiary: string;
@@ -29,14 +29,61 @@ export interface ThemeColors {
   accent: string;
   disabled: string;
 
-  // Legacy colors (for backward compatibility)
+  // Legacy colors
   white: string;
   black: string;
   gray: string;
 }
 
+export interface ThemeSpacing {
+  xs: number;
+  sm: number;
+  md: number;
+  lg: number;
+  xl: number;
+  xxl: number;
+}
+
+export interface ThemeRadius {
+  xs: number;
+  sm: number;
+  md: number;
+  lg: number;
+  xl: number;
+  xxl: number;
+  round: number;
+  full: number; // Alias for round (9999)
+}
+
+export interface ThemeShadows {
+  sm: {
+    shadowColor: string;
+    shadowOffset: { width: number; height: number };
+    shadowOpacity: number;
+    shadowRadius: number;
+    elevation: number;
+  };
+  md: {
+    shadowColor: string;
+    shadowOffset: { width: number; height: number };
+    shadowOpacity: number;
+    shadowRadius: number;
+    elevation: number;
+  };
+  lg: {
+    shadowColor: string;
+    shadowOffset: { width: number; height: number };
+    shadowOpacity: number;
+    shadowRadius: number;
+    elevation: number;
+  };
+}
+
 export interface Theme {
   colors: ThemeColors;
+  spacing: ThemeSpacing;
+  radius: ThemeRadius;
+  shadows: ThemeShadows;
   mode: ThemeMode;
   isDark: boolean;
 }

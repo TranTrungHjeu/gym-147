@@ -1,5 +1,5 @@
-import { environment } from '@/config/environment';
-import { getToken } from '@/utils/auth/storage';
+import { environment, SERVICE_URLS } from '@/config/environment';
+import { getRefreshToken, getToken, storeTokens } from '@/utils/auth/storage';
 
 // Base API configuration
 const API_BASE_URL = environment.API_URL;
@@ -19,31 +19,127 @@ export interface ApiError {
 
 class ApiService {
   private baseURL: string;
+  private isRefreshing: boolean = false;
+  private refreshSubscribers: ((token: string) => void)[] = [];
 
   constructor(baseURL: string = API_BASE_URL) {
     this.baseURL = baseURL;
   }
 
   /**
-   * Get authorization headers
+   * Add subscriber to wait for token refresh
    */
-  private async getHeaders(): Promise<HeadersInit> {
-    const token = await getToken();
-    const headers: HeadersInit = {
+  private subscribeTokenRefresh(cb: (token: string) => void) {
+    this.refreshSubscribers.push(cb);
+  }
+
+  /**
+   * Notify all subscribers when token refreshed
+   */
+  private onTokenRefreshed(token: string) {
+    this.refreshSubscribers.forEach((cb) => cb(token));
+    this.refreshSubscribers = [];
+  }
+
+  /**
+   * Refresh access token using refresh token
+   */
+  private async refreshAccessToken(): Promise<string | null> {
+    try {
+      const refreshToken = await getRefreshToken();
+
+      if (!refreshToken) {
+        console.log('❌ No refresh token found');
+        return null;
+      }
+
+      console.log('🔄 Refreshing access token...');
+
+      const response = await fetch(
+        `${SERVICE_URLS.IDENTITY}/auth/refresh-token`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ refreshToken }), 
+        }
+      );
+
+      if (!response.ok) {
+        console.log('❌ Token refresh failed:', response.status);
+        return null;
+      }
+
+      const data: any = await response.json();
+
+      if (data.success && data.data?.accessToken) {
+        const { accessToken, refreshToken: newRefreshToken } = data.data;
+
+        // Store new tokens
+        await storeTokens(accessToken, newRefreshToken);
+
+        console.log('✅ Access token refreshed successfully');
+        return accessToken;
+      }
+
+      return null;
+    } catch (error) {
+      console.error('❌ Token refresh error:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Get stored token
+   */
+  async getStoredToken(): Promise<string | null> {
+    return await getToken();
+  }
+
+  /**
+   * Get authorization headers
+   * Skip Authorization header for public endpoints to prevent expired token errors
+   */
+  private async getHeaders(endpoint?: string): Promise<Record<string, string>> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
+    // Public endpoints that should NOT include Authorization header
+    const publicEndpoints = [
+      '/auth/login',
+      '/auth/register',
+      '/auth/send-otp',
+      '/auth/verify-otp',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/refresh-token',
+      '/auth/verify-2fa-login',
+    ];
+
+    // Skip Authorization header for public endpoints
+    const isPublicEndpoint =
+      endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));
+
+    if (!isPublicEndpoint) {
+      const token = await getToken();
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
     }
 
     return headers;
   }
 
   /**
-   * Handle API response
+   * Handle API response with auto-refresh on 401
    */
-  private async handleResponse<T>(response: Response): Promise<ApiResponse<T>> {
+  private async handleResponse<T>(
+    response: Response,
+    originalRequest?: () => Promise<Response>,
+    endpoint?: string
+  ): Promise<ApiResponse<T>> {
     const contentType = response.headers.get('content-type');
     const isJson = contentType && contentType.includes('application/json');
 
@@ -55,6 +151,74 @@ class ApiService {
       data = await response.text();
     }
 
+    // Handle 401 Unauthorized - Token expired
+    // Skip auto-refresh for public endpoints (login, register, etc.)
+    const publicEndpoints = [
+      '/auth/login',
+      '/auth/register',
+      '/auth/send-otp',
+      '/auth/verify-otp',
+      '/auth/forgot-password',
+      '/auth/reset-password',
+      '/auth/refresh-token',
+      '/auth/verify-2fa-login',
+    ];
+    const isPublicEndpoint = endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));
+
+    if (response.status === 401 && originalRequest && !isPublicEndpoint) {
+      console.log('🔒 Token expired (401), attempting refresh...');
+
+      // If already refreshing, wait for it
+      if (this.isRefreshing) {
+        return new Promise((resolve, reject) => {
+          this.subscribeTokenRefresh(async (token: string) => {
+            try {
+              // Retry original request with new token
+              const retryResponse = await originalRequest();
+              const result = await this.handleResponse<T>(retryResponse, undefined, endpoint);
+              resolve(result);
+            } catch (error) {
+              reject(error);
+            }
+          });
+        });
+      }
+
+      // Start refresh process
+      this.isRefreshing = true;
+
+      try {
+        const newToken = await this.refreshAccessToken();
+
+        if (newToken) {
+          this.isRefreshing = false;
+          this.onTokenRefreshed(newToken);
+
+          // Retry original request with new token
+          const retryResponse = await originalRequest();
+          return await this.handleResponse<T>(retryResponse, undefined, endpoint);
+        } else {
+          // Refresh failed - clear tokens and redirect to login
+          this.isRefreshing = false;
+          console.log('❌ Token refresh failed, please login again');
+
+          // Import and call logout
+          const { clearAuthData } = await import('@/utils/auth/storage');
+          await clearAuthData();
+
+          const error: ApiError = {
+            message: 'Session expired. Please login again.',
+            status: 401,
+          };
+          throw error;
+        }
+      } catch (error) {
+        this.isRefreshing = false;
+        throw error;
+      }
+    }
+
+    // Handle other errors
     if (!response.ok) {
       const error: ApiError = {
         message:
@@ -74,115 +238,157 @@ class ApiService {
   }
 
   /**
-   * GET request
+   * GET request with auto-refresh
    */
   async get<T>(
     endpoint: string,
-    params?: Record<string, any>
+    params?: Record<string, any> | { baseURL?: string; [key: string]: any }
   ): Promise<ApiResponse<T>> {
-    const url = new URL(`${this.baseURL}${endpoint}`);
+    const makeRequest = async () => {
+      const baseURL =
+        params && 'baseURL' in params ? params.baseURL : this.baseURL;
+      
+      // Check if endpoint already has query params
+      const [endpointPath, existingQuery] = endpoint.split('?');
+      
+      const queryParams =
+        params && 'baseURL' in params
+          ? Object.fromEntries(
+              Object.entries(params).filter(([key]) => key !== 'baseURL')
+            )
+          : params;
 
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        if (value !== undefined && value !== null) {
-          url.searchParams.append(key, String(value));
-        }
+      const url = new URL(`${baseURL}${endpointPath}`);
+
+      // Add existing query params first (if any)
+      if (existingQuery) {
+        existingQuery.split('&').forEach((param) => {
+          const [key, value] = param.split('=');
+          if (key && value) {
+            url.searchParams.append(decodeURIComponent(key), decodeURIComponent(value));
+          }
+        });
+      }
+
+      // Then add params object
+      if (queryParams) {
+        Object.entries(queryParams).forEach(([key, value]) => {
+          if (value !== undefined && value !== null) {
+            url.searchParams.append(key, String(value));
+          }
+        });
+      }
+
+      const headers = await this.getHeaders(endpointPath);
+
+      console.log('🌐 API GET Request:', url.toString());
+
+      return await fetch(url.toString(), {
+        method: 'GET',
+        headers,
       });
-    }
+    };
 
-    const response = await fetch(url.toString(), {
-      method: 'GET',
-      headers: await this.getHeaders(),
-    });
-
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 
   /**
-   * POST request
+   * POST request with auto-refresh
    */
   async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    const url = `${this.baseURL}${endpoint}`;
-    const headers = await this.getHeaders();
+    const makeRequest = async () => {
+      const url = `${this.baseURL}${endpoint}`;
+      const headers = await this.getHeaders(endpoint);
 
-    console.log('🌐 ApiService POST URL:', url);
-    console.log('🌐 ApiService headers:', headers);
-    console.log('🌐 ApiService data:', data);
+      console.log('🌐 API POST Request:', url);
+      if (data) {
+        console.log('🌐 API POST Body:', JSON.stringify(data, null, 2));
+      }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers,
-      body: data ? JSON.stringify(data) : undefined,
-    });
+      return await fetch(url, {
+        method: 'POST',
+        headers,
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    };
 
-    console.log('🌐 ApiService response status:', response.status);
-    console.log(
-      '🌐 ApiService response headers:',
-      Object.fromEntries(response.headers.entries())
-    );
-
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 
   /**
-   * PUT request
+   * PUT request with auto-refresh
    */
   async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'PUT',
-      headers: await this.getHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
-    });
+    const makeRequest = async () => {
+      return await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'PUT',
+        headers: await this.getHeaders(endpoint),
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    };
 
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 
   /**
-   * PATCH request
+   * PATCH request with auto-refresh
    */
   async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'PATCH',
-      headers: await this.getHeaders(),
-      body: data ? JSON.stringify(data) : undefined,
-    });
+    const makeRequest = async () => {
+      return await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'PATCH',
+        headers: await this.getHeaders(endpoint),
+        body: data ? JSON.stringify(data) : undefined,
+      });
+    };
 
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 
   /**
-   * DELETE request
+   * DELETE request with auto-refresh
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'DELETE',
-      headers: await this.getHeaders(),
-    });
+    const makeRequest = async () => {
+      return await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'DELETE',
+        headers: await this.getHeaders(endpoint),
+      });
+    };
 
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 
   /**
    * Upload file
    */
   async upload<T>(endpoint: string, file: FormData): Promise<ApiResponse<T>> {
-    const token = await getToken();
-    const headers: HeadersInit = {};
+    const makeRequest = async () => {
+      const token = await getToken();
+      const headers: Record<string, string> = {};
 
-    if (token) {
-      headers.Authorization = `Bearer ${token}`;
-    }
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
 
-    const response = await fetch(`${this.baseURL}${endpoint}`, {
-      method: 'POST',
-      headers,
-      body: file,
-    });
+      return await fetch(`${this.baseURL}${endpoint}`, {
+        method: 'POST',
+        headers,
+        body: file as any, // FormData type compatibility for React Native
+      });
+    };
 
-    return this.handleResponse<T>(response);
+    const response = await makeRequest();
+    return this.handleResponse<T>(response, makeRequest, endpoint);
   }
 }
 
-// Export singleton instance
+// Export class and singleton instance
+export { ApiService };
 export const apiService = new ApiService();
 export default apiService;

@@ -9,7 +9,7 @@ class AuthController {
   constructor() {
     this.otpService = new OTPService();
     this.rateLimitStore = new Map(); // In-memory store for rate limiting
-    this.otpCooldownStore = new Map(); // Store for OTP cooldown (30 seconds)
+    this.otpCooldownStore = new Map(); // Store for OTP cooldown (60 seconds)
     this.passwordResetCleanupInterval = null;
   }
 
@@ -47,7 +47,7 @@ class AuthController {
     if (!timestamp) return 0;
 
     const now = Date.now();
-    const cooldownTime = 60 * 1000; // 30 seconds
+    const cooldownTime = 60 * 1000; // 60 seconds (as per registration plan)
     const remaining = Math.max(0, cooldownTime - (now - timestamp));
 
     if (remaining === 0) {
@@ -90,16 +90,13 @@ class AuthController {
    */
   startPasswordResetCleanupJob() {
     // Run cleanup every 2 minutes
-    this.passwordResetCleanupInterval = setInterval(
-      async () => {
-        try {
-          await this.cleanupExpiredPasswordResetTokens();
-        } catch (error) {
-          console.error('Password reset cleanup job error:', error);
-        }
-      },
-      2 * 60 * 1000
-    ); // 2 minutes
+    this.passwordResetCleanupInterval = setInterval(async () => {
+      try {
+        await this.cleanupExpiredPasswordResetTokens();
+      } catch (error) {
+        console.error('Password reset cleanup job error:', error);
+      }
+    }, 2 * 60 * 1000); // 2 minutes
 
     // Run initial cleanup
     this.cleanupExpiredPasswordResetTokens();
@@ -180,7 +177,7 @@ class AuthController {
    */
   async login(req, res) {
     try {
-      const { identifier, password, twoFactorToken } = req.body; // identifier can be email or phone
+      const { identifier, password, twoFactorToken, push_token, push_platform } = req.body; // identifier can be email or phone
 
       if (!identifier || !password) {
         return res.status(400).json({
@@ -200,7 +197,7 @@ class AuthController {
       if (!user) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Invalid email or password. Please try again.',
           data: null,
         });
       }
@@ -220,7 +217,7 @@ class AuthController {
       if (!isPasswordValid) {
         return res.status(401).json({
           success: false,
-          message: 'Invalid credentials',
+          message: 'Invalid email or password. Please try again.',
           data: null,
         });
       }
@@ -249,11 +246,34 @@ class AuthController {
         }
       }
 
-      // Update last login time
+      // Handle push notification token
+      if (push_token) {
+        // SAFEGUARD: Clear this push_token from all other users first
+        await prisma.user.updateMany({
+          where: {
+            push_token: push_token,
+            id: { not: user.id },
+          },
+          data: { push_token: null },
+        });
+        console.log(`🔔 Cleared push_token from other users`);
+      }
+
+      // Update last login time and push token
       await prisma.user.update({
         where: { id: user.id },
-        data: { last_login_at: new Date() },
+        data: {
+          last_login_at: new Date(),
+          ...(push_token && {
+            push_token: push_token,
+            push_platform: push_platform || null,
+          }),
+        },
       });
+
+      if (push_token) {
+        console.log(`🔔 Push token registered for user ${user.id}`);
+      }
 
       // Create session
       const accessToken = crypto.randomBytes(32).toString('hex');
@@ -281,7 +301,7 @@ class AuthController {
           sessionId: session.id,
         },
         process.env.JWT_SECRET || 'dev-secret',
-        { expiresIn: '15m' } // Short-lived access token
+        { expiresIn: '30m' } // Short-lived access token
       );
 
       res.json({
@@ -290,7 +310,7 @@ class AuthController {
         data: {
           accessToken: token,
           refreshToken: refreshToken,
-          expiresIn: 900, // 15 minutes
+          expiresIn: 1800, // 30 minutes
           user: {
             id: user.id,
             email: user.email,
@@ -317,12 +337,25 @@ class AuthController {
   async logout(req, res) {
     try {
       const sessionId = req.user.sessionId;
+      const userId = req.user.userId || req.user.id;
 
       if (sessionId) {
         // Delete the current session
         await prisma.session.delete({
           where: { id: sessionId },
         });
+      }
+
+      // Clear push notification token
+      if (userId) {
+        await prisma.user.update({
+          where: { id: userId },
+          data: {
+            push_token: null,
+            push_platform: null,
+          },
+        });
+        console.log(`🔔 Push token cleared for user ${userId}`);
       }
 
       res.json({
@@ -450,11 +483,11 @@ class AuthController {
       }
 
       // Verify OTP if provided
-      if (otp && otpType) {
+      if (otp) {
         const otpResult = await this.otpService.verifyOTP(
           primaryMethod === 'EMAIL' ? email : phone,
           otp,
-          otpType
+          primaryMethod // Use primaryMethod ('EMAIL' or 'PHONE'), not otpType
         );
 
         if (!otpResult.success) {
@@ -584,7 +617,7 @@ class AuthController {
         });
       }
 
-      // OTP cooldown check (30 seconds between sends)
+      // OTP cooldown check (60 seconds between sends)
       const cooldownKey = `otp_cooldown:${identifier}`;
       const cooldownRemaining = await this.getOTPCooldown(cooldownKey);
 
@@ -944,6 +977,13 @@ class AuthController {
           ...(email ? { email } : {}),
           ...(phone ? { phone } : {}),
         },
+        select: {
+          id: true,
+          email: true,
+          phone: true,
+          first_name: true,
+          last_name: true,
+        },
       });
 
       if (!user) {
@@ -986,10 +1026,12 @@ class AuthController {
 
       // Gửi reset link qua email hoặc SMS
       if (email) {
-        // TODO: Gửi email với reset link
-        // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-        // await emailService.sendPasswordResetEmail(user.email, resetLink);
-        console.log(`Password reset requested for email: ${email}`);
+        try {
+          await this.otpService.sendPasswordResetEmail(user.email, resetToken, user.first_name || '');
+        } catch (emailError) {
+          console.error('Failed to send password reset email:', emailError);
+          // Continue to return success even if email fails - security best practice
+        }
       } else if (phone) {
         // TODO: Gửi SMS với reset link
         // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
@@ -1070,8 +1112,8 @@ class AuthController {
       await prisma.$transaction([
         prisma.user.update({
           where: { id: resetRecord.user_id },
-        data: {
-          password_hash: hashedPassword,
+          data: {
+            password_hash: hashedPassword,
             failed_login_attempts: 0, // Reset failed attempts
             locked_until: null, // Unlock account
           },
@@ -1194,7 +1236,7 @@ class AuthController {
       });
 
       res.json({
-          success: true,
+        success: true,
         message: 'Email đã được xác thực thành công',
         data: null,
       });
@@ -1286,6 +1328,7 @@ class AuthController {
         where: {
           refresh_token: refreshToken,
           expires_at: { gt: new Date() },
+          is_active: true, // ✅ Only active sessions
         },
         include: { user: true },
       });
@@ -1304,6 +1347,7 @@ class AuthController {
           userId: session.user.id,
           email: session.user.email,
           role: session.user.role,
+          sessionId: session.id, // ✅ Include sessionId for tracking
         },
         process.env.JWT_SECRET,
         { expiresIn: '15m' }
@@ -1903,6 +1947,142 @@ class AuthController {
       });
     } catch (error) {
       console.error('Get trainers error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== PUSH NOTIFICATION ====================
+
+  /**
+   * Update push notification token
+   */
+  async updatePushToken(req, res) {
+    try {
+      const { id } = req.params; // user_id
+      const { push_token, push_platform } = req.body;
+
+      if (!push_token) {
+        return res.status(400).json({
+          success: false,
+          message: 'Push token is required',
+          data: null,
+        });
+      }
+
+      // SAFEGUARD: Clear this token from all other users first
+      await prisma.user.updateMany({
+        where: {
+          push_token: push_token,
+          id: { not: id },
+        },
+        data: { push_token: null },
+      });
+
+      // Update user's push token
+      await prisma.user.update({
+        where: { id },
+        data: {
+          push_token: push_token,
+          push_platform: push_platform || null,
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(`🔔 Push token updated for user ${id}`);
+
+      res.json({
+        success: true,
+        message: 'Push token updated successfully',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Update push token error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Update push notification preference
+   */
+  async updatePushPreference(req, res) {
+    try {
+      const { id } = req.params; // user_id
+      const { push_enabled } = req.body;
+
+      if (typeof push_enabled !== 'boolean') {
+        return res.status(400).json({
+          success: false,
+          message: 'push_enabled must be a boolean',
+          data: null,
+        });
+      }
+
+      await prisma.user.update({
+        where: { id },
+        data: {
+          push_enabled: push_enabled,
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(`🔔 Push preference updated for user ${id}: ${push_enabled}`);
+
+      res.json({
+        success: true,
+        message: `Push notifications ${push_enabled ? 'enabled' : 'disabled'}`,
+        data: { push_enabled },
+      });
+    } catch (error) {
+      console.error('Update push preference error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get user's push notification settings
+   */
+  async getPushSettings(req, res) {
+    try {
+      const { id } = req.params; // user_id
+
+      const user = await prisma.user.findUnique({
+        where: { id },
+        select: {
+          push_enabled: true,
+          push_platform: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Push settings retrieved successfully',
+        data: {
+          push_enabled: user.push_enabled,
+          push_platform: user.push_platform,
+        },
+      });
+    } catch (error) {
+      console.error('Get push settings error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

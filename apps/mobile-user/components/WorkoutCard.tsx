@@ -2,6 +2,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { ChevronRight, Clock, Dumbbell } from 'lucide-react-native';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 interface WorkoutCardProps {
@@ -20,6 +21,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({
   onPress,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   return (
     <TouchableOpacity
       style={styles.container}
@@ -27,7 +29,16 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({
       activeOpacity={0.8}
     >
       <Image source={{ uri: image }} style={styles.image} />
-      <View style={styles.overlay} />
+      <View
+        style={[
+          styles.overlay,
+          {
+            backgroundColor: theme.isDark
+              ? 'rgba(0, 0, 0, 0.7)'
+              : 'rgba(0, 0, 0, 0.4)',
+          },
+        ]}
+      />
       <View style={styles.content}>
         <View>
           <Text style={[styles.title, { color: theme.colors.textInverse }]}>
@@ -47,7 +58,7 @@ const WorkoutCard: React.FC<WorkoutCardProps> = ({
               <Text
                 style={[styles.detailText, { color: theme.colors.textInverse }]}
               >
-                {exercises} exercises
+                {exercises} {t('workouts.exercises')}
               </Text>
             </View>
           </View>
@@ -74,7 +85,6 @@ const styles = StyleSheet.create({
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   content: {
     padding: 16,

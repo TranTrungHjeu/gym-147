@@ -6,23 +6,47 @@
 class RateLimitService {
   constructor() {
     this.limits = new Map();
-    this.cleanupInterval = setInterval(
-      () => {
-        this.cleanup();
-      },
-      60 * 60 * 1000
-    ); // Cleanup every hour
+    this.cleanupInterval = setInterval(() => {
+      this.cleanup();
+    }, 60 * 60 * 1000); // Cleanup every hour
   }
 
   /**
-   * Check if user has exceeded rate limit
+   * Check if user can perform operation (without incrementing counter)
    * @param {string} userId - User ID
    * @param {string} operation - Operation type (e.g., 'create_schedule')
    * @param {number} maxRequests - Maximum requests allowed
    * @param {number} windowMs - Time window in milliseconds
    * @returns {boolean} - true if allowed, false if rate limited
    */
-  checkRateLimit(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
+  canPerformOperation(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
+    const key = `${userId}_${operation}`;
+    const now = Date.now();
+
+    let userLimit = this.limits.get(key);
+
+    if (!userLimit) {
+      // No limit yet, user can perform operation
+      return true;
+    }
+
+    // Reset if window has passed
+    if (now > userLimit.resetTime) {
+      // Window expired, user can perform operation
+      return true;
+    }
+
+    // Check if limit exceeded (without incrementing)
+    return userLimit.count < maxRequests;
+  }
+
+  /**
+   * Increment rate limit counter (call this AFTER successful operation)
+   * @param {string} userId - User ID
+   * @param {string} operation - Operation type (e.g., 'create_schedule')
+   * @param {number} windowMs - Time window in milliseconds
+   */
+  incrementRateLimit(userId, operation, windowMs = 24 * 60 * 60 * 1000) {
     const key = `${userId}_${operation}`;
     const now = Date.now();
 
@@ -44,13 +68,26 @@ class RateLimitService {
       userLimit.firstRequest = now;
     }
 
-    // Check if limit exceeded
-    if (userLimit.count >= maxRequests) {
+    // Increment counter (only when operation succeeds)
+    userLimit.count++;
+  }
+
+  /**
+   * Check if user has exceeded rate limit (backward compatibility - deprecated)
+   * @deprecated Use canPerformOperation + incrementRateLimit instead
+   * @param {string} userId - User ID
+   * @param {string} operation - Operation type (e.g., 'create_schedule')
+   * @param {number} maxRequests - Maximum requests allowed
+   * @param {number} windowMs - Time window in milliseconds
+   * @returns {boolean} - true if allowed, false if rate limited
+   */
+  checkRateLimit(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
+    // For backward compatibility, check first
+    if (!this.canPerformOperation(userId, operation, maxRequests, windowMs)) {
       return false;
     }
-
-    // Increment counter
-    userLimit.count++;
+    // Then increment
+    this.incrementRateLimit(userId, operation, windowMs);
     return true;
   }
 
@@ -83,6 +120,54 @@ class RateLimitService {
       resetTime,
       remaining,
     };
+  }
+
+  /**
+   * Reset rate limit for a specific user and operation
+   * @param {string} userId - User ID
+   * @param {string} operation - Operation type (e.g., 'create_schedule')
+   * @returns {boolean} - true if reset successful, false if not found
+   */
+  resetRateLimit(userId, operation) {
+    const key = `${userId}_${operation}`;
+    if (this.limits.has(key)) {
+      this.limits.delete(key);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Reset rate limit for a specific user (all operations)
+   * @param {string} userId - User ID
+   * @returns {number} - Number of rate limits reset
+   */
+  resetUserRateLimits(userId) {
+    let count = 0;
+    const keysToDelete = [];
+
+    for (const key of this.limits.keys()) {
+      if (key.startsWith(`${userId}_`)) {
+        keysToDelete.push(key);
+      }
+    }
+
+    keysToDelete.forEach(key => {
+      this.limits.delete(key);
+      count++;
+    });
+
+    return count;
+  }
+
+  /**
+   * Reset all rate limits (use with caution)
+   * @returns {number} - Number of rate limits reset
+   */
+  resetAllRateLimits() {
+    const count = this.limits.size;
+    this.limits.clear();
+    return count;
   }
 
   /**

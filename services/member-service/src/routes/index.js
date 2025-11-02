@@ -10,6 +10,7 @@ const workoutsRoutes = require('./workouts.routes');
 const achievementsRoutes = require('./achievements.routes');
 const notificationsRoutes = require('./notifications.routes');
 const analyticsRoutes = require('./analytics.routes');
+const queueRoutes = require('./queue.routes');
 
 // ==================== HEALTH CHECK ROUTE ====================
 
@@ -147,6 +148,15 @@ router.get('/api-docs', (req, res) => {
           'GET /reports/health - Generate health report',
         ],
       },
+      queue: {
+        base: '/queue',
+        endpoints: [
+          'POST /queue/join - Join equipment queue',
+          'POST /queue/leave - Leave equipment queue',
+          'GET /queue/position/:equipment_id - Get my queue position',
+          'GET /queue/equipment/:equipment_id - Get all people in queue',
+        ],
+      },
     },
   });
 });
@@ -162,6 +172,7 @@ router.use('/', workoutsRoutes);
 router.use('/', achievementsRoutes);
 router.use('/', notificationsRoutes);
 router.use('/', analyticsRoutes);
+router.use('/queue', queueRoutes);
 
 // ==================== ERROR HANDLING ====================
 

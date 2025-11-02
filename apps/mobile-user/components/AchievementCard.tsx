@@ -1,6 +1,7 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface AchievementCardProps {
@@ -19,6 +20,7 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
   icon,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   return (
     <View
       style={[
@@ -47,7 +49,12 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
         </Text>
 
         {!completed && progress > 0 && (
-          <View style={styles.progressContainer}>
+          <View
+            style={[
+              styles.progressContainer,
+              { backgroundColor: theme.colors.border },
+            ]}
+          >
             <View
               style={[
                 styles.progressBar,
@@ -57,7 +64,14 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
                 },
               ]}
             />
-            <Text style={styles.progressText}>{progress}%</Text>
+            <Text
+              style={[
+                styles.progressText,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {progress}%
+            </Text>
           </View>
         )}
 
@@ -71,7 +85,7 @@ const AchievementCard: React.FC<AchievementCardProps> = ({
             <Text
               style={[styles.completedText, { color: theme.colors.success }]}
             >
-              Completed
+              {t('achievements.completed')}
             </Text>
           </View>
         )}
@@ -113,7 +127,6 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     height: 6,
-    backgroundColor: 'rgba(0,0,0,0.1)',
     borderRadius: 3,
     marginTop: 8,
     overflow: 'hidden',

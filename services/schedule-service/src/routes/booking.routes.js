@@ -7,6 +7,7 @@ const router = Router();
 router.get('/', (req, res) => bookingController.getAllBookings(req, res));
 router.get('/:id', (req, res) => bookingController.getBookingById(req, res));
 router.post('/', (req, res) => bookingController.createBooking(req, res));
+router.post('/:id/confirm-payment', (req, res) => bookingController.confirmBookingPayment(req, res));
 router.put('/:id/cancel', (req, res) => bookingController.cancelBooking(req, res));
 
 // Nested routes for schedule bookings

@@ -23,6 +23,22 @@ router.get('/members/:id/sessions/stats', (req, res) =>
   sessionController.getSessionStats(req, res)
 );
 
+// Get workout frequency for charts
+router.get('/members/:id/workout-frequency', (req, res) =>
+  sessionController.getWorkoutFrequency(req, res)
+);
+
+// Get calories data for charts
+router.get('/members/:id/calories-data', (req, res) =>
+  sessionController.getCaloriesData(req, res)
+);
+
+// Get session details with equipment usage
+router.get('/sessions/:sessionId', (req, res) => {
+  const memberController = require('../controllers/member.controller');
+  memberController.getSessionDetails(req, res);
+});
+
 // ==================== GLOBAL SESSION ROUTES ====================
 
 // Get all active sessions

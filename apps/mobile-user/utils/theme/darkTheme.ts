@@ -1,36 +1,64 @@
-import { ThemeColors } from './types';
+import { radius, spacing } from './lightTheme';
+import { ThemeColors, ThemeShadows } from './types';
+
+// Reuse spacing and radius from light theme
+export { radius, spacing };
+
+export const darkShadows: ThemeShadows = {
+  sm: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  md: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  lg: {
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+};
 
 export const darkThemeColors: ThemeColors = {
   // Primary colors
   primary: '#ff7a33', // Lighter orange for dark mode
   secondary: '#9CA3AF', // Lighter gray for dark mode
 
-  // Background colors
-  background: '#0F172A', // Dark blue-gray background
-  surface: '#1E293B', // Dark surface
+  // Background colors - FLAT structure
+  background: '#121212', // Pure dark background for better contrast
+  surface: '#1E1E1E', // Slightly lighter dark surface
 
-  // Text colors
-  text: '#F8FAFC', // Light text for dark backgrounds
-  textSecondary: '#CBD5E1', // Medium light gray
-  textTertiary: '#94A3B8', // Light gray for tertiary text
-  textInverse: '#0F172A', // Dark text on light backgrounds
+  // Text colors - FLAT structure
+  text: '#FFFFFF', // Pure white for maximum contrast
+  textSecondary: '#E0E0E0', // High contrast light gray
+  textTertiary: '#B0B0B0', // Medium light gray
+  textInverse: '#FFFFFF', // White text on colored buttons (primary, etc.)
 
   // UI colors
-  border: '#334155', // Dark border
-  divider: '#475569', // Dark divider
+  border: '#4A4A4A', // Lighter border for better visibility
+  divider: '#333333', // Dark divider
 
   // Status colors
-  success: '#34D399', // Lighter green for dark mode
-  warning: '#FBBF24', // Lighter orange for dark mode
-  error: '#F87171', // Lighter red for dark mode
-  info: '#60A5FA', // Lighter blue for dark mode
+  success: '#34D399', // Emerald 400 - brighter for dark mode
+  warning: '#FF9800', // Brighter orange for better visibility
+  error: '#F44336', // Brighter red for better visibility
+  info: '#2196F3', // Brighter blue for better visibility
 
   // Interactive colors
   accent: '#ff7a33', // Same as primary
-  disabled: '#64748B', // Disabled state for dark mode
+  disabled: '#666666', // Better contrast disabled state
 
-  // Legacy colors (for backward compatibility)
+  // Legacy colors
   white: '#FFFFFF',
   black: '#000000',
-  gray: '#475569', // Dark gray
+  gray: '#4A4A4A', // Better contrast gray
 };

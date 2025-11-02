@@ -1,6 +1,6 @@
-import { authService } from '@/services/auth.service';
-import { userService } from '@/services/user.service';
-import { debugApi } from '@/utils/debug';
+import { authService, userService } from '@/services';
+import { billingService } from '@/services/billing/billing.service';
+import { memberService } from '@/services/member/member.service';
 import {
   AuthContextType,
   ForgotPasswordData,
@@ -11,11 +11,15 @@ import {
 } from '@/types/authTypes';
 import {
   clearAuthData,
+  getRememberMe,
   getToken,
   getUser,
+  storeRememberMe,
   storeToken,
+  storeTokens,
   storeUser,
 } from '@/utils/auth/storage';
+import { debugApi } from '@/utils/debug';
 import React, {
   ReactNode,
   createContext,
@@ -32,9 +36,12 @@ interface AuthProviderProps {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const isAuthenticated = !!user;
+  const [hasMember, setHasMember] = useState<boolean | null>(null);
+  const [member, setMember] = useState<{ id: string } | null>(null); // Store member.id (member_id from member service)
+  const isAuthenticated = !!user && !!token;
 
   // Check for existing auth session on mount
   useEffect(() => {
@@ -44,48 +51,163 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const checkAuthStatus = async () => {
     try {
       setIsLoading(true);
-      const [token, userData] = await Promise.all([getToken(), getUser()]);
+      const [token, userData, rememberMe] = await Promise.all([
+        getToken(),
+        getUser(),
+        getRememberMe(),
+      ]);
 
       if (token && userData) {
         setUser(userData);
+        setToken(token);
+
+        // Load member profile if user exists (async, don't block)
+        if (userData.id) {
+          (async () => {
+            try {
+              const memberExists = await memberService.checkMemberExists();
+              setHasMember(memberExists);
+              if (memberExists) {
+                // Load member profile to get member_id
+                const profileResponse = await memberService.getMemberProfile();
+                if (profileResponse.success && profileResponse.data?.id) {
+                  setMember({ id: profileResponse.data.id });
+                }
+              }
+            } catch (err) {
+              // Silent fail - member profile can be loaded later
+            }
+          })();
+        }
+      } else if (!rememberMe) {
+        // Only clear auth data if user didn't choose to remember login
+        setUser(null);
+        setToken(null);
       }
     } catch (err) {
       console.error('Error checking auth status:', err);
+      setUser(null);
+      setToken(null);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const login = async (credentials: LoginCredentials) => {
+  const login = async (
+    credentials: LoginCredentials & { rememberMe?: boolean }
+  ): Promise<{
+    hasMember: boolean;
+    user: any;
+    accessToken: string;
+    refreshToken?: string;
+    registrationStatus?: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }> => {
     try {
       setIsLoading(true);
       setError(null);
 
-      // Debug: Test API connection first
-      console.log('🔍 Testing API connection before login...');
       const isConnected = await debugApi.testConnection();
       if (!isConnected) {
-        throw new Error('Cannot connect to API server. Please check your network connection and server status.');
+        throw new Error(
+          'Cannot connect to API server. Please check your network connection and server status.'
+        );
       }
 
-      console.log('🔐 Attempting login with credentials:', { email: credentials.email });
       const response = await authService.login(credentials);
 
-      if (response.success && response.user && response.token) {
+      if (response.success && response.data) {
+        const { user, accessToken, refreshToken } = response.data;
+
         // Store auth data
-        await Promise.all([
-          storeToken(response.token),
-          storeUser(response.user),
-        ]);
-        setUser(response.user);
-        console.log('✅ Login successful');
+        await Promise.all([storeToken(accessToken), storeUser(user)]);
+
+        // Store remember me preference
+        if (credentials.rememberMe) {
+          await storeRememberMe(true);
+        }
+
+        setUser(user);
+        setToken(accessToken);
+
+        // Register push notification token
+        try {
+          const { pushNotificationService } = await import(
+            '@/services/notification/push.service'
+          );
+          await pushNotificationService.registerPushToken(user.id);
+        } catch (pushError) {
+          // Don't fail login if push registration fails
+        }
+
+        // Check if user has member record
+        const memberExists = await memberService.checkMemberExists();
+        setHasMember(memberExists);
+
+        // Check subscription status (requires member_id from member service)
+        let registrationStatus = {
+          hasSubscription: false,
+          hasCompletedProfile: false,
+        };
+
+        if (memberExists) {
+          // Load member profile and store member.id
+          await loadMemberProfile();
+          
+          // Get member profile once to check both subscription and profile completion
+          try {
+            const profileResponse = await memberService.getMemberProfile();
+            const profile = profileResponse?.data;
+            
+            if (profile?.id) {
+              // Check subscription using member.id
+              try {
+                const subscriptions = await billingService.getMemberSubscriptions(
+                  profile.id
+                );
+
+                const activeSubscription = subscriptions.find((sub: any) => {
+                  const latestPayment = sub.payments?.[0]; // Get latest payment
+                  return (
+                    sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+                  );
+                });
+
+                registrationStatus.hasSubscription = !!activeSubscription;
+              } catch (err) {
+                // Silent fail
+              }
+            }
+            
+            // Check profile completion
+            if (profile) {
+              const hasDateOfBirth = !!profile?.date_of_birth;
+              const hasBasicInfo = !!(profile?.height && profile?.weight);
+
+              registrationStatus.hasCompletedProfile =
+                hasDateOfBirth && hasBasicInfo;
+            }
+          } catch (err) {
+            // Silent fail
+          }
+        } else {
+          setMember(null);
+        }
+
+        return {
+          hasMember: memberExists,
+          user,
+          accessToken,
+          refreshToken,
+          registrationStatus,
+        };
       } else {
-        console.log('❌ Login failed:', response.message);
         throw new Error(response.message || 'Login failed');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
-      console.log('❌ Login error:', errorMessage);
       setError(errorMessage);
       throw err;
     } finally {
@@ -130,11 +252,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       // Clear local auth data
       await clearAuthData();
       setUser(null);
+      setToken(null);
+      setMember(null); // Clear member data on logout
+      setHasMember(null);
     } catch (err) {
       console.error('Logout error:', err);
       // Even if API call fails, clear local data
       await clearAuthData();
       setUser(null);
+      setToken(null);
+      setMember(null); // Clear member data on logout
+      setHasMember(null);
     } finally {
       setIsLoading(false);
     }
@@ -210,17 +338,134 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
   };
 
+  /**
+   * Load member profile and store member.id for easy access
+   * This is the centralized way to get member_id (Member.id) from member service
+   * Schema: Member.id is the actual member_id, not user_id
+   */
+  const loadMemberProfile = async () => {
+    if (!user?.id) {
+      setMember(null);
+      return;
+    }
+
+    try {
+      const profileResponse = await memberService.getMemberProfile();
+      if (profileResponse.success && profileResponse.data?.id) {
+        // Store member.id (actual member_id from member service, not user_id from identity service)
+        setMember({ id: profileResponse.data.id });
+      } else {
+        setMember(null);
+      }
+    } catch (error: any) {
+      console.error('Error loading member profile:', error);
+      setMember(null);
+    }
+  };
+
+  const setTokens = async (accessToken: string, refreshToken: string) => {
+    setToken(accessToken);
+    // Store tokens
+    await storeTokens(accessToken, refreshToken);
+  };
+
+  /**
+   * Check registration status - used by welcome screen and other places
+   * Returns registration status to determine if user needs to complete registration
+   */
+  const checkRegistrationStatus = async (): Promise<{
+    hasMember: boolean;
+    registrationStatus: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }> => {
+    if (!user?.id) {
+      return {
+        hasMember: false,
+        registrationStatus: {
+          hasSubscription: false,
+          hasCompletedProfile: false,
+        },
+      };
+    }
+
+    // Check if user has member record
+    const memberExists = await memberService.checkMemberExists();
+    setHasMember(memberExists);
+
+    let registrationStatus = {
+      hasSubscription: false,
+      hasCompletedProfile: false,
+    };
+
+    if (memberExists) {
+      // Load member profile and store member.id
+      await loadMemberProfile();
+
+      // Get member profile once to check both subscription and profile completion
+      try {
+        const profileResponse = await memberService.getMemberProfile();
+        const profile = profileResponse?.data;
+
+        if (profile?.id) {
+          // Check subscription using member.id
+          try {
+            const subscriptions = await billingService.getMemberSubscriptions(
+              profile.id
+            );
+
+            const activeSubscription = subscriptions.find((sub: any) => {
+              const latestPayment = sub.payments?.[0]; // Get latest payment
+              return (
+                sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+              );
+            });
+
+            registrationStatus.hasSubscription = !!activeSubscription;
+          } catch (err) {
+            // Silent fail
+          }
+        }
+
+        // Check profile completion
+        if (profile) {
+          const hasDateOfBirth = !!profile?.date_of_birth;
+          const hasBasicInfo = !!(profile?.height && profile?.weight);
+
+          registrationStatus.hasCompletedProfile =
+            hasDateOfBirth && hasBasicInfo;
+        }
+      } catch (err) {
+        // Silent fail
+      }
+    } else {
+      setMember(null);
+    }
+
+    return {
+      hasMember: memberExists,
+      registrationStatus,
+    };
+  };
+
   const value: AuthContextType = {
     user,
+    token,
     isAuthenticated,
     isLoading,
     error,
+    hasMember,
+    member, // Expose member.id (member_id) for easy access throughout app
     login,
     register,
     logout,
     forgotPassword,
     resetPassword,
     updateProfile,
+    setTokens,
+    loadMemberProfile, // Expose function to reload member profile if needed
+    checkRegistrationStatus, // Expose function to check registration status
     clearError,
   };
 

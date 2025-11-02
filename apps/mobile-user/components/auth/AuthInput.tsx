@@ -1,14 +1,15 @@
+import { useTheme } from '@/utils/theme';
+import { FontFamily, Typography } from '@/utils/typography';
+import { Eye, EyeOff } from 'lucide-react-native';
 import React, { useState } from 'react';
 import {
-  View,
-  TextInput,
-  Text,
   StyleSheet,
-  TouchableOpacity,
+  Text,
+  TextInput,
   TextInputProps,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { Eye, EyeOff } from 'lucide-react-native';
-import { Typography, FontFamily, TextColors } from '@/utils/typography';
 
 interface AuthInputProps extends TextInputProps {
   label: string;
@@ -30,19 +31,26 @@ const AuthInput: React.FC<AuthInputProps> = ({
     setIsPasswordVisible(!isPasswordVisible);
   };
 
+  const { theme } = useTheme();
   return (
     <View style={styles.container}>
-      <Text style={styles.label}>{label}</Text>
+      <Text style={[styles.label, { color: theme.colors.text }]}>{label}</Text>
 
       <View
-        style={[styles.inputContainer, error && styles.inputContainerError]}
+        style={[
+          styles.inputContainer,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
       >
         {icon && <View style={styles.iconContainer}>{icon}</View>}
 
         <TextInput
-          style={styles.input}
+          style={[styles.input, { color: theme.colors.text }]}
           secureTextEntry={isPassword && !isPasswordVisible}
-          placeholderTextColor={TextColors.tertiary}
+          placeholderTextColor={theme.colors.textTertiary}
           autoCapitalize="none"
           autoCorrect={false}
           {...textInputProps}
@@ -55,15 +63,19 @@ const AuthInput: React.FC<AuthInputProps> = ({
             activeOpacity={0.7}
           >
             {isPasswordVisible ? (
-              <EyeOff size={20} color={TextColors.secondary} />
+              <EyeOff size={20} color={theme.colors.textSecondary} />
             ) : (
-              <Eye size={20} color={TextColors.secondary} />
+              <Eye size={20} color={theme.colors.textSecondary} />
             )}
           </TouchableOpacity>
         )}
       </View>
 
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && (
+        <Text style={[styles.errorText, { color: theme.colors.error }]}>
+          {error}
+        </Text>
+      )}
     </View>
   );
 };
@@ -74,21 +86,15 @@ const styles = StyleSheet.create({
   },
   label: {
     ...Typography.bodySmallMedium,
-    color: TextColors.primary,
     marginBottom: 8,
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
     paddingHorizontal: 16,
     height: 56,
-  },
-  inputContainerError: {
-    borderColor: TextColors.error,
   },
   iconContainer: {
     marginRight: 12,
@@ -97,7 +103,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: FontFamily.interRegular,
     fontSize: 16,
-    color: TextColors.primary,
     padding: 0,
   },
   eyeButton: {
@@ -106,7 +111,6 @@ const styles = StyleSheet.create({
   },
   errorText: {
     ...Typography.caption,
-    color: TextColors.error,
     marginTop: 6,
     marginLeft: 4,
   },

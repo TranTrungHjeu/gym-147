@@ -1,7 +1,8 @@
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import Svg, { Circle } from 'react-native-svg';
+import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
+import React from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
 
 interface CircularProgressProps {
   size: number;
@@ -17,11 +18,14 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   size,
   strokeWidth = 8,
   progress,
-  backgroundColor = '#E2E8F0',
-  progressColor = '#3B82F6',
+  backgroundColor,
+  progressColor,
   showPercentage = true,
   textStyle,
 }) => {
+  const { theme } = useTheme();
+  const bgColor = backgroundColor || theme.colors.border;
+  const fgColor = progressColor || theme.colors.primary;
   const radius = (size - strokeWidth) / 2;
   const circumference = radius * 2 * Math.PI;
   const progressValue = Math.min(Math.max(progress, 0), 100);
@@ -32,7 +36,7 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
     <View style={styles.container}>
       <Svg width={size} height={size}>
         <Circle
-          stroke={backgroundColor}
+          stroke={bgColor}
           fill="none"
           cx={size / 2}
           cy={size / 2}
@@ -40,7 +44,7 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
           strokeWidth={strokeWidth}
         />
         <Circle
-          stroke={progressColor}
+          stroke={fgColor}
           fill="none"
           cx={size / 2}
           cy={size / 2}
@@ -54,7 +58,13 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
       </Svg>
       {showPercentage && (
         <View style={styles.textContainer}>
-          <Text style={[styles.progressText, textStyle]}>
+          <Text
+            style={[
+              styles.progressText,
+              { color: theme.colors.text },
+              textStyle,
+            ]}
+          >
             {Math.round(progressValue)}%
           </Text>
         </View>
@@ -77,7 +87,6 @@ const styles = StyleSheet.create({
   progressText: {
     fontFamily: FontFamily.spaceGroteskBold,
     fontSize: 16,
-    color: '#1F2937',
   },
 });
 

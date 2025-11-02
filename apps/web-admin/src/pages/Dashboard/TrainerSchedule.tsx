@@ -514,7 +514,9 @@ const ScheduleTable = React.memo(
                       </td>
                       <td className='px-4 py-3'>
                         <span
-                          className={`px-2 py-1 text-xs rounded-full ${getStatusColor(schedule.status)}`}
+                          className={`px-2 py-1 text-xs rounded-full ${getStatusColor(
+                            schedule.status
+                          )}`}
                         >
                           {getStatusLabel(schedule.status)}
                         </span>
@@ -694,6 +696,20 @@ export default function TrainerSchedule() {
 
   useEffect(() => {
     fetchSchedules();
+  }, [fetchSchedules]);
+
+  // Listen for booking updates from socket
+  useEffect(() => {
+    const handleBookingUpdate = () => {
+      // Refresh schedules when a booking is updated
+      fetchSchedules();
+    };
+
+    window.addEventListener('booking:updated', handleBookingUpdate);
+
+    return () => {
+      window.removeEventListener('booking:updated', handleBookingUpdate);
+    };
   }, [fetchSchedules]);
 
   const getStatusLabelModal = (status: string) => {
@@ -956,13 +972,13 @@ export default function TrainerSchedule() {
           const members = Array.isArray(data.data)
             ? data.data
             : data.data.members && Array.isArray(data.data.members)
-              ? data.data.members
-              : [];
+            ? data.data.members
+            : [];
 
           console.log('👥 Processed members:', members);
 
           members.forEach((member: any) => {
-            memberMap[member.user_id] = member;
+            memberMap[member.id] = member;
           });
 
           console.log('👥 Member map created:', {
@@ -1876,7 +1892,9 @@ export default function TrainerSchedule() {
                         >
                           {/* Membership color background */}
                           <div
-                            className={`absolute inset-0 ${getMembershipColor(member?.membership_type || 'BASIC')} opacity-20`}
+                            className={`absolute inset-0 ${getMembershipColor(
+                              member?.membership_type || 'BASIC'
+                            )} opacity-20`}
                           />
 
                           {/* Dark overlay for better text readability */}
@@ -2000,7 +2018,9 @@ export default function TrainerSchedule() {
 
                                     return (
                                       <span
-                                        className={`text-xs px-2 py-0.5 rounded-full font-inter font-medium shadow-sm transition-all duration-200 hover:scale-105 flex-shrink-0 text-white ${attendanceStatus?.color || 'bg-gray-400/90'}`}
+                                        className={`text-xs px-2 py-0.5 rounded-full font-inter font-medium shadow-sm transition-all duration-200 hover:scale-105 flex-shrink-0 text-white ${
+                                          attendanceStatus?.color || 'bg-gray-400/90'
+                                        }`}
                                       >
                                         {attendanceStatus?.text || 'Chưa điểm danh'}
                                       </span>
@@ -2087,7 +2107,9 @@ export default function TrainerSchedule() {
                               {/* Tier Image - Right Side (Larger) */}
                               <div className='flex-shrink-0'>
                                 <img
-                                  src={`/images/membership/${(member?.membership_type || 'BASIC').toLowerCase()}.png`}
+                                  src={`/images/membership/${(
+                                    member?.membership_type || 'BASIC'
+                                  ).toLowerCase()}.png`}
                                   alt={member?.membership_type || 'BASIC'}
                                   className='w-40 h-16 object-contain opacity-80 transition-transform duration-200 hover:scale-110 hover:opacity-100'
                                   onError={e => {

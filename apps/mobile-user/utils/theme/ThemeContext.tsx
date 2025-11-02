@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { Appearance, ColorSchemeName } from 'react-native';
-import { darkThemeColors } from './darkTheme';
-import { lightThemeColors } from './lightTheme';
+import { darkShadows, darkThemeColors, radius, spacing } from './darkTheme';
+import { lightShadows, lightThemeColors } from './lightTheme';
 import { Theme, ThemeContextType, ThemeMode } from './types';
 
 const THEME_STORAGE_KEY = '@gym147_theme_mode';
@@ -79,6 +79,9 @@ export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
 
     return {
       colors: isDark ? darkThemeColors : lightThemeColors,
+      spacing,
+      radius,
+      shadows: isDark ? darkShadows : lightShadows,
       mode: themeMode,
       isDark,
     };

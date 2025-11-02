@@ -1,6 +1,9 @@
 const { prisma } = require('../lib/prisma.js');
 const memberService = require('../services/member.service.js');
 const waitlistService = require('../services/waitlist.service.js');
+const axios = require('axios');
+
+const BILLING_SERVICE_URL = process.env.BILLING_SERVICE_URL || 'http://localhost:3004';
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {
@@ -135,6 +138,35 @@ class BookingController {
         where: { id: schedule_id },
       });
 
+      // Step 1: Validate member existence FIRST
+      // member_id from request must be Member.id (not user_id)
+      // Schema: Booking.member_id references Member.id
+      let member;
+      try {
+        member = await memberService.getMemberById(member_id);
+      } catch (memberError) {
+        console.error('Create booking member lookup error:', memberError.message);
+        return res.status(503).json({
+          success: false,
+          message: 'Không thể xác minh thông tin hội viên, vui lòng thử lại sau',
+          data: null,
+        });
+      }
+
+      // Member must exist before booking can be created
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member không tồn tại. Vui lòng đăng ký thành viên trước khi đặt lịch.',
+          data: null,
+        });
+      }
+
+      // Use member.id (which should match the request member_id)
+      // Schema: Booking.member_id references Member.id
+      const actualMemberId = member.id;
+
+      // Step 2: Validate schedule
       if (!schedule) {
         return res.status(404).json({
           success: false,
@@ -159,21 +191,165 @@ class BookingController {
         });
       }
 
-      // Check if schedule is full - if so, add to waitlist
+      // Step 3: Check if member already booked this schedule (using actualMemberId)
+      const existingBooking = await prisma.booking.findUnique({
+        where: {
+          schedule_id_member_id: {
+            schedule_id,
+            member_id: actualMemberId, // Use actual member_id for unique constraint check
+          },
+        },
+      });
+
+      if (existingBooking) {
+        // Check if existing booking is PENDING payment - allow navigation to payment
+        if (existingBooking.payment_status === 'PENDING') {
+          // Fetch payment info from billing service to get payment details
+          let paymentInfo = null;
+          let paymentInitiationData = null;
+
+          try {
+            // Get payment by reference_id (booking.id) and payment_type
+            const paymentResponse = await axios.get(`${BILLING_SERVICE_URL}/payments`, {
+              params: {
+                reference_id: existingBooking.id,
+                payment_type: 'CLASS_BOOKING',
+                status: 'PENDING', // Only get PENDING payments
+              },
+              headers: {
+                'Content-Type': 'application/json',
+              },
+            });
+
+            // Handle different response structures
+            let payments = [];
+            if (paymentResponse.data?.data && Array.isArray(paymentResponse.data.data)) {
+              payments = paymentResponse.data.data;
+            } else if (
+              paymentResponse.data?.payments &&
+              Array.isArray(paymentResponse.data.payments)
+            ) {
+              payments = paymentResponse.data.payments;
+            } else if (Array.isArray(paymentResponse.data)) {
+              payments = paymentResponse.data;
+            }
+
+            // Get the first PENDING payment (should only be one)
+            const pendingPayment =
+              payments.find(p => p.status === 'PENDING' && p.reference_id === existingBooking.id) ||
+              payments[0];
+
+            if (pendingPayment) {
+              paymentInfo = pendingPayment;
+
+              // If payment has bank_transfer relation, use it directly
+              let bankTransfer = pendingPayment.bank_transfer;
+
+              // If not included, get bank transfer by payment ID
+              if (!bankTransfer && paymentInfo.id) {
+                try {
+                  const bankTransferResponse = await axios.get(
+                    `${BILLING_SERVICE_URL}/bank-transfers/${paymentInfo.id}`,
+                    {
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                    }
+                  );
+
+                  if (bankTransferResponse.data?.success && bankTransferResponse.data?.data) {
+                    bankTransfer = bankTransferResponse.data.data;
+                  }
+                } catch (btError) {
+                  console.error(
+                    'Get bank transfer error:',
+                    btError.response?.data || btError.message
+                  );
+                  // Continue without bank transfer info
+                }
+              }
+
+              // Format payment initiation data if bank transfer exists
+              if (bankTransfer) {
+                paymentInitiationData = {
+                  payment_id: paymentInfo.id,
+                  bank_transfer_id: bankTransfer.id,
+                  amount: parseFloat(paymentInfo.amount),
+                  qr_code_data_url: bankTransfer.qr_code_url || '',
+                  gatewayData: {
+                    bankTransferId: bankTransfer.id,
+                    qrCodeDataURL: bankTransfer.qr_code_url || '',
+                    bankInfo: {
+                      bank_name: bankTransfer.bank_name,
+                      account_number: bankTransfer.account_number,
+                      account_name: bankTransfer.account_name,
+                      transfer_content: bankTransfer.transfer_content,
+                      amount: parseFloat(bankTransfer.amount),
+                    },
+                  },
+                };
+              }
+            }
+          } catch (paymentError) {
+            console.error(
+              'Get payment error:',
+              paymentError.response?.data || paymentError.message
+            );
+            // Continue without payment info - user can still navigate to payment screen
+          }
+
+          // Return the existing booking with payment info so user can continue payment
+          const [bookingWithMember] = await attachMemberDetails([existingBooking], {
+            strict: false,
+          });
+          if (bookingWithMember && member) {
+            bookingWithMember.member = member;
+          }
+
+          return res.status(200).json({
+            success: true,
+            message: 'Bạn đã có booking đang chờ thanh toán cho lớp học này',
+            data: {
+              booking: bookingWithMember,
+              payment: paymentInfo,
+              paymentRequired: true,
+              paymentInitiation: paymentInitiationData,
+              existingBooking: true,
+            },
+          });
+        }
+
+        // If booking is already paid/confirmed, return error
+        return res.status(400).json({
+          success: false,
+          message: 'Bạn đã đặt lịch này rồi',
+          data: null,
+        });
+      }
+
+      // Step 4: Check capacity and handle waitlist (using actualMemberId)
       if (schedule.current_bookings >= schedule.max_capacity) {
         try {
           const waitlistResult = await waitlistService.addToWaitlist(
             schedule_id,
-            member_id,
+            actualMemberId, // Use actual member_id
             special_needs,
             notes
           );
+
+          const [bookingWithMember] = await attachMemberDetails([waitlistResult.booking], {
+            strict: false,
+          });
+
+          if (bookingWithMember && member) {
+            bookingWithMember.member = member;
+          }
 
           return res.status(201).json({
             success: true,
             message: `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistResult.waitlist_position}`,
             data: {
-              booking: waitlistResult.booking,
+              booking: bookingWithMember,
               waitlist_position: waitlistResult.waitlist_position,
               is_waitlist: true,
             },
@@ -188,51 +364,28 @@ class BookingController {
         }
       }
 
-      // Check if member already booked this schedule
-      const existingBooking = await prisma.booking.findUnique({
-        where: {
-          schedule_id_member_id: {
-            schedule_id,
-            member_id,
-          },
+      // Get schedule with gym_class to calculate price
+      const scheduleWithDetails = await prisma.schedule.findUnique({
+        where: { id: schedule_id },
+        include: {
+          gym_class: true,
         },
       });
 
-      if (existingBooking) {
-        return res.status(400).json({
-          success: false,
-          message: 'You have already booked this schedule',
-          data: null,
-        });
-      }
+      // Calculate booking price
+      const bookingPrice = parseFloat(
+        scheduleWithDetails.price_override || scheduleWithDetails.gym_class?.price || 0
+      );
 
-      // Validate member existence via member service
-      let member;
-      try {
-        member = await memberService.getMemberById(member_id);
-      } catch (memberError) {
-        console.error('Create booking member lookup error:', memberError.message);
-        return res.status(503).json({
-          success: false,
-          message: 'Không thể xác minh thông tin hội viên, vui lòng thử lại sau',
-          data: null,
-        });
-      }
-
-      if (!member) {
-        return res.status(404).json({
-          success: false,
-          message: 'Member không tồn tại',
-          data: null,
-        });
-      }
-
+      // Create booking (with PENDING payment status if price > 0)
       const booking = await prisma.booking.create({
         data: {
           schedule_id,
-          member_id,
+          member_id: actualMemberId, // Use actual member_id from member service
           special_needs,
           notes,
+          payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID', // Free bookings are auto-paid
+          amount_paid: bookingPrice > 0 ? null : 0, // Will be set when payment completes
         },
         include: {
           schedule: {
@@ -245,29 +398,368 @@ class BookingController {
         },
       });
 
+      // If booking is free, confirm immediately and update schedule
+      if (bookingPrice === 0) {
+        await prisma.schedule.update({
+          where: { id: schedule_id },
+          data: {
+            current_bookings: {
+              increment: 1,
+            },
+          },
+        });
+
+        const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
+
+        if (bookingWithMember && member) {
+          bookingWithMember.member = member;
+        }
+
+        // Notify trainer via socket and create notification if trainer exists
+        if (booking.schedule?.trainer?.user_id && global.io) {
+          const notificationService = require('../services/notification.service.js');
+
+          // Create notification in database
+          try {
+            await notificationService.sendNotification({
+              user_id: booking.schedule.trainer.user_id,
+              type: 'CLASS_BOOKING',
+              title: 'Đặt lớp mới',
+              message: `${member?.full_name || 'Thành viên'} đã đặt lớp ${
+                booking.schedule.gym_class?.name || 'Lớp học'
+              }`,
+              data: {
+                booking_id: booking.id,
+                schedule_id: schedule_id,
+                class_name: booking.schedule.gym_class?.name || 'Lớp học',
+                member_name: member?.full_name || 'Thành viên',
+                booked_at: booking.booked_at,
+              },
+            });
+          } catch (notifError) {
+            console.error('Error creating booking notification:', notifError);
+          }
+
+          // Emit socket event
+          global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', {
+            booking_id: booking.id,
+            schedule_id: schedule_id,
+            class_name: booking.schedule.gym_class?.name || 'Lớp học',
+            member_name: member?.full_name || 'Thành viên',
+            booked_at: booking.booked_at,
+            current_bookings: booking.schedule.current_bookings + 1,
+            max_capacity: booking.schedule.max_capacity,
+          });
+        }
+
+        return res.status(201).json({
+          success: true,
+          message: 'Booking created successfully',
+          data: { booking: bookingWithMember },
+        });
+      }
+
+      // If booking requires payment, create payment record via billing service
+      let payment = null;
+      let paymentInitiationData = null;
+      try {
+        // Create payment via billing service
+        const paymentRequestData = {
+          member_id: actualMemberId, // Use actual member_id for payment
+          amount: bookingPrice,
+          payment_method: 'BANK_TRANSFER', // Default to bank transfer (Sepay)
+          payment_type: 'CLASS_BOOKING',
+          reference_id: booking.id, // Link payment to booking
+          description: `Thanh toán đặt lớp: ${scheduleWithDetails.gym_class?.name || 'Lớp học'}`,
+        };
+
+        console.log('💰 Creating payment for booking:', {
+          booking_id: booking.id,
+          member_id: actualMemberId,
+          amount: bookingPrice,
+          payment_type: 'CLASS_BOOKING',
+          reference_id: booking.id,
+        });
+
+        const paymentResponse = await axios.post(
+          `${BILLING_SERVICE_URL}/payments/initiate`,
+          paymentRequestData,
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log('💰 Payment creation response:', {
+          success: paymentResponse.data?.success,
+          hasPayment: !!paymentResponse.data?.data?.payment,
+          paymentId: paymentResponse.data?.data?.payment?.id,
+          paymentType: paymentResponse.data?.data?.payment?.payment_type,
+          referenceId: paymentResponse.data?.data?.payment?.reference_id,
+        });
+
+        if (paymentResponse.data?.success && paymentResponse.data?.data) {
+          payment = paymentResponse.data.data.payment;
+          paymentInitiationData = paymentResponse.data.data;
+
+          console.log('✅ Payment created successfully:', {
+            paymentId: payment.id,
+            paymentType: payment.payment_type,
+            referenceId: payment.reference_id,
+            bookingId: booking.id,
+          });
+        }
+      } catch (paymentError) {
+        console.error('Create payment error:', paymentError.response?.data || paymentError.message);
+        // If payment creation fails, delete booking and return error
+        await prisma.booking.delete({ where: { id: booking.id } });
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể tạo thanh toán. Vui lòng thử lại.',
+          data: null,
+        });
+      }
+
       const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
 
       if (bookingWithMember && member) {
         bookingWithMember.member = member;
       }
 
-      // Update schedule current_bookings
-      await prisma.schedule.update({
-        where: { id: schedule_id },
+      // Notify trainer via socket and create notification when booking is created (pending payment)
+      // Trainer will get another notification when payment is confirmed
+      if (booking.schedule?.trainer?.user_id && global.io) {
+        const notificationService = require('../services/notification.service.js');
+
+        // Create notification in database
+        try {
+          await notificationService.sendNotification({
+            user_id: booking.schedule.trainer.user_id,
+            type: 'CLASS_BOOKING',
+            title: 'Đặt lớp mới (chờ thanh toán)',
+            message: `${member?.full_name || 'Thành viên'} đã đặt lớp ${
+              booking.schedule.gym_class?.name || 'Lớp học'
+            } - Đang chờ thanh toán`,
+            data: {
+              booking_id: booking.id,
+              schedule_id: schedule_id,
+              class_name: booking.schedule.gym_class?.name || 'Lớp học',
+              member_name: member?.full_name || 'Thành viên',
+              booked_at: booking.booked_at,
+              payment_amount: bookingPrice,
+              payment_status: 'PENDING',
+            },
+          });
+        } catch (notifError) {
+          console.error('Error creating booking notification:', notifError);
+        }
+
+        // Emit socket event
+        global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:pending_payment', {
+          booking_id: booking.id,
+          schedule_id: schedule_id,
+          class_name: booking.schedule.gym_class?.name || 'Lớp học',
+          member_name: member?.full_name || 'Thành viên',
+          booked_at: booking.booked_at,
+          payment_amount: bookingPrice,
+          payment_status: 'PENDING',
+        });
+      }
+
+      // Return booking with payment information
+      res.status(201).json({
+        success: true,
+        message: 'Booking created successfully. Payment required.',
         data: {
-          current_bookings: {
-            increment: 1,
+          booking: bookingWithMember,
+          payment: payment,
+          paymentRequired: true,
+          paymentInitiation: paymentInitiationData, // Includes bank transfer QR code info
+        },
+      });
+    } catch (error) {
+      console.error('Create booking error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Confirm payment for booking (called from billing service webhook)
+   * POST /bookings/:id/confirm-payment
+   */
+  async confirmBookingPayment(req, res) {
+    try {
+      const { id } = req.params; // booking id
+      const { payment_id, amount } = req.body;
+
+      console.log(`🔔 confirmBookingPayment called for booking: ${id}`, { payment_id, amount });
+
+      if (!payment_id || !amount) {
+        console.error('❌ confirmBookingPayment: Missing payment_id or amount');
+        return res.status(400).json({
+          success: false,
+          message: 'payment_id và amount là bắt buộc',
+          data: null,
+        });
+      }
+
+      const booking = await prisma.booking.findUnique({
+        where: { id },
+        include: {
+          schedule: {
+            include: {
+              trainer: true,
+              gym_class: true,
+            },
           },
         },
       });
 
-      res.status(201).json({
+      if (!booking) {
+        console.error(`❌ confirmBookingPayment: Booking not found: ${id}`);
+        return res.status(404).json({
+          success: false,
+          message: 'Booking not found',
+          data: null,
+        });
+      }
+
+      console.log(`✅ confirmBookingPayment: Found booking ${id}`, {
+        current_payment_status: booking.payment_status,
+        booking_amount: booking.amount_paid,
+      });
+
+      // Get member info for notification
+      let member = null;
+      try {
+        member = await memberService.getMemberById(booking.member_id);
+      } catch (err) {
+        // Silent fail - member info not critical for notification
+      }
+
+      // Update booking payment status
+      console.log(`Updating booking ${id} payment_status from ${booking.payment_status} to PAID`);
+      const updatedBooking = await prisma.booking.update({
+        where: { id },
+        data: {
+          payment_status: 'PAID',
+          amount_paid: amount,
+        },
+        include: {
+          schedule: {
+            include: {
+              gym_class: true,
+              trainer: true,
+              room: true,
+            },
+          },
+        },
+      });
+
+      console.log(`✅ Booking ${id} payment_status updated to:`, updatedBooking.payment_status);
+
+      // Update schedule current_bookings (only if not already updated)
+      // This handles the case where booking was created with payment pending
+      const wasPending = booking.payment_status === 'PENDING';
+      if (wasPending) {
+        await prisma.schedule.update({
+          where: { id: booking.schedule_id },
+          data: {
+            current_bookings: {
+              increment: 1,
+            },
+          },
+        });
+
+        // Get updated schedule with current_bookings count
+        const updatedSchedule = await prisma.schedule.findUnique({
+          where: { id: booking.schedule_id },
+          select: { current_bookings: true, max_capacity: true },
+        });
+
+        // Notify trainer via socket and create notification when payment is confirmed
+        const trainerUserId = booking.schedule?.trainer?.user_id;
+        console.log('Payment confirmed - Trainer user_id:', trainerUserId);
+        console.log('Socket available:', !!global.io);
+
+        if (trainerUserId && global.io) {
+          const notificationService = require('../services/notification.service.js');
+
+          // Create notification in database
+          try {
+            console.log(`Creating notification for trainer user_id: ${trainerUserId}`);
+            await notificationService.sendNotification({
+              user_id: trainerUserId,
+              type: 'CLASS_BOOKING',
+              title: 'Thanh toán thành công',
+              message: `${member?.full_name || 'Thành viên'} đã thanh toán và xác nhận đặt lớp ${
+                booking.schedule.gym_class?.name || 'Lớp học'
+              }`,
+              data: {
+                booking_id: updatedBooking.id,
+                schedule_id: updatedBooking.schedule_id,
+                class_name: updatedBooking.schedule.gym_class?.name || 'Lớp học',
+                member_name: member?.full_name || 'Thành viên',
+                booked_at: updatedBooking.booked_at,
+                payment_amount: amount,
+              },
+            });
+            console.log('✅ Notification created successfully for payment confirmation');
+          } catch (notifError) {
+            console.error('❌ Error creating booking confirmation notification:', notifError);
+          }
+
+          // Emit socket event
+          const socketPayload = {
+            booking_id: updatedBooking.id,
+            schedule_id: updatedBooking.schedule_id,
+            class_name: updatedBooking.schedule.gym_class?.name || 'Lớp học',
+            member_name: member?.full_name || 'Thành viên',
+            booked_at: updatedBooking.booked_at,
+            current_bookings:
+              updatedSchedule?.current_bookings || booking.schedule.current_bookings + 1,
+            max_capacity: updatedSchedule?.max_capacity || booking.schedule.max_capacity,
+            payment_amount: amount,
+          };
+
+          console.log(`Emitting booking:confirmed to user:${trainerUserId}`, socketPayload);
+          global.io.to(`user:${trainerUserId}`).emit('booking:confirmed', socketPayload);
+          console.log(`✅ Socket event booking:confirmed emitted successfully`);
+        } else {
+          if (!trainerUserId) {
+            console.log('⚠️ No trainer user_id found for booking payment confirmation');
+          }
+          if (!global.io) {
+            console.log('⚠️ Socket.io not available for booking payment confirmation');
+          }
+        }
+      }
+
+      const [bookingWithMember] = await attachMemberDetails([updatedBooking], { strict: false });
+
+      console.log(`✅ confirmBookingPayment: Successfully confirmed payment for booking ${id}`);
+      console.log(
+        `✅ confirmBookingPayment: Final payment_status: ${updatedBooking.payment_status}`
+      );
+
+      res.json({
         success: true,
-        message: 'Booking created successfully',
+        message: 'Booking payment confirmed successfully',
         data: { booking: bookingWithMember },
       });
     } catch (error) {
-      console.error('Create booking error:', error);
+      console.error('❌ confirmBookingPayment error:', error);
+      console.error('❌ Error stack:', error.stack);
+      console.error('❌ Error details:', {
+        bookingId: req.params.id,
+        payment_id: req.body.payment_id,
+        amount: req.body.amount,
+      });
       res.status(500).json({
         success: false,
         message: 'Internal server error',

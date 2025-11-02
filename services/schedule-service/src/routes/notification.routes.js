@@ -8,6 +8,11 @@ router.get('/notifications/unread/:user_id', (req, res) =>
   notificationController.getUnreadNotifications(req, res)
 );
 
+// Get unread count for a user
+router.get('/notifications/unread-count/:user_id', (req, res) =>
+  notificationController.getUnreadCount(req, res)
+);
+
 // Mark a notification as read
 router.put('/notifications/:notification_id/read', (req, res) =>
   notificationController.markNotificationAsRead(req, res)
