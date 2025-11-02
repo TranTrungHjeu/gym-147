@@ -48,7 +48,7 @@ export const darkThemeColors: ThemeColors = {
   divider: '#333333', // Dark divider
 
   // Status colors
-  success: '#4CAF50', // Brighter green for better visibility
+  success: '#34D399', // Emerald 400 - brighter for dark mode
   warning: '#FF9800', // Brighter orange for better visibility
   error: '#F44336', // Brighter red for better visibility
   info: '#2196F3', // Brighter blue for better visibility

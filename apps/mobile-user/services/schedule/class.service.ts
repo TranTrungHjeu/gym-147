@@ -7,7 +7,11 @@ import {
 import { scheduleApiService } from './api.service';
 
 class ClassService {
-  private baseUrl = 'http://10.0.2.2:3001/classes'; // Schedule Service
+  // Get base URL from centralized config
+  private get baseUrl() {
+    const { SERVICE_URLS } = require('@/config/environment');
+    return `${SERVICE_URLS.SCHEDULE}/classes`;
+  }
 
   /**
    * Get all gym classes

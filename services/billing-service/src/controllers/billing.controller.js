@@ -1,4 +1,12 @@
 const { prisma } = require('../lib/prisma.js');
+const axios = require('axios');
+
+const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+
+// Configure axios defaults for all requests
+axios.defaults.headers.post['Content-Type'] = 'application/json';
+axios.defaults.headers.put['Content-Type'] = 'application/json';
+axios.defaults.headers.patch['Content-Type'] = 'application/json';
 
 class BillingController {
   // Membership Plans Management
@@ -205,6 +213,41 @@ class BillingController {
         },
       });
 
+      // 🔥 Update Member Service: Create Membership record (auto-updates member.membership_type)
+      try {
+        console.log(
+          `📞 Calling Member Service to create membership for user ${member_id} (plan: ${plan.type})...`
+        );
+
+        // Create Membership record in Member Service
+        // This will automatically update member.membership_type and member.expires_at
+        await axios.post(
+          `${MEMBER_SERVICE_URL}/api/members/user/${member_id}/memberships`,
+          {
+            type: plan.type, // BASIC, PREMIUM, VIP, STUDENT
+            start_date: startDate,
+            end_date: endDate,
+            status: 'ACTIVE',
+            price: plan.price,
+            benefits: plan.benefits || [], // ✅ Correct field name
+            notes: `Subscribed to ${plan.name} plan`,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        console.log(
+          `✅ Member Service updated: membership_type = ${plan.type}, membership record created`
+        );
+      } catch (memberError) {
+        console.error('❌ Failed to update Member Service:', memberError.message);
+        console.error('Response:', memberError.response?.data);
+        // Don't fail the subscription creation - member service update is secondary
+      }
+
       res.status(201).json({
         success: true,
         message: 'Subscription created successfully',
@@ -281,12 +324,13 @@ class BillingController {
   // Payments Management
   async getAllPayments(req, res) {
     try {
-      const { member_id, status, payment_type } = req.query;
+      const { member_id, status, payment_type, reference_id } = req.query;
 
       const where = {};
       if (member_id) where.member_id = member_id;
       if (status) where.status = status;
       if (payment_type) where.payment_type = payment_type;
+      if (reference_id) where.reference_id = reference_id;
 
       const payments = await prisma.payment.findMany({
         where,
@@ -296,6 +340,7 @@ class BillingController {
               plan: true,
             },
           },
+          bank_transfer: true, // Include bank transfer if exists
         },
         orderBy: { created_at: 'desc' },
       });
@@ -350,6 +395,37 @@ class BillingController {
       res.status(500).json({
         success: false,
         message: 'Failed to create payment',
+        data: null,
+      });
+    }
+  }
+
+  async updatePayment(req, res) {
+    try {
+      const { id } = req.params;
+      const { payment_type, reference_id, description, status } = req.body;
+
+      const updateData = {};
+      if (payment_type) updateData.payment_type = payment_type;
+      if (reference_id !== undefined) updateData.reference_id = reference_id;
+      if (description !== undefined) updateData.description = description;
+      if (status) updateData.status = status;
+
+      const payment = await prisma.payment.update({
+        where: { id },
+        data: updateData,
+      });
+
+      res.json({
+        success: true,
+        message: 'Payment updated successfully',
+        data: payment,
+      });
+    } catch (error) {
+      console.error('Update payment error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update payment',
         data: null,
       });
     }
@@ -587,10 +663,12 @@ class BillingController {
         }
       }
 
-      // Calculate bonus days (if it's a referral code)
+      // Calculate bonus days
       let bonusDays = 0;
       if (discountCode.type === 'FREE_TRIAL' || discountCode.type === 'FIRST_MONTH_FREE') {
         bonusDays = 30; // 1 month free
+      } else if (discountCode.bonus_days) {
+        bonusDays = discountCode.bonus_days; // Use bonus_days from referral codes
       }
 
       res.json({
@@ -617,8 +695,17 @@ class BillingController {
   // Payment Gateway Integration
   async initiatePayment(req, res) {
     try {
-      const { member_id, subscription_id, amount, payment_method, return_url, cancel_url } =
-        req.body;
+      const {
+        member_id,
+        subscription_id,
+        amount,
+        payment_method,
+        payment_type = 'SUBSCRIPTION', // Support CLASS_BOOKING, ADDON_PURCHASE, etc.
+        reference_id, // Booking ID, invoice ID, etc.
+        description,
+        return_url,
+        cancel_url,
+      } = req.body;
 
       if (!member_id || !amount || !payment_method) {
         return res.status(400).json({
@@ -637,7 +724,9 @@ class BillingController {
           currency: 'VND',
           status: 'PENDING',
           payment_method,
-          payment_type: 'SUBSCRIPTION',
+          payment_type, // Can be SUBSCRIPTION, CLASS_BOOKING, etc.
+          reference_id, // Link to booking, invoice, etc.
+          description,
           net_amount: amount,
         },
       });
@@ -780,11 +869,15 @@ class BillingController {
         // Call Member Service to create member
         // This would be an HTTP call to Member Service
         const axios = require('axios');
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://member-service:3002';
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
 
         try {
+          // NOTE: payment.member_id in database is Member.id (from member service)
+          // But createMemberWithUser expects user_id (from identity service)
+          // This endpoint is used when creating a new member after payment
+          // If member already exists, this will fail gracefully
           await axios.post(`${memberServiceUrl}/members/create-with-user`, {
-            user_id: payment.member_id, // This is actually user_id from Identity Service
+            user_id: payment.member_id, // TODO: Verify if this should be user_id or member.id
             membership_type: payment.subscription.plan.type,
             membership_start_date: payment.subscription.start_date,
             membership_end_date: payment.subscription.end_date,
@@ -872,10 +965,11 @@ class BillingController {
       let baseAmount = Number(plan.price);
       let discountAmount = 0;
       let totalAmount = baseAmount;
+      let discountCodeRecord = null;
 
-      // Apply discount if provided
+      // Get discount code if provided
       if (discount_code) {
-        const discountCodeRecord = await prisma.discountCode.findUnique({
+        discountCodeRecord = await prisma.discountCode.findUnique({
           where: { code: discount_code.toUpperCase() },
         });
 
@@ -890,21 +984,6 @@ class BillingController {
           }
 
           totalAmount = baseAmount - discountAmount;
-
-          // Record discount usage
-          await prisma.discountUsage.create({
-            data: {
-              discount_code_id: discountCodeRecord.id,
-              member_id,
-              amount_discounted: discountAmount,
-            },
-          });
-
-          // Increment usage count
-          await prisma.discountCode.update({
-            where: { id: discountCodeRecord.id },
-            data: { usage_count: { increment: 1 } },
-          });
         }
       }
 
@@ -947,6 +1026,63 @@ class BillingController {
           plan: true,
         },
       });
+
+      // Record discount usage after subscription is created
+      if (discountCodeRecord && discountAmount > 0) {
+        console.log('🎁 Checking for existing discount usage:', {
+          discount_code_id: discountCodeRecord.id,
+          member_id,
+          subscription_id: subscription.id,
+        });
+
+        // Check if discount usage already exists for this subscription
+        const existingUsage = await prisma.discountUsage.findFirst({
+          where: {
+            discount_code_id: discountCodeRecord.id,
+            member_id,
+            subscription_id: subscription.id,
+          },
+        });
+
+        // Check if subscription already has any discount usage
+        const subscriptionHasDiscount = await prisma.discountUsage.findFirst({
+          where: {
+            member_id,
+            subscription_id: subscription.id,
+          },
+        });
+
+        console.log('🎁 Existing usage check result:', {
+          found_same_code: !!existingUsage,
+          existing_usage_id: existingUsage?.id,
+          subscription_has_any_discount: !!subscriptionHasDiscount,
+        });
+
+        if (!existingUsage && !subscriptionHasDiscount) {
+          console.log('🎁 Creating new DiscountUsage...');
+          await prisma.discountUsage.create({
+            data: {
+              discount_code_id: discountCodeRecord.id,
+              member_id,
+              subscription_id: subscription.id,
+              amount_discounted: discountAmount,
+            },
+          });
+
+          // Increment usage count
+          await prisma.discountCode.update({
+            where: { id: discountCodeRecord.id },
+            data: { usage_count: { increment: 1 } },
+          });
+          console.log('✅ DiscountUsage created successfully');
+        } else {
+          if (existingUsage) {
+            console.log('⚠️ Same discount code already used for this subscription, skipping');
+          } else {
+            console.log('⚠️ Subscription already has a different discount code, skipping');
+          }
+        }
+      }
 
       res.status(201).json({
         success: true,

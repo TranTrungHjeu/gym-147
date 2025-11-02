@@ -78,6 +78,8 @@ export interface Payment {
   payment_method: PaymentMethod;
   transaction_id?: string;
   gateway?: string;
+  payment_type?: string;
+  reference_id?: string; // Booking ID, invoice ID, etc.
   processed_at?: Date;
   failed_at?: Date;
   failure_reason?: string;
@@ -104,6 +106,8 @@ export interface PaymentGatewayResponse {
       accountName: string;
       content: string;
     };
+    bankTransferId?: string;
+    qrCodeDataURL?: string;
   };
 }
 

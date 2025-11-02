@@ -21,27 +21,22 @@ class HealthController {
         });
       }
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      if (memberId) {
-        const memberByUserId = await prisma.member.findUnique({
-          where: { user_id: memberId },
-          select: { id: true },
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
         });
-
-        if (memberByUserId) {
-          actualMemberId = memberByUserId.id;
-          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
-        }
       }
 
+      // memberId must be Member.id (not user_id)
+      // Schema: HealthMetric.member_id references Member.id
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - periodDays);
 
       // Build where clause
       const whereClause = {
-        member_id: actualMemberId,
+        member_id: memberId,
         recorded_at: { gte: startDate },
       };
 
@@ -80,31 +75,22 @@ class HealthController {
    */
   async getMemberHealthMetrics(req, res) {
     try {
-      const { id: memberId } = req.params; // Route uses :id
+      const { id: memberId } = req.params; // Route uses :id (must be Member.id, not user_id)
       const { metricType, startDate, endDate, limit = 50, offset = 0 } = req.query;
 
       console.log('🔍 getMemberHealthMetrics called with memberId:', memberId);
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      if (memberId) {
-        // Check if the provided ID is a user_id by trying to find member record
-        const memberByUserId = await prisma.member.findUnique({
-          where: { user_id: memberId },
-          select: { id: true },
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
         });
-
-        if (memberByUserId) {
-          // It's a user_id, use the member's actual ID
-          actualMemberId = memberByUserId.id;
-          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
-        } else {
-          console.log(`✅ Using member_id directly: ${memberId}`);
-        }
       }
 
-      const where = { member_id: actualMemberId };
+      // memberId must be Member.id (not user_id)
+      // Schema: HealthMetric.member_id references Member.id
+      const where = { member_id: memberId };
       if (metricType) where.metric_type = metricType;
       if (startDate) where.recorded_at = { ...where.recorded_at, gte: new Date(startDate) };
       if (endDate) where.recorded_at = { ...where.recorded_at, lte: new Date(endDate) };
@@ -172,22 +158,19 @@ class HealthController {
     try {
       const { memberId, metricType, value, notes } = req.body;
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      const memberByUserId = await prisma.member.findUnique({
-        where: { user_id: memberId },
-        select: { id: true },
+      if (!memberId || !metricType || value === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'memberId, metricType, and value are required',
+          data: null,
       });
-
-      if (memberByUserId) {
-        actualMemberId = memberByUserId.id;
-        console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
       }
 
+      // memberId must be Member.id (not user_id)
+      // Schema: HealthMetric.member_id references Member.id
       const metric = await prisma.healthMetric.create({
         data: {
-          member_id: actualMemberId,
+          member_id: memberId,
           metric_type: metricType,
           value: parseFloat(value),
           notes,
@@ -217,35 +200,32 @@ class HealthController {
     try {
       const { memberId } = req.query;
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      const memberByUserId = await prisma.member.findUnique({
-        where: { user_id: memberId },
-        select: { id: true },
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
       });
-
-      if (memberByUserId) {
-        actualMemberId = memberByUserId.id;
-        console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
       }
 
+      // memberId must be Member.id (not user_id)
+      // Schema: HealthMetric.member_id references Member.id
       const [latestWeight, latestBodyFat, weightTrend, bodyFatTrend] = await Promise.all([
         prisma.healthMetric.findFirst({
-          where: { member_id: actualMemberId, metric_type: 'WEIGHT' },
+          where: { member_id: memberId, metric_type: 'WEIGHT' },
           orderBy: { recorded_at: 'desc' },
         }),
         prisma.healthMetric.findFirst({
-          where: { member_id: actualMemberId, metric_type: 'BODY_FAT' },
+          where: { member_id: memberId, metric_type: 'BODY_FAT' },
           orderBy: { recorded_at: 'desc' },
         }),
         prisma.healthMetric.findMany({
-          where: { member_id: actualMemberId, metric_type: 'WEIGHT' },
+          where: { member_id: memberId, metric_type: 'WEIGHT' },
           orderBy: { recorded_at: 'desc' },
           take: 7,
         }),
         prisma.healthMetric.findMany({
-          where: { member_id: actualMemberId, metric_type: 'BODY_FAT' },
+          where: { member_id: memberId, metric_type: 'BODY_FAT' },
           orderBy: { recorded_at: 'desc' },
           take: 7,
         }),

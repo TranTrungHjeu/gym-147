@@ -1,6 +1,7 @@
 import { PlanCard } from '@/components/PlanCard';
 import { billingService } from '@/services/billing/billing.service';
 import { MembershipPlan } from '@/types/billingTypes';
+import { getTokens } from '@/utils/auth/storage';
 import { useTheme } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -25,10 +26,24 @@ const RegisterPlanScreen = () => {
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<MembershipPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [accessToken, setAccessToken] = useState<string>(params.accessToken as string);
+  const [refreshToken, setRefreshToken] = useState<string>(params.refreshToken as string);
 
   const userId = params.userId as string;
-  const accessToken = params.accessToken as string;
-  const refreshToken = params.refreshToken as string;
+
+  // Load tokens from storage if params are empty
+  useEffect(() => {
+    const loadTokens = async () => {
+      if (!accessToken || !refreshToken) {
+        const tokens = await getTokens();
+        if (tokens.accessToken && tokens.refreshToken) {
+          setAccessToken(tokens.accessToken);
+          setRefreshToken(tokens.refreshToken);
+        }
+      }
+    };
+    loadTokens();
+  }, []);
 
   useEffect(() => {
     fetchPlans();
@@ -60,6 +75,7 @@ const RegisterPlanScreen = () => {
         refreshToken,
         planId: selectedPlan.id,
         planName: selectedPlan.name,
+        planType: selectedPlan.type,
         planPrice: selectedPlan.price.toString(),
         setupFee: (selectedPlan.setup_fee || 0).toString(),
         durationMonths: selectedPlan.duration_months.toString(),

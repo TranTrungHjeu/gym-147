@@ -206,6 +206,7 @@ export enum FavoriteType {
 // API Request/Response Types
 export interface CreateBookingRequest {
   schedule_id: string;
+  member_id?: string; // Optional in type, but required by backend - will be added from auth context
   special_needs?: string;
   notes?: string;
 }
@@ -252,6 +253,8 @@ export interface ClassCardProps {
   onBook?: () => void;
   onCancel?: () => void;
   showBookingActions?: boolean;
+  userBooking?: Booking | null; // User's booking for this schedule
+  onNavigateToPayment?: () => void; // Navigate to payment screen
 }
 
 export interface BookingModalProps {
@@ -260,6 +263,7 @@ export interface BookingModalProps {
   onClose: () => void;
   onConfirm: (bookingData: CreateBookingRequest) => void;
   loading?: boolean;
+  userBooking?: Booking | null; // User's booking for this schedule
 }
 
 export interface ScheduleCalendarProps {

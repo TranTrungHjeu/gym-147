@@ -14,11 +14,12 @@ class MemberService {
     }
 
     try {
+      // Get member by member_id (id) - used by bookings and attendance
       const response = await this.client.get(`/members/${memberId}`);
       return response.data?.data?.member || response.data?.data || response.data;
     } catch (error) {
       if (error.status === 404) {
-        return null;
+            return null;
       }
 
       console.error('member-service:getMemberById error:', {

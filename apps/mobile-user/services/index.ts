@@ -21,6 +21,7 @@ export { memberService } from './member/member.service';
 export { notificationService } from './member/notification.service';
 export { bookingService } from './schedule/booking.service';
 export { classService } from './schedule/class.service';
+export { favoriteService } from './schedule/favorite.service';
 export { scheduleService } from './schedule/schedule.service';
 export { trainerService } from './schedule/trainer.service';
 export { workoutPlanService } from './schedule/workout-plan.service';

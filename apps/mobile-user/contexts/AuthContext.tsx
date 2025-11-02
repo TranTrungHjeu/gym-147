@@ -40,6 +40,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hasMember, setHasMember] = useState<boolean | null>(null);
+  const [member, setMember] = useState<{ id: string } | null>(null); // Store member.id (member_id from member service)
   const isAuthenticated = !!user && !!token;
 
   // Check for existing auth session on mount
@@ -59,18 +60,29 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       if (token && userData) {
         setUser(userData);
         setToken(token);
-        console.log('✅ Auth session restored');
+
+        // Load member profile if user exists (async, don't block)
+        if (userData.id) {
+          (async () => {
+            try {
+              const memberExists = await memberService.checkMemberExists();
+              setHasMember(memberExists);
+              if (memberExists) {
+                // Load member profile to get member_id
+                const profileResponse = await memberService.getMemberProfile();
+                if (profileResponse.success && profileResponse.data?.id) {
+                  setMember({ id: profileResponse.data.id });
+                }
+              }
+            } catch (err) {
+              // Silent fail - member profile can be loaded later
+            }
+          })();
+        }
       } else if (!rememberMe) {
         // Only clear auth data if user didn't choose to remember login
-        console.log('❌ No auth session found and remember me is false');
         setUser(null);
         setToken(null);
-      } else {
-        // If rememberMe is true but no token/userData, keep current session
-        console.log(
-          '❌ No auth session found but remember me is true - keeping current session'
-        );
-        // Don't clear user and token - keep them as they are
       }
     } catch (err) {
       console.error('Error checking auth status:', err);
@@ -97,8 +109,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setIsLoading(true);
       setError(null);
 
-      // Debug: Test API connection first
-      console.log('🔍 Testing API connection before login...');
       const isConnected = await debugApi.testConnection();
       if (!isConnected) {
         throw new Error(
@@ -106,9 +116,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         );
       }
 
-      console.log('🔐 Attempting login with credentials:', {
-        email: credentials.email,
-      });
       const response = await authService.login(credentials);
 
       if (response.success && response.data) {
@@ -125,88 +132,68 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         setUser(user);
         setToken(accessToken);
 
-        // Check subscription status first (more important than member record)
-        console.log('🔍 Checking subscription status after login...');
+        // Register push notification token
+        try {
+          const { pushNotificationService } = await import(
+            '@/services/notification/push.service'
+          );
+          await pushNotificationService.registerPushToken(user.id);
+        } catch (pushError) {
+          // Don't fail login if push registration fails
+        }
+
+        // Check if user has member record
+        const memberExists = await memberService.checkMemberExists();
+        setHasMember(memberExists);
+
+        // Check subscription status (requires member_id from member service)
         let registrationStatus = {
           hasSubscription: false,
           hasCompletedProfile: false,
         };
 
-        try {
-          console.log('🔍 Fetching subscriptions for user:', user.id);
-          const subscriptions = await billingService.getMemberSubscriptions(
-            user.id
-          );
-          console.log('📋 Subscriptions response:', subscriptions);
-          console.log('📋 Subscriptions count:', subscriptions?.length || 0);
-
-          const activeSubscription = subscriptions.find((sub: any) => {
-            const latestPayment = sub.payments?.[0]; // Get latest payment
-            console.log('  🔎 Checking subscription:', {
-              id: sub.id,
-              status: sub.status,
-              payment_status: latestPayment?.status,
-              payment_count: sub.payments?.length || 0,
-            });
-            return (
-              sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
-            );
-          });
-
-          registrationStatus.hasSubscription = !!activeSubscription;
-          console.log(
-            `📋 Has subscription: ${registrationStatus.hasSubscription}`,
-            activeSubscription ? `(ID: ${activeSubscription.id})` : ''
-          );
-        } catch (err) {
-          console.log('⚠️ Error checking subscription:', err);
-        }
-
-        // Check if user has member record
-        console.log('🔍 Checking member status after login...');
-        const memberExists = await memberService.checkMemberExists();
-        setHasMember(memberExists);
-
         if (memberExists) {
-          console.log('✅ Member record found, checking profile completion...');
-
-          // Check profile completion
+          // Load member profile and store member.id
+          await loadMemberProfile();
+          
+          // Get member profile once to check both subscription and profile completion
           try {
             const profileResponse = await memberService.getMemberProfile();
-            const profile = profileResponse?.data; // ✅ Extract data from response
+            const profile = profileResponse?.data;
+            
+            if (profile?.id) {
+              // Check subscription using member.id
+              try {
+                const subscriptions = await billingService.getMemberSubscriptions(
+                  profile.id
+                );
 
-            console.log('🔍 Full profile response:', profileResponse);
-            console.log('🔍 Profile data:', {
-              date_of_birth: profile?.date_of_birth,
-              height: profile?.height,
-              weight: profile?.weight,
-              phone: profile?.phone,
-            });
+                const activeSubscription = subscriptions.find((sub: any) => {
+                  const latestPayment = sub.payments?.[0]; // Get latest payment
+                  return (
+                    sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+                  );
+                });
 
-            // Profile is complete if has essential fields:
-            // 1. Has date_of_birth
-            // 2. Has basic info (height & weight)
-            // Note: Phone is optional, can be added later
-            const hasDateOfBirth = !!profile?.date_of_birth;
-            const hasBasicInfo = !!(profile?.height && profile?.weight);
+                registrationStatus.hasSubscription = !!activeSubscription;
+              } catch (err) {
+                // Silent fail
+              }
+            }
+            
+            // Check profile completion
+            if (profile) {
+              const hasDateOfBirth = !!profile?.date_of_birth;
+              const hasBasicInfo = !!(profile?.height && profile?.weight);
 
-            registrationStatus.hasCompletedProfile =
-              hasDateOfBirth && hasBasicInfo;
-
-            console.log(`👤 Profile completion check:`, {
-              hasDateOfBirth: hasDateOfBirth ? '✅' : '❌',
-              hasBasicInfo: hasBasicInfo
-                ? `✅ (h:${profile?.height}, w:${profile?.weight})`
-                : `❌ (h:${profile?.height}, w:${profile?.weight})`,
-              result: registrationStatus.hasCompletedProfile
-                ? '✅ Complete'
-                : '❌ Incomplete',
-            });
+              registrationStatus.hasCompletedProfile =
+                hasDateOfBirth && hasBasicInfo;
+            }
           } catch (err) {
-            console.log('⚠️ Error checking profile:', err);
+            // Silent fail
           }
         } else {
-          console.log('⚠️ User logged in but no member record found');
+          setMember(null);
         }
 
         return {
@@ -217,12 +204,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           registrationStatus,
         };
       } else {
-        console.log('❌ Login failed:', response.message);
         throw new Error(response.message || 'Login failed');
       }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Login failed';
-      console.log('❌ Login error:', errorMessage);
       setError(errorMessage);
       throw err;
     } finally {
@@ -268,12 +253,16 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       await clearAuthData();
       setUser(null);
       setToken(null);
+      setMember(null); // Clear member data on logout
+      setHasMember(null);
     } catch (err) {
       console.error('Logout error:', err);
       // Even if API call fails, clear local data
       await clearAuthData();
       setUser(null);
       setToken(null);
+      setMember(null); // Clear member data on logout
+      setHasMember(null);
     } finally {
       setIsLoading(false);
     }
@@ -349,20 +338,115 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setError(null);
   };
 
+  /**
+   * Load member profile and store member.id for easy access
+   * This is the centralized way to get member_id (Member.id) from member service
+   * Schema: Member.id is the actual member_id, not user_id
+   */
+  const loadMemberProfile = async () => {
+    if (!user?.id) {
+      setMember(null);
+      return;
+    }
+
+    try {
+      const profileResponse = await memberService.getMemberProfile();
+      if (profileResponse.success && profileResponse.data?.id) {
+        // Store member.id (actual member_id from member service, not user_id from identity service)
+        setMember({ id: profileResponse.data.id });
+      } else {
+        setMember(null);
+      }
+    } catch (error: any) {
+      console.error('Error loading member profile:', error);
+      setMember(null);
+    }
+  };
+
   const setTokens = async (accessToken: string, refreshToken: string) => {
     setToken(accessToken);
     // Store tokens
     await storeTokens(accessToken, refreshToken);
-    console.log('✅ Tokens set in AuthContext');
+  };
 
-    // Check if member exists after setting tokens
-    try {
-      const memberExists = await memberService.checkMemberExists();
-      setHasMember(memberExists);
-      console.log('✅ Member status updated:', memberExists);
-    } catch (err) {
-      console.log('⚠️ Error checking member after setTokens:', err);
+  /**
+   * Check registration status - used by welcome screen and other places
+   * Returns registration status to determine if user needs to complete registration
+   */
+  const checkRegistrationStatus = async (): Promise<{
+    hasMember: boolean;
+    registrationStatus: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }> => {
+    if (!user?.id) {
+      return {
+        hasMember: false,
+        registrationStatus: {
+          hasSubscription: false,
+          hasCompletedProfile: false,
+        },
+      };
     }
+
+    // Check if user has member record
+    const memberExists = await memberService.checkMemberExists();
+    setHasMember(memberExists);
+
+    let registrationStatus = {
+      hasSubscription: false,
+      hasCompletedProfile: false,
+    };
+
+    if (memberExists) {
+      // Load member profile and store member.id
+      await loadMemberProfile();
+
+      // Get member profile once to check both subscription and profile completion
+      try {
+        const profileResponse = await memberService.getMemberProfile();
+        const profile = profileResponse?.data;
+
+        if (profile?.id) {
+          // Check subscription using member.id
+          try {
+            const subscriptions = await billingService.getMemberSubscriptions(
+              profile.id
+            );
+
+            const activeSubscription = subscriptions.find((sub: any) => {
+              const latestPayment = sub.payments?.[0]; // Get latest payment
+              return (
+                sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+              );
+            });
+
+            registrationStatus.hasSubscription = !!activeSubscription;
+          } catch (err) {
+            // Silent fail
+          }
+        }
+
+        // Check profile completion
+        if (profile) {
+          const hasDateOfBirth = !!profile?.date_of_birth;
+          const hasBasicInfo = !!(profile?.height && profile?.weight);
+
+          registrationStatus.hasCompletedProfile =
+            hasDateOfBirth && hasBasicInfo;
+        }
+      } catch (err) {
+        // Silent fail
+      }
+    } else {
+      setMember(null);
+    }
+
+    return {
+      hasMember: memberExists,
+      registrationStatus,
+    };
   };
 
   const value: AuthContextType = {
@@ -372,6 +456,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     isLoading,
     error,
     hasMember,
+    member, // Expose member.id (member_id) for easy access throughout app
     login,
     register,
     logout,
@@ -379,6 +464,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     resetPassword,
     updateProfile,
     setTokens,
+    loadMemberProfile, // Expose function to reload member profile if needed
+    checkRegistrationStatus, // Expose function to check registration status
     clearError,
   };
 

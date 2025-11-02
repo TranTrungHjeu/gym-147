@@ -497,8 +497,8 @@ class MemberController {
               full_name: fullName,
               email: email,
               phone: phone, // Can be undefined/null
-              membership_status: 'ACTIVE',
-              membership_type: 'BASIC',
+              membership_status: 'PENDING',
+              membership_type: updateData.membership_type || 'BASIC',
             },
           });
 
@@ -1008,6 +1008,65 @@ class MemberController {
     }
   }
 
+  // Create new membership by user_id (for cross-service integration)
+  async createMembershipByUserId(req, res) {
+    try {
+      const { user_id } = req.params;
+      const { type, start_date, end_date, price, benefits, notes, status } = req.body;
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      const membership = await prisma.membership.create({
+        data: {
+          member_id: member.id,
+          type,
+          start_date: new Date(start_date),
+          end_date: new Date(end_date),
+          price: parseFloat(price),
+          benefits: benefits || [],
+          notes,
+          status: status || 'ACTIVE',
+        },
+      });
+
+      // Update member's membership info
+      await prisma.member.update({
+        where: { id: member.id },
+        data: {
+          membership_type: type,
+          membership_status: status || 'ACTIVE',
+          expires_at: new Date(end_date),
+        },
+      });
+
+      console.log(`✅ Membership created for member ${member.id} (user_id: ${user_id})`);
+
+      res.status(201).json({
+        success: true,
+        message: 'Membership created successfully',
+        data: { membership },
+      });
+    } catch (error) {
+      console.error('Create membership by user_id error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
   // ==================== ACCESS CONTROL ====================
 
   // Generate RFID tag
@@ -1090,7 +1149,8 @@ class MemberController {
     }
   }
 
-  // Get multiple members by user_ids (for cross-service integration)
+  // Get multiple members by member_ids (for cross-service integration)
+  // memberIds must be array of Member.id (not user_id)
   async getMembersByIds(req, res) {
     try {
       const { memberIds } = req.body;
@@ -1105,7 +1165,7 @@ class MemberController {
 
       const members = await prisma.member.findMany({
         where: {
-          user_id: {
+          id: {
             in: memberIds,
           },
         },
@@ -1293,15 +1353,15 @@ class MemberController {
         });
       }
 
-      // Calculate total calories from equipment usage
+      // Calculate total calories from equipment usage (no fallback, use actual values)
       const totalEquipmentCalories = session.equipment_usage.reduce(
-        (sum, usage) => sum + (usage.calories_burned || 0),
+        (sum, usage) => sum + (usage.calories_burned ?? 0),
         0
       );
 
-      // Calculate total duration from equipment usage
+      // Calculate total duration from equipment usage (no fallback, use actual values)
       const totalEquipmentDuration = session.equipment_usage.reduce(
-        (sum, usage) => sum + (usage.duration || 0),
+        (sum, usage) => sum + (usage.duration ?? 0),
         0
       );
 
@@ -1516,6 +1576,130 @@ class MemberController {
         success: false,
         message: 'Internal server error',
         error: error.message,
+      });
+    }
+  }
+
+  // ==================== GYM ACCESS VALIDATION ====================
+
+  /**
+   * Validate QR code for gym access
+   * For testing: accepts any QR code with format GYM_ACCESS_*
+   */
+  async validateAccessQR(req, res) {
+    try {
+      const { code } = req.body;
+
+      if (!code || typeof code !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'QR code is required',
+        });
+      }
+
+      // For testing: accept any QR code starting with GYM_ACCESS_
+      const isValid = code.trim().startsWith('GYM_ACCESS_');
+
+      if (!isValid) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            message: 'Invalid QR code format. Expected: GYM_ACCESS_*',
+          },
+        });
+      }
+
+      // QR code is valid
+      res.json({
+        success: true,
+        data: {
+          valid: true,
+          message: 'QR code is valid',
+          expires_at: null, // No expiration for test QR codes
+        },
+      });
+    } catch (error) {
+      console.error('❌ Validate access QR error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to validate QR code',
+      });
+    }
+  }
+
+  /**
+   * Validate RFID tag for gym access
+   */
+  async validateRFIDTag(req, res) {
+    try {
+      const { tag } = req.body;
+
+      if (!tag || typeof tag !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'RFID tag is required',
+        });
+      }
+
+      // For testing: accept any RFID tag with format RFID_*
+      const isValid = tag.trim().startsWith('RFID_');
+
+      if (!isValid) {
+        return res.json({
+          success: true,
+          data: {
+            valid: false,
+            message: 'Invalid RFID tag format. Expected: RFID_*',
+          },
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          valid: true,
+          message: 'RFID tag is valid',
+        },
+      });
+    } catch (error) {
+      console.error('❌ Validate RFID tag error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to validate RFID tag',
+      });
+    }
+  }
+
+  /**
+   * Process face recognition for gym access
+   * Note: This is a stub for future implementation
+   */
+  async processFaceRecognition(req, res) {
+    try {
+      const { image } = req.body;
+
+      if (!image || typeof image !== 'string') {
+        return res.status(400).json({
+          success: false,
+          error: 'Image data is required',
+        });
+      }
+
+      // Stub: Always return not implemented
+      res.json({
+        success: true,
+        data: {
+          recognized: false,
+          face_detected: false,
+          message: 'Face recognition is not yet implemented',
+        },
+      });
+    } catch (error) {
+      console.error('❌ Face recognition error:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to process face recognition',
       });
     }
   }

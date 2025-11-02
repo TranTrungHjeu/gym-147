@@ -221,6 +221,9 @@ const RegisterScreen = () => {
       borderRadius: theme.radius.md,
       padding: theme.spacing.md,
       minHeight: 48,
+      lineHeight: undefined, // Remove lineHeight for TextInput
+      includeFontPadding: false, // Android: prevent extra padding
+      textAlignVertical: 'center', // Android: vertical alignment
     },
     inputError: {
       borderColor: theme.colors.error,

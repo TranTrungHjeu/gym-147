@@ -4,20 +4,31 @@
     "slug": "gym147-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "gym147",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#000000"
+    },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.gym147.mobile"
+      "bundleIdentifier": "com.gym147.mobile",
+      "infoPlist": {
+        "UIBackgroundModes": [
+          "remote-notification"
+        ]
+      }
     },
     "android": {
       "package": "com.gym147.mobile",
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/icon.png",
-        "backgroundColor": "#000000"
-      }
+      "permissions": [
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "android.permission.POST_NOTIFICATIONS"
+      ],
+      "useNextNotificationsApi": true
     },
     "web": {
       "bundler": "metro",
@@ -27,14 +38,31 @@
     "experiments": {
       "typedRoutes": true
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "extra": {
-      "API_URL": "http://10.0.2.2:3001",
       "APP_NAME": "Gym147",
       "APP_VERSION": "1.0.0",
       "ENVIRONMENT": "development",
-      "YOUTUBE_API_KEY": "AIzaSyCjBveZYEH951NlmM7HaKpTqXZxQU3lTLg"
+      "YOUTUBE_API_KEY": "AIzaSyCjBveZYEH951NlmM7HaKpTqXZxQU3lTLg",
+      "router": {},
+      "eas": {
+        "projectId": "3f7fa9f0-c61b-4369-a910-4842643b6f30"
+      }
     },
-    "plugins": ["expo-font", "expo-localization"]
+    "plugins": [
+      "expo-font",
+      "expo-localization",
+      "expo-router",
+      "expo-web-browser",
+      "expo-notifications"
+    ],
+    "notification": {
+      "icon": "./assets/images/icon.png",
+      "color": "#000000",
+      "iosDisplayInForeground": true
+    },
+    "owner": "trantrunghjeu"
   }
 }

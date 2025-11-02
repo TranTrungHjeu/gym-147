@@ -1,3 +1,4 @@
+import { EquipmentQueueModal } from '@/components/EquipmentQueueModal';
 import EquipmentReportModal from '@/components/EquipmentReportModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { equipmentService } from '@/services/member/equipment.service';
@@ -16,17 +17,23 @@ import {
   AlertCircle,
   ArrowLeft,
   Clock,
+  Flame,
   MapPin,
   Play,
   Settings,
+  StopCircle,
   Users,
   Wrench,
+  Zap,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { Fragment, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
+  AppState,
+  Easing,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -38,7 +45,7 @@ import {
 
 export default function EquipmentDetailScreen() {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -51,7 +58,23 @@ export default function EquipmentDetailScreen() {
     null
   );
   const [showReportModal, setShowReportModal] = useState(false);
+  const [showQueueModal, setShowQueueModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Active usage state
+  const [activeUsage, setActiveUsage] = useState<{
+    id: string;
+    start_time: string;
+    equipment_id: string;
+  } | null>(null);
+  const [usageDuration, setUsageDuration] = useState(0); // in seconds
+  const [caloriesBurned, setCaloriesBurned] = useState(0);
+  const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+
+  // Animation values
+  const flameScale = useState(new Animated.Value(1))[0];
+  const flameOpacity = useState(new Animated.Value(1))[0];
+  const pulseAnim = useState(new Animated.Value(1))[0];
 
   // Load equipment details
   const loadEquipmentDetails = async () => {
@@ -61,10 +84,18 @@ export default function EquipmentDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const [equipmentResponse, queueResponse] = await Promise.all([
+      const promises = [
         equipmentService.getEquipmentById(id),
         equipmentService.getEquipmentQueue(id),
-      ]);
+      ];
+
+      // Check for active usage if member is available
+      if (member?.id) {
+        promises.push(equipmentService.getActiveUsage(id, member.id));
+      }
+
+      const [equipmentResponse, queueResponse, activeUsageResponse] =
+        await Promise.all(promises);
 
       if (equipmentResponse.success && equipmentResponse.data) {
         setEquipment(equipmentResponse.data.equipment);
@@ -74,11 +105,28 @@ export default function EquipmentDetailScreen() {
 
       if (queueResponse.success && queueResponse.data) {
         setQueue(queueResponse.data.queue);
-        // Find user's queue entry
-        const userEntry = queueResponse.data.queue.find(
-          (entry) => entry.member_id === user?.id
+        // Find member's queue entry
+        if (member?.id) {
+          const memberEntry = queueResponse.data.queue.find(
+            (entry) => entry.member_id === member.id
         );
-        setUserQueueEntry(userEntry || null);
+          setUserQueueEntry(memberEntry || null);
+        }
+      }
+
+      // Restore active usage if exists
+      if (
+        activeUsageResponse &&
+        activeUsageResponse.success &&
+        activeUsageResponse.data?.activeUsage
+      ) {
+        const usage = activeUsageResponse.data.activeUsage;
+        setActiveUsage({
+          id: usage.id,
+          start_time: usage.start_time,
+            equipment_id: id,
+        });
+        console.log('✅ Restored active usage session:', usage.id);
       }
     } catch (err: any) {
       console.error('Error loading equipment:', err);
@@ -92,6 +140,220 @@ export default function EquipmentDetailScreen() {
   useEffect(() => {
     loadEquipmentDetails();
   }, [id]);
+
+  // Subscribe to user-specific queue events
+  // Note: Socket uses user_id (for real-time notifications), REST API uses member_id
+  useEffect(() => {
+    if (!user?.id) return;
+
+    equipmentService.subscribeToUserQueue(user.id, {
+      onYourTurn: (data) => {
+        console.log('🔔 Queue: Your turn!', data);
+        Alert.alert(
+          t('equipment.queue.yourTurn', "It's Your Turn!"),
+          t(
+            'equipment.queue.yourTurnMessage',
+            `${data.equipment_name} is now available. You have ${data.expires_in_minutes} minutes to claim it.`
+          ),
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                // Navigate to equipment detail if not already there
+                if (data.equipment_id !== id) {
+                  router.push(`/equipment/${data.equipment_id}`);
+                } else {
+                  loadEquipmentDetails();
+                }
+              },
+            },
+          ]
+        );
+      },
+      onEquipmentAvailable: (data) => {
+        console.log('🔔 Equipment available:', data);
+        if (data.equipment_id === id) {
+          loadEquipmentDetails();
+        }
+      },
+      onPositionChanged: (data) => {
+        console.log('🔔 Queue position changed:', data);
+        if (data.equipment_id === id) {
+          loadEquipmentDetails();
+        }
+      },
+    });
+
+    return () => {
+      if (user?.id) {
+        equipmentService.unsubscribeFromUserQueue(user.id);
+      }
+    };
+  }, [user?.id, id]);
+
+  // Handle app state changes (background/foreground)
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', (nextAppState) => {
+      if (nextAppState === 'active') {
+        // App came to foreground - reload to restore active usage
+        console.log('📱 App returned to foreground - reloading equipment data');
+        loadEquipmentDetails();
+      }
+    });
+
+    return () => {
+      subscription.remove();
+    };
+  }, [id]);
+
+  // Get calories per minute based on equipment category
+  const getCaloriesPerMinute = (category: string): number => {
+    const calorieRates: { [key: string]: number } = {
+      CARDIO: 12, // High intensity: Treadmill, Bike, Rowing
+      STRENGTH: 6, // Moderate: Weights, Machines
+      FREE_WEIGHTS: 7, // Slightly higher: Dumbbells, Barbells
+      FUNCTIONAL: 8, // Dynamic movements: TRX, Kettlebells
+      STRETCHING: 3, // Low intensity: Yoga, Stretching
+      RECOVERY: 2, // Very low: Foam rolling, Massage
+      SPECIALIZED: 5, // Variable: Special equipment
+    };
+
+    return calorieRates[category] || 6; // Default 6 kcal/min
+  };
+
+  // Timer and calories effect
+  useEffect(() => {
+    if (!activeUsage) {
+      setUsageDuration(0);
+      setCaloriesBurned(0);
+      setShowTimeoutWarning(false);
+      return;
+    }
+
+    const startTime = new Date(activeUsage.start_time).getTime();
+    const MAX_DURATION = 3 * 60 * 60; // 3 hours in seconds
+    const WARNING_DURATION = 2.5 * 60 * 60; // 2.5 hours - show warning
+
+    const timer = setInterval(() => {
+      const now = Date.now();
+      const duration = Math.max(0, Math.floor((now - startTime) / 1000)); // seconds, ensure non-negative
+      setUsageDuration(duration);
+
+      // Calculate calories based on equipment category
+      // Calculate calories based on seconds for accuracy (same as backend)
+      const caloriesPerMinute = equipment?.category
+        ? getCaloriesPerMinute(equipment.category)
+        : 6;
+
+      const caloriesPerSecond = caloriesPerMinute / 60;
+      const exactCalories = duration * caloriesPerSecond;
+      // Ensure at least 1 calorie if duration > 0 (same logic as backend)
+      const calculatedCalories =
+        duration > 0 ? Math.max(1, Math.round(exactCalories)) : 0;
+
+      setCaloriesBurned(calculatedCalories);
+
+      // Show warning when approaching timeout (2.5 hours)
+      if (duration >= WARNING_DURATION && duration < MAX_DURATION) {
+        if (!showTimeoutWarning) {
+          setShowTimeoutWarning(true);
+          const remainingMinutes = Math.floor((MAX_DURATION - duration) / 60);
+          Alert.alert(
+            '⏰ ' +
+              t('equipment.timeoutWarning', {
+                default: 'Session Timeout Warning',
+              }),
+            t('equipment.timeoutMessage', {
+              default: `Your workout session will automatically end in ${remainingMinutes} minutes. Please end your session manually to avoid auto-stop.`,
+              minutes: remainingMinutes,
+            }),
+            [
+              {
+                text: t('common.ok'),
+                onPress: () => console.log('Timeout warning acknowledged'),
+              },
+            ]
+          );
+        }
+      }
+
+      // Auto-reload when timeout is reached to reflect auto-stop
+      if (duration >= MAX_DURATION) {
+        console.log('⏱️ Session timeout reached - reloading...');
+        loadEquipmentDetails();
+      }
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [activeUsage, equipment, showTimeoutWarning]);
+
+  // Flame animation effect
+  useEffect(() => {
+    if (!activeUsage) return;
+
+    const breathAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.parallel([
+          Animated.timing(flameScale, {
+            toValue: 1.2,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameOpacity, {
+            toValue: 0.7,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(flameScale, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.timing(flameOpacity, {
+            toValue: 1,
+            duration: 800,
+            easing: Easing.inOut(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+      ])
+    );
+
+    breathAnimation.start();
+
+    return () => breathAnimation.stop();
+  }, [activeUsage]);
+
+  // Pulse animation for LIVE badge
+  useEffect(() => {
+    if (!activeUsage) return;
+
+    const pulseAnimation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.3,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          easing: Easing.inOut(Easing.ease),
+          useNativeDriver: true,
+        }),
+      ])
+    );
+
+    pulseAnimation.start();
+
+    return () => pulseAnimation.stop();
+  }, [activeUsage]);
 
   // Subscribe to real-time updates
   useEffect(() => {
@@ -116,11 +378,21 @@ export default function EquipmentDetailScreen() {
 
   // Handle start using
   const handleStartUsing = async () => {
-    if (!user?.id || !id) return;
+    if (!member?.id || !id) return;
 
     try {
-      const response = await equipmentService.startEquipmentUsage(user.id, id);
-      if (response.success) {
+      const response = await equipmentService.startEquipmentUsage(
+        member.id,
+        id
+      );
+      if (response.success && response.data) {
+        // Set active usage to start timer
+        setActiveUsage({
+          id: response.data.usage.id,
+          start_time: response.data.usage.start_time,
+          equipment_id: id,
+        });
+
         Alert.alert(
           t('common.success'),
           t('equipment.actions.startUsage') +
@@ -131,7 +403,7 @@ export default function EquipmentDetailScreen() {
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to start usage'
+          response.message || 'Failed to start usage'
         );
       }
     } catch (err: any) {
@@ -139,24 +411,71 @@ export default function EquipmentDetailScreen() {
     }
   };
 
-  // Handle join queue
-  const handleJoinQueue = async () => {
-    if (!user?.id || !id) return;
+  // Format duration for display
+  const formatDuration = (seconds: number): string => {
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
 
-    try {
-      const response = await equipmentService.joinQueue(id, user.id);
-      if (response.success) {
-        Alert.alert(t('common.success'), t('equipment.queue.joinedQueue'));
-        loadEquipmentDetails();
-      } else {
-        Alert.alert(
-          t('common.error'),
-          response.error || 'Failed to join queue'
-        );
-      }
-    } catch (err: any) {
-      Alert.alert(t('common.error'), err.message || 'Failed to join queue');
+    if (hours > 0) {
+      return `${hours}:${minutes.toString().padStart(2, '0')}:${secs
+        .toString()
+        .padStart(2, '0')}`;
     }
+    return `${minutes}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Handle end using
+  const handleEndUsage = async () => {
+    if (!member?.id || !activeUsage) return;
+
+    Alert.alert(
+      t('equipment.actions.endUsage'),
+      t('equipment.confirmEndUsage', {
+        default: 'Are you sure you want to end this workout session?',
+      }),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.confirm'),
+          onPress: async () => {
+            try {
+      const response = await equipmentService.stopEquipmentUsage(
+                member.id,
+                activeUsage.id
+      );
+      if (response.success) {
+                setActiveUsage(null);
+                setUsageDuration(0);
+                Alert.alert(
+                  t('common.success'),
+                  t('equipment.usageEnded', {
+                    default: 'Workout session ended successfully',
+                  })
+                );
+                loadEquipmentDetails();
+      } else {
+                Alert.alert(
+                  t('common.error'),
+                  response.message || 'Failed to end usage'
+                );
+              }
+            } catch (err: any) {
+              Alert.alert(
+                t('common.error'),
+                err.message || 'Failed to end usage'
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Handle join queue
+  const handleJoinQueue = () => {
+    // Open queue modal to show details and join
+    setShowQueueModal(true);
   };
 
   // Handle leave queue
@@ -171,7 +490,7 @@ export default function EquipmentDetailScreen() {
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to leave queue'
+          response.message || 'Failed to leave queue'
         );
       }
     } catch (err: any) {
@@ -186,11 +505,11 @@ export default function EquipmentDetailScreen() {
     severity: Severity;
     images?: string[];
   }) => {
-    if (!user?.id || !id) return;
+    if (!member?.id || !id) return;
 
     try {
       const response = await equipmentService.reportIssue(id, {
-        member_id: user.id,
+        member_id: member.id,
         ...data,
       });
 
@@ -200,7 +519,7 @@ export default function EquipmentDetailScreen() {
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to report issue'
+          response.message || 'Failed to report issue'
         );
       }
     } catch (err: any) {
@@ -318,21 +637,21 @@ export default function EquipmentDetailScreen() {
           ]}
         >
           <View style={styles.equipmentHeader}>
-            <View style={styles.equipmentInfo}>
+        <View style={styles.equipmentInfo}>
               <Text
                 style={[styles.equipmentName, { color: theme.colors.text }]}
               >
-                {equipment.name}
-              </Text>
+            {equipment.name}
+          </Text>
               {equipment.brand && (
-                <Text
-                  style={[
+          <Text
+            style={[
                     styles.equipmentBrand,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
+              { color: theme.colors.textSecondary },
+            ]}
+          >
                   {equipment.brand} {equipment.model}
-                </Text>
+          </Text>
               )}
             </View>
             <View
@@ -342,8 +661,8 @@ export default function EquipmentDetailScreen() {
               ]}
             >
               {getStatusIcon(equipment.status)}
-              <Text
-                style={[
+            <Text
+              style={[
                   styles.statusText,
                   { color: getStatusColor(equipment.status) },
                 ]}
@@ -356,7 +675,7 @@ export default function EquipmentDetailScreen() {
                 )}
               </Text>
             </View>
-          </View>
+        </View>
 
           <View style={styles.divider} />
 
@@ -370,24 +689,24 @@ export default function EquipmentDetailScreen() {
                 ]}
               >
                 {equipment.location}
-              </Text>
+          </Text>
             </View>
 
             {equipment.max_weight && (
               <View style={styles.detailItem}>
                 <Wrench size={16} color={theme.colors.textSecondary} />
                 <Text
-                  style={[
+              style={[
                     styles.detailLabel,
                     { color: theme.colors.textSecondary },
-                  ]}
-                >
+              ]}
+            >
                   Max: {equipment.max_weight}kg
-                </Text>
+              </Text>
               </View>
             )}
+            </View>
           </View>
-        </View>
 
         {/* Queue Section */}
         {queue.length > 0 && (
@@ -395,50 +714,219 @@ export default function EquipmentDetailScreen() {
             style={[styles.card, { backgroundColor: theme.colors.surface }]}
           >
             <View style={styles.sectionHeader}>
-              <Users size={20} color={theme.colors.text} />
-              <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-                {t('equipment.queue.title')} ({queue.length})
-              </Text>
-            </View>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+              >
+                <Users size={20} color={theme.colors.text} />
+                <Text
+                  style={[styles.sectionTitle, { color: theme.colors.text }]}
+                >
+                  {t('equipment.queue.title')} ({queue.length})
+            </Text>
+          </View>
+              <TouchableOpacity
+                onPress={() => setShowQueueModal(true)}
+                style={{ padding: 4 }}
+              >
+                <Text
+                  style={{
+                    color: theme.colors.primary,
+                    fontSize: 14,
+                    fontWeight: '600',
+                  }}
+                >
+                  {t('equipment.queue.viewDetails', 'View Details')}
+            </Text>
+              </TouchableOpacity>
+        </View>
 
             {queue.map((entry, index) => (
-              <View
-                key={entry.id}
+              <Fragment key={entry.id}>
+          <View
+                  style={[
+                    styles.queueItem,
+                    {
+                      backgroundColor:
+                        entry.member_id === member?.id
+                          ? theme.colors.primary + '10'
+                          : 'transparent',
+                    },
+                  ]}
+                >
+                  <View style={styles.queuePosition}>
+                    <Text
+                      style={[
+                        styles.positionNumber,
+                        { color: theme.colors.primary },
+                      ]}
+                    >
+                      #{index + 1}
+            </Text>
+                  </View>
+              <Text
                 style={[
-                  styles.queueItem,
+                      styles.queueMemberName,
+                      { color: theme.colors.text },
+                ]}
+              >
+                    {entry.member_id === member?.id
+                      ? t('profile.title')
+                      : entry.member?.full_name || 'Member'}
+              </Text>
+            </View>
+              </Fragment>
+            ))}
+          </View>
+        )}
+
+        {/* Active Usage Timer */}
+        {activeUsage && (
+          <View
+            style={[
+              styles.activeUsageContainer,
+              {
+                backgroundColor: theme.colors.primary + '08',
+                borderColor: theme.colors.primary + '20',
+              },
+            ]}
+          >
+            {/* Header */}
+            <View
+              style={[
+                styles.activeUsageHeader,
+                { borderBottomColor: theme.colors.border + '40' },
+              ]}
+            >
+              <View style={styles.activeUsageHeaderLeft}>
+                <View
+                  style={[
+                    styles.headerIconContainer,
+                    { backgroundColor: theme.colors.primary + '15' },
+                  ]}
+                >
+                  <Zap size={18} color={theme.colors.primary} />
+                </View>
+              <Text
+                style={[
+                    styles.activeUsageTitle,
+                    { color: theme.colors.primary },
+                ]}
+              >
+                  {t('equipment.activeSession', {
+                    default: 'Workout Session',
+                  })}
+              </Text>
+            </View>
+              <View
+                style={[
+                  styles.activeBadge,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    styles.pulseDot,
+                    { transform: [{ scale: pulseAnim }] },
+                  ]}
+                />
+                <Text style={styles.activeBadgeText}>LIVE</Text>
+          </View>
+            </View>
+
+            {/* Stats Grid */}
+            <View style={styles.statsGrid}>
+              {/* Duration */}
+          <View
+                style={[
+                  styles.statItem,
                   {
-                    backgroundColor:
-                      entry.member_id === user?.id
-                        ? theme.colors.primary + '10'
-                        : 'transparent',
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
                   },
                 ]}
               >
-                <View style={styles.queuePosition}>
+                <View
+                  style={[
+                    styles.statIconContainer,
+                    { backgroundColor: theme.colors.primary + '12' },
+                  ]}
+                >
+                  <Clock size={24} color={theme.colors.primary} />
+                </View>
                   <Text
                     style={[
-                      styles.positionNumber,
-                      { color: theme.colors.primary },
+                    styles.statLabel,
+                      { color: theme.colors.textSecondary },
                     ]}
                   >
-                    #{index + 1}
+                  {t('equipment.usage.duration', { default: 'Duration' })}
+                </Text>
+                <Text style={[styles.statValue, { color: theme.colors.text }]}>
+                  {formatDuration(usageDuration)}
                   </Text>
                 </View>
-                <Text
-                  style={[styles.queueMemberName, { color: theme.colors.text }]}
+
+              {/* Calories with Flame Animation */}
+              <View
+                style={[
+                  styles.statItem,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <Animated.View
+                  style={[
+                    styles.statIconContainer,
+                    styles.flameContainer,
+                    {
+                      transform: [{ scale: flameScale }],
+                      opacity: flameOpacity,
+                    },
+                  ]}
                 >
-                  {entry.member_id === user?.id
-                    ? t('profile.title')
-                    : entry.member?.full_name || 'Member'}
+                  <Flame size={26} color="#FF6B35" />
+                </Animated.View>
+                    <Text
+                      style={[
+                    styles.statLabel,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                  {t('equipment.usage.caloriesBurned', { default: 'Calories' })}
                 </Text>
+                <View style={styles.calorieValueContainer}>
+                  <Text style={[styles.statValue, styles.calorieValue]}>
+                    {caloriesBurned}
+                  </Text>
+                  <Text style={[styles.statUnit, styles.calorieUnit]}>
+                    kcal
+                    </Text>
+                  </View>
               </View>
-            ))}
+          </View>
+
+            {/* End Session Button */}
+          <TouchableOpacity
+            style={[
+                styles.endUsageButton,
+                { backgroundColor: theme.colors.error },
+              ]}
+              onPress={handleEndUsage}
+              activeOpacity={0.8}
+            >
+              <StopCircle size={22} color="#FFFFFF" strokeWidth={2.5} />
+              <Text style={styles.endUsageButtonText}>
+                {t('equipment.actions.endUsage', { default: 'End Workout' })}
+              </Text>
+            </TouchableOpacity>
           </View>
         )}
 
         {/* Action Buttons */}
         <View style={styles.actionsContainer}>
-          {equipment.status === EquipmentStatus.AVAILABLE && (
+          {!activeUsage && equipment.status === EquipmentStatus.AVAILABLE && (
             <TouchableOpacity
               style={[styles.button, { backgroundColor: theme.colors.primary }]}
               onPress={handleStartUsing}
@@ -446,25 +934,30 @@ export default function EquipmentDetailScreen() {
               <Play size={20} color="#fff" />
               <Text style={styles.buttonText}>
                 {t('equipment.actions.startUsage')}
-              </Text>
-            </TouchableOpacity>
+            </Text>
+          </TouchableOpacity>
           )}
 
-          {equipment.status === EquipmentStatus.IN_USE && !userQueueEntry && (
-            <TouchableOpacity
-              style={[styles.button, { backgroundColor: theme.colors.warning }]}
-              onPress={handleJoinQueue}
-            >
-              <Clock size={20} color="#fff" />
-              <Text style={styles.buttonText}>
-                {t('equipment.queue.joinQueue')}
-              </Text>
-            </TouchableOpacity>
-          )}
+          {equipment.status === EquipmentStatus.IN_USE &&
+            !userQueueEntry &&
+            !activeUsage && (
+          <TouchableOpacity
+            style={[
+                  styles.button,
+              { backgroundColor: theme.colors.warning },
+            ]}
+                onPress={handleJoinQueue}
+              >
+                <Clock size={20} color="#fff" />
+                <Text style={styles.buttonText}>
+                  {t('equipment.queue.joinQueue')}
+            </Text>
+          </TouchableOpacity>
+            )}
 
           {userQueueEntry && (
-            <TouchableOpacity
-              style={[
+          <TouchableOpacity
+            style={[
                 styles.button,
                 {
                   backgroundColor: theme.colors.error,
@@ -475,8 +968,8 @@ export default function EquipmentDetailScreen() {
             >
               <Text style={styles.buttonText}>
                 {t('equipment.queue.leaveQueue')}
-              </Text>
-            </TouchableOpacity>
+            </Text>
+          </TouchableOpacity>
           )}
 
           <TouchableOpacity
@@ -494,7 +987,7 @@ export default function EquipmentDetailScreen() {
               {t('equipment.issue.reportIssue')}
             </Text>
           </TouchableOpacity>
-        </View>
+      </View>
       </ScrollView>
 
       {/* Report Issue Modal */}
@@ -502,6 +995,17 @@ export default function EquipmentDetailScreen() {
         visible={showReportModal}
         onClose={() => setShowReportModal(false)}
         onSubmit={handleReportIssue}
+        equipmentName={equipment.name}
+      />
+
+      {/* Equipment Queue Modal */}
+      <EquipmentQueueModal
+        visible={showQueueModal}
+        onClose={() => {
+          setShowQueueModal(false);
+          loadEquipmentDetails(); // Refresh after modal close
+        }}
+        equipmentId={equipment.id}
         equipmentName={equipment.name}
       />
     </SafeAreaView>
@@ -603,6 +1107,178 @@ const styles = StyleSheet.create({
   queueMemberName: {
     ...Typography.bodyMedium,
     flex: 1,
+  },
+  activeUsageContainer: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 12,
+    borderWidth: 2,
+    overflow: 'hidden',
+  },
+  activeUsageHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  activeUsageHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  headerIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeUsageTitle: {
+    ...Typography.h5,
+    fontFamily: 'SpaceGrotesk-Bold',
+    letterSpacing: 0.5,
+  },
+  activeBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 24,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+  },
+  pulseDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: '#FFFFFF',
+  },
+  activeBadgeText: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    color: '#FFFFFF',
+    fontSize: 12,
+    letterSpacing: 1.2,
+  },
+  statsGrid: {
+    flexDirection: 'row',
+    gap: 16,
+    marginBottom: 24,
+  },
+  statItem: {
+    flex: 1,
+    borderRadius: 20,
+    padding: 20,
+    alignItems: 'center',
+    elevation: 3,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    borderWidth: 1.5,
+  },
+  statIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  flameContainer: {
+    backgroundColor: 'rgba(255, 107, 53, 0.12)',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 107, 53, 0.2)',
+  },
+  statLabel: {
+    ...Typography.labelSmall,
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 10,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    marginBottom: 6,
+    opacity: 0.7,
+  },
+  statValue: {
+    ...Typography.numberSmall,
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 28,
+    lineHeight: 32,
+    fontVariant: ['tabular-nums'],
+  },
+  statUnit: {
+    ...Typography.bodySmall,
+    fontFamily: 'Inter-Medium',
+    fontSize: 13,
+    letterSpacing: 0.2,
+  },
+  calorieValueContainer: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  calorieValue: {
+    color: '#FF6B35',
+  },
+  calorieUnit: {
+    color: '#FF6B35',
+    opacity: 0.7,
+    fontSize: 12,
+  },
+  timerSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+    marginBottom: 16,
+  },
+  timerContent: {
+    flex: 1,
+  },
+  timerLabel: {
+    ...Typography.bodySmall,
+    marginBottom: 4,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  timerValue: {
+    ...Typography.h2,
+    fontWeight: 'bold',
+    fontVariant: ['tabular-nums'],
+  },
+  endUsageButton: {
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexDirection: 'row',
+    gap: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.18,
+    shadowRadius: 6,
+  },
+  endUsageButtonText: {
+    ...Typography.buttonLarge,
+    fontFamily: 'SpaceGrotesk-Bold',
+    color: '#FFFFFF',
+    fontSize: 15,
+    letterSpacing: 0.8,
   },
   actionsContainer: {
     gap: 12,

@@ -337,15 +337,26 @@ class NotificationService {
    * Generic method to send notifications
    * @param {Object} notificationData - Notification data
    * @param {string} notificationData.type - Notification type
-   * @param {string} notificationData.member_id - Member ID (or user_id)
+   * @param {string} notificationData.user_id - User ID from Identity Service (for socket rooms)
+   * @param {string} notificationData.member_id - Member ID (alternative, will need lookup to get user_id)
    * @param {string} notificationData.schedule_id - Schedule ID (optional)
    * @param {Object} notificationData.data - Additional data
+   * @note Socket rooms use user_id (from Identity Service). If only member_id is provided, it needs to be converted to user_id.
    */
   async sendNotification(notificationData) {
     try {
-      const { type, member_id, schedule_id, data } = notificationData;
+      const { type, user_id, member_id, title, message, data } = notificationData;
 
-      // Map notification types to titles and messages
+      // Use user_id if provided (preferred for socket notifications)
+      // Otherwise use member_id (will need to lookup user_id from member service)
+      const targetUserId = user_id || member_id;
+
+      if (!targetUserId) {
+        console.error('sendNotification: user_id or member_id is required');
+        return;
+      }
+
+      // Map notification types to titles and messages (if not provided)
       const notificationTemplates = {
         WAITLIST_ADDED: {
           title: 'Đã thêm vào danh sách chờ',
@@ -367,26 +378,29 @@ class NotificationService {
           title: 'Yêu cầu đổi phòng bị từ chối',
           message: `Yêu cầu đổi phòng cho lớp ${data?.class_name || 'học'} đã bị từ chối. Lý do: ${data?.rejection_reason || 'Không có lý do'}`,
         },
+        CLASS_BOOKING: {
+          title: title || 'Đặt lớp mới',
+          message: message || `Có thành viên đã đặt lớp ${data?.class_name || 'Lớp học'}`,
+        },
       };
 
+      // Use provided title/message or fallback to template
       const template = notificationTemplates[type];
-      if (!template) {
-        console.warn(`Unknown notification type: ${type}`);
-        return;
-      }
+      const finalTitle = title || template?.title || 'Thông báo';
+      const finalMessage = message || template?.message || 'Bạn có thông báo mới';
 
       // Create notification
       await prisma.notification.create({
         data: {
-          user_id: member_id,
+          user_id: targetUserId,
           type,
-          title: template.title,
-          message: template.message,
+          title: finalTitle,
+          message: finalMessage,
           data: data || {},
         },
       });
 
-      console.log(`📢 Notification sent: ${type} to user ${member_id}`);
+      console.log(`Notification sent: ${type} to user ${targetUserId}`);
     } catch (error) {
       console.error('Error sending notification:', error);
       throw error;

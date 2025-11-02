@@ -1,9 +1,11 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Animated,
   Image,
   Pressable,
@@ -16,8 +18,56 @@ const WelcomeScreen = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { isAuthenticated, isLoading, checkRegistrationStatus, user } = useAuth();
   const [loginScale] = React.useState(new Animated.Value(1));
   const [signupScale] = React.useState(new Animated.Value(1));
+  const [hasChecked, setHasChecked] = React.useState(false);
+
+  // Auto-redirect if already logged in - check registration status first
+  useEffect(() => {
+    if (!isLoading && isAuthenticated && user?.id && !hasChecked) {
+      setHasChecked(true);
+      const handleRedirect = async () => {
+        const status = await checkRegistrationStatus();
+        
+        console.log('📊 Registration status check:', {
+          hasMember: status.hasMember,
+          hasSubscription: status.registrationStatus.hasSubscription,
+          hasCompletedProfile: status.registrationStatus.hasCompletedProfile,
+        });
+
+        // Priority: Subscription > Member > Profile
+        if (!status.registrationStatus.hasSubscription) {
+          console.log('⚠️ No subscription - redirecting to plan selection');
+          router.replace({
+            pathname: '/(auth)/register-plan',
+            params: {
+              userId: user.id,
+              accessToken: '', // Will be retrieved from storage if needed
+              refreshToken: '',
+            },
+          });
+        } else if (!status.hasMember || !status.registrationStatus.hasCompletedProfile) {
+          console.log('⚠️ Subscription OK but profile incomplete - redirecting to profile');
+          router.replace({
+            pathname: '/(auth)/register-profile',
+            params: {
+              userId: user.id,
+              accessToken: '',
+              refreshToken: '',
+              paymentVerified: 'true',
+            },
+          });
+        } else {
+          console.log('✅ Complete registration - redirecting to home');
+      router.replace('/(tabs)');
+    }
+      };
+      
+      handleRedirect();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isAuthenticated, user?.id, hasChecked]);
 
   const handleLogin = () => {
     router.push('/(auth)/login');
@@ -35,6 +85,26 @@ const WelcomeScreen = () => {
       tension: 40,
     }).start();
   };
+
+  // Show loading while checking auth
+  if (isLoading) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
+        <Image
+          source={require('@/assets/images/logo.png')}
+          style={styles.logo}
+        />
+        <ActivityIndicator size="large" color={theme.colors.primary} />
+        <Text
+          style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+        >
+          {t('common.loading')}...
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <View
@@ -197,5 +267,9 @@ const styles = StyleSheet.create({
   },
   signupButtonText: {
     ...Typography.buttonLarge,
+  },
+  loadingText: {
+    ...Typography.bodyMedium,
+    marginTop: 16,
   },
 });

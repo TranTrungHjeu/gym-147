@@ -17,22 +17,33 @@ const RegisterCompleteScreen = () => {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const { t } = useTranslation();
-  const { setTokens } = useAuth();
+  const { setTokens, loadMemberProfile } = useAuth();
 
   const userId = params.userId as string;
   const accessToken = params.accessToken as string;
   const refreshToken = params.refreshToken as string;
 
   useEffect(() => {
-    // Set authentication tokens
+    // Set authentication tokens and load member profile
     const initializeAuth = async () => {
       if (accessToken && refreshToken) {
         await setTokens(accessToken, refreshToken);
+        
+        // Load member profile after setting tokens
+        // This ensures member_id is available when user enters the app
+        // Small delay to ensure member service has finished creating member
+        setTimeout(async () => {
+          try {
+            await loadMemberProfile();
+          } catch (loadError) {
+            // Don't block, member profile can be loaded later
+          }
+        }, 500); // 500ms delay to allow member service to complete
       }
     };
 
     initializeAuth();
-  }, [accessToken, refreshToken]);
+  }, [accessToken, refreshToken, setTokens, loadMemberProfile]);
 
   const handleGetStarted = () => {
     // Navigate to main app (index is the home screen)

@@ -1,6 +1,8 @@
+import ActiveGymSessionCard from '@/components/ActiveGymSessionCard';
 import ActivityCard from '@/components/ActivityCard';
 import SessionDetailModal from '@/components/SessionDetailModal';
 import WorkoutCard from '@/components/WorkoutCard';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   analyticsService,
   memberService,
@@ -30,6 +32,7 @@ export default function HomeScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
   const router = useRouter();
+  const { user, member } = useAuth();
 
   // State for API data
   const [loading, setLoading] = useState(true);
@@ -453,6 +456,9 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Active Gym Session Card with animations */}
+        {member?.id && <ActiveGymSessionCard memberId={member.id} />}
+
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
             {t('home.dailyActivity')}
@@ -490,7 +496,10 @@ export default function HomeScreen() {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
               {t('home.recommendedWorkouts')}
             </Text>
-            <TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => router.push('/(tabs)/workouts')}
+              activeOpacity={0.7}
+            >
               <Text
                 style={[styles.seeAllText, { color: theme.colors.primary }]}
               >
@@ -586,7 +595,7 @@ export default function HomeScreen() {
             { color: theme.colors.textInverse },
           ]}
         >
-          Check In
+          {t('access.checkIn')}
         </Text>
       </TouchableOpacity>
 
@@ -602,7 +611,7 @@ export default function HomeScreen() {
             ]}
           >
             <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
-              Choose Access Method
+              {t('access.chooseMethod')}
             </Text>
 
             <TouchableOpacity
@@ -616,7 +625,7 @@ export default function HomeScreen() {
               <Text
                 style={[styles.accessMethodText, { color: theme.colors.text }]}
               >
-                QR Code Scanner
+                {t('access.qrCodeScanner')}
               </Text>
             </TouchableOpacity>
 
@@ -631,7 +640,7 @@ export default function HomeScreen() {
               <Text
                 style={[styles.accessMethodText, { color: theme.colors.text }]}
               >
-                RFID Card
+                {t('access.rfidCard')}
               </Text>
             </TouchableOpacity>
 
@@ -646,7 +655,7 @@ export default function HomeScreen() {
               <Text
                 style={[styles.accessMethodText, { color: theme.colors.text }]}
               >
-                Face Recognition
+                {t('access.faceRecognition')}
               </Text>
             </TouchableOpacity>
 
@@ -660,7 +669,7 @@ export default function HomeScreen() {
               <Text
                 style={[styles.cancelButtonText, { color: theme.colors.text }]}
               >
-                Cancel
+                {t('common.cancel')}
               </Text>
             </TouchableOpacity>
           </View>

@@ -1,3 +1,4 @@
+import { MembershipBadge } from '@/components/MembershipBadge';
 import { DiscountCode, MembershipPlan } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
@@ -65,6 +66,26 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   const discountAmount = calculateDiscount();
   const total = Math.max(0, subtotal - discountAmount);
 
+  const getPlanTier = (
+    type: string | undefined
+  ): 'BASIC' | 'PREMIUM' | 'VIP' | 'STUDENT' => {
+    if (!type) return 'BASIC';
+
+    const typeUpper = String(type).toUpperCase();
+    switch (typeUpper) {
+      case 'BASIC':
+        return 'BASIC';
+      case 'PREMIUM':
+        return 'PREMIUM';
+      case 'VIP':
+        return 'VIP';
+      case 'STUDENT':
+        return 'STUDENT';
+      default:
+        return 'BASIC';
+    }
+  };
+
   const themedStyles = StyleSheet.create({
     container: {
       borderRadius: theme.radius.xl,
@@ -79,7 +100,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
       lineHeight: 28,
       letterSpacing: -0.2,
       color: theme.colors.text,
-      marginBottom: theme.spacing.lg,
+      marginBottom: theme.spacing.xl,
     },
     planInfo: {
       padding: theme.spacing.lg,
@@ -89,37 +110,38 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
       borderColor: `${theme.colors.primary}20`,
       marginBottom: theme.spacing.lg,
     },
+    planHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
     planName: {
-      fontFamily: FontFamily.spaceGroteskSemiBold,
+      fontFamily: FontFamily.spaceGroteskBold,
       fontSize: 18,
-      lineHeight: 24,
+      lineHeight: 26,
       letterSpacing: -0.2,
       color: theme.colors.text,
-      marginBottom: theme.spacing.xs,
-    },
-    planDuration: {
-      fontFamily: FontFamily.interRegular,
-      fontSize: 14,
-      lineHeight: 20,
-      color: theme.colors.textSecondary,
+      textAlign: 'center',
     },
     bonusInfo: {
+      marginTop: theme.spacing.xs,
+    },
+    bonusText: {
       fontFamily: FontFamily.interMedium,
       fontSize: 13,
       lineHeight: 18,
       color: theme.colors.success,
-      marginTop: theme.spacing.sm,
     },
     divider: {
       height: 1,
-      backgroundColor: `${theme.colors.border}50`,
+      backgroundColor: theme.colors.border,
       marginVertical: theme.spacing.lg,
     },
     row: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
     },
     label: {
       fontFamily: FontFamily.interRegular,
@@ -135,6 +157,11 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     },
     discountRow: {
       marginBottom: theme.spacing.sm,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      backgroundColor: `${theme.colors.success}08`,
+      borderWidth: 1,
+      borderColor: `${theme.colors.success}20`,
     },
     discountLabel: {
       fontFamily: FontFamily.interMedium,
@@ -144,23 +171,26 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     },
     discountValue: {
       fontFamily: FontFamily.interSemiBold,
-      fontSize: 15,
-      lineHeight: 22,
+      fontSize: 16,
+      lineHeight: 24,
       color: theme.colors.success,
     },
     discountCode: {
       fontFamily: FontFamily.interRegular,
       fontSize: 13,
       lineHeight: 18,
-      color: theme.colors.textTertiary,
+      color: theme.colors.success,
       marginTop: theme.spacing.xs,
+      paddingTop: theme.spacing.xs,
+      borderTopWidth: 1,
+      borderTopColor: `${theme.colors.success}20`,
     },
     totalRow: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
       marginTop: theme.spacing.md,
-      paddingTop: theme.spacing.lg,
+      paddingTop: theme.spacing.xl,
       borderTopWidth: 2,
       borderTopColor: theme.colors.border,
     },
@@ -186,26 +216,30 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
       </Text>
 
       <View style={themedStyles.planInfo}>
-        <Text style={themedStyles.planName}>{String(plan.name || '')}</Text>
-        <Text style={themedStyles.planDuration}>
-          {String(
-            `${plan.duration_months} ${t('common.months') || 'tháng'}${
-              bonusDays > 0
+        <View style={themedStyles.planHeader}>
+          <View style={{ marginRight: theme.spacing.md }}>
+            <MembershipBadge tier={getPlanTier(plan.type)} size="medium" />
+          </View>
+          <View>
+            <Text style={themedStyles.planName}>
+              {String(plan.name || '')}: {plan.duration_months}{' '}
+              {t('common.months') || 'tháng'}
+              {bonusDays > 0
                 ? ` + ${bonusDays} ${t('registration.bonusDays') || 'ngày'}`
-                : ''
-            }`
-          )}
-        </Text>
-        {bonusDays > 0 ? (
-          <Text style={themedStyles.bonusInfo}>
-            {String(
-              `🎉 ${
-                t('registration.bonusDaysApplied', { days: bonusDays }) ||
-                `Đã thêm ${bonusDays} ngày sử dụng`
-              }`
-            )}
-          </Text>
-        ) : null}
+                : ''}
+            </Text>
+            {bonusDays > 0 ? (
+              <Text style={themedStyles.bonusText}>
+                {String(
+                  `🎉 ${
+                    t('registration.bonusDaysApplied', { days: bonusDays }) ||
+                    `Đã thêm ${bonusDays} ngày sử dụng`
+                  }`
+                )}
+              </Text>
+            ) : null}
+          </View>
+        </View>
       </View>
 
       <View style={themedStyles.row}>

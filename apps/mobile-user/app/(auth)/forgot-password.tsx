@@ -3,11 +3,12 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
+  Animated,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -24,6 +25,56 @@ const ForgotPasswordScreen = () => {
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [emailSent, setEmailSent] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const modalScale = useRef(new Animated.Value(0)).current;
+  const modalFade = useRef(new Animated.Value(0)).current;
+  const successIconScale = useRef(new Animated.Value(0)).current;
+  const successIconFade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (showErrorModal) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(modalFade, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      modalScale.setValue(0);
+      modalFade.setValue(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showErrorModal]);
+
+  useEffect(() => {
+    if (emailSent) {
+      Animated.parallel([
+        Animated.spring(successIconScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(successIconFade, {
+          toValue: 1,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      successIconScale.setValue(0);
+      successIconFade.setValue(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [emailSent]);
 
   const handleGoBack = () => {
     router.push('/');
@@ -35,10 +86,10 @@ const ForgotPasswordScreen = () => {
 
   const validateForm = () => {
     if (!email.trim()) {
-      setError(t('auth.email') + ' is required');
+      setError(t('validation.emailRequired'));
       return false;
     } else if (!/\S+@\S+\.\S+/.test(email)) {
-      setError(t('auth.email') + ' is invalid');
+      setError(t('validation.emailInvalid'));
       return false;
     }
     setError('');
@@ -53,13 +104,13 @@ const ForgotPasswordScreen = () => {
     try {
       await forgotPassword({ email });
       setEmailSent(true);
-      Alert.alert(
-        t('common.success'),
-        t('auth.passwordResetInstructionsSent'),
-        [{ text: t('common.ok') }]
-      );
     } catch (error) {
-      Alert.alert(t('common.error'), t('auth.unableToSendEmail'));
+      const errorMsg =
+        error instanceof Error
+          ? error.message
+          : t('auth.unableToSendEmail');
+      setErrorMessage(errorMsg);
+      setShowErrorModal(true);
     }
   };
 
@@ -80,7 +131,22 @@ const ForgotPasswordScreen = () => {
         </TouchableOpacity>
 
         <View style={styles.successContainer}>
-          <Text style={styles.successIcon}>✉️</Text>
+          <Animated.View
+            style={[
+              styles.successIconContainer,
+              { backgroundColor: `${theme.colors.primary}15` },
+              {
+                transform: [{ scale: successIconScale }],
+                opacity: successIconFade,
+              },
+            ]}
+          >
+            <Ionicons
+              name="mail-unread-outline"
+              size={64}
+              color={theme.colors.primary}
+            />
+          </Animated.View>
           <Text style={[styles.successTitle, { color: theme.colors.text }]}>
             {t('auth.emailSent')}
           </Text>
@@ -92,13 +158,13 @@ const ForgotPasswordScreen = () => {
 
           <TouchableOpacity
             style={[
-              styles.loginButtonWrapper,
+              styles.successButtonWrapper,
               { backgroundColor: theme.colors.primary },
             ]}
             onPress={handleLogin}
           >
             <Text
-              style={[styles.loginText, { color: theme.colors.textInverse }]}
+              style={[styles.successButtonText, { color: theme.colors.textInverse }]}
             >
               {t('auth.login')}
             </Text>
@@ -224,6 +290,57 @@ const ForgotPasswordScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Error Modal */}
+      <Modal visible={showErrorModal} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                transform: [{ scale: modalScale }],
+                opacity: modalFade,
+              },
+            ]}
+          >
+            {/* Icon */}
+            <View
+              style={[
+                styles.modalIcon,
+                { backgroundColor: `${theme.colors.error}15` },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={48}
+                color={theme.colors.error}
+              />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {t('common.error')}
+            </Text>
+
+            {/* Message */}
+            <Text
+              style={[styles.modalMessage, { color: theme.colors.textSecondary }]}
+            >
+              {errorMessage}
+            </Text>
+
+            {/* OK Button */}
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setShowErrorModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>{t('common.ok')}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -277,8 +394,12 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     paddingHorizontal: 12,
+    paddingVertical: 0,
+    height: 24, // Match lineHeight to prevent shift
     ...Typography.bodyMedium,
-    minHeight: 24,
+    lineHeight: undefined, // Remove lineHeight for TextInput
+    includeFontPadding: false, // Android: prevent extra padding
+    textAlignVertical: 'center', // Android: vertical alignment
   },
   errorText: {
     ...Typography.bodySmall,
@@ -320,6 +441,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 20,
   },
+  successIconContainer: {
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 5,
+  },
   successIcon: {
     fontSize: 80,
     marginBottom: 24,
@@ -334,15 +468,85 @@ const styles = StyleSheet.create({
     lineHeight: 24,
     marginBottom: 40,
   },
+  successButtonWrapper: {
+    borderRadius: 16,
+    width: '100%',
+    paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  successButtonText: {
+    ...Typography.buttonLarge,
+    color: '#FFFFFF',
+  },
   resendButtonWrapper: {
     borderWidth: 1.5,
     borderRadius: 16,
     marginTop: 12,
     width: '100%',
     paddingVertical: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   resendText: {
     ...Typography.buttonMedium,
     textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContainer: {
+    width: '85%',
+    maxWidth: 400,
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  modalMessage: {
+    ...Typography.bodyMedium,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 24,
+  },
+  modalButton: {
+    width: '100%',
+    paddingVertical: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonText: {
+    ...Typography.buttonLarge,
+    color: '#FFFFFF',
   },
 });

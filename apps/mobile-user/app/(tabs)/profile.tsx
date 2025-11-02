@@ -1,6 +1,7 @@
+import { MembershipBadge } from '@/components/MembershipBadge';
 import ProfileSection from '@/components/ProfileSection';
 import { authService, memberService, notificationService } from '@/services';
-import { type Member } from '@/types/memberTypes';
+import { MembershipType, type Member } from '@/types/memberTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
@@ -14,6 +15,7 @@ import {
   Settings,
   Shield,
   Target,
+  Trophy,
   CircleUser as UserCircle,
   Weight,
 } from 'lucide-react-native';
@@ -31,6 +33,10 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// Import avatar frames for VIP and PREMIUM
+import PremiumFrame from '@/assets/frame/premium.svg';
+import VipFrame from '@/assets/frame/vip.svg';
 
 export default function ProfileScreen() {
   const { theme } = useTheme();
@@ -77,11 +83,33 @@ export default function ProfileScreen() {
           );
         }
       } else {
-        setError(response.error || 'Failed to load profile');
+        const errorMsg = response.error || 'Failed to load profile';
+        setError(errorMsg);
+
+        // If session expired, redirect to login
+        if (
+          errorMsg.includes('Session expired') ||
+          errorMsg.includes('login again')
+        ) {
+          setTimeout(() => {
+            router.replace('/(auth)/login');
+          }, 1500);
+        }
       }
     } catch (err: any) {
       console.error('Error loading profile:', err);
-      setError(err.message || 'Failed to load profile');
+      const errorMsg = err.message || 'Failed to load profile';
+      setError(errorMsg);
+
+      // If session expired, redirect to login
+      if (
+        errorMsg.includes('Session expired') ||
+        errorMsg.includes('login again')
+      ) {
+        setTimeout(() => {
+          router.replace('/(auth)/login');
+        }, 1500);
+      }
     } finally {
       setLoading(false);
     }
@@ -188,6 +216,12 @@ export default function ProfileScreen() {
 
   const accountItems = [
     {
+      id: 'achievements',
+      label: t('navigation.achievements'),
+      icon: <Trophy size={20} color={theme.colors.warning} />,
+      onPress: () => router.push('/achievements'),
+    },
+    {
       id: 'settings',
       label: t('common.settings'),
       icon: <Settings size={20} color={theme.colors.primary} />,
@@ -259,6 +293,7 @@ export default function ProfileScreen() {
       >
         <View style={themedStyles.profileHeader}>
           <View style={themedStyles.profileImageContainer}>
+            {/* Avatar Image */}
             {userProfile?.profile_photo ? (
               <Image
                 source={{ uri: userProfile.profile_photo }}
@@ -267,10 +302,39 @@ export default function ProfileScreen() {
             ) : (
               <UserCircle size={80} color={theme.colors.primary} />
             )}
+
+            {/* VIP/PREMIUM Frame Overlay */}
+            {userProfile?.membership_type === 'VIP' && (
+              <View style={themedStyles.frameOverlay}>
+                <VipFrame width={160} height={160} />
+              </View>
+            )}
+            {userProfile?.membership_type === 'PREMIUM' && (
+              <View style={themedStyles.frameOverlay}>
+                <PremiumFrame width={160} height={160} />
+              </View>
+            )}
           </View>
-          <Text style={[Typography.h3, { color: theme.colors.text }]}>
-            {userProfile?.full_name || 'User'}
-          </Text>
+          <View
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 4,
+            }}
+          >
+            <Text style={[Typography.h3, { color: theme.colors.text }]}>
+              {userProfile?.full_name || 'User'}
+            </Text>
+
+            {/* Membership Badge */}
+            {userProfile?.membership_type && (
+              <MembershipBadge
+                tier={userProfile.membership_type}
+                size="small"
+              />
+            )}
+          </View>
 
           <View style={themedStyles.editButtonsContainer}>
             <TouchableOpacity
@@ -410,6 +474,69 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Membership Info Card */}
+        {userProfile?.membership_type && (
+          <View style={themedStyles.membershipCard}>
+            <View style={themedStyles.membershipHeader}>
+              <Text style={[Typography.h4, { color: theme.colors.text }]}>
+                {t('profile.membershipBenefits.title')}
+              </Text>
+              <MembershipBadge
+                tier={userProfile.membership_type}
+                size="large"
+              />
+            </View>
+
+            <View style={themedStyles.benefitsList}>
+              {(
+                t(`profile.membershipBenefits.${userProfile.membership_type}`, {
+                  returnObjects: true,
+                }) as string[]
+              ).map((benefit: string, index: number) => (
+                <View key={index} style={themedStyles.benefitItem}>
+                  <Text style={{ color: theme.colors.primary, fontSize: 16 }}>
+                    ✓
+                  </Text>
+                  <Text
+                    style={[
+                      Typography.bodyRegular,
+                      { color: theme.colors.text, flex: 1, marginLeft: 8 },
+                    ]}
+                  >
+                    {benefit}
+                  </Text>
+                </View>
+              ))}
+            </View>
+
+            {userProfile.membership_type !== MembershipType.VIP && (
+              <TouchableOpacity
+                style={[
+                  themedStyles.upgradeButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={() => router.push('/subscription/plans')}
+              >
+                <Gift size={20} color={theme.colors.textInverse} />
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    {
+                      color: theme.colors.textInverse,
+                      marginLeft: 8,
+                      fontWeight: '600',
+                    },
+                  ]}
+                >
+                  {userProfile.membership_type === MembershipType.PREMIUM
+                    ? t('profile.upgradeToPremium').replace('Premium', 'VIP')
+                    : t('profile.upgradeToPremium')}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        )}
+
         <ProfileSection title={t('profile.health')} items={healthItems} />
         <ProfileSection title={t('profile.account')} items={accountItems} />
         <ProfileSection title={t('profile.support')} items={supportItems} />
@@ -465,11 +592,11 @@ const styles = (theme: any) =>
     profileImageContainer: {
       width: 100,
       height: 100,
-      borderRadius: theme.radius.xl,
+      borderRadius: 50, // Làm tròn hoàn toàn (100/2 = 50)
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: theme.spacing.lg,
-      overflow: 'hidden',
+      overflow: 'visible', // Cho phép frame vượt ra ngoài
       backgroundColor: theme.colors.surface,
       borderWidth: 3,
       borderColor: theme.colors.primary + '30',
@@ -478,6 +605,45 @@ const styles = (theme: any) =>
     profileImage: {
       width: 100,
       height: 100,
+      borderRadius: 50, // Làm tròn hoàn toàn
+    },
+    frameOverlay: {
+      position: 'absolute',
+      top: -32,
+      left: -32,
+      width: 160,
+      height: 160,
+      justifyContent: 'center',
+      alignItems: 'center',
+      pointerEvents: 'none', // Không chặn tương tác với avatar
+    },
+    cameraIconOverlay: {
+      position: 'absolute',
+      bottom: 0,
+      right: 0,
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      justifyContent: 'center',
+      alignItems: 'center',
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
+      ...theme.shadows.sm,
+    },
+    sparkle: {
+      position: 'absolute',
+      fontSize: 20,
+      pointerEvents: 'none',
+    },
+    glowBackground: {
+      position: 'absolute',
+      width: 180,
+      height: 180,
+      borderRadius: 90,
+      shadowOffset: { width: 0, height: 0 },
+      shadowOpacity: 0.8,
+      shadowRadius: 25,
+      elevation: 15,
     },
     editButtonsContainer: {
       flexDirection: 'row',
@@ -517,6 +683,36 @@ const styles = (theme: any) =>
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: theme.spacing.sm,
+    },
+    membershipCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.lg,
+      marginVertical: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    membershipHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.md,
+    },
+    benefitsList: {
+      marginTop: theme.spacing.sm,
+    },
+    benefitItem: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: theme.spacing.sm,
+    },
+    upgradeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      marginTop: theme.spacing.md,
     },
     appVersion: {
       alignItems: 'center',

@@ -380,7 +380,7 @@ export default function SessionDetailModal({
                     style={[styles.sectionTitle, { color: theme.colors.text }]}
                   >
                     {t('session.equipmentUsed')} ({equipmentUsage.totalSessions}{' '}
-                    {t('session.devices')})
+                    {t('session.device')})
                   </Text>
 
                   {/* Equipment Usage Summary */}
@@ -500,21 +500,22 @@ export default function SessionDetailModal({
                               </View>
                             </View>
                           )}
-                          {equipment.calories_burned && (
-                            <View style={styles.equipmentStatRow}>
-                              <Text
-                                style={[
-                                  styles.equipmentStat,
-                                  { color: theme.colors.text },
-                                ]}
-                              >
-                                {equipment.calories_burned} cal
-                              </Text>
-                              <View style={styles.statIconContainer}>
-                                <Flame size={14} color="#FF6B6B" />
+                          {equipment.calories_burned !== undefined &&
+                            equipment.calories_burned !== null && (
+                              <View style={styles.equipmentStatRow}>
+                                <Text
+                                  style={[
+                                    styles.equipmentStat,
+                                    { color: theme.colors.text },
+                                  ]}
+                                >
+                                  {equipment.calories_burned || 0} cal
+                                </Text>
+                                <View style={styles.statIconContainer}>
+                                  <Flame size={14} color="#FF6B6B" />
+                                </View>
                               </View>
-                            </View>
-                          )}
+                            )}
                           {equipment.sets_completed && (
                             <View style={styles.equipmentStatRow}>
                               <Text
@@ -523,7 +524,7 @@ export default function SessionDetailModal({
                                   { color: theme.colors.text },
                                 ]}
                               >
-                                {equipment.sets_completed} {t('common.sets')}
+                                {equipment.sets_completed} {t('session.sets')}
                               </Text>
                               <View style={styles.statIconContainer}>
                                 <Dumbbell size={14} color="#4ECDC4" />

@@ -27,7 +27,7 @@ export default function HealthTrendsScreen() {
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [period, setPeriod] = useState('weekly');
@@ -59,12 +59,12 @@ export default function HealthTrendsScreen() {
   ];
 
   const loadTrends = async () => {
-    if (!user?.id) return;
+    if (!member?.id) return;
 
     try {
       const [trendsData, metricsData] = await Promise.all([
-        healthService.getHealthTrends(user.id, period),
-        healthService.getHealthMetrics(user.id, {
+        healthService.getHealthTrends(member.id, period),
+        healthService.getHealthMetrics(member.id, {
           type: selectedMetric,
           limit: 30,
         }),
@@ -106,7 +106,7 @@ export default function HealthTrendsScreen() {
 
   useEffect(() => {
     loadTrends();
-  }, [user?.id, period, selectedMetric]);
+  }, [member?.id, period, selectedMetric]);
 
   useEffect(() => {
     setLoading(false);

@@ -57,6 +57,11 @@ router.get('/members/:id/memberships', (req, res) =>
 // Create new membership
 router.post('/members/:id/memberships', (req, res) => memberController.createMembership(req, res));
 
+// Create membership by user_id (for cross-service integration)
+router.post('/members/user/:user_id/memberships', (req, res) =>
+  memberController.createMembershipByUserId(req, res)
+);
+
 // ==================== ACCESS CONTROL ROUTES ====================
 
 // Generate RFID tag

@@ -33,9 +33,19 @@ router.post('/members/:id/equipment/stop', (req, res) =>
   equipmentController.stopEquipmentUsage(req, res)
 );
 
+// Get active usage for equipment and member
+router.get('/equipment/:equipmentId/active-usage/:memberId', (req, res) =>
+  equipmentController.getActiveUsage(req, res)
+);
+
 // Get equipment usage statistics
 router.get('/members/:id/equipment-usage/stats', (req, res) =>
   equipmentController.getEquipmentUsageStats(req, res)
+);
+
+// Auto-stop expired sessions (internal use or cron)
+router.post('/equipment/auto-stop-expired', (req, res) =>
+  equipmentController.autoStopExpiredSessions(req, res)
 );
 
 // ==================== MAINTENANCE ROUTES ====================
@@ -49,5 +59,29 @@ router.get('/equipment/:id/maintenance', (req, res) =>
 router.post('/equipment/:id/maintenance', (req, res) =>
   equipmentController.createMaintenanceLog(req, res)
 );
+
+// ==================== QUEUE ROUTES ====================
+
+// Join equipment queue
+router.post('/equipment/:id/queue/join', (req, res) => equipmentController.joinQueue(req, res));
+
+// Leave equipment queue
+router.delete('/equipment/queue/:id', (req, res) => equipmentController.leaveQueue(req, res));
+
+// Get equipment queue
+router.get('/equipment/:id/queue', (req, res) => equipmentController.getEquipmentQueue(req, res));
+
+// ==================== ISSUE REPORTING ROUTES ====================
+
+// Report equipment issue
+router.post('/equipment/:id/issues', (req, res) => equipmentController.reportIssue(req, res));
+
+// Get equipment issues
+router.get('/equipment/:id/issues', (req, res) => equipmentController.getEquipmentIssues(req, res));
+
+// ==================== QR CODE ROUTES ====================
+
+// Validate equipment QR code
+router.post('/equipment/validate-qr', (req, res) => equipmentController.validateQRCode(req, res));
 
 module.exports = router;

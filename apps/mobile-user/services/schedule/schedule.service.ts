@@ -2,7 +2,11 @@ import { Schedule, ScheduleFilters, ScheduleStats } from '@/types/classTypes';
 import { scheduleApiService } from './api.service';
 
 class ScheduleService {
-  private baseUrl = 'http://10.0.2.2:3001/schedules'; // Schedule Service
+  // Get base URL from centralized config
+  private get baseUrl() {
+    const { SERVICE_URLS } = require('@/config/environment');
+    return `${SERVICE_URLS.SCHEDULE}/schedules`;
+  }
 
   /**
    * Get all schedules with optional filters
@@ -59,9 +63,21 @@ class ScheduleService {
 
       const response = await scheduleApiService.get(`/schedules/${id}`);
 
+      // Backend returns: { success: true, data: { schedule: ... } }
+      // ApiService.handleResponse already unwraps the response.data
+      // So response.data is already the inner data object
+      const schedule = response.data?.schedule || response.data;
+
+      if (!schedule) {
+        return {
+          success: false,
+          error: 'Schedule data not found in response',
+        };
+      }
+
       return {
         success: true,
-        data: response.data,
+        data: schedule,
       };
     } catch (error: any) {
       console.error('❌ Error fetching schedule:', error);

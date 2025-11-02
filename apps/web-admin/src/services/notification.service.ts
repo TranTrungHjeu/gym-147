@@ -73,11 +73,13 @@ class NotificationService {
       ...(unreadOnly && { unreadOnly: 'true' }),
     });
 
-    return this.request<NotificationResponse>(`/users/${userId}/notifications?${params}`);
+    // Backend route: /notifications/:user_id
+    return this.request<NotificationResponse>(`/notifications/${userId}?${params}`);
   }
 
   async getUnreadCount(userId: string): Promise<ApiResponse<{ unreadCount: number }>> {
-    return this.request<{ unreadCount: number }>(`/users/${userId}/notifications/unread-count`);
+    // Backend route: /notifications/unread-count/:user_id
+    return this.request<{ unreadCount: number }>(`/notifications/unread-count/${userId}`);
   }
 
   async markAsRead(notificationId: string, userId: string): Promise<ApiResponse<any>> {

@@ -55,9 +55,8 @@ model Member {
   workout_plans     WorkoutPlan[]
   achievements      Achievement[]
   notifications     Notification[]
-  bookings          Booking[]
-  payments          Payment[]
-  subscriptions     Subscription[]
+  equipment_queue   EquipmentQueue[]
+  equipment_reports EquipmentIssueReport[]
 
   @@map("members")
 }
@@ -109,6 +108,7 @@ model EquipmentUsage {
   session_id   String?  // Link to gym session
   start_time   DateTime @default(now())
   end_time     DateTime?
+  auto_end_at  DateTime? // Auto-end time if user forgets to stop (default 3 hours)
   duration     Int?     // in minutes
   calories_burned Int?
   sets_completed Int?
@@ -227,6 +227,8 @@ model Equipment {
   
   maintenance_logs  MaintenanceLog[]
   usage_logs        EquipmentUsage[]
+  queue             EquipmentQueue[]
+  issue_reports     EquipmentIssueReport[]
   
   created_at        DateTime           @default(now())
   updated_at        DateTime           @updatedAt
@@ -250,43 +252,53 @@ model MaintenanceLog {
   @@map("maintenance_logs")
 }
 
-// Cross-service references
-model Booking {
-  id           String   @id @default(cuid())
-  member_id    String
-  schedule_id  String   // Reference to schedule service
-  status       String
-  booked_at    DateTime @default(now())
-  cancelled_at DateTime?
-
-  member Member @relation(fields: [member_id], references: [id])
-
-  @@map("bookings_ref")
+// Equipment Queue Management
+model EquipmentQueue {
+  id            String      @id @default(cuid())
+  member_id     String
+  equipment_id  String
+  position      Int
+  joined_at     DateTime    @default(now())
+  notified_at   DateTime?
+  status        QueueStatus @default(WAITING)
+  expires_at    DateTime?   // Auto-expire after 5 minutes if notified
+  
+  member        Member      @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  equipment     Equipment   @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+  
+  created_at    DateTime    @default(now())
+  updated_at    DateTime    @updatedAt
+  
+  @@index([equipment_id, position])
+  @@index([member_id])
+  @@index([status])
+  @@map("equipment_queue")
 }
 
-model Payment {
-  id        String   @id @default(cuid())
-  member_id String
-  amount    Decimal  @db.Decimal(10, 2)
-  status    String
-  paid_at   DateTime @default(now())
-
-  member Member @relation(fields: [member_id], references: [id])
-
-  @@map("payments_ref")
-}
-
-model Subscription {
-  id        String   @id @default(cuid())
-  member_id String
-  plan_id   String   // Reference to billing service
-  status    String
-  start_date DateTime
-  end_date  DateTime
-
-  member Member @relation(fields: [member_id], references: [id])
-
-  @@map("subscriptions_ref")
+// Equipment Issue Reporting
+model EquipmentIssueReport {
+  id            String       @id @default(cuid())
+  equipment_id  String
+  member_id     String
+  issue_type    IssueType
+  description   String
+  severity      Severity
+  status        ReportStatus @default(PENDING)
+  images        String[]     // S3 URLs
+  resolved_at   DateTime?
+  resolved_by   String?      // Staff user_id
+  resolution_notes String?
+  
+  equipment     Equipment    @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+  member        Member       @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  
+  created_at    DateTime     @default(now())
+  updated_at    DateTime     @updatedAt
+  
+  @@index([equipment_id])
+  @@index([member_id])
+  @@index([status])
+  @@map("equipment_issue_reports")
 }
 
 enum Gender {
@@ -364,4 +376,36 @@ enum EquipmentStatus {
   MAINTENANCE
   OUT_OF_ORDER
   RESERVED
+}
+
+enum QueueStatus {
+  WAITING
+  NOTIFIED
+  EXPIRED
+  CANCELLED
+  COMPLETED
+}
+
+enum IssueType {
+  BROKEN
+  DAMAGED
+  DIRTY
+  MISSING_PARTS
+  UNSAFE
+  OTHER
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ReportStatus {
+  PENDING
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+  REJECTED
 }

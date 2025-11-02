@@ -2,6 +2,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Clock, Play, User, X, Youtube } from 'lucide-react-native';
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Alert,
   Dimensions,
@@ -44,6 +45,7 @@ function YouTubeVideoPlayer({
   style,
 }: YouTubeVideoPlayerProps) {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [showModal, setShowModal] = useState(false);
 
   const handlePlayVideo = () => {

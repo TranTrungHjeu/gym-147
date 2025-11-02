@@ -164,7 +164,6 @@ class TrainerController {
 
   async createTrainer(req, res) {
     try {
-      console.log('Creating trainer with data:', req.body);
       const {
         user_id,
         full_name,
@@ -1070,8 +1069,8 @@ class TrainerController {
       const max_capacity = parseInt(rawMaxCapacity) || 20;
       const special_notes = rawSpecialNotes?.trim().substring(0, 200) || null;
 
-      // Check rate limit
-      if (!rateLimitService.checkRateLimit(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000)) {
+      // Check rate limit (only check, don't increment yet)
+      if (!rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000)) {
         const rateLimitInfo = rateLimitService.getRateLimitInfo(user_id, 'create_schedule');
         return res.status(429).json({
           success: false,
@@ -1345,7 +1344,6 @@ class TrainerController {
       }
 
       // Get or create gym class
-      console.log('🔍 Looking for existing gym class:', { class_name, category, difficulty });
       let gymClass = await prisma.gymClass.findFirst({
         where: {
           name: class_name,
@@ -1357,7 +1355,19 @@ class TrainerController {
       if (!gymClass) {
         // Get price based on difficulty
         const price = PriceMappingService.getPriceByDifficulty(difficulty);
-        console.log('💰 Creating new gym class with price:', price);
+
+        // Map Difficulty to CertificationLevel
+        // Difficulty: BEGINNER, INTERMEDIATE, ADVANCED, ALL_LEVELS
+        // CertificationLevel: BASIC, INTERMEDIATE, ADVANCED, EXPERT
+        // Note: EXPERT is required to teach ALL_LEVELS classes
+        const difficultyToCertLevel = {
+          BEGINNER: 'BASIC',
+          INTERMEDIATE: 'INTERMEDIATE',
+          ADVANCED: 'ADVANCED',
+          ALL_LEVELS: 'EXPERT', // EXPERT is required to teach ALL_LEVELS
+        };
+        
+        const requiredCertLevel = difficultyToCertLevel[difficulty] || 'BASIC';
 
         gymClass = await prisma.gymClass.create({
           data: {
@@ -1368,25 +1378,13 @@ class TrainerController {
             price,
             duration: 60, // Default 60 minutes
             equipment_needed: [], // Required field in schema
-            required_certification_level: difficulty, // Map difficulty to certification level
+            required_certification_level: requiredCertLevel, // Map difficulty to certification level
             is_active: true,
           },
         });
-        console.log('✅ Created gym class:', gymClass.id);
-      } else {
-        console.log('✅ Found existing gym class:', gymClass.id);
       }
 
       // Create schedule
-      console.log('📅 Creating schedule with data:', {
-        trainer_id: trainer.id,
-        class_id: gymClass.id,
-        room_id,
-        start_time: startDateTime,
-        end_time: endDateTime,
-        max_capacity,
-      });
-
       const schedule = await prisma.schedule.create({
         data: {
           trainer_id: trainer.id,
@@ -1413,7 +1411,9 @@ class TrainerController {
         },
       });
 
-      console.log('✅ Created schedule:', schedule.id);
+
+      // Increment rate limit counter ONLY after successful creation
+      rateLimitService.incrementRateLimit(user_id, 'create_schedule', 24 * 60 * 60 * 1000);
 
       res.status(201).json({
         success: true,

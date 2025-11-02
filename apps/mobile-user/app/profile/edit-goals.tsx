@@ -49,6 +49,35 @@ const RELATIONSHIP_OPTIONS = [
   'OTHER',
 ];
 
+const getGoalLabelKey = (goal: string): string => {
+  const mapping: Record<string, string> = {
+    WEIGHT_LOSS: 'fitnessGoalWeightLoss',
+    MUSCLE_GAIN: 'fitnessGoalMuscleGain',
+    ENDURANCE: 'fitnessGoalEndurance',
+    FLEXIBILITY: 'fitnessGoalFlexibility',
+    STRENGTH: 'fitnessGoalStrength',
+    CARDIO: 'fitnessGoalCardio',
+    GENERAL_FITNESS: 'fitnessGoalGeneral',
+    SPORTS_PERFORMANCE: 'fitnessGoalSports',
+    REHABILITATION: 'fitnessGoalRehabilitation',
+    MAINTENANCE: 'fitnessGoalMaintenance',
+  };
+  return mapping[goal] || goal;
+};
+
+const getRelationshipLabelKey = (relationship: string): string => {
+  const mapping: Record<string, string> = {
+    SPOUSE: 'relationshipSpouse',
+    PARENT: 'relationshipParent',
+    CHILD: 'relationshipChild',
+    SIBLING: 'relationshipSibling',
+    FRIEND: 'relationshipFriend',
+    COLLEAGUE: 'relationshipColleague',
+    OTHER: 'relationshipOther',
+  };
+  return mapping[relationship] || relationship;
+};
+
 export default function EditGoalsScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -100,8 +129,8 @@ export default function EditGoalsScreen() {
     ) {
       newErrors.emergency_contact = {
         ...newErrors.emergency_contact,
-        phone: 'Phone number is required when name is provided',
-      };
+        phone: t('profile.emergencyPhoneRequired'),
+      } as any;
     }
 
     if (
@@ -112,8 +141,8 @@ export default function EditGoalsScreen() {
     ) {
       newErrors.emergency_contact = {
         ...newErrors.emergency_contact,
-        phone: 'Invalid phone number',
-      };
+        phone: t('profile.emergencyPhoneInvalid'),
+      } as any;
     }
 
     setErrors(newErrors);
@@ -170,16 +199,9 @@ export default function EditGoalsScreen() {
     if (errors.emergency_contact?.[field]) {
       setErrors((prev) => ({
         ...prev,
-        emergency_contact: { ...prev.emergency_contact, [field]: undefined },
+        emergency_contact: { ...prev.emergency_contact, [field]: undefined } as any,
       }));
     }
-  };
-
-  const formatGoalLabel = (goal: string) => {
-    return goal
-      .split('_')
-      .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-      .join(' ');
   };
 
   if (loading) {
@@ -190,7 +212,7 @@ export default function EditGoalsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading profile...
+            {t('profile.loadingProfile')}
           </Text>
         </View>
       </SafeAreaView>
@@ -202,7 +224,7 @@ export default function EditGoalsScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -210,7 +232,7 @@ export default function EditGoalsScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Edit Goals & Emergency
+          {t('profile.editGoals')}
         </Text>
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
@@ -225,17 +247,21 @@ export default function EditGoalsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.form}>
           {/* Fitness Goals */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Fitness Goals
+              {t('profile.fitnessGoals')}
             </Text>
             <Text
               style={[styles.subLabel, { color: theme.colors.textSecondary }]}
             >
-              Select all that apply
+              {t('profile.selectAllThatApply')}
             </Text>
 
             <View style={styles.goalsGrid}>
@@ -263,7 +289,7 @@ export default function EditGoalsScreen() {
                       },
                     ]}
                   >
-                    {formatGoalLabel(goal)}
+                    {t(`profile.${getGoalLabelKey(goal)}`)}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -273,13 +299,13 @@ export default function EditGoalsScreen() {
           {/* Emergency Contact */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Emergency Contact
+              {t('profile.emergencyContact')}
             </Text>
 
             {/* Name */}
             <View style={styles.emergencyField}>
               <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>
-                Name
+                {t('profile.emergencyContactName')}
               </Text>
               <TextInput
                 style={[
@@ -292,7 +318,7 @@ export default function EditGoalsScreen() {
                 ]}
                 value={formData.emergency_contact.name}
                 onChangeText={(value) => updateEmergencyContact('name', value)}
-                placeholder="Emergency contact name"
+                placeholder={t('profile.enterEmergencyName')}
                 placeholderTextColor={theme.colors.textSecondary}
               />
             </View>
@@ -300,7 +326,7 @@ export default function EditGoalsScreen() {
             {/* Phone */}
             <View style={styles.emergencyField}>
               <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>
-                Phone Number
+                {t('profile.emergencyContactPhone')}
               </Text>
               <TextInput
                 style={[
@@ -315,7 +341,7 @@ export default function EditGoalsScreen() {
                 ]}
                 value={formData.emergency_contact.phone}
                 onChangeText={(value) => updateEmergencyContact('phone', value)}
-                placeholder="Emergency contact phone"
+                placeholder={t('profile.enterEmergencyPhone')}
                 placeholderTextColor={theme.colors.textSecondary}
                 keyboardType="phone-pad"
               />
@@ -329,7 +355,7 @@ export default function EditGoalsScreen() {
             {/* Relationship */}
             <View style={styles.emergencyField}>
               <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>
-                Relationship
+                {t('profile.emergencyContactRelationship')}
               </Text>
               <View style={styles.relationshipContainer}>
                 {RELATIONSHIP_OPTIONS.map((relationship) => (
@@ -362,7 +388,7 @@ export default function EditGoalsScreen() {
                         },
                       ]}
                     >
-                      {relationship}
+                      {t(`profile.${getRelationshipLabelKey(relationship)}`)}
                     </Text>
                   </TouchableOpacity>
                 ))}
@@ -386,7 +412,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
   },
   backButton: {
     padding: 8,
@@ -407,7 +432,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   form: {
     paddingVertical: 24,
@@ -430,8 +458,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   goalOption: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
+    ...Typography.bodySmall,
+    fontWeight: '500',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
     borderRadius: 20,
     borderWidth: 1,
     marginBottom: 8,
@@ -449,15 +479,16 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   input: {
+    ...Typography.bodyMedium,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...Typography.bodyMedium,
+    paddingVertical: 14,
+    minHeight: 48,
   },
   errorText: {
     ...Typography.bodySmall,
-    marginTop: 4,
+    marginTop: 6,
   },
   relationshipContainer: {
     flexDirection: 'row',
@@ -465,8 +496,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   relationshipOption: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
+    ...Typography.bodySmall,
+    fontWeight: '500',
+    paddingVertical: 8,
+    paddingHorizontal: 14,
     borderRadius: 16,
     borderWidth: 1,
     marginBottom: 8,

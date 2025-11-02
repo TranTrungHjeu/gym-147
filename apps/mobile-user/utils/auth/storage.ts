@@ -109,6 +109,22 @@ export const getRefreshToken = async (): Promise<string | null> => {
 };
 
 /**
+ * Get both access and refresh tokens
+ */
+export const getTokens = async (): Promise<{ accessToken: string | null; refreshToken: string | null }> => {
+  try {
+    const [accessToken, refreshToken] = await Promise.all([
+      getToken(),
+      getRefreshToken(),
+    ]);
+    return { accessToken, refreshToken };
+  } catch (error) {
+    console.error('Error getting tokens:', error);
+    return { accessToken: null, refreshToken: null };
+  }
+};
+
+/**
  * Remove refresh token
  */
 export const removeRefreshToken = async (): Promise<void> => {

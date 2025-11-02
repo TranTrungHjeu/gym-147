@@ -1,4 +1,5 @@
 const { PrismaClient } = require('@prisma/client');
+const aiService = require('../services/ai.service');
 const prisma = new PrismaClient();
 
 class WorkoutController {
@@ -284,7 +285,7 @@ class WorkoutController {
       const recentEquipment = await prisma.equipmentUsage.findMany({
         where: {
           member_id: id,
-          start_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+          start_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
         },
         include: {
           equipment: {
@@ -297,9 +298,7 @@ class WorkoutController {
         orderBy: { start_time: 'desc' },
         take: 20,
       });
-
-      // Simple AI logic (in real implementation, this would call an AI service)
-      const aiWorkoutPlan = this.generateSimpleWorkoutPlan({
+      const aiResult = await aiService.generateWorkoutPlan({
         goal: goal || member.fitness_goals[0] || 'GENERAL_FITNESS',
         difficulty: difficulty || 'INTERMEDIATE',
         duration_weeks: duration_weeks || 4,
@@ -307,6 +306,43 @@ class WorkoutController {
         recentEquipment,
         preferences,
       });
+
+      // Nếu AI fail thì throw error, không dùng fallback
+      if (!aiResult.success) {
+        console.log('\n===== AI GENERATION FAILED =====');
+        console.log('Error:', aiResult.error);
+        console.log('='.repeat(60));
+
+        return res.status(500).json({
+          success: false,
+          message: 'AI workout plan generation failed. Please try again.',
+          error: aiResult.error,
+          data: null,
+        });
+      }
+
+      // Log AI success
+      console.log('\n===== AI-GENERATED PLAN SUCCESS =====');
+      console.log('Plan Name:', aiResult.data.name);
+      console.log('Description:', aiResult.data.description);
+      console.log('Exercises Count:', aiResult.data.exercises.length);
+      console.log(
+        'Sample Exercises:',
+        aiResult.data.exercises
+          .slice(0, 3)
+          .map(ex => `${ex.name} (${ex.sets} sets x ${ex.reps} reps, rest: ${ex.rest})`)
+          .join('\n   ')
+      );
+      console.log('='.repeat(60));
+
+      const aiWorkoutPlan = {
+        name: aiResult.data.name,
+        description: aiResult.data.description,
+        difficulty: difficulty || 'INTERMEDIATE',
+        duration_weeks: duration_weeks || 4,
+        goal: goal || member.fitness_goals[0] || 'GENERAL_FITNESS',
+        exercises: aiResult.data.exercises,
+      };
 
       // Deactivate other AI-generated plans
       await prisma.workoutPlan.updateMany({
@@ -386,36 +422,104 @@ class WorkoutController {
         exercises = this.generateGeneralFitnessExercises(difficulty, equipmentCategories);
     }
 
+    // Flatten exercises into a single array for frontend
+    // Frontend expects: [{ name, sets, reps, rest }, ...]
+    const flatExercises = exercises;
+
     return {
       name: planName,
-      description: `AI-generated ${difficulty.toLowerCase()} workout plan focused on ${goal.replace('_', ' ').toLowerCase()}`,
+      description: `AI-generated ${difficulty.toLowerCase()} workout plan focused on ${goal
+        .replace('_', ' ')
+        .toLowerCase()}`,
       difficulty,
       duration_weeks,
       goal,
-      exercises: {
-        weeks: Array.from({ length: duration_weeks }, (_, weekIndex) => ({
-          week: weekIndex + 1,
-          days: Array.from({ length: 4 }, (_, dayIndex) => ({
-            day: dayIndex + 1,
-            exercises: exercises.slice(dayIndex * 3, (dayIndex + 1) * 3),
-          })),
-        })),
-      },
+      exercises: flatExercises,
     };
   }
 
   generateWeightLossExercises(difficulty, equipmentCategories) {
     const baseExercises = [
-      { name: 'Treadmill Running', category: 'CARDIO', duration: 20, intensity: 'MODERATE' },
-      { name: 'Burpees', category: 'FUNCTIONAL', sets: 3, reps: 15, intensity: 'HIGH' },
-      { name: 'Mountain Climbers', category: 'FUNCTIONAL', sets: 3, reps: 20, intensity: 'HIGH' },
-      { name: 'Jumping Jacks', category: 'CARDIO', duration: 5, intensity: 'MODERATE' },
-      { name: 'High Knees', category: 'CARDIO', duration: 5, intensity: 'HIGH' },
-      { name: 'Plank', category: 'STRENGTH', duration: 30, intensity: 'MODERATE' },
-      { name: 'Squats', category: 'STRENGTH', sets: 3, reps: 15, intensity: 'MODERATE' },
-      { name: 'Push-ups', category: 'STRENGTH', sets: 3, reps: 10, intensity: 'MODERATE' },
-      { name: 'Lunges', category: 'STRENGTH', sets: 3, reps: 12, intensity: 'MODERATE' },
-      { name: 'Bicycle Crunches', category: 'STRENGTH', sets: 3, reps: 20, intensity: 'MODERATE' },
+      {
+        name: 'Treadmill Running',
+        category: 'CARDIO',
+        sets: 1,
+        reps: '20 phút',
+        intensity: 'MODERATE',
+        rest: '2 phút',
+      },
+      {
+        name: 'Burpees',
+        category: 'FUNCTIONAL',
+        sets: 3,
+        reps: 15,
+        intensity: 'HIGH',
+        rest: '1 phút',
+      },
+      {
+        name: 'Mountain Climbers',
+        category: 'FUNCTIONAL',
+        sets: 3,
+        reps: 20,
+        intensity: 'HIGH',
+        rest: '45 giây',
+      },
+      {
+        name: 'Jumping Jacks',
+        category: 'CARDIO',
+        sets: 3,
+        reps: '5 phút',
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'High Knees',
+        category: 'CARDIO',
+        sets: 3,
+        reps: '5 phút',
+        intensity: 'HIGH',
+        rest: '1 phút',
+      },
+      {
+        name: 'Plank',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: '60s',
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Squats',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 15,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Push-ups',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 10,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Lunges',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 12,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Bicycle Crunches',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 20,
+        intensity: 'MODERATE',
+        rest: '45 giây',
+      },
     ];
 
     return this.adjustExercisesForDifficulty(baseExercises, difficulty);
@@ -423,16 +527,86 @@ class WorkoutController {
 
   generateMuscleGainExercises(difficulty, equipmentCategories) {
     const baseExercises = [
-      { name: 'Bench Press', category: 'STRENGTH', sets: 4, reps: 8, intensity: 'HIGH' },
-      { name: 'Squats', category: 'STRENGTH', sets: 4, reps: 10, intensity: 'HIGH' },
-      { name: 'Deadlifts', category: 'STRENGTH', sets: 4, reps: 6, intensity: 'HIGH' },
-      { name: 'Pull-ups', category: 'STRENGTH', sets: 3, reps: 8, intensity: 'HIGH' },
-      { name: 'Overhead Press', category: 'STRENGTH', sets: 3, reps: 10, intensity: 'HIGH' },
-      { name: 'Rows', category: 'STRENGTH', sets: 3, reps: 10, intensity: 'HIGH' },
-      { name: 'Bicep Curls', category: 'STRENGTH', sets: 3, reps: 12, intensity: 'MODERATE' },
-      { name: 'Tricep Dips', category: 'STRENGTH', sets: 3, reps: 12, intensity: 'MODERATE' },
-      { name: 'Leg Press', category: 'STRENGTH', sets: 3, reps: 12, intensity: 'HIGH' },
-      { name: 'Calf Raises', category: 'STRENGTH', sets: 4, reps: 15, intensity: 'MODERATE' },
+      {
+        name: 'Bench Press',
+        category: 'STRENGTH',
+        sets: 4,
+        reps: 8,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Squats',
+        category: 'STRENGTH',
+        sets: 4,
+        reps: 10,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Deadlifts',
+        category: 'STRENGTH',
+        sets: 4,
+        reps: 6,
+        intensity: 'HIGH',
+        rest: '3 phút',
+      },
+      {
+        name: 'Pull-ups',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 8,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Overhead Press',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 10,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Rows',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 10,
+        intensity: 'HIGH',
+        rest: '1 phút 30 giây',
+      },
+      {
+        name: 'Bicep Curls',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 12,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Tricep Dips',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 12,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
+      {
+        name: 'Leg Press',
+        category: 'STRENGTH',
+        sets: 3,
+        reps: 12,
+        intensity: 'HIGH',
+        rest: '1 phút 30 giây',
+      },
+      {
+        name: 'Calf Raises',
+        category: 'STRENGTH',
+        sets: 4,
+        reps: 15,
+        intensity: 'MODERATE',
+        rest: '1 phút',
+      },
     ];
 
     return this.adjustExercisesForDifficulty(baseExercises, difficulty);
@@ -440,14 +614,70 @@ class WorkoutController {
 
   generateCardioExercises(difficulty, equipmentCategories) {
     const baseExercises = [
-      { name: 'Treadmill Running', category: 'CARDIO', duration: 25, intensity: 'MODERATE' },
-      { name: 'Cycling', category: 'CARDIO', duration: 20, intensity: 'MODERATE' },
-      { name: 'Rowing Machine', category: 'CARDIO', duration: 15, intensity: 'HIGH' },
-      { name: 'Elliptical', category: 'CARDIO', duration: 20, intensity: 'MODERATE' },
-      { name: 'Jump Rope', category: 'CARDIO', duration: 10, intensity: 'HIGH' },
-      { name: 'Stair Climbing', category: 'CARDIO', duration: 15, intensity: 'HIGH' },
-      { name: 'Swimming', category: 'CARDIO', duration: 20, intensity: 'MODERATE' },
-      { name: 'HIIT Circuit', category: 'CARDIO', duration: 20, intensity: 'HIGH' },
+      {
+        name: 'Treadmill Running',
+        category: 'CARDIO',
+        reps: '25 phút',
+        sets: 1,
+        intensity: 'MODERATE',
+        rest: '2 phút',
+      },
+      {
+        name: 'Cycling',
+        category: 'CARDIO',
+        reps: '20 phút',
+        sets: 1,
+        intensity: 'MODERATE',
+        rest: '2 phút',
+      },
+      {
+        name: 'Rowing Machine',
+        category: 'CARDIO',
+        reps: '15 phút',
+        sets: 1,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Elliptical',
+        category: 'CARDIO',
+        reps: '20 phút',
+        sets: 1,
+        intensity: 'MODERATE',
+        rest: '2 phút',
+      },
+      {
+        name: 'Jump Rope',
+        category: 'CARDIO',
+        reps: '10 phút',
+        sets: 3,
+        intensity: 'HIGH',
+        rest: '1 phút',
+      },
+      {
+        name: 'Stair Climbing',
+        category: 'CARDIO',
+        reps: '15 phút',
+        sets: 1,
+        intensity: 'HIGH',
+        rest: '2 phút',
+      },
+      {
+        name: 'Swimming',
+        category: 'CARDIO',
+        reps: '20 phút',
+        sets: 1,
+        intensity: 'MODERATE',
+        rest: '2 phút',
+      },
+      {
+        name: 'HIIT Circuit',
+        category: 'CARDIO',
+        reps: '20 phút',
+        sets: 1,
+        intensity: 'HIGH',
+        rest: '3 phút',
+      },
     ];
 
     return this.adjustExercisesForDifficulty(baseExercises, difficulty);
@@ -466,23 +696,31 @@ class WorkoutController {
 
   adjustExercisesForDifficulty(exercises, difficulty) {
     const difficultyMultipliers = {
-      BEGINNER: { sets: 0.7, reps: 0.8, duration: 0.8, intensity: 'LOW' },
-      INTERMEDIATE: { sets: 1, reps: 1, duration: 1, intensity: 'MODERATE' },
-      ADVANCED: { sets: 1.2, reps: 1.1, duration: 1.2, intensity: 'HIGH' },
-      EXPERT: { sets: 1.5, reps: 1.2, duration: 1.5, intensity: 'HIGH' },
+      BEGINNER: { sets: 0.7, reps: 0.8, intensity: 'LOW', rest: '1 phút 30 giây' },
+      INTERMEDIATE: { sets: 1, reps: 1, intensity: 'MODERATE', rest: '1 phút' },
+      ADVANCED: { sets: 1.2, reps: 1.1, intensity: 'HIGH', rest: '45 giây' },
+      EXPERT: { sets: 1.5, reps: 1.2, intensity: 'HIGH', rest: '30 giây' },
     };
 
     const multiplier = difficultyMultipliers[difficulty] || difficultyMultipliers['INTERMEDIATE'];
 
-    return exercises.map(exercise => ({
-      ...exercise,
-      sets: exercise.sets ? Math.round(exercise.sets * multiplier.sets) : exercise.sets,
-      reps: exercise.reps ? Math.round(exercise.reps * multiplier.reps) : exercise.reps,
-      duration: exercise.duration
-        ? Math.round(exercise.duration * multiplier.duration)
-        : exercise.duration,
-      intensity: multiplier.intensity,
-    }));
+    return exercises.map(exercise => {
+      // Preserve existing rest time or use difficulty default
+      const restTime = exercise.rest || multiplier.rest;
+
+      return {
+        name: exercise.name,
+        sets: exercise.sets ? Math.round(exercise.sets * multiplier.sets) : 1,
+        reps:
+          typeof exercise.reps === 'number'
+            ? Math.round(exercise.reps * multiplier.reps)
+            : exercise.reps, // Keep string reps as-is (like "60s", "20 phút")
+        rest: restTime,
+        // Optional: keep category and intensity for backend reference
+        category: exercise.category,
+        intensity: multiplier.intensity,
+      };
+    });
   }
 
   // Get workout plan recommendations

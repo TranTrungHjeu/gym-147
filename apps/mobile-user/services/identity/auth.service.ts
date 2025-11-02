@@ -39,7 +39,6 @@ class AuthService {
         message: response.message || 'Login failed',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService login error:', error);
       return {
         success: false,
         message: error.message || 'Login failed',
@@ -94,25 +93,27 @@ class AuthService {
 
       // Get stored token
       const token = await this.getStoredToken();
-      if (!token) {
-        return {
-          success: true,
-          message: 'Already logged out',
-        };
+
+      // Call logout endpoint if we have a token
+      if (token) {
+        try {
+          await identityApiService.post(
+            '/auth/logout',
+            {},
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+          console.log('✅ Logout API call successful');
+        } catch (apiError: any) {
+          console.log('⚠️ Logout API call failed:', apiError.message);
+          // Continue to clear tokens locally even if API fails
+        }
       }
 
-      // Call logout endpoint
-      const response = await identityApiService.post(
-        '/auth/logout',
-        {},
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      // Clear stored tokens regardless of API response
+      // ALWAYS clear stored tokens (regardless of token existence or API response)
       await this.clearTokens();
 
       return {
@@ -122,8 +123,12 @@ class AuthService {
     } catch (error: any) {
       console.error('🔐 AuthService logout error:', error);
 
-      // Clear tokens even if API call fails
-      await this.clearTokens();
+      // ALWAYS clear tokens even if something fails
+      try {
+        await this.clearTokens();
+      } catch (clearError) {
+        console.error('🔐 Failed to clear tokens:', clearError);
+      }
 
       return {
         success: true,
@@ -271,8 +276,6 @@ class AuthService {
    */
   async forgotPassword(data: ForgotPasswordData): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Sending forgot password request...');
-
       const response = await identityApiService.post(
         '/auth/forgot-password',
         data
@@ -283,7 +286,6 @@ class AuthService {
         message: response.message || 'Password reset email sent',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService forgotPassword error:', error);
       return {
         success: false,
         message: error.message || 'Failed to send password reset email',
@@ -296,8 +298,6 @@ class AuthService {
    */
   async resetPassword(data: ResetPasswordData): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Resetting password...');
-
       const response = await identityApiService.post(
         '/auth/reset-password',
         data
@@ -308,7 +308,6 @@ class AuthService {
         message: response.message || 'Password reset successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService resetPassword error:', error);
       return {
         success: false,
         message: error.message || 'Failed to reset password',
@@ -492,8 +491,9 @@ class AuthService {
    */
   private async clearTokens(): Promise<void> {
     try {
-      const { clearTokens } = await import('@/utils/auth/storage');
-      await clearTokens();
+      const { clearAuthData } = await import('@/utils/auth/storage');
+      await clearAuthData();
+      console.log('✅ Tokens cleared successfully');
     } catch (error) {
       console.error('🔐 AuthService clearTokens error:', error);
     }

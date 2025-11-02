@@ -7,11 +7,21 @@ class SessionController {
   // Get member's gym sessions
   async getMemberSessions(req, res) {
     try {
-      const { id } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { page = 1, limit = 10, start_date, end_date } = req.query;
       const skip = (page - 1) * limit;
 
-      const where = { member_id: id };
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
+      const where = { member_id: memberId };
       if (start_date || end_date) {
         where.entry_time = {};
         if (start_date) where.entry_time.gte = new Date(start_date);
@@ -54,11 +64,21 @@ class SessionController {
   // Get current active session
   async getCurrentSession(req, res) {
     try {
-      const { id } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
 
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
       const session = await prisma.gymSession.findFirst({
         where: {
-          member_id: id,
+          member_id: memberId,
           exit_time: null,
         },
         orderBy: { entry_time: 'desc' },
@@ -90,32 +110,39 @@ class SessionController {
   // Record gym entry
   async recordEntry(req, res) {
     try {
-      const { id } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { entry_method = 'MANUAL', entry_gate } = req.body;
 
-      // Check if member has active session
-      const activeSession = await prisma.gymSession.findFirst({
-        where: {
-          member_id: id,
-          exit_time: null,
-        },
-      });
-
-      if (activeSession) {
+      if (!memberId) {
         return res.status(400).json({
           success: false,
-          message: 'Member already has an active session',
+          message: 'Member ID is required',
           data: null,
         });
       }
 
-      // Check member access
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
+
+      // Check member exists and access
       const member = await prisma.member.findUnique({
-        where: { id },
-        select: { access_enabled: true, membership_status: true },
+        where: { id: memberId },
+        select: {
+          id: true,
+          access_enabled: true,
+          membership_status: true,
+        },
       });
 
-      if (!member || !member.access_enabled) {
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      if (!member.access_enabled) {
         return res.status(403).json({
           success: false,
           message: 'Member access is disabled',
@@ -131,12 +158,36 @@ class SessionController {
         });
       }
 
+      // Check if member has active session
+      const activeSession = await prisma.gymSession.findFirst({
+        where: {
+          member_id: memberId,
+          exit_time: null,
+        },
+      });
+
+      if (activeSession) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member already has an active session',
+          data: null,
+        });
+      }
+
       const session = await prisma.gymSession.create({
         data: {
-          member_id: id,
+          member_id: memberId,
           entry_method,
           entry_gate,
         },
+      });
+
+      console.log('✅ Gym session created:', {
+        sessionId: session.id,
+        memberId: session.member_id,
+        entry_time: session.entry_time,
+        entry_method: session.entry_method,
+        entry_gate: session.entry_gate,
       });
 
       res.status(201).json({
@@ -157,13 +208,24 @@ class SessionController {
   // Record gym exit
   async recordExit(req, res) {
     try {
-      const { id } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { exit_method = 'MANUAL', exit_gate, session_rating, notes } = req.body;
+
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
 
       // Find active session
       const activeSession = await prisma.gymSession.findFirst({
         where: {
-          member_id: id,
+          member_id: memberId,
           exit_time: null,
         },
         orderBy: { entry_time: 'desc' },
@@ -180,8 +242,89 @@ class SessionController {
       const exitTime = new Date();
       const duration = Math.floor((exitTime - activeSession.entry_time) / (1000 * 60)); // minutes
 
-      // Estimate calories burned (rough calculation: 5-10 calories per minute)
-      const calories_burned = Math.floor(duration * 7.5);
+      console.log('🔍 Looking for equipment usage in session:', {
+        sessionId: activeSession.id,
+        memberId,
+        entry_time: activeSession.entry_time,
+        exit_time: exitTime,
+        duration_minutes: duration,
+      });
+
+      // Calculate total calories from equipment usage in this session
+      const equipmentUsages = await prisma.equipmentUsage.findMany({
+        where: {
+          session_id: activeSession.id, // Filter by session_id
+          calories_burned: {
+            not: null, // Only count equipment with calories recorded
+          },
+        },
+        select: {
+          id: true,
+          calories_burned: true,
+          duration: true,
+          start_time: true,
+          end_time: true,
+          equipment: {
+            select: {
+              name: true,
+              category: true,
+            },
+          },
+        },
+      });
+
+      console.log('📋 Found equipment usages:', {
+        count: equipmentUsages.length,
+        usages: equipmentUsages.map(u => ({
+          id: u.id,
+          equipment: u.equipment.name,
+          category: u.equipment.category,
+          calories: u.calories_burned,
+          duration: u.duration,
+          start: u.start_time,
+          end: u.end_time,
+        })),
+      });
+
+      // Sum calories from all equipment used during session
+      const totalCaloriesFromEquipment = equipmentUsages.reduce(
+        (sum, usage) => sum + (usage.calories_burned || 0),
+        0
+      );
+
+      // ONLY use equipment calories - no fallback estimation
+      // If no equipment was used, calories = 0
+      const calories_burned = totalCaloriesFromEquipment;
+
+      console.log('🔥 Calories calculation:', {
+        sessionId: activeSession.id,
+        equipmentUsages: equipmentUsages.length,
+        equipmentDetails: equipmentUsages.map(u => ({
+          name: u.equipment.name,
+          category: u.equipment.category,
+          calories: u.calories_burned,
+        })),
+        totalCaloriesFromEquipment,
+        finalCalories: calories_burned,
+        noEquipmentUsed: equipmentUsages.length === 0,
+      });
+
+      // Generate accurate notes based on final calculated calories
+      const generatedNotes = await this.generateSessionNotes(
+        calories_burned,
+        duration,
+        memberId,
+        equipmentUsages
+      );
+
+      // Use generated notes if mobile app didn't provide custom notes
+      const finalNotes = notes || generatedNotes;
+
+      console.log('📝 Session notes:', {
+        fromMobileApp: !!notes,
+        generated: !notes,
+        finalNotes: finalNotes.substring(0, 100) + '...',
+      });
 
       const session = await prisma.gymSession.update({
         where: { id: activeSession.id },
@@ -192,7 +335,7 @@ class SessionController {
           exit_gate,
           calories_burned,
           session_rating,
-          notes,
+          notes: finalNotes,
         },
       });
 
@@ -247,9 +390,19 @@ class SessionController {
   // Get session statistics
   async getSessionStats(req, res) {
     try {
-      const { id } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { period = '30' } = req.query; // days
 
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - parseInt(period));
 
@@ -257,13 +410,13 @@ class SessionController {
         await Promise.all([
           prisma.gymSession.count({
             where: {
-              member_id: id,
+              member_id: memberId,
               entry_time: { gte: startDate },
             },
           }),
           prisma.gymSession.aggregate({
             where: {
-              member_id: id,
+              member_id: memberId,
               entry_time: { gte: startDate },
               duration: { not: null },
             },
@@ -271,7 +424,7 @@ class SessionController {
           }),
           prisma.gymSession.aggregate({
             where: {
-              member_id: id,
+              member_id: memberId,
               entry_time: { gte: startDate },
               calories_burned: { not: null },
             },
@@ -279,7 +432,7 @@ class SessionController {
           }),
           prisma.gymSession.aggregate({
             where: {
-              member_id: id,
+              member_id: memberId,
               entry_time: { gte: startDate },
               duration: { not: null },
             },
@@ -287,7 +440,7 @@ class SessionController {
           }),
           prisma.gymSession.findMany({
             where: {
-              member_id: id,
+              member_id: memberId,
               entry_time: { gte: startDate },
             },
             orderBy: { entry_time: 'desc' },
@@ -392,25 +545,21 @@ class SessionController {
   // Get calories burned data for charts
   async getCaloriesData(req, res) {
     try {
-      const { id: memberId } = req.params;
+      const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { period = 'week' } = req.query;
 
       console.log('🔍 getCaloriesData called with:', { memberId, period });
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      if (memberId) {
-        const memberByUserId = await prisma.member.findUnique({
-          where: { user_id: memberId },
-          select: { id: true },
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
         });
-
-        if (memberByUserId) {
-          actualMemberId = memberByUserId.id;
-          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
-        }
       }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
 
       // Calculate date range and labels
       let startDate = new Date();
@@ -443,7 +592,7 @@ class SessionController {
       // Get gym sessions with calories
       const sessions = await prisma.gymSession.findMany({
         where: {
-          member_id: actualMemberId,
+          member_id: memberId,
           entry_time: {
             gte: startDate,
           },
@@ -453,9 +602,7 @@ class SessionController {
         },
       });
 
-      console.log(
-        `🔥 Found ${sessions.length} sessions with calories for member ${actualMemberId}`
-      );
+      console.log(`🔥 Found ${sessions.length} sessions with calories for member ${memberId}`);
 
       // Group calories by period
       const caloriesMap = {};
@@ -519,20 +666,16 @@ class SessionController {
 
       console.log('🔍 getWorkoutFrequency called with:', { memberId, period });
 
-      // Convert user_id to member_id if needed
-      let actualMemberId = memberId;
-
-      if (memberId) {
-        const memberByUserId = await prisma.member.findUnique({
-          where: { user_id: memberId },
-          select: { id: true },
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
         });
-
-        if (memberByUserId) {
-          actualMemberId = memberByUserId.id;
-          console.log(`🔄 Converted user_id ${memberId} → member_id ${actualMemberId}`);
-        }
       }
+
+      // memberId must be Member.id (not user_id)
+      // Schema: GymSession.member_id references Member.id
 
       // Calculate date range based on period
       let startDate = new Date();
@@ -567,7 +710,7 @@ class SessionController {
       // Get gym sessions for the period
       const sessions = await prisma.gymSession.findMany({
         where: {
-          member_id: actualMemberId,
+          member_id: memberId,
           entry_time: {
             gte: startDate,
           },
@@ -577,7 +720,7 @@ class SessionController {
         },
       });
 
-      console.log(`📊 Found ${sessions.length} sessions for member ${actualMemberId}`);
+      console.log(`📊 Found ${sessions.length} sessions for member ${memberId}`);
 
       // Group sessions by period
       const frequencyMap = {};
@@ -633,6 +776,67 @@ class SessionController {
         message: 'Internal server error',
         data: null,
       });
+    }
+  }
+
+  // Generate session notes with accurate data
+  async generateSessionNotes(calories, duration, memberId, equipmentUsages = []) {
+    try {
+      // Fetch member profile for personalized notes
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: {
+          weight: true,
+          height: true,
+          body_fat_percent: true,
+        },
+      });
+
+      if (!member) {
+        return `Completed ${duration} minute workout session. Burned ${calories} kcal.`;
+      }
+
+      const { weight, height, body_fat_percent } = member;
+      const bmi = weight && height ? (weight / (height / 100) ** 2).toFixed(1) : null;
+
+      // Calculate percentage of daily calories (based on 2000 kcal/day average)
+      const dailyCaloriePercentage = ((calories / 2000) * 100).toFixed(1);
+
+      // Generate personalized notes
+      let notes = `Completed ${duration} minute workout session. Burned ${calories} kcal (${dailyCaloriePercentage}% of daily intake).`;
+
+      if (bmi) {
+        notes += `\nCurrent BMI: ${bmi}`;
+      }
+
+      if (body_fat_percent) {
+        notes += `, Body Fat: ${body_fat_percent}%`;
+      }
+
+      // Add fitness level assessment based on average intensity
+      if (duration > 0) {
+        const avgCaloriesPerMin = calories / duration;
+        let intensity = 'Light';
+        if (avgCaloriesPerMin >= 10) {
+          intensity = 'High';
+        } else if (avgCaloriesPerMin >= 7) {
+          intensity = 'Moderate';
+        }
+        notes += `\nIntensity: ${intensity} (${avgCaloriesPerMin.toFixed(1)} kcal/min)`;
+      }
+
+      // Add equipment details if available
+      if (equipmentUsages.length > 0) {
+        const equipmentSummary = equipmentUsages
+          .map(u => `${u.equipment.name} (${u.calories_burned} kcal)`)
+          .join(', ');
+        notes += `\n\nEquipment used: ${equipmentSummary}`;
+      }
+
+      return notes;
+    } catch (error) {
+      console.error('Generate session notes error:', error);
+      return `Completed ${duration} minute workout session. Burned ${calories} kcal.`;
     }
   }
 }

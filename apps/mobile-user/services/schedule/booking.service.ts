@@ -8,7 +8,11 @@ import {
 import { scheduleApiService } from './api.service';
 
 class BookingService {
-  private baseUrl = 'http://10.0.2.2:3001/bookings'; // Schedule Service
+  // Get base URL from centralized config
+  private get baseUrl() {
+    const { SERVICE_URLS } = require('@/config/environment');
+    return `${SERVICE_URLS.SCHEDULE}/bookings`;
+  }
 
   /**
    * Get all bookings for a member
@@ -73,9 +77,35 @@ class BookingService {
 
       const response = await scheduleApiService.get(`/bookings/${id}`);
 
+      console.log('📅 Booking by ID API response:', {
+        hasData: !!response.data,
+        dataType: typeof response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        fullResponse: JSON.stringify(response.data, null, 2),
+      });
+
+      // Handle different response structures
+      let booking: Booking | undefined;
+      if (response.data?.data) {
+        booking = response.data.data;
+      } else if (response.data?.booking) {
+        booking = response.data.booking;
+      } else if (response.data?.id) {
+        // response.data is the booking itself
+        booking = response.data;
+      } else {
+        booking = response.data;
+      }
+
+      console.log('📅 Extracted booking:', {
+        id: booking?.id,
+        payment_status: booking?.payment_status,
+        status: booking?.status,
+      });
+
       return {
         success: true,
-        data: response.data,
+        data: booking,
       };
     } catch (error: any) {
       console.error('❌ Error fetching booking:', error);
@@ -88,19 +118,25 @@ class BookingService {
    */
   async createBooking(bookingData: CreateBookingRequest): Promise<{
     success: boolean;
-    data?: Booking;
+    data?: Booking | any;
+    payment?: any;
+    paymentRequired?: boolean;
+    paymentInitiation?: any;
     error?: string;
   }> {
     try {
-      console.log('📅 Creating booking:', bookingData);
-
       const response = await scheduleApiService.post('/bookings', bookingData);
 
-      console.log('📅 Booking created successfully:', response.data);
-
+      // Handle response structure
+      const responseData = response.data?.data || response.data;
+      const booking = responseData?.booking || responseData;
+      
       return {
         success: true,
-        data: response.data,
+        data: booking,
+        payment: responseData?.payment,
+        paymentRequired: responseData?.paymentRequired || false,
+        paymentInitiation: responseData?.paymentInitiation,
       };
     } catch (error: any) {
       console.error('❌ Error creating booking:', error);

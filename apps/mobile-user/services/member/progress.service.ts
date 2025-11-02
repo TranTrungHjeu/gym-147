@@ -17,9 +17,14 @@ export interface ProgressData {
 }
 
 export class ProgressService {
-  async getProgressData(userId: string): Promise<ProgressData | null> {
+  async getProgressData(memberId: string): Promise<ProgressData | null> {
     try {
-      console.log('📊 Fetching progress data for user:', userId);
+      console.log('📊 Fetching progress data for member:', memberId);
+
+      if (!memberId) {
+        console.error('Member ID is required');
+        return null;
+      }
 
       // Get member profile for current weight/body fat
       const profileResponse = await memberService.getMemberProfile();
@@ -31,18 +36,17 @@ export class ProgressService {
       });
 
       // Get last 12 months of health metrics
-      // Note: Backend will convert user_id to member_id automatically
+      // memberId must be Member.id (not user_id)
+      // Schema: HealthMetric.member_id references Member.id
       const endDate = new Date();
       const startDate = new Date();
       startDate.setMonth(startDate.getMonth() - 12);
 
-      const metrics = await healthService.getHealthMetrics(userId, {
+      const metrics = await healthService.getHealthMetrics(memberId, {
         startDate: startDate.toISOString(),
         endDate: endDate.toISOString(),
         limit: 1000,
       });
-
-      console.log('📋 Health metrics count:', metrics.length);
 
       // Group by month
       const weightMap: { [key: string]: number[] } = {};

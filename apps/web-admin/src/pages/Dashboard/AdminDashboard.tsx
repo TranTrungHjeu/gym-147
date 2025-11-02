@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { RotateCcw, AlertTriangle } from 'lucide-react';
 import { useToast } from '../../hooks/useToast';
 import { authService } from '../../services/auth.service';
 import { DashboardStats, dashboardService } from '../../services/dashboard.service';
+import { scheduleService } from '../../services/schedule.service';
 import { clearAuthData } from '../../utils/auth';
 
 const AdminDashboard: React.FC = () => {
@@ -18,6 +20,8 @@ const AdminDashboard: React.FC = () => {
     totalEquipment: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isResettingRateLimit, setIsResettingRateLimit] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   // Fetch dashboard statistics
   useEffect(() => {
@@ -58,6 +62,25 @@ const AdminDashboard: React.FC = () => {
       // Force logout even if API fails
       clearAuthData();
       navigate('/auth');
+    }
+  };
+
+  const handleResetAllRateLimits = async () => {
+    try {
+      setIsResettingRateLimit(true);
+      const response = await scheduleService.resetAllRateLimits();
+      
+      if (response.success) {
+        showToast(`Đã reset ${response.data.count} rate limit(s) thành công`, 'success');
+        setShowResetConfirm(false);
+      } else {
+        showToast('Không thể reset rate limits', 'error');
+      }
+    } catch (error) {
+      console.error('Error resetting rate limits:', error);
+      showToast('Lỗi khi reset rate limits', 'error');
+    } finally {
+      setIsResettingRateLimit(false);
     }
   };
 
@@ -178,6 +201,176 @@ const AdminDashboard: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Admin Actions - System Management */}
+        <div className='mt-10 max-w-4xl mx-auto'>
+          <div className='bg-gradient-to-br from-white to-orange-50 rounded-xl shadow-lg p-6 border border-orange-100'>
+            <div className='flex items-center justify-between mb-4'>
+              <div>
+                <h3 className='text-xl font-bold text-gray-900 mb-1'>Quản lý Hệ thống</h3>
+                <p className='text-sm text-gray-600'>Công cụ quản trị và bảo trì hệ thống</p>
+              </div>
+            </div>
+            
+            <div className='bg-white rounded-lg p-4 border border-gray-200'>
+              <div className='flex items-start justify-between'>
+                <div className='flex-1'>
+                  <div className='flex items-center gap-2 mb-1'>
+                    <RotateCcw size={18} className='text-orange-600' />
+                    <h4 className='text-base font-semibold text-gray-900'>Reset Rate Limits</h4>
+                  </div>
+                  <p className='text-sm text-gray-600 mb-3'>
+                    Reset tất cả giới hạn tạo lịch dạy cho tất cả trainer (tối đa 10 lịch/ngày). 
+                    Hành động này sẽ cho phép trainer tạo lịch mới ngay lập tức.
+                  </p>
+                  <div className='flex items-center gap-2 text-xs text-gray-500'>
+                    <span className='px-2 py-1 bg-gray-100 rounded'>Admin Only</span>
+                    <span className='px-2 py-1 bg-orange-100 text-orange-700 rounded'>Cần xác nhận</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowResetConfirm(true)}
+                  disabled={isResettingRateLimit}
+                  className='ml-4 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-none transform hover:scale-105 disabled:transform-none'
+                >
+                  <RotateCcw size={16} className={isResettingRateLimit ? 'animate-spin' : ''} />
+                  {isResettingRateLimit ? 'Đang xử lý...' : 'Reset Tất cả'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Confirmation Modal - Professional Design */}
+        {showResetConfirm && (
+          <div 
+            className='fixed inset-0 z-50 flex items-center justify-center p-4'
+            style={{
+              backgroundColor: 'rgba(0, 0, 0, 0.6)',
+              backdropFilter: 'blur(4px)',
+              animation: 'fadeIn 0.2s ease-out',
+            }}
+            onClick={() => !isResettingRateLimit && setShowResetConfirm(false)}
+          >
+            <div 
+              className='bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all'
+              style={{
+                animation: 'slideUp 0.3s ease-out',
+                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header with Gradient */}
+              <div className='relative bg-gradient-to-r from-orange-500 via-orange-500 to-orange-600 px-6 py-5'>
+                <div className='absolute inset-0 bg-black/5'></div>
+                <div className='relative flex items-center gap-4'>
+                  <div className='flex-shrink-0 w-14 h-14 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30'>
+                    <AlertTriangle className='w-7 h-7 text-white drop-shadow-sm' strokeWidth={2.5} />
+                  </div>
+                  <div className='flex-1 min-w-0'>
+                    <h3 className='text-xl font-bold text-white mb-1 tracking-tight'>
+                      Xác nhận Reset Rate Limits
+                    </h3>
+                    <p className='text-sm text-orange-50/90 font-medium'>
+                      Thao tác hệ thống quan trọng
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Body */}
+              <div className='p-6 bg-gradient-to-b from-white to-gray-50/50'>
+                <div className='space-y-4'>
+                  {/* Warning Box */}
+                  <div className='relative bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-5 shadow-sm'>
+                    <div className='absolute top-3 left-3 w-1 h-20 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full'></div>
+                    <div className='ml-4'>
+                      <p className='text-sm font-semibold text-gray-900 mb-3 leading-relaxed'>
+                        Bạn có chắc chắn muốn <span className='text-orange-600 font-bold'>reset tất cả rate limits</span> không?
+                      </p>
+                      <div className='space-y-2'>
+                        <p className='text-xs font-medium text-gray-600 uppercase tracking-wide mb-2'>
+                          Hành động này sẽ:
+                        </p>
+                        <ul className='space-y-2.5'>
+                          <li className='flex items-start gap-3 text-sm text-gray-700'>
+                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-2'></div>
+                            <span className='leading-relaxed'>Xóa toàn bộ giới hạn tạo lịch dạy cho tất cả trainer trong hệ thống</span>
+                          </li>
+                          <li className='flex items-start gap-3 text-sm text-gray-700'>
+                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-2'></div>
+                            <span className='leading-relaxed'>Cho phép trainer tạo lịch mới ngay lập tức không bị giới hạn</span>
+                          </li>
+                          <li className='flex items-start gap-3 text-sm text-gray-700'>
+                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-red-500 mt-2'></div>
+                            <span className='leading-relaxed font-medium text-red-600'>Không thể hoàn tác sau khi reset</span>
+                          </li>
+                        </ul>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Info Badge */}
+                  <div className='flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200'>
+                    <div className='w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse'></div>
+                    <span>Thao tác này chỉ dành cho quản trị viên hệ thống</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className='px-6 py-4 bg-white border-t border-gray-100 flex items-center justify-end gap-3'>
+                <button
+                  onClick={() => setShowResetConfirm(false)}
+                  disabled={isResettingRateLimit}
+                  className='px-6 py-2.5 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none'
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleResetAllRateLimits}
+                  disabled={isResettingRateLimit}
+                  className='px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl hover:from-orange-600 hover:to-orange-700 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] disabled:transform-none'
+                >
+                  {isResettingRateLimit ? (
+                    <>
+                      <RotateCcw size={16} className='animate-spin' />
+                      <span>Đang xử lý...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw size={16} />
+                      <span>Xác nhận Reset</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Custom CSS Animations */}
+            <style>{`
+              @keyframes fadeIn {
+                from {
+                  opacity: 0;
+                }
+                to {
+                  opacity: 1;
+                }
+              }
+              
+              @keyframes slideUp {
+                from {
+                  opacity: 0;
+                  transform: translateY(20px) scale(0.95);
+                }
+                to {
+                  opacity: 1;
+                  transform: translateY(0) scale(1);
+                }
+              }
+            `}</style>
+          </div>
+        )}
       </div>
     </div>
   );

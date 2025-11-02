@@ -219,16 +219,35 @@ export default function WorkoutDetailScreen() {
       ]}
     >
       {/* Header */}
-      <View style={themedStyles.header}>
+      <View
+        style={[
+          themedStyles.header,
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={themedStyles.backButton}
+          style={[
+            themedStyles.backButton,
+            {
+              backgroundColor: theme.isDark
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
           onPress={() => router.back()}
         >
-          <ArrowLeft size={24} color={theme.colors.text} />
+          <ArrowLeft size={22} color={theme.colors.text} strokeWidth={2.5} />
         </TouchableOpacity>
-        <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
-          {t('workouts.workoutDetails')}
-        </Text>
+        <View style={themedStyles.headerTitleContainer}>
+          <Text
+            style={[themedStyles.headerTitle, { color: theme.colors.text }]}
+          >
+            {t('workouts.workoutDetails')}
+          </Text>
+        </View>
         <View style={themedStyles.headerSpacer} />
       </View>
 
@@ -245,7 +264,15 @@ export default function WorkoutDetailScreen() {
         />
 
         {/* Workout Info */}
-        <View style={themedStyles.workoutInfo}>
+        <View
+          style={[
+            themedStyles.workoutInfo,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
+          ]}
+        >
           <Text
             style={[themedStyles.workoutName, { color: theme.colors.text }]}
           >
@@ -263,42 +290,147 @@ export default function WorkoutDetailScreen() {
             </Text>
           )}
 
+          {/* Divider */}
+          {workout.description && (
+            <View
+              style={[
+                themedStyles.divider,
+                { backgroundColor: theme.colors.border },
+              ]}
+            />
+          )}
+
           {/* Workout Stats */}
           <View style={themedStyles.statsContainer}>
-            <View style={themedStyles.statItem}>
-              <Clock size={18} color={theme.colors.primary} />
-              <Text
-                style={[themedStyles.statText, { color: theme.colors.text }]}
-                numberOfLines={1}
+            <View
+              style={[
+                themedStyles.statItem,
+                {
+                  backgroundColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : 'rgba(243, 97, 0, 0.08)',
+                  borderColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.12)'
+                    : 'rgba(243, 97, 0, 0.12)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.primary + '20' },
+                ]}
               >
-                {workout.duration_weeks} {t('common.week')}
-              </Text>
+                <Clock
+                  size={20}
+                  color={theme.colors.primary}
+                  strokeWidth={2.5}
+                />
+              </View>
+              <View style={themedStyles.statTextContainer}>
+                <Text
+                  style={[themedStyles.statValue, { color: theme.colors.text }]}
+                >
+                  {workout.duration_weeks}
+                </Text>
+                <Text
+                  style={[
+                    themedStyles.statLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('common.week')}
+                </Text>
+              </View>
             </View>
 
-            <View style={themedStyles.statItem}>
-              <Target
-                size={18}
-                color={getDifficultyColor(workout.difficulty)}
-              />
-              <Text
-                style={[themedStyles.statText, { color: theme.colors.text }]}
-                numberOfLines={1}
+            <View
+              style={[
+                themedStyles.statItem,
+                {
+                  backgroundColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : getDifficultyColor(workout.difficulty) + '10',
+                  borderColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.12)'
+                    : getDifficultyColor(workout.difficulty) + '25',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  {
+                    backgroundColor:
+                      getDifficultyColor(workout.difficulty) + '20',
+                  },
+                ]}
               >
-                {workout.difficulty.charAt(0) +
-                  workout.difficulty.slice(1).toLowerCase()}
-              </Text>
+                <Target
+                  size={20}
+                  color={getDifficultyColor(workout.difficulty)}
+                  strokeWidth={2.5}
+                />
+              </View>
+              <View style={themedStyles.statTextContainer}>
+                <Text
+                  style={[themedStyles.statValue, { color: theme.colors.text }]}
+                >
+                  {workout.difficulty.charAt(0).toUpperCase()}
+                </Text>
+                <Text
+                  style={[
+                    themedStyles.statLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {workout.difficulty.slice(1).toLowerCase()}
+                </Text>
+              </View>
             </View>
 
-            <View style={themedStyles.statItem}>
-              <Dumbbell size={18} color={theme.colors.primary} />
-              <Text
-                style={[themedStyles.statText, { color: theme.colors.text }]}
-                numberOfLines={1}
+            <View
+              style={[
+                themedStyles.statItem,
+                {
+                  backgroundColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.08)'
+                    : 'rgba(243, 97, 0, 0.08)',
+                  borderColor: theme.isDark
+                    ? 'rgba(255, 255, 255, 0.12)'
+                    : 'rgba(243, 97, 0, 0.12)',
+                },
+              ]}
+            >
+              <View
+                style={[
+                  themedStyles.statIconContainer,
+                  { backgroundColor: theme.colors.primary + '20' },
+                ]}
               >
-                {Array.isArray(workout.exercises)
-                  ? workout.exercises.length
-                  : 0}
-              </Text>
+                <Dumbbell
+                  size={20}
+                  color={theme.colors.primary}
+                  strokeWidth={2.5}
+                />
+              </View>
+              <View style={themedStyles.statTextContainer}>
+                <Text
+                  style={[themedStyles.statValue, { color: theme.colors.text }]}
+                >
+                  {Array.isArray(workout.exercises)
+                    ? workout.exercises.length
+                    : 0}
+                </Text>
+                <Text
+                  style={[
+                    themedStyles.statLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('workouts.exercises')}
+                </Text>
+              </View>
             </View>
           </View>
         </View>
@@ -459,19 +591,30 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: 'transparent',
+      ...theme.shadows.sm,
+      elevation: 2,
     },
     backButton: {
-      padding: theme.spacing.sm,
+      width: 40,
+      height: 40,
+      borderRadius: theme.radius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    headerTitleContainer: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.md,
     },
     headerTitle: {
-      ...Typography.h3,
-      flex: 1,
-      textAlign: 'center',
-      marginHorizontal: theme.spacing.md,
+      ...Typography.h4,
+      fontWeight: '700',
+      letterSpacing: -0.3,
     },
     headerSpacer: {
       width: 40,
@@ -486,42 +629,65 @@ const styles = (theme: any) =>
       resizeMode: 'cover',
     },
     workoutInfo: {
-      marginTop: -theme.spacing.xl,
+      marginTop: -theme.spacing.xl - theme.spacing.sm,
       marginHorizontal: theme.spacing.lg,
-      padding: theme.spacing.lg,
-      backgroundColor: theme.colors.surface,
+      padding: theme.spacing.xl,
       borderRadius: theme.radius.xl,
+      borderWidth: 1,
       ...theme.shadows.lg,
     },
     workoutName: {
       ...Typography.h2,
-      marginBottom: theme.spacing.xs,
+      marginBottom: theme.spacing.sm,
+      fontWeight: '700',
+      letterSpacing: -0.5,
     },
     workoutDescription: {
       ...Typography.bodyMedium,
-      marginBottom: theme.spacing.lg,
-      lineHeight: 22,
-      opacity: 0.8,
+      lineHeight: 24,
+      opacity: 0.85,
+    },
+    divider: {
+      height: 1,
+      marginVertical: theme.spacing.lg,
+      opacity: 0.3,
     },
     statsContainer: {
       flexDirection: 'row',
-      gap: theme.spacing.sm,
+      gap: theme.spacing.md,
     },
     statItem: {
       flex: 1,
-      flexDirection: 'row',
+      flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      gap: theme.spacing.xs,
-      backgroundColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.05)'
-        : 'rgba(0, 0, 0, 0.03)',
-      paddingVertical: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.xs,
-      borderRadius: theme.radius.md,
+      gap: theme.spacing.sm,
+      paddingVertical: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      ...theme.shadows.sm,
     },
-    statText: {
-      ...Typography.bodySmall,
+    statIconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    statTextContainer: {
+      alignItems: 'center',
+      gap: 2,
+    },
+    statValue: {
+      ...Typography.h4,
+      fontWeight: '700',
+      letterSpacing: -0.3,
+    },
+    statLabel: {
+      ...Typography.caption,
+      fontSize: 11,
+      textTransform: 'capitalize',
     },
     exercisesSection: {
       paddingHorizontal: theme.spacing.lg,

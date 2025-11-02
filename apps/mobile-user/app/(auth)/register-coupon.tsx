@@ -1,10 +1,11 @@
 import { billingService } from '@/services/billing/billing.service';
 import { DiscountCode } from '@/types/billingTypes';
+import { getTokens } from '@/utils/auth/storage';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -27,15 +28,30 @@ const RegisterCouponScreen = () => {
   const [discount, setDiscount] = useState<DiscountCode | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
+  const [accessToken, setAccessToken] = useState<string>(params.accessToken as string);
+  const [refreshToken, setRefreshToken] = useState<string>(params.refreshToken as string);
 
   const userId = params.userId as string;
-  const accessToken = params.accessToken as string;
-  const refreshToken = params.refreshToken as string;
   const planId = params.planId as string;
   const planName = params.planName as string;
+  const planType = params.planType as string;
   const planPrice = parseFloat(params.planPrice as string);
   const setupFee = parseFloat(params.setupFee as string);
   const durationMonths = parseInt(params.durationMonths as string);
+
+  // Load tokens from storage if params are empty
+  useEffect(() => {
+    const loadTokens = async () => {
+      if (!accessToken || !refreshToken) {
+        const tokens = await getTokens();
+        if (tokens.accessToken && tokens.refreshToken) {
+          setAccessToken(tokens.accessToken);
+          setRefreshToken(tokens.refreshToken);
+        }
+      }
+    };
+    loadTokens();
+  }, []);
 
   const handleValidateCoupon = async () => {
     if (!couponCode.trim()) {
@@ -75,6 +91,7 @@ const RegisterCouponScreen = () => {
         refreshToken,
         planId,
         planName,
+        planType,
         planPrice: planPrice.toString(),
         setupFee: setupFee.toString(),
         durationMonths: durationMonths.toString(),
@@ -84,10 +101,6 @@ const RegisterCouponScreen = () => {
         bonusDays: discount?.bonusDays?.toString() || '0',
       },
     });
-  };
-
-  const handleSkip = () => {
-    handleContinue();
   };
 
   const formatPrice = (price: number) => {
@@ -193,18 +206,18 @@ const RegisterCouponScreen = () => {
     input: {
       fontFamily: FontFamily.interMedium,
       fontSize: 16,
-      lineHeight: 24,
       color: theme.colors.text,
       backgroundColor: theme.colors.surface,
       borderWidth: 2,
       borderColor: theme.colors.border,
       borderRadius: theme.radius.lg,
-      paddingVertical: 14,
+      paddingVertical: 0,
       paddingHorizontal: theme.spacing.lg,
       paddingRight: 110,
       textTransform: 'uppercase',
       letterSpacing: 1,
       height: 56,
+      textAlignVertical: 'center',
     },
     inputError: {
       borderColor: theme.colors.error,
@@ -213,7 +226,7 @@ const RegisterCouponScreen = () => {
       position: 'absolute',
       right: 6,
       top: '50%',
-      transform: [{ translateY: -20 }],
+      transform: [{ translateY: -18 }],
       paddingVertical: 10,
       paddingHorizontal: theme.spacing.lg,
       borderRadius: theme.radius.md,
@@ -345,7 +358,6 @@ const RegisterCouponScreen = () => {
       borderRadius: theme.radius.lg,
       backgroundColor: theme.colors.primary,
       alignItems: 'center',
-      marginBottom: theme.spacing.sm,
       shadowColor: theme.colors.primary,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.3,
@@ -358,16 +370,6 @@ const RegisterCouponScreen = () => {
       lineHeight: 24,
       letterSpacing: 0.3,
       color: theme.colors.textInverse,
-    },
-    skipButton: {
-      paddingVertical: theme.spacing.md,
-      alignItems: 'center',
-    },
-    skipButtonText: {
-      fontFamily: FontFamily.interMedium,
-      fontSize: 15,
-      lineHeight: 22,
-      color: theme.colors.textTertiary,
     },
   });
 
@@ -511,16 +513,6 @@ const RegisterCouponScreen = () => {
         >
           <Text style={themedStyles.continueButtonText}>
             {t('registration.continue')}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={themedStyles.skipButton}
-          onPress={handleSkip}
-          activeOpacity={0.7}
-        >
-          <Text style={themedStyles.skipButtonText}>
-            {t('registration.skipCoupon')}
           </Text>
         </TouchableOpacity>
       </View>

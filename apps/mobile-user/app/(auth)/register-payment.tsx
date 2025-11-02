@@ -1,5 +1,7 @@
 import { PaymentSummary } from '@/components/PaymentSummary';
+import { useAuth } from '@/contexts/AuthContext';
 import { billingService } from '@/services/billing/billing.service';
+import { memberService } from '@/services/member/member.service';
 import { PaymentMethod } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
@@ -22,6 +24,7 @@ const RegisterPaymentScreen = () => {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { setTokens } = useAuth();
 
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod | null>(
     null
@@ -34,6 +37,7 @@ const RegisterPaymentScreen = () => {
   const refreshToken = params.refreshToken as string;
   const planId = params.planId as string;
   const planName = params.planName as string;
+  const planType = params.planType as string;
   const planPrice = parseFloat(params.planPrice as string);
   const setupFee = parseFloat(params.setupFee as string);
   const durationMonths = parseInt(params.durationMonths as string);
@@ -45,6 +49,7 @@ const RegisterPaymentScreen = () => {
   const plan = {
     id: planId,
     name: planName,
+    type: planType,
     price: planPrice,
     setup_fee: setupFee,
     duration_months: durationMonths,
@@ -59,61 +64,29 @@ const RegisterPaymentScreen = () => {
       }
     : null;
 
-  // Check if user already has an active subscription or completed payment
+  // Check if required params exist, redirect if missing
   useEffect(() => {
-    const checkPaymentStatus = async () => {
-      try {
-        console.log('🔍 Checking existing subscription status...');
-
-        // Get user's subscriptions
-        const subscriptions = await billingService.getMemberSubscriptions(
-          userId
-        );
-        console.log('📋 Found subscriptions:', subscriptions);
-
-        // Check if any subscription is ACTIVE or has COMPLETED payment
-        const activeSubscription = subscriptions.find(
-          (sub: any) =>
-            sub.status === 'ACTIVE' && sub.payments?.[0]?.status === 'COMPLETED'
-        );
-
-        if (activeSubscription) {
-          console.log(
-            '✅ Found active subscription with completed payment, redirecting...'
-          );
-          Alert.alert(
-            t('common.info'),
-            'Bạn đã hoàn tất thanh toán. Đang chuyển sang bước tiếp theo...',
-            [
-              {
-                text: t('common.ok'),
-                onPress: () => {
-                  router.replace({
-                    pathname: '/(auth)/register-profile',
-                    params: {
-                      userId,
-                      accessToken,
-                      refreshToken,
-                      paymentVerified: 'true',
-                    },
-                  });
-                },
-              },
-            ]
-          );
-        } else {
-          console.log('ℹ️ No active subscription found, proceed with payment');
-        }
-      } catch (error) {
-        console.error('❌ Error checking subscription status:', error);
-        // Continue with payment flow even if check fails
-      } finally {
-        setIsCheckingStatus(false);
-      }
-    };
-
-    checkPaymentStatus();
-  }, [userId]);
+    if (!userId || !accessToken || !refreshToken || !planId) {
+      console.error(
+        '❌ Missing required params for payment screen, redirecting to login'
+      );
+      Alert.alert(
+        t('common.warning'),
+        t('registration.sessionExpired') ||
+          'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.',
+        [
+          {
+            text: t('common.ok'),
+            onPress: () => {
+              router.replace('/(auth)/login');
+            },
+          },
+        ]
+      );
+    } else {
+      setIsCheckingStatus(false);
+    }
+  }, []);
 
   const paymentMethods: {
     method: PaymentMethod;
@@ -162,9 +135,34 @@ const RegisterPaymentScreen = () => {
         bonusDays,
       });
 
-      // Create subscription first
+      // Validate tokens before proceeding
+      if (!accessToken || !refreshToken) {
+        console.error('❌ Missing tokens:', {
+          hasAccess: !!accessToken,
+          hasRefresh: !!refreshToken,
+        });
+        throw new Error('Missing authentication tokens');
+      }
+
+      // Step 1: Set tokens to authenticate member service calls
+      console.log('🔐 Setting tokens...');
+      await setTokens(accessToken, refreshToken);
+
+      // Step 2: Create member first (or get existing member)
+      console.log('👤 Creating/getting member...');
+      const memberResult = await memberService.updateMemberProfile({});
+      if (!memberResult.success) {
+        throw new Error('Failed to create member');
+      }
+      const memberId = memberResult.data?.id;
+      if (!memberId) {
+        throw new Error('Member ID not found after creation');
+      }
+      console.log('✅ Member created/retrieved with ID:', memberId);
+
+      // Step 3: Create subscription with member.id
       const subscriptionData = {
-        member_id: userId,
+        member_id: memberId, // Use actual member.id instead of userId
         plan_id: planId,
         discount_code: discountCode || undefined,
         bonus_days: bonusDays || undefined,
@@ -176,9 +174,9 @@ const RegisterPaymentScreen = () => {
         subscriptionData
       );
 
-      // Initiate payment
+      // Step 4: Initiate payment with member.id
       const paymentResponse = await billingService.initiatePayment({
-        member_id: userId,
+        member_id: memberId, // Use actual member.id instead of userId
         subscription_id: subscription.id,
         amount: subscription.total_amount,
         payment_method: selectedMethod,

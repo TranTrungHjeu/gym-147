@@ -25,6 +25,7 @@ router.patch('/subscriptions/:id/cancel', (req, res) =>
 // Payments Routes
 router.get('/payments', (req, res) => billingController.getAllPayments(req, res));
 router.post('/payments', (req, res) => billingController.createPayment(req, res));
+router.put('/payments/:id', (req, res) => billingController.updatePayment(req, res));
 router.post('/payments/initiate', (req, res) => billingController.initiatePayment(req, res));
 router.post('/payments/webhook', (req, res) => billingController.handlePaymentWebhook(req, res));
 router.patch('/payments/:id/process', (req, res) => billingController.processPayment(req, res));

@@ -10,11 +10,11 @@ class MemberService {
    */
   async checkMemberExists(): Promise<boolean> {
     try {
-      console.log('🔍 Checking if member exists...');
+      console.log('Checking if member exists...');
       const token = await memberApiService.getStoredToken();
 
       if (!token) {
-        console.log('❌ No token found');
+        console.log('No token found');
         return false;
       }
 
@@ -22,7 +22,7 @@ class MemberService {
       const response = await memberApiService.get('/members/profile');
 
       if (response.data && (response.data as any).id) {
-        console.log('✅ Member exists:', (response.data as any).id);
+        console.log('Member exists:', (response.data as any).id);
         return true;
       }
 
@@ -46,109 +46,16 @@ class MemberService {
     try {
       console.log('🔑 Fetching member profile from API...');
 
-      // Check if we have a token first
-      const token = await memberApiService.getStoredToken();
-      console.log('🔑 Token exists:', !!token);
-      console.log(
-        '🔑 Token preview:',
-        token ? token.substring(0, 20) + '...' : 'No token'
-      );
-
-      // If no token, return error immediately
-      if (!token) {
-        console.log('🔑 No token found, cannot fetch profile');
-        return {
-          success: false,
-          error: 'No authentication token found. Please login again.',
-        };
-      }
-
-      // Try to decode token to check if it's valid
-      try {
-        console.log('🔑 Full token:', token);
-        console.log('🔑 Token length:', token.length);
-        console.log('🔑 Token parts:', token.split('.').length);
-
-        const tokenParts = token.split('.');
-        if (tokenParts.length !== 3) {
-          console.log('🔑 Invalid token format - not a JWT');
-          return {
-            success: false,
-            error: 'Invalid token format. Please login again.',
-          };
-        }
-
-        console.log('🔑 Token header:', tokenParts[0]);
-        console.log('🔑 Token payload (raw):', tokenParts[1]);
-
-        // Try to decode the payload with proper base64 padding
-        let payloadBase64 = tokenParts[1];
-        while (payloadBase64.length % 4) {
-          payloadBase64 += '=';
-        }
-
-        const decodedPayload = atob(payloadBase64);
-        console.log('🔑 Token payload (decoded string):', decodedPayload);
-
-        const payload = JSON.parse(decodedPayload);
-        console.log('🔑 Token payload (parsed):', payload);
-        console.log('🔑 Current time:', Date.now() / 1000);
-        console.log('🔑 Token exp:', payload.exp);
-
-        // Check if token is expired
-        if (payload.exp && payload.exp < Date.now() / 1000) {
-          console.log('🔑 Token expired');
-          return {
-            success: false,
-            error: 'Authentication token expired. Please login again.',
-          };
-        }
-
-        console.log('🔑 Token validation passed');
-      } catch (decodeError: any) {
-        console.log('🔑 Token decode failed:', decodeError);
-        console.log('🔑 Decode error details:', {
-          message: decodeError?.message || 'Unknown error',
-          name: decodeError?.name || 'Unknown',
-          stack: decodeError?.stack || 'No stack trace',
-        });
-
-        // Don't clear token immediately - let's see if API call works
-        console.log(
-          '🔑 Token decode failed - checking remember me preference...'
-        );
-        // Check if user chose to remember login before clearing token
-        try {
-          const authStorage = require('@/utils/auth/storage');
-          const rememberMe = await authStorage.getRememberMe();
-
-          if (!rememberMe) {
-            await authStorage.clearAuthData();
-            console.log(
-              '🔑 Cleared invalid auth data from storage (remember me = false)'
-            );
-          } else {
-            console.log('🔑 Keeping auth data (remember me = true)');
-          }
-        } catch (clearError) {
-          console.log(
-            '🔑 Failed to check remember me or clear auth data:',
-            clearError
-          );
-        }
-
-        return {
-          success: false,
-          error: 'Invalid authentication token. Please login again.',
-        };
-      }
+      // No need to check token expiry here - ApiService will auto-refresh if needed
 
       // Try to get user profile from Identity Service first
       let response;
       try {
+        // Import at runtime to avoid circular dependency
+        const { SERVICE_URLS } = require('@/config/environment');
         // Try Identity Service profile endpoint (port 3001)
         const identityResponse = await memberApiService.get('/profile', {
-          baseURL: 'http://192.168.2.19:3001',
+          baseURL: SERVICE_URLS.IDENTITY,
         });
         console.log('🔑 Identity Service profile response:', identityResponse);
 
@@ -181,40 +88,11 @@ class MemberService {
             };
           } catch (memberError: any) {
             console.log(
-              '🔑 Member data not found, using user data only:',
+              '🔑 Member data not found, throwing error:',
               memberError.message
             );
-            // Use only user data if member data not found
-            response = {
-              data: {
-                id: userData.id,
-                full_name: `${userData.firstName} ${userData.lastName}`,
-                email: userData.email,
-                phone: userData.phone,
-                date_of_birth: '',
-                gender: 'other',
-                address: '',
-                height: 0,
-                weight: 0,
-                body_fat_percent: 0,
-                medical_conditions: [],
-                allergies: [],
-                fitness_goals: [],
-                emergency_contact: {
-                  name: '',
-                  relationship: 'other',
-                  phone: '',
-                },
-                profile_photo: '',
-                membership_type: 'basic',
-                membership_status: 'ACTIVE',
-                membership_start_date: '',
-                membership_end_date: '',
-                is_active: userData.emailVerified,
-                created_at: userData.createdAt,
-                updated_at: userData.updatedAt,
-              },
-            };
+            // Throw error instead of creating mock data
+            throw memberError;
           }
         } else {
           throw new Error('No user data in response');
@@ -228,7 +106,12 @@ class MemberService {
           console.log('🔑 Member Service profile response:', response);
         } catch (memberError: any) {
           console.log('🔑 Member Service failed:', memberError.message);
-          throw identityError; // Throw original error
+
+          // Don't throw - return error response instead
+          return {
+            success: false,
+            error: identityError.message || 'Failed to fetch profile',
+          };
         }
       }
 
@@ -251,50 +134,22 @@ class MemberService {
         errorMessage =
           'Member not found. Please check your account status or contact support.';
       } else if (error.status === 401) {
-        errorMessage = 'Authentication required. Please login again.';
+        errorMessage = 'Session expired. Please login again.';
+
+        // Clear auth data when session expired
+        try {
+          const { clearAuthData } = await import('@/utils/auth/storage');
+          await clearAuthData();
+          console.log('🔑 Cleared auth data due to session expiry');
+        } catch (clearError) {
+          console.error('🔑 Failed to clear auth data:', clearError);
+        }
       } else if (error.status === 403) {
         errorMessage = 'Access denied. Please contact support.';
       } else if (error.status >= 500) {
         errorMessage = 'Server error. Please try again later.';
       } else if (error.message) {
         errorMessage = error.message;
-      }
-
-      // For 404 errors, we might want to return a default profile structure
-      // so the app doesn't crash completely
-      if (error.status === 404) {
-        console.log('🔑 Returning default profile structure for 404 error');
-        return {
-          success: true,
-          data: {
-            id: 'temp-user',
-            full_name: 'Guest User',
-            email: 'guest@example.com',
-            phone: '',
-            date_of_birth: '',
-            gender: 'other',
-            address: '',
-            height: 0,
-            weight: 0,
-            body_fat_percent: 0,
-            medical_conditions: [],
-            allergies: [],
-            fitness_goals: [],
-            emergency_contact: {
-              name: '',
-              relationship: 'other',
-              phone: '',
-            },
-            profile_photo: '',
-            membership_type: 'basic',
-            membership_start_date: '',
-            membership_end_date: '',
-            membership_status: 'ACTIVE',
-            is_active: false,
-            created_at: new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          } as unknown as Member,
-        };
       }
 
       return {

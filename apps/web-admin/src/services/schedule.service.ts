@@ -288,11 +288,27 @@ class ScheduleService {
       },
     });
 
+    const data = await response.json();
+
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      // Create error with response data for better error handling
+      let errorMessage = data?.message || `HTTP error! status: ${response.status}`;
+      
+      // Include detailed error information if available
+      if (data?.data?.errors && Array.isArray(data.data.errors)) {
+        errorMessage += `\nChi tiết: ${data.data.errors.join(', ')}`;
+      } else if (data?.data?.errors && typeof data.data.errors === 'string') {
+        errorMessage += `\nChi tiết: ${data.data.errors}`;
+      }
+      
+      const error: any = new Error(errorMessage);
+      error.status = response.status;
+      error.response = { data };
+      error.message = errorMessage;
+      throw error;
     }
 
-    return response.json();
+    return data;
   }
 
   // Calendar APIs
@@ -880,6 +896,34 @@ class ScheduleService {
   async markAllNotificationsAsRead(userId: string): Promise<ApiResponse<any>> {
     return this.request<any>(`/notifications/read-all/${userId}`, {
       method: 'PUT',
+    });
+  }
+
+  /**
+   * Reset all rate limits (Admin only)
+   */
+  async resetAllRateLimits(): Promise<ApiResponse<{ count: number }>> {
+    return this.request<{ count: number }>('/admin/rate-limits/reset-all', {
+      method: 'POST',
+    });
+  }
+
+  /**
+   * Reset rate limit for a specific user (Admin only)
+   */
+  async resetUserRateLimit(userId: string, operation?: string): Promise<ApiResponse<{ reset: boolean }>> {
+    return this.request<{ reset: boolean }>(`/admin/rate-limits/reset/${userId}`, {
+      method: 'POST',
+      body: JSON.stringify({ operation: operation || 'create_schedule' }),
+    });
+  }
+
+  /**
+   * Reset all rate limits for a specific user (Admin only)
+   */
+  async resetUserRateLimits(userId: string): Promise<ApiResponse<{ count: number }>> {
+    return this.request<{ count: number }>(`/admin/rate-limits/reset-user/${userId}`, {
+      method: 'POST',
     });
   }
 }

@@ -74,21 +74,21 @@ export default function EditHealthScreen() {
       formData.height !== null &&
       (formData.height < 100 || formData.height > 250)
     ) {
-      newErrors.height = 'Height must be between 100-250 cm';
+      newErrors.height = t('profile.invalidHeight');
     }
 
     if (
       formData.weight !== null &&
       (formData.weight < 30 || formData.weight > 300)
     ) {
-      newErrors.weight = 'Weight must be between 30-300 kg';
+      newErrors.weight = t('profile.invalidWeight');
     }
 
     if (
       formData.body_fat_percent !== null &&
       (formData.body_fat_percent < 0 || formData.body_fat_percent > 50)
     ) {
-      newErrors.body_fat_percent = 'Body fat percentage must be between 0-50%';
+      newErrors.body_fat_percent = t('profile.invalidBodyFat');
     }
 
     setErrors(newErrors);
@@ -163,7 +163,7 @@ export default function EditHealthScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading profile...
+            {t('profile.loadingProfile')}
           </Text>
         </View>
       </SafeAreaView>
@@ -175,7 +175,7 @@ export default function EditHealthScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -183,7 +183,7 @@ export default function EditHealthScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Edit Health Info
+          {t('profile.editHealth')}
         </Text>
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
@@ -198,12 +198,16 @@ export default function EditHealthScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView 
+        style={styles.content} 
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         <View style={styles.form}>
           {/* Height */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Height (cm)
+              {t('profile.heightCm')}
             </Text>
             <TextInput
               style={[
@@ -220,7 +224,7 @@ export default function EditHealthScreen() {
               onChangeText={(value) =>
                 updateField('height', value ? parseFloat(value) : null)
               }
-              placeholder="Enter your height"
+              placeholder={t('profile.enterHeight')}
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="numeric"
             />
@@ -234,7 +238,7 @@ export default function EditHealthScreen() {
           {/* Weight */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Weight (kg)
+              {t('profile.weightKg')}
             </Text>
             <TextInput
               style={[
@@ -251,7 +255,7 @@ export default function EditHealthScreen() {
               onChangeText={(value) =>
                 updateField('weight', value ? parseFloat(value) : null)
               }
-              placeholder="Enter your weight"
+              placeholder={t('profile.enterWeight')}
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="numeric"
             />
@@ -265,7 +269,7 @@ export default function EditHealthScreen() {
           {/* Body Fat Percentage */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Body Fat Percentage (%)
+              {t('profile.bodyFatPercent')}
             </Text>
             <TextInput
               style={[
@@ -285,7 +289,7 @@ export default function EditHealthScreen() {
                   value ? parseFloat(value) : null
                 )
               }
-              placeholder="Enter body fat percentage"
+              placeholder={t('profile.enterBodyFat')}
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="numeric"
             />
@@ -299,7 +303,7 @@ export default function EditHealthScreen() {
           {/* Medical Conditions */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Medical Conditions
+              {t('profile.medicalConditions')}
             </Text>
 
             {/* Add new condition */}
@@ -315,8 +319,9 @@ export default function EditHealthScreen() {
                 ]}
                 value={newCondition}
                 onChangeText={setNewCondition}
-                placeholder="Add medical condition"
+                placeholder={t('profile.addMedicalCondition')}
                 placeholderTextColor={theme.colors.textSecondary}
+                onSubmitEditing={addCondition}
               />
               <TouchableOpacity
                 style={[
@@ -353,7 +358,7 @@ export default function EditHealthScreen() {
           {/* Allergies */}
           <View style={styles.inputGroup}>
             <Text style={[styles.label, { color: theme.colors.text }]}>
-              Allergies
+              {t('profile.allergies')}
             </Text>
 
             {/* Add new allergy */}
@@ -369,8 +374,9 @@ export default function EditHealthScreen() {
                 ]}
                 value={newAllergy}
                 onChangeText={setNewAllergy}
-                placeholder="Add allergy"
+                placeholder={t('profile.addAllergy')}
                 placeholderTextColor={theme.colors.textSecondary}
+                onSubmitEditing={addAllergy}
               />
               <TouchableOpacity
                 style={[
@@ -420,7 +426,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'transparent',
   },
   backButton: {
     padding: 8,
@@ -441,7 +446,10 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
     paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   form: {
     paddingVertical: 24,
@@ -455,15 +463,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   input: {
+    ...Typography.bodyMedium,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...Typography.bodyMedium,
+    paddingVertical: 14,
+    minHeight: 48,
   },
   errorText: {
     ...Typography.bodySmall,
-    marginTop: 4,
+    marginTop: 6,
   },
   addItemContainer: {
     flexDirection: 'row',
@@ -471,18 +480,21 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   addItemInput: {
+    ...Typography.bodyMedium,
     flex: 1,
     borderWidth: 1,
     borderRadius: 12,
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    ...Typography.bodyMedium,
+    paddingVertical: 14,
+    minHeight: 48,
   },
   addButton: {
     padding: 12,
     borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
+    minWidth: 48,
+    minHeight: 48,
   },
   listItem: {
     flexDirection: 'row',
@@ -490,9 +502,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: 'transparent',
-    borderRadius: 8,
     marginBottom: 8,
+    borderRadius: 8,
   },
   listItemText: {
     ...Typography.bodyMedium,

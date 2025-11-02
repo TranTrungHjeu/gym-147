@@ -155,6 +155,7 @@ const RegisterBankTransferScreen = () => {
       alignItems: 'center',
       paddingHorizontal: 16,
       paddingVertical: 16,
+      paddingTop: 45,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
@@ -187,7 +188,7 @@ const RegisterBankTransferScreen = () => {
     qrImage: {
       width: 250,
       height: 250,
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.colors.surface,
       borderRadius: 12,
     },
     qrHint: {
@@ -241,7 +242,7 @@ const RegisterBankTransferScreen = () => {
       alignItems: 'center',
       justifyContent: 'center',
       padding: 16,
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.colors.surface,
     },
     timerText: {
       fontSize: 16,
@@ -263,7 +264,7 @@ const RegisterBankTransferScreen = () => {
       gap: 8,
     },
     buttonSecondary: {
-      backgroundColor: theme.colors.card,
+      backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },

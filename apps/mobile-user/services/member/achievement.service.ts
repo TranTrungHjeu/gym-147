@@ -32,7 +32,11 @@ export interface CreateAchievementData {
 export interface UpdateAchievementData extends Partial<CreateAchievementData> {}
 
 class AchievementService {
-  private baseUrl = 'http://10.0.2.2:3002/achievements'; // Direct connection to Member Service
+  // Get base URL from centralized config
+  private get baseUrl() {
+    const { SERVICE_URLS } = require('@/config/environment');
+    return `${SERVICE_URLS.MEMBER}/achievements`;
+  }
 
   /**
    * Get all achievements for the current member

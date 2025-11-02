@@ -64,7 +64,7 @@ export const lightThemeColors: ThemeColors = {
   divider: '#E2E8F0', // Darker divider
 
   // Status colors
-  success: '#059669', // Darker green for better contrast
+  success: '#10B981', // Emerald 500 - vibrant green
   warning: '#D97706', // Darker orange for better contrast
   error: '#DC2626', // Darker red for better contrast
   info: '#2563EB', // Darker blue for better contrast

@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { memberService } from '@/services/member/member.service';
 import { useTheme } from '@/utils/theme';
 import { Ionicons } from '@expo/vector-icons';
@@ -24,6 +25,7 @@ const RegisterProfileScreen = () => {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { loadMemberProfile } = useAuth(); // Get loadMemberProfile from AuthContext
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -83,6 +85,13 @@ const RegisterProfileScreen = () => {
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
     return `${day}/${month}/${year}`;
+  };
+
+  const formatDateForBackend = (date: Date): string => {
+    const day = date.getDate().toString().padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const year = date.getFullYear();
+    return `${year}-${month}-${day}`;
   };
 
   const onDateChange = (event: any, selectedDate?: Date) => {
@@ -185,11 +194,10 @@ const RegisterProfileScreen = () => {
         // Store base64 for later upload
         if (asset.base64) {
           setAvatarUrl(asset.base64); // Temporarily store base64 in avatarUrl
-          console.log('✅ Avatar selected, will upload when saving profile');
         }
       }
     } catch (error) {
-      console.error('❌ Pick image error:', error);
+      console.error('Pick image error:', error);
       Alert.alert(t('common.error'), 'Không thể chọn ảnh');
     }
   };
@@ -198,11 +206,9 @@ const RegisterProfileScreen = () => {
     setIsSaving(true);
 
     try {
-      console.log('💾 Saving profile...');
-
       // Step 1: Save profile data first (creates member if not exists)
       const profileData = {
-        date_of_birth: dateOfBirth.toISOString(),
+        date_of_birth: formatDateForBackend(dateOfBirth),
         gender: gender as any,
         height: height ? parseFloat(height) : undefined,
         weight: weight ? parseFloat(weight) : undefined,
@@ -226,25 +232,26 @@ const RegisterProfileScreen = () => {
         emergency_phone: emergencyContactPhone || undefined,
       };
 
-      console.log('💾 Profile data:', profileData);
-
       // Update member profile
       const result = await memberService.updateMemberProfile(
         profileData as any
       );
 
-      console.log('💾 Update result:', result);
-
       if (!result.success) {
         throw new Error(result.error || 'Failed to update profile');
       }
 
-      console.log('✅ Profile saved successfully!');
+      // Reload member profile in AuthContext after creating/updating member
+      // This ensures member_id is available immediately after registration
+      try {
+        await loadMemberProfile();
+      } catch (loadError) {
+        // Don't block navigation, member profile can be loaded later
+      }
 
       // Step 2: Upload avatar AFTER member is created (if selected)
       if (avatarUrl && avatarUrl.length > 100) {
         // avatarUrl contains base64
-        console.log('📤 Uploading avatar to S3...');
         setIsUploadingAvatar(true);
 
         const uploadResult = await memberService.uploadAvatar(
@@ -253,13 +260,8 @@ const RegisterProfileScreen = () => {
           `avatar_${userId}_${Date.now()}.jpg`
         );
 
-        if (uploadResult.success) {
-          console.log(
-            '✅ Avatar uploaded:',
-            uploadResult.data?.data?.avatarUrl
-          );
-        } else {
-          console.error('❌ Avatar upload failed:', uploadResult.error);
+        if (!uploadResult.success) {
+          console.error('Avatar upload failed:', uploadResult.error);
           // Don't show alert, just log error - profile is already saved
         }
 
@@ -426,7 +428,6 @@ const RegisterProfileScreen = () => {
     input: {
       fontFamily: 'Inter-Regular',
       fontSize: 16,
-      lineHeight: 24,
       color: theme.colors.text,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
@@ -434,6 +435,9 @@ const RegisterProfileScreen = () => {
       borderRadius: theme.radius.md,
       padding: theme.spacing.md,
       minHeight: 48,
+      lineHeight: undefined, // Remove lineHeight for TextInput
+      includeFontPadding: false, // Android: prevent extra padding
+      textAlignVertical: 'center', // Android: vertical alignment
     },
     inputRow: {
       flexDirection: 'row',

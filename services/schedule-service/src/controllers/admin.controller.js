@@ -5,6 +5,7 @@
 
 const { prisma } = require('../lib/prisma.js');
 const notificationService = require('../services/notification.service.js');
+const rateLimitService = require('../services/rate-limit.service.js');
 
 class AdminController {
   /**
@@ -420,6 +421,120 @@ class AdminController {
       res.status(500).json({
         success: false,
         message: 'Có lỗi xảy ra khi lấy thống kê dashboard',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Reset rate limit for a specific user and operation
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async resetRateLimit(req, res) {
+    try {
+      const { user_id } = req.params;
+      const { operation = 'create_schedule' } = req.body;
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID is required',
+          data: null,
+        });
+      }
+
+      const reset = rateLimitService.resetRateLimit(user_id, operation);
+
+      if (reset) {
+        res.json({
+          success: true,
+          message: `Rate limit đã được reset cho user ${user_id}, operation: ${operation}`,
+          data: {
+            user_id,
+            operation,
+            reset: true,
+          },
+        });
+      } else {
+        res.json({
+          success: true,
+          message: `Không tìm thấy rate limit để reset cho user ${user_id}, operation: ${operation}`,
+          data: {
+            user_id,
+            operation,
+            reset: false,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Reset rate limit error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Có lỗi xảy ra khi reset rate limit',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Reset all rate limits for a specific user
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async resetUserRateLimits(req, res) {
+    try {
+      const { user_id } = req.params;
+
+      if (!user_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'User ID is required',
+          data: null,
+        });
+      }
+
+      const count = rateLimitService.resetUserRateLimits(user_id);
+
+      res.json({
+        success: true,
+        message: `Đã reset ${count} rate limit(s) cho user ${user_id}`,
+        data: {
+          user_id,
+          count,
+        },
+      });
+    } catch (error) {
+      console.error('Reset user rate limits error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Có lỗi xảy ra khi reset rate limits',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Reset all rate limits (use with caution)
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async resetAllRateLimits(req, res) {
+    try {
+      const count = rateLimitService.resetAllRateLimits();
+
+      res.json({
+        success: true,
+        message: `Đã reset tất cả ${count} rate limit(s)`,
+        data: {
+          count,
+        },
+      });
+    } catch (error) {
+      console.error('Reset all rate limits error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Có lỗi xảy ra khi reset tất cả rate limits',
         data: null,
       });
     }

@@ -88,6 +88,7 @@ export enum MembershipType {
   BASIC = 'BASIC',
   PREMIUM = 'PREMIUM',
   VIP = 'VIP',
+  STUDENT = 'STUDENT',
 }
 
 export enum AccessMethod {

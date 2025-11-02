@@ -34,6 +34,17 @@ router.post('/resend-email-verification', authMiddleware, (req, res) =>
   authController.resendEmailVerification(req, res)
 );
 
+// Push notification routes (protected)
+router.put('/users/:id/push-token', authMiddleware, (req, res) =>
+  authController.updatePushToken(req, res)
+);
+router.put('/users/:id/push-preference', authMiddleware, (req, res) =>
+  authController.updatePushPreference(req, res)
+);
+router.get('/users/:id/push-settings', authMiddleware, (req, res) =>
+  authController.getPushSettings(req, res)
+);
+
 // Session management routes
 router.post('/refresh-token', (req, res) => authController.refreshToken(req, res)); // Public for token refresh
 

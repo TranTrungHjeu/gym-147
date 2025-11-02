@@ -1,17 +1,17 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { LoginCredentials } from '@/types/authTypes';
-import {
-  getFieldError,
-  validateLoginCredentials,
-} from '@/utils/auth/validation';
+import { getFieldError } from '@/utils/auth/validation';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Animated,
+  Alert,
   Image,
+  Modal,
   StyleSheet,
   Text,
   TextInput,
@@ -30,6 +30,32 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
   const [errors, setErrors] = useState<any[]>([]);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const modalScale = useRef(new Animated.Value(0)).current;
+  const modalFade = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (showErrorModal) {
+      Animated.parallel([
+        Animated.spring(modalScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(modalFade, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      modalScale.setValue(0);
+      modalFade.setValue(0);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showErrorModal]);
 
   const handleGoBack = () => {
     router.push('/');
@@ -44,17 +70,49 @@ export default function LoginScreen() {
   };
 
   const handleLogin = async () => {
-    const credentials: LoginCredentials & { rememberMe?: boolean } = {
-      identifier: email,
-      password,
-      rememberMe: rememberMe,
-    };
-    const validationErrors = validateLoginCredentials(credentials);
+    const validationErrors: any[] = [];
+
+    // Validate email
+    if (!email.trim()) {
+      validationErrors.push({
+        field: 'email',
+        message: t('validation.emailRequired'),
+      });
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      validationErrors.push({
+        field: 'email',
+        message: t('validation.emailInvalid'),
+      });
+    }
+
+    // Validate password
+    if (!password) {
+      validationErrors.push({
+        field: 'password',
+        message: t('validation.passwordRequired'),
+      });
+    } else if (password.length < 8) {
+      validationErrors.push({
+        field: 'password',
+        message: t('validation.passwordMinLength'),
+      });
+    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      validationErrors.push({
+        field: 'password',
+        message: t('validation.passwordWeak'),
+      });
+    }
 
     if (validationErrors.length > 0) {
       setErrors(validationErrors);
       return;
     }
+
+    const credentials: LoginCredentials & { rememberMe?: boolean } = {
+      identifier: email,
+      password,
+      rememberMe: rememberMe,
+    };
 
     try {
       const result = await login(credentials);
@@ -96,8 +154,14 @@ export default function LoginScreen() {
         console.log('✅ Complete registration - redirecting to home');
         router.replace('/(tabs)');
       }
-    } catch (error) {
-      console.error('Login error:', error);
+    } catch (error: any) {
+      // Display error message to user
+      // Always use translation instead of backend message for consistency
+      const errorMsg = t('auth.loginFailed');
+
+      // Show error modal
+      setErrorMessage(errorMsg);
+      setShowErrorModal(true);
     }
   };
 
@@ -147,7 +211,13 @@ export default function LoginScreen() {
             placeholderTextColor={theme.colors.textTertiary}
             keyboardType="email-address"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => {
+              setEmail(text);
+              // Clear errors when user starts typing
+              if (errors.length > 0) {
+                setErrors([]);
+              }
+            }}
             autoCapitalize="none"
           />
         </View>
@@ -178,7 +248,13 @@ export default function LoginScreen() {
             placeholderTextColor={theme.colors.textTertiary}
             secureTextEntry={secureEntry}
             value={password}
-            onChangeText={setPassword}
+            onChangeText={(text) => {
+              setPassword(text);
+              // Clear errors when user starts typing
+              if (errors.length > 0) {
+                setErrors([]);
+              }
+            }}
             autoCapitalize="none"
           />
           <TouchableOpacity
@@ -284,6 +360,57 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Error Modal */}
+      <Modal visible={showErrorModal} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                transform: [{ scale: modalScale }],
+                opacity: modalFade,
+              },
+            ]}
+          >
+            {/* Icon */}
+            <View
+              style={[
+                styles.modalIcon,
+                { backgroundColor: `${theme.colors.error}15` },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={48}
+                color={theme.colors.error}
+              />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {t('auth.loginErrorTitle')}
+            </Text>
+
+            {/* Message */}
+            <Text
+              style={[styles.modalMessage, { color: theme.colors.textSecondary }]}
+            >
+              {errorMessage}
+            </Text>
+
+            {/* OK Button */}
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+              onPress={() => setShowErrorModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>{t('common.ok')}</Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -330,8 +457,12 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     paddingHorizontal: 12,
+    paddingVertical: 0,
+    height: 24, // Match lineHeight to prevent shift
     ...Typography.bodyMedium,
-    minHeight: 24,
+    lineHeight: undefined, // Remove lineHeight for TextInput
+    includeFontPadding: false, // Android: prevent extra padding
+    textAlignVertical: 'center', // Android: vertical alignment
   },
   errorText: {
     ...Typography.bodySmall,
@@ -339,6 +470,19 @@ const styles = StyleSheet.create({
     marginTop: -2,
     marginBottom: 8,
     color: '#EF4444', // theme.colors.error - hardcoded vì không access được theme trong StyleSheet
+  },
+  generalErrorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  generalErrorText: {
+    ...Typography.bodyMedium,
+    flex: 1,
   },
   forgotPasswordText: {
     ...Typography.bodySmallMedium,
@@ -416,5 +560,63 @@ const styles = StyleSheet.create({
   signupText: {
     ...Typography.bodyMedium,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 15,
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    ...Typography.h3,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    ...Typography.bodyMedium,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  modalButton: {
+    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonText: {
+    ...Typography.buttonLarge,
+    textAlign: 'center',
+    color: '#FFFFFF',
   },
 });

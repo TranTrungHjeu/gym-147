@@ -12,14 +12,22 @@ import {
 import { ClassCategory } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
-import { Calendar, Filter, Search } from 'lucide-react-native';
+import {
+  Calendar,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Search,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Platform,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -45,7 +53,7 @@ const CATEGORIES: ClassCategory[] = [
 
 export default function ClassesScreen() {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -95,6 +103,7 @@ export default function ClassesScreen() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split('T')[0]
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
@@ -106,29 +115,35 @@ export default function ClassesScreen() {
   const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<string[]>([]);
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
 
-  // Debug: Log when selectedCategory changes
-  useEffect(() => {
-    console.log('📂 [4] selectedCategory STATE CHANGED:', selectedCategory);
-  }, [selectedCategory]);
+  // Track if initial load has completed
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const [isLoadingDateChange, setIsLoadingDateChange] = useState(false);
 
   // Load data on component mount (only when date changes, NOT category)
   useEffect(() => {
-    console.log('🔄 [5] useEffect triggered - Loading data...', {
-      selectedDate,
-      hasUser: !!user?.id,
-    });
     if (user?.id) {
-      loadData();
+      // Show full loading only on initial load, not on date changes
+      loadData(isInitialLoad);
+      if (isInitialLoad) {
+        setIsInitialLoad(false);
+      }
     }
   }, [selectedDate, user?.id]); // Removed selectedCategory from dependencies
 
-  const loadData = async () => {
+  const loadData = async (showFullLoading = true) => {
     try {
-      setLoading(true);
+      // Only show full loading spinner on initial load or manual refresh
+      // When changing date, we'll show a subtle indicator instead
+      if (showFullLoading) {
+        setLoading(true);
+      } else {
+        // Show subtle loading indicator when changing date
+        setIsLoadingDateChange(true);
+      }
       setError(null);
 
-      console.log('📅 Loading classes data...');
-      console.log('👤 User:', user);
+      // Reset schedules immediately when loading new date to prevent showing old data
+      setSchedules([]);
 
       if (!user?.id) {
         setError('Please login to view classes');
@@ -142,56 +157,57 @@ export default function ClassesScreen() {
         // Don't pass category to API - we'll filter client-side for better UX
       };
 
-      console.log('📂 Loading ALL schedules for date:', {
-        date: selectedDate,
-        note: 'Category filtering will be done client-side',
-      });
-
       // Load schedules and bookings in parallel
+      const memberIdForBookings = member?.id || user.id;
       const [schedulesResponse, bookingsResponse] = await Promise.all([
         scheduleService.getSchedules(filters),
-        bookingService.getMemberBookings(user.id),
+        bookingService.getMemberBookings(memberIdForBookings),
       ]);
-
-      console.log('📅 Schedules response:', schedulesResponse);
-      console.log('📅 Bookings response:', bookingsResponse);
 
       // Handle schedules
       if (schedulesResponse.success && schedulesResponse.data) {
-        console.log(
-          '✅ Schedules loaded:',
-          schedulesResponse.data.length,
-          'schedules'
-        );
-        setSchedules(schedulesResponse.data);
+        // Always filter by selected date on client-side to ensure accuracy
+        const filteredSchedules = Array.isArray(schedulesResponse.data)
+          ? schedulesResponse.data.filter((schedule: Schedule) => {
+              const scheduleDate = new Date(schedule.start_time);
+              const selectedDateObj = new Date(selectedDate);
+
+              // Compare dates (ignore time)
+              const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
+              const selectedDateStr = selectedDateObj
+                .toISOString()
+                .split('T')[0];
+
+              return scheduleDateStr === selectedDateStr;
+            })
+          : [];
+
+        setSchedules(filteredSchedules);
       } else {
-        console.log('❌ Failed to load schedules:', schedulesResponse.error);
         setSchedules([]);
       }
 
       // Handle bookings
       if (bookingsResponse.success && bookingsResponse.data) {
-        console.log(
-          '✅ Bookings loaded:',
-          bookingsResponse.data.length,
-          'bookings'
-        );
         setMyBookings(bookingsResponse.data);
       } else {
-        console.log('❌ Failed to load bookings:', bookingsResponse.error);
         setMyBookings([]);
       }
     } catch (err: any) {
-      console.error('❌ Error loading classes data:', err);
+      console.error('Error loading classes data:', err);
       setError(err.message || 'Failed to load classes data');
     } finally {
-      setLoading(false);
+      if (showFullLoading) {
+        setLoading(false);
+      } else {
+        setIsLoadingDateChange(false);
+      }
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    await loadData(true); // Show full loading on manual refresh
     setRefreshing(false);
   };
 
@@ -200,21 +216,45 @@ export default function ClassesScreen() {
   };
 
   const handleCategorySelect = (category: ClassCategory | 'ALL') => {
-    console.log('📂 [1] Category button clicked:', {
-      category,
-      currentCategory: selectedCategory,
-      willChange: category !== selectedCategory,
-    });
-
-    console.log('📂 [2] Calling setSelectedCategory...');
     setSelectedCategory(category);
-    console.log('📂 [3] setSelectedCategory called');
   };
 
-  const handleDateSelect = (date: string) => {
-    console.log('📅 Date selected:', date);
-    setSelectedDate(date);
-    // This will trigger useEffect to reload data with new date filter
+  const handleDateChange = (event: any, selectedDate?: Date) => {
+    // On Android, close picker after selection (event.type === 'set')
+    // On iOS, keep picker open (event.type === 'set' but we keep it open)
+    if (Platform.OS === 'android') {
+      setShowDatePicker(false);
+      // On Android, if user dismissed (event.type === 'dismissed'), don't update date
+      if (event.type === 'dismissed') {
+        return;
+      }
+    } else {
+      // On iOS, keep picker open unless user explicitly closes it
+      if (event.type === 'dismissed') {
+        setShowDatePicker(false);
+        return;
+      }
+    }
+
+    if (selectedDate) {
+      const dateString = selectedDate.toISOString().split('T')[0];
+      setSelectedDate(dateString);
+      // This will trigger useEffect to reload data with new date filter
+      // Don't show full loading spinner, just silently update
+    }
+  };
+
+  const handleDateButtonPress = () => {
+    setShowDatePicker(true);
+  };
+
+  const navigateDate = (days: number) => {
+    const currentDate = new Date(selectedDate);
+    currentDate.setDate(currentDate.getDate() + days);
+    const dateString = currentDate.toISOString().split('T')[0];
+    setSelectedDate(dateString);
+    // useEffect will handle reloading data with new date
+    // No need to manually call loadData here
   };
 
   const handleSchedulePress = (schedule: Schedule) => {
@@ -222,18 +262,39 @@ export default function ClassesScreen() {
   };
 
   const handleBookClass = (schedule: Schedule) => {
+    // Check if user already has a booking for this schedule
+    const existingBooking = myBookings.find(
+      (booking) =>
+        booking.schedule_id === schedule.id ||
+        booking.schedule?.id === schedule.id
+    );
+
+    // If user has pending payment booking, navigate to payment screen
+    if (existingBooking?.payment_status === 'PENDING') {
+      router.push(`/classes/${schedule.id}`);
+      return;
+    }
+
+    // If user already booked and paid, show message
+    if (
+      existingBooking &&
+      (existingBooking.payment_status === 'PAID' ||
+        existingBooking.payment_status === 'COMPLETED') &&
+      existingBooking.status === 'CONFIRMED'
+    ) {
+      Alert.alert(t('common.info'), t('classes.booking.alreadyEnrolled'));
+      return;
+    }
+
     setSelectedSchedule(schedule);
     setShowBookingModal(true);
   };
 
   const handleBookingConfirm = async (bookingData: CreateBookingRequest) => {
     try {
-      console.log('📅 Creating booking:', bookingData);
-
       const response = await bookingService.createBooking(bookingData);
 
       if (response.success) {
-        console.log('✅ Booking created successfully');
         setShowBookingModal(false);
         setSelectedSchedule(null);
         Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'));
@@ -246,7 +307,7 @@ export default function ClassesScreen() {
         );
       }
     } catch (error: any) {
-      console.error('❌ Error creating booking:', error);
+      console.error('Error creating booking:', error);
       Alert.alert(
         t('common.error'),
         error.message || t('classes.booking.bookingFailed')
@@ -261,6 +322,7 @@ export default function ClassesScreen() {
   const filteredSchedules = React.useMemo(() => {
     console.log('🔍 Filtering schedules:', {
       totalSchedules: schedules?.length || 0,
+      selectedDate,
       selectedCategory,
       searchQuery,
       selectedDifficulty,
@@ -269,6 +331,17 @@ export default function ClassesScreen() {
     });
 
     return (schedules || []).filter((schedule) => {
+      // Date filter (client-side - ensure we only show schedules for selected date)
+      // This is a safety check in case API doesn't filter correctly
+      const scheduleDate = new Date(schedule.start_time);
+      const selectedDateObj = new Date(selectedDate);
+      const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
+      const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
+
+      if (scheduleDateStr !== selectedDateStr) {
+        return false;
+      }
+
       // Category filter (client-side)
       if (selectedCategory !== 'ALL') {
         if (schedule.gym_class?.category !== selectedCategory) {
@@ -287,13 +360,6 @@ export default function ClassesScreen() {
           className.toLowerCase().includes(query) ||
           classDesc.toLowerCase().includes(query) ||
           trainerName.toLowerCase().includes(query);
-
-        console.log('🔍 Search check:', {
-          query,
-          className,
-          trainerName,
-          matchesSearch,
-        });
 
         if (!matchesSearch) return false;
       }
@@ -545,43 +611,148 @@ export default function ClassesScreen() {
         </ScrollView>
       </View>
 
-      {/* Date Selector */}
-      <View style={themedStyles.dateContainer}>
-        <Text style={[themedStyles.dateLabel, { color: theme.colors.text }]}>
-          {new Date(selectedDate).toLocaleDateString(
-            t('common.locale') || 'en-US',
-            {
-              weekday: 'long',
-              month: 'long',
-              day: 'numeric',
-            }
-          )}
-        </Text>
+      {/* Date Selector - Enhanced with Navigation */}
+      <View
+        style={[
+          themedStyles.dateContainer,
+          { backgroundColor: theme.colors.surface },
+        ]}
+      >
         <TouchableOpacity
-          style={[
-            themedStyles.dateButton,
-            { backgroundColor: theme.colors.surface },
-          ]}
-          onPress={() => {
-            // TODO: Implement date picker
-          }}
+          style={themedStyles.dateNavButton}
+          onPress={() => navigateDate(-1)}
+          activeOpacity={0.7}
         >
-          <Calendar size={22} color={theme.colors.primary} />
+          <ChevronLeft size={20} color={theme.colors.primary} />
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={themedStyles.dateContent}
+          onPress={handleDateButtonPress}
+          activeOpacity={0.8}
+          disabled={isLoadingDateChange}
+        >
+          {isLoadingDateChange ? (
+            <ActivityIndicator
+              size="small"
+              color={theme.colors.primary}
+              style={{ marginRight: theme.spacing.sm }}
+            />
+          ) : (
+            <View style={themedStyles.dateIconContainer}>
+              <Calendar size={18} color={theme.colors.primary} />
+            </View>
+          )}
+          <View style={themedStyles.dateTextContainer}>
+            <Text
+              style={[
+                themedStyles.dateDayName,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {new Date(selectedDate).toLocaleDateString(
+                t('common.locale') || 'en-US',
+                { weekday: 'short' }
+              )}
+            </Text>
+            <Text style={[themedStyles.dateMain, { color: theme.colors.text }]}>
+              {new Date(selectedDate).toLocaleDateString(
+                t('common.locale') || 'en-US',
+                {
+                  month: 'short',
+                  day: 'numeric',
+                }
+              )}
+            </Text>
+          </View>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={themedStyles.dateNavButton}
+          onPress={() => navigateDate(1)}
+          activeOpacity={0.7}
+        >
+          <ChevronRight size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+
+        {/* Date Picker */}
+        {showDatePicker && (
+          <>
+            {Platform.OS === 'android' && (
+              <DateTimePicker
+                value={new Date(selectedDate)}
+                mode="date"
+                display="default"
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+                maximumDate={
+                  new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000) // 90 days from now
+                }
+              />
+            )}
+            {Platform.OS === 'ios' && (
+              <View style={themedStyles.iosDatePickerContainer}>
+                <View style={themedStyles.iosDatePickerHeader}>
+                  <TouchableOpacity
+                    onPress={() => setShowDatePicker(false)}
+                    style={themedStyles.iosDatePickerButton}
+                  >
+                    <Text
+                      style={[
+                        themedStyles.iosDatePickerButtonText,
+                        { color: theme.colors.primary },
+                      ]}
+                    >
+                      {t('common.done')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                <DateTimePicker
+                  value={new Date(selectedDate)}
+                  mode="date"
+                  display="spinner"
+                  onChange={handleDateChange}
+                  minimumDate={new Date()}
+                  maximumDate={
+                    new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000) // 90 days from now
+                  }
+                  style={themedStyles.iosDatePicker}
+                />
+              </View>
+            )}
+          </>
+        )}
       </View>
 
       {/* Classes List */}
       <FlatList
         data={filteredSchedules}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <ClassCard
-            schedule={item}
-            onPress={() => handleSchedulePress(item)}
-            onBook={() => handleBookClass(item)}
-            showBookingActions={true}
-          />
-        )}
+        renderItem={({ item }) => {
+          // Find user's booking for this schedule
+          // Check both schedule_id directly and nested schedule.id
+          const userBooking = myBookings.find((booking) => {
+            const bookingScheduleId =
+              booking.schedule_id || booking.schedule?.id;
+            const matches = bookingScheduleId === item.id;
+
+            return matches;
+          });
+
+          return (
+            <ClassCard
+              schedule={item}
+              onPress={() => handleSchedulePress(item)}
+              onBook={() => handleBookClass(item)}
+              showBookingActions={true}
+              userBooking={userBooking || null}
+              onNavigateToPayment={() => {
+                // Navigate to class detail screen
+                router.push(`/classes/${item.id}`);
+              }}
+            />
+          );
+        }}
         contentContainerStyle={themedStyles.listContent}
         showsVerticalScrollIndicator={false}
         refreshControl={
@@ -846,6 +1017,13 @@ export default function ClassesScreen() {
           }}
           onConfirm={handleBookingConfirm}
           loading={false}
+          userBooking={
+            myBookings.find(
+              (booking) =>
+                booking.schedule_id === selectedSchedule.id ||
+                booking.schedule?.id === selectedSchedule.id
+            ) || null
+          }
         />
       )}
     </SafeAreaView>
@@ -977,25 +1155,56 @@ const styles = (theme: any) =>
     },
     dateContainer: {
       flexDirection: 'row',
-      justifyContent: 'space-between',
       alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
-      backgroundColor: theme.colors.background,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    dateLabel: {
-      ...Typography.bodyLargeMedium,
-    },
-    dateButton: {
-      padding: theme.spacing.sm + 2,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surface,
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm + 4,
+      marginHorizontal: theme.spacing.lg,
+      marginVertical: theme.spacing.md,
+      borderRadius: theme.radius.xl,
       borderWidth: 1,
       borderColor: theme.isDark
         ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(0, 0, 0, 0.05)',
+        : 'rgba(0, 0, 0, 0.08)',
+      ...theme.shadows.sm,
+    },
+    dateNavButton: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.round,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.isDark
+        ? 'rgba(255, 255, 255, 0.05)'
+        : 'rgba(59, 130, 246, 0.1)',
+    },
+    dateContent: {
+      flex: 1,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    dateIconContainer: {
+      width: 32,
+      height: 32,
+      borderRadius: theme.radius.round,
+      backgroundColor: theme.colors.primary + '15',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    dateTextContainer: {
+      alignItems: 'center',
+    },
+    dateDayName: {
+      ...Typography.labelSmall,
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    dateMain: {
+      ...Typography.h6,
+      marginTop: 2,
     },
     listContent: {
       paddingHorizontal: theme.spacing.lg,
@@ -1114,5 +1323,34 @@ const styles = (theme: any) =>
     },
     applyButtonText: {
       ...Typography.h5,
+    },
+    iosDatePickerContainer: {
+      position: 'absolute',
+      bottom: 0,
+      left: 0,
+      right: 0,
+      backgroundColor: theme.colors.background,
+      borderTopLeftRadius: theme.radius.xl,
+      borderTopRightRadius: theme.radius.xl,
+      ...theme.shadows.lg,
+    },
+    iosDatePickerHeader: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    iosDatePickerButton: {
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+    },
+    iosDatePickerButtonText: {
+      ...Typography.buttonMedium,
+    },
+    iosDatePicker: {
+      height: 200,
     },
   });

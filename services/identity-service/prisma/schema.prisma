@@ -31,6 +31,11 @@ model User {
   face_encoding     Bytes?    // Binary face data for better performance
   face_photo_url    String?   // Profile photo for face recognition
   
+  // Push Notification
+  push_token        String?   // Expo/FCM Push Token
+  push_enabled      Boolean   @default(true)
+  push_platform     String?   // "ios" | "android"
+  
   // Security & Access
   two_factor_enabled Boolean  @default(false)
   two_factor_secret String?
@@ -54,6 +59,7 @@ model User {
   @@index([last_login_at])
   @@index([created_at])
   @@index([phone_verified])
+  @@index([push_token])
   @@map("users")
 }
 

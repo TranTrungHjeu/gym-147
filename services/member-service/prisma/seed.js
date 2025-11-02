@@ -32,9 +32,6 @@ async function main() {
   await prisma.healthMetric.deleteMany();
   await prisma.gymSession.deleteMany();
   await prisma.membership.deleteMany();
-  await prisma.subscription.deleteMany();
-  await prisma.payment.deleteMany();
-  await prisma.booking.deleteMany();
   await prisma.member.deleteMany();
 
   // 1. Tạo Members phù hợp với Schedule Service seed data

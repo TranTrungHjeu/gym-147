@@ -14,13 +14,9 @@ class BillingService {
   // Get active membership plans
   async getActivePlans(): Promise<MembershipPlan[]> {
     try {
-      console.log('📦 Fetching active plans from billing service...');
       const response = await this.billingApi.get<MembershipPlan[]>(
         '/plans/active'
       );
-      console.log('📦 Plans API response:', response);
-      console.log('📦 Plans data:', response.data);
-      console.log('📦 Plans count:', response.data?.length || 0);
       return response.data || [];
     } catch (error) {
       console.error('❌ Error fetching active plans:', error);

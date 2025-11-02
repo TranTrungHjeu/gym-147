@@ -1,3 +1,4 @@
+import { MembershipBadge } from '@/components/MembershipBadge';
 import { MembershipPlan } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
@@ -28,18 +29,18 @@ export const PlanCard: React.FC<PlanCardProps> = ({
     }).format(numPrice);
   };
 
-  const getPlanIcon = (type: string) => {
-    switch (type) {
+  const getPlanTier = (type: string): 'BASIC' | 'PREMIUM' | 'VIP' | 'STUDENT' => {
+    switch (type.toUpperCase()) {
       case 'BASIC':
-        return 'fitness-outline';
+        return 'BASIC';
       case 'PREMIUM':
-        return 'star-outline';
+        return 'PREMIUM';
       case 'VIP':
-        return 'diamond-outline';
+        return 'VIP';
       case 'STUDENT':
-        return 'school-outline';
+        return 'STUDENT';
       default:
-        return 'card-outline';
+        return 'BASIC';
     }
   };
 
@@ -102,19 +103,13 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       >
         <View
           style={{
-            width: 56,
-            height: 56,
-            borderRadius: theme.radius.lg,
-            backgroundColor: `${theme.colors.primary}15`,
+            width: 64,
+            height: 64,
             justifyContent: 'center',
             alignItems: 'center',
           }}
         >
-          <Ionicons
-            name={getPlanIcon(plan.type) as any}
-            size={32}
-            color={theme.colors.primary}
-          />
+          <MembershipBadge tier={getPlanTier(plan.type)} size="large" />
         </View>
         {plan.is_featured ? (
           <View

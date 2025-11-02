@@ -34,6 +34,8 @@ export default function ClassCard({
   onBook,
   onCancel,
   showBookingActions = true,
+  userBooking,
+  onNavigateToPayment,
 }: ClassCardProps) {
   const { theme } = useTheme();
   const router = useRouter();
@@ -131,6 +133,11 @@ export default function ClassCard({
   const isFullyBooked = schedule.current_bookings >= schedule.max_capacity;
   const hasWaitlist = schedule.waitlist_count > 0;
   const spotsAvailable = schedule.max_capacity - schedule.current_bookings;
+
+  // Determine button state based on userBooking
+  const isBooked = userBooking?.status === 'CONFIRMED';
+  const isWaitlisted =
+    userBooking?.is_waitlist || userBooking?.status === 'WAITLIST';
 
   const themedStyles = styles(theme);
 
@@ -314,62 +321,149 @@ export default function ClassCard({
       </View>
 
       {/* Action Buttons */}
-      {showBookingActions && (
+      {showBookingActions && schedule.status === 'SCHEDULED' && (
         <View style={themedStyles.actions}>
-          {schedule.status === 'SCHEDULED' && !isFullyBooked && (
-            <TouchableOpacity
-              style={[
-                themedStyles.bookButton,
-                { backgroundColor: theme.colors.primary },
-              ]}
-              onPress={onBook}
-            >
-              <Text
+          {(() => {
+            // If user has a booking, show appropriate button
+            if (userBooking) {
+              const paymentStatus =
+                userBooking.payment_status?.toUpperCase() || '';
+
+              // Pending payment
+              if (paymentStatus === 'PENDING') {
+                return (
+                  <TouchableOpacity
+                    style={[
+                      themedStyles.bookButton,
+                      { backgroundColor: theme.colors.warning },
+                    ]}
+                    onPress={onNavigateToPayment || onPress}
+                  >
+                    <Text
+                      style={[
+                        themedStyles.bookButtonText,
+                        { color: theme.colors.textInverse },
+                      ]}
+                    >
+                      {t('classes.booking.pendingPayment')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+
+              // Already enrolled (paid)
+              if (
+                (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED') &&
+                isBooked
+              ) {
+                return (
+                  <View
+                    style={[
+                      themedStyles.bookButton,
+                      {
+                        backgroundColor: theme.colors.success + '30',
+                        borderWidth: 1,
+                        borderColor: theme.colors.success,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        themedStyles.bookButtonText,
+                        { color: theme.colors.success },
+                      ]}
+                    >
+                      {t('classes.booking.alreadyEnrolled')}
+                    </Text>
+                  </View>
+                );
+              }
+
+              // Waitlisted
+              if (isWaitlisted || userBooking.status === 'WAITLIST') {
+                return (
+                  <TouchableOpacity
+                    style={[
+                      themedStyles.cancelButton,
+                      { borderColor: theme.colors.warning },
+                    ]}
+                    onPress={onCancel}
+                  >
+                    <Text
+                      style={[
+                        themedStyles.cancelButtonText,
+                        { color: theme.colors.warning },
+                      ]}
+                    >
+                      {t('classes.booking.removeFromWaitlist')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+
+              // Other confirmed booking
+              return (
+                <TouchableOpacity
+                  style={[
+                    themedStyles.cancelButton,
+                    { borderColor: theme.colors.error },
+                  ]}
+                  onPress={onCancel}
+                >
+                  <Text
+                    style={[
+                      themedStyles.cancelButtonText,
+                      { color: theme.colors.error },
+                    ]}
+                  >
+                    {t('classes.booking.cancel')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+
+            // No booking - show book button or waitlist
+            if (!isFullyBooked) {
+              return (
+                <TouchableOpacity
+                  style={[
+                    themedStyles.bookButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
+                  onPress={onBook}
+                >
+                  <Text
+                    style={[
+                      themedStyles.bookButtonText,
+                      { color: theme.colors.textInverse },
+                    ]}
+                  >
+                    {t('classes.booking.book')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+
+            // Fully booked - show waitlist button
+            return (
+              <TouchableOpacity
                 style={[
-                  themedStyles.bookButtonText,
-                  { color: theme.colors.textInverse },
+                  themedStyles.waitlistButton,
+                  { backgroundColor: theme.colors.warning },
                 ]}
+                onPress={onBook}
               >
-                {t('classes.booking.book')}
-              </Text>
-            </TouchableOpacity>
-          )}
-          {schedule.status === 'SCHEDULED' && isFullyBooked && !hasWaitlist && (
-            <TouchableOpacity
-              style={[
-                themedStyles.waitlistButton,
-                { backgroundColor: theme.colors.warning },
-              ]}
-              onPress={onBook}
-            >
-              <Text
-                style={[
-                  themedStyles.waitlistButtonText,
-                  { color: theme.colors.textInverse },
-                ]}
-              >
-                {t('classes.joinWaitlist')}
-              </Text>
-            </TouchableOpacity>
-          )}
-          {onCancel && (
-            <TouchableOpacity
-              style={[
-                themedStyles.cancelButton,
-                { borderColor: theme.colors.error },
-              ]}
-              onPress={onCancel}
-            >
-              <Text
-                style={[
-                  themedStyles.cancelButtonText,
-                  { color: theme.colors.error },
-                ]}
-              >
-                {t('classes.booking.cancel')}
-              </Text>
-            </TouchableOpacity>
-          )}
+                <Text
+                  style={[
+                    themedStyles.waitlistButtonText,
+                    { color: theme.colors.textInverse },
+                  ]}
+                >
+                  {t('classes.joinWaitlist')}
+                </Text>
+              </TouchableOpacity>
+            );
+          })()}
         </View>
       )}
     </TouchableOpacity>

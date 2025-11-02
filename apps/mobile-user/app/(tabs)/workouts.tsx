@@ -1,19 +1,24 @@
+import { AIGenerationModal } from '@/components/AIGenerationModal';
+import { UpgradeModal } from '@/components/UpgradeModal';
 import WorkoutCard from '@/components/WorkoutCard';
 import { useAuth } from '@/contexts/AuthContext';
 import {
+  memberService,
   workoutPlanService,
   type WorkoutPlan,
   type WorkoutRecommendation,
 } from '@/services';
+import { MembershipType } from '@/types/memberTypes';
+import { Difficulty } from '@/types/workoutTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Dumbbell, Filter, Plus } from 'lucide-react-native';
+import { Bot, Boxes, Filter, Plus, Sparkles, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Image,
+  Alert,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -103,6 +108,14 @@ export default function WorkoutsScreen() {
   const [recommendations, setRecommendations] = useState<
     WorkoutRecommendation[]
   >([]);
+  const [membershipType, setMembershipType] = useState<MembershipType>(
+    MembershipType.BASIC
+  );
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [generatingAI, setGeneratingAI] = useState(false);
+  const [aiGenerationStatus, setAIGenerationStatus] = useState<
+    'preparing' | 'analyzing' | 'generating' | 'completed'
+  >('preparing');
 
   // Load data on component mount
   useEffect(() => {
@@ -124,17 +137,11 @@ export default function WorkoutsScreen() {
         return;
       }
 
-      console.log('📋 Fetching workout plans for user:', user.id);
-      console.log('📋 Fetching workout recommendations...');
-
       // Load all data in parallel
-      const [plansResponse, recommendationsResponse] = await Promise.all([
+        const [plansResponse, profileResponse] = await Promise.all([
         workoutPlanService.getWorkoutPlans(user.id),
-        workoutPlanService.getWorkoutRecommendations(),
+        memberService.getMemberProfile(),
       ]);
-
-      console.log('📋 Workout plans response:', plansResponse);
-      console.log('📋 Recommendations response:', recommendationsResponse);
 
       // Handle workout plans
       if (
@@ -142,39 +149,28 @@ export default function WorkoutsScreen() {
         plansResponse.data &&
         plansResponse.data.length > 0
       ) {
-        console.log(
-          '✅ Workout plans loaded:',
-          plansResponse.data.length,
-          'plans'
-        );
         setWorkoutPlans(plansResponse.data);
       } else {
-        console.log(
-          '❌ No workout plans found:',
-          plansResponse.error || 'Empty response'
-        );
-        console.log(
-          '📋 This might be normal if no workout plans exist in the database'
-        );
         // Set empty array to prevent crashes
         setWorkoutPlans([]);
       }
 
-      // Handle recommendations
-      if (recommendationsResponse.success && recommendationsResponse.data) {
+      // Recommendations currently not available from backend
+      // TODO: Implement recommendations endpoint in backend
+      setRecommendations([]);
+
+      // Handle profile (for membership type)
+      if (profileResponse.success && profileResponse.data) {
         console.log(
-          '✅ Recommendations loaded:',
-          recommendationsResponse.data.length,
-          'recommendations'
+          '✅ Profile loaded, membership type:',
+          profileResponse.data.membership_type
         );
-        setRecommendations(recommendationsResponse.data);
+        setMembershipType(
+          profileResponse.data.membership_type || MembershipType.BASIC
+        );
       } else {
-        console.log(
-          '❌ Failed to load recommendations:',
-          recommendationsResponse.error
-        );
-        // Set empty array for recommendations
-        setRecommendations([]);
+        console.log('❌ Failed to load profile:', profileResponse.error);
+        setMembershipType(MembershipType.BASIC);
       }
     } catch (err: any) {
       console.error('❌ Error loading workouts data:', err);
@@ -188,6 +184,86 @@ export default function WorkoutsScreen() {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+  };
+
+  // Handle AI Workout Generation
+  const handleAIGeneration = async () => {
+    // Check membership tier
+    if (
+      membershipType === MembershipType.BASIC ||
+      membershipType === MembershipType.STUDENT
+    ) {
+      setShowUpgradeModal(true);
+      return;
+    }
+
+    // Premium/VIP can proceed - show confirmation
+    Alert.alert(t('workouts.generateAIPlan'), t('workouts.aiPlanDescription'), [
+      {
+        text: t('common.cancel'),
+        style: 'cancel',
+      },
+      {
+        text: t('common.ok'),
+        onPress: async () => {
+          try {
+            setGeneratingAI(true);
+            setAIGenerationStatus('preparing');
+
+            if (!user?.id) return;
+
+            // Step 1: Preparing - Get member profile
+            const profileResponse = await memberService.getMemberProfile();
+            if (!profileResponse.success || !profileResponse.data?.id) {
+              Alert.alert(t('common.error'), 'Failed to get member profile');
+              setGeneratingAI(false);
+              return;
+            }
+
+            const memberId = profileResponse.data.id;
+
+            // Step 2: Analyzing
+            await new Promise((resolve) => setTimeout(resolve, 800));
+            setAIGenerationStatus('analyzing');
+
+            // Step 3: Generating
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+            setAIGenerationStatus('generating');
+
+            const response = await workoutPlanService.generateAIWorkoutPlan(
+              memberId,
+              {
+                goal: 'BUILD_MUSCLE',
+                difficulty: Difficulty.INTERMEDIATE,
+                duration_weeks: 4,
+              }
+            );
+
+            if (response.success) {
+              // Step 4: Completed
+              setAIGenerationStatus('completed');
+              await new Promise((resolve) => setTimeout(resolve, 1500));
+              await loadData();
+            } else {
+              setGeneratingAI(false);
+              Alert.alert(
+                t('common.error'),
+                response.error || 'Failed to generate AI workout plan'
+              );
+            }
+          } catch (error: any) {
+            setGeneratingAI(false);
+            Alert.alert(t('common.error'), error.message);
+          }
+        },
+      },
+    ]);
+  };
+
+  // Handle modal completion
+  const handleAIGenerationComplete = () => {
+    setGeneratingAI(false);
+    setAIGenerationStatus('preparing');
   };
 
   // Filter workouts based on active category
@@ -307,10 +383,13 @@ export default function WorkoutsScreen() {
             style={[styles.iconButton, { backgroundColor: theme.colors.gray }]}
             onPress={() => router.push('/equipment')}
           >
-            <Dumbbell size={20} color={theme.colors.text} />
+            <Boxes size={20} color={theme.colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: theme.colors.gray, marginLeft: 8 }]}
+            style={[
+              styles.iconButton,
+              { backgroundColor: theme.colors.gray, marginLeft: 8 },
+            ]}
             onPress={() => setShowFilterModal(true)}
           >
             <Filter size={20} color={theme.colors.text} />
@@ -347,70 +426,77 @@ export default function WorkoutsScreen() {
           />
         }
       >
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            {t('workouts.featured')}
-          </Text>
-          {workoutPlans.length > 0 ? (
-            <View style={styles.featuredWorkout}>
-              <Image
-                source={{
-                  uri: 'https://images.pexels.com/photos/2468339/pexels-photo-2468339.jpeg?auto=compress&cs=tinysrgb&w=800',
-                }}
-                style={styles.featuredImage}
+        {/* AI Workout Generation CTA */}
+        <TouchableOpacity
+          style={[
+            styles.aiCtaCard,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.primary + '30',
+            },
+          ]}
+          onPress={handleAIGeneration}
+          activeOpacity={0.8}
+          disabled={generatingAI}
+        >
+          <View style={styles.aiCtaContent}>
+            <View
+              style={[
+                styles.aiIconContainer,
+                {
+                  backgroundColor: theme.colors.primary + '15',
+                },
+              ]}
+            >
+              <Sparkles
+                size={32}
+                color={theme.colors.primary}
+                strokeWidth={2}
               />
-              <View style={styles.featuredOverlay} />
-              <View style={styles.featuredContent}>
-                <View>
-                  <Text
-                    style={[
-                      styles.featuredTitle,
-                      { color: theme.colors.textInverse },
-                    ]}
-                  >
-                    {workoutPlans[0].name}
-                  </Text>
-                  <Text
-                    style={[
-                      styles.featuredDescription,
-                      { color: theme.colors.textInverse },
-                    ]}
-                  >
-                    {workoutPlans[0].description ||
-                      `${workoutPlans[0].duration_weeks}-week program`}
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  style={[
-                    styles.startButton,
-                    { backgroundColor: theme.colors.primary },
-                  ]}
-                  onPress={() => router.push(`/workouts/${workoutPlans[0].id}`)}
-                >
-                  <Text
-                    style={[
-                      styles.startButtonText,
-                      { color: theme.colors.textInverse },
-                    ]}
-                  >
-                    {t('common.view')}
-                  </Text>
-                </TouchableOpacity>
-              </View>
             </View>
-          ) : (
-            <View style={styles.emptyState}>
+            <View style={styles.aiCtaTextContainer}>
+              <Text style={[styles.aiCtaTitle, { color: theme.colors.text }]}>
+                {t('workouts.generateAIPlan')}
+              </Text>
               <Text
                 style={[
-                  styles.emptyStateText,
+                  styles.aiCtaDescription,
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                {t('workouts.noWorkouts')}
+                {t('workouts.aiPlanDescription')}
               </Text>
+              {(membershipType === MembershipType.BASIC ||
+                membershipType === MembershipType.STUDENT) && (
+                <View style={styles.aiCtaBadge}>
+                  <Zap size={14} color={theme.colors.primary} />
+                  <Text
+                    style={[
+                      styles.aiCtaBadgeText,
+                      { color: theme.colors.primary },
+                    ]}
+                  >
+                    {t('workouts.premiumFeature')}
+                  </Text>
+                </View>
+              )}
             </View>
-          )}
-        </View>
+            <View
+              style={[
+                styles.aiCtaButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                },
+              ]}
+            >
+              <Bot
+                size={20}
+                color={theme.colors.textInverse}
+                strokeWidth={2.5}
+              />
+            </View>
+          </View>
+        </TouchableOpacity>
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
@@ -456,6 +542,21 @@ export default function WorkoutsScreen() {
       >
         <Plus size={24} color={theme.colors.textInverse} />
       </TouchableOpacity>
+
+      {/* Upgrade Modal */}
+      <UpgradeModal
+        visible={showUpgradeModal}
+        onClose={() => setShowUpgradeModal(false)}
+        feature="AI Workout Generation"
+        currentTier={membershipType}
+      />
+
+      {/* AI Generation Modal */}
+      <AIGenerationModal
+        visible={generatingAI}
+        status={aiGenerationStatus}
+        onComplete={handleAIGenerationComplete}
+      />
 
       {/* Filter Modal */}
       {showFilterModal && (
@@ -707,43 +808,66 @@ const styles = StyleSheet.create({
     ...Typography.h5,
     marginBottom: 16,
   },
-  featuredWorkout: {
-    height: 180,
-    borderRadius: 16,
-    overflow: 'hidden',
-    marginBottom: 24,
-  },
-  featuredImage: {
-    width: '100%',
-    height: 180,
-    position: 'absolute',
-  },
-  featuredOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
-  },
-  featuredContent: {
-    padding: 16,
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  featuredTitle: {
-    ...Typography.h4,
+  aiCtaCard: {
+    marginTop: 16,
     marginBottom: 8,
+    padding: 20,
+    borderRadius: 20,
+    borderWidth: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
   },
-  featuredDescription: {
+  aiCtaContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  aiIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  aiCtaTextContainer: {
+    flex: 1,
+  },
+  aiCtaTitle: {
+    ...Typography.h5,
+    fontWeight: '700',
+    marginBottom: 4,
+    letterSpacing: -0.3,
+  },
+  aiCtaDescription: {
     ...Typography.bodySmall,
-    opacity: 0.9,
-    width: '80%',
+    lineHeight: 18,
+    opacity: 0.8,
   },
-  startButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    alignSelf: 'flex-start',
+  aiCtaBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: 8,
   },
-  startButtonText: {
-    ...Typography.buttonMedium,
+  aiCtaBadgeText: {
+    ...Typography.caption,
+    fontWeight: '600',
+    fontSize: 11,
+  },
+  aiCtaButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
   },
   workoutsContainer: {
     marginBottom: 24,

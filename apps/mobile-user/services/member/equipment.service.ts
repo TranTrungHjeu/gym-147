@@ -14,9 +14,9 @@ class EquipmentService {
   initWebSocket() {
     if (this.socket) return;
 
-    const MEMBER_SERVICE_URL =
-      process.env.EXPO_PUBLIC_MEMBER_SERVICE_URL || 'http://192.168.2.19:3002';
-    this.socket = io(MEMBER_SERVICE_URL);
+    // Import at runtime to avoid circular dependency
+    const { SERVICE_URLS } = require('@/config/environment');
+    this.socket = io(SERVICE_URLS.MEMBER);
 
     this.socket.on('connect', () => {
       console.log('Equipment WebSocket connected');
@@ -38,6 +38,39 @@ class EquipmentService {
     this.socket?.emit('unsubscribe:equipment', equipmentId);
     this.socket?.off('equipment:status:changed');
     this.socket?.off('equipment:queue:updated');
+  }
+
+  // Subscribe to user-specific queue notifications
+  // Note: Socket rooms use user_id (from Identity Service), not member_id
+  // REST API endpoints use member_id (Member.id)
+  subscribeToUserQueue(userId: string, callbacks: {
+    onYourTurn?: (data: any) => void;
+    onEquipmentAvailable?: (data: any) => void;
+    onPositionChanged?: (data: any) => void;
+  }) {
+    if (!this.socket) this.initWebSocket();
+    
+    // Subscribe to user-specific room (uses user_id from Identity Service)
+    // Backend emits to user:${user_id} room
+    this.socket?.emit('subscribe:user', userId);
+    
+    // Listen for queue events
+    if (callbacks.onYourTurn) {
+      this.socket?.on('queue:your_turn', callbacks.onYourTurn);
+    }
+    if (callbacks.onEquipmentAvailable) {
+      this.socket?.on('equipment:available', callbacks.onEquipmentAvailable);
+    }
+    if (callbacks.onPositionChanged) {
+      this.socket?.on('queue:position_changed', callbacks.onPositionChanged);
+    }
+  }
+
+  unsubscribeFromUserQueue(userId: string) {
+    this.socket?.emit('unsubscribe:user', userId);
+    this.socket?.off('queue:your_turn');
+    this.socket?.off('equipment:available');
+    this.socket?.off('queue:position_changed');
   }
 
   // Equipment CRUD
@@ -74,6 +107,12 @@ class EquipmentService {
     return apiService.post<{ usage: EquipmentUsage }>(
       `/members/${memberId}/equipment/stop`,
       { usage_id: usageId, ...data }
+    );
+  }
+
+  async getActiveUsage(equipmentId: string, memberId: string) {
+    return apiService.get<{ activeUsage: EquipmentUsage | null }>(
+      `/equipment/${equipmentId}/active-usage/${memberId}`
     );
   }
 

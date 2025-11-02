@@ -1,3 +1,5 @@
+import { SERVICE_URLS } from '@/config/environment';
 import { ApiService } from '../api';
 
-export const billingApiService = new ApiService('http://10.0.2.2:3004');
+// Billing Service API (Port 3004)
+export const billingApiService = new ApiService(SERVICE_URLS.BILLING);

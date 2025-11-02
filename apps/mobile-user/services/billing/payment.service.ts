@@ -124,6 +124,93 @@ export class PaymentService {
     }
   }
 
+  async getPaymentByReferenceId(
+    referenceId: string,
+    paymentType: string = 'CLASS_BOOKING'
+  ): Promise<Payment | null> {
+    try {
+      // First, try without status filter to find any payment with this reference_id
+      const paramsWithoutStatus = new URLSearchParams();
+      paramsWithoutStatus.append('reference_id', referenceId);
+      paramsWithoutStatus.append('payment_type', paymentType);
+
+      console.log('🔍 Fetching payment by reference_id (all statuses):', {
+        referenceId,
+        paymentType,
+        url: `/payments?${paramsWithoutStatus.toString()}`,
+      });
+
+      const response = await billingApiService.get(
+        `/payments?${paramsWithoutStatus.toString()}`
+      );
+
+      console.log('💰 Payment API response:', {
+        hasData: !!response.data,
+        hasSuccess: response.data?.success,
+        dataStructure: response.data ? Object.keys(response.data) : [],
+        fullResponse: JSON.stringify(response.data, null, 2),
+      });
+
+      // Handle different response structures
+      let payments: Payment[] = [];
+      if (response.data?.data && Array.isArray(response.data.data)) {
+        payments = response.data.data;
+      } else if (
+        response.data?.payments &&
+        Array.isArray(response.data.payments)
+      ) {
+        payments = response.data.payments;
+      } else if (Array.isArray(response.data)) {
+        payments = response.data;
+      }
+
+      console.log('💰 Extracted payments:', {
+        count: payments.length,
+        payments: payments.map((p) => ({
+          id: p.id,
+          reference_id: (p as any).reference_id,
+          status: p.status,
+          payment_type: (p as any).payment_type,
+        })),
+      });
+
+      // Prefer PENDING payment, but accept any payment matching reference_id
+      let payment = payments.find(
+        (p) => (p as any).reference_id === referenceId && p.status === 'PENDING'
+      );
+
+      // If no PENDING payment, get any payment with matching reference_id
+      if (!payment) {
+        payment = payments.find((p) => (p as any).reference_id === referenceId);
+      }
+
+      if (payment) {
+        console.log('✅ Found matching payment:', {
+          paymentId: payment.id,
+          referenceId: (payment as any).reference_id,
+          status: payment.status,
+          payment_type: (payment as any).payment_type,
+        });
+      } else {
+        console.log('⚠️ No matching payment found:', {
+          referenceId,
+          paymentType,
+          totalPayments: payments.length,
+          checkedPayments: payments.length > 0,
+        });
+      }
+
+      return payment || null;
+    } catch (error: any) {
+      console.error('❌ Error fetching payment by reference_id:', {
+        error: error?.message || error,
+        referenceId,
+        paymentType,
+      });
+      return null; // Return null instead of throwing to avoid breaking the flow
+    }
+  }
+
   async createPayment(payment: CreatePaymentRequest): Promise<Payment> {
     try {
       const response = await billingApiService.post('/payments', payment);

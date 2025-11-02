@@ -1,6 +1,18 @@
-import { Bell, Check, Trash2 } from 'lucide-react';
+import {
+  AlertCircle,
+  Bell,
+  Calendar,
+  Check,
+  CheckCheck,
+  Clock,
+  Sparkles,
+  Trash2,
+  Trophy,
+  XCircle,
+} from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { Notification, notificationService } from '../services/notification.service';
+import { socketService } from '../services/socket.service';
 
 interface NotificationDropdownProps {
   userId: string;
@@ -14,15 +26,57 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    if (!userId) return;
+
     fetchNotifications();
     fetchUnreadCount();
 
-    // Poll for new notifications every 30 seconds
-    const interval = setInterval(() => {
-      fetchUnreadCount();
-    }, 30000);
+    // Setup socket listener for real-time booking notifications
+    const socket = socketService.getSocket();
 
-    return () => clearInterval(interval);
+    if (socket) {
+      const handleBookingNew = (eventName: string, data?: any) => {
+        console.log(`📢 Received ${eventName} event, refreshing notifications...`, data);
+        // Add a small delay to ensure notification is saved to database
+        setTimeout(() => {
+          console.log(`📢 Fetching notifications after ${eventName} event...`);
+          fetchNotifications();
+          fetchUnreadCount();
+        }, 500);
+      };
+
+      socket.on('booking:new', data => {
+        console.log('📢 booking:new event:', data);
+        handleBookingNew('booking:new', data);
+      });
+      socket.on('booking:pending_payment', data => {
+        console.log('📢 booking:pending_payment event:', data);
+        handleBookingNew('booking:pending_payment', data);
+      });
+      socket.on('booking:confirmed', data => {
+        console.log('📢 booking:confirmed event:', data);
+        handleBookingNew('booking:confirmed', data);
+      });
+
+      // Poll for new notifications every 30 seconds as backup
+      const interval = setInterval(() => {
+        fetchUnreadCount();
+      }, 30000);
+
+      return () => {
+        socket.off('booking:new');
+        socket.off('booking:pending_payment');
+        socket.off('booking:confirmed');
+        clearInterval(interval);
+      };
+    } else {
+      // Fallback to polling if socket is not available
+      const interval = setInterval(() => {
+        fetchUnreadCount();
+      }, 30000);
+
+      return () => clearInterval(interval);
+    }
   }, [userId]);
 
   useEffect(() => {
@@ -40,11 +94,30 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     try {
       setLoading(true);
       const response = await notificationService.getUserNotifications(userId, 1, 10);
+      console.log('📬 Full notification response:', response);
       if (response.success) {
-        setNotifications(response.data.notifications);
+        // Backend returns: { success: true, data: { notifications: [...], pagination: {...} } }
+        const notifications = response.data?.notifications || [];
+        console.log('📬 Fetched notifications:', notifications.length);
+        console.log('📬 Notification data:', notifications);
+        console.log('📬 Response data structure:', {
+          hasData: !!response.data,
+          hasNotifications: !!response.data?.notifications,
+          notificationsIsArray: Array.isArray(notifications),
+          notificationsLength: notifications.length,
+        });
+        if (Array.isArray(notifications)) {
+          setNotifications(notifications);
+        } else {
+          console.error('❌ Notifications is not an array:', notifications);
+          setNotifications([]);
+        }
+      } else {
+        console.error('❌ Failed to fetch notifications:', response.message);
+        setNotifications([]);
       }
     } catch (error) {
-      console.error('Error fetching notifications:', error);
+      console.error('❌ Error fetching notifications:', error);
     } finally {
       setLoading(false);
     }
@@ -54,6 +127,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     try {
       const response = await notificationService.getUnreadCount(userId);
       if (response.success) {
+        console.log('📊 Unread count:', response.data.unreadCount);
         setUnreadCount(response.data.unreadCount);
       }
     } catch (error) {
@@ -110,23 +184,24 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   };
 
   const getNotificationIcon = (type: string) => {
+    const iconClass = 'w-5 h-5';
     switch (type) {
       case 'CERTIFICATION_VERIFIED':
-        return '✅';
+        return <CheckCheck className={iconClass} />;
       case 'CERTIFICATION_REJECTED':
-        return '❌';
+        return <XCircle className={iconClass} />;
       case 'CERTIFICATION_AUTO_VERIFIED':
-        return '🤖';
+        return <Sparkles className={iconClass} />;
       case 'CLASS_BOOKING':
-        return '📅';
+        return <Calendar className={iconClass} />;
       case 'CLASS_CANCELLED':
-        return '🚫';
+        return <AlertCircle className={iconClass} />;
       case 'MEMBERSHIP_EXPIRING':
-        return '⏰';
+        return <Clock className={iconClass} />;
       case 'ACHIEVEMENT_UNLOCKED':
-        return '🏆';
+        return <Trophy className={iconClass} />;
       default:
-        return '🔔';
+        return <Bell className={iconClass} />;
     }
   };
 
@@ -134,19 +209,47 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     switch (type) {
       case 'CERTIFICATION_VERIFIED':
       case 'CERTIFICATION_AUTO_VERIFIED':
-        return 'text-green-600';
+        return {
+          text: 'text-success-600 dark:text-success-400',
+          bg: 'bg-success-50 dark:bg-success-500/10',
+          border: 'border-success-200 dark:border-success-500/20',
+        };
       case 'CERTIFICATION_REJECTED':
-        return 'text-red-600';
+        return {
+          text: 'text-error-600 dark:text-error-400',
+          bg: 'bg-error-50 dark:bg-error-500/10',
+          border: 'border-error-200 dark:border-error-500/20',
+        };
       case 'CLASS_BOOKING':
-        return 'text-blue-600';
+        return {
+          text: 'text-blue-light-600 dark:text-blue-light-400',
+          bg: 'bg-blue-light-50 dark:bg-blue-light-500/10',
+          border: 'border-blue-light-200 dark:border-blue-light-500/20',
+        };
       case 'CLASS_CANCELLED':
-        return 'text-orange-600';
+        return {
+          text: 'text-warning-600 dark:text-warning-400',
+          bg: 'bg-warning-50 dark:bg-warning-500/10',
+          border: 'border-warning-200 dark:border-warning-500/20',
+        };
       case 'MEMBERSHIP_EXPIRING':
-        return 'text-yellow-600';
+        return {
+          text: 'text-warning-600 dark:text-warning-400',
+          bg: 'bg-warning-50 dark:bg-warning-500/10',
+          border: 'border-warning-200 dark:border-warning-500/20',
+        };
       case 'ACHIEVEMENT_UNLOCKED':
-        return 'text-purple-600';
+        return {
+          text: 'text-primary-600 dark:text-primary-400',
+          bg: 'bg-primary-50 dark:bg-primary-500/10',
+          border: 'border-primary-200 dark:border-primary-500/20',
+        };
       default:
-        return 'text-gray-600';
+        return {
+          text: 'text-neutral-600 dark:text-neutral-400',
+          bg: 'bg-neutral-50 dark:bg-neutral-800/50',
+          border: 'border-neutral-200 dark:border-neutral-700',
+        };
     }
   };
 
@@ -163,15 +266,17 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   };
 
   return (
-    <div className='relative' ref={dropdownRef}>
+    <div className='relative font-sans' ref={dropdownRef}>
       {/* Notification Bell */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className='relative p-2 text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white transition-colors duration-200'
+        className='relative p-2.5 text-neutral-600 hover:text-neutral-900 dark:text-neutral-300 dark:hover:text-white transition-all duration-200 rounded-lg hover:bg-neutral-100 dark:hover:bg-neutral-800/50 focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:ring-offset-2'
+        aria-label='Thông báo'
+        aria-expanded={isOpen}
       >
-        <Bell className='w-6 h-6' />
+        <Bell className='w-5 h-5' />
         {unreadCount > 0 && (
-          <span className='absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center animate-pulse'>
+          <span className='absolute -top-0.5 -right-0.5 bg-error-500 text-white text-[10px] font-semibold rounded-full h-5 w-5 flex items-center justify-center shadow-lg border-2 border-white dark:border-neutral-900 animate-pulse'>
             {unreadCount > 9 ? '9+' : unreadCount}
           </span>
         )}
@@ -179,16 +284,26 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
       {/* Dropdown */}
       {isOpen && (
-        <div className='absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50'>
+        <div className='absolute right-0 mt-2 w-96 bg-white dark:bg-neutral-900 rounded-xl shadow-brand border border-neutral-200 dark:border-neutral-800 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200'>
           {/* Header */}
-          <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
+          <div className='px-5 py-4 border-b border-neutral-200 dark:border-neutral-800 bg-gradient-to-r from-neutral-50 to-white dark:from-neutral-900 dark:to-neutral-800'>
             <div className='flex items-center justify-between'>
-              <h3 className='text-lg font-semibold text-gray-900 dark:text-white'>Thông báo</h3>
+              <div className='flex items-center gap-2'>
+                <h3 className='text-lg font-heading font-semibold text-neutral-900 dark:text-white'>
+                  Thông báo
+                </h3>
+                {unreadCount > 0 && (
+                  <span className='inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-400'>
+                    {unreadCount} mới
+                  </span>
+                )}
+              </div>
               {unreadCount > 0 && (
                 <button
                   onClick={handleMarkAllAsRead}
-                  className='text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+                  className='text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors duration-200 flex items-center gap-1.5 px-2 py-1 rounded-md hover:bg-primary-50 dark:hover:bg-primary-500/10'
                 >
+                  <CheckCheck className='w-4 h-4' />
                   Đánh dấu tất cả đã đọc
                 </button>
               )}
@@ -196,80 +311,117 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           </div>
 
           {/* Notifications List */}
-          <div className='max-h-96 overflow-y-auto'>
+          <div className='max-h-96 overflow-y-auto custom-scrollbar'>
             {loading ? (
-              <div className='p-4 text-center'>
-                <div className='animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto'></div>
-                <p className='text-sm text-gray-500 mt-2'>Đang tải...</p>
+              <div className='p-8 text-center'>
+                <div className='animate-spin rounded-full h-8 w-8 border-2 border-primary-200 border-t-primary-600 dark:border-primary-800 dark:border-t-primary-400 mx-auto'></div>
+                <p className='text-sm font-medium text-neutral-600 dark:text-neutral-400 mt-3'>
+                  Đang tải thông báo...
+                </p>
               </div>
-            ) : notifications.length === 0 ? (
-              <div className='p-4 text-center text-gray-500 dark:text-gray-400'>
-                <Bell className='w-8 h-8 mx-auto mb-2 opacity-50' />
-                <p>Không có thông báo nào</p>
+            ) : !Array.isArray(notifications) || notifications.length === 0 ? (
+              <div className='p-10 text-center'>
+                <div className='w-16 h-16 mx-auto mb-4 rounded-full bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center'>
+                  <Bell className='w-8 h-8 text-neutral-400 dark:text-neutral-500' />
+                </div>
+                <p className='text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-1'>
+                  Không có thông báo nào
+                </p>
+                <p className='text-xs text-neutral-500 dark:text-neutral-400'>
+                  Các thông báo mới sẽ hiển thị ở đây
+                </p>
+                {!Array.isArray(notifications) && (
+                  <p className='text-xs text-error-500 mt-2'>
+                    Debug: notifications is not an array ({typeof notifications})
+                  </p>
+                )}
               </div>
             ) : (
-              notifications.map(notification => (
-                <div
-                  key={notification.id}
-                  className={`p-4 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 ${
-                    !notification.is_read ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                  }`}
-                >
-                  <div className='flex items-start space-x-3'>
-                    <div className='flex-shrink-0'>
-                      <span className='text-lg'>{getNotificationIcon(notification.type)}</span>
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-center justify-between'>
-                        <p
-                          className={`text-sm font-medium ${getNotificationColor(notification.type)}`}
+              notifications
+                .filter(notification => notification && notification.id)
+                .map((notification, index) => {
+                  const colors = getNotificationColor(notification.type);
+                  return (
+                    <div
+                      key={notification.id}
+                      className={`relative px-5 py-4 border-b border-neutral-100 dark:border-neutral-800/50 transition-all duration-200 ${
+                        !notification.is_read
+                          ? `${colors.bg} border-l-4 ${colors.border}`
+                          : 'hover:bg-neutral-50 dark:hover:bg-neutral-800/50'
+                      } ${index === 0 ? 'pt-4' : ''}`}
+                    >
+                      <div className='flex items-start gap-3'>
+                        {/* Icon Container */}
+                        <div
+                          className={`flex-shrink-0 w-10 h-10 rounded-lg ${colors.bg} flex items-center justify-center ${colors.text}`}
                         >
-                          {notification.title}
-                        </p>
-                        <div className='flex items-center space-x-1'>
-                          {!notification.is_read && (
-                            <button
-                              onClick={() => handleMarkAsRead(notification.id)}
-                              className='p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
-                              title='Đánh dấu đã đọc'
-                            >
-                              <Check className='w-4 h-4' />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => handleDeleteNotification(notification.id)}
-                            className='p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400'
-                            title='Xóa thông báo'
-                          >
-                            <Trash2 className='w-4 h-4' />
-                          </button>
+                          {getNotificationIcon(notification.type)}
+                        </div>
+
+                        {/* Content */}
+                        <div className='flex-1 min-w-0'>
+                          <div className='flex items-start justify-between gap-2'>
+                            <div className='flex-1 min-w-0'>
+                              <h4
+                                className={`text-sm font-semibold ${colors.text} mb-1 leading-snug`}
+                              >
+                                {notification.title}
+                              </h4>
+                              <p className='text-sm text-neutral-600 dark:text-neutral-300 leading-relaxed line-clamp-2'>
+                                {notification.message}
+                              </p>
+                              <div className='flex items-center gap-2 mt-2'>
+                                <span className='text-xs font-medium text-neutral-500 dark:text-neutral-400'>
+                                  {formatTimeAgo(notification.created_at)}
+                                </span>
+                                {!notification.is_read && (
+                                  <span className='inline-block w-1.5 h-1.5 rounded-full bg-primary-500 dark:bg-primary-400'></span>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Actions */}
+                            <div className='flex items-start gap-1 flex-shrink-0'>
+                              {!notification.is_read && (
+                                <button
+                                  onClick={() => handleMarkAsRead(notification.id)}
+                                  className='p-1.5 text-neutral-400 hover:text-success-600 dark:hover:text-success-400 hover:bg-success-50 dark:hover:bg-success-500/10 rounded-md transition-all duration-200'
+                                  title='Đánh dấu đã đọc'
+                                  aria-label='Đánh dấu đã đọc'
+                                >
+                                  <Check className='w-4 h-4' />
+                                </button>
+                              )}
+                              <button
+                                onClick={() => handleDeleteNotification(notification.id)}
+                                className='p-1.5 text-neutral-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-md transition-all duration-200'
+                                title='Xóa thông báo'
+                                aria-label='Xóa thông báo'
+                              >
+                                <Trash2 className='w-4 h-4' />
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       </div>
-                      <p className='text-sm text-gray-600 dark:text-gray-300 mt-1'>
-                        {notification.message}
-                      </p>
-                      <p className='text-xs text-gray-400 dark:text-gray-500 mt-2'>
-                        {formatTimeAgo(notification.created_at)}
-                      </p>
                     </div>
-                  </div>
-                </div>
-              ))
+                  );
+                })
             )}
           </div>
 
           {/* Footer */}
-          {notifications.length > 0 && (
-            <div className='p-3 border-t border-gray-200 dark:border-gray-700'>
+          {Array.isArray(notifications) && notifications.length > 0 && (
+            <div className='px-5 py-3 border-t border-neutral-200 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-900/50'>
               <button
                 onClick={() => {
                   setIsOpen(false);
                   // Navigate to full notifications page
                   window.location.href = '/notifications';
                 }}
-                className='w-full text-center text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300'
+                className='w-full text-center text-sm font-medium text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors duration-200 py-2 rounded-md hover:bg-primary-50 dark:hover:bg-primary-500/10'
               >
-                Xem tất cả thông báo
+                Xem tất cả thông báo →
               </button>
             </div>
           )}
@@ -278,5 +430,3 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     </div>
   );
 }
-
-

@@ -1,7 +1,7 @@
 import { memberApiService } from './api.service';
 
 export interface AccessCheckIn {
-  method: 'RFID' | 'QR' | 'FACE';
+  method: 'RFID' | 'QR_CODE' | 'FACE_RECOGNITION' | 'MANUAL' | 'MOBILE_APP';
   data?: string; // RFID tag, QR code, or base64 image
   location?: string;
 }
@@ -16,7 +16,12 @@ export interface AccessSession {
   member_id: string;
   check_in_time: string;
   check_out_time?: string;
-  access_method: 'RFID' | 'QR' | 'FACE';
+  access_method:
+    | 'RFID'
+    | 'QR_CODE'
+    | 'FACE_RECOGNITION'
+    | 'MANUAL'
+    | 'MOBILE_APP';
   location: string;
   status: 'ACTIVE' | 'COMPLETED';
 }
@@ -29,26 +34,40 @@ export interface AccessHistory {
 }
 
 class AccessService {
-  private baseUrl = 'http://10.0.2.2:3002/members'; // Direct connection to Member Service
+  // Get base URL from centralized config
+  private get baseUrl() {
+    const { SERVICE_URLS } = require('@/config/environment');
+    return `${SERVICE_URLS.MEMBER}/members`;
+  }
 
   /**
    * Check in to gym using various methods
    */
-  async checkIn(data: AccessCheckIn): Promise<{
+  async checkIn(data: AccessCheckIn & { memberId: string }): Promise<{
     success: boolean;
-    data?: AccessSession;
+    data?: any;
     error?: string;
   }> {
     try {
+      const { memberId, method, location } = data;
+
+      // Map to backend API format
+      const payload = {
+        entry_method: method,
+        entry_gate: location || 'Main Entrance',
+      };
+
       const response = await memberApiService.post(
-        '/members/access/check-in',
-        data
+        `/members/${memberId}/sessions/entry`,
+        payload
       );
+
       return {
-        success: true,
-        data: response.data as AccessSession,
+        success: response.success || true,
+        data: response.data,
       };
     } catch (error: any) {
+      console.error('Check-in error:', error);
       return {
         success: false,
         error: error.message || 'Failed to check in',
@@ -59,21 +78,39 @@ class AccessService {
   /**
    * Check out from gym
    */
-  async checkOut(data?: AccessCheckOut): Promise<{
+  async checkOut(data: {
+    memberId: string;
+    location?: string;
+    session_rating?: number;
+    notes?: string;
+    exit_method?: 'RFID' | 'QR_CODE' | 'FACE_RECOGNITION' | 'MANUAL' | 'MOBILE_APP';
+  }): Promise<{
     success: boolean;
-    data?: AccessSession;
+    data?: any;
     error?: string;
   }> {
     try {
+      const { memberId, location, session_rating, notes, exit_method } = data;
+
+      // Map to backend API format
+      const payload = {
+        exit_method: exit_method || 'MANUAL',
+        exit_gate: location || 'Main Entrance',
+        session_rating,
+        notes,
+      };
+
       const response = await memberApiService.post(
-        '/members/access/check-out',
-        data || {}
+        `/members/${memberId}/sessions/exit`,
+        payload
       );
+
       return {
-        success: true,
-        data: response.data as AccessSession,
+        success: response.success || true,
+        data: response.data,
       };
     } catch (error: any) {
+      console.error('Check-out error:', error);
       return {
         success: false,
         error: error.message || 'Failed to check out',
@@ -84,18 +121,41 @@ class AccessService {
   /**
    * Get current active access session
    */
-  async getCurrentAccess(): Promise<{
+  async getCurrentAccess(memberId: string): Promise<{
     success: boolean;
-    data?: AccessSession;
+    data?: { session: any } | null;
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/members/access/current');
+      // Backend route is /sessions/current (not /sessions/active)
+      const response = await memberApiService.get(
+        `/members/${memberId}/sessions/current`
+      );
+
+      console.log('📊 getCurrentAccess API response:', {
+        success: response.success,
+        hasData: !!response.data,
+        session: response.data?.session,
+      });
+
       return {
-        success: true,
-        data: response.data as AccessSession,
+        success: response.success || true,
+        data: response.data, // Backend returns { session: {...} }
       };
     } catch (error: any) {
+      console.log('⚠️ getCurrentAccess error:', {
+        status: error.response?.status,
+        message: error.message,
+      });
+
+      // If 404 or no active session, return null (not an error)
+      if (error.response?.status === 404) {
+        return {
+          success: true,
+          data: { session: null },
+        };
+      }
+
       return {
         success: false,
         error: error.message || 'Failed to get current access',

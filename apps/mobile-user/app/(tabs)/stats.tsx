@@ -28,7 +28,7 @@ import {
 export default function StatsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const { t, i18n } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -45,12 +45,12 @@ export default function StatsScreen() {
   ];
 
   const loadHealthData = async () => {
-    if (!user?.id) return;
+    if (!member?.id) return;
 
     try {
       const [metrics, trends] = await Promise.all([
-        healthService.getHealthMetrics(user.id, { limit: 50 }),
-        healthService.getHealthTrends(user.id, 'weekly'),
+        healthService.getHealthMetrics(member.id, { limit: 50 }),
+        healthService.getHealthTrends(member.id, 'weekly'),
       ]);
 
       console.log('📊 Health metrics data:', metrics);
@@ -80,7 +80,7 @@ export default function StatsScreen() {
   useEffect(() => {
     loadHealthData();
     setLoading(false);
-  }, [user?.id]);
+  }, [member?.id]);
 
   // Helper function to convert SNAKE_CASE to camelCase for translation keys
   const getMetricTranslationKey = (type: string): string => {

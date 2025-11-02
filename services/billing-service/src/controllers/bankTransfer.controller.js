@@ -145,7 +145,17 @@ class BankTransferController {
 
       const bankTransfer = await prisma.bankTransfer.findUnique({
         where: { id },
-        include: { payment: true },
+        include: {
+          payment: {
+            include: {
+              subscription: {
+                include: {
+                  plan: true,
+                },
+              },
+            },
+          },
+        },
       });
 
       if (!bankTransfer) {
@@ -220,8 +230,13 @@ class BankTransferController {
           },
         });
 
+        // Get payment with all details
+        const paymentBeforeUpdate = await prisma.payment.findUnique({
+          where: { id: bankTransfer.payment_id },
+        });
+
         // Update payment status
-        await prisma.payment.update({
+        const updatedPayment = await prisma.payment.update({
           where: { id: bankTransfer.payment_id },
           data: {
             status: 'COMPLETED',
@@ -236,6 +251,69 @@ class BankTransferController {
             where: { id: bankTransfer.payment.subscription_id },
             data: { status: 'ACTIVE' },
           });
+          console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+
+          // Update member membership status and type
+          if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
+            try {
+              const axios = require('axios');
+              const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+
+              // Get user_id from payment member_id (which is actually Member.id)
+              const memberResponse = await axios.get(`${memberServiceUrl}/members/${updatedPayment.member_id}`);
+              const memberData = memberResponse.data.data.member;
+              
+              await axios.post(`${memberServiceUrl}/members/create-with-user`, {
+                user_id: memberData.user_id,
+                membership_type: bankTransfer.payment.subscription.plan.type,
+                membership_start_date: bankTransfer.payment.subscription.start_date,
+                membership_end_date: bankTransfer.payment.subscription.end_date,
+              });
+            } catch (memberError) {
+              console.error('Failed to update member membership:', memberError.message);
+              // Don't fail the verify - payment is still valid
+            }
+          }
+        }
+
+        // Update booking if payment is for CLASS_BOOKING
+        if (updatedPayment.payment_type === 'CLASS_BOOKING' && updatedPayment.reference_id) {
+          try {
+            const axios = require('axios');
+            const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+
+            console.log(
+              `Calling confirmBookingPayment for booking: ${updatedPayment.reference_id}`
+            );
+            await axios.post(
+              `${scheduleServiceUrl}/bookings/${updatedPayment.reference_id}/confirm-payment`,
+              {
+                payment_id: updatedPayment.id,
+                amount: parseFloat(updatedPayment.amount),
+              },
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            console.log(
+              '✅ Booking payment confirmed via manual verify:',
+              updatedPayment.reference_id
+            );
+          } catch (bookingError) {
+            console.error(
+              '❌ Failed to confirm booking payment via manual verify:',
+              bookingError.response?.data || bookingError.message
+            );
+            console.error('Error details:', {
+              status: bookingError.response?.status,
+              statusText: bookingError.response?.statusText,
+              data: bookingError.response?.data,
+            });
+            // Don't fail the verify - payment is still valid
+          }
         }
 
         console.log('✅ Transfer verified and payment completed');
@@ -356,8 +434,20 @@ class BankTransferController {
         },
       });
 
+      // Get payment with all details first to check payment_type and reference_id
+      const paymentBeforeUpdate = await prisma.payment.findUnique({
+        where: { id: bankTransfer.payment_id },
+      });
+
+      console.log('🔍 Payment before update:', {
+        id: paymentBeforeUpdate?.id,
+        payment_type: paymentBeforeUpdate?.payment_type,
+        reference_id: paymentBeforeUpdate?.reference_id,
+        status: paymentBeforeUpdate?.status,
+      });
+
       // Update payment
-      await prisma.payment.update({
+      const updatedPayment = await prisma.payment.update({
         where: { id: bankTransfer.payment_id },
         data: {
           status: 'COMPLETED',
@@ -365,6 +455,13 @@ class BankTransferController {
           gateway: 'SEPAY',
           processed_at: new Date(),
         },
+      });
+
+      console.log('✅ Payment updated:', {
+        id: updatedPayment.id,
+        payment_type: updatedPayment.payment_type,
+        reference_id: updatedPayment.reference_id,
+        status: updatedPayment.status,
       });
 
       // Update subscription if applicable
@@ -375,6 +472,55 @@ class BankTransferController {
         });
 
         console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+      }
+
+      // Update booking if payment is for CLASS_BOOKING
+      if (updatedPayment.payment_type === 'CLASS_BOOKING' && updatedPayment.reference_id) {
+        try {
+          const axios = require('axios');
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+
+          console.log(
+            `Webhook: Calling confirmBookingPayment for booking: ${updatedPayment.reference_id}`
+          );
+          console.log(
+            `Webhook: Payment ID: ${updatedPayment.id}, Amount: ${parseFloat(
+              updatedPayment.amount
+            )}`
+          );
+
+          const confirmResponse = await axios.post(
+            `${scheduleServiceUrl}/bookings/${updatedPayment.reference_id}/confirm-payment`,
+            {
+              payment_id: updatedPayment.id,
+              amount: parseFloat(updatedPayment.amount),
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000, // 10 seconds timeout
+            }
+          );
+
+          console.log('✅ Webhook: Booking payment confirmed:', updatedPayment.reference_id);
+          console.log('✅ Webhook: Confirm response:', confirmResponse.data);
+        } catch (bookingError) {
+          console.error('❌ Webhook: Failed to confirm booking payment:', {
+            bookingId: updatedPayment.reference_id,
+            error: bookingError.message,
+            response: bookingError.response?.data,
+            status: bookingError.response?.status,
+            statusText: bookingError.response?.statusText,
+            stack: bookingError.stack,
+          });
+          // Don't fail the webhook - payment is still valid
+        }
+      } else {
+        console.log('⚠️ Webhook: Not a CLASS_BOOKING payment or missing reference_id', {
+          payment_type: updatedPayment.payment_type,
+          reference_id: updatedPayment.reference_id,
+        });
       }
 
       console.log('✅ Payment completed via bank transfer');

@@ -45,7 +45,7 @@ export default function ProgressChart({
 }: ProgressChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const [selectedMetric, setSelectedMetric] = useState(metric);
   const [apiData, setApiData] = useState<any>(null);
   const themedStyles = styles(theme);
@@ -53,12 +53,12 @@ export default function ProgressChart({
   // Fetch real data silently
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.id) return;
-      const result = await progressService.getProgressData(user.id);
+      if (!member?.id) return;
+      const result = await progressService.getProgressData(member.id);
       if (result) setApiData(result);
     };
     fetchData();
-  }, [user?.id]);
+  }, [member?.id]);
 
   // Get translated labels (last 12 months, same as backend)
   const getLabels = () => {

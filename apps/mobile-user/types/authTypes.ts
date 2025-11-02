@@ -80,6 +80,7 @@ export interface AuthContextType {
   isLoading: boolean;
   error: string | null;
   hasMember: boolean | null; // null = not checked yet, true = has member, false = no member
+  member: { id: string } | null; // Store member.id for easy access (member_id from member service)
 
   // Actions
   login: (credentials: LoginCredentials) => Promise<{
@@ -98,6 +99,14 @@ export interface AuthContextType {
   resetPassword: (data: ResetPasswordData) => Promise<void>;
   updateProfile: (data: Partial<User>) => Promise<void>;
   setTokens: (accessToken: string, refreshToken: string) => Promise<void>;
+  loadMemberProfile: () => Promise<void>; // Load member profile and store member.id
+  checkRegistrationStatus: () => Promise<{
+    hasMember: boolean;
+    registrationStatus: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }>;
   clearError: () => void;
 }
 
