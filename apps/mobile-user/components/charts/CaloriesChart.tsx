@@ -102,8 +102,8 @@ export default function CaloriesChart({
     }
   };
 
-  // Use API data with translated labels
-  const chartData = apiData
+  // Use API data with translated labels (no fallback data)
+  const chartData = apiData && apiData.datasets && apiData.datasets[0] && apiData.datasets[0].data && apiData.datasets[0].data.length > 0
     ? {
         labels: getLabels(),
         datasets: [
@@ -120,7 +120,15 @@ export default function CaloriesChart({
           },
         ],
       }
-    : data || { labels: getLabels(), datasets: [{ data: [], colors: [] }] };
+    : data && data.datasets && data.datasets[0] && data.datasets[0].data && data.datasets[0].data.length > 0
+    ? data
+    : { 
+        labels: getLabels(), 
+        datasets: [{ 
+          data: [], 
+          colors: [],
+        }] 
+      };
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,
@@ -154,12 +162,17 @@ export default function CaloriesChart({
     { key: 'year', label: t('stats.yearly') },
   ] as const;
 
-  const totalCalories = chartData.datasets[0].data.reduce(
-    (a: number, b: number) => a + b,
-    0
-  );
-  const averageCalories = totalCalories / chartData.datasets[0].data.length;
-  const maxCalories = Math.max(...chartData.datasets[0].data);
+  // Safe calculation with fallback
+  const dataArray = chartData.datasets[0].data || [];
+  const totalCalories = dataArray.length > 0 
+    ? dataArray.reduce((a: number, b: number) => a + b, 0)
+    : 0;
+  const averageCalories = dataArray.length > 0 
+    ? totalCalories / dataArray.length 
+    : 0;
+  const maxCalories = dataArray.length > 0 
+    ? Math.max(...dataArray)
+    : 0;
 
   return (
     <View
@@ -207,69 +220,79 @@ export default function CaloriesChart({
         </View>
       </View>
 
-      <View style={themedStyles.chartContainer}>
-        <BarChart
-          data={chartData}
-          width={screenWidth - 32}
-          height={220}
-          chartConfig={chartConfig}
-          style={themedStyles.chart}
-          withVerticalLabels={true}
-          withHorizontalLabels={true}
-          showValuesOnTopOfBars={true}
-          fromZero={true}
-          yAxisLabel=""
-          yAxisSuffix=""
-        />
-      </View>
+      {chartData.datasets[0].data.length > 0 ? (
+        <>
+          <View style={themedStyles.chartContainer}>
+            <BarChart
+              data={chartData}
+              width={screenWidth - 32}
+              height={220}
+              chartConfig={chartConfig}
+              style={themedStyles.chart}
+              withVerticalLabels={true}
+              withHorizontalLabels={true}
+              showValuesOnTopOfBars={true}
+              fromZero={true}
+              yAxisLabel=""
+              yAxisSuffix=""
+            />
+          </View>
 
-      <View style={themedStyles.statsContainer}>
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.primary }]}>
-            {totalCalories.toLocaleString()}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.totalCalories')}
+          <View style={themedStyles.statsContainer}>
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.primary }]}>
+                {totalCalories.toLocaleString()}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.totalCalories')}
+              </Text>
+            </View>
+
+            <View style={themedStyles.statDivider} />
+
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.success }]}>
+                {maxCalories.toLocaleString()}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.peakDay')}
+              </Text>
+            </View>
+
+            <View style={themedStyles.statDivider} />
+
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.warning }]}>
+                {Math.round(averageCalories).toLocaleString()}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.average')}
+              </Text>
+            </View>
+          </View>
+        </>
+      ) : (
+        <View style={[themedStyles.chartContainer, { height: 220, justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+            {t('stats.noDataAvailable') || 'No data available'}
           </Text>
         </View>
-
-        <View style={themedStyles.statDivider} />
-
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.success }]}>
-            {maxCalories.toLocaleString()}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.peakDay')}
-          </Text>
-        </View>
-
-        <View style={themedStyles.statDivider} />
-
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.warning }]}>
-            {Math.round(averageCalories).toLocaleString()}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.average')}
-          </Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }

@@ -89,8 +89,8 @@ export default function ProgressChart({
     return labels;
   };
 
-  // Use API data with translated labels
-  const chartData = apiData
+  // Use API data with translated labels (no fallback data)
+  const chartData = apiData && apiData.weight?.datasets?.[0]?.data?.length > 0
     ? {
         weight: {
           labels: getLabels(),
@@ -110,7 +110,7 @@ export default function ProgressChart({
           labels: getLabels(),
           datasets: [
             {
-              data: apiData.bodyFat.datasets[0].data,
+              data: apiData.bodyFat?.datasets?.[0]?.data || [],
               color: (opacity = 1) =>
                 theme.colors.success +
                 Math.floor(opacity * 255)
@@ -121,14 +121,32 @@ export default function ProgressChart({
           ],
         },
       }
-    : data || {
+    : data && data.weight?.datasets?.[0]?.data?.length > 0
+    ? data
+    : {
         weight: {
           labels: getLabels(),
-          datasets: [{ data: [], color: () => '', strokeWidth: 3 }],
+          datasets: [{ 
+            data: [], 
+            color: (opacity = 1) =>
+              theme.colors.primary +
+              Math.floor(opacity * 255)
+                .toString(16)
+                .padStart(2, '0'),
+            strokeWidth: 3 
+          }],
         },
         bodyFat: {
           labels: getLabels(),
-          datasets: [{ data: [], color: () => '', strokeWidth: 3 }],
+          datasets: [{ 
+            data: [], 
+            color: (opacity = 1) =>
+              theme.colors.success +
+              Math.floor(opacity * 255)
+                .toString(16)
+                .padStart(2, '0'),
+            strokeWidth: 3 
+          }],
         },
       };
   const currentData = chartData[selectedMetric];
@@ -234,39 +252,27 @@ export default function ProgressChart({
         </View>
       </View>
 
-      <View style={themedStyles.chartContainer}>
-        {currentValues.some((val) => val > 0) ? (
-          <LineChart
-            data={currentData}
-            width={screenWidth - 32}
-            height={220}
-            chartConfig={chartConfig}
-            bezier
-            style={themedStyles.chart}
-            withInnerLines={true}
-            withOuterLines={true}
-            withVerticalLines={true}
-            withHorizontalLines={true}
-            withDots={true}
-            withShadow={false}
-            withScrollableDot={false}
-          />
-        ) : (
-          <View
-            style={{
-              height: 220,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <Text style={{ color: theme.colors.textSecondary }}>
-              {t('stats.noDataAvailable') || 'No data available'}
-            </Text>
+      {currentValues.length > 0 && currentValues.some((val) => val > 0) ? (
+        <>
+          <View style={themedStyles.chartContainer}>
+            <LineChart
+              data={currentData}
+              width={screenWidth - 32}
+              height={220}
+              chartConfig={chartConfig}
+              bezier
+              style={themedStyles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={true}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              withScrollableDot={false}
+            />
           </View>
-        )}
-      </View>
 
-      <View style={themedStyles.statsContainer}>
+          <View style={themedStyles.statsContainer}>
         <View style={themedStyles.statItem}>
           <Text style={[Typography.h5, { color: theme.colors.text }]}>
             {startValue.toFixed(1)}
@@ -332,6 +338,14 @@ export default function ProgressChart({
           </Text>
         </View>
       </View>
+        </>
+      ) : (
+        <View style={[themedStyles.chartContainer, { height: 220, justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+            {t('stats.noDataAvailable') || 'No data available'}
+          </Text>
+        </View>
+      )}
 
       <View style={themedStyles.unitContainer}>
         <Text
