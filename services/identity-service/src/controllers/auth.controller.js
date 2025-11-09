@@ -4,6 +4,23 @@ const crypto = require('crypto');
 const { prisma } = require('../lib/prisma.js');
 const { OTPService } = require('../services/otp.service.js');
 const scheduleService = require('../services/schedule.service.js');
+const memberService = require('../services/member.service.js');
+
+// Logger (optional - use if available)
+let logger = null;
+try {
+  logger = require('@gym-147/shared-utils/src/logger.js');
+} catch (e) {
+  // Fallback to console if logger not available
+  logger = {
+    info: (...args) => console.log(...args),
+    error: (...args) => console.error(...args),
+    warn: (...args) => console.warn(...args),
+    debug: (...args) => console.log(...args),
+    request: () => {},
+    errorRequest: () => {},
+  };
+}
 
 class AuthController {
   constructor() {
@@ -177,9 +194,13 @@ class AuthController {
    */
   async login(req, res) {
     try {
+      logger.request(req, 'Login attempt');
       const { identifier, password, twoFactorToken, push_token, push_platform } = req.body; // identifier can be email or phone
 
       if (!identifier || !password) {
+        logger.warn('Login failed: missing credentials', {
+          identifier: identifier ? 'provided' : 'missing',
+        });
         return res.status(400).json({
           success: false,
           message: 'Email/phone and password are required',
@@ -195,6 +216,7 @@ class AuthController {
       });
 
       if (!user) {
+        logger.warn('Login failed: user not found', { identifier });
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
@@ -204,6 +226,7 @@ class AuthController {
 
       // Check if account is active
       if (!user.is_active) {
+        logger.warn('Login failed: account inactive', { userId: user.id });
         return res.status(401).json({
           success: false,
           message: 'Tài khoản đã bị vô hiệu hóa',
@@ -215,6 +238,7 @@ class AuthController {
       const isPasswordValid = await bcrypt.compare(password, user.password_hash);
 
       if (!isPasswordValid) {
+        logger.warn('Login failed: invalid password', { userId: user.id });
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
@@ -304,6 +328,36 @@ class AuthController {
         { expiresIn: '30m' } // Short-lived access token
       );
 
+      // Prepare user data for response
+      const userData = {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+      };
+
+      // If user is TRAINER, get trainer_id from schedule-service
+      if (user.role === 'TRAINER') {
+        try {
+          const scheduleService = require('../services/schedule.service.js');
+          const schedule = new scheduleService();
+          const trainerResult = await schedule.getTrainerByUserId(user.id);
+
+          if (trainerResult.success && trainerResult.trainerId) {
+            userData.trainerId = trainerResult.trainerId;
+            console.log(`✅ Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`);
+          } else {
+            console.warn(`⚠️ Trainer not found in schedule-service for user ${user.id}`);
+            // Continue without trainerId - frontend can handle this
+          }
+        } catch (error) {
+          console.error('❌ Error fetching trainer_id during login:', error.message);
+          // Continue without trainerId - don't fail login
+        }
+      }
+
       res.json({
         success: true,
         message: 'Login successful',
@@ -311,18 +365,13 @@ class AuthController {
           accessToken: token,
           refreshToken: refreshToken,
           expiresIn: 1800, // 30 minutes
-          user: {
-            id: user.id,
-            email: user.email,
-            phone: user.phone,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            role: user.role,
-          },
+          user: userData,
         },
       });
+
+      logger.info('Login successful', { userId: user.id, role: user.role, trainerId: userData.trainerId });
     } catch (error) {
-      console.error('Login error:', error);
+      logger.errorRequest(req, error, 'Login error');
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -556,6 +605,32 @@ class AuthController {
         { expiresIn: '15m' } // Short-lived access token
       );
 
+      // Update member table in member service
+      try {
+        const axios = require('axios');
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+
+        await axios.put(
+          `${memberServiceUrl}/members/user/${newUser.id}`,
+          {
+            full_name: `${firstName} ${lastName}`,
+            email: newUser.email || email,
+            phone: newUser.phone || phone || null,
+          },
+          {
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            timeout: 5000, // 5 second timeout
+          }
+        );
+        console.log(`✅ Member table updated for user ${newUser.id}`);
+      } catch (memberError) {
+        console.error('⚠️ Error updating member table (non-critical):', memberError.message);
+        // Don't fail the entire request if member update fails
+        // Member record will be created when user first accesses member features
+      }
+
       res.status(201).json({
         success: true,
         message: 'Member registered successfully',
@@ -576,8 +651,10 @@ class AuthController {
           requiresEmailVerification: !emailVerified,
         },
       });
+
+      logger.info('Member registered successfully', { userId: newUser.id, email: newUser.email });
     } catch (error) {
-      console.error('Member register error:', error);
+      logger.errorRequest(req, error, 'Member register error');
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -861,49 +938,42 @@ class AuthController {
       // Update related tables based on user role
       if (updatedUser.role === 'TRAINER') {
         try {
-          // Update trainer table in schedule service
-          const axios = require('axios');
-          await axios.put(
-            `http://localhost:3003/trainers/user/${userId}`,
-            {
-              full_name: `${firstName} ${lastName}`,
-              email: email,
-              phone: phone || null,
-            },
-            {
-              headers: {
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-        } catch (trainerError) {
-          console.error('Error updating trainer table:', trainerError);
-          // Don't fail the entire request if trainer update fails
+          const trainerResult = await scheduleService.updateTrainer(userId, {
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            phone: updatedUser.phone,
+            email: updatedUser.email,
+          });
+
+          if (!trainerResult.success) {
+            console.warn('Failed to update trainer in schedule service:', trainerResult.error);
+            // Continue with response even if schedule service fails
+          }
+        } catch (error) {
+          console.error('Error updating trainer in schedule service:', error);
+          // Continue with response even if schedule service fails
         }
       }
-      // TODO: Update member table when member service is ready
-      // else if (updatedUser.role === 'MEMBER') {
-      //   try {
-      //     // Update member table in member service
-      //     const axios = require('axios');
-      //     await axios.put(
-      //       `http://localhost:3002/members/user/${userId}`,
-      //       {
-      //         full_name: `${firstName} ${lastName}`,
-      //         email: email,
-      //         phone: phone || null,
-      //       },
-      //       {
-      //         headers: {
-      //           'Content-Type': 'application/json',
-      //         },
-      //       }
-      //     );
-      //   } catch (memberError) {
-      //     console.error('Error updating member table:', memberError);
-      //     // Don't fail the entire request if member update fails
-      //   }
-      // }
+
+      // If user is MEMBER, update member in member service
+      if (updatedUser.role === 'MEMBER') {
+        try {
+          const memberResult = await memberService.updateMember(userId, {
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            phone: updatedUser.phone,
+            email: updatedUser.email,
+          });
+
+          if (!memberResult.success) {
+            console.warn('Failed to update member in member service:', memberResult.error);
+            // Continue with response even if member service fails
+          }
+        } catch (error) {
+          console.error('Error updating member in member service:', error);
+          // Continue with response even if member service fails
+        }
+      }
 
       res.json({
         success: true,
@@ -1027,7 +1097,11 @@ class AuthController {
       // Gửi reset link qua email hoặc SMS
       if (email) {
         try {
-          await this.otpService.sendPasswordResetEmail(user.email, resetToken, user.first_name || '');
+          await this.otpService.sendPasswordResetEmail(
+            user.email,
+            resetToken,
+            user.first_name || ''
+          );
         } catch (emailError) {
           console.error('Failed to send password reset email:', emailError);
           // Continue to return success even if email fails - security best practice
@@ -1327,8 +1401,7 @@ class AuthController {
       const session = await prisma.session.findFirst({
         where: {
           refresh_token: refreshToken,
-          expires_at: { gt: new Date() },
-          is_active: true, // ✅ Only active sessions
+          expires_at: { gt: new Date() }, // Only non-expired sessions
         },
         include: { user: true },
       });
@@ -1337,6 +1410,15 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Refresh token không hợp lệ hoặc đã hết hạn',
+          data: null,
+        });
+      }
+
+      // Check if user is active
+      if (!session.user.is_active) {
+        return res.status(403).json({
+          success: false,
+          message: 'Tài khoản đã bị khóa',
           data: null,
         });
       }
@@ -1486,6 +1568,32 @@ class AuthController {
         data: { last_login_at: new Date() },
       });
 
+      // Prepare user data for response
+      const userData = {
+        id: user.id,
+        email: user.email,
+        phone: user.phone,
+        firstName: user.first_name,
+        lastName: user.last_name,
+        role: user.role,
+      };
+
+      // If user is TRAINER, get trainer_id from schedule-service
+      if (user.role === 'TRAINER') {
+        try {
+          const trainerResult = await scheduleService.getTrainerByUserId(user.id);
+
+          if (trainerResult.success && trainerResult.trainerId) {
+            userData.trainerId = trainerResult.trainerId;
+            console.log(`✅ Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`);
+          } else {
+            console.warn(`⚠️ Trainer not found in schedule-service for user ${user.id}`);
+          }
+        } catch (error) {
+          console.error('❌ Error fetching trainer_id during 2FA login:', error.message);
+        }
+      }
+
       res.json({
         success: true,
         message: '2FA verification successful',
@@ -1493,14 +1601,7 @@ class AuthController {
           accessToken: jwtToken,
           refreshToken,
           expiresIn: 900, // 15 minutes
-          user: {
-            id: user.id,
-            email: user.email,
-            phone: user.phone,
-            firstName: user.first_name,
-            lastName: user.last_name,
-            role: user.role,
-          },
+          user: userData,
         },
       });
     } catch (error) {
@@ -1550,7 +1651,9 @@ class AuthController {
   // ==================== ADMIN REGISTRATION ====================
 
   /**
-   * Register admin (Super Admin only)
+   * Register admin or trainer
+   * - SUPER_ADMIN can create ADMIN or TRAINER
+   * - ADMIN can create TRAINER only
    */
   async registerAdmin(req, res) {
     try {
@@ -1561,6 +1664,37 @@ class AuthController {
         return res.status(400).json({
           success: false,
           message: 'Email, mật khẩu, họ và tên là bắt buộc',
+          data: null,
+        });
+      }
+
+      // Validate role permissions
+      const targetRole = role.toUpperCase();
+      const currentUserRole = req.user?.role;
+
+      // Only SUPER_ADMIN can create ADMIN role
+      if (targetRole === 'ADMIN' && currentUserRole !== 'SUPER_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Chỉ SUPER_ADMIN mới có quyền tạo tài khoản ADMIN',
+          data: null,
+        });
+      }
+
+      // SUPER_ADMIN and ADMIN can create TRAINER
+      if (targetRole === 'TRAINER' && !['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole)) {
+        return res.status(403).json({
+          success: false,
+          message: 'Chỉ ADMIN hoặc SUPER_ADMIN mới có quyền tạo tài khoản TRAINER',
+          data: null,
+        });
+      }
+
+      // Validate that role is valid
+      if (!['ADMIN', 'TRAINER'].includes(targetRole)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Role không hợp lệ. Chỉ có thể tạo ADMIN hoặc TRAINER',
           data: null,
         });
       }
@@ -1624,7 +1758,7 @@ class AuthController {
           password_hash: hashedPassword,
           first_name: firstName,
           last_name: lastName,
-          role: role.toUpperCase(),
+          role: targetRole,
           is_active: true,
           email_verified: true,
           email_verified_at: new Date(),
@@ -1634,8 +1768,12 @@ class AuthController {
       });
 
       // If role is TRAINER, create trainer in schedule service
-      if (role.toUpperCase() === 'TRAINER') {
+      let scheduleServiceSuccess = true;
+      let scheduleServiceError = null;
+
+      if (targetRole === 'TRAINER') {
         try {
+          console.log('🔄 Attempting to create trainer in schedule-service for user:', newAdmin.id);
           const trainerResult = await scheduleService.createTrainer({
             id: newAdmin.id,
             firstName: newAdmin.first_name,
@@ -1645,18 +1783,39 @@ class AuthController {
           });
 
           if (!trainerResult.success) {
-            console.warn('Failed to create trainer in schedule service:', trainerResult.error);
-            // Continue with response even if schedule service fails
+            scheduleServiceSuccess = false;
+            scheduleServiceError = trainerResult.error;
+            console.error('❌ Failed to create trainer in schedule service:', {
+              error: trainerResult.error,
+              status: trainerResult.status,
+              responseData: trainerResult.responseData,
+            });
+            // Log warning but continue - user is created in identity-service
+            // Admin can manually sync later if needed
+          } else {
+            console.log('✅ Trainer successfully created in schedule-service');
           }
         } catch (error) {
-          console.error('Error creating trainer in schedule service:', error);
+          scheduleServiceSuccess = false;
+          scheduleServiceError = error.message;
+          console.error('❌ Exception while creating trainer in schedule service:', {
+            message: error.message,
+            stack: error.stack,
+          });
           // Continue with response even if schedule service fails
         }
       }
 
+      // Build response message
+      let responseMessage = 'Admin đã được tạo thành công';
+      if (targetRole === 'TRAINER' && !scheduleServiceSuccess) {
+        responseMessage +=
+          '. Lưu ý: Trainer chưa được tạo trong schedule-service. Vui lòng kiểm tra logs hoặc tạo lại.';
+      }
+
       res.status(201).json({
         success: true,
-        message: 'Admin đã được tạo thành công',
+        message: responseMessage,
         data: {
           user: {
             id: newAdmin.id,
@@ -1668,6 +1827,8 @@ class AuthController {
             emailVerified: newAdmin.email_verified,
             phoneVerified: newAdmin.phone_verified,
           },
+          scheduleServiceCreated: scheduleServiceSuccess,
+          scheduleServiceError: scheduleServiceError,
         },
       });
     } catch (error) {
@@ -1684,7 +1845,26 @@ class AuthController {
   async updateUser(req, res) {
     try {
       const { id } = req.params;
-      const { firstName, lastName, phone, email } = req.body;
+      const { firstName, lastName, phone, email, isActive } = req.body;
+
+      console.log('📝 updateUser called:', {
+        id,
+        firstName,
+        lastName,
+        phone,
+        email,
+        phoneType: typeof phone,
+        emailType: typeof email,
+      });
+
+      // Validate required fields
+      if (!email || email.trim() === '') {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required',
+          data: null,
+        });
+      }
 
       // Check if user exists
       const existingUser = await prisma.user.findUnique({
@@ -1699,15 +1879,48 @@ class AuthController {
         });
       }
 
+      // Normalize phone: null if undefined, empty string, or null
+      const phoneValue = phone && phone.trim() !== '' ? phone.trim() : null;
+      const emailValue = email.trim();
+
+      // Check if email is already taken by another user
+      const emailExists = await prisma.user.findFirst({
+        where: {
+          email: emailValue,
+          id: { not: id },
+        },
+      });
+
+      if (emailExists) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is already taken by another user',
+          data: null,
+        });
+      }
+
       // Update user
+      const updateData = {
+        first_name: firstName,
+        last_name: lastName,
+        phone: phoneValue,
+        email: emailValue,
+      };
+
+      // Only update is_active if provided (to allow locking/unlocking accounts)
+      if (isActive !== undefined) {
+        updateData.is_active = isActive;
+      }
+
       const updatedUser = await prisma.user.update({
         where: { id },
-        data: {
-          first_name: firstName,
-          last_name: lastName,
-          phone: phone || null,
-          email,
-        },
+        data: updateData,
+      });
+
+      console.log('✅ User updated in identity-service:', {
+        id: updatedUser.id,
+        email: updatedUser.email,
+        phone: updatedUser.phone,
       });
 
       // If user is TRAINER, update trainer in schedule service
@@ -1727,6 +1940,26 @@ class AuthController {
         } catch (error) {
           console.error('Error updating trainer in schedule service:', error);
           // Continue with response even if schedule service fails
+        }
+      }
+
+      // If user is MEMBER, update member in member service
+      if (existingUser.role === 'MEMBER') {
+        try {
+          const memberResult = await memberService.updateMember(id, {
+            firstName: updatedUser.first_name,
+            lastName: updatedUser.last_name,
+            phone: updatedUser.phone,
+            email: updatedUser.email,
+          });
+
+          if (!memberResult.success) {
+            console.warn('Failed to update member in member service:', memberResult.error);
+            // Continue with response even if member service fails
+          }
+        } catch (error) {
+          console.error('Error updating member in member service:', error);
+          // Continue with response even if member service fails
         }
       }
 
@@ -1760,6 +1993,7 @@ class AuthController {
   async deleteUser(req, res) {
     try {
       const { id } = req.params;
+      const currentUser = req.user; // User making the request
 
       // Check if user exists
       const existingUser = await prisma.user.findUnique({
@@ -1774,18 +2008,57 @@ class AuthController {
         });
       }
 
+      // Prevent ADMIN from deleting SUPER_ADMIN
+      if (currentUser.role === 'ADMIN' && existingUser.role === 'SUPER_ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Admin không thể xóa Super Admin',
+          data: null,
+        });
+      }
+
+      // Prevent users from deleting themselves
+      if (currentUser.userId === id || currentUser.id === id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Không thể xóa chính tài khoản của bạn',
+          data: null,
+        });
+      }
+
       // If user is TRAINER, delete trainer from schedule service first
       if (existingUser.role === 'TRAINER') {
         try {
+          console.log('🗑️ Deleting trainer from schedule service for user:', id);
           const trainerResult = await scheduleService.deleteTrainer(id);
 
-          if (!trainerResult.success) {
-            console.warn('Failed to delete trainer in schedule service:', trainerResult.error);
+          if (trainerResult.success) {
+            console.log('✅ Trainer deleted successfully from schedule service');
+          } else {
+            console.warn('⚠️ Failed to delete trainer in schedule service:', trainerResult.error);
             // Continue with user deletion even if schedule service fails
           }
         } catch (error) {
-          console.error('Error deleting trainer in schedule service:', error);
+          console.error('❌ Error deleting trainer in schedule service:', error);
           // Continue with user deletion even if schedule service fails
+        }
+      }
+
+      // If user is MEMBER, delete member from member service first
+      if (existingUser.role === 'MEMBER') {
+        try {
+          console.log('🗑️ Deleting member from member service for user:', id);
+          const memberResult = await memberService.deleteMember(id);
+
+          if (memberResult.success) {
+            console.log('✅ Member deleted successfully from member service');
+          } else {
+            console.warn('⚠️ Failed to delete member in member service:', memberResult.error);
+            // Continue with user deletion even if member service fails
+          }
+        } catch (error) {
+          console.error('❌ Error deleting member in member service:', error);
+          // Continue with user deletion even if member service fails
         }
       }
 
@@ -1947,6 +2220,65 @@ class AuthController {
       });
     } catch (error) {
       console.error('Get trainers error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get all admins and super admins (public route for other services)
+   * Used by schedule service to send notifications
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async getAdmins(req, res) {
+    try {
+      console.log('📞 getAdmins endpoint called', {
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        ip: req.ip,
+      });
+
+      const admins = await prisma.user.findMany({
+        where: {
+          role: {
+            in: ['ADMIN', 'SUPER_ADMIN'],
+          },
+          is_active: true,
+        },
+        select: {
+          id: true,
+          first_name: true,
+          last_name: true,
+          email: true,
+          phone: true,
+          role: true,
+          is_active: true,
+          email_verified: true,
+          phone_verified: true,
+          created_at: true,
+          updated_at: true,
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      console.log(`✅ Found ${admins.length} admin/super-admin users`);
+
+      res.json({
+        success: true,
+        message: 'Admins retrieved successfully',
+        data: {
+          users: admins,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Get admins error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

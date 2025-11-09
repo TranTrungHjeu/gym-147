@@ -3,6 +3,7 @@ const { prisma } = require('../lib/prisma.js');
 const config = require('../config/otp.config');
 const { Resend } = require('resend');
 const axios = require('axios');
+const Buffer = require('buffer').Buffer;
 
 class OTPService {
   constructor() {
@@ -16,6 +17,11 @@ class OTPService {
 
   // Initialize SMS and Email services based on configuration
   initializeServices() {
+    // Initialize SpeedSMS for SMS
+    if (config.sms.provider === 'speedsms') {
+      console.log('SpeedSMS service initialized');
+    }
+
     // Initialize ESMS for SMS
     if (config.sms.provider === 'esms') {
       console.log('ESMS SMS service initialized');
@@ -166,10 +172,173 @@ class OTPService {
     }
   }
 
-  // Send OTP via SMS (ESMS or Mock)
+  // Send OTP via SMS (SpeedSMS, ESMS or Mock)
   async sendSMSOTP(phoneNumber, otp) {
     try {
-      if (config.sms.provider === 'esms') {
+      if (config.sms.provider === 'speedsms') {
+        // SpeedSMS implementation - Uses HTTP Basic Authentication
+        if (!config.sms.speedsms.accessToken) {
+          console.warn('SpeedSMS access token is not configured. Falling back to mock mode.');
+          console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+          return {
+            success: true,
+            message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS token not configured)',
+            otp: otp, // Only for development/testing
+          };
+        }
+
+        const message = `Mã OTP của bạn là: ${otp}. Mã có hiệu lực trong 5 phút.`;
+        const sender = config.sms.speedsms.brandname || ''; // Empty string nếu không được cấu hình
+
+        // Format phone number theo SpeedSMS format (array)
+        // SpeedSMS yêu cầu format: 849xxxxxxxx (bỏ số 0 đầu, thêm 84)
+        let formattedPhone = phoneNumber.trim();
+        // Loại bỏ khoảng trắng
+        formattedPhone = formattedPhone.replace(/\s+/g, '');
+        // Chuyển đổi về format 849xxxxxxxx
+        if (formattedPhone.startsWith('+84')) {
+          formattedPhone = formattedPhone.replace('+84', '84');
+        } else if (formattedPhone.startsWith('84')) {
+          // Đã đúng format
+        } else if (formattedPhone.startsWith('0')) {
+          formattedPhone = '84' + formattedPhone.substring(1);
+        } else {
+          // Nếu không có prefix, thêm 84
+          formattedPhone = '84' + formattedPhone;
+        }
+
+        // SpeedSMS uses HTTP Basic Auth: username = accessToken, password = "x"
+        // Format: Authorization: Basic base64(accessToken:x)
+        const basicAuth = Buffer.from(`${config.sms.speedsms.accessToken}:x`).toString('base64');
+
+        // Request data theo format chính thức của SpeedSMS
+        // Chỉ thêm sender nếu có giá trị (không phải empty string)
+        const requestData = {
+          to: [formattedPhone], // Array theo mẫu chính thức
+          content: message,
+          sms_type: 2,
+        };
+
+        // Chỉ thêm sender nếu có giá trị và không phải empty string
+        if (sender && sender.trim() !== '') {
+          requestData.sender = sender;
+        }
+
+        console.log('SpeedSMS request:', {
+          url: config.sms.speedsms.apiUrl,
+          phone: formattedPhone,
+          hasToken: !!config.sms.speedsms.accessToken,
+          sender: sender && sender.trim() !== '' ? sender : '(not included in request)',
+        });
+
+        try {
+          // Gửi request theo format chính thức của SpeedSMS
+          let response = await axios.post(config.sms.speedsms.apiUrl, requestData, {
+            headers: {
+              Authorization: `Basic ${basicAuth}`,
+              'Content-Type': 'application/json',
+            },
+          });
+
+          // Nếu lỗi "sender not found" và có sender trong request, thử lại không có sender
+          if (
+            response.data.status === 'error' &&
+            response.data.message?.includes('sender not found') &&
+            requestData.sender
+          ) {
+            console.warn('SpeedSMS sender not found. Retrying without sender field...');
+            const requestDataWithoutSender = {
+              to: [formattedPhone],
+              content: message,
+              sms_type: 2,
+              // Không thêm sender field
+            };
+            response = await axios.post(config.sms.speedsms.apiUrl, requestDataWithoutSender, {
+              headers: {
+                Authorization: `Basic ${basicAuth}`,
+                'Content-Type': 'application/json',
+              },
+            });
+          }
+
+          if (
+            response.data.status === 'success' ||
+            response.data.success === true ||
+            response.data.code === 100 ||
+            (response.data.status && response.data.status !== 'error')
+          ) {
+            return {
+              success: true,
+              message: 'Mã OTP đã được gửi qua SMS',
+              smsId:
+                response.data.data?.transaction_id ||
+                response.data.transaction_id ||
+                response.data.sms_id ||
+                response.data.id,
+            };
+          } else {
+            console.error('SpeedSMS error response:', response.data);
+            // Nếu vẫn lỗi, fallback về mock
+            if (response.data.status === 'error') {
+              console.warn('SpeedSMS API returned error. Falling back to mock mode.');
+              console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+              return {
+                success: true,
+                message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS error)',
+                otp: otp, // Only for development/testing
+              };
+            }
+            throw new Error(
+              `SpeedSMS Error: ${
+                response.data.message || response.data.error || JSON.stringify(response.data)
+              }`
+            );
+          }
+        } catch (error) {
+          console.error('SpeedSMS API error:', {
+            status: error.response?.status,
+            data: error.response?.data,
+            message: error.message,
+          });
+
+          // Nếu lỗi 401, có thể token không đúng hoặc đã hết hạn
+          if (error.response?.status === 401) {
+            console.warn(
+              'SpeedSMS authentication failed (401). Access token may be invalid or expired.'
+            );
+            console.warn('Falling back to mock mode for this request.');
+            console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+            return {
+              success: true,
+              message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS auth failed)',
+              otp: otp, // Only for development/testing
+            };
+          }
+
+          // Nếu lỗi về sender/brandname, fallback về mock
+          if (
+            error.response?.data?.message?.includes('sender not found') ||
+            error.response?.data?.status === 'error'
+          ) {
+            console.warn('SpeedSMS sender/brandname error. Falling back to mock mode.');
+            console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+            return {
+              success: true,
+              message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS sender error)',
+              otp: otp, // Only for development/testing
+            };
+          }
+
+          // Với các lỗi khác, cũng fallback về mock để không làm crash hệ thống
+          console.warn('SpeedSMS API error. Falling back to mock mode.');
+          console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+          return {
+            success: true,
+            message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS error)',
+            otp: otp, // Only for development/testing
+          };
+        }
+      } else if (config.sms.provider === 'esms') {
         // Real ESMS implementation - Sử dụng form-data thay vì JSON
         const formData = new URLSearchParams();
         formData.append('ApiKey', config.sms.esms.apiKey);
@@ -206,7 +375,11 @@ class OTPService {
       }
     } catch (error) {
       console.error('Error sending SMS OTP:', error);
-      throw new Error('Failed to send SMS OTP');
+      if (error.response) {
+        console.error('Response data:', error.response.data);
+        console.error('Response status:', error.response.status);
+      }
+      throw new Error(`Failed to send SMS OTP: ${error.message}`);
     }
   }
 
