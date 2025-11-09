@@ -515,6 +515,116 @@ class AdminController {
   }
 
   /**
+   * Get class attendance analytics
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async getClassAttendanceData(req, res) {
+    try {
+      const { from, to } = req.query;
+
+      let startDate, endDate;
+      if (from && to) {
+        startDate = new Date(from);
+        endDate = new Date(to);
+      } else {
+        // Default to last 30 days
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+      }
+
+      // Get all classes
+      const classes = await prisma.gymClass.findMany({
+        select: {
+          id: true,
+          name: true,
+        },
+        orderBy: {
+          name: 'asc',
+        },
+      });
+
+      // Get schedules with attendance in the date range
+      const schedules = await prisma.schedule.findMany({
+        where: {
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        include: {
+          gym_class: true,
+          attendance: {
+            where: {
+              checked_in_at: { not: null },
+            },
+          },
+        },
+        orderBy: {
+          date: 'asc',
+        },
+      });
+
+      // Group attendance by class and date
+      const attendanceByClass = {};
+      const dateSet = new Set();
+
+      classes.forEach(cls => {
+        attendanceByClass[cls.id] = {
+          className: cls.name,
+          attendance: {},
+        };
+      });
+
+      schedules.forEach(schedule => {
+        const dateKey = schedule.date.toISOString().split('T')[0];
+        dateSet.add(dateKey);
+
+        const classId = schedule.gym_class_id;
+        if (!attendanceByClass[classId]) {
+          attendanceByClass[classId] = {
+            className: schedule.gym_class?.name || 'Unknown',
+            attendance: {},
+          };
+        }
+
+        if (!attendanceByClass[classId].attendance[dateKey]) {
+          attendanceByClass[classId].attendance[dateKey] = 0;
+        }
+
+        attendanceByClass[classId].attendance[dateKey] += schedule.attendance.length;
+      });
+
+      // Convert to arrays
+      const dates = Array.from(dateSet).sort();
+      const classNames = classes.map(cls => cls.name);
+      const attendance = classes.map(cls => {
+        return dates.map(date => {
+          return attendanceByClass[cls.id]?.attendance[date] || 0;
+        });
+      });
+
+      res.json({
+        success: true,
+        message: 'Class attendance data retrieved successfully',
+        data: {
+          classNames,
+          attendance,
+          dates,
+        },
+      });
+    } catch (error) {
+      console.error('Get class attendance data error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Có lỗi xảy ra khi lấy dữ liệu tham gia lớp học',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Reset all rate limits (use with caution)
    * @param {Object} req - Express request object
    * @param {Object} res - Express response object
