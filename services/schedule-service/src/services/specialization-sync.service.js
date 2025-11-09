@@ -16,7 +16,53 @@ class SpecializationSyncService {
     try {
       console.log(`🔄 Syncing specializations for trainer: ${trainerId}`);
 
-      // Get all verified certifications for the trainer
+      // Verify trainer exists first
+      const trainer = await prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: { id: true, full_name: true, specializations: true },
+      });
+
+      if (!trainer) {
+        console.error(`❌ Trainer not found: ${trainerId}`);
+        return {
+          success: false,
+          error: `Trainer not found: ${trainerId}`,
+        };
+      }
+
+      console.log(`✅ Trainer found: ${trainer.full_name} (${trainerId})`);
+      console.log(`📊 Current specializations:`, trainer.specializations || []);
+
+      // Get ALL verified certifications first (including expired ones) for logging
+      const allVerifiedCerts = await prisma.trainerCertification.findMany({
+        where: {
+          trainer_id: trainerId,
+          verification_status: 'VERIFIED',
+          is_active: true,
+        },
+        select: {
+          id: true,
+          category: true,
+          certification_level: true,
+          certification_name: true,
+          expiration_date: true,
+          verified_at: true,
+        },
+      });
+
+      console.log(`📋 Found ${allVerifiedCerts.length} total verified certifications for trainer ${trainer.full_name}`);
+      if (allVerifiedCerts.length > 0) {
+        const now = new Date();
+        allVerifiedCerts.forEach(cert => {
+          const isExpired = cert.expiration_date && new Date(cert.expiration_date) < now;
+          const status = isExpired ? '❌ EXPIRED' : '✅ ACTIVE';
+          console.log(
+            `   ${status} - ${cert.category} (${cert.certification_level})${cert.expiration_date ? ` - Expires: ${cert.expiration_date.toISOString().split('T')[0]}` : ' - No expiration'}`
+          );
+        });
+      }
+
+      // Get only non-expired verified certifications for sync
       const certifications = await prisma.trainerCertification.findMany({
         where: {
           trainer_id: trainerId,
@@ -28,10 +74,15 @@ class SpecializationSyncService {
           category: true,
           certification_level: true,
           certification_name: true,
+          expiration_date: true,
         },
       });
 
-      console.log(`📋 Found ${certifications.length} verified certifications`);
+      console.log(`✅ Found ${certifications.length} non-expired verified certifications eligible for specialization sync`);
+      if (certifications.length !== allVerifiedCerts.length) {
+        const expiredCount = allVerifiedCerts.length - certifications.length;
+        console.log(`⚠️  ${expiredCount} certification(s) excluded due to expiration`);
+      }
 
       // Extract unique categories and get the highest level for each
       const categoryLevels = {};
@@ -57,10 +108,19 @@ class SpecializationSyncService {
       });
 
       const specializations = Object.values(categoryLevels);
-      console.log(
-        `🎯 Updated specializations:`,
-        specializations.map(s => `${s.category} (${s.certification_level})`)
-      );
+      
+      if (specializations.length === 0) {
+        console.log(`⚠️  No valid certifications found to sync - specializations will be empty array`);
+        console.log(`   This could be because:`);
+        console.log(`   - All certifications have expired`);
+        console.log(`   - No certifications are VERIFIED`);
+        console.log(`   - No certifications are active`);
+      } else {
+        console.log(
+          `🎯 Specializations to sync:`,
+          specializations.map(s => `${s.category} (${s.certification_level})`)
+        );
+      }
 
       // Update trainer specializations
       const updatedTrainer = await prisma.trainer.update({
@@ -76,12 +136,17 @@ class SpecializationSyncService {
       });
 
       console.log(`✅ Specializations updated for trainer ${updatedTrainer.full_name}`);
+      console.log(`📊 Before sync: ${trainer.specializations?.length || 0} specializations -`, trainer.specializations || []);
+      console.log(`📊 After sync: ${updatedTrainer.specializations.length} specializations -`, updatedTrainer.specializations);
 
       return {
         success: true,
         trainerId,
         specializations: updatedTrainer.specializations,
         certificationDetails: specializations,
+        totalCertifications: allVerifiedCerts.length,
+        eligibleCertifications: certifications.length,
+        expiredCertifications: allVerifiedCerts.length - certifications.length,
       };
     } catch (error) {
       console.error('❌ Error updating trainer specializations:', error);

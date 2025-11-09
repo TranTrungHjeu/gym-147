@@ -107,6 +107,24 @@ class AICertificationScanner {
                 1. Có con dấu đỏ trong ảnh không?
                 2. Con dấu có giống với mẫu Gym147 không?
                 3. Vị trí và kích thước của con dấu
+                4. Trích xuất thông tin từ chứng chỉ:
+                   - Tên chứng chỉ (certification_name) - bắt buộc phải có
+                   - Tổ chức cấp (certification_issuer) - bắt buộc phải có
+                   - Ngày cấp (issued_date) - format: YYYY-MM-DD, bắt buộc phải có
+                   - Ngày hết hạn (expiration_date) - format: YYYY-MM-DD, QUAN TRỌNG: Nếu chứng chỉ có ngày hết hạn thì PHẢI trích xuất, nếu không có thì để null. Tìm kiếm các từ khóa như "hết hạn", "expires", "valid until", "expiration date", "ngày hết hạn"
+                   - Danh mục (category) - QUAN TRỌNG: Phải trích xuất danh mục dựa trên nội dung chứng chỉ. Mapping như sau:
+                     * Tim mạch, Cardio, Cardiovascular → CARDIO
+                     * Sức mạnh, Strength, Bodybuilding, Weightlifting → STRENGTH
+                     * Yoga → YOGA
+                     * Pilates → PILATES
+                     * Khiêu vũ, Dance, Dancing → DANCE
+                     * Võ thuật, Martial Arts, Boxing, Muay Thai, Karate, Taekwondo → MARTIAL_ARTS
+                     * Thủy sinh, Aqua, Swimming, Bơi lội → AQUA
+                     * Chức năng, Functional, Functional Training → FUNCTIONAL
+                     * Phục hồi, Recovery, Rehabilitation → RECOVERY
+                     * Chuyên biệt, Specialized, Other → SPECIALIZED
+                     Phải trả về đúng giá trị enum: CARDIO, STRENGTH, YOGA, PILATES, DANCE, MARTIAL_ARTS, AQUA, FUNCTIONAL, RECOVERY, hoặc SPECIALIZED
+                   - Cấp độ (certification_level) - một trong: BASIC, INTERMEDIATE, ADVANCED, EXPERT
                 
                 Trả về JSON với format: {
                   "hasRedSeal": boolean,
@@ -115,7 +133,15 @@ class AICertificationScanner {
                   "description": string,
                   "sealLocation": string,
                   "sealType": string,
-                  "similarityScore": number (0-1)
+                  "similarityScore": number (0-1),
+                  "extractedData": {
+                    "certification_name": string hoặc null,
+                    "certification_issuer": string hoặc null,
+                    "issued_date": string (YYYY-MM-DD) hoặc null,
+                    "expiration_date": string (YYYY-MM-DD) hoặc null,
+                    "category": string hoặc null,
+                    "certification_level": string hoặc null
+                  }
                 }`,
                 },
                 {
@@ -138,13 +164,14 @@ class AICertificationScanner {
             },
           ],
           temperature: 0.3,
-          max_tokens: 500,
+          max_tokens: 1000,
         },
         {
           headers: {
             'Content-Type': 'application/json',
             Authorization: `Bearer ${this.AI_API_KEY}`,
           },
+          timeout: 60000, // 60 seconds timeout for AI API call
         }
       );
 
@@ -164,6 +191,7 @@ class AICertificationScanner {
             sealLocation: result.sealLocation || 'Unknown',
             sealType: result.sealType || 'Unknown',
             similarityScore: result.similarityScore || 0,
+            extractedData: result.extractedData || null,
             source: 'AI Vision Analysis',
             imageUrl: imageUrl,
             officialSealUrl: this.OFFICIAL_SEAL_URL,

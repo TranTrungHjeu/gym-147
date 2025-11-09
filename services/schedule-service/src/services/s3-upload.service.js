@@ -4,6 +4,7 @@ const multer = require('multer');
 const multerS3 = require('multer-s3');
 const path = require('path');
 const crypto = require('crypto');
+const cdnService = require('./cdn.service');
 
 /**
  * AWS S3 Upload Service for Certificate Images
@@ -25,11 +26,12 @@ class S3UploadService {
     this.bucketName = process.env.AWS_S3_BUCKET_NAME;
     this.folder = 'certifications';
 
-    // Initialize multer with S3 storage
+    // Initialize multer with S3 storage (same as equipment - no ACL, bucket policy handles access)
     this.upload = multer({
       storage: multerS3({
         s3: this.s3Client,
         bucket: this.bucketName,
+        cacheControl: 'public, max-age=31536000', // Cache for 1 year (same as equipment)
         key: (req, file, cb) => {
           // Generate unique filename
           const uniqueSuffix = crypto.randomBytes(16).toString('hex');
@@ -87,12 +89,13 @@ class S3UploadService {
       const extension = path.extname(originalName);
       const key = `${this.folder}/${uniqueSuffix}${extension}`;
 
-      // Upload to S3
+      // Upload to S3 with public-read ACL and cache control (same as equipment images)
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: key,
         Body: fileBuffer,
         ContentType: mimeType,
+        CacheControl: 'public, max-age=31536000', // Cache for 1 year (same as equipment)
         Metadata: {
           originalName,
           uploadedBy: userId,
@@ -102,10 +105,10 @@ class S3UploadService {
 
       await this.s3Client.send(command);
 
-      // Generate public URL
-      const url = `https://${this.bucketName}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+      // Generate public URL (with CDN if configured) - same as equipment images
+      const url = cdnService.getUrl(key);
 
-      console.log(`File uploaded successfully: ${url}`);
+      console.log(`✅ File uploaded successfully: ${url}`);
 
       return {
         success: true,
@@ -187,8 +190,8 @@ class S3UploadService {
         expiresIn: 3600, // 1 hour
       });
 
-      // Generate public URL
-      const publicUrl = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+      // Generate public URL (with CDN if configured) - similar to equipment images
+      const publicUrl = cdnService.getUrl(key);
 
       console.log(`✅ Presigned URL generated: ${key}`);
 
@@ -217,14 +220,16 @@ class S3UploadService {
     try {
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
-      // Remove leading slash and bucket name
-      const key = pathname.substring(1).split('/').slice(1).join('/');
+      // Remove leading slash to get the key
+      // Example: /certifications/abc123.png -> certifications/abc123.png
+      const key = pathname.startsWith('/') ? pathname.substring(1) : pathname;
       return key;
     } catch (error) {
       console.error('Error extracting key from URL:', error);
       return null;
     }
   }
+
 
   /**
    * Get file info from S3 URL
