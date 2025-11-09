@@ -176,19 +176,40 @@ class TrainerController {
         profile_photo,
       } = req.body;
 
+      // Validate required fields
+      if (!user_id || !full_name || !email) {
+        return res.status(400).json({
+          success: false,
+          message: 'user_id, full_name, and email are required',
+          data: null,
+        });
+      }
+
+      // Phone is required in schema, use a placeholder if not provided
+      const trainerPhone = phone || `temp-${user_id.substring(0, 8)}`;
+
+      console.log('🔄 Creating trainer in database:', {
+        user_id,
+        full_name,
+        email,
+        phone: trainerPhone,
+      });
+
       const trainer = await prisma.trainer.create({
         data: {
           user_id,
           full_name,
-          phone,
+          phone: trainerPhone,
           email,
           specializations: specializations || [],
-          bio,
+          bio: bio || null,
           experience_years: parseInt(experience_years) || 0,
           hourly_rate: hourly_rate ? parseFloat(hourly_rate) : null,
-          profile_photo,
+          profile_photo: profile_photo || null,
         },
       });
+
+      console.log('✅ Trainer created successfully:', trainer.id);
 
       res.status(201).json({
         success: true,
@@ -196,10 +217,25 @@ class TrainerController {
         data: { trainer },
       });
     } catch (error) {
-      console.error('Create trainer error:', error);
+      console.error('❌ Create trainer error:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+      });
+      
+      // Handle unique constraint violations
+      if (error.code === 'P2002') {
+        const field = error.meta?.target?.[0] || 'field';
+        return res.status(409).json({
+          success: false,
+          message: `Trainer with this ${field} already exists`,
+          data: null,
+        });
+      }
+
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
         data: null,
       });
     }
@@ -219,6 +255,34 @@ class TrainerController {
         profile_photo,
         status,
       } = req.body;
+
+      // If specializations are being updated directly, validate against verified certifications
+      if (specializations && Array.isArray(specializations)) {
+        const verifiedCerts = await prisma.trainerCertification.findMany({
+          where: {
+            trainer_id: id,
+            verification_status: 'VERIFIED',
+            is_active: true,
+            OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
+          },
+          select: { category: true },
+        });
+
+        const verifiedCategories = verifiedCerts.map(cert => cert.category);
+        const invalidSpecializations = specializations.filter(
+          spec => !verifiedCategories.includes(spec)
+        );
+
+        if (invalidSpecializations.length > 0) {
+          console.warn(
+            `⚠️ Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
+              ', '
+            )}`
+          );
+          // Still allow the update but log a warning
+          // In production, you might want to filter out invalid specializations or reject the request
+        }
+      }
 
       const trainer = await prisma.trainer.update({
         where: { id },
@@ -265,11 +329,21 @@ class TrainerController {
         status,
       } = req.body;
 
+      console.log('📝 updateTrainerByUserId called:', {
+        user_id,
+        full_name,
+        phone,
+        email,
+        phoneType: typeof phone,
+        emailType: typeof email,
+      });
+
       const trainer = await prisma.trainer.findFirst({
         where: { user_id },
       });
 
       if (!trainer) {
+        console.log('⚠️ Trainer not found for user_id:', user_id);
         return res.status(404).json({
           success: false,
           message: 'Trainer not found',
@@ -277,12 +351,52 @@ class TrainerController {
         });
       }
 
+      // Ensure phone is null if empty string or undefined
+      const phoneValue = phone && phone.trim() !== '' ? phone.trim() : null;
+      // Ensure email is not empty
+      const emailValue = email && email.trim() !== '' ? email.trim() : null;
+
+      if (!emailValue) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required',
+          data: null,
+        });
+      }
+
+      // If specializations are being updated directly, validate against verified certifications
+      if (specializations && Array.isArray(specializations)) {
+        const verifiedCerts = await prisma.trainerCertification.findMany({
+          where: {
+            trainer_id: trainer.id,
+            verification_status: 'VERIFIED',
+            is_active: true,
+            OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
+          },
+          select: { category: true },
+        });
+
+        const verifiedCategories = verifiedCerts.map(cert => cert.category);
+        const invalidSpecializations = specializations.filter(
+          spec => !verifiedCategories.includes(spec)
+        );
+
+        if (invalidSpecializations.length > 0) {
+          console.warn(
+            `⚠️ Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
+              ', '
+            )}`
+          );
+          // Still allow the update but log a warning
+        }
+      }
+
       const updatedTrainer = await prisma.trainer.update({
         where: { id: trainer.id },
         data: {
           full_name,
-          phone,
-          email,
+          phone: phoneValue,
+          email: emailValue,
           specializations: specializations || [],
           bio,
           experience_years: experience_years ? parseInt(experience_years) : undefined,
@@ -290,6 +404,13 @@ class TrainerController {
           profile_photo,
           status,
         },
+      });
+
+      console.log('✅ Trainer updated successfully:', {
+        trainerId: updatedTrainer.id,
+        full_name: updatedTrainer.full_name,
+        phone: updatedTrainer.phone,
+        email: updatedTrainer.email,
       });
 
       res.json({
@@ -534,10 +655,16 @@ class TrainerController {
         endDate = new Date(baseDate);
         endDate.setHours(23, 59, 59, 999);
       } else if (viewMode === 'week') {
+        // Week starts on Monday (day 1), not Sunday (day 0)
+        // getDay() returns: 0=Sunday, 1=Monday, ..., 6=Saturday
         const dayOfWeek = baseDate.getDay();
         startDate = new Date(baseDate);
-        startDate.setDate(baseDate.getDate() - dayOfWeek);
+        // If Sunday (0), go back 6 days to previous Monday
+        // Otherwise, go back (dayOfWeek - 1) days to current week's Monday
+        const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+        startDate.setDate(baseDate.getDate() - daysToSubtract);
         startDate.setHours(0, 0, 0, 0);
+        // End date is Sunday (6 days after Monday)
         endDate = new Date(startDate);
         endDate.setDate(startDate.getDate() + 6);
         endDate.setHours(23, 59, 59, 999);
@@ -1066,11 +1193,22 @@ class TrainerController {
       const start_time = rawStartTime?.trim();
       const end_time = rawEndTime?.trim();
       const room_id = rawRoomId?.trim();
-      const max_capacity = parseInt(rawMaxCapacity) || 20;
+
+      // Parse max_capacity - will be set from GymClass.max_capacity if not provided
+      let max_capacity = null;
+      if (rawMaxCapacity !== undefined && rawMaxCapacity !== null && rawMaxCapacity !== '') {
+        const parsed = parseInt(rawMaxCapacity);
+        if (!isNaN(parsed) && parsed > 0) {
+          max_capacity = parsed;
+        }
+      }
+
       const special_notes = rawSpecialNotes?.trim().substring(0, 200) || null;
 
       // Check rate limit (only check, don't increment yet)
-      if (!rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000)) {
+      if (
+        !rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000)
+      ) {
         const rateLimitInfo = rateLimitService.getRateLimitInfo(user_id, 'create_schedule');
         return res.status(429).json({
           success: false,
@@ -1084,7 +1222,7 @@ class TrainerController {
         });
       }
 
-      // Validate required fields
+      // Validate required fields (max_capacity will be set from GymClass if not provided)
       if (
         !category ||
         !difficulty ||
@@ -1092,13 +1230,12 @@ class TrainerController {
         !date ||
         !start_time ||
         !end_time ||
-        !room_id ||
-        !max_capacity
+        !room_id
       ) {
         return res.status(400).json({
           success: false,
           message:
-            'Thiếu thông tin bắt buộc. Vui lòng điền đầy đủ các trường: category, difficulty, class_name, date, start_time, end_time, room_id, max_capacity',
+            'Thiếu thông tin bắt buộc. Vui lòng điền đầy đủ các trường: category, difficulty, class_name, date, start_time, end_time, room_id',
           data: null,
         });
       }
@@ -1305,14 +1442,6 @@ class TrainerController {
         });
       }
 
-      if (max_capacity > room.capacity) {
-        return res.status(400).json({
-          success: false,
-          message: `Số lượng học viên không được vượt quá sức chứa của phòng (${room.capacity})`,
-          data: null,
-        });
-      }
-
       // Check trainer conflict
       if (trainerConflict) {
         return res.status(409).json({
@@ -1343,6 +1472,10 @@ class TrainerController {
         });
       }
 
+      // Calculate duration from start_time and end_time (already validated above)
+      const scheduleDurationMs = endDateTime - startDateTime;
+      const scheduleDurationMinutes = Math.round(scheduleDurationMs / (1000 * 60));
+
       // Get or create gym class
       let gymClass = await prisma.gymClass.findFirst({
         where: {
@@ -1369,18 +1502,55 @@ class TrainerController {
         
         const requiredCertLevel = difficultyToCertLevel[difficulty] || 'BASIC';
 
+        // Get max_capacity from room.capacity (room is already fetched above)
+        const classMaxCapacity = room.capacity;
+
         gymClass = await prisma.gymClass.create({
           data: {
             name: class_name,
             description: description || null,
             category,
             difficulty,
-            price,
-            duration: 60, // Default 60 minutes
+            price: price || null,
+            duration: scheduleDurationMinutes, // Calculate from start_time and end_time
+            max_capacity: classMaxCapacity, // Get from room.capacity
             equipment_needed: [], // Required field in schema
             required_certification_level: requiredCertLevel, // Map difficulty to certification level
+            thumbnail: null, // No thumbnail when auto-creating
             is_active: true,
           },
+        });
+      }
+
+      // If max_capacity not provided, use GymClass.max_capacity
+      if (max_capacity === null || max_capacity === undefined) {
+        max_capacity = gymClass.max_capacity;
+      }
+
+      // Validate max_capacity against GymClass.max_capacity
+      if (max_capacity > gymClass.max_capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Số lượng học viên không được vượt quá sức chứa của lớp học (${gymClass.max_capacity} người)`,
+          data: null,
+        });
+      }
+
+      // Validate max_capacity against room.capacity
+      if (max_capacity > room.capacity) {
+        return res.status(400).json({
+          success: false,
+          message: `Số lượng học viên không được vượt quá sức chứa của phòng (${room.capacity} người)`,
+          data: null,
+        });
+      }
+
+      // Validate max_capacity is positive
+      if (max_capacity <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Sức chứa phải lớn hơn 0',
+          data: null,
         });
       }
 
@@ -1411,9 +1581,102 @@ class TrainerController {
         },
       });
 
-
       // Increment rate limit counter ONLY after successful creation
       rateLimitService.incrementRateLimit(user_id, 'create_schedule', 24 * 60 * 60 * 1000);
+
+      // Notify admins and super-admins about new schedule
+      console.log('🔔 Checking if global.io exists:', !!global.io);
+      if (global.io) {
+        try {
+          console.log('🔔 Starting admin notification process for new schedule...');
+          const admins = await notificationService.getAdminsAndSuperAdmins();
+          console.log(
+            `📋 Found ${admins.length} admin/super-admin users:`,
+            admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
+          );
+
+          // Create notifications for all admins
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.user_id,
+            type: 'GENERAL',
+            title: 'Lớp học mới được tạo',
+            message: `${schedule.trainer.full_name} đã tạo lớp ${schedule.gym_class.name} tại phòng ${schedule.room.name}`,
+            data: {
+              schedule_id: schedule.id,
+              class_id: schedule.gym_class.id,
+              class_name: schedule.gym_class.name,
+              trainer_id: schedule.trainer.id,
+              trainer_name: schedule.trainer.full_name,
+              room_id: schedule.room.id,
+              room_name: schedule.room.name,
+              room_capacity: schedule.room.capacity,
+              date: schedule.date,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+              max_capacity: schedule.max_capacity,
+              created_at: schedule.created_at,
+              role: 'TRAINER', // Add role to identify notification source
+            },
+            is_read: false,
+            created_at: new Date(),
+          }));
+
+          // Save notifications to database
+          if (adminNotifications.length > 0) {
+            console.log(`💾 Saving ${adminNotifications.length} notifications to database...`);
+            await prisma.notification.createMany({
+              data: adminNotifications,
+            });
+            console.log(`✅ Saved ${adminNotifications.length} notifications to database`);
+
+            // Emit socket events to all admins
+            console.log(
+              `📡 Starting to emit socket events to ${adminNotifications.length} admin(s)...`
+            );
+            adminNotifications.forEach(notification => {
+              const roomName = `user:${notification.user_id}`;
+              const socketData = {
+                schedule_id: schedule.id,
+                class_name: schedule.gym_class.name,
+                trainer_name: schedule.trainer.full_name,
+                room_name: schedule.room.name,
+                room_capacity: schedule.room.capacity,
+                date: schedule.date,
+                start_time: schedule.start_time,
+                end_time: schedule.end_time,
+                max_capacity: schedule.max_capacity,
+              };
+
+              // Check if room has any sockets
+              const room = global.io.sockets.adapter.rooms.get(roomName);
+              const socketCount = room ? room.size : 0;
+
+              console.log(
+                `📡 Emitting schedule:new to room ${roomName} (${socketCount} socket(s) connected)`,
+                socketData
+              );
+              global.io.to(roomName).emit('schedule:new', socketData);
+
+              // Also log all rooms for debugging
+              const allRooms = Array.from(global.io.sockets.adapter.rooms.keys());
+              const userRooms = allRooms.filter(r => r.startsWith('user:'));
+              console.log(`📊 All user rooms:`, userRooms);
+            });
+
+            console.log(
+              `✅ Sent ${adminNotifications.length} notifications to admins about new schedule`
+            );
+          } else {
+            console.warn('⚠️ No admin notifications to send (adminNotifications.length = 0)');
+          }
+        } catch (notifError) {
+          console.error('❌ Error sending admin notifications for new schedule:', notifError);
+          console.error('Error stack:', notifError.stack);
+          // Don't fail the request if notification fails
+        }
+      } else {
+        console.warn('⚠️ global.io is not available, skipping admin notifications');
+      }
 
       res.status(201).json({
         success: true,
@@ -1528,6 +1791,51 @@ class TrainerController {
       });
     } catch (error) {
       console.error('Get trainer certifications error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Sync trainer specializations from verified certifications
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async syncTrainerSpecializations(req, res) {
+    try {
+      const { id } = req.params;
+
+      const specializationSyncService = require('../services/specialization-sync.service.js');
+      const result = await specializationSyncService.updateTrainerSpecializations(id);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: result.error || 'Failed to sync specializations',
+          data: null,
+        });
+      }
+
+      // Get updated trainer
+      const trainer = await prisma.trainer.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          full_name: true,
+          specializations: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Specializations synced successfully',
+        data: { trainer },
+      });
+    } catch (error) {
+      console.error('Sync specializations error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -1772,7 +2080,9 @@ class TrainerController {
           data: {
             status: 'CANCELLED',
             cancelled_at: new Date(),
-            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${cancellation_reason || 'Không có lý do'}`,
+            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${
+              cancellation_reason || 'Không có lý do'
+            }`,
           },
         });
 
