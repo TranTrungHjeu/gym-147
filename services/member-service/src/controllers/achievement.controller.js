@@ -120,10 +120,23 @@ class AchievementController {
   async getMemberAchievements(req, res) {
     try {
       const { id } = req.params;
+      
+      if (!id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      console.log('🔍 Fetching achievements for member_id:', id);
+
       const achievements = await prisma.achievement.findMany({
         where: { member_id: id },
-        orderBy: { created_at: 'desc' },
+        orderBy: { unlocked_at: 'desc' },
       });
+
+      console.log(`✅ Found ${achievements.length} achievements for member ${id}`);
 
       res.json({
         success: true,
@@ -131,10 +144,16 @@ class AchievementController {
         data: achievements,
       });
     } catch (error) {
-      console.error('Get member achievements error:', error);
+      console.error('❌ Get member achievements error:', error);
+      console.error('Error details:', {
+        message: error.message,
+        stack: error.stack,
+        code: error.code,
+        meta: error.meta,
+      });
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
         data: null,
       });
     }
@@ -200,32 +219,42 @@ class AchievementController {
         take: leaderboardLimit,
       });
 
-      // Get member details for each entry
-      const leaderboardWithDetails = await Promise.all(
-        membersWithPoints.map(async (entry, index) => {
-          const member = await prisma.member.findUnique({
-            where: { id: entry.member_id },
-            select: {
-              id: true,
-              full_name: true,
-              profile_photo: true,
-              membership_type: true,
-            },
-          });
+      // Get member details in batch (fix N+1 query problem)
+      const memberIds = membersWithPoints.map(entry => entry.member_id);
+      const members = await prisma.member.findMany({
+        where: {
+          id: { in: memberIds },
+        },
+        select: {
+          id: true,
+          full_name: true,
+          profile_photo: true,
+          membership_type: true,
+        },
+      });
 
-          return {
-            rank: index + 1,
-            memberId: entry.member_id,
-            memberName: member?.full_name || 'Unknown',
-            avatarUrl: member?.profile_photo || null,
-            membershipType: member?.membership_type || 'BASIC',
-            points: entry._sum.points || 0,
-            achievements: entry._count.id || 0,
-            workouts: 0, // Will be calculated separately if needed
-            isCurrentUser: false, // Will be set by frontend
-          };
-        })
-      );
+      // Create member map for O(1) lookup
+      const memberMap = {};
+      members.forEach(member => {
+        memberMap[member.id] = member;
+      });
+
+      // Build leaderboard with member details
+      const leaderboardWithDetails = membersWithPoints.map((entry, index) => {
+        const member = memberMap[entry.member_id];
+
+        return {
+          rank: index + 1,
+          memberId: entry.member_id,
+          memberName: member?.full_name || 'Unknown',
+          avatarUrl: member?.profile_photo || null,
+          membershipType: member?.membership_type || 'BASIC',
+          points: entry._sum.points || 0,
+          achievements: entry._count.id || 0,
+          workouts: 0, // Will be calculated separately if needed
+          isCurrentUser: false, // Will be set by frontend
+        };
+      });
 
       res.json({
         success: true,
@@ -513,7 +542,7 @@ class AchievementController {
               description: 'Completed your first gym session',
               category: 'ATTENDANCE',
               points: 10,
-              badge_icon: '🎉',
+              badge_icon: 'Award',
             },
           });
           newAchievements.push(achievement);
@@ -537,7 +566,7 @@ class AchievementController {
               description: 'Completed 10 gym sessions',
               category: 'ATTENDANCE',
               points: 50,
-              badge_icon: '💪',
+              badge_icon: 'Dumbbell',
             },
           });
           newAchievements.push(achievement);
@@ -561,7 +590,7 @@ class AchievementController {
               description: 'Burned 1000 calories in total',
               category: 'FITNESS',
               points: 75,
-              badge_icon: '🔥',
+              badge_icon: 'Flame',
             },
           });
           newAchievements.push(achievement);
@@ -592,7 +621,7 @@ class AchievementController {
               description: 'Used 5 different equipment types',
               category: 'FITNESS',
               points: 30,
-              badge_icon: '🏋️',
+              badge_icon: 'Activity',
             },
           });
           newAchievements.push(achievement);

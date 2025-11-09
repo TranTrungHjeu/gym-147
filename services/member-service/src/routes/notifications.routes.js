@@ -87,4 +87,16 @@ router.get('/members/:id/notifications/stats', (req, res) =>
   notificationController.getNotificationStats(req, res)
 );
 
+// ==================== NOTIFICATION PREFERENCES ROUTES ====================
+
+// Get notification preferences
+router.get('/members/:id/notification-preferences', (req, res) =>
+  notificationController.getNotificationPreferences(req, res)
+);
+
+// Update notification preferences
+router.put('/members/:id/notification-preferences', (req, res) =>
+  notificationController.updateNotificationPreferences(req, res)
+);
+
 module.exports = router;

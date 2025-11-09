@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const notificationService = require('../services/notification.service');
 
 class NotificationController {
   // ==================== NOTIFICATION MANAGEMENT ====================
@@ -597,42 +598,7 @@ class NotificationController {
   // Get notification templates
   async getNotificationTemplates(req, res) {
     try {
-      const templates = {
-        WORKOUT_REMINDER: {
-          title: 'Workout Reminder',
-          message:
-            "Hi {{member_name}}! Time for your workout. Let's achieve your fitness goals! 💪",
-          channels: ['IN_APP', 'EMAIL'],
-        },
-        MEMBERSHIP_ALERT: {
-          title: 'Membership Alert',
-          message:
-            'Hi {{member_name}}! Important information about your {{membership_type}} membership.',
-          channels: ['IN_APP', 'EMAIL', 'SMS'],
-        },
-        ACHIEVEMENT: {
-          title: 'Achievement Unlocked! 🏆',
-          message:
-            'Congratulations {{member_name}}! You\'ve unlocked "{{achievement_title}}" - {{achievement_description}}',
-          channels: ['IN_APP', 'EMAIL'],
-        },
-        PROMOTIONAL: {
-          title: 'Special Offer!',
-          message: "Hi {{member_name}}! Don't miss out on our special offer!",
-          channels: ['IN_APP', 'EMAIL'],
-        },
-        HEALTH_TIP: {
-          title: 'Health Tip',
-          message: "Hi {{member_name}}! Here's a health tip for you: {{tip_content}}",
-          channels: ['IN_APP'],
-        },
-        EQUIPMENT_MAINTENANCE: {
-          title: 'Equipment Maintenance',
-          message:
-            'Hi {{member_name}}! Some equipment will be under maintenance. We apologize for any inconvenience.',
-          channels: ['IN_APP', 'EMAIL'],
-        },
-      };
+      const templates = notificationService.getNotificationTemplates();
 
       res.json({
         success: true,
@@ -641,6 +607,77 @@ class NotificationController {
       });
     } catch (error) {
       console.error('Get notification templates error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== NOTIFICATION PREFERENCES ====================
+
+  // Get notification preferences
+  async getNotificationPreferences(req, res) {
+    try {
+      const { id } = req.params;
+
+      const result = await notificationService.getNotificationPreferences(id);
+
+      if (!result.success) {
+        return res.status(404).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notification preferences retrieved successfully',
+        data: { preferences: result.preferences },
+      });
+    } catch (error) {
+      console.error('Get notification preferences error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Update notification preferences
+  async updateNotificationPreferences(req, res) {
+    try {
+      const { id } = req.params;
+      const { preferences } = req.body;
+
+      if (!preferences || typeof preferences !== 'object') {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid preferences data',
+          data: null,
+        });
+      }
+
+      const result = await notificationService.updateNotificationPreferences(id, preferences);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: result.message || 'Notification preferences updated successfully',
+        data: { preferences: result.preferences },
+      });
+    } catch (error) {
+      console.error('Update notification preferences error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

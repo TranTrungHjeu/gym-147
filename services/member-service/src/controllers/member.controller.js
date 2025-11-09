@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const s3UploadService = require('../services/s3-upload.service');
+const cacheService = require('../services/cache.service');
 
 class MemberController {
   // ==================== MEMBER CRUD OPERATIONS ====================
@@ -73,41 +74,49 @@ class MemberController {
   async getMemberById(req, res) {
     try {
       const { id } = req.params;
+      const cacheKey = cacheService.generateKey('member', id, { full: true });
 
-      const member = await prisma.member.findUnique({
-        where: { id },
-        include: {
-          memberships: {
-            orderBy: { created_at: 'desc' },
-          },
-          gym_sessions: {
-            orderBy: { entry_time: 'desc' },
-            take: 10,
-          },
-          equipment_usage: {
-            orderBy: { start_time: 'desc' },
-            take: 10,
+      // Try to get from cache
+      const member = await cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          return await prisma.member.findUnique({
+            where: { id },
             include: {
-              equipment: true,
+              memberships: {
+                orderBy: { created_at: 'desc' },
+              },
+              gym_sessions: {
+                orderBy: { entry_time: 'desc' },
+                take: 10,
+              },
+              equipment_usage: {
+                orderBy: { start_time: 'desc' },
+                take: 10,
+                include: {
+                  equipment: true,
+                },
+              },
+              health_metrics: {
+                orderBy: { recorded_at: 'desc' },
+                take: 20,
+              },
+              workout_plans: {
+                where: { is_active: true },
+                orderBy: { created_at: 'desc' },
+              },
+              achievements: {
+                orderBy: { unlocked_at: 'desc' },
+              },
+              notifications: {
+                where: { is_read: false },
+                orderBy: { created_at: 'desc' },
+              },
             },
-          },
-          health_metrics: {
-            orderBy: { recorded_at: 'desc' },
-            take: 20,
-          },
-          workout_plans: {
-            where: { is_active: true },
-            orderBy: { created_at: 'desc' },
-          },
-          achievements: {
-            orderBy: { unlocked_at: 'desc' },
-          },
-          notifications: {
-            where: { is_read: false },
-            orderBy: { created_at: 'desc' },
-          },
+          });
         },
-      });
+        300 // 5 minutes TTL for detailed member data
+      );
 
       if (!member) {
         return res.status(404).json({
@@ -136,17 +145,25 @@ class MemberController {
   async getMemberByUserId(req, res) {
     try {
       const { user_id } = req.params;
+      const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
 
-      const member = await prisma.member.findUnique({
-        where: { user_id },
-        include: {
-          memberships: {
-            where: { status: 'ACTIVE' },
-            orderBy: { created_at: 'desc' },
-            take: 1,
-          },
+      // Try to get from cache
+      const member = await cacheService.getOrSet(
+        cacheKey,
+        async () => {
+          return await prisma.member.findUnique({
+            where: { user_id },
+            include: {
+              memberships: {
+                where: { status: 'ACTIVE' },
+                orderBy: { created_at: 'desc' },
+                take: 1,
+              },
+            },
+          });
         },
-      });
+        600 // 10 minutes TTL for basic member info
+      );
 
       if (!member) {
         return res.status(404).json({
@@ -292,6 +309,10 @@ class MemberController {
           expires_at: membership_end_date ? new Date(membership_end_date) : null,
         },
       });
+
+      // Cache the new member
+      const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
+      await cacheService.set(cacheKey, newMember, 600);
 
       res.status(201).json({
         success: true,
@@ -869,6 +890,12 @@ class MemberController {
         },
       });
 
+      // Invalidate cache for this member
+      await cacheService.delete(cacheService.generateKey('member', id, { full: true }));
+      if (member.user_id) {
+        await cacheService.delete(cacheService.generateKey('member', `user:${member.user_id}`));
+      }
+
       res.json({
         success: true,
         message: 'Member updated successfully',
@@ -890,15 +917,50 @@ class MemberController {
       const { user_id } = req.params;
       const { full_name, phone, email } = req.body;
 
+      console.log('📝 updateMemberByUserId called:', {
+        user_id,
+        full_name,
+        phone,
+        email,
+        phoneType: typeof phone,
+        emailType: typeof email,
+      });
+
+      // Ensure phone is null if empty string or undefined
+      const phoneValue = phone && phone.trim() !== '' ? phone.trim() : null;
+      // Ensure email is not empty
+      const emailValue = email && email.trim() !== '' ? email.trim() : null;
+
+      if (!emailValue) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required',
+          data: null,
+        });
+      }
+
       const member = await prisma.member.update({
         where: { user_id },
         data: {
           full_name,
-          phone,
-          email,
+          phone: phoneValue,
+          email: emailValue,
           updated_at: new Date(),
         },
       });
+
+      console.log('✅ Member updated successfully:', {
+        memberId: member.id,
+        full_name: member.full_name,
+        phone: member.phone,
+        email: member.email,
+      });
+
+      // Invalidate cache for this member
+      await cacheService.delete(cacheService.generateKey('member', `user:${user_id}`));
+      if (member.id) {
+        await cacheService.delete(cacheService.generateKey('member', member.id, { full: true }));
+      }
 
       res.json({
         success: true,
@@ -920,9 +982,21 @@ class MemberController {
     try {
       const { id } = req.params;
 
+      // Get member before deletion to invalidate cache
+      const member = await prisma.member.findUnique({
+        where: { id },
+        select: { user_id: true },
+      });
+
       await prisma.member.delete({
         where: { id },
       });
+
+      // Invalidate cache
+      await cacheService.delete(cacheService.generateKey('member', id, { full: true }));
+      if (member?.user_id) {
+        await cacheService.delete(cacheService.generateKey('member', `user:${member.user_id}`));
+      }
 
       res.json({
         success: true,
@@ -1204,12 +1278,12 @@ class MemberController {
       const { startDate, endDate, limit = 50, offset = 0 } = req.query;
 
       const where = {};
-      if (startDate) where.check_in_time = { ...where.check_in_time, gte: new Date(startDate) };
-      if (endDate) where.check_in_time = { ...where.check_in_time, lte: new Date(endDate) };
+      if (startDate) where.entry_time = { gte: new Date(startDate) };
+      if (endDate) where.entry_time = { ...(where.entry_time || {}), lte: new Date(endDate) };
 
       const sessions = await prisma.gymSession.findMany({
         where,
-        orderBy: { check_in_time: 'desc' },
+        orderBy: { entry_time: 'desc' },
         take: parseInt(limit),
         skip: parseInt(offset),
       });
@@ -1235,8 +1309,8 @@ class MemberController {
   async getCurrentSession(req, res) {
     try {
       const session = await prisma.gymSession.findFirst({
-        where: { check_out_time: null },
-        orderBy: { check_in_time: 'desc' },
+        where: { exit_time: null },
+        orderBy: { entry_time: 'desc' },
       });
 
       res.json({
@@ -1517,14 +1591,47 @@ class MemberController {
         });
       }
 
+      // Validate MIME type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(mimeType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid file type. Only JPEG, PNG, and WebP are allowed',
+          data: null,
+        });
+      }
+
       // Remove data:image/xxx;base64, prefix if present
       const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
 
       // Convert base64 to buffer
       const imageBuffer = Buffer.from(base64Data, 'base64');
 
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (imageBuffer.length > maxSize) {
+        return res.status(400).json({
+          success: false,
+          message: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB`,
+          data: null,
+        });
+      }
+
+      // Validate minimum size (at least 1KB)
+      const minSize = 1024; // 1KB
+      if (imageBuffer.length < minSize) {
+        return res.status(400).json({
+          success: false,
+          message: 'File too small. Please upload a valid image',
+          data: null,
+        });
+      }
+
       console.log(`📷 Uploading avatar for member: ${member.id}`);
-      console.log(`📏 Image size: ${imageBuffer.length} bytes`);
+      console.log(
+        `📏 Image size: ${imageBuffer.length} bytes (${(imageBuffer.length / 1024 / 1024).toFixed(2)}MB)`
+      );
+      console.log(`📄 MIME type: ${mimeType}`);
 
       // Upload to S3
       const uploadResult = await s3UploadService.uploadFile(
@@ -1560,6 +1667,14 @@ class MemberController {
         },
       });
 
+      // Invalidate cache for this member
+      await cacheService.delete(cacheService.generateKey('member', `user:${userId}`));
+      if (updatedMember.id) {
+        await cacheService.delete(
+          cacheService.generateKey('member', updatedMember.id, { full: true })
+        );
+      }
+
       console.log(`✅ Avatar uploaded successfully: ${uploadResult.url}`);
 
       res.json({
@@ -1567,6 +1682,10 @@ class MemberController {
         message: 'Avatar uploaded successfully',
         data: {
           avatarUrl: uploadResult.url,
+          originalSize: uploadResult.originalSize,
+          optimizedSize: uploadResult.optimizedSize,
+          compressionRatio: uploadResult.compressionRatio,
+          metadata: uploadResult.metadata,
           member: updatedMember,
         },
       });
@@ -1576,6 +1695,124 @@ class MemberController {
         success: false,
         message: 'Internal server error',
         error: error.message,
+      });
+    }
+  }
+
+  // ==================== ONBOARDING TRACKING ====================
+
+  // Get onboarding status
+  async getOnboardingStatus(req, res) {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+          data: null,
+        });
+      }
+
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: {
+          id: true,
+          onboarding_completed: true,
+          onboarding_steps: true,
+          onboarding_completed_at: true,
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Onboarding status retrieved successfully',
+        data: {
+          completed: member.onboarding_completed || false,
+          steps: member.onboarding_steps || {},
+          completedAt: member.onboarding_completed_at,
+        },
+      });
+    } catch (error) {
+      console.error('Get onboarding status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Update onboarding progress
+  async updateOnboardingProgress(req, res) {
+    try {
+      const userId = req.user?.id || req.user?.userId;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized',
+          data: null,
+        });
+      }
+
+      const { step, completed, completedAll } = req.body;
+
+      // Get current member
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Update onboarding steps
+      const currentSteps = member.onboarding_steps || {};
+      const updatedSteps = {
+        ...currentSteps,
+        ...(step && { [step]: completed !== undefined ? completed : true }),
+      };
+
+      // Update member
+      const updateData = {
+        onboarding_steps: updatedSteps,
+        ...(completedAll && {
+          onboarding_completed: true,
+          onboarding_completed_at: new Date(),
+        }),
+      };
+
+      const updatedMember = await prisma.member.update({
+        where: { user_id: userId },
+        data: updateData,
+      });
+
+      res.json({
+        success: true,
+        message: 'Onboarding progress updated successfully',
+        data: {
+          completed: updatedMember.onboarding_completed,
+          steps: updatedMember.onboarding_steps,
+          completedAt: updatedMember.onboarding_completed_at,
+        },
+      });
+    } catch (error) {
+      console.error('Update onboarding progress error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
       });
     }
   }
@@ -1700,6 +1937,156 @@ class MemberController {
       res.status(500).json({
         success: false,
         error: 'Failed to process face recognition',
+      });
+    }
+  }
+
+  // Toggle AI Class Recommendations (Premium feature)
+  async toggleAIClassRecommendations(req, res) {
+    try {
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      if (!token) {
+        return res.status(401).json({
+          success: false,
+          message: 'Token not provided',
+          data: null,
+        });
+      }
+
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token format',
+          data: null,
+        });
+      }
+
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      } catch (parseError) {
+        console.error('JWT token parse error:', parseError);
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token payload',
+          data: null,
+        });
+      }
+
+      const userId = payload.userId || payload.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'User ID not found in token',
+          data: null,
+        });
+      }
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: {
+          id: true,
+          membership_type: true,
+          ai_class_recommendations_enabled: true,
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Check if member has PREMIUM or VIP membership
+      if (!['PREMIUM', 'VIP'].includes(member.membership_type)) {
+        return res.status(403).json({
+          success: false,
+          message: 'AI Class Recommendations is only available for PREMIUM and VIP members',
+          data: null,
+        });
+      }
+
+      // Toggle the setting (handle null as false)
+      const currentValue = member.ai_class_recommendations_enabled ?? false;
+      const newValue = !currentValue;
+
+      // Toggle the setting
+      const updatedMember = await prisma.member.update({
+        where: { id: member.id },
+        data: {
+          ai_class_recommendations_enabled: newValue,
+        },
+        select: {
+          id: true,
+          ai_class_recommendations_enabled: true,
+          membership_type: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: `AI Class Recommendations ${updatedMember.ai_class_recommendations_enabled ? 'enabled' : 'disabled'}`,
+        data: {
+          ai_class_recommendations_enabled: updatedMember.ai_class_recommendations_enabled,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Toggle AI Class Recommendations error:', {
+        message: error.message,
+        code: error.code,
+        meta: error.meta,
+        stack: error.stack,
+      });
+
+      // Handle Prisma errors
+      if (error.code === 'P2002') {
+        return res.status(409).json({
+          success: false,
+          message: 'Database constraint violation',
+          data: null,
+        });
+      }
+
+      if (error.code === 'P2025') {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Handle field not found error (migration not run)
+      if (error.message && error.message.includes('ai_class_recommendations_enabled')) {
+        return res.status(500).json({
+          success: false,
+          message: 'Database migration required. Please run: npx prisma migrate dev',
+          data: null,
+        });
+      }
+
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        data: null,
       });
     }
   }

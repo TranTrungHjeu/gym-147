@@ -1,5 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const streakService = require('../services/streak.service.js');
+const challengeService = require('../services/challenge.service.js');
 
 class SessionController {
   // ==================== GYM SESSION TRACKING ====================
@@ -188,6 +190,16 @@ class SessionController {
         entry_time: session.entry_time,
         entry_method: session.entry_method,
         entry_gate: session.entry_gate,
+      });
+
+      // Auto-update streak (async, don't wait)
+      streakService.updateStreak(memberId, session.entry_time).catch(err => {
+        console.error('Auto-update streak error:', err);
+      });
+
+      // Auto-update attendance challenges (async, don't wait)
+      challengeService.autoUpdateAttendanceChallenges(memberId, 'ATTENDANCE').catch(err => {
+        console.error('Auto-update challenges error:', err);
       });
 
       res.status(201).json({

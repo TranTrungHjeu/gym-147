@@ -6,10 +6,11 @@ const axios = require('axios');
  */
 class AIService {
   constructor() {
-    // Fallback to hardcoded values if env not set
-    this.apiKey =
-      process.env.AI_API_KEY ||
-      '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';
+    // Validate required environment variables
+    this.apiKey = process.env.AI_API_KEY;
+    if (!this.apiKey) {
+      throw new Error('AI_API_KEY environment variable is required');
+    }
     this.apiUrl = process.env.AI_MODEL_URL || 'https://openrouter.ai/api/v1/chat/completions';
     this.modelName = process.env.AI_MODEL_NAME || 'tngtech/deepseek-r1t2-chimera:free';
 
@@ -83,7 +84,7 @@ ${prompt}`;
           },
         ],
         temperature: 0.7,
-        max_tokens: 2000,
+        max_tokens: 1500, // Reduced for faster response
       };
 
       console.log('\nREQUEST PAYLOAD:');
@@ -104,7 +105,7 @@ ${prompt}`;
           'HTTP-Referer': 'https://gym-management-system.com',
           'X-Title': 'Gym Management - AI Workout Generator',
         },
-        timeout: 30000, // 30 seconds timeout
+        timeout: 60000, // 60 seconds timeout for AI processing
       });
 
       console.log('\nRAW RESPONSE STATUS:', response.status);
@@ -244,6 +245,508 @@ LƯU Ý:
   }
 
   /**
+   * Generate personalized workout recommendations using AI
+   * @param {Object} params - Member data and activity
+   * @returns {Promise<Object>} AI-generated recommendations
+   */
+  async generateWorkoutRecommendations({
+    member,
+    activePlan,
+    recentEquipment,
+    recentMetrics,
+    recentSessions,
+    fitnessGoals,
+  }) {
+    try {
+      // Analyze member data
+      const analysis = this.analyzeMemberData({
+        member,
+        activePlan,
+        recentEquipment,
+        recentMetrics,
+        recentSessions,
+        fitnessGoals,
+      });
+
+      // Build AI prompt for recommendations
+      const prompt = this.buildRecommendationsPrompt(analysis);
+
+      console.log('🤖 Calling AI for workout recommendations...');
+      console.log('\nPROMPT:');
+      console.log('-'.repeat(60));
+      console.log(prompt);
+      console.log('-'.repeat(60));
+
+      const fullPrompt = `Bạn là huấn luyện viên thể hình chuyên nghiệp và cố vấn cá nhân. Nhiệm vụ của bạn là đưa ra các gợi ý tập luyện thông minh và cá nhân hóa dựa trên dữ liệu người dùng.
+
+${prompt}
+
+**YÊU CẦU:**
+1. Phân tích thói quen tập luyện hiện tại
+2. Đưa ra 3-5 gợi ý cụ thể và có thể thực hiện
+3. Mỗi gợi ý phải có: type, priority, title, message, action, data
+4. Ưu tiên các gợi ý dựa trên progress và goals
+
+**FORMAT RESPONSE (BẮT BUỘC PHẢI LÀ JSON):**
+Trả về ĐÚNG format JSON sau (không thêm markdown, không thêm text khác):
+
+{
+  "recommendations": [
+    {
+      "type": "ACTIVITY | VARIETY | PLAN_UPDATE | PROGRESS | GOAL_FOCUS | REST | INTENSITY",
+      "priority": "HIGH | MEDIUM | LOW",
+      "title": "Tiêu đề gợi ý",
+      "message": "Mô tả chi tiết gợi ý",
+      "action": "CREATE_WORKOUT_PLAN | UPDATE_WORKOUT_PLAN | SUGGEST_EXERCISES | REST_DAY | INCREASE_INTENSITY",
+      "data": {
+        "difficulty": "BEGINNER | INTERMEDIATE | ADVANCED",
+        "equipment": ["equipment names"],
+        "focus": "goal focus area"
+      },
+      "reasoning": "Lý do tại sao đưa ra gợi ý này"
+    }
+  ]
+}
+
+LƯU Ý: 
+- Trả về ĐÚNG JSON, KHÔNG thêm markdown code block
+- Phân tích dữ liệu thực tế để đưa ra gợi ý phù hợp
+- Ưu tiên các gợi ý có thể cải thiện progress và goals`;
+
+      const response = await axios.post(
+        this.apiUrl,
+        {
+          model: this.modelName,
+          messages: [
+            {
+              role: 'user',
+              content: fullPrompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'X-Title': 'GYM-147 Workout Recommendations',
+          },
+        }
+      );
+
+      const aiResponse = response.data.choices[0]?.message?.content || '';
+      const parsed = this.parseRecommendationsResponse(aiResponse);
+
+      return {
+        success: true,
+        recommendations: parsed.recommendations || [],
+        analysis: analysis,
+      };
+    } catch (error) {
+      console.error('AI recommendations generation error:', error);
+      return {
+        success: false,
+        error: error.message,
+        recommendations: [],
+      };
+    }
+  }
+
+  /**
+   * Analyze member data for recommendations
+   */
+  analyzeMemberData({
+    member,
+    activePlan,
+    recentEquipment,
+    recentMetrics,
+    recentSessions,
+    fitnessGoals,
+  }) {
+    const analysis = {
+      member: {
+        height: member.height,
+        weight: member.weight,
+        bmi:
+          member.weight && member.height
+            ? (member.weight / Math.pow(member.height / 100, 2)).toFixed(1)
+            : null,
+        fitnessGoals: fitnessGoals || member.fitness_goals || [],
+        medicalConditions: member.medical_conditions || [],
+      },
+      activity: {
+        hasActivePlan: !!activePlan,
+        planAge: activePlan
+          ? Math.floor(
+              (Date.now() - new Date(activePlan.created_at).getTime()) / (1000 * 60 * 60 * 24)
+            )
+          : null,
+        recentSessions: recentSessions?.length || 0,
+        daysSinceLastSession:
+          recentSessions && recentSessions.length > 0
+            ? Math.floor(
+                (Date.now() - new Date(recentSessions[0].entry_time).getTime()) /
+                  (1000 * 60 * 60 * 24)
+              )
+            : null,
+        equipmentCategories: {},
+        totalEquipmentUses: recentEquipment?.length || 0,
+      },
+      health: {
+        recentMetrics: recentMetrics?.length || 0,
+        weightTrend: null,
+        bodyFatTrend: null,
+      },
+    };
+
+    // Analyze equipment usage
+    if (recentEquipment && recentEquipment.length > 0) {
+      recentEquipment.forEach(usage => {
+        const category = usage.equipment?.category || 'GENERAL';
+        analysis.activity.equipmentCategories[category] =
+          (analysis.activity.equipmentCategories[category] || 0) + 1;
+      });
+    }
+
+    // Analyze health trends
+    if (recentMetrics && recentMetrics.length > 0) {
+      const weightMetrics = recentMetrics
+        .filter(m => m.metric_type === 'WEIGHT')
+        .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+      if (weightMetrics.length >= 2) {
+        const latest = weightMetrics[0].value;
+        const previous = weightMetrics[weightMetrics.length - 1].value;
+        analysis.health.weightTrend =
+          latest > previous ? 'INCREASING' : latest < previous ? 'DECREASING' : 'STABLE';
+      }
+
+      const bodyFatMetrics = recentMetrics
+        .filter(m => m.metric_type === 'BODY_FAT')
+        .sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+      if (bodyFatMetrics.length >= 2) {
+        const latest = bodyFatMetrics[0].value;
+        const previous = bodyFatMetrics[bodyFatMetrics.length - 1].value;
+        analysis.health.bodyFatTrend =
+          latest > previous ? 'INCREASING' : latest < previous ? 'DECREASING' : 'STABLE';
+      }
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Build prompt for AI recommendations
+   */
+  buildRecommendationsPrompt(analysis) {
+    return `
+**THÔNG TIN THÀNH VIÊN:**
+- Chiều cao: ${analysis.member.height || 'N/A'} cm
+- Cân nặng: ${analysis.member.weight || 'N/A'} kg
+- BMI: ${analysis.member.bmi || 'N/A'}
+- Mục tiêu: ${analysis.member.fitnessGoals.join(', ') || 'Chưa có mục tiêu cụ thể'}
+- Tình trạng sức khỏe: ${analysis.member.medicalConditions.join(', ') || 'Không có'}
+
+**HOẠT ĐỘNG GẦN ĐÂY:**
+- Có kế hoạch tập đang active: ${analysis.activity.hasActivePlan ? 'Có' : 'Không'}
+${analysis.activity.planAge ? `- Kế hoạch đã được tạo: ${analysis.activity.planAge} ngày trước` : ''}
+- Số phiên tập gần đây: ${analysis.activity.recentSessions} phiên
+${analysis.activity.daysSinceLastSession !== null ? `- Số ngày kể từ lần tập cuối: ${analysis.activity.daysSinceLastSession} ngày` : '- Chưa có dữ liệu phiên tập'}
+- Tổng số lần sử dụng thiết bị: ${analysis.activity.totalEquipmentUses} lần
+${
+  Object.keys(analysis.activity.equipmentCategories).length > 0
+    ? `- Thiết bị đã sử dụng: ${Object.entries(analysis.activity.equipmentCategories)
+        .map(([cat, count]) => `${cat} (${count} lần)`)
+        .join(', ')}`
+    : '- Chưa sử dụng thiết bị nào'
+}
+
+**XU HƯỚNG SỨC KHỎE:**
+- Số metrics gần đây: ${analysis.health.recentMetrics} metrics
+${analysis.health.weightTrend ? `- Xu hướng cân nặng: ${analysis.health.weightTrend === 'INCREASING' ? 'Tăng' : analysis.health.weightTrend === 'DECREASING' ? 'Giảm' : 'Ổn định'}` : ''}
+${analysis.health.bodyFatTrend ? `- Xu hướng mỡ cơ thể: ${analysis.health.bodyFatTrend === 'INCREASING' ? 'Tăng' : analysis.health.bodyFatTrend === 'DECREASING' ? 'Giảm' : 'Ổn định'}` : ''}
+`;
+  }
+
+  /**
+   * Parse AI recommendations response
+   */
+  parseRecommendationsResponse(aiResponse) {
+    try {
+      // Remove markdown code blocks if present
+      let cleanedResponse = aiResponse.trim();
+      if (cleanedResponse.startsWith('```json')) {
+        cleanedResponse = cleanedResponse.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+      } else if (cleanedResponse.startsWith('```')) {
+        cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
+      }
+
+      const parsed = JSON.parse(cleanedResponse);
+      return parsed;
+    } catch (error) {
+      console.error('AI recommendations response parsing error:', error);
+      console.error('Raw response:', aiResponse);
+      throw new Error('AI response parsing failed: ' + error.message);
+    }
+  }
+
+  /**
+   * Generate personalized class recommendations using AI
+   * @param {Object} params - Member data and class activity
+   * @returns {Promise<Object>} AI-generated class recommendations
+   */
+  async generateClassRecommendations({
+    member,
+    attendanceHistory,
+    bookingsHistory,
+    favorites,
+    upcomingSchedules,
+    fitnessGoals,
+  }) {
+    try {
+      // Analyze member data
+      const analysis = this.analyzeClassData({
+        member,
+        attendanceHistory,
+        bookingsHistory,
+        favorites,
+        upcomingSchedules,
+        fitnessGoals,
+      });
+
+      // Build AI prompt for recommendations
+      const prompt = this.buildClassRecommendationsPrompt(analysis);
+
+      console.log('🤖 Calling AI for class recommendations...');
+      console.log('\nPROMPT:');
+      console.log('-'.repeat(60));
+      console.log(prompt);
+      console.log('-'.repeat(60));
+
+      const fullPrompt = `Bạn là chuyên gia tư vấn lớp học thể hình. Nhiệm vụ của bạn là đưa ra các gợi ý lớp học thông minh và cá nhân hóa dựa trên dữ liệu người dùng.
+
+${prompt}
+
+**YÊU CẦU:**
+1. Phân tích thói quen tham gia lớp học hiện tại
+2. Đưa ra 3-5 gợi ý lớp học cụ thể và có thể tham gia
+3. Mỗi gợi ý phải có: type, priority, title, message, action, data
+4. Ưu tiên các gợi ý dựa trên goals, attendance patterns, và schedule availability
+
+**FORMAT RESPONSE (BẮT BUỘC PHẢI LÀ JSON):**
+Trả về ĐÚNG format JSON sau (không thêm markdown, không thêm text khác):
+
+{
+  "recommendations": [
+    {
+      "type": "NEW_CLASS | REPEAT_CLASS | TIME_SUGGESTION | CATEGORY_EXPLORATION | TRAINER_RECOMMENDATION",
+      "priority": "HIGH | MEDIUM | LOW",
+      "title": "Tiêu đề gợi ý",
+      "message": "Mô tả chi tiết gợi ý",
+      "action": "BOOK_CLASS | VIEW_SCHEDULE | EXPLORE_CATEGORY | FOLLOW_TRAINER",
+      "data": {
+        "classId": "class_id",
+        "classCategory": "category",
+        "trainerId": "trainer_id",
+        "scheduleId": "schedule_id",
+        "suggestedTime": "time suggestion"
+      },
+      "reasoning": "Lý do tại sao đưa ra gợi ý này"
+    }
+  ]
+}
+
+LƯU Ý: 
+- Trả về ĐÚNG JSON, KHÔNG thêm markdown code block
+- Phân tích dữ liệu thực tế để đưa ra gợi ý phù hợp
+- Ưu tiên các gợi ý có thể cải thiện fitness goals và engagement`;
+
+      console.log('📡 Sending request to AI API...');
+      const response = await axios.post(
+        this.apiUrl,
+        {
+          model: this.modelName,
+          messages: [
+            {
+              role: 'user',
+              content: fullPrompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1500, // Reduced for faster response
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'X-Title': 'GYM-147 Class Recommendations',
+          },
+          timeout: 60000, // 60 seconds timeout for AI processing
+        }
+      );
+
+      console.log('✅ AI API Response received:', {
+        status: response.status,
+        hasChoices: !!response.data?.choices,
+        choicesCount: response.data?.choices?.length || 0,
+      });
+
+      const aiResponse = response.data.choices[0]?.message?.content || '';
+      console.log('📝 Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
+
+      const parsed = this.parseRecommendationsResponse(aiResponse);
+      console.log('✅ Parsed recommendations:', parsed.recommendations?.length || 0);
+
+      return {
+        success: true,
+        recommendations: parsed.recommendations || [],
+        analysis: analysis,
+      };
+    } catch (error) {
+      const status = error.response?.status;
+      const isRateLimit = status === 429;
+      const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+
+      console.error('❌ AI class recommendations generation error:', {
+        message: error.message,
+        code: error.code,
+        status: status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        isTimeout: isTimeout,
+        isRateLimit: isRateLimit,
+      });
+
+      // Return specific error for rate limiting
+      if (isRateLimit) {
+        return {
+          success: false,
+          error:
+            'AI service rate limit exceeded. Please try again later or use rule-based recommendations.',
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          recommendations: [],
+        };
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        errorCode: isTimeout ? 'TIMEOUT' : 'AI_ERROR',
+        recommendations: [],
+      };
+    }
+  }
+
+  /**
+   * Analyze class data for recommendations
+   */
+  analyzeClassData({
+    member,
+    attendanceHistory,
+    bookingsHistory,
+    favorites,
+    upcomingSchedules,
+    fitnessGoals,
+  }) {
+    const analysis = {
+      member: {
+        fitnessGoals: fitnessGoals || member.fitness_goals || [],
+        medicalConditions: member.medical_conditions || [],
+      },
+      attendance: {
+        totalClasses: attendanceHistory?.length || 0,
+        recentClasses:
+          attendanceHistory?.filter(a => {
+            const date = new Date(a.schedule?.start_time || a.created_at);
+            return date > new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          }).length || 0,
+        favoriteCategories: {},
+        favoriteTrainers: {},
+        attendanceRate: 0,
+      },
+      bookings: {
+        totalBookings: bookingsHistory?.length || 0,
+        upcomingBookings: upcomingSchedules?.length || 0,
+        cancellationRate: 0,
+      },
+      preferences: {
+        favoriteClasses:
+          favorites?.filter(f => f.favorite_type === 'CLASS').map(f => f.favorite_id) || [],
+        favoriteTrainers:
+          favorites?.filter(f => f.favorite_type === 'TRAINER').map(f => f.favorite_id) || [],
+      },
+    };
+
+    // Analyze attendance patterns
+    if (attendanceHistory && attendanceHistory.length > 0) {
+      attendanceHistory.forEach(attendance => {
+        const schedule = attendance.schedule;
+        if (schedule?.gym_class) {
+          const category = schedule.gym_class.category;
+          analysis.attendance.favoriteCategories[category] =
+            (analysis.attendance.favoriteCategories[category] || 0) + 1;
+        }
+        if (schedule?.trainer_id) {
+          analysis.attendance.favoriteTrainers[schedule.trainer_id] =
+            (analysis.attendance.favoriteTrainers[schedule.trainer_id] || 0) + 1;
+        }
+      });
+
+      // Calculate attendance rate
+      const totalBooked = bookingsHistory?.length || 0;
+      const totalAttended = attendanceHistory.length;
+      if (totalBooked > 0) {
+        analysis.attendance.attendanceRate = (totalAttended / totalBooked) * 100;
+      }
+    }
+
+    // Analyze cancellation rate
+    if (bookingsHistory && bookingsHistory.length > 0) {
+      const cancelled = bookingsHistory.filter(b => b.status === 'CANCELLED').length;
+      analysis.bookings.cancellationRate = (cancelled / bookingsHistory.length) * 100;
+    }
+
+    return analysis;
+  }
+
+  /**
+   * Build prompt for AI class recommendations
+   */
+  buildClassRecommendationsPrompt(analysis) {
+    return `
+**THÔNG TIN THÀNH VIÊN:**
+- Mục tiêu: ${analysis.member.fitnessGoals.join(', ') || 'Chưa có mục tiêu cụ thể'}
+- Tình trạng sức khỏe: ${analysis.member.medicalConditions.join(', ') || 'Không có'}
+
+**LỊCH SỬ THAM GIA:**
+- Tổng số lớp đã tham gia: ${analysis.attendance.totalClasses} lớp
+- Số lớp gần đây (30 ngày): ${analysis.attendance.recentClasses} lớp
+- Tỷ lệ tham gia: ${analysis.attendance.attendanceRate.toFixed(1)}%
+${
+  Object.keys(analysis.attendance.favoriteCategories).length > 0
+    ? `- Danh mục yêu thích: ${Object.entries(analysis.attendance.favoriteCategories)
+        .sort(([, a], [, b]) => b - a)
+        .slice(0, 3)
+        .map(([cat, count]) => `${cat} (${count} lần)`)
+        .join(', ')}`
+    : '- Chưa có dữ liệu danh mục'
+}
+${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luyện viên yêu thích: ${Object.keys(analysis.attendance.favoriteTrainers).length} người` : ''}
+
+**ĐẶT CHỖ:**
+- Tổng số đặt chỗ: ${analysis.bookings.totalBookings} lần
+- Số đặt chỗ sắp tới: ${analysis.bookings.upcomingBookings} lần
+- Tỷ lệ hủy: ${analysis.bookings.cancellationRate.toFixed(1)}%
+
+**YÊU THÍCH:**
+- Lớp yêu thích: ${analysis.preferences.favoriteClasses.length} lớp
+- Huấn luyện viên yêu thích: ${analysis.preferences.favoriteTrainers.length} người
+`;
+  }
+
+  /**
    * Parse AI response and extract workout plan
    */
   parseAIResponse(aiResponse) {
@@ -282,6 +785,176 @@ LƯU Ý:
       console.error('Failed to parse AI response:', error);
       throw new Error('AI response parsing failed: ' + error.message);
     }
+  }
+
+  /**
+   * Generate smart scheduling suggestions using AI
+   * @param {Object} params - Member data and analysis
+   * @returns {Promise<Object>} AI-generated scheduling suggestions
+   */
+  async generateSchedulingSuggestions({ member, analysis, attendanceHistory, bookingsHistory }) {
+    try {
+      const prompt = this.buildSchedulingPrompt({
+        member,
+        analysis,
+        attendanceHistory,
+        bookingsHistory,
+      });
+
+      console.log('🤖 Calling AI for scheduling suggestions...');
+      console.log('\nPROMPT:');
+      console.log('-'.repeat(60));
+      console.log(prompt);
+      console.log('-'.repeat(60));
+
+      const fullPrompt = `Bạn là chuyên gia tư vấn lịch tập luyện. Nhiệm vụ của bạn là đưa ra các gợi ý thời gian đặt chỗ lớp học thông minh dựa trên thói quen và lịch sử của thành viên.
+
+${prompt}
+
+**YÊU CẦU:**
+1. Phân tích patterns và đưa ra 3-5 gợi ý thời gian tối ưu
+2. Mỗi gợi ý phải có: scheduleId, priority, reason
+3. Ưu tiên các khung giờ phù hợp với thói quen và có sẵn chỗ
+
+**FORMAT RESPONSE (BẮT BUỘC PHẢI LÀ JSON):**
+Trả về ĐÚNG format JSON sau (không thêm markdown, không thêm text khác):
+
+{
+  "suggestions": [
+    {
+      "scheduleId": "schedule_id",
+      "priority": "HIGH | MEDIUM | LOW",
+      "reason": "Lý do tại sao đưa ra gợi ý này",
+      "score": 85
+    }
+  ]
+}
+
+LƯU Ý: 
+- Trả về ĐÚNG JSON, KHÔNG thêm markdown code block
+- Phân tích patterns thực tế để đưa ra gợi ý phù hợp
+- Ưu tiên các khung giờ có nhiều điểm số cao và phù hợp với thói quen`;
+
+      console.log('📡 Sending request to AI API...');
+      const response = await axios.post(
+        this.apiUrl,
+        {
+          model: this.modelName,
+          messages: [
+            {
+              role: 'user',
+              content: fullPrompt,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 1500, // Reduced for faster response
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'X-Title': 'GYM-147 Smart Scheduling',
+          },
+          timeout: 60000, // 60 seconds timeout for AI processing
+        }
+      );
+
+      console.log('✅ AI API Response received:', {
+        status: response.status,
+        hasChoices: !!response.data?.choices,
+        choicesCount: response.data?.choices?.length || 0,
+      });
+
+      const aiResponse = response.data.choices[0]?.message?.content || '';
+      console.log('📝 Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
+
+      const parsed = this.parseRecommendationsResponse(aiResponse);
+      console.log('✅ Parsed suggestions:', parsed.suggestions?.length || 0);
+
+      return {
+        success: true,
+        suggestions: parsed.suggestions || [],
+      };
+    } catch (error) {
+      const status = error.response?.status;
+      const isRateLimit = status === 429;
+      const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
+
+      console.error('❌ AI scheduling suggestions generation error:', {
+        message: error.message,
+        code: error.code,
+        status: status,
+        statusText: error.response?.statusText,
+        responseData: error.response?.data,
+        isTimeout: isTimeout,
+        isRateLimit: isRateLimit,
+      });
+
+      // Return specific error for rate limiting
+      if (isRateLimit) {
+        return {
+          success: false,
+          error:
+            'AI service rate limit exceeded. Please try again later or use rule-based suggestions.',
+          errorCode: 'RATE_LIMIT_EXCEEDED',
+          suggestions: [],
+        };
+      }
+
+      return {
+        success: false,
+        error: error.message,
+        errorCode: isTimeout ? 'TIMEOUT' : 'AI_ERROR',
+        suggestions: [],
+      };
+    }
+  }
+
+  /**
+   * Build prompt for scheduling suggestions
+   */
+  buildSchedulingPrompt({ member, analysis, attendanceHistory, bookingsHistory }) {
+    const { patterns, availableSchedules } = analysis;
+
+    return `
+**THÔNG TIN THÀNH VIÊN:**
+- Mục tiêu: ${member.fitnessGoals?.join(', ') || 'Chưa có mục tiêu cụ thể'}
+- Tình trạng sức khỏe: ${member.medicalConditions?.join(', ') || 'Không có'}
+
+**PHÂN TÍCH THÓI QUEN:**
+- Giờ ưa thích: ${patterns.preferredHours.map(h => `${h.hour}:00 (${h.count} lần)`).join(', ') || 'Chưa có dữ liệu'}
+- Ngày ưa thích: ${
+      patterns.preferredDays
+        .map(d => {
+          const days = ['Chủ nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+          return `${days[d.day]} (${d.count} lần)`;
+        })
+        .join(', ') || 'Chưa có dữ liệu'
+    }
+- Danh mục ưa thích: ${patterns.preferredCategories.map(c => `${c.category} (${c.count} lần)`).join(', ') || 'Chưa có dữ liệu'}
+- Tỷ lệ tham gia: ${patterns.averageAttendanceRate.toFixed(1)}%
+- Tỷ lệ hủy: ${patterns.cancellationRate.toFixed(1)}%
+
+**LỊCH SỬ THAM GIA:**
+- Tổng số lớp đã tham gia: ${attendanceHistory?.length || 0} lớp
+- Tổng số đặt chỗ: ${bookingsHistory?.length || 0} lần
+
+**CÁC LỊCH CÓ SẴN:**
+${availableSchedules
+  .slice(0, 10)
+  .map(
+    (s, idx) => `
+${idx + 1}. ${s.className} (${s.category})
+   - Thời gian: ${new Date(s.startTime).toLocaleString('vi-VN')}
+   - Huấn luyện viên: ${s.trainer || 'Chưa có'}
+   - Chỗ trống: ${s.spotsLeft}/${s.maxCapacity || 'N/A'}
+   - Điểm số: ${s.score}
+   - Schedule ID: ${s.id}
+`
+  )
+  .join('')}
+`;
   }
 }
 

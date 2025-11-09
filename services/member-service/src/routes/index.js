@@ -11,6 +11,11 @@ const achievementsRoutes = require('./achievements.routes');
 const notificationsRoutes = require('./notifications.routes');
 const analyticsRoutes = require('./analytics.routes');
 const queueRoutes = require('./queue.routes');
+const streaksRoutes = require('./streaks.routes');
+const challengesRoutes = require('./challenges.routes');
+const pointsRoutes = require('./points.routes');
+const rewardsRoutes = require('./rewards.routes');
+const aiRoutes = require('./ai.routes');
 
 // ==================== HEALTH CHECK ROUTE ====================
 
@@ -164,7 +169,12 @@ router.get('/api-docs', (req, res) => {
 // ==================== ROUTE MOUNTING ====================
 
 // Mount all route modules
-router.use('/', membersRoutes);
+// IMPORTANT: Mount routes with specific paths BEFORE routes with dynamic :id params
+// This ensures /members/:id/points/balance matches before /members/:id
+router.use('/', pointsRoutes); // Mount before membersRoutes to avoid route conflicts
+router.use('/', rewardsRoutes); // Mount before membersRoutes to avoid route conflicts
+router.use('/', streaksRoutes);
+router.use('/', challengesRoutes);
 router.use('/', sessionsRoutes);
 router.use('/', equipmentRoutes);
 router.use('/', healthRoutes);
@@ -173,6 +183,8 @@ router.use('/', achievementsRoutes);
 router.use('/', notificationsRoutes);
 router.use('/', analyticsRoutes);
 router.use('/queue', queueRoutes);
+router.use('/ai', aiRoutes);
+router.use('/', membersRoutes); // Mount last to avoid matching /members/:id too early
 
 // ==================== ERROR HANDLING ====================
 
