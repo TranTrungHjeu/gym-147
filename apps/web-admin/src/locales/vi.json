@@ -1,0 +1,330 @@
+{
+  "common": {
+    "logout": "Đăng xuất",
+    "cancel": "Hủy",
+    "confirm": "Xác nhận",
+    "reset": "Reset",
+    "dashboard": "Dashboard",
+    "loading": "Đang tải...",
+    "error": "Lỗi",
+    "success": "Thành công",
+    "noData": "Chưa có dữ liệu",
+    "close": "Đóng",
+    "justNow": "Vừa xong",
+    "minutesAgo": "{{count}} phút trước",
+    "hoursAgo": "{{count}} giờ trước",
+    "daysAgo": "{{count}} ngày trước",
+    "user": "Người dùng",
+    "defaultUserName": "Người dùng",
+    "prev": "Trước",
+    "next": "Sau",
+    "page": "Trang",
+    "of": "trong"
+  },
+  "user": {
+    "menu": {
+      "editProfile": "Chỉnh sửa hồ sơ",
+      "accountSettings": "Cài đặt tài khoản",
+      "support": "Hỗ trợ",
+      "signOut": "Đăng xuất",
+      "language": "Ngôn ngữ"
+    },
+    "languages": {
+      "vietnamese": "Tiếng Việt",
+      "english": "Tiếng Anh",
+      "vietnameseNative": "Tiếng Việt",
+      "englishNative": "English"
+    }
+  },
+  "dashboard": {
+    "admin": {
+      "title": "Admin Dashboard",
+      "subtitle": "Quản lý phòng gym và nhân viên",
+      "metrics": {
+        "trainer": "Trainer",
+        "member": "Member",
+        "equipment": "Equipment",
+        "newMembers": "Member mới (30 ngày)",
+        "activeSessions": "Phiên hoạt động (24h)"
+      },
+      "quickActions": {
+        "title": "Thao tác nhanh",
+        "subtitle": "Các chức năng quản trị phòng gym",
+        "viewDashboard": "Dashboard",
+        "viewDashboardDesc": "Xem tổng quan phòng gym",
+        "createTrainer": "Tạo Trainer",
+        "createTrainerDesc": "Tạo tài khoản huấn luyện viên"
+      },
+      "activity": {
+        "title": "Thống kê hoạt động",
+        "subtitle": "Theo dõi tình trạng phòng gym",
+        "recentActivity": "Hoạt động gần đây",
+        "recentActivitySubtitle": "5 hoạt động mới nhất",
+        "noActivity": "Chưa có hoạt động",
+        "types": {
+          "newTrainerRegistered": "Trainer mới đăng ký",
+          "newMemberRegistered": "Member mới đăng ký",
+          "newAdminRegistered": "Admin mới đăng ký",
+          "loggedIn": "Đã đăng nhập bằng",
+          "at": "tại"
+        },
+        "roles": {
+          "member": "Member",
+          "trainer": "Trainer",
+          "admin": "Admin",
+          "superAdmin": "Super Admin"
+        }
+      },
+      "system": {
+        "title": "Quản lý hệ thống",
+        "subtitle": "Thao tác hệ thống quan trọng",
+        "resetRateLimits": "Reset Rate Limits",
+        "resetRateLimitsDesc": "Reset giới hạn tạo lịch dạy cho tất cả trainer",
+        "confirmReset": "Xác nhận Reset Rate Limits",
+        "confirmResetSubtitle": "Thao tác hệ thống quan trọng",
+        "confirmResetMessage": "Bạn có chắc chắn muốn",
+        "resetAllRateLimits": "reset tất cả rate limits",
+        "confirmResetQuestion": "không?",
+        "resetEffects": {
+          "removeLimits": "Xóa toàn bộ giới hạn tạo lịch dạy cho tất cả trainer",
+          "allowImmediate": "Cho phép trainer tạo lịch mới ngay lập tức",
+          "cannotUndo": "Không thể hoàn tác"
+        },
+        "resetSuccess": "Đã reset {{count}} rate limit(s) thành công",
+        "resetError": "Không thể reset rate limits",
+        "resetErrorGeneric": "Lỗi khi reset rate limits"
+      },
+      "errors": {
+        "loadStatsFailed": "Không thể tải thống kê dashboard",
+        "loadDataError": "Lỗi khi tải dữ liệu dashboard"
+      }
+    },
+    "superAdmin": {
+      "title": "Super Admin Dashboard",
+      "subtitle": "Quản lý hệ thống Gym 147",
+      "metrics": {
+        "totalUsers": "Tổng Users",
+        "admin": "Admin",
+        "trainer": "Trainer",
+        "member": "Member",
+        "newRegistrations": "Đăng ký mới (30 ngày)",
+        "activeSessions": "Phiên hoạt động (24h)"
+      },
+      "quickActions": {
+        "title": "Thao tác nhanh",
+        "subtitle": "Các chức năng quản trị hệ thống",
+        "viewDashboard": "Dashboard",
+        "viewDashboardDesc": "Xem tổng quan hệ thống",
+        "createAdmin": "Tạo Admin",
+        "createAdminDesc": "Tạo tài khoản quản trị viên",
+        "createTrainer": "Tạo Trainer",
+        "createTrainerDesc": "Tạo tài khoản huấn luyện viên"
+      },
+      "activity": {
+        "title": "Thống kê hoạt động",
+        "subtitle": "Theo dõi tình trạng hệ thống",
+        "recentActivity": "Hoạt động gần đây",
+        "recentActivitySubtitle": "5 hoạt động mới nhất",
+        "noActivity": "Chưa có hoạt động",
+        "types": {
+          "newTrainerRegistered": "Trainer mới",
+          "newMemberRegistered": "Member mới",
+          "newAdminRegistered": "Admin mới",
+          "newSuperAdminRegistered": "Super mới",
+          "loggedIn": "Đã đăng nhập bằng",
+          "at": "tại"
+        },
+        "roles": {
+          "member": "Member",
+          "trainer": "Trainer",
+          "admin": "Admin",
+          "superAdmin": "Super Admin"
+        }
+      },
+      "errors": {
+        "loadStatsFailed": "Không thể tải thống kê dashboard",
+        "loadDataError": "Lỗi khi tải dữ liệu dashboard"
+      }
+    }
+  },
+  "userManagement": {
+    "title": "Quản lý Thành viên",
+    "subtitle": "Quản lý tài khoản người dùng trong hệ thống",
+    "stats": {
+      "totalUsers": "Tổng Users",
+      "active": "Đang hoạt động",
+      "inactive": "Không hoạt động"
+    },
+    "userList": {
+      "title": "Danh sách Users",
+      "noUsers": "Không tìm thấy user nào"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm user..."
+    },
+    "filter": {
+      "allRoles": "Tất cả roles"
+    },
+    "roles": {
+      "superAdmin": "Super Admin",
+      "admin": "Admin",
+      "trainer": "Trainer",
+      "member": "Member"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "empty": {
+      "selectUser": "Chọn một user để xem chi tiết",
+      "description": "Chi tiết thông tin sẽ được hiển thị ở đây",
+      "noUserFound": "Không tìm thấy user"
+    },
+    "userInfo": {
+      "firstName": "Tên",
+      "lastName": "Họ",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "notUpdated": "Chưa cập nhật"
+    },
+    "actions": {
+      "edit": "Chỉnh sửa",
+      "delete": "Xóa",
+      "deleteFeatureComing": "Chức năng xóa tài khoản đang được phát triển"
+    },
+    "confirmDelete": "Bạn có chắc chắn muốn xóa user này?",
+    "deleteSuccess": "Xóa user thành công!",
+    "errors": {
+      "loadUsersFailed": "Lỗi tải danh sách users",
+      "deleteFailed": "Lỗi xóa user: {{error}}"
+    }
+  },
+  "equipmentManagement": {
+    "title": "Quản lý Thiết bị",
+    "subtitle": "Quản lý tất cả thiết bị trong phòng gym",
+    "addEquipment": "Thêm thiết bị",
+    "search": {
+      "placeholder": "Tìm kiếm thiết bị..."
+    },
+    "filter": {
+      "allCategories": "Tất cả danh mục",
+      "allStatuses": "Tất cả trạng thái",
+      "refresh": "Làm mới"
+    },
+    "categories": {
+      "CARDIO": "Cardio",
+      "STRENGTH": "Sức mạnh",
+      "FREE_WEIGHTS": "Tạ tự do",
+      "FUNCTIONAL": "Chức năng",
+      "STRETCHING": "Kéo giãn",
+      "RECOVERY": "Phục hồi",
+      "SPECIALIZED": "Chuyên biệt"
+    },
+    "statuses": {
+      "AVAILABLE": "Sẵn sàng",
+      "IN_USE": "Đang sử dụng",
+      "MAINTENANCE": "Bảo trì",
+      "OUT_OF_ORDER": "Hỏng",
+      "RESERVED": "Đã đặt"
+    },
+    "table": {
+      "name": "Tên",
+      "category": "Danh mục",
+      "status": "Trạng thái",
+      "location": "Vị trí",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "view": "Xem"
+    },
+    "empty": {
+      "noEquipment": "Không có thiết bị nào",
+      "noResults": "Không tìm thấy thiết bị nào"
+    },
+    "form": {
+      "addTitle": "Thêm Thiết bị Mới",
+      "editTitle": "Chỉnh sửa Thiết bị",
+      "name": "Tên thiết bị",
+      "nameRequired": "Tên thiết bị là bắt buộc",
+      "nameMaxLength": "Tên thiết bị không được quá 100 ký tự",
+      "category": "Danh mục",
+      "categoryRequired": "Danh mục là bắt buộc",
+      "status": "Trạng thái",
+      "statusRequired": "Trạng thái là bắt buộc",
+      "location": "Vị trí",
+      "locationMaxLength": "Vị trí không được quá 100 ký tự",
+      "description": "Mô tả",
+      "descriptionMaxLength": "Mô tả không được quá 500 ký tự",
+      "photo": "Ảnh Thiết bị",
+      "photoPlaceholder": "Nhấp để tải ảnh thiết bị",
+      "photoHint": "JPG, PNG hoặc WEBP (Tối đa 5MB)",
+      "photoInvalidType": "Chỉ cho phép file hình ảnh",
+      "photoTooLarge": "Kích thước ảnh phải nhỏ hơn 5MB",
+      "photoUploadError": "Tải ảnh lên thất bại. Vui lòng thử lại.",
+      "uploadPhoto": "Tải ảnh lên",
+      "viewPhoto": "Xem ảnh",
+      "save": "Lưu",
+      "create": "Tạo mới",
+      "update": "Cập nhật",
+      "cancel": "Hủy"
+    },
+    "details": {
+      "title": "Chi tiết Thiết bị",
+      "photo": "Ảnh Thiết bị",
+      "noPhoto": "Chưa có ảnh",
+      "brand": "Thương hiệu",
+      "model": "Model",
+      "serialNumber": "Số Serial",
+      "usageHours": "Giờ sử dụng",
+      "hours": "giờ",
+      "maxWeight": "Trọng lượng tối đa",
+      "lastMaintenance": "Bảo trì lúc",
+      "nextMaintenance": "Bảo trì tiếp theo",
+      "usageCount": "Số lần sử dụng",
+      "maintenanceCount": "Số lần bảo trì",
+      "queueCount": "Đang chờ",
+      "features": "Tính năng",
+      "heartMonitor": "Theo dõi nhịp tim",
+      "calorieCounter": "Đếm calo",
+      "repCounter": "Đếm số lần",
+      "wifiEnabled": "WiFi",
+      "sensorId": "ID cảm biến",
+      "purchaseDate": "Ngày mua",
+      "warrantyUntil": "Bảo hành đến",
+      "createdAt": "Ngày tạo",
+      "updatedAt": "Ngày cập nhật",
+      "lastUser": "Người dùng cuối",
+      "overdueMaintenance": "Bảo trì quá hạn",
+      "dueMaintenance": "Đến hạn bảo trì",
+      "notMaintainedFor": "Chưa bảo trì {{time}}",
+      "day": "ngày",
+      "days": "ngày",
+      "month": "tháng",
+      "months": "tháng",
+      "hour": "giờ",
+      "hours": "giờ"
+    },
+    "usersModal": {
+      "title": "Người dùng Thiết bị",
+      "subtitle": "Danh sách thành viên đã sử dụng thiết bị này",
+      "noUsers": "Chưa có người dùng",
+      "unknownUser": "Người dùng không xác định",
+      "membershipNumber": "Số thẻ thành viên",
+      "minutes": "phút"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa thiết bị",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa thiết bị \"{{name}}\"? Hành động này không thể hoàn tác.",
+      "success": "Xóa thiết bị thành công",
+      "error": "Không thể xóa thiết bị"
+    },
+    "messages": {
+      "createSuccess": "Tạo thiết bị thành công",
+      "updateSuccess": "Cập nhật thiết bị thành công",
+      "loadError": "Không thể tải danh sách thiết bị",
+      "saveError": "Không thể lưu thiết bị"
+    }
+  }
+}

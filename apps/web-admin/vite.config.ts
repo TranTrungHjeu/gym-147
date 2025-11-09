@@ -7,7 +7,7 @@ export default defineConfig({
   plugins: [react(), svgr()],
   root: __dirname, // đảm bảo Vite không nhảy ra ngoài apps/web-admin
   server: {
-    port: 5173,
+    port: parseInt(process.env.PORT || '8081'), // Default 8081 for dev, 8080 for production
     host: true,
     fs: {
       // chỉ cho phép đọc file trong apps/web-admin

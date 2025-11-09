@@ -51,4 +51,14 @@ declare module '*.svg' {
   export default src;
 }
 
+// Vite environment variables
+interface ImportMetaEnv {
+  readonly VITE_API_BASE_URL: string;
+  readonly VITE_WS_SCHEDULE_URL: string;
+}
+
+interface ImportMeta {
+  readonly env: ImportMetaEnv;
+}
+
 export {};
