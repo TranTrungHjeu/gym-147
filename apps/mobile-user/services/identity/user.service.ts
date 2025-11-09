@@ -3,6 +3,8 @@ import { User } from '@/types/authTypes';
 import { ApiResponse, identityApiService } from './api.service';
 
 export interface UpdateProfileData {
+  firstName?: string;
+  lastName?: string;
   name?: string;
   email?: string;
   profileImage?: string;
@@ -41,7 +43,7 @@ class UserService {
    */
   async getProfile(): Promise<ApiResponse<User>> {
     try {
-      const response = await identityApiService.get('/profile/me');
+      const response = await identityApiService.get('/profile');
       return {
         success: true,
         data: response.data,
@@ -59,10 +61,10 @@ class UserService {
    */
   async updateProfile(data: UpdateProfileData): Promise<ApiResponse<User>> {
     try {
-      const response = await identityApiService.put('/profile/me', data);
+      const response = await identityApiService.put('/profile', data);
       return {
         success: true,
-        data: response.data,
+        data: response.data?.user || response.data,
       };
     } catch (error: any) {
       return {

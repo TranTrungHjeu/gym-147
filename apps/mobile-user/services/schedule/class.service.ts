@@ -6,6 +6,62 @@ import {
 } from '@/types/classTypes';
 import { scheduleApiService } from './api.service';
 
+export interface ClassRecommendation {
+  type: string;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  title: string;
+  message: string;
+  action: string;
+  data?: {
+    classId?: string;
+    classCategory?: string;
+    trainerId?: string;
+    scheduleId?: string;
+    suggestedTime?: string;
+    classIds?: string[];
+    categories?: string[];
+  };
+  reasoning?: string;
+}
+
+export interface SchedulingSuggestion {
+  scheduleId: string;
+  className: string;
+  category: string;
+  startTime: string;
+  endTime: string;
+  trainer?: {
+    id: string;
+    name: string;
+    avatar?: string;
+  } | null;
+  room?: {
+    id: string;
+    name: string;
+    capacity: number;
+  } | null;
+  spotsLeft: number;
+  maxCapacity: number;
+  score: number;
+  priority: 'HIGH' | 'MEDIUM' | 'LOW';
+  reason: string;
+  isWaitlist: boolean;
+}
+
+export interface SchedulingSuggestionsResponse {
+  success: boolean;
+  suggestions: SchedulingSuggestion[];
+  patterns?: {
+    preferredHours: { [hour: number]: number };
+    preferredDays: { [day: number]: number };
+    preferredCategories: { [category: string]: number };
+    averageAttendanceRate: number;
+    cancellationRate: number;
+  };
+  availableCount: number;
+  generatedAt: string;
+}
+
 class ClassService {
   // Get base URL from centralized config
   private get baseUrl() {
@@ -212,6 +268,110 @@ class ClassService {
     } catch (error: any) {
       console.error('❌ Error fetching class statistics:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get AI-powered class recommendations
+   */
+  async getClassRecommendations(
+    memberId: string,
+    useAI: boolean = true
+  ): Promise<{
+    success: boolean;
+    data?: {
+      recommendations: ClassRecommendation[];
+      analysis?: any;
+      generatedAt?: string;
+    };
+    error?: string;
+  }> {
+    try {
+      const params = useAI ? { useAI: 'true' } : { useAI: 'false' };
+      const response = await scheduleApiService.get(
+        `/classes/members/${memberId}/recommendations`,
+        { params }
+      );
+
+      // Extract recommendations from response
+      const data = response.data?.data || response.data || {};
+      const recommendations = data.recommendations || [];
+
+      return {
+        success: true,
+        data: {
+          recommendations,
+          analysis: data.analysis,
+          generatedAt: data.generatedAt,
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ Error fetching class recommendations:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch recommendations',
+        data: {
+          recommendations: [],
+        },
+      };
+    }
+  }
+
+  /**
+   * Get smart scheduling suggestions for optimal booking times
+   */
+  async getSchedulingSuggestions(
+    memberId: string,
+    options?: {
+      classId?: string;
+      category?: string;
+      trainerId?: string;
+      dateRange?: number;
+      useAI?: boolean;
+    }
+  ): Promise<{
+    success: boolean;
+    data?: SchedulingSuggestionsResponse;
+    error?: string;
+  }> {
+    try {
+      const params: any = {};
+      if (options?.classId) params.classId = options.classId;
+      if (options?.category) params.category = options.category;
+      if (options?.trainerId) params.trainerId = options.trainerId;
+      if (options?.dateRange) params.dateRange = options.dateRange.toString();
+      params.useAI = options?.useAI !== false ? 'true' : 'false';
+
+      const response = await scheduleApiService.get(
+        `/classes/members/${memberId}/scheduling-suggestions`,
+        { params }
+      );
+
+      // Extract suggestions from response
+      const data = response.data?.data || response.data || {};
+
+      return {
+        success: true,
+        data: {
+          success: data.success || true,
+          suggestions: data.suggestions || [],
+          patterns: data.patterns,
+          availableCount: data.availableCount || 0,
+          generatedAt: data.generatedAt || new Date().toISOString(),
+        },
+      };
+    } catch (error: any) {
+      console.error('❌ Error fetching scheduling suggestions:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch scheduling suggestions',
+        data: {
+          success: false,
+          suggestions: [],
+          availableCount: 0,
+          generatedAt: new Date().toISOString(),
+        },
+      };
     }
   }
 }

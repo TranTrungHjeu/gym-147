@@ -4,6 +4,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const TOKEN_KEY = '@fittrack_auth_token';
 const USER_KEY = '@fittrack_user';
 const REMEMBER_ME_KEY = '@fittrack_remember_me';
+const PROFILE_UPDATED_KEY = '@fittrack_profile_updated';
 
 /**
  * Store auth token
@@ -169,6 +170,34 @@ export const getRememberMe = async (): Promise<boolean> => {
     return value ? JSON.parse(value) : false;
   } catch (error) {
     console.error('Error getting remember me preference:', error);
+    return false;
+  }
+};
+
+/**
+ * Set profile updated flag to show toast
+ */
+export const setProfileUpdated = async (): Promise<void> => {
+  try {
+    await AsyncStorage.setItem(PROFILE_UPDATED_KEY, 'true');
+  } catch (error) {
+    console.error('Error setting profile updated flag:', error);
+  }
+};
+
+/**
+ * Get and clear profile updated flag
+ */
+export const getAndClearProfileUpdated = async (): Promise<boolean> => {
+  try {
+    const value = await AsyncStorage.getItem(PROFILE_UPDATED_KEY);
+    if (value === 'true') {
+      await AsyncStorage.removeItem(PROFILE_UPDATED_KEY);
+      return true;
+    }
+    return false;
+  } catch (error) {
+    console.error('Error getting profile updated flag:', error);
     return false;
   }
 };

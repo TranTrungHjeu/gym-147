@@ -431,6 +431,19 @@ export class PaymentService {
       throw error;
     }
   }
+
+  // Receipt Download
+  async downloadReceipt(paymentId: string): Promise<{ receiptUrl: string }> {
+    try {
+      const response = await billingApiService.get(
+        `/payments/${paymentId}/receipt`
+      );
+      return response.data as { receiptUrl: string };
+    } catch (error) {
+      console.error('Error downloading receipt:', error);
+      throw error;
+    }
+  }
 }
 
 export const paymentService = new PaymentService();

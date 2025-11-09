@@ -41,21 +41,27 @@ class AchievementService {
   /**
    * Get all achievements for the current member
    */
-  async getAchievements(): Promise<{
+  async getAchievements(memberId?: string): Promise<{
     success: boolean;
     data?: Achievement[];
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/achievements');
+      // If memberId is provided, use member-specific endpoint
+      const endpoint = memberId
+        ? `/members/${memberId}/achievements`
+        : '/achievements';
+      const response = await memberApiService.get(endpoint);
 
       // Handle different response structures
       let achievements = [];
       const data = response.data as any;
-      if (data?.achievements) {
+      
+      // Backend returns: { success: true, message: "...", data: [...] }
+      if (data?.data && Array.isArray(data.data)) {
+        achievements = data.data;
+      } else if (data?.achievements && Array.isArray(data.achievements)) {
         achievements = data.achievements;
-      } else if (data?.data?.achievements) {
-        achievements = data.data.achievements;
       } else if (Array.isArray(data)) {
         achievements = data;
       } else if (Array.isArray(data?.data)) {
@@ -92,13 +98,17 @@ class AchievementService {
   /**
    * Get achievement summary
    */
-  async getAchievementSummary(): Promise<{
+  async getAchievementSummary(memberId?: string): Promise<{
     success: boolean;
     data?: AchievementSummary;
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/achievements/summary');
+      // If memberId is provided, use member-specific summary endpoint
+      const endpoint = memberId
+        ? `/members/${memberId}/achievements/summary`
+        : '/achievements/summary';
+      const response = await memberApiService.get(endpoint);
       return { success: true, data: response.data as AchievementSummary };
     } catch (error: any) {
       return { success: false, error: error.message };

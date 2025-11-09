@@ -15,12 +15,21 @@ export { youtubeVideoService } from './media/youtube-video.service';
 export { accessService } from './member/access.service';
 export { achievementService } from './member/achievement.service';
 export { analyticsService } from './member/analytics.service';
+export { challengeService } from './member/challenge.service';
 export { equipmentService } from './member/equipment.service';
 export { healthService } from './member/health.service';
 export { memberService } from './member/member.service';
 export { notificationService } from './member/notification.service';
+export { pointsService } from './member/points.service';
+export { rewardService } from './member/reward.service';
+export { streakService } from './member/streak.service';
 export { bookingService } from './schedule/booking.service';
-export { classService } from './schedule/class.service';
+export {
+  classService,
+  type ClassRecommendation,
+  type SchedulingSuggestion,
+  type SchedulingSuggestionsResponse,
+} from './schedule/class.service';
 export { favoriteService } from './schedule/favorite.service';
 export { scheduleService } from './schedule/schedule.service';
 export { trainerService } from './schedule/trainer.service';

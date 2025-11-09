@@ -79,8 +79,8 @@ class MemberService {
             response = {
               data: {
                 ...memberData,
-                id: memberData.id || userData.id, // Ensure id is always present
-                full_name: `${userData.firstName} ${userData.lastName}`,
+                id: memberData.id,
+                full_name: memberData.full_name,
                 email: userData.email,
                 phone: userData.phone,
                 is_active: userData.emailVerified,
@@ -190,6 +190,27 @@ class MemberService {
   }
 
   /**
+   * Toggle AI Class Recommendations (Premium feature)
+   */
+  async toggleAIClassRecommendations(): Promise<{
+    success: boolean;
+    data?: { ai_class_recommendations_enabled: boolean };
+    error?: string;
+  }> {
+    try {
+      const response = await memberApiService.put(
+        '/members/preferences/ai-class-recommendations'
+      );
+      return {
+        success: true,
+        data: response.data?.data || response.data,
+      };
+    } catch (error: any) {
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
    * Get gym sessions for a member
    * @param params - Query parameters for filtering sessions (e.g., start_date, end_date)
    */
@@ -293,6 +314,64 @@ class MemberService {
   /**
    * Upload avatar image
    */
+  // Onboarding
+  async getOnboardingStatus(): Promise<{
+    success: boolean;
+    data?: {
+      completed: boolean;
+      steps: Record<string, boolean>;
+      completedAt?: Date;
+    };
+    error?: string;
+  }> {
+    try {
+      const response = await memberApiService.get('/members/onboarding/status');
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  async updateOnboardingProgress(
+    step?: string,
+    completed?: boolean,
+    completedAll?: boolean
+  ): Promise<{
+    success: boolean;
+    data?: {
+      completed: boolean;
+      steps: Record<string, boolean>;
+      completedAt?: Date;
+    };
+    error?: string;
+  }> {
+    try {
+      const response = await memberApiService.patch(
+        '/members/onboarding/progress',
+        {
+          step,
+          completed,
+          completedAll,
+        }
+      );
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
   async uploadAvatar(
     base64Image: string,
     mimeType: string = 'image/jpeg',

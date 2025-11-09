@@ -186,33 +186,56 @@ class WorkoutPlanService {
   }
 
   /**
-   * Get workout recommendations
+   * Get AI-powered workout recommendations
    */
-  async getWorkoutRecommendations(): Promise<{
+  async getWorkoutRecommendations(
+    memberId: string,
+    useAI: boolean = true
+  ): Promise<{
     success: boolean;
-    data?: WorkoutRecommendation[];
+    data?: {
+      recommendations: Array<{
+        type: string;
+        priority: 'HIGH' | 'MEDIUM' | 'LOW';
+        title: string;
+        message: string;
+        action: string;
+        data?: any;
+        reasoning?: string;
+      }>;
+      analysis?: any;
+      generatedAt?: string;
+    };
     error?: string;
   }> {
     try {
-      // Try different endpoints for recommendations
-      const response = await memberApiService.get('/workout-plans');
+      const params = useAI ? { useAI: 'true' } : { useAI: 'false' };
+      const response = await memberApiService.get(
+        `/members/${memberId}/workout-recommendations`,
+        params
+      );
 
-      // Extract recommendations from workout plans
-      const recommendations =
-        response.data?.data?.workoutPlans ||
-        response.data?.workoutPlans ||
-        response.data?.data ||
-        response.data ||
-        [];
+      // Extract recommendations from response
+      const data = response.data?.data || response.data || {};
+      const recommendations = data.recommendations || [];
 
       return {
         success: true,
-        data: Array.isArray(recommendations) ? recommendations : [],
+        data: {
+          recommendations,
+          analysis: data.analysis,
+          generatedAt: data.generatedAt,
+        },
       };
     } catch (error: any) {
-      console.error('❌ Error fetching recommendations:', error);
-      // Return empty array instead of error for recommendations
-      return { success: true, data: [] };
+      console.error('❌ Error fetching workout recommendations:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch recommendations',
+        data: {
+          recommendations: [],
+        },
+      };
     }
   }
 
