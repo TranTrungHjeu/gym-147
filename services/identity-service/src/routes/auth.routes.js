@@ -16,6 +16,9 @@ router.post('/verify-email', (req, res) => authController.verifyEmail(req, res))
 // Public route for other services to get trainers
 router.get('/users/trainers', (req, res) => authController.getTrainers(req, res));
 
+// Public route for other services to get admins (for notifications)
+router.get('/users/admins', (req, res) => authController.getAdmins(req, res));
+
 // Password reset routes (public)
 router.post('/forgot-password', (req, res) => authController.forgotPassword(req, res));
 router.post('/reset-password', (req, res) => authController.resetPassword(req, res));
@@ -49,7 +52,9 @@ router.get('/users/:id/push-settings', authMiddleware, (req, res) =>
 router.post('/refresh-token', (req, res) => authController.refreshToken(req, res)); // Public for token refresh
 
 // Admin-only routes
-router.post('/register-admin', authMiddleware, requireSuperAdmin, (req, res) =>
+// Note: requireAdmin allows both SUPER_ADMIN and ADMIN to access
+// But controller will validate that only SUPER_ADMIN can create ADMIN role
+router.post('/register-admin', authMiddleware, requireAdmin, (req, res) =>
   authController.registerAdmin(req, res)
 );
 
@@ -63,7 +68,7 @@ router.get('/users/:id', authMiddleware, requireAdmin, (req, res) =>
 router.put('/users/:id', authMiddleware, requireAdmin, (req, res) =>
   authController.updateUser(req, res)
 );
-router.delete('/users/:id', authMiddleware, requireSuperAdmin, (req, res) =>
+router.delete('/users/:id', authMiddleware, requireAdmin, (req, res) =>
   authController.deleteUser(req, res)
 );
 
