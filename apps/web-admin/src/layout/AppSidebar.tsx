@@ -1,20 +1,26 @@
 import {
-  Calendar,
+  BarChart3,
+  BookOpen,
+  Building2,
   ChevronDown,
-  FileText,
+  Clock,
+  CreditCard,
+  Dumbbell,
+  GraduationCap,
   Grid3X3,
   LayoutDashboard,
-  List,
   PieChart,
+  Settings,
   Shield,
-  Table,
-  User,
+  Users,
 } from 'lucide-react';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import logoText from '../assets/images/logo-text-2.png';
+import logo from '../assets/images/logo.png';
 import { useNavigation } from '../context/NavigationContext';
 import { useSidebar } from '../context/SidebarContext';
-import { getDashboardPath } from '../utils/auth';
+import { getCurrentUser, getDashboardPath } from '../utils/auth';
 import SidebarWidget from './SidebarWidget';
 
 // Add CSS keyframes for animations (only once)
@@ -80,91 +86,107 @@ type NavItem = {
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
 };
 
-const navItems: NavItem[] = [
-  {
-    icon: <LayoutDashboard className='w-5 h-5' />,
-    name: 'Dashboard',
-    subItems: [{ name: 'Ecommerce', path: '/dashboard', pro: false }],
-  },
-  {
-    icon: <Calendar className='w-5 h-5' />,
-    name: 'Calendar',
-    path: '/dashboard/calendar',
-  },
-  {
-    icon: <User className='w-5 h-5' />,
-    name: 'User Profile',
-    path: '/dashboard/profile',
-  },
-  {
-    name: 'Forms',
-    icon: <List className='w-5 h-5' />,
-    subItems: [{ name: 'Form Elements', path: '/dashboard/form-elements', pro: false }],
-  },
-  {
-    name: 'Tables',
-    icon: <Table className='w-5 h-5' />,
-    subItems: [{ name: 'Basic Tables', path: '/dashboard/basic-tables', pro: false }],
-  },
-  {
-    name: 'Pages',
-    icon: <FileText className='w-5 h-5' />,
-    subItems: [
-      { name: 'Blank Page', path: '/dashboard/blank', pro: false },
-      { name: '404 Error', path: '/error-404', pro: false },
-    ],
-  },
-];
-
-const othersItems: NavItem[] = [
-  {
-    icon: <PieChart className='w-5 h-5' />,
-    name: 'Charts',
-    subItems: [
-      { name: 'Line Chart', path: '/dashboard/line-chart', pro: false },
-      { name: 'Bar Chart', path: '/dashboard/bar-chart', pro: false },
-    ],
-  },
-  {
-    icon: <Grid3X3 className='w-5 h-5' />,
-    name: 'UI Elements',
-    subItems: [
-      { name: 'Alerts', path: '/dashboard/alerts', pro: false },
-      { name: 'Avatar', path: '/dashboard/avatars', pro: false },
-      { name: 'Badge', path: '/dashboard/badge', pro: false },
-      { name: 'Buttons', path: '/dashboard/buttons', pro: false },
-      { name: 'Images', path: '/dashboard/images', pro: false },
-      { name: 'Videos', path: '/dashboard/videos', pro: false },
-    ],
-  },
-  {
-    icon: <Shield className='w-5 h-5' />,
-    name: 'Authentication',
-    subItems: [
-      { name: 'Sign In', path: '/auth', pro: false },
-      { name: 'Sign Up', path: '/signup', pro: false },
-    ],
-  },
-];
-
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { setIsNavigating } = useNavigation();
   const location = useLocation();
 
-  // Get dashboard path based on user role
-  const getDashboardPathForCurrentUser = () => {
-    try {
-      const user = localStorage.getItem('user');
-      if (user) {
-        const userData = JSON.parse(user);
-        return getDashboardPath(userData.role);
-      }
-    } catch (error) {
-      console.error('Error getting user role:', error);
-    }
-    return '/dashboard'; // fallback
-  };
+  // Get dashboard path dynamically based on current user
+  const getDashboardPathForCurrentUser = useCallback(() => {
+    const user = getCurrentUser();
+    return getDashboardPath(user?.role || 'MEMBER');
+  }, []);
+
+  // Create nav items with dynamic dashboard path - memoized to prevent re-creation on every render
+  const navItems: NavItem[] = useMemo(() => {
+    const dashboardPath = getDashboardPathForCurrentUser();
+    return [
+      {
+        icon: <LayoutDashboard className='w-5 h-5' />,
+        name: 'Dashboard',
+        path: dashboardPath,
+      },
+      {
+        icon: <Users className='w-5 h-5' />,
+        name: 'Thành viên',
+        path: '/management/members',
+      },
+      {
+        icon: <Dumbbell className='w-5 h-5' />,
+        name: 'Thiết bị',
+        path: '/management/equipment',
+      },
+      {
+        icon: <GraduationCap className='w-5 h-5' />,
+        name: 'Huấn luyện viên',
+        path: '/management/trainers',
+      },
+      {
+        icon: <BookOpen className='w-5 h-5' />,
+        name: 'Lớp học',
+        path: '/management/classes',
+      },
+      {
+        icon: <Building2 className='w-5 h-5' />,
+        name: 'Phòng tập',
+        path: '/management/rooms',
+      },
+      {
+        icon: <Clock className='w-5 h-5' />,
+        name: 'Lịch tập',
+        path: '/management/schedules',
+      },
+      {
+        icon: <CreditCard className='w-5 h-5' />,
+        name: 'Thanh toán',
+        path: '/management/billing',
+      },
+      {
+        icon: <BarChart3 className='w-5 h-5' />,
+        name: 'Báo cáo',
+        path: '/management/reports',
+      },
+      {
+        icon: <Settings className='w-5 h-5' />,
+        name: 'Cài đặt',
+        path: '/management/settings',
+      },
+    ];
+  }, [getDashboardPathForCurrentUser]);
+
+  const othersItems: NavItem[] = useMemo(
+    () => [
+      {
+        icon: <PieChart className='w-5 h-5' />,
+        name: 'Charts',
+        subItems: [
+          { name: 'Line Chart', path: '/dashboard/line-chart', pro: false },
+          { name: 'Bar Chart', path: '/dashboard/bar-chart', pro: false },
+        ],
+      },
+      {
+        icon: <Grid3X3 className='w-5 h-5' />,
+        name: 'UI Elements',
+        subItems: [
+          { name: 'Alerts', path: '/dashboard/alerts', pro: false },
+          { name: 'Avatar', path: '/dashboard/avatars', pro: false },
+          { name: 'Badge', path: '/dashboard/badge', pro: false },
+          { name: 'Buttons', path: '/dashboard/buttons', pro: false },
+          { name: 'Images', path: '/dashboard/images', pro: false },
+          { name: 'Videos', path: '/dashboard/videos', pro: false },
+        ],
+      },
+      {
+        icon: <Shield className='w-5 h-5' />,
+        name: 'Authentication',
+        subItems: [
+          { name: 'Sign In', path: '/auth', pro: false },
+          { name: 'Sign Up', path: '/signup', pro: false },
+        ],
+      },
+    ],
+    []
+  );
 
   const [openSubmenu, setOpenSubmenu] = useState<{
     type: 'main' | 'others';
@@ -229,11 +251,15 @@ const AppSidebar: React.FC = () => {
   };
 
   const renderMenuItems = (items: NavItem[], menuType: 'main' | 'others') => (
-    <ul className='flex flex-col gap-2'>
+    <ul className={`flex flex-col gap-2 w-full ${
+      !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+    }`}>
       {items.map((nav, index) => (
         <li
           key={nav.name}
           className={`transform transition-all duration-300 ease-out ${
+            !isExpanded && !isHovered && !isMobileOpen ? 'w-auto' : 'w-full'
+          } ${
             isExpanded || isHovered || isMobileOpen
               ? 'translate-x-0 opacity-100'
               : 'translate-x-0 opacity-100'
@@ -249,18 +275,20 @@ const AppSidebar: React.FC = () => {
                 e.preventDefault();
                 handleSubmenuToggle(index, menuType);
               }}
-              className={`group flex items-center rounded-xl transition-all duration-200 ease-out relative ${
+              className={`group flex items-center transition-all duration-200 ease-out relative rounded-lg ${
                 openSubmenu?.type === menuType && openSubmenu?.index === index
-                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg transform scale-[1.02]'
-                  : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-md hover:transform hover:scale-[1.02]'
+                  ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                  : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-md'
               } cursor-pointer ${
-                !isExpanded && !isHovered
-                  ? 'justify-center py-2'
-                  : 'justify-start px-3 py-2.5 gap-3'
+                !isExpanded && !isHovered && !isMobileOpen
+                  ? 'justify-center py-2 px-2 w-auto'
+                  : 'justify-start px-3 py-2.5 gap-3 w-full'
               }`}
             >
               <div
-                className={`w-5 h-5 flex items-center justify-center ${
+                className={`w-5 h-5 flex items-center ${
+                  !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
+                } flex-shrink-0 ${
                   openSubmenu?.type === menuType && openSubmenu?.index === index
                     ? 'text-white'
                     : 'text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400'
@@ -269,7 +297,7 @@ const AppSidebar: React.FC = () => {
                 {nav.icon}
               </div>
               {(isExpanded || isHovered || isMobileOpen) && (
-                <span className='font-semibold text-sm font-inter text-gray-900 dark:text-gray-100'>
+                <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
                   {nav.name}
                 </span>
               )}
@@ -288,18 +316,20 @@ const AppSidebar: React.FC = () => {
               <Link
                 to={nav.path}
                 onClick={() => handleNavigation(nav.path)}
-                className={`group flex items-center rounded-xl transition-all duration-200 ease-out relative ${
+                className={`group flex items-center transition-all duration-200 ease-out relative rounded-lg ${
                   isActive(nav.path)
-                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg transform scale-[1.02]'
-                    : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-md hover:transform hover:scale-[1.02]'
+                    ? 'bg-gradient-to-r from-orange-500 to-orange-600 text-white shadow-lg'
+                    : 'text-gray-700 dark:text-gray-300 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-md'
                 } ${
-                  !isExpanded && !isHovered
-                    ? 'justify-center py-2'
-                    : 'justify-start px-3 py-2.5 gap-3'
+                  !isExpanded && !isHovered && !isMobileOpen
+                    ? 'justify-center py-2 px-2 w-auto'
+                    : 'justify-start px-3 py-2.5 gap-3 w-full'
                 }`}
               >
                 <div
-                  className={`w-5 h-5 flex items-center justify-center ${
+                  className={`w-5 h-5 flex items-center ${
+                    !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
+                  } flex-shrink-0 ${
                     isActive(nav.path)
                       ? 'text-white'
                       : 'text-gray-600 dark:text-gray-400 group-hover:text-orange-600 dark:group-hover:text-orange-400'
@@ -308,7 +338,7 @@ const AppSidebar: React.FC = () => {
                   {nav.icon}
                 </div>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className='font-semibold text-sm font-inter text-gray-900 dark:text-gray-100'>
+                  <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
                     {nav.name}
                   </span>
                 )}
@@ -328,19 +358,27 @@ const AppSidebar: React.FC = () => {
                     : '0px',
               }}
             >
-              <ul className={`mt-2 space-y-1 ${!isExpanded && !isHovered ? 'ml-0' : 'ml-6'}`}>
+              <ul
+                className={`mt-2 space-y-1 ${
+                  !isExpanded && !isHovered && !isMobileOpen ? 'ml-0' : 'ml-6'
+                }`}
+              >
                 {nav.subItems.map(subItem => (
-                  <li key={subItem.name}>
+                  <li key={subItem.name} className='w-full'>
                     <Link
                       to={subItem.path}
                       onClick={() => handleNavigation(subItem.path)}
-                      className={`group flex items-center rounded-lg transition-all duration-200 ease-out relative ${
+                      className={`group flex items-center transition-all duration-200 ease-out relative rounded-lg ${
                         isActive(subItem.path)
                           ? 'bg-gradient-to-r from-orange-100 to-orange-200 dark:from-orange-500/30 dark:to-orange-600/30 text-orange-700 dark:text-orange-200 shadow-sm'
-                          : 'text-gray-600 dark:text-gray-400 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-sm hover:transform hover:scale-[1.01]'
-                      } ${!isExpanded && !isHovered ? 'justify-center py-2' : 'gap-3 px-3 py-2'}`}
+                          : 'text-gray-600 dark:text-gray-400 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100 dark:hover:from-orange-500/20 dark:hover:to-orange-600/20 hover:text-orange-600 dark:hover:text-orange-400 hover:shadow-sm'
+                      } ${
+                        !isExpanded && !isHovered && !isMobileOpen
+                          ? 'justify-center py-2 px-2 w-auto'
+                          : 'justify-start gap-3 px-3 py-2 w-full'
+                      }`}
                     >
-                      {!isExpanded && !isHovered ? (
+                      {!isExpanded && !isHovered && !isMobileOpen ? (
                         <span className='w-5 h-5 flex items-center justify-center'>
                           <span className='w-1.5 h-1.5 rounded-full bg-current opacity-60'></span>
                         </span>
@@ -389,31 +427,37 @@ const AppSidebar: React.FC = () => {
 
   return (
     <aside
-      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-0 left-0 bg-white/95 backdrop-blur-sm dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:border-gray-700 shadow-xl
+      className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-0 left-0 bg-white/95 backdrop-blur-sm dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:border-gray-700 shadow-xl no-scrollbar ${
+        !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+      }
         ${isExpanded || isMobileOpen ? 'w-[280px]' : isHovered ? 'w-[280px]' : 'w-[80px]'}  
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
-        lg:translate-x-0 overflow-x-hidden`}
+        lg:translate-x-0 overflow-y-auto overflow-x-visible`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      <div className={`py-6 px-6 flex justify-center`}>
+      <div
+        className={`py-6 flex ${
+          !isExpanded && !isHovered && !isMobileOpen ? 'justify-center px-2' : 'justify-center px-6'
+        } items-center w-full`}
+      >
         <Link
           to={getDashboardPathForCurrentUser()}
           onClick={() => handleNavigation(getDashboardPathForCurrentUser())}
           className='flex items-center gap-3 group'
         >
           {isExpanded || isHovered || isMobileOpen ? (
-            <div className='flex h-16 w-48 items-center justify-center rounded-xl bg-white dark:bg-gray-800 border-2 border-orange-500 shadow-lg transition-all duration-300 ease-out group-hover:scale-105 group-hover:shadow-xl'>
+            <div className='flex h-16 w-48 items-center justify-center rounded-xl bg-white dark:bg-gray-800 shadow-lg border-2 border-orange-500 dark:border-orange-600 transition-all duration-300 ease-out group-hover:scale-105 group-hover:shadow-xl group-hover:border-orange-600 dark:group-hover:border-orange-500'>
               <img
-                src='/src/assets/images/logo-text-2.png'
+                src={logoText}
                 alt='GYM 147'
                 className='h-12 w-40 object-contain transition-all duration-200 group-hover:scale-105'
               />
             </div>
           ) : (
-            <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-gray-800 border-2 border-orange-500 shadow-lg transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-xl'>
+            <div className='flex h-12 w-12 items-center justify-center rounded-xl bg-white dark:bg-gray-800 shadow-lg border-2 border-orange-500 dark:border-orange-600 transition-all duration-300 ease-out group-hover:scale-110 group-hover:shadow-xl group-hover:border-orange-600 dark:group-hover:border-orange-500'>
               <img
-                src='/src/assets/images/logo.png'
+                src={logo}
                 alt='GYM 147'
                 className='h-7 w-7 object-contain transition-all duration-200 group-hover:scale-110'
               />
@@ -422,17 +466,23 @@ const AppSidebar: React.FC = () => {
         </Link>
       </div>
       <div
-        className={`flex flex-col overflow-y-auto duration-300 ease-linear no-scrollbar ${
-          !isExpanded && !isHovered ? 'px-2' : 'px-6'
+        className={`flex flex-col overflow-y-auto overflow-x-visible duration-300 ease-linear no-scrollbar w-full ${
+          !isExpanded && !isHovered && !isMobileOpen ? 'items-center px-2' : 'items-start px-6'
         }`}
       >
-        <nav className='mb-6'>
-          <div className='flex flex-col gap-2'>
-            <div>
+        <nav className={`mb-6 w-full flex flex-col ${
+          !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+        }`}>
+          <div className={`flex flex-col gap-2 w-full ${
+            !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+          }`}>
+            <div className={`w-full flex flex-col ${
+              !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+            }`}>
               <h2
                 className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
-                  !isExpanded && !isHovered ? 'justify-center' : 'justify-start'
-                }`}
+                  !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
+                } w-full`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
                   'Main Menu'
@@ -444,11 +494,13 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, 'main')}
             </div>
-            <div className=''>
+            <div className={`w-full flex flex-col ${
+              !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+            }`}>
               <h2
                 className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
-                  !isExpanded && !isHovered ? 'justify-center' : 'justify-start'
-                }`}
+                  !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
+                } w-full`}
               >
                 {isExpanded || isHovered || isMobileOpen ? (
                   'Other'
