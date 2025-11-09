@@ -51,8 +51,15 @@ export default function OnboardingScreen() {
   const { theme } = useTheme();
   const [currentStep, setCurrentStep] = useState(0);
 
-  const handleNext = () => {
+  const handleNext = async () => {
     if (currentStep < ONBOARDING_STEPS.length - 1) {
+      // Update current step completion
+      const { memberService } = await import('@/services');
+      await memberService.updateOnboardingProgress(
+        `step_${currentStep + 1}`,
+        true,
+        false
+      );
       setCurrentStep(currentStep + 1);
     } else {
       handleComplete();
@@ -64,14 +71,16 @@ export default function OnboardingScreen() {
   };
 
   const handleComplete = async () => {
-    // TODO: Update user profile with onboarding completion
     try {
-      await updateProfile({
-        // Add any default profile data here
-      });
+      // Update onboarding completion status
+      const { memberService } = await import('@/services');
+      await memberService.updateOnboardingProgress(undefined, undefined, true);
+      
       router.replace('/(tabs)');
     } catch (error) {
       console.error('Onboarding completion error:', error);
+      // Still navigate even if update fails
+      router.replace('/(tabs)');
     }
   };
 
