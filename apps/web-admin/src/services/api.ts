@@ -1,25 +1,19 @@
+import { API_CONFIG } from '@/config/api.config';
 import axios from 'axios';
 
-// API Gateway endpoints - routed through nginx
-export const API_BASE_URL = 'http://localhost:8080';
-
-const SERVICES = {
-  IDENTITY: `${API_BASE_URL}/api/identity`,
-  MEMBER: `${API_BASE_URL}/api/members`,
-  SCHEDULE: `${API_BASE_URL}/api/schedule`,
-  BILLING: `${API_BASE_URL}/api/billing`,
-};
+const { SERVICES } = API_CONFIG;
 
 // Create axios instance with default config
 export const api = axios.create({
-  baseURL: '/',
+  baseURL: API_CONFIG.BASE_URL,
+
   headers: {
     'Content-Type': 'application/json',
   },
   timeout: 10000,
 });
 
-// Create service-specific API instances
+// Create service-specific API instances using centralized config
 export const identityApi = axios.create({
   baseURL: SERVICES.IDENTITY,
   headers: { 'Content-Type': 'application/json' },
@@ -48,7 +42,7 @@ export const billingApi = axios.create({
 const addAuthInterceptor = (apiInstance: any) => {
   apiInstance.interceptors.request.use(
     (config: any) => {
-      const token = localStorage.getItem('auth_token');
+      const token = localStorage.getItem('accessToken');
       if (token) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -61,7 +55,9 @@ const addAuthInterceptor = (apiInstance: any) => {
     (response: any) => response,
     (error: any) => {
       if (error.response?.status === 401) {
-        localStorage.removeItem('auth_token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
         window.location.href = '/auth';
       }
       return Promise.reject(error);

@@ -1,4 +1,5 @@
-import { api } from './api';
+import { scheduleApi } from './api';
+import type { AxiosResponse } from 'axios';
 
 export interface Certification {
   id: string;
@@ -28,6 +29,7 @@ export interface CreateCertificationData {
   issued_date: string;
   expiration_date?: string;
   certificate_file_url?: string;
+  aiScanResult?: AIScanResult; // Optional: AI scan result from frontend (to avoid re-scanning)
 }
 
 export interface UploadResult {
@@ -62,6 +64,14 @@ export interface AIScanResult {
   redPixelCount?: number;
   totalPixels?: number;
   redPixelPercentage?: number;
+  extractedData?: {
+    certification_name?: string | null;
+    certification_issuer?: string | null;
+    issued_date?: string | null;
+    expiration_date?: string | null;
+    category?: string | null;
+    certification_level?: string | null;
+  };
   sealAnalysis?: {
     isSealLike: boolean;
     compactness: number;
@@ -82,19 +92,16 @@ export interface AvailableCategory {
 }
 
 class CertificationService {
-  private baseUrl = 'http://localhost:3003';
+  // Use centralized config - all URLs come from api.config.ts
 
   /**
    * Get all certifications for a trainer
+   * @param trainerId - Trainer ID (can be trainer.id or user_id, backend will resolve it)
    */
-  async getTrainerCertifications(userId: string): Promise<Certification[]> {
+  async getTrainerCertifications(trainerId: string): Promise<Certification[]> {
     try {
-      // First get trainer_id from user_id
-      const trainerResponse = await api.get(`${this.baseUrl}/trainers/user/${userId}`);
-      const trainerId = trainerResponse.data.data.trainer.id;
-
-      // Then get certifications using trainer_id
-      const response = await api.get(`${this.baseUrl}/trainers/${trainerId}/certifications`);
+      // Directly use trainerId - backend will resolve if it's user_id or trainer.id
+      const response = await scheduleApi.get(`/trainers/${trainerId}/certifications`);
       return response.data.data;
     } catch (error) {
       console.error('Error fetching trainer certifications:', error);
@@ -104,13 +111,18 @@ class CertificationService {
 
   /**
    * Create a new certification
+   * Note: This may take longer due to AI scanning, so timeout is increased to 90 seconds
    */
   async createCertification(
     trainerId: string,
     data: CreateCertificationData
   ): Promise<Certification> {
     try {
-      const response = await api.post(`${this.baseUrl}/trainers/${trainerId}/certifications`, data);
+      const response = await scheduleApi.post(
+        `/trainers/${trainerId}/certifications`,
+        data,
+        { timeout: 90000 } // 90 seconds - enough time for AI scan + database operations
+      );
       return response.data.data;
     } catch (error) {
       console.error('Error creating certification:', error);
@@ -126,7 +138,7 @@ class CertificationService {
     data: Partial<CreateCertificationData>
   ): Promise<Certification> {
     try {
-      const response = await api.put(`${this.baseUrl}/certifications/${certId}`, data);
+      const response = await scheduleApi.put(`/certifications/${certId}`, data);
       return response.data.data;
     } catch (error) {
       console.error('Error updating certification:', error);
@@ -139,7 +151,7 @@ class CertificationService {
    */
   async deleteCertification(certId: string): Promise<void> {
     try {
-      await api.delete(`${this.baseUrl}/certifications/${certId}`);
+      await scheduleApi.delete(`/certifications/${certId}`);
     } catch (error) {
       console.error('Error deleting certification:', error);
       throw error;
@@ -154,8 +166,8 @@ class CertificationService {
       const formData = new FormData();
       formData.append('certificate_file', file);
 
-      const response = await api.post(
-        `${this.baseUrl}/trainers/${trainerId}/upload-certificate`,
+      const response = await scheduleApi.post(
+        `/trainers/${trainerId}/upload-certificate`,
         formData,
         {
           headers: {
@@ -180,7 +192,7 @@ class CertificationService {
     mimeType: string
   ): Promise<PresignedUrlResult> {
     try {
-      const response = await api.post(`${this.baseUrl}/trainers/${trainerId}/presigned-url`, {
+      const response = await scheduleApi.post(`/trainers/${trainerId}/presigned-url`, {
         fileName,
         mimeType,
       });
@@ -194,16 +206,22 @@ class CertificationService {
 
   /**
    * Upload file directly to S3 using presigned URL
+   * Note: This method may have CORS issues. Use uploadCertificateFile instead.
    */
   async uploadToS3WithPresignedUrl(presignedUrl: string, file: File): Promise<void> {
     try {
-      await fetch(presignedUrl, {
+      const response = await fetch(presignedUrl, {
         method: 'PUT',
         body: file,
         headers: {
           'Content-Type': file.type,
         },
+        mode: 'cors', // Explicitly set CORS mode
       });
+
+      if (!response.ok) {
+        throw new Error(`S3 upload failed: ${response.status} ${response.statusText}`);
+      }
     } catch (error) {
       console.error('Error uploading to S3:', error);
       throw error;
@@ -215,8 +233,8 @@ class CertificationService {
    */
   async scanCertificateWithAI(imageUrl: string): Promise<AIScanResult> {
     try {
-      const response = await api.post(
-        `${this.baseUrl}/scan-certificate`,
+      const response = await scheduleApi.post(
+        `/scan-certificate`,
         { imageUrl },
         { timeout: 30000 }
       );
@@ -229,15 +247,12 @@ class CertificationService {
 
   /**
    * Get available categories for trainer
+   * @param trainerId - Trainer ID (can be trainer.id or user_id, backend will resolve it)
    */
-  async getAvailableCategories(userId: string): Promise<AvailableCategory[]> {
+  async getAvailableCategories(trainerId: string): Promise<AvailableCategory[]> {
     try {
-      // First get trainer_id from user_id
-      const trainerResponse = await api.get(`${this.baseUrl}/trainers/user/${userId}`);
-      const trainerId = trainerResponse.data.data.trainer.id;
-
-      // Then get available categories using trainer_id
-      const response = await api.get(`${this.baseUrl}/trainers/${trainerId}/available-categories`);
+      // Directly use trainerId - backend will resolve if it's user_id or trainer.id
+      const response = await scheduleApi.get(`/trainers/${trainerId}/available-categories`);
       return response.data.data.categories;
     } catch (error) {
       console.error('Error fetching available categories:', error);
@@ -253,8 +268,8 @@ class CertificationService {
     category: string
   ): Promise<{ hasAccess: boolean; certification?: any }> {
     try {
-      const response = await api.get(
-        `${this.baseUrl}/trainers/${trainerId}/categories/${category}/access`
+      const response = await scheduleApi.get(
+        `/trainers/${trainerId}/categories/${category}/access`
       );
       return response.data.data;
     } catch (error) {
@@ -265,31 +280,19 @@ class CertificationService {
 
   /**
    * Upload file to S3 only (without AI scan)
+   * Uses backend service to avoid CORS issues
    */
   async uploadFileOnly(trainerId: string, file: File): Promise<UploadResult> {
     try {
-      // Step 1: Generate presigned URL
-      const presignedUrlData = await this.generatePresignedUrl(trainerId, file.name, file.type);
-
-      // Step 2: Upload file to S3
-      await this.uploadToS3WithPresignedUrl(presignedUrlData.presignedUrl, file);
-
-      const uploadResult: UploadResult = {
-        url: presignedUrlData.publicUrl,
-        publicUrl: presignedUrlData.publicUrl,
-        key: presignedUrlData.key,
-        originalName: file.name,
-        size: file.size,
-        mimeType: file.type,
-        bucket: 'gym147-certifications', // This should come from the response
-      };
-
+      // Upload via backend service to avoid CORS issues
+      const uploadResult = await this.uploadCertificateFile(trainerId, file);
       return uploadResult;
     } catch (error) {
       console.error('Error in upload file only:', error);
       throw error;
     }
   }
+
 
   /**
    * Complete upload flow: generate presigned URL, upload to S3, scan with AI
@@ -386,9 +389,29 @@ class CertificationService {
     return diffDays <= days && diffDays > 0;
   }
 
-  getCertificateFileUrl(fileName: string): string {
-    // This should return the actual S3 URL or presigned URL
-    return `https://gym147-certifications.s3.amazonaws.com/certifications/${fileName}`;
+  getCertificateFileUrl(certificateFileUrl: string): string {
+    // If certificate_file_url is already a full URL, return it directly
+    // Backend returns full S3 URLs in format: https://bucket.s3.region.amazonaws.com/key
+    if (certificateFileUrl.startsWith('http://') || certificateFileUrl.startsWith('https://')) {
+      return certificateFileUrl;
+    }
+    
+    // If it's just a key (e.g., "certifications/abc123.png"), construct the URL
+    // Try to extract key from different formats
+    let key = certificateFileUrl;
+    
+    // If it contains slashes, it might be a key like "certifications/abc123.png"
+    // If it doesn't contain slashes, it's just a filename, add the folder prefix
+    if (!key.includes('/')) {
+      key = `certifications/${key}`;
+    }
+    
+    // Try to construct URL - but this might not work if bucket is not public
+    // Backend should return full URLs, so this is a fallback
+    const bucketName = 'gym147-bucket'; // This should match AWS_S3_BUCKET_NAME in backend
+    const region = 'ap-southeast-1'; // This should match AWS_REGION in backend
+    
+    return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`;
   }
 }
 
