@@ -1,7 +1,10 @@
+import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import Input from '../../components/form/input/InputField';
+import { Link } from 'react-router-dom';
+import CustomSelect from '../../components/common/CustomSelect';
 import Button from '../../components/ui/Button/Button';
 import { GymClass, scheduleService } from '../../services/schedule.service';
+import { socketService } from '../../services/socket.service';
 
 // Icons for better information display
 const ClockIcon = () => (
@@ -72,18 +75,29 @@ export default function TrainerClasses() {
       setLoading(true);
       const response = await scheduleService.getTrainerClasses();
 
-      if (response.success) {
-        const data = response.data as unknown as { classes: GymClass[] };
-        setClasses(Array.isArray(data?.classes) ? data.classes : []);
+      if (response.success && response.data) {
+        // response.data should be { classes: GymClass[] }
+        const classesData = response.data as { classes: GymClass[] };
+        
+        if (classesData && Array.isArray(classesData.classes)) {
+          setClasses(classesData.classes);
+        } else if (Array.isArray(response.data)) {
+          // Fallback: if response.data is directly an array
+          setClasses(response.data as unknown as GymClass[]);
+        } else {
+          console.warn('Unexpected response structure:', response.data);
+          setClasses([]);
+        }
       } else {
         throw new Error(response.message || 'Lỗi tải danh sách lớp học');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching classes:', error);
+      setClasses([]);
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Lỗi tải danh sách lớp học',
+          message: error?.message || 'Lỗi tải danh sách lớp học',
           duration: 3000,
         });
       }
@@ -93,6 +107,7 @@ export default function TrainerClasses() {
   };
 
   const filteredClasses = classes.filter(cls => {
+    if (!cls) return false;
     const matchesSearch =
       (cls.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (cls.description?.toLowerCase() || '').includes(searchTerm.toLowerCase());
@@ -103,11 +118,12 @@ export default function TrainerClasses() {
 
   // Sort classes
   const sortedClasses = [...filteredClasses].sort((a, b) => {
+    if (!a || !b) return 0;
     switch (sortBy) {
       case 'name':
-        return a.name.localeCompare(b.name);
+        return (a.name || '').localeCompare(b.name || '');
       case 'price':
-        return a.price - b.price;
+        return (a.price || 0) - (b.price || 0);
       case 'difficulty':
         const difficultyOrder: { [key: string]: number } = {
           BEGINNER: 1,
@@ -130,15 +146,16 @@ export default function TrainerClasses() {
     setSortBy('name');
   };
 
-  const getCategoryLabel = (category: string) => {
+  const getCategoryLabel = (category?: string) => {
+    if (!category) return 'Chưa phân loại';
     const categories: { [key: string]: string } = {
       CARDIO: 'Cardio',
-      STRENGTH: 'Tăng cơ',
+      STRENGTH: 'Sức mạnh',
       YOGA: 'Yoga',
       PILATES: 'Pilates',
-      DANCE: 'Nhảy',
+      DANCE: 'Khiêu vũ',
       MARTIAL_ARTS: 'Võ thuật',
-      AQUA: 'Bợi lội',
+      AQUA: 'Bơi lội',
       FUNCTIONAL: 'Chức năng',
       RECOVERY: 'Phục hồi',
       SPECIALIZED: 'Chuyên biệt',
@@ -146,17 +163,19 @@ export default function TrainerClasses() {
     return categories[category] || category;
   };
 
-  const getDifficultyLabel = (difficulty: string) => {
+  const getDifficultyLabel = (difficulty?: string) => {
+    if (!difficulty) return 'Chưa xác định';
     const difficulties: { [key: string]: string } = {
-      BEGINNER: 'Cơ bản',
+      BEGINNER: 'Người mới bắt đầu',
       INTERMEDIATE: 'Trung bình',
       ADVANCED: 'Nâng cao',
-      ALL_LEVELS: 'Phù hợp tất cả mọi người',
+      ALL_LEVELS: 'Tất cả cấp độ',
     };
     return difficulties[difficulty] || difficulty;
   };
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getDifficultyColor = (difficulty?: string) => {
+    if (!difficulty) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     const colors: { [key: string]: string } = {
       BEGINNER: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
       INTERMEDIATE: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
@@ -166,7 +185,8 @@ export default function TrainerClasses() {
     return colors[difficulty] || 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
   };
 
-  const getCategoryColor = (category: string) => {
+  const getCategoryColor = (category?: string) => {
+    if (!category) return 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-200';
     const colors: { [key: string]: string } = {
       CARDIO: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
       STRENGTH: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
@@ -183,7 +203,8 @@ export default function TrainerClasses() {
   };
 
   // Function to get class background image based on category
-  const getClassBackgroundImage = (category: string) => {
+  const getClassBackgroundImage = (category?: string) => {
+    if (!category) return '/images/gymclass/functional.jpg';
     const imageMap: { [key: string]: string } = {
       CARDIO: '/images/gymclass/cadio.webp',
       STRENGTH: '/images/gymclass/strength.jpg',
@@ -201,7 +222,8 @@ export default function TrainerClasses() {
   };
 
   // Function to get level image
-  const getLevelImage = (difficulty: string) => {
+  const getLevelImage = (difficulty?: string) => {
+    if (!difficulty) return '/images/level/ALL_LEVELS.png';
     const levelMap: { [key: string]: string } = {
       BEGINNER: '/images/level/BEGINNER.png',
       INTERMEDIATE: '/images/level/INTERMEDIATE.png',
@@ -257,41 +279,45 @@ export default function TrainerClasses() {
 
   // Skeleton loading component
   const SkeletonCard = () => (
-    <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 overflow-hidden animate-pulse'>
-      <div className='h-56 bg-gray-300 dark:bg-gray-600'></div>
-      <div className='p-7'>
-        <div className='h-6 bg-gray-300 dark:bg-gray-600 rounded mb-3'></div>
-        <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded mb-2'></div>
-        <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded w-3/4 mb-4'></div>
-        <div className='space-y-2'>
-          <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded'></div>
-          <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded'></div>
-          <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded'></div>
+    <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden animate-pulse'>
+      <div className='h-48 bg-gray-200 dark:bg-gray-700'></div>
+      <div className='p-4'>
+        <div className='h-5 bg-gray-200 dark:bg-gray-700 rounded mb-2'></div>
+        <div className='h-3 bg-gray-200 dark:bg-gray-700 rounded mb-2'></div>
+        <div className='h-3 bg-gray-200 dark:bg-gray-700 rounded w-3/4 mb-3'></div>
+        <div className='space-y-2 mb-3'>
+          <div className='h-3 bg-gray-200 dark:bg-gray-700 rounded'></div>
+          <div className='h-3 bg-gray-200 dark:bg-gray-700 rounded'></div>
+          <div className='h-3 bg-gray-200 dark:bg-gray-700 rounded'></div>
         </div>
+        <div className='h-8 bg-gray-200 dark:bg-gray-700 rounded'></div>
       </div>
     </div>
   );
 
   if (loading) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-          {/* Header Skeleton */}
-          <div className='mb-6'>
-            <div className='h-8 bg-gray-300 dark:bg-gray-600 rounded w-64 mb-2 animate-pulse'></div>
-            <div className='h-4 bg-gray-300 dark:bg-gray-600 rounded w-96 animate-pulse'></div>
-          </div>
+      <div className='p-6 space-y-6'>
+        {/* Header Skeleton */}
+        <div className='p-6 pb-0'>
+          <div className='h-7 bg-gray-200 dark:bg-gray-700 rounded w-48 mb-2 animate-pulse'></div>
+          <div className='h-4 bg-gray-200 dark:bg-gray-700 rounded w-64 animate-pulse'></div>
+        </div>
 
-          {/* Filter Skeleton */}
-          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8 animate-pulse'>
-            <div className='flex flex-col sm:flex-row gap-4'>
-              <div className='flex-1 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg'></div>
-              <div className='sm:w-48 h-10 bg-gray-300 dark:bg-gray-600 rounded-lg'></div>
+        {/* Filter Skeleton */}
+        <div className='px-6'>
+          <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3 animate-pulse'>
+            <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+              <div className='md:col-span-2 h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+              <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+              <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
             </div>
           </div>
+        </div>
 
-          {/* Cards Skeleton */}
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8'>
+        {/* Cards Skeleton */}
+        <div className='px-6 pb-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
             {Array.from({ length: 6 }).map((_, index) => (
               <SkeletonCard key={index} />
             ))}
@@ -302,164 +328,173 @@ export default function TrainerClasses() {
   }
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-        {/* Header Section */}
-        <div className='mb-6'>
-          <h1
-            className='text-2xl font-bold text-gray-800 dark:text-white/90 mb-2'
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-          >
-            Quản lý lớp học
-          </h1>
-          <p className='text-gray-600 dark:text-gray-400'>
-            Xem và quản lý các lớp học bạn đang dạy
-          </p>
+    <>
+      {/* Header */}
+      <div className='p-6 pb-0'>
+        <div className='flex justify-between items-start'>
+          <div>
+            <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
+              Quản lý lớp học
+            </h1>
+            <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+              Xem và quản lý các lớp học bạn đang dạy
+            </p>
+          </div>
         </div>
+      </div>
 
-        {/* Enhanced Filter Bar */}
-        <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8'>
-          <div className='flex flex-col lg:flex-row gap-4 mb-4'>
-            <div className='flex-1'>
-              <Input
+      {/* Filters */}
+      <div className='px-6'>
+        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-3'>
+            {/* Search Input */}
+            <div className='md:col-span-2 group relative'>
+              <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
+              <input
                 type='text'
                 placeholder='Tìm kiếm lớp học...'
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className='w-full'
+                className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
-            <div className='sm:w-48'>
-              <select
+
+            {/* Category Filter */}
+            <div>
+              <CustomSelect
+                options={[
+                  { value: '', label: 'Tất cả danh mục' },
+                  { value: 'CARDIO', label: 'Cardio' },
+                  { value: 'STRENGTH', label: 'Sức mạnh' },
+                  { value: 'YOGA', label: 'Yoga' },
+                  { value: 'PILATES', label: 'Pilates' },
+                  { value: 'DANCE', label: 'Khiêu vũ' },
+                  { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
+                  { value: 'AQUA', label: 'Bơi lội' },
+                  { value: 'FUNCTIONAL', label: 'Chức năng' },
+                  { value: 'RECOVERY', label: 'Phục hồi' },
+                  { value: 'SPECIALIZED', label: 'Chuyên biệt' },
+                ]}
                 value={categoryFilter}
-                onChange={e => setCategoryFilter(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent transition-all duration-200'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                <option value=''>Tất cả danh mục</option>
-                <option value='CARDIO'>Cardio</option>
-                <option value='STRENGTH'>Tăng cơ</option>
-                <option value='YOGA'>Yoga</option>
-                <option value='PILATES'>Pilates</option>
-                <option value='DANCE'>Nhảy</option>
-                <option value='MARTIAL_ARTS'>Võ thuật</option>
-                <option value='AQUA'>Bơi lội</option>
-                <option value='FUNCTIONAL'>Chức năng</option>
-                <option value='RECOVERY'>Phục hồi</option>
-                <option value='SPECIALIZED'>Chuyên biệt</option>
-              </select>
+                onChange={setCategoryFilter}
+                placeholder='Tất cả danh mục'
+                className='font-inter'
+              />
             </div>
-            <div className='sm:w-48'>
-              <select
+
+            {/* Difficulty Filter */}
+            <div>
+              <CustomSelect
+                options={[
+                  { value: '', label: 'Tất cả độ khó' },
+                  { value: 'BEGINNER', label: 'Người mới bắt đầu' },
+                  { value: 'INTERMEDIATE', label: 'Trung bình' },
+                  { value: 'ADVANCED', label: 'Nâng cao' },
+                  { value: 'ALL_LEVELS', label: 'Tất cả cấp độ' },
+                ]}
                 value={difficultyFilter}
-                onChange={e => setDifficultyFilter(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent transition-all duration-200'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                <option value=''>Tất cả độ khó</option>
-                <option value='BEGINNER'>Cơ bản</option>
-                <option value='INTERMEDIATE'>Trung bình</option>
-                <option value='ADVANCED'>Nâng cao</option>
-                <option value='ALL_LEVELS'>Tất cả mọi người</option>
-              </select>
-            </div>
-            <div className='sm:w-48'>
-              <select
-                value={sortBy}
-                onChange={e => setSortBy(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent transition-all duration-200'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                <option value='name'>Sắp xếp theo tên</option>
-                <option value='price'>Sắp xếp theo giá</option>
-                <option value='difficulty'>Sắp xếp theo độ khó</option>
-                <option value='rating'>Sắp xếp theo đánh giá</option>
-              </select>
+                onChange={setDifficultyFilter}
+                placeholder='Tất cả độ khó'
+                className='font-inter'
+              />
             </div>
           </div>
 
           {/* Results count and actions */}
-          <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4'>
-            <div className='flex items-center gap-4'>
-              <span className='text-sm text-gray-600 dark:text-gray-400'>
+          <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 pt-3 border-t border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center gap-4 flex-wrap'>
+              <span className='text-[11px] font-inter text-gray-600 dark:text-gray-400'>
                 Hiển thị {sortedClasses.length}/{classes.length} lớp học
               </span>
               {(searchTerm || categoryFilter || difficultyFilter) && (
                 <button
                   onClick={clearFilters}
-                  className='text-sm text-[var(--color-orange-600)] hover:text-[var(--color-orange-700)] dark:text-[var(--color-orange-400)] dark:hover:text-[var(--color-orange-300)] transition-colors duration-200'
+                  className='text-[11px] font-inter text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-colors duration-200'
                 >
                   Xóa bộ lọc
                 </button>
               )}
             </div>
 
-            {/* View mode toggle */}
-            <div className='flex items-center gap-2'>
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  viewMode === 'grid'
-                    ? 'bg-[var(--color-orange-100)] text-[var(--color-orange-600)] dark:bg-[var(--color-orange-900)] dark:text-[var(--color-orange-400)]'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'
-                  />
-                </svg>
-              </button>
-              <button
-                onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-all duration-200 ${
-                  viewMode === 'list'
-                    ? 'bg-[var(--color-orange-100)] text-[var(--color-orange-600)] dark:bg-[var(--color-orange-900)] dark:text-[var(--color-orange-400)]'
-                    : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
-                }`}
-              >
-                <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M4 6h16M4 10h16M4 14h16M4 18h16'
-                  />
-                </svg>
-              </button>
+            {/* View mode toggle and sort */}
+            <div className='flex items-center gap-3'>
+              <div className='w-32'>
+                <CustomSelect
+                  options={[
+                    { value: 'name', label: 'Sắp xếp theo tên' },
+                    { value: 'price', label: 'Sắp xếp theo giá' },
+                    { value: 'difficulty', label: 'Sắp xếp theo độ khó' },
+                    { value: 'rating', label: 'Sắp xếp theo đánh giá' },
+                  ]}
+                  value={sortBy}
+                  onChange={setSortBy}
+                  placeholder='Sắp xếp'
+                  className='font-inter'
+                />
+              </div>
+              <div className='flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1'>
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`p-1.5 rounded transition-all duration-200 ${
+                    viewMode === 'grid'
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'
+                    />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`p-1.5 rounded transition-all duration-200 ${
+                    viewMode === 'list'
+                      ? 'bg-orange-500 text-white shadow-sm'
+                      : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
+                  }`}
+                >
+                  <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M4 6h16M4 10h16M4 14h16M4 18h16'
+                    />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* Classes Grid */}
+      {/* Classes Grid */}
+      <div className='px-6 pb-6'>
         {sortedClasses.length > 0 ? (
           <div
-            className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8' : 'space-y-6'}`}
+            className={`${viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6' : 'space-y-4'}`}
           >
             {sortedClasses.map((cls, index) => (
               <div
                 key={cls.id}
-                className={`group bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 overflow-hidden transform hover:scale-[1.02] ${
+                className={`group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
                   viewMode === 'list' ? 'flex' : ''
                 }`}
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animation: 'fadeInUp 0.6s ease-out forwards',
-                }}
               >
                 {/* Class Image */}
                 <div
-                  className={`${viewMode === 'list' ? 'w-80 h-48' : 'h-56'} relative overflow-hidden`}
+                  className={`${viewMode === 'list' ? 'w-64 flex-shrink-0' : ''} h-48 relative overflow-hidden bg-gray-100 dark:bg-gray-800`}
                 >
                   {/* Background Image */}
                   <img
                     src={getClassBackgroundImage(cls.category)}
                     alt={cls.name}
-                    className='w-full h-full object-cover absolute inset-0 z-0 group-hover:scale-110 transition-transform duration-500'
-                    style={{ display: 'block' }}
+                    className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
                     onError={e => {
                       // Fallback to gradient if image fails to load
                       e.currentTarget.style.display = 'none';
@@ -471,10 +506,10 @@ export default function TrainerClasses() {
                   />
 
                   {/* Fallback Gradient */}
-                  <div className='w-full h-full bg-gradient-to-br from-[var(--color-orange-100)] to-[var(--color-orange-200)] dark:from-[var(--color-orange-900)] dark:to-[var(--color-orange-800)] items-center justify-center hidden'>
+                  <div className='w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900 dark:to-orange-800 items-center justify-center hidden'>
                     <div className='text-center'>
                       <svg
-                        className='w-16 h-16 text-[var(--color-orange-500)] mx-auto mb-2'
+                        className='w-12 h-12 text-orange-500 mx-auto mb-2'
                         fill='none'
                         stroke='currentColor'
                         viewBox='0 0 24 24'
@@ -486,44 +521,41 @@ export default function TrainerClasses() {
                           d='M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10'
                         />
                       </svg>
-                      <p
-                        className='text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] font-medium'
-                        style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-                      >
+                      <p className='text-orange-600 dark:text-orange-400 font-heading text-sm font-medium'>
                         {getCategoryLabel(cls.category)}
                       </p>
                     </div>
                   </div>
 
                   {/* Overlay for better text readability */}
-                  <div
-                    className='absolute inset-0 z-10'
-                    style={{ backgroundColor: 'rgba(0, 0, 0, 0.2)' }}
-                  ></div>
+                  <div className='absolute inset-0 bg-black/20'></div>
 
                   {/* Category Badge - Top Left */}
-                  <div className='absolute top-3 left-3 z-20'>
-                    <span className='px-3 py-1 rounded-full text-xs font-medium bg-white bg-opacity-95 backdrop-blur-sm text-[var(--color-orange-600)] shadow-sm border border-white border-opacity-50'>
+                  <div className='absolute top-2 left-2 z-10'>
+                    <span className='px-2 py-1 rounded-md text-[10px] font-heading font-semibold bg-white/95 dark:bg-gray-900/95 text-orange-600 dark:text-orange-400 shadow-sm'>
                       {getCategoryLabel(cls.category)}
                     </span>
                   </div>
 
-                  {/* Level Badge with Animation - Top Right */}
-                  <div className='absolute top-3 right-3 z-20'>
+                  {/* Level Image - Top Right */}
+                  <div className='absolute top-2 right-2 z-10'>
                     <div className='relative animate-bounce'>
                       <img
                         src={getLevelImage(cls.difficulty)}
                         alt={`Level ${getDifficultyLabel(cls.difficulty)}`}
-                        className='w-22 h-18 drop-shadow-lg'
+                        className='w-16 h-14 object-contain drop-shadow-lg'
+                        onError={e => {
+                          // Hide image if it fails to load
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     </div>
                   </div>
 
-                  {/* Difficulty Text Badge - Bottom Right */}
-                  <div className='absolute bottom-3 right-3 z-20'>
+                  {/* Difficulty Badge - Bottom Right */}
+                  <div className='absolute bottom-2 right-2 z-10'>
                     <span
-                      className={`px-3 py-1 rounded-full text-xs font-bold backdrop-blur-sm shadow-sm ${getDifficultyColor(cls.difficulty)}`}
-                      title={`Độ khó: ${getDifficultyLabel(cls.difficulty)}`}
+                      className={`px-2 py-1 rounded-md text-[10px] font-heading font-semibold bg-white/95 dark:bg-gray-900/95 ${getDifficultyColor(cls.difficulty)}`}
                     >
                       {getDifficultyLabel(cls.difficulty)}
                     </span>
@@ -531,129 +563,101 @@ export default function TrainerClasses() {
                 </div>
 
                 {/* Class Info */}
-                <div className={`${viewMode === 'list' ? 'flex-1' : ''} p-7`}>
-                  <div className='flex items-start justify-between mb-4'>
-                    <h3
-                      className='text-xl font-bold text-gray-900 dark:text-white flex-1 leading-tight'
-                      style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-                    >
-                      {cls.name}
+                <div className={`${viewMode === 'list' ? 'flex-1' : ''} p-4`}>
+                  <div className='mb-3'>
+                    <h3 className='text-base font-bold font-heading text-gray-900 dark:text-white leading-tight mb-2'>
+                      {cls.name || 'Chưa có tên'}
                     </h3>
-                    {viewMode === 'grid' && (
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(cls.category)}`}
-                      >
-                        {getCategoryLabel(cls.category)}
-                      </span>
-                    )}
+                    <p className='text-[11px] font-inter text-gray-600 dark:text-gray-400 line-clamp-2 leading-tight'>
+                      {cls.description || 'Chưa có mô tả'}
+                    </p>
                   </div>
 
-                  <p className='text-gray-600 dark:text-gray-400 text-sm mb-4 line-clamp-2 leading-relaxed'>
-                    {cls.description}
-                  </p>
-
-                  {/* Rating Display */}
-                  {cls.rating_average && cls.rating_average > 0 && (
-                    <div className='flex items-center gap-2 mb-4'>
-                      <div className='flex items-center text-yellow-500'>
-                        {renderStars(cls.rating_average)}
-                      </div>
-                      <span className='text-sm text-gray-600 dark:text-gray-400'>
-                        ({cls.rating_average.toFixed(1)})
-                      </span>
-                    </div>
-                  )}
-
                   {/* Class Details */}
-                  <div className='space-y-3 mb-6'>
-                    <div className='flex items-center justify-between text-sm'>
-                      <div className='flex items-center gap-2 text-gray-500 dark:text-gray-400'>
+                  <div className='space-y-2 mb-4'>
+                    <div className='flex items-center justify-between text-[11px]'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
                         <ClockIcon />
                         <span>Thời lượng:</span>
                       </div>
-                      <span className='text-gray-900 dark:text-white font-semibold'>
-                        {cls.duration} phút
+                      <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                        {cls.duration || 0} phút
                       </span>
                     </div>
-                    <div className='flex items-center justify-between text-sm'>
-                      <div className='flex items-center gap-2 text-gray-500 dark:text-gray-400'>
+                    <div className='flex items-center justify-between text-[11px]'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
                         <UsersIcon />
                         <span>Sức chứa:</span>
                       </div>
-                      <span className='text-gray-900 dark:text-white font-semibold'>
-                        {cls.max_capacity} người
+                      <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                        {cls.max_capacity || 0} người
                       </span>
                     </div>
-                    <div className='flex items-center justify-between text-sm'>
-                      <div className='flex items-center gap-2 text-gray-500 dark:text-gray-400'>
-                        <TrendingUpIcon />
-                        <span>Độ khó:</span>
-                      </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getDifficultyColor(cls.difficulty)}`}
-                      >
-                        {getDifficultyLabel(cls.difficulty)}
-                      </span>
-                    </div>
-                    <div className='flex items-center justify-between text-sm'>
-                      <div className='flex items-center gap-2 text-gray-500 dark:text-gray-400'>
+                    <div className='flex items-center justify-between text-[11px]'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
                         <CurrencyIcon />
                         <span>Giá:</span>
                       </div>
-                      <span className='text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] font-bold text-lg'>
-                        {formatPrice(cls.price)}
+                      <span className='text-orange-600 dark:text-orange-400 font-heading font-bold'>
+                        {formatPrice(cls.price || 0)}
                       </span>
                     </div>
+                    {cls.rating_average && cls.rating_average > 0 && (
+                      <div className='flex items-center justify-between text-[11px]'>
+                        <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
+                          <StarIcon />
+                          <span>Đánh giá:</span>
+                        </div>
+                        <div className='flex items-center gap-1'>
+                          <div className='flex items-center text-yellow-500'>
+                            {renderStars(cls.rating_average)}
+                          </div>
+                          <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                            {cls.rating_average.toFixed(1)}
+                          </span>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Status and Actions */}
-                  <div className='flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700'>
-                    <div className='flex items-center'>
+                  <div className='flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700'>
+                    <div className='flex items-center gap-2'>
                       <div
-                        className={`w-3 h-3 rounded-full mr-3 ${cls.is_active ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}
+                        className={`w-2 h-2 rounded-full ${cls.is_active ? 'bg-green-500' : 'bg-gray-400'}`}
                       ></div>
-                      <span className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                      <span className='text-[11px] font-inter text-gray-600 dark:text-gray-400'>
                         {cls.is_active ? 'Hoạt động' : 'Tạm dừng'}
                       </span>
                     </div>
-                    <div className='flex items-center gap-2'>
+                    <Link
+                      to={`/trainerdashboard/schedule?classId=${cls.id}`}
+                      className='inline-block'
+                    >
                       <Button
                         variant='outline'
                         size='sm'
-                        className='text-[var(--color-orange-600)] border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:text-[var(--color-orange-400)] dark:border-[var(--color-orange-400)] dark:hover:bg-[var(--color-orange-900)] transition-all duration-200 hover:scale-105'
+                        className='text-[11px] font-heading px-3 py-1.5'
+                        type='button'
+                        onClick={e => {
+                          // Allow Link navigation
+                          e.stopPropagation();
+                        }}
                       >
                         Xem chi tiết
                       </Button>
-                      <button
-                        className='p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors duration-200'
-                        title='Thêm vào yêu thích'
-                      >
-                        <svg
-                          className='w-5 h-5'
-                          fill='none'
-                          stroke='currentColor'
-                          viewBox='0 0 24 24'
-                        >
-                          <path
-                            strokeLinecap='round'
-                            strokeLinejoin='round'
-                            strokeWidth={2}
-                            d='M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z'
-                          />
-                        </svg>
-                      </button>
-                    </div>
+                    </Link>
                   </div>
                 </div>
               </div>
             ))}
           </div>
         ) : (
-          <div className='text-center py-16'>
+          <div className='text-center py-12'>
             <div className='max-w-md mx-auto'>
-              <div className='w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-[var(--color-orange-100)] to-[var(--color-orange-200)] dark:from-[var(--color-orange-900)] dark:to-[var(--color-orange-800)] rounded-full flex items-center justify-center'>
+              <div className='w-16 h-16 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center'>
                 <svg
-                  className='w-12 h-12 text-[var(--color-orange-500)]'
+                  className='w-8 h-8 text-orange-500 dark:text-orange-400'
                   fill='none'
                   stroke='currentColor'
                   viewBox='0 0 24 24'
@@ -666,15 +670,12 @@ export default function TrainerClasses() {
                   />
                 </svg>
               </div>
-              <h3
-                className='text-2xl font-bold text-gray-900 dark:text-white mb-3'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
+              <h3 className='text-lg font-bold font-heading text-gray-900 dark:text-white mb-2'>
                 {searchTerm || categoryFilter || difficultyFilter
                   ? 'Không tìm thấy lớp học phù hợp'
                   : 'Chưa có lớp học nào'}
               </h3>
-              <p className='text-gray-600 dark:text-gray-400 mb-6 leading-relaxed'>
+              <p className='text-sm font-inter text-gray-600 dark:text-gray-400 mb-4'>
                 {searchTerm || categoryFilter || difficultyFilter
                   ? 'Thử thay đổi bộ lọc tìm kiếm hoặc xóa bộ lọc để xem tất cả lớp học'
                   : 'Bạn chưa có lớp học nào được gán. Liên hệ quản trị viên để được phân công lớp học.'}
@@ -682,7 +683,9 @@ export default function TrainerClasses() {
               {(searchTerm || categoryFilter || difficultyFilter) && (
                 <Button
                   onClick={clearFilters}
-                  className='bg-[var(--color-orange-500)] hover:bg-[var(--color-orange-600)] text-white transition-all duration-200 hover:scale-105'
+                  variant='primary'
+                  size='sm'
+                  className='text-[11px] font-heading'
                 >
                   Xóa bộ lọc
                 </Button>
@@ -691,6 +694,6 @@ export default function TrainerClasses() {
           </div>
         )}
       </div>
-    </div>
+    </>
   );
 }
