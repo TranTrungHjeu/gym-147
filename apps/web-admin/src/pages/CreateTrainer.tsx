@@ -108,13 +108,24 @@ const CreateTrainer: React.FC = () => {
       console.log('Trainer API Response:', response);
 
       if (response.success) {
+        // Check if trainer was created in schedule-service
+        const scheduleServiceCreated = response.data?.scheduleServiceCreated !== false;
+        
         if (window.showToast) {
-          window.showToast({
-            type: 'success',
-            message:
-              'Tạo trainer thành công! Tài khoản đã được kích hoạt và có thể đăng nhập ngay.',
-            duration: 5000,
-          });
+          if (scheduleServiceCreated) {
+            window.showToast({
+              type: 'success',
+              message: 'Tạo trainer thành công! Tài khoản đã được kích hoạt và có thể đăng nhập ngay.',
+              duration: 5000,
+            });
+          } else {
+            window.showToast({
+              type: 'warning',
+              message: 'Tạo trainer thành công nhưng chưa được tạo trong schedule-service. Vui lòng kiểm tra logs.',
+              duration: 7000,
+            });
+            console.warn('Schedule service error:', response.data?.scheduleServiceError);
+          }
         }
 
         // Show success modal

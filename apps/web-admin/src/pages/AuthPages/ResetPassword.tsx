@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ResetPasswordForm from '../../components/auth/ResetPasswordForm';
 import ThemeTogglerTwo from '../../components/common/ThemeTogglerTwo';
+import AuthAnimation from '@/assets/animation-gym147-2.mp4';
+import LogoText from '@/assets/images/logo-text.png';
 
 export default function ResetPassword() {
   const [isLoaded, setIsLoaded] = useState(false);
@@ -55,7 +57,7 @@ export default function ResetPassword() {
               playsInline
               className='absolute inset-0 w-full h-full object-cover'
             >
-              <source src='/src/assets/animation-gym147-2.mp4' type='video/webm' />
+              <source src={AuthAnimation} type='video/mp4' />
             </video>
             <div className='absolute inset-0 bg-gradient-to-t from-white/60 via-white/20 to-transparent dark:from-black/70 dark:via-black/30'></div>
           </div>
@@ -70,7 +72,7 @@ export default function ResetPassword() {
               >
                 <div className='flex items-center justify-center mb-4'>
                   <img
-                    src='/src/assets/images/logo-text.png'
+                    src={LogoText}
                     alt='Gym 147 Logo'
                     className='h-16 w-auto object-contain drop-shadow-lg'
                   />
