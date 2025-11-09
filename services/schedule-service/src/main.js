@@ -17,7 +17,7 @@ const server = http.createServer(app);
 // Initialize Socket.IO with CORS
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000'],
+    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://127.0.0.1:8081'],
     methods: ['GET', 'POST'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -37,8 +37,11 @@ io.on('connection', socket => {
 
   // Subscribe to user-specific notifications (for trainers, admins, etc.)
   socket.on('subscribe:user', user_id => {
-    socket.join(`user:${user_id}`);
-    console.log(`Socket ${socket.id} subscribed to user:${user_id}`);
+    const roomName = `user:${user_id}`;
+    socket.join(roomName);
+    const room = io.sockets.adapter.rooms.get(roomName);
+    const socketCount = room ? room.size : 0;
+    console.log(`📡 Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`);
   });
 
   // Unsubscribe from user notifications
@@ -70,7 +73,29 @@ io.on('connection', socket => {
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8081'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
 
 // Configure helmet to allow WebSocket connections
 app.use(
@@ -84,24 +109,10 @@ app.use(morgan('dev'));
 // Routes
 app.use('/', routes);
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    data: null,
-  });
-});
-
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-    data: null,
-  });
-});
+// Error handling middleware (must be after routes)
+const { errorHandler, notFoundHandler } = require('../../../packages/shared-middleware/src/error.middleware.js');
+app.use(notFoundHandler);
+app.use(errorHandler);
 
 const port = process.env.PORT || 3003;
 
@@ -115,7 +126,8 @@ async function startServer() {
   // Start auto check-out service (every 1 minute)
   autoCheckoutService.start();
 
-  server.listen(port, () => {
+  const host = process.env.HOST || '0.0.0.0';
+  server.listen(port, host, () => {
     console.log(`Schedule service listening on port ${port}`);
     console.log(`WebSocket server initialized`);
     console.log(`Auto-update cron job started (every 1 minute)`);
