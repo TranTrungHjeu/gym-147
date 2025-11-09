@@ -433,7 +433,9 @@ class BookingController {
                 schedule_id: schedule_id,
                 class_name: booking.schedule.gym_class?.name || 'Lớp học',
                 member_name: member?.full_name || 'Thành viên',
+                member_id: member?.id,
                 booked_at: booking.booked_at,
+                role: 'MEMBER', // Add role to identify notification source
               },
             });
           } catch (notifError) {

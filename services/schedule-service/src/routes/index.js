@@ -41,14 +41,17 @@ router.get('/', (req, res) => {
 });
 
 // Mount all route modules
+// IMPORTANT: Mount trainer routes FIRST so that specific routes like /:trainerId/certifications are matched before generic routes
+// Trainer routes now include certification routes (/:trainerId/certifications) which are defined before /:id route
 router.use('/trainers', trainerRoutes);
+// Keep certification routes for other endpoints like /certifications, /admin/certifications, /scan-certificate, etc.
+router.use('/', certificationRoutes);
 router.use('/classes', classRoutes);
 router.use('/rooms', roomRoutes);
 router.use('/schedules', scheduleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/auto-update', autoUpdateRoutes);
-router.use('/', certificationRoutes); // Certification routes (includes /certifications, /admin/certifications, etc.)
 router.use('/', notificationRoutes); // Notification routes
 router.use('/', utilityRoutes); // Health, stats, sample-data
 router.use('/', favoriteRoutes); // Favorite routes

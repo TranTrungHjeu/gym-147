@@ -56,18 +56,27 @@ export const ToastProvider: React.FC<ToastProviderProps> = ({ children }) => {
   return (
     <ToastContext.Provider value={{ showToast, hideToast }}>
       {children}
-      {/* Render all toasts */}
-      {toasts.map(toast => (
-        <Toast
-          key={toast.id}
-          message={toast.message}
-          type={toast.type}
-          isVisible={true}
-          onClose={() => hideToast(toast.id)}
-          duration={toast.duration}
-          countdown={toast.countdown}
-        />
-      ))}
+      {/* Render all toasts - stack from top-right */}
+      <div className='fixed top-4 right-4 z-[100000] flex flex-col gap-3 pointer-events-none'>
+        {toasts.map((toast, index) => (
+          <div
+            key={toast.id}
+            className='pointer-events-auto'
+            style={{
+              transform: `translateY(${index * 8}px)`,
+            }}
+          >
+            <Toast
+              message={toast.message}
+              type={toast.type}
+              isVisible={true}
+              onClose={() => hideToast(toast.id)}
+              duration={toast.duration}
+              countdown={toast.countdown}
+            />
+          </div>
+        ))}
+      </div>
     </ToastContext.Provider>
   );
 };

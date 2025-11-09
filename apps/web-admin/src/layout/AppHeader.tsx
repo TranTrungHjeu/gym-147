@@ -156,8 +156,13 @@ const AppHeader: React.FC = () => {
               userId={(() => {
                 try {
                   const user = localStorage.getItem('user');
-                  return user ? JSON.parse(user).id : '';
-                } catch {
+                  const userData = user ? JSON.parse(user) : null;
+                  const userId = userData?.id || userData?.userId || '';
+                  console.log('🔍 AppHeader: User ID from localStorage:', userId);
+                  console.log('🔍 AppHeader: Full user data:', userData);
+                  return userId;
+                } catch (error) {
+                  console.error('❌ AppHeader: Error parsing user data:', error);
                   return '';
                 }
               })()}

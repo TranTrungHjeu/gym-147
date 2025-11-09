@@ -1,0 +1,330 @@
+{
+  "common": {
+    "logout": "Logout",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "reset": "Reset",
+    "dashboard": "Dashboard",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "noData": "No data",
+    "close": "Close",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours ago",
+    "daysAgo": "{{count}} days ago",
+    "user": "User",
+    "defaultUserName": "User",
+    "prev": "Prev",
+    "next": "Next",
+    "page": "Page",
+    "of": "of"
+  },
+  "user": {
+    "menu": {
+      "editProfile": "Edit profile",
+      "accountSettings": "Account settings",
+      "support": "Support",
+      "signOut": "Sign out",
+      "language": "Language"
+    },
+    "languages": {
+      "vietnamese": "Vietnamese",
+      "english": "English",
+      "vietnameseNative": "Tiếng Việt",
+      "englishNative": "English"
+    }
+  },
+  "dashboard": {
+    "admin": {
+      "title": "Admin Dashboard",
+      "subtitle": "Gym and staff management",
+      "metrics": {
+        "trainer": "Trainer",
+        "member": "Member",
+        "equipment": "Equipment",
+        "newMembers": "New Members (30 days)",
+        "activeSessions": "Active Sessions (24h)"
+      },
+      "quickActions": {
+        "title": "Quick Actions",
+        "subtitle": "Gym management functions",
+        "viewDashboard": "Dashboard",
+        "viewDashboardDesc": "View gym overview",
+        "createTrainer": "Create Trainer",
+        "createTrainerDesc": "Create trainer account"
+      },
+      "activity": {
+        "title": "Activity Statistics",
+        "subtitle": "Monitor gym status",
+        "recentActivity": "Recent Activity",
+        "recentActivitySubtitle": "5 latest activities",
+        "noActivity": "No activity yet",
+        "types": {
+          "newTrainerRegistered": "New trainer registered",
+          "newMemberRegistered": "New member registered",
+          "newAdminRegistered": "New admin registered",
+          "loggedIn": "Logged in using",
+          "at": "at"
+        },
+        "roles": {
+          "member": "Member",
+          "trainer": "Trainer",
+          "admin": "Admin",
+          "superAdmin": "Super Admin"
+        }
+      },
+      "system": {
+        "title": "System Management",
+        "subtitle": "Important system operations",
+        "resetRateLimits": "Reset Rate Limits",
+        "resetRateLimitsDesc": "Reset schedule creation limits for all trainers",
+        "confirmReset": "Confirm Reset Rate Limits",
+        "confirmResetSubtitle": "Important system operation",
+        "confirmResetMessage": "Are you sure you want to",
+        "resetAllRateLimits": "reset all rate limits",
+        "confirmResetQuestion": "?",
+        "resetEffects": {
+          "removeLimits": "Remove all schedule creation limits for all trainers",
+          "allowImmediate": "Allow trainers to create new schedules immediately",
+          "cannotUndo": "Cannot be undone"
+        },
+        "resetSuccess": "Successfully reset {{count}} rate limit(s)",
+        "resetError": "Failed to reset rate limits",
+        "resetErrorGeneric": "Error resetting rate limits"
+      },
+      "errors": {
+        "loadStatsFailed": "Failed to load dashboard statistics",
+        "loadDataError": "Error loading dashboard data"
+      }
+    },
+    "superAdmin": {
+      "title": "Super Admin Dashboard",
+      "subtitle": "Gym 147 System Management",
+      "metrics": {
+        "totalUsers": "Total Users",
+        "admin": "Admin",
+        "trainer": "Trainer",
+        "member": "Member",
+        "newRegistrations": "New Registrations (30 days)",
+        "activeSessions": "Active Sessions (24h)"
+      },
+      "quickActions": {
+        "title": "Quick Actions",
+        "subtitle": "System administration functions",
+        "viewDashboard": "Dashboard",
+        "viewDashboardDesc": "View system overview",
+        "createAdmin": "Create Admin",
+        "createAdminDesc": "Create administrator account",
+        "createTrainer": "Create Trainer",
+        "createTrainerDesc": "Create trainer account"
+      },
+      "activity": {
+        "title": "Activity Statistics",
+        "subtitle": "Monitor system status",
+        "recentActivity": "Recent Activity",
+        "recentActivitySubtitle": "5 latest activities",
+        "noActivity": "No activity yet",
+        "types": {
+          "newTrainerRegistered": "New trainer registered",
+          "newMemberRegistered": "New member registered",
+          "newAdminRegistered": "New admin registered",
+          "newSuperAdminRegistered": "New super admin registered",
+          "loggedIn": "Logged in using",
+          "at": "at"
+        },
+        "roles": {
+          "member": "Member",
+          "trainer": "Trainer",
+          "admin": "Admin",
+          "superAdmin": "Super Admin"
+        }
+      },
+      "errors": {
+        "loadStatsFailed": "Failed to load dashboard statistics",
+        "loadDataError": "Error loading dashboard data"
+      }
+    }
+  },
+  "userManagement": {
+    "title": "User Management",
+    "subtitle": "Manage user accounts in the system",
+    "stats": {
+      "totalUsers": "Total Users",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "userList": {
+      "title": "User List",
+      "noUsers": "No users found"
+    },
+    "search": {
+      "placeholder": "Search users..."
+    },
+    "filter": {
+      "allRoles": "All roles"
+    },
+    "roles": {
+      "superAdmin": "Super Admin",
+      "admin": "Admin",
+      "trainer": "Trainer",
+      "member": "Member"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "empty": {
+      "selectUser": "Select a user to view details",
+      "description": "User details will be displayed here",
+      "noUserFound": "User not found"
+    },
+    "userInfo": {
+      "firstName": "First Name",
+      "lastName": "Last Name",
+      "email": "Email",
+      "phone": "Phone",
+      "notUpdated": "Not updated"
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteFeatureComing": "Delete feature is under development"
+    },
+    "confirmDelete": "Are you sure you want to delete this user?",
+    "deleteSuccess": "User deleted successfully!",
+    "errors": {
+      "loadUsersFailed": "Failed to load user list",
+      "deleteFailed": "Error deleting user: {{error}}"
+    }
+  },
+  "equipmentManagement": {
+    "title": "Equipment Management",
+    "subtitle": "Manage all equipment in the gym",
+    "addEquipment": "Add Equipment",
+    "search": {
+      "placeholder": "Search equipment..."
+    },
+    "filter": {
+      "allCategories": "All categories",
+      "allStatuses": "All statuses",
+      "refresh": "Refresh"
+    },
+    "categories": {
+      "CARDIO": "Cardio",
+      "STRENGTH": "Strength",
+      "FREE_WEIGHTS": "Free Weights",
+      "FUNCTIONAL": "Functional",
+      "STRETCHING": "Stretching",
+      "RECOVERY": "Recovery",
+      "SPECIALIZED": "Specialized"
+    },
+    "statuses": {
+      "AVAILABLE": "Available",
+      "IN_USE": "In Use",
+      "MAINTENANCE": "Maintenance",
+      "OUT_OF_ORDER": "Out of Order",
+      "RESERVED": "Reserved"
+    },
+    "table": {
+      "name": "Name",
+      "category": "Category",
+      "status": "Status",
+      "location": "Location",
+      "actions": "Actions"
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "view": "View"
+    },
+    "empty": {
+      "noEquipment": "No equipment found",
+      "noResults": "No equipment found"
+    },
+    "form": {
+      "addTitle": "Add New Equipment",
+      "editTitle": "Edit Equipment",
+      "name": "Equipment Name",
+      "nameRequired": "Equipment name is required",
+      "nameMaxLength": "Equipment name cannot exceed 100 characters",
+      "category": "Category",
+      "categoryRequired": "Category is required",
+      "status": "Status",
+      "statusRequired": "Status is required",
+      "location": "Location",
+      "locationMaxLength": "Location cannot exceed 100 characters",
+      "description": "Description",
+      "descriptionMaxLength": "Description cannot exceed 500 characters",
+      "photo": "Equipment Photo",
+      "photoPlaceholder": "Click to upload equipment photo",
+      "photoHint": "JPG, PNG or WEBP (Max 5MB)",
+      "photoInvalidType": "Only image files are allowed",
+      "photoTooLarge": "Photo size must be less than 5MB",
+      "photoUploadError": "Failed to upload photo. Please try again.",
+      "uploadPhoto": "Upload Photo",
+      "viewPhoto": "View Photo",
+      "save": "Save",
+      "create": "Create",
+      "update": "Update",
+      "cancel": "Cancel"
+    },
+    "details": {
+      "title": "Equipment Details",
+      "photo": "Equipment Photo",
+      "noPhoto": "No photo available",
+      "brand": "Brand",
+      "model": "Model",
+      "serialNumber": "Serial Number",
+      "usageHours": "Usage Hours",
+      "hours": "hours",
+      "maxWeight": "Max Weight",
+      "lastMaintenance": "Maintenance At",
+      "nextMaintenance": "Next Maintenance",
+      "usageCount": "Usage Count",
+      "maintenanceCount": "Maintenance Count",
+      "queueCount": "In Queue",
+      "features": "Features",
+      "heartMonitor": "Heart Monitor",
+      "calorieCounter": "Calorie Counter",
+      "repCounter": "Rep Counter",
+      "wifiEnabled": "WiFi Enabled",
+      "sensorId": "Sensor ID",
+      "purchaseDate": "Purchase Date",
+      "warrantyUntil": "Warranty Until",
+      "createdAt": "Created At",
+      "updatedAt": "Updated At",
+      "lastUser": "Last User",
+      "overdueMaintenance": "Overdue Maintenance",
+      "dueMaintenance": "Due Maintenance",
+      "notMaintainedFor": "Not maintained for {{time}}",
+      "day": "day",
+      "days": "days",
+      "month": "month",
+      "months": "months",
+      "hour": "hour",
+      "hours": "hours"
+    },
+    "usersModal": {
+      "title": "Equipment Users",
+      "subtitle": "List of members who have used this equipment",
+      "noUsers": "No users found",
+      "unknownUser": "Unknown User",
+      "membershipNumber": "Membership Number",
+      "minutes": "minutes"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Equipment",
+      "confirmMessage": "Are you sure you want to delete equipment \"{{name}}\"? This action cannot be undone.",
+      "success": "Equipment deleted successfully",
+      "error": "Failed to delete equipment"
+    },
+    "messages": {
+      "createSuccess": "Equipment created successfully",
+      "updateSuccess": "Equipment updated successfully",
+      "loadError": "Failed to load equipment list",
+      "saveError": "Failed to save equipment"
+    }
+  }
+}

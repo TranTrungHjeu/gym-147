@@ -4,10 +4,11 @@ import interactionPlugin from '@fullcalendar/interaction';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import { AnimatePresence, motion } from 'framer-motion';
-import { useEffect, useState } from 'react';
-import { SimpleLoading } from '../../components/ui/AppLoading/Loading';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import CustomSelect from '../../components/common/CustomSelect';
 import Button from '../../components/ui/Button/Button';
 // Removed SVG icon imports - using colored dots instead
+import EventDetailsModal from '../../components/modals/EventDetailsModal';
 import { CalendarEvent, scheduleService } from '../../services/schedule.service';
 
 // Import Vietnamese locale
@@ -15,7 +16,6 @@ import viLocale from '@fullcalendar/core/locales/vi';
 
 export default function TrainerCalendarSplitView() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
-  const [filteredEvents, setFilteredEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterLoading, setFilterLoading] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -27,32 +27,63 @@ export default function TrainerCalendarSplitView() {
     room: '',
   });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
 
-  // Database data for filter options
-  const [classTypes, setClassTypes] = useState<string[]>([
-    'Yoga Cơ Bản',
-    'Pilates Nâng Cao',
-    'Dance Fitness',
-    'Martial Arts',
-    'Strength',
-    'Functional',
-    'Recovery',
-    'Specialized',
-  ]);
-  const [rooms, setRooms] = useState<string[]>([
-    'Phòng A',
-    'Phòng B',
-    'Studio 1',
-    'Studio 2',
-    'Phòng VIP',
-    'Sân ngoài trời',
-  ]);
+  // Database data for filter options - will be updated from API
+  const [classTypes, setClassTypes] = useState<string[]>([]);
+  const [rooms, setRooms] = useState<string[]>([]);
   const [statuses] = useState([
-    { value: 'SCHEDULED', label: '📅 Đã lên lịch' },
-    { value: 'IN_PROGRESS', label: '🔄 Đang diễn ra' },
-    { value: 'COMPLETED', label: '✅ Hoàn thành' },
-    { value: 'CANCELLED', label: '❌ Đã hủy' },
+    { value: 'SCHEDULED', label: 'Đã lên lịch' },
+    { value: 'IN_PROGRESS', label: 'Đang diễn ra' },
+    { value: 'COMPLETED', label: 'Hoàn thành' },
+    { value: 'CANCELLED', label: 'Đã hủy' },
   ]);
+
+  // Memoized filtered events - chỉ tính lại khi events hoặc filters thay đổi
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      const matchesStatus = !filters.status || event.status === filters.status;
+      const matchesClassType =
+        !filters.classType ||
+        event.class_name?.toLowerCase().includes(filters.classType.toLowerCase());
+
+      // Room matching with multiple strategies
+      let matchesRoom = true;
+      if (filters.room) {
+        const filterRoom = filters.room.toLowerCase().trim();
+        const eventRoom = (event.room || '').toLowerCase().trim();
+
+        // Try exact match first
+        matchesRoom = eventRoom === filterRoom;
+
+        // If no exact match, try contains
+        if (!matchesRoom) {
+          matchesRoom = eventRoom.includes(filterRoom) || filterRoom.includes(eventRoom);
+        }
+
+        // If still no match, try partial matching (remove spaces, special chars)
+        if (!matchesRoom) {
+          const cleanFilterRoom = filterRoom.replace(/[^a-z0-9]/g, '');
+          const cleanEventRoom = eventRoom.replace(/[^a-z0-9]/g, '');
+          matchesRoom =
+            cleanEventRoom.includes(cleanFilterRoom) || cleanFilterRoom.includes(cleanEventRoom);
+        }
+      }
+
+      return matchesStatus && matchesClassType && matchesRoom;
+    });
+  }, [events, filters]);
+
+  // Memoized statistics
+  const statistics = useMemo(() => {
+    const total = filteredEvents.length;
+    const scheduled = filteredEvents.filter(e => e.status === 'SCHEDULED').length;
+    const inProgress = filteredEvents.filter(e => e.status === 'IN_PROGRESS').length;
+    const completed = filteredEvents.filter(e => e.status === 'COMPLETED').length;
+    const cancelled = filteredEvents.filter(e => e.status === 'CANCELLED').length;
+
+    return { total, scheduled, inProgress, completed, cancelled };
+  }, [filteredEvents]);
 
   useEffect(() => {
     fetchEvents();
@@ -83,7 +114,7 @@ export default function TrainerCalendarSplitView() {
     try {
       // Fetch class types
       const classTypesResponse = await scheduleService.getTrainerClasses();
-      console.log('Class types response:', classTypesResponse);
+      console.log('📚 Class types response:', classTypesResponse);
 
       // Handle different response structures
       let classTypesData = [];
@@ -97,71 +128,77 @@ export default function TrainerCalendarSplitView() {
         const uniqueClassTypes = [
           ...new Set(
             classTypesData
-              .map((cls: any) => cls.class_type || cls.name || cls.title)
+              .map((cls: any) => cls.class_type || cls.class_name || cls.name || cls.title)
               .filter(Boolean)
           ),
         ];
-        setClassTypes(uniqueClassTypes);
+        console.log('✅ Unique class types found:', uniqueClassTypes);
+        if (uniqueClassTypes.length > 0) {
+          setClassTypes(uniqueClassTypes);
+        } else {
+          setClassTypes([]);
+          console.warn('⚠️ No class types found');
+        }
+      } else {
+        console.warn('⚠️ No class types data from API');
+        setClassTypes([]);
       }
 
-      // Fetch rooms
-      const roomsResponse = await scheduleService.getTrainerSchedule();
-      console.log('Rooms response:', roomsResponse);
+      // Fetch rooms directly from /rooms API
+      const roomsResponse = await scheduleService.getAllRooms();
+      console.log('🏠 Rooms API response:', roomsResponse);
 
-      // Handle different response structures
+      // Handle response structure: { success, data: { rooms: [...] } }
       let roomsData = [];
-      if (roomsResponse && roomsResponse.data && Array.isArray(roomsResponse.data)) {
+      if (roomsResponse?.success && roomsResponse?.data?.rooms) {
+        roomsData = roomsResponse.data.rooms;
+      } else if (roomsResponse?.data && Array.isArray(roomsResponse.data)) {
         roomsData = roomsResponse.data;
-      } else if (roomsResponse && Array.isArray(roomsResponse)) {
+      } else if (Array.isArray(roomsResponse)) {
         roomsData = roomsResponse;
       }
 
       if (Array.isArray(roomsData) && roomsData.length > 0) {
-        const uniqueRooms = [
-          ...new Set(
-            roomsData.map((schedule: any) => schedule.room?.name || schedule.room).filter(Boolean)
-          ),
-        ];
-        console.log('Unique rooms:', uniqueRooms);
-        setRooms(uniqueRooms);
+        // Extract room names from Room objects
+        const roomNames = roomsData.map((room: any) => room.name).filter(Boolean);
+        console.log('✅ Rooms found from API:', roomNames);
+        if (roomNames.length > 0) {
+          setRooms(roomNames);
+        } else {
+          setRooms([]);
+          console.warn('⚠️ No room names found');
+        }
+      } else {
+        console.warn('⚠️ No rooms data from API');
+        setRooms([]);
       }
     } catch (error) {
-      console.error('Error fetching filter options:', error);
-      // Fallback to default values
-      setClassTypes([
-        'Yoga',
-        'Pilates',
-        'Dance',
-        'Martial Arts',
-        'Strength',
-        'Functional',
-        'Recovery',
-        'Specialized',
-      ]);
-      setRooms(['Phòng A', 'Phòng B', 'Studio 1', 'Studio 2', 'Phòng VIP', 'Sân ngoài trời']);
+      console.error('❌ Error fetching filter options:', error);
+      setClassTypes([]);
+      setRooms([]);
     }
   };
 
   // Helper functions for icons
   const getClassTypeIcon = (classType: string) => {
     const iconMap: Record<string, string> = {
-      Yoga: '🧘',
-      Pilates: '🤸',
-      Dance: '💃',
-      'Martial Arts': '🥋',
-      Strength: '💪',
-      Functional: '🏃',
-      Recovery: '🧘‍♀️',
-      Specialized: '⭐',
+      Yoga: 'Y',
+      Pilates: 'P',
+      Dance: 'D',
+      'Martial Arts': 'M',
+      Strength: 'S',
+      Functional: 'F',
+      Recovery: 'R',
+      Specialized: 'SP',
     };
-    return iconMap[classType] || '🏋️';
+    return iconMap[classType] || 'G';
   };
 
   const getRoomIcon = (room: string) => {
-    if (room.includes('VIP')) return '👑';
-    if (room.includes('Studio')) return '🎭';
-    if (room.includes('ngoài trời') || room.includes('Ngoài trời')) return '🌳';
-    return '🏠';
+    if (room.includes('VIP')) return 'VIP';
+    if (room.includes('Studio')) return 'ST';
+    if (room.includes('ngoài trời') || room.includes('Ngoài trời')) return 'OUT';
+    return 'RM';
   };
 
   const fetchEvents = async () => {
@@ -186,42 +223,7 @@ export default function TrainerCalendarSplitView() {
         console.log('Received events:', response.data.length);
         console.log('Sample event:', response.data[0]);
         setEvents(response.data);
-
-        // Auto-filter events based on current filters
-        const filtered = response.data.filter(event => {
-          const matchesStatus = !filters.status || event.status === filters.status;
-          const matchesClassType =
-            !filters.classType ||
-            event.class_name?.toLowerCase().includes(filters.classType.toLowerCase());
-
-          // Room matching with multiple strategies
-          let matchesRoom = true;
-          if (filters.room) {
-            const filterRoom = filters.room.toLowerCase().trim();
-            const eventRoom = (event.room || '').toLowerCase().trim();
-
-            // Try exact match first
-            matchesRoom = eventRoom === filterRoom;
-
-            // If no exact match, try contains
-            if (!matchesRoom) {
-              matchesRoom = eventRoom.includes(filterRoom) || filterRoom.includes(eventRoom);
-            }
-
-            // If still no match, try partial matching (remove spaces, special chars)
-            if (!matchesRoom) {
-              const cleanFilterRoom = filterRoom.replace(/[^a-z0-9]/g, '');
-              const cleanEventRoom = eventRoom.replace(/[^a-z0-9]/g, '');
-              matchesRoom =
-                cleanEventRoom.includes(cleanFilterRoom) ||
-                cleanFilterRoom.includes(cleanEventRoom);
-            }
-          }
-
-          return matchesStatus && matchesClassType && matchesRoom;
-        });
-
-        setFilteredEvents(filtered);
+        // filteredEvents will be computed automatically via useMemo
       } else {
         throw new Error(response.message || 'Lỗi tải lịch dạy');
       }
@@ -317,86 +319,128 @@ export default function TrainerCalendarSplitView() {
     if (viewMode === 'month') {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      return `${startOfMonth.toLocaleDateString('vi-VN')} - ${endOfMonth.toLocaleDateString('vi-VN')}`;
+      return `${startOfMonth.toLocaleDateString('vi-VN')} - ${endOfMonth.toLocaleDateString(
+        'vi-VN'
+      )}`;
     } else if (viewMode === 'week') {
       const startOfWeek = new Date(currentDate);
       startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-      return `${startOfWeek.toLocaleDateString('vi-VN')} - ${endOfWeek.toLocaleDateString('vi-VN')}`;
+      return `${startOfWeek.toLocaleDateString('vi-VN')} - ${endOfWeek.toLocaleDateString(
+        'vi-VN'
+      )}`;
     } else {
       return currentDate.toLocaleDateString('vi-VN');
     }
   };
 
-  const clearFilters = () => {
+  const clearFilters = useCallback(() => {
     setFilters({ status: '', classType: '', room: '' });
-    setFilteredEvents(events); // Reset to show all events
-  };
+    // filteredEvents will auto-reset via useMemo when filters cleared
+  }, []);
 
-  const handleEventClick = (clickInfo: EventClickArg) => {
-    const eventId = clickInfo.event.id;
-    const event = events.find(e => e.id === eventId);
-    if (event) {
-      setSelectedEvent(event);
+  const handleEventClick = useCallback(
+    (clickInfo: EventClickArg) => {
+      const eventId = clickInfo.event.id;
+      const event = events.find(e => e.id === eventId);
+      if (event) {
+        setSelectedEvent(event);
+        setIsDetailModalOpen(true);
+      }
+    },
+    [events]
+  );
+
+  const handleDetailClick = useCallback((event: CalendarEvent) => {
+    setSelectedEvent(event);
+    setIsDetailModalOpen(true);
+  }, []);
+
+  const handleAttendanceClick = useCallback(() => {
+    if (selectedEvent) {
+      // TODO: Implement attendance functionality
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Chức năng điểm danh đang được phát triển',
+          duration: 3000,
+        });
+      }
     }
-  };
+  }, [selectedEvent]);
 
-  // Convert CalendarEvent to FullCalendar EventInput
-  const fullCalendarEvents: EventInput[] = events.map(event => {
-    const isFiltered = filteredEvents.some(filteredEvent => filteredEvent.id === event.id);
-    return {
-      id: event.id,
-      title: event.title,
-      start: event.start,
-      end: event.end,
-      backgroundColor: getStatusColor(event.status),
-      borderColor: getStatusColor(event.status),
-      textColor: '#ffffff',
-      classNames: [
-        `event-${event.status.toLowerCase()}`,
-        isFiltered ? 'filtered-event' : 'unfiltered-event',
-      ],
-      extendedProps: {
-        status: event.status,
-        class_name: event.class_name,
-        room: event.room,
-        attendees: event.attendees,
-        max_capacity: event.max_capacity,
-        isFiltered: isFiltered,
-      },
-    };
-  });
+  // Memoized FullCalendar events - chỉ tính lại khi events hoặc filteredEvents thay đổi
+  const fullCalendarEvents: EventInput[] = useMemo(() => {
+    return events.map(event => {
+      const isFiltered = filteredEvents.some(filteredEvent => filteredEvent.id === event.id);
+      return {
+        id: event.id,
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        backgroundColor: getStatusColor(event.status),
+        borderColor: getStatusColor(event.status),
+        textColor: '#ffffff',
+        classNames: [
+          `event-${event.status.toLowerCase()}`,
+          isFiltered ? 'filtered-event' : 'unfiltered-event',
+        ],
+        extendedProps: {
+          status: event.status,
+          class_name: event.class_name,
+          room: event.room,
+          attendees: event.attendees,
+          max_capacity: event.max_capacity,
+          isFiltered: isFiltered,
+        },
+      };
+    });
+  }, [events, filteredEvents]);
 
   if (loading) {
     return (
-      <motion.div
-        className='flex items-center justify-center min-h-screen'
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.3 }}
-      >
-        <div className='text-center'>
-          <motion.div
-            className='w-12 h-12 border-4 border-blue-200 border-t-blue-600 rounded-full mx-auto mb-4'
-            animate={{ rotate: 360 }}
-            transition={{
-              duration: 1,
-              repeat: Infinity,
-              ease: 'linear',
-            }}
-          />
-          <motion.p
-            className='text-gray-600 dark:text-gray-400'
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.5 }}
-          >
-            Đang tải lịch dạy...
-          </motion.p>
+      <div className='p-4 space-y-6 animate-pulse'>
+        {/* Header Skeleton */}
+        <div className='flex items-center justify-between'>
+          <div className='space-y-2'>
+            <div className='h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded'></div>
+          </div>
+          <div className='flex gap-2'>
+            <div className='h-9 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+          </div>
         </div>
-      </motion.div>
+
+        {/* Filters Skeleton */}
+        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+          </div>
+        </div>
+
+        {/* Calendar & Events Skeleton */}
+        <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6'>
+          {/* Calendar Skeleton */}
+          <div className='lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4'>
+            <div className='h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg'></div>
+          </div>
+
+          {/* Events List Skeleton */}
+          <div className='lg:col-span-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4'>
+            <div className='h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4'></div>
+            <div className='space-y-3'>
+              {[1, 2, 3, 4, 5].map(i => (
+                <div key={i} className='h-24 bg-gray-100 dark:bg-gray-800 rounded-lg'></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -409,107 +453,19 @@ export default function TrainerCalendarSplitView() {
     >
       {/* Header */}
       <motion.div
-        className='mb-4'
+        className='mb-6'
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3, delay: 0.2 }}
       >
-        <div className='flex items-center justify-between'>
-          <div className='flex items-center gap-6'>
-            <div>
-              <h1 className='text-xl font-bold text-gray-800 dark:text-white/90 mb-2'>
-                Lịch dạy của tôi
-              </h1>
-              <p className='text-sm text-gray-600 dark:text-gray-400'>
-                Xem và quản lý lịch dạy của bạn
-              </p>
-            </div>
-
-            {/* Compact Filters */}
-            <div className='bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 rounded-lg shadow-sm border border-blue-100 dark:border-gray-600 p-3'>
-              <div className='flex items-center gap-3'>
-                <div className='flex items-center gap-2'>
-                  <svg
-                    className='w-4 h-4 text-blue-500'
-                    fill='none'
-                    stroke='currentColor'
-                    viewBox='0 0 24 24'
-                  >
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z'
-                    />
-                  </svg>
-                  <span className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                    Bộ lọc:
-                  </span>
-                </div>
-
-                <select
-                  value={filters.status}
-                  onChange={e => setFilters(prev => ({ ...prev, status: e.target.value }))}
-                  className='px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs font-medium w-32'
-                  style={{
-                    fontFamily:
-                      "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                  }}
-                >
-                  <option value=''>Loại trạng thái</option>
-                  {statuses.map(status => (
-                    <option key={status.value} value={status.value}>
-                      {status.value}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={filters.classType}
-                  onChange={e => setFilters(prev => ({ ...prev, classType: e.target.value }))}
-                  className='px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs font-medium w-28'
-                  style={{
-                    fontFamily:
-                      "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                  }}
-                >
-                  <option value=''>Loại lớp</option>
-                  {classTypes.map(classType => (
-                    <option key={classType} value={classType}>
-                      {classType}
-                    </option>
-                  ))}
-                </select>
-
-                <select
-                  value={filters.room}
-                  onChange={e => setFilters(prev => ({ ...prev, room: e.target.value }))}
-                  className='px-2 py-1.5 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-xs font-medium w-28'
-                  style={{
-                    fontFamily:
-                      "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
-                  }}
-                >
-                  <option value=''>Loại phòng</option>
-                  {rooms.map(room => (
-                    <option key={room} value={room}>
-                      {room}
-                    </option>
-                  ))}
-                </select>
-
-                <div className='flex gap-1'>
-                  <Button
-                    size='sm'
-                    variant='outline'
-                    onClick={clearFilters}
-                    className='px-3 py-1.5 text-xs font-m'
-                  >
-                    Xóa bộ lọc
-                  </Button>
-                </div>
-              </div>
-            </div>
+        <div className='flex items-start justify-between mb-4'>
+          <div>
+            <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
+              Lịch dạy của tôi
+            </h1>
+            <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+              Xem và quản lý lịch dạy của bạn
+            </p>
           </div>
 
           <div className='flex gap-2'>
@@ -525,6 +481,7 @@ export default function TrainerCalendarSplitView() {
                   });
                 }
               }}
+              className='text-theme-xs font-semibold font-heading'
             >
               Xuất lịch
             </Button>
@@ -540,9 +497,124 @@ export default function TrainerCalendarSplitView() {
                   });
                 }
               }}
+              className='text-theme-xs font-semibold font-heading'
             >
               Tạo lịch mới
             </Button>
+          </div>
+        </div>
+
+        {/* Filters Section */}
+        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+          <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+            {/* Status Filter */}
+            <div>
+              <CustomSelect
+                options={[
+                  { value: '', label: 'Tất cả trạng thái' },
+                  ...statuses.map(status => ({
+                    value: status.value,
+                    label: status.label,
+                  })),
+                ]}
+                value={filters.status}
+                onChange={value => setFilters(prev => ({ ...prev, status: value }))}
+                placeholder='Tất cả trạng thái'
+                className='font-inter'
+              />
+            </div>
+
+            {/* Class Type Filter */}
+            <div>
+              <CustomSelect
+                options={
+                  classTypes.length === 0
+                    ? [{ value: '', label: 'Không có loại lớp' }]
+                    : [
+                        { value: '', label: 'Tất cả loại lớp' },
+                        ...classTypes.map(classType => ({
+                          value: classType,
+                          label: classType,
+                        })),
+                      ]
+                }
+                value={filters.classType}
+                onChange={value => setFilters(prev => ({ ...prev, classType: value }))}
+                placeholder={classTypes.length === 0 ? 'Không có loại lớp' : 'Tất cả loại lớp'}
+                className='font-inter'
+                disabled={classTypes.length === 0}
+              />
+            </div>
+
+            {/* Room Filter */}
+            <div>
+              <CustomSelect
+                options={
+                  rooms.length === 0
+                    ? [{ value: '', label: 'Không có phòng tập' }]
+                    : [
+                        { value: '', label: 'Tất cả phòng' },
+                        ...rooms.map(room => ({
+                          value: room,
+                          label: room,
+                        })),
+                      ]
+                }
+                value={filters.room}
+                onChange={value => setFilters(prev => ({ ...prev, room: value }))}
+                placeholder={rooms.length === 0 ? 'Không có phòng tập' : 'Tất cả phòng'}
+                className='font-inter'
+                disabled={rooms.length === 0}
+              />
+            </div>
+
+            {/* Clear Button */}
+            <div>
+              <Button
+                size='sm'
+                variant='outline'
+                onClick={clearFilters}
+                className='w-full text-theme-xs font-semibold font-heading h-full'
+              >
+                Xóa bộ lọc
+              </Button>
+            </div>
+          </div>
+
+          {/* Status Legend */}
+          <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-700'>
+            <div className='flex flex-wrap items-center gap-3'>
+              <span className='text-xs font-medium text-gray-600 dark:text-gray-400 font-inter'>
+                Chú giải:
+              </span>
+              <div className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded-full bg-blue-500'></span>
+                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                  Đã lên lịch ({statistics.scheduled})
+                </span>
+              </div>
+              <div className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded-full bg-yellow-500'></span>
+                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                  Đang diễn ra ({statistics.inProgress})
+                </span>
+              </div>
+              <div className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded-full bg-green-500'></span>
+                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                  Hoàn thành ({statistics.completed})
+                </span>
+              </div>
+              <div className='flex items-center gap-1'>
+                <span className='w-3 h-3 rounded-full bg-red-500'></span>
+                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                  Đã hủy ({statistics.cancelled})
+                </span>
+              </div>
+              <div className='ml-auto text-xs font-semibold text-gray-900 dark:text-white font-inter'>
+                Tổng: {statistics.total} lịch
+              </div>
+            </div>
           </div>
         </div>
       </motion.div>
@@ -550,27 +622,17 @@ export default function TrainerCalendarSplitView() {
       {/* Split View */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6'>
         {/* Calendar View */}
-        <div
-          className='lg:col-span-2 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 lg:p-4 relative'
-          style={{ overflow: 'visible', overflowX: 'hidden' }}
-        >
+        <div className='lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-x-hidden'>
           {/* Calendar Loading Overlay */}
           {filterLoading && (
-            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg'>
-              <SimpleLoading
-                size='medium'
-                text='Đang tìm kiếm...'
-                color='#3b82f6'
-                textColor='#374151'
-              />
+            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-lg'>
+              <div className='w-10 h-10 border-4 border-orange-200 dark:border-orange-800 border-t-orange-600 dark:border-t-orange-400 rounded-full animate-spin'></div>
+              <p className='mt-3 text-sm text-gray-700 dark:text-gray-300 font-inter font-medium'>
+                Đang lọc...
+              </p>
             </div>
           )}
-          <motion.div
-            className='custom-calendar'
-            initial={{ scale: 0.95, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ duration: 0.3, delay: 0.4 }}
-          >
+          <div className='custom-calendar'>
             <style>{`
               .fc-event {
                 border: none !important;
@@ -687,7 +749,147 @@ export default function TrainerCalendarSplitView() {
                 font-weight: 500 !important;
               }
               .fc .fc-timegrid-axis-cushion {
+                font-size: 8px !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+                line-height: 1.1 !important;
+              }
+              
+              /* Apply Space Grotesk font to all calendar text */
+              .fc,
+              .fc *,
+              .fc-toolbar,
+              .fc-toolbar-title,
+              .fc-button,
+              .fc-col-header-cell,
+              .fc-daygrid-day-number,
+              .fc-event,
+              .fc-event-title,
+              .fc-event-time {
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              /* ========== WEEK/DAY VIEW - COMPACT HEIGHT ========== */
+              
+              /* Giảm slot height (mỗi 30 phút) */
+              .fc-timegrid-slot {
+                height: 30px !important;
+                min-height: 30px !important;
+              }
+              
+              /* Giảm time axis width */
+              .fc-timegrid-axis {
+                width: 36px !important;
+                min-width: 36px !important;
+              }
+              
+              /* Compact time labels */
+              .fc-timegrid-slot-label {
+                font-size: 8px !important;
+                padding: 0 1px !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+                line-height: 1.1 !important;
+              }
+              
+              .fc-timegrid-slot-label-cushion {
+                font-family: 'Space Grotesk', sans-serif !important;
+                font-size: 8px !important;
+              }
+              
+              /* Compact event styling */
+              .fc-timegrid-event {
                 font-size: 10px !important;
+                padding: 1px 3px !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              .fc-timegrid .fc-event-title {
+                font-size: 10px !important;
+                line-height: 1.2 !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              .fc-timegrid .fc-event-time {
+                font-size: 9px !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              /* Compact column headers */
+              .fc-timegrid .fc-col-header-cell {
+                padding: 4px 2px !important;
+              }
+              
+              .fc-timegrid .fc-col-header-cell-cushion {
+                font-size: 10px !important;
+                padding: 2px !important;
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              .fc-timegrid .fc-daygrid-day-number {
+                font-family: 'Space Grotesk', sans-serif !important;
+              }
+              
+              /* Giảm divider */
+              .fc-timegrid-divider {
+                padding: 1px 0 !important;
+              }
+              
+              /* Enable scroll dọc - BỎ scroll ngang */
+              .fc-timegrid-body {
+                max-height: 400px !important;
+                overflow-y: auto !important;
+                overflow-x: hidden !important;
+              }
+              
+              .fc-scroller {
+                overflow-x: hidden !important;
+              }
+              
+              .fc-scroller-liquid-absolute {
+                overflow-x: hidden !important;
+              }
+              
+              /* Custom scrollbar dọc - NHỎ HƠN */
+              .fc-timegrid-body::-webkit-scrollbar {
+                width: 4px !important;
+              }
+              .fc-timegrid-body::-webkit-scrollbar-track {
+                background: transparent !important;
+              }
+              .fc-timegrid-body::-webkit-scrollbar-thumb {
+                background: rgba(251, 146, 60, 0.3) !important;
+                border-radius: 2px !important;
+              }
+              .fc-timegrid-body::-webkit-scrollbar-thumb:hover {
+                background: rgba(251, 146, 60, 0.5) !important;
+              }
+              
+              /* Firefox scrollbar */
+              .fc-timegrid-body {
+                scrollbar-width: thin !important;
+                scrollbar-color: rgba(251, 146, 60, 0.3) transparent !important;
+              }
+              
+              /* Force calendar width - KHÔNG CHO scroll ngang */
+              .custom-calendar {
+                overflow-x: hidden !important;
+                max-width: 100% !important;
+              }
+              
+              .fc-view-harness {
+                overflow-x: hidden !important;
+              }
+              
+              .fc-timegrid {
+                max-width: 100% !important;
+              }
+              
+              /* Ensure columns fit */
+              .fc-timegrid-cols {
+                width: 100% !important;
+              }
+              
+              .fc-timegrid-col {
+                min-width: 0 !important;
               }
 
               /* Filtered event animations */
@@ -712,25 +914,10 @@ export default function TrainerCalendarSplitView() {
                   box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
                 }
               }
-              /* Prevent horizontal scroll in events list */
+              /* Prevent horizontal scroll in events list - Tắt scroll dọc */
               .events-list-container {
                 overflow-x: hidden !important;
-                overflow-y: auto !important;
-                scrollbar-width: thin !important;
-                scrollbar-color: rgba(156, 163, 175, 0.5) transparent !important;
-              }
-              .events-list-container::-webkit-scrollbar {
-                width: 6px !important;
-              }
-              .events-list-container::-webkit-scrollbar-track {
-                background: transparent !important;
-              }
-              .events-list-container::-webkit-scrollbar-thumb {
-                background-color: rgba(156, 163, 175, 0.5) !important;
-                border-radius: 3px !important;
-              }
-              .events-list-container::-webkit-scrollbar-thumb:hover {
-                background-color: rgba(156, 163, 175, 0.7) !important;
+                overflow-y: hidden !important;
               }
               .event-item {
                 overflow-x: hidden !important;
@@ -764,8 +951,8 @@ export default function TrainerCalendarSplitView() {
                 viewMode === 'month'
                   ? 'dayGridMonth'
                   : viewMode === 'week'
-                    ? 'timeGridWeek'
-                    : 'timeGridDay'
+                  ? 'timeGridWeek'
+                  : 'timeGridDay'
               }
               headerToolbar={{
                 left: 'prev,next',
@@ -787,47 +974,53 @@ export default function TrainerCalendarSplitView() {
               height='auto'
               eventContent={eventInfo => renderEventContent(eventInfo, viewMode)}
             />
-          </motion.div>
+          </div>
         </div>
 
         {/* Events List View */}
-        <motion.div
-          className='lg:col-span-1 bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-3 relative'
-          style={{ overflowX: 'hidden' }}
-          initial={{ opacity: 0, x: 20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.3, delay: 0.6 }}
-        >
+        <div className='lg:col-span-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-hidden'>
           {/* Events List Loading Overlay */}
           {filterLoading && (
-            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex items-center justify-center rounded-lg'>
-              <SimpleLoading
-                size='small'
-                text='Đang tìm kiếm...'
-                color='#3b82f6'
-                textColor='#374151'
-              />
+            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-lg'>
+              <div className='w-8 h-8 border-4 border-orange-200 dark:border-orange-800 border-t-orange-600 dark:border-t-orange-400 rounded-full animate-spin'></div>
+              <p className='mt-2 text-xs text-gray-700 dark:text-gray-300 font-inter font-medium'>
+                Đang lọc...
+              </p>
             </div>
           )}
-          <div className='flex items-center justify-between mb-2'>
-            <h2 className='text-base font-semibold text-gray-800 dark:text-white/90'>
+          <div className='flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700'>
+            <h2 className='text-lg font-bold text-gray-900 dark:text-white font-heading'>
               Danh sách sự kiện
             </h2>
-            <div className='text-xs text-gray-600 dark:text-gray-400'>
-              {filteredEvents.length} sự kiện
+            <div className='px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 rounded-lg'>
+              <span className='text-xs font-bold text-orange-600 dark:text-orange-400 font-heading'>
+                {filteredEvents.length}
+              </span>
             </div>
           </div>
 
-          <div
-            className='events-list-container space-y-2 h-full overflow-y-auto overflow-x-hidden'
-            style={{ maxHeight: 'calc(100vh - 20px)' }}
-          >
+          <div className='events-list-container space-y-3 overflow-hidden'>
             {filteredEvents.length === 0 ? (
-              <div className='text-center py-8'>
-                <div className='text-gray-500 dark:text-gray-400 text-sm mb-2'>
-                  Không có sự kiện nào
+              <div className='flex flex-col items-center justify-center py-12'>
+                <div className='w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4'>
+                  <svg
+                    className='w-8 h-8 text-gray-400 dark:text-gray-600'
+                    fill='none'
+                    stroke='currentColor'
+                    viewBox='0 0 24 24'
+                  >
+                    <path
+                      strokeLinecap='round'
+                      strokeLinejoin='round'
+                      strokeWidth={2}
+                      d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
+                    />
+                  </svg>
                 </div>
-                <p className='text-gray-400 dark:text-gray-500 text-xs'>
+                <h3 className='text-sm font-semibold text-gray-900 dark:text-white mb-1 font-heading'>
+                  Không có sự kiện
+                </h3>
+                <p className='text-xs text-gray-500 dark:text-gray-400 text-center font-inter'>
                   {Object.values(filters).some(f => f)
                     ? 'Không tìm thấy sự kiện phù hợp với bộ lọc'
                     : 'Chưa có lịch dạy nào trong khoảng thời gian này'}
@@ -837,86 +1030,143 @@ export default function TrainerCalendarSplitView() {
               filteredEvents.map((event, index) => (
                 <motion.div
                   key={event.id}
-                  className={`event-item border-l-3 pl-2.5 py-1.5 bg-white dark:bg-gray-800 rounded-lg shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer border border-gray-200 dark:border-gray-600 ${
+                  className={`event-item group border-l-4 rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
                     selectedEvent?.id === event.id
-                      ? 'ring-2 ring-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                      : ''
+                      ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500 dark:border-orange-400 shadow-md ring-2 ring-orange-500/20'
+                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-orange-400 dark:hover:border-orange-600 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 shadow-sm hover:shadow-md'
                   }`}
                   style={{ borderLeftColor: getStatusColor(event.status) }}
-                  onClick={() => setSelectedEvent(event)}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
+                  onClick={() => handleDetailClick(event)}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
                   transition={{
                     duration: 0.3,
-                    delay: index * 0.1,
+                    delay: index * 0.05,
                     ease: 'easeOut',
                   }}
-                  whileHover={{
-                    x: 2,
-                    transition: { duration: 0.2 },
-                  }}
                 >
-                  {/* Header */}
-                  <div className='flex items-center justify-between mb-1.5'>
-                    <h3 className='text-sm font-semibold text-gray-900 dark:text-white truncate pr-2'>
-                      {event.title}
-                    </h3>
-                    <span
-                      className={`px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap ${getStatusClass(
-                        event.status
-                      )}`}
-                    >
-                      {getStatusLabel(event.status)}
-                    </span>
-                  </div>
-
-                  {/* Content Grid */}
-                  <div className='grid grid-cols-2 gap-x-3 gap-y-1 text-xs text-gray-600 dark:text-gray-400 mb-2'>
-                    <div className='flex items-center'>
-                      <span className='w-1.5 h-1.5 bg-blue-400 rounded-full mr-1.5 flex-shrink-0'></span>
-                      <span className='truncate'>{event.room}</span>
-                    </div>
-                    <div className='flex items-center'>
-                      <span className='w-1.5 h-1.5 bg-green-400 rounded-full mr-1.5 flex-shrink-0'></span>
-                      <span className='truncate'>
-                        {event.attendees}/{event.max_capacity}
+                  <div className='p-3'>
+                    {/* Header */}
+                    <div className='flex items-start justify-between mb-3'>
+                      <h3 className='text-sm font-bold text-gray-900 dark:text-white line-clamp-2 pr-2 font-heading leading-tight'>
+                        {event.title}
+                      </h3>
+                      <span
+                        className={`px-2 py-0.5 text-xs rounded-md font-semibold whitespace-nowrap font-heading ${getStatusClass(
+                          event.status
+                        )}`}
+                      >
+                        {getStatusLabel(event.status)}
                       </span>
                     </div>
-                    <div className='col-span-2 flex items-center'>
-                      <span className='w-1.5 h-1.5 bg-orange-400 rounded-full mr-1.5 flex-shrink-0'></span>
-                      <span className='truncate'>
-                        {new Date(event.start).toLocaleDateString('vi-VN')} •{' '}
-                        {new Date(event.start).toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}{' '}
-                        -{' '}
-                        {new Date(event.end).toLocaleTimeString('vi-VN', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
-                      </span>
-                    </div>
-                  </div>
 
-                  {/* Actions */}
-                  <div className='flex gap-1.5'>
-                    <Button size='xs' variant='outline' className='flex-1 text-xs py-1 px-2'>
-                      Chi tiết
-                    </Button>
-                    <Button size='xs' variant='primary' className='flex-1 text-xs py-1 px-2'>
-                      Điểm danh
-                    </Button>
+                    {/* Content */}
+                    <div className='space-y-2 mb-3'>
+                      {/* Time */}
+                      <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <svg
+                          className='w-3.5 h-3.5 text-orange-500 dark:text-orange-400 mr-2 flex-shrink-0'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
+                          />
+                        </svg>
+                        <span className='font-medium'>
+                          {new Date(event.start).toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}{' '}
+                          -{' '}
+                          {new Date(event.end).toLocaleTimeString('vi-VN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      </div>
+
+                      {/* Room */}
+                      <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <svg
+                          className='w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-2 flex-shrink-0'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4'
+                          />
+                        </svg>
+                        <span className='font-medium truncate'>{event.room}</span>
+                      </div>
+
+                      {/* Attendees */}
+                      <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <svg
+                          className='w-3.5 h-3.5 text-green-500 dark:text-green-400 mr-2 flex-shrink-0'
+                          fill='none'
+                          stroke='currentColor'
+                          viewBox='0 0 24 24'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z'
+                          />
+                        </svg>
+                        <span className='font-medium'>
+                          {event.attendees}/{event.max_capacity} học viên
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className='flex gap-2 pt-2 border-t border-gray-200 dark:border-gray-700'>
+                      <Button
+                        size='xs'
+                        variant='outline'
+                        className='flex-1 text-xs font-semibold font-heading'
+                        onClick={() => handleDetailClick(event)}
+                      >
+                        Chi tiết
+                      </Button>
+                      <Button
+                        size='xs'
+                        variant='primary'
+                        className='flex-1 text-xs font-semibold font-heading'
+                        onClick={() => {
+                          setSelectedEvent(event);
+                          handleAttendanceClick();
+                        }}
+                        disabled={event.status === 'CANCELLED'}
+                      >
+                        Điểm danh
+                      </Button>
+                    </div>
                   </div>
                 </motion.div>
               ))
             )}
           </div>
-        </motion.div>
+        </div>
       </div>
 
       {/* Quick Actions */}
-      <div className='mt-4 flex flex-col sm:flex-row gap-4'>
+      <motion.div
+        className='mt-6 flex flex-col sm:flex-row gap-3'
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.3, delay: 0.8 }}
+      >
         <Button
           variant='primary'
           onClick={() => {
@@ -928,6 +1178,7 @@ export default function TrainerCalendarSplitView() {
               });
             }
           }}
+          className='text-theme-xs font-semibold font-heading'
         >
           Xem tất cả lịch
         </Button>
@@ -942,10 +1193,22 @@ export default function TrainerCalendarSplitView() {
               });
             }
           }}
+          className='text-theme-xs font-semibold font-heading'
         >
           Đồng bộ lịch
         </Button>
-      </div>
+      </motion.div>
+
+      {/* Event Details Modal */}
+      <EventDetailsModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false);
+          setSelectedEvent(null);
+        }}
+        event={selectedEvent}
+        onAttendance={handleAttendanceClick}
+      />
     </motion.div>
   );
 }
@@ -1225,10 +1488,10 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
             tooltipPosition === 'left'
               ? 'right-full mr-3 top-1/2 -translate-y-1/2'
               : tooltipPosition === 'right'
-                ? 'left-full ml-3 top-1/2 -translate-y-1/2'
-                : tooltipPosition === 'bottom'
-                  ? 'left-1/2 -translate-x-1/2 top-full mt-3'
-                  : 'left-1/2 -translate-x-1/2 bottom-full mb-3'
+              ? 'left-full ml-3 top-1/2 -translate-y-1/2'
+              : tooltipPosition === 'bottom'
+              ? 'left-1/2 -translate-x-1/2 top-full mt-3'
+              : 'left-1/2 -translate-x-1/2 bottom-full mb-3'
           }`}
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -1270,10 +1533,10 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
               {status === 'SCHEDULED'
                 ? 'Đã lên lịch'
                 : status === 'IN_PROGRESS'
-                  ? 'Đang diễn ra'
-                  : status === 'COMPLETED'
-                    ? 'Hoàn thành'
-                    : 'Đã hủy'}
+                ? 'Đang diễn ra'
+                : status === 'COMPLETED'
+                ? 'Hoàn thành'
+                : 'Đã hủy'}
             </span>
           </div>
           {/* Arrow based on position */}

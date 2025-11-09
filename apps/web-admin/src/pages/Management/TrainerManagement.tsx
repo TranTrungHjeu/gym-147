@@ -1,0 +1,819 @@
+import {
+  BookOpen,
+  Briefcase,
+  CheckCircle2,
+  DollarSign,
+  Edit,
+  Mail,
+  Phone,
+  Plus,
+  RefreshCw,
+  Search,
+  Star,
+  Trash2,
+  User,
+  XCircle,
+} from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import {
+  AdminTable,
+  AdminTableBody,
+  AdminTableCell,
+  AdminTableHeader,
+  AdminTableRow,
+} from '../../components/common/AdminTable';
+import AdminCard from '../../components/common/AdminCard';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import CustomSelect from '../../components/common/CustomSelect';
+import Pagination from '../../components/common/Pagination';
+import TrainerFormModal from '../../components/modals/TrainerFormModal';
+import { useToast } from '../../hooks/useToast';
+import { Trainer, trainerService } from '../../services/trainer.service';
+
+const TrainerManagement: React.FC = () => {
+  const { showToast } = useToast();
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [specializationFilter, setSpecializationFilter] = useState<string>('all');
+  const [selectedTrainer, setSelectedTrainer] = useState<Trainer | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [trainerToDelete, setTrainerToDelete] = useState<Trainer | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [actionMenuOpen, setActionMenuOpen] = useState(false);
+  const [selectedTrainerForAction, setSelectedTrainerForAction] = useState<Trainer | null>(null);
+  const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+
+  useEffect(() => {
+    loadTrainers();
+  }, []);
+
+  // Listen for certification:updated event to reload trainers list
+  // This happens when trainer uploads/updates certification and specializations are synced
+  useEffect(() => {
+    const handleCertificationUpdated = (event: CustomEvent) => {
+      console.log('📢 certification:updated event received in TrainerManagement:', event.detail);
+      // Reload trainers list when certification is updated (specializations may have changed)
+      loadTrainers();
+    };
+
+    window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
+
+    return () => {
+      window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
+    };
+  }, []);
+
+  const loadTrainers = async () => {
+    try {
+      setIsLoading(true);
+      const response = await trainerService.getAllTrainers();
+
+      if (response.success) {
+        // Handle different response structures
+        let trainersList: Trainer[] = [];
+
+        if (Array.isArray(response.data)) {
+          // Direct array response
+          trainersList = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          // Object with trainers property: { trainers: [...] }
+          const data = response.data as any;
+          trainersList = data.trainers || data.data?.trainers || [];
+        }
+
+        // Ensure specializations is always an array
+        trainersList = trainersList.map(trainer => ({
+          ...trainer,
+          specializations: Array.isArray(trainer.specializations) 
+            ? trainer.specializations 
+            : trainer.specializations 
+              ? [trainer.specializations] 
+              : [],
+        }));
+
+        console.log('📋 Loaded trainers:', trainersList.length);
+        console.log('📋 Sample trainer specializations:', trainersList[0]?.specializations);
+
+        setTrainers(trainersList);
+
+        // Show info if no trainers found
+        if (trainersList.length === 0) {
+          console.info(
+            'No trainers found in database. Trainers need to be created in schedule-service.'
+          );
+        }
+      } else {
+        console.warn('API returned success: false', response);
+        setTrainers([]);
+      }
+    } catch (error: any) {
+      showToast('Không thể tải danh sách huấn luyện viên', 'error');
+      console.error('Error loading trainers:', error);
+      setTrainers([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getStatusLabel = (status?: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'Hoạt động';
+      case 'INACTIVE':
+        return 'Không hoạt động';
+      case 'ON_LEAVE':
+        return 'Nghỉ phép';
+      case 'TERMINATED':
+        return 'Đã chấm dứt';
+      default:
+        return 'Hoạt động';
+    }
+  };
+
+  const getStatusColor = (status?: string) => {
+    switch (status) {
+      case 'ACTIVE':
+        return 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800';
+      case 'INACTIVE':
+        return 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700';
+      case 'ON_LEAVE':
+        return 'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300 border-warning-200 dark:border-warning-800';
+      case 'TERMINATED':
+        return 'bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-300 border-error-200 dark:border-error-800';
+      default:
+        return 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800';
+    }
+  };
+
+  const getSpecializationLabel = (spec: string) => {
+    switch (spec?.toUpperCase()) {
+      case 'CARDIO':
+        return 'Tim mạch';
+      case 'STRENGTH':
+        return 'Sức mạnh';
+      case 'YOGA':
+        return 'Yoga';
+      case 'PILATES':
+        return 'Pilates';
+      case 'DANCE':
+        return 'Khiêu vũ';
+      case 'MARTIAL_ARTS':
+        return 'Võ thuật';
+      case 'AQUA':
+        return 'Bơi lội';
+      case 'FUNCTIONAL':
+        return 'Chức năng';
+      case 'RECOVERY':
+        return 'Phục hồi';
+      case 'SPECIALIZED':
+        return 'Chuyên biệt';
+      default:
+        return spec || '-';
+    }
+  };
+
+  // Calculate stats
+  const stats = React.useMemo(() => {
+    const totalTrainers = trainers.length;
+    const activeTrainers = trainers.filter(t => t.status === 'ACTIVE').length;
+    const inactiveTrainers = trainers.filter(t => t.status === 'INACTIVE' || t.status === 'TERMINATED').length;
+    const totalClasses = trainers.reduce((sum, t) => sum + (t.total_classes || 0), 0);
+    
+    return {
+      totalTrainers,
+      activeTrainers,
+      inactiveTrainers,
+      totalClasses,
+    };
+  }, [trainers]);
+
+  const filteredTrainers = Array.isArray(trainers)
+    ? trainers.filter(trainer => {
+        // Search filter - improved to match full name
+        const searchLower = searchTerm.trim().toLowerCase();
+        const fullName = trainer?.full_name || '';
+        const matchesSearch =
+          !searchLower ||
+          fullName.toLowerCase().includes(searchLower) ||
+          trainer?.email?.toLowerCase().includes(searchLower) ||
+          trainer?.phone?.toLowerCase().includes(searchLower) ||
+          searchLower.split(/\s+/).every(word => fullName.toLowerCase().includes(word));
+
+        // Status filter
+        const matchesStatus =
+          statusFilter === 'all' ||
+          trainer?.status === statusFilter ||
+          (!trainer?.status && statusFilter === 'ACTIVE');
+
+        // Specialization filter
+        const matchesSpecialization =
+          specializationFilter === 'all' ||
+          (trainer?.specializations &&
+            Array.isArray(trainer.specializations) &&
+            trainer.specializations.includes(specializationFilter));
+
+        return matchesSearch && matchesStatus && matchesSpecialization;
+      })
+    : [];
+
+  const totalPages = Math.ceil(filteredTrainers.length / itemsPerPage);
+  const paginatedTrainers = filteredTrainers.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
+
+  const handleEdit = (trainer: Trainer) => {
+    setSelectedTrainer(trainer);
+    setIsFormModalOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!trainerToDelete) return;
+
+    setIsDeleting(true);
+    try {
+      await trainerService.deleteTrainer(trainerToDelete.id);
+      showToast('Xóa huấn luyện viên thành công', 'success');
+      await loadTrainers();
+      setIsDeleteDialogOpen(false);
+      setTrainerToDelete(null);
+    } catch (error: any) {
+      showToast(error.message || 'Không thể xóa huấn luyện viên', 'error');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  const handleCreate = () => {
+    setSelectedTrainer(null);
+    setIsFormModalOpen(true);
+  };
+
+  const handleSave = async (data: Partial<Trainer>) => {
+    try {
+      if (selectedTrainer) {
+        await trainerService.updateTrainer(selectedTrainer.id, data);
+        // Toast sẽ được hiển thị trong TrainerFormModal
+      } else {
+        // For create, redirect to create page
+        window.location.href = '/create-trainer';
+        return;
+      }
+      await loadTrainers();
+      setIsFormModalOpen(false);
+      setSelectedTrainer(null);
+    } catch (error: any) {
+      // Error toast sẽ được hiển thị trong TrainerFormModal
+      throw error;
+    }
+  };
+
+  return (
+    <div className='p-6 space-y-6'>
+      {/* Header */}
+      <div className='flex justify-between items-start'>
+        <div>
+          <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
+            Quản lý Huấn luyện viên
+          </h1>
+          <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+            Quản lý tất cả huấn luyện viên trong hệ thống
+          </p>
+        </div>
+        <div className='flex items-center gap-3'>
+          <button
+            onClick={loadTrainers}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+          >
+            <RefreshCw className='w-4 h-4' />
+            Làm mới
+          </button>
+          <button
+            onClick={handleCreate}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+          >
+            <Plus className='w-4 h-4' />
+            Thêm huấn luyện viên
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
+        <AdminCard padding='sm' className='relative overflow-hidden group'>
+          {/* Subtle corner accent */}
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          {/* Subtle left border accent */}
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+          <div className='relative'>
+            <div className='flex items-center gap-3'>
+              {/* Icon Container */}
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <User className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              </div>
+              {/* Value and Label Container */}
+              <div className='flex-1 min-w-0'>
+                <div className='flex items-baseline gap-1.5 mb-0.5'>
+                  <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                    {stats.totalTrainers}
+                  </div>
+                </div>
+                <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                  Tổng số huấn luyện viên
+                </div>
+              </div>
+            </div>
+          </div>
+        </AdminCard>
+
+        <AdminCard padding='sm' className='relative overflow-hidden group'>
+          {/* Subtle corner accent */}
+          <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          {/* Subtle left border accent */}
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+          <div className='relative'>
+            <div className='flex items-center gap-3'>
+              {/* Icon Container */}
+              <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-success-500/20'>
+                <div className='absolute inset-0 bg-success-100 dark:bg-success-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <CheckCircle2 className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400 transition-transform duration-300 group-hover:scale-110' />
+              </div>
+              {/* Value and Label Container */}
+              <div className='flex-1 min-w-0'>
+                <div className='flex items-baseline gap-1.5 mb-0.5'>
+                  <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                    {stats.activeTrainers}
+                  </div>
+                </div>
+                <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                  Đang hoạt động
+                </div>
+              </div>
+            </div>
+          </div>
+        </AdminCard>
+
+        <AdminCard padding='sm' className='relative overflow-hidden group'>
+          {/* Subtle corner accent */}
+          <div className='absolute -top-px -right-px w-12 h-12 bg-gray-100 dark:bg-gray-800 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          {/* Subtle left border accent */}
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-gray-100 dark:bg-gray-800 opacity-20 rounded-r'></div>
+          <div className='relative'>
+            <div className='flex items-center gap-3'>
+              {/* Icon Container */}
+              <div className='relative w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-gray-500/20'>
+                <div className='absolute inset-0 bg-gray-100 dark:bg-gray-800 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <XCircle className='relative w-[18px] h-[18px] text-gray-600 dark:text-gray-400 transition-transform duration-300 group-hover:scale-110' />
+              </div>
+              {/* Value and Label Container */}
+              <div className='flex-1 min-w-0'>
+                <div className='flex items-baseline gap-1.5 mb-0.5'>
+                  <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                    {stats.inactiveTrainers}
+                  </div>
+                </div>
+                <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                  Không hoạt động
+                </div>
+              </div>
+            </div>
+          </div>
+        </AdminCard>
+
+        <AdminCard padding='sm' className='relative overflow-hidden group'>
+          {/* Subtle corner accent */}
+          <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          {/* Subtle left border accent */}
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+          <div className='relative'>
+            <div className='flex items-center gap-3'>
+              {/* Icon Container */}
+              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-blue-500/20'>
+                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <BookOpen className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 group-hover:scale-110' />
+              </div>
+              {/* Value and Label Container */}
+              <div className='flex-1 min-w-0'>
+                <div className='flex items-baseline gap-1.5 mb-0.5'>
+                  <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                    {stats.totalClasses.toLocaleString()}
+                  </div>
+                </div>
+                <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                  Tổng số lớp học
+                </div>
+              </div>
+            </div>
+          </div>
+        </AdminCard>
+      </div>
+
+      {/* Search and Filters */}
+      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow duration-200 p-4'>
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+          {/* Search Input */}
+          <div className='md:col-span-2 group relative'>
+            <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
+            <input
+              type='text'
+              placeholder='Tìm kiếm huấn luyện viên...'
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className='w-full h-[42px] py-2 pl-9 pr-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <CustomSelect
+              options={[
+                { value: 'all', label: 'Tất cả trạng thái' },
+                { value: 'ACTIVE', label: 'Hoạt động' },
+                { value: 'INACTIVE', label: 'Không hoạt động' },
+                { value: 'ON_LEAVE', label: 'Nghỉ phép' },
+                { value: 'TERMINATED', label: 'Đã chấm dứt' },
+              ]}
+              value={statusFilter}
+              onChange={value => {
+                setStatusFilter(value);
+                setCurrentPage(1);
+              }}
+              placeholder='Tất cả trạng thái'
+              className='font-inter'
+            />
+          </div>
+
+          {/* Specialization Filter */}
+          <div>
+            <CustomSelect
+              options={[
+                { value: 'all', label: 'Tất cả chuyên môn' },
+                { value: 'CARDIO', label: 'Tim mạch' },
+                { value: 'STRENGTH', label: 'Sức mạnh' },
+                { value: 'YOGA', label: 'Yoga' },
+                { value: 'PILATES', label: 'Pilates' },
+                { value: 'DANCE', label: 'Khiêu vũ' },
+                { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
+                { value: 'AQUA', label: 'Bơi lội' },
+                { value: 'FUNCTIONAL', label: 'Chức năng' },
+                { value: 'RECOVERY', label: 'Phục hồi' },
+                { value: 'SPECIALIZED', label: 'Chuyên biệt' },
+              ]}
+              value={specializationFilter}
+              onChange={value => {
+                setSpecializationFilter(value);
+                setCurrentPage(1);
+              }}
+              placeholder='Tất cả chuyên môn'
+              className='font-inter'
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* Trainers List */}
+      {isLoading ? (
+        <AdminCard padding='md' className='text-center'>
+          <div className='flex flex-col items-center justify-center py-12'>
+            <div className='w-8 h-8 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin mb-4' />
+            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
+              Đang tải...
+            </div>
+          </div>
+        </AdminCard>
+      ) : filteredTrainers.length === 0 ? (
+        <AdminCard padding='md' className='text-center'>
+          <div className='flex flex-col items-center justify-center py-12'>
+            <User className='w-20 h-20 text-gray-300 dark:text-gray-700 mb-4' />
+            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-heading mb-2'>
+              {searchTerm ? 'Không tìm thấy huấn luyện viên nào' : 'Không có huấn luyện viên nào'}
+            </div>
+            {!searchTerm && trainers.length === 0 && (
+              <div className='text-theme-xs text-gray-400 dark:text-gray-500 font-inter mt-2'>
+                Tạo tài khoản trainer mới để bắt đầu quản lý huấn luyện viên
+              </div>
+            )}
+          </div>
+        </AdminCard>
+      ) : (
+        <>
+          <AdminCard padding='none'>
+            <AdminTable>
+              <AdminTableHeader>
+                <AdminTableRow>
+                  <AdminTableCell header className='w-[15%]'>
+                    <span className='whitespace-nowrap'>Huấn luyện viên</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[13%]'>
+                    <span className='whitespace-nowrap'>Liên hệ</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[13%] hidden md:table-cell'>
+                    <span className='whitespace-nowrap'>Chuyên môn</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[10%]'>
+                    <span className='whitespace-nowrap'>Kinh nghiệm</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[8%] hidden lg:table-cell'>
+                    <span className='whitespace-nowrap'>Đánh giá</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[8%] hidden lg:table-cell'>
+                    <span className='whitespace-nowrap'>Lớp học</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[10%]'>
+                    <span className='whitespace-nowrap'>Trạng thái</span>
+                  </AdminTableCell>
+                  <AdminTableCell header className='w-[11%] hidden md:table-cell'>
+                    <span className='whitespace-nowrap'>Giá/giờ</span>
+                  </AdminTableCell>
+                </AdminTableRow>
+              </AdminTableHeader>
+              <AdminTableBody>
+                {paginatedTrainers.map((trainer, index) => (
+                  <AdminTableRow
+                    key={trainer.id}
+                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                      index % 2 === 0
+                        ? 'bg-white dark:bg-gray-900'
+                        : 'bg-gray-50/50 dark:bg-gray-800/50'
+                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                    onClick={(e?: React.MouseEvent) => {
+                      if (e) {
+                        e.stopPropagation();
+                        setSelectedTrainerForAction(trainer);
+                        setMenuPosition({ x: e.clientX, y: e.clientY });
+                        setActionMenuOpen(true);
+                      }
+                    }}
+                  >
+                  <AdminTableCell className='overflow-hidden'>
+                    <div className='flex items-center gap-1.5 sm:gap-2'>
+                      <div className='relative flex-shrink-0'>
+                        {trainer.profile_photo ? (
+                          <>
+                            <img
+                              src={trainer.profile_photo}
+                              alt={trainer.full_name}
+                              className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
+                              onError={e => {
+                                e.currentTarget.style.display = 'none';
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) {
+                                  fallback.classList.remove('hidden');
+                                  fallback.classList.add('flex');
+                                }
+                              }}
+                            />
+                            <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                              <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                            </div>
+                          </>
+                        ) : (
+                          <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
+                            <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                          </div>
+                        )}
+                      </div>
+                      <div className='min-w-0 flex-1 overflow-hidden'>
+                        <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
+                          {trainer.full_name}
+                        </div>
+                        {trainer.bio && (
+                          <div className='text-[8px] sm:text-[9px] text-gray-500 dark:text-gray-400 font-inter truncate mt-0.5 leading-tight'>
+                            {trainer.bio}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell className='overflow-hidden'>
+                    <div className='space-y-0.5 sm:space-y-1'>
+                      <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                        <Mail className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                        <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                          {trainer.email}
+                        </span>
+                      </div>
+                      {trainer.phone && (
+                        <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                          <Phone className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                          <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                            {trainer.phone}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell className='overflow-hidden hidden md:table-cell'>
+                    {(() => {
+                      const specs = Array.isArray(trainer.specializations) 
+                        ? trainer.specializations.filter(s => s && typeof s === 'string' && s.trim()) 
+                        : [];
+                      
+                      return specs.length > 0 ? (
+                        <div className='flex flex-wrap gap-1 overflow-hidden'>
+                          {specs.slice(0, 2).map((spec, idx) => (
+                            <span
+                              key={idx}
+                              className='px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-[9px] rounded-full font-semibold font-heading border border-orange-200 dark:border-orange-800 truncate max-w-full'
+                              title={spec}
+                            >
+                              {getSpecializationLabel(spec)}
+                            </span>
+                          ))}
+                          {specs.length > 2 && (
+                            <span className='px-1.5 py-0.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 text-[9px] rounded-full font-semibold font-heading border border-gray-200 dark:border-gray-700'>
+                              +{specs.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className='text-theme-xs text-gray-400 dark:text-gray-500 font-inter'>
+                          -
+                        </span>
+                      );
+                    })()}
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <div className='flex items-center gap-1 sm:gap-1.5'>
+                      <Briefcase className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                      <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
+                        {trainer.experience_years} năm
+                      </span>
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell className='hidden lg:table-cell'>
+                    <div className='flex items-center gap-1 sm:gap-1.5'>
+                      {trainer.rating_average !== undefined && trainer.rating_average > 0 ? (
+                        <>
+                          <Star className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-yellow-500 fill-yellow-500 flex-shrink-0' />
+                          <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
+                            {trainer.rating_average.toFixed(1)}
+                          </span>
+                        </>
+                      ) : (
+                        <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-inter'>
+                          Chưa có
+                        </span>
+                      )}
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell className='hidden lg:table-cell'>
+                    <div className='flex items-center gap-1 sm:gap-1.5'>
+                      <BookOpen className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                      {trainer.total_classes !== undefined && trainer.total_classes > 0 ? (
+                        <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
+                          {trainer.total_classes}
+                        </span>
+                      ) : (
+                        <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-heading'>
+                          0
+                        </span>
+                      )}
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell>
+                    <div className='flex items-center'>
+                      <span
+                        className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border ${getStatusColor(
+                          trainer.status
+                        )}`}
+                      >
+                        {trainer.status === 'ACTIVE' ? (
+                          <CheckCircle2 className='w-2 h-2 sm:w-2.5 sm:h-2.5' />
+                        ) : trainer.status === 'INACTIVE' || trainer.status === 'TERMINATED' ? (
+                          <XCircle className='w-2 h-2 sm:w-2.5 sm:h-2.5' />
+                        ) : null}
+                        {getStatusLabel(trainer.status)}
+                      </span>
+                    </div>
+                  </AdminTableCell>
+                  <AdminTableCell className='hidden md:table-cell'>
+                    <div className='flex items-center gap-1 sm:gap-1.5'>
+                      {trainer.hourly_rate ? (
+                        <>
+                          <DollarSign className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                          <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
+                            {trainer.hourly_rate.toLocaleString()} VNĐ
+                          </span>
+                        </>
+                      ) : (
+                        <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-inter'>
+                          -
+                        </span>
+                      )}
+                    </div>
+                  </AdminTableCell>
+                </AdminTableRow>
+                ))}
+              </AdminTableBody>
+            </AdminTable>
+          </AdminCard>
+
+          {totalPages > 1 && (
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              totalItems={filteredTrainers.length}
+              itemsPerPage={itemsPerPage}
+              onPageChange={setCurrentPage}
+              onItemsPerPageChange={newItemsPerPage => {
+                setItemsPerPage(newItemsPerPage);
+                setCurrentPage(1);
+              }}
+            />
+          )}
+        </>
+      )}
+
+      {/* Form Modal */}
+      <TrainerFormModal
+        isOpen={isFormModalOpen}
+        onClose={() => {
+          setIsFormModalOpen(false);
+          setSelectedTrainer(null);
+        }}
+        onSave={handleSave}
+        trainer={selectedTrainer}
+      />
+
+      {/* Action Menu Popup */}
+      {actionMenuOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            className='fixed inset-0 z-40'
+            onClick={() => {
+              setActionMenuOpen(false);
+              setSelectedTrainerForAction(null);
+            }}
+          />
+          {/* Popup */}
+          <div
+            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 min-w-[180px]'
+            style={{
+              left: `${Math.min(menuPosition.x, window.innerWidth - 200)}px`,
+              top: `${Math.min(menuPosition.y + 10, window.innerHeight - 150)}px`,
+            }}
+            onClick={e => e.stopPropagation()}
+          >
+            <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800'>
+              <p className='text-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
+                {selectedTrainerForAction?.full_name}
+              </p>
+            </div>
+            <div className='py-1'>
+              <button
+                onClick={() => {
+                  setActionMenuOpen(false);
+                  handleEdit(selectedTrainerForAction!);
+                }}
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
+              >
+                <Edit className='w-3.5 h-3.5' />
+                Sửa
+              </button>
+              <button
+                onClick={() => {
+                  setActionMenuOpen(false);
+                  setTrainerToDelete(selectedTrainerForAction);
+                  setIsDeleteDialogOpen(true);
+                }}
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
+              >
+                <Trash2 className='w-3.5 h-3.5' />
+                Xóa
+              </button>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => {
+          setIsDeleteDialogOpen(false);
+          setTrainerToDelete(null);
+        }}
+        onConfirm={handleDelete}
+        title='Xác nhận xóa huấn luyện viên'
+        message={`Bạn có chắc chắn muốn xóa huấn luyện viên "${trainerToDelete?.full_name}"? Hành động này không thể hoàn tác.`}
+        confirmText='Xóa'
+        cancelText='Hủy'
+        variant='danger'
+        isLoading={isDeleting}
+      />
+    </div>
+  );
+};
+
+export default TrainerManagement;

@@ -3,11 +3,15 @@ import ClassCard from '@/components/ClassCard';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   bookingService,
+  classService,
+  memberService,
   scheduleService,
   type Booking,
+  type ClassRecommendation,
   type CreateBookingRequest,
   type Schedule,
   type ScheduleFilters,
+  type SchedulingSuggestion,
 } from '@/services';
 import { ClassCategory } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
@@ -15,11 +19,19 @@ import { Typography } from '@/utils/typography';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import {
+  Activity,
   Calendar,
+  CalendarClock,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Filter,
+  Lightbulb,
   Search,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Users,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -32,6 +44,7 @@ import {
   SafeAreaView,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -94,6 +107,21 @@ export default function ClassesScreen() {
   // Data states
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
+  const [recommendations, setRecommendations] = useState<ClassRecommendation[]>(
+    []
+  );
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [schedulingSuggestions, setSchedulingSuggestions] = useState<
+    SchedulingSuggestion[]
+  >([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+
+  // AI Recommendations toggle state (Premium feature)
+  const [aiRecommendationsEnabled, setAiRecommendationsEnabled] = useState<
+    boolean | null
+  >(null);
+  const [togglingAI, setTogglingAI] = useState(false);
+  const [memberProfile, setMemberProfile] = useState<any>(null); // Full member profile with membership_type
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -118,6 +146,13 @@ export default function ClassesScreen() {
   // Track if initial load has completed
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false);
+
+  // Load member profile on mount
+  useEffect(() => {
+    if (user?.id && member?.id) {
+      loadMemberProfile();
+    }
+  }, [user?.id, member?.id]);
 
   // Load data on component mount (only when date changes, NOT category)
   useEffect(() => {
@@ -193,6 +228,14 @@ export default function ClassesScreen() {
       } else {
         setMyBookings([]);
       }
+
+      // Load class recommendations and scheduling suggestions
+      if (member?.id) {
+        await Promise.all([
+          loadRecommendations(member.id),
+          loadSchedulingSuggestions(member.id),
+        ]);
+      }
     } catch (err: any) {
       console.error('Error loading classes data:', err);
       setError(err.message || 'Failed to load classes data');
@@ -205,10 +248,126 @@ export default function ClassesScreen() {
     }
   };
 
+  // Load full member profile
+  const loadMemberProfile = async () => {
+    try {
+      if (!member?.id) return;
+
+      const response = await memberService.getMemberProfile();
+      if (response.success && response.data) {
+        const profile = response.data;
+        setMemberProfile(profile);
+
+        // Set AI recommendations enabled state
+        const isPremium = ['PREMIUM', 'VIP'].includes(
+          profile.membership_type || ''
+        );
+        if (isPremium) {
+          setAiRecommendationsEnabled(
+            profile.ai_class_recommendations_enabled === true
+          );
+        } else {
+          setAiRecommendationsEnabled(null);
+        }
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading member profile:', err);
+    }
+  };
+
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadData(true); // Show full loading on manual refresh
+    await Promise.all([
+      loadMemberProfile(),
+      loadData(true), // Show full loading on manual refresh
+    ]);
     setRefreshing(false);
+  };
+
+  // Load class recommendations
+  const loadRecommendations = async (memberId: string) => {
+    try {
+      setLoadingRecommendations(true);
+      // Only use AI if member has premium membership and AI enabled
+      const useAI = aiRecommendationsEnabled === true;
+      const response = await classService.getClassRecommendations(
+        memberId,
+        useAI
+      );
+
+      if (response.success && response.data?.recommendations) {
+        setRecommendations(response.data.recommendations);
+      } else {
+        setRecommendations([]);
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading class recommendations:', err);
+      setRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
+  };
+
+  // Load smart scheduling suggestions
+  const loadSchedulingSuggestions = async (memberId: string) => {
+    try {
+      setLoadingSuggestions(true);
+      const response = await classService.getSchedulingSuggestions(memberId, {
+        dateRange: 30,
+        useAI: true,
+      });
+
+      if (response.success && response.data?.suggestions) {
+        setSchedulingSuggestions(response.data.suggestions);
+      } else {
+        setSchedulingSuggestions([]);
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading scheduling suggestions:', err);
+      setSchedulingSuggestions([]);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  // Toggle AI Class Recommendations (Premium feature)
+  const handleToggleAIRecommendations = async (value: boolean) => {
+    if (!member?.id) {
+      Alert.alert(t('common.error'), t('classes.memberNotFound'));
+      return;
+    }
+
+    try {
+      setTogglingAI(true);
+      const response = await memberService.toggleAIClassRecommendations();
+
+      if (response.success && response.data) {
+        // Reload member profile to get updated state
+        await loadMemberProfile();
+        // Reload recommendations with new setting
+        await loadRecommendations(member.id);
+        Alert.alert(
+          t('common.success'),
+          response.data.ai_class_recommendations_enabled
+            ? t('classes.aiRecommendationsEnabled')
+            : t('classes.aiRecommendationsDisabled')
+        );
+      } else {
+        Alert.alert(
+          t('common.error'),
+          response.error || t('classes.toggleFailed')
+        );
+        // Revert toggle state
+        setAiRecommendationsEnabled(!value);
+      }
+    } catch (err: any) {
+      console.error('❌ Error toggling AI recommendations:', err);
+      Alert.alert(t('common.error'), err.message || t('classes.toggleFailed'));
+      // Revert toggle state
+      setAiRecommendationsEnabled(!value);
+    } finally {
+      setTogglingAI(false);
+    }
   };
 
   const handleSearch = (query: string) => {
@@ -724,6 +883,386 @@ export default function ClassesScreen() {
         )}
       </View>
 
+      {/* Smart Scheduling Suggestions Section */}
+      {schedulingSuggestions.length > 0 && (
+        <View style={themedStyles.suggestionsSection}>
+          <View style={themedStyles.suggestionsHeader}>
+            <View style={themedStyles.suggestionsHeaderLeft}>
+              <CalendarClock size={20} color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.suggestionsTitle,
+                  { color: theme.colors.text, marginLeft: 8 },
+                ]}
+              >
+                {t('classes.schedulingSuggestions.title')}
+              </Text>
+            </View>
+          </View>
+          <Text
+            style={[
+              themedStyles.suggestionsDescription,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {t('classes.schedulingSuggestions.description')}
+          </Text>
+          {loadingSuggestions ? (
+            <View style={themedStyles.suggestionsLoading}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.suggestionsLoadingText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('classes.schedulingSuggestions.loading')}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={themedStyles.suggestionsContainer}
+            >
+              {schedulingSuggestions.map((suggestion, index) => {
+                const getPriorityColor = () => {
+                  switch (suggestion.priority) {
+                    case 'HIGH':
+                      return theme.colors.error;
+                    case 'MEDIUM':
+                      return theme.colors.warning || '#FFA500';
+                    case 'LOW':
+                      return theme.colors.primary;
+                    default:
+                      return theme.colors.primary;
+                  }
+                };
+
+                const priorityColor = getPriorityColor();
+                const startTime = new Date(suggestion.startTime);
+                const timeString = startTime.toLocaleTimeString('vi-VN', {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                });
+                const dateString = startTime.toLocaleDateString('vi-VN', {
+                  weekday: 'short',
+                  day: 'numeric',
+                  month: 'short',
+                });
+
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      themedStyles.suggestionCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderLeftColor: priorityColor,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      router.push(`/classes/${suggestion.scheduleId}`);
+                    }}
+                  >
+                    <View style={themedStyles.suggestionHeader}>
+                      <View
+                        style={[
+                          themedStyles.suggestionIconContainer,
+                          { backgroundColor: priorityColor + '15' },
+                        ]}
+                      >
+                        <Sparkles size={18} color={priorityColor} />
+                      </View>
+                      <View style={themedStyles.suggestionContent}>
+                        <Text
+                          style={[
+                            themedStyles.suggestionTitle,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {suggestion.className}
+                        </Text>
+                        <Text
+                          style={[
+                            themedStyles.suggestionPriority,
+                            { color: priorityColor },
+                          ]}
+                        >
+                          {suggestion.priority === 'HIGH'
+                            ? t('classes.schedulingSuggestions.priorityHigh')
+                            : suggestion.priority === 'MEDIUM'
+                            ? t('classes.schedulingSuggestions.priorityMedium')
+                            : t('classes.schedulingSuggestions.priorityLow')}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={themedStyles.suggestionTime}>
+                      <Calendar size={14} color={theme.colors.textSecondary} />
+                      <Text
+                        style={[
+                          themedStyles.suggestionTimeText,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {dateString} • {timeString}
+                      </Text>
+                    </View>
+                    {suggestion.trainer && (
+                      <View style={themedStyles.suggestionTrainer}>
+                        <Users size={14} color={theme.colors.textSecondary} />
+                        <Text
+                          style={[
+                            themedStyles.suggestionTrainerText,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {suggestion.trainer.name}
+                        </Text>
+                      </View>
+                    )}
+                    <View style={themedStyles.suggestionInfo}>
+                      <Text
+                        style={[
+                          themedStyles.suggestionSpots,
+                          {
+                            color:
+                              suggestion.spotsLeft > 0
+                                ? theme.colors.success || '#10B981'
+                                : theme.colors.error,
+                          },
+                        ]}
+                      >
+                        {suggestion.spotsLeft > 0
+                          ? t('classes.schedulingSuggestions.spotsAvailable', {
+                              count: suggestion.spotsLeft,
+                            })
+                          : t('classes.schedulingSuggestions.waitlist')}
+                      </Text>
+                      <Text
+                        style={[
+                          themedStyles.suggestionScore,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('classes.schedulingSuggestions.score')}:{' '}
+                        {suggestion.score}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[
+                        themedStyles.suggestionReason,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {suggestion.reason}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
+      {/* AI Recommendations Section */}
+      {(recommendations.length > 0 ||
+        (memberProfile &&
+          ['PREMIUM', 'VIP'].includes(
+            memberProfile.membership_type || ''
+          ))) && (
+        <View style={themedStyles.recommendationsSection}>
+          <View style={themedStyles.recommendationsHeader}>
+            <View style={themedStyles.recommendationsHeaderLeft}>
+              <Lightbulb size={20} color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.recommendationsTitle,
+                  { color: theme.colors.text, marginLeft: 8 },
+                ]}
+              >
+                {t('classes.recommendationsTitle')}
+              </Text>
+            </View>
+            {/* Toggle button for Premium/VIP members */}
+            {memberProfile &&
+              ['PREMIUM', 'VIP'].includes(
+                memberProfile.membership_type || ''
+              ) && (
+                <View style={themedStyles.aiToggleContainer}>
+                  <Text
+                    style={[
+                      themedStyles.aiToggleLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.aiRecommendations')}
+                  </Text>
+                  <Switch
+                    value={aiRecommendationsEnabled === true}
+                    onValueChange={handleToggleAIRecommendations}
+                    disabled={togglingAI}
+                    trackColor={{
+                      false: theme.colors.border,
+                      true: theme.colors.primary,
+                    }}
+                    thumbColor={theme.isDark ? '#fff' : '#fff'}
+                  />
+                </View>
+              )}
+          </View>
+          <Text
+            style={[
+              themedStyles.recommendationsDescription,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {t('classes.recommendationsDescription')}
+          </Text>
+          {loadingRecommendations ? (
+            <View style={themedStyles.recommendationsLoading}>
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.recommendationsLoadingText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('classes.loadingRecommendations')}
+              </Text>
+            </View>
+          ) : (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={themedStyles.recommendationsContainer}
+            >
+              {recommendations.map((rec, index) => {
+                const getPriorityColor = () => {
+                  switch (rec.priority) {
+                    case 'HIGH':
+                      return theme.colors.error;
+                    case 'MEDIUM':
+                      return theme.colors.warning || '#FFA500';
+                    case 'LOW':
+                      return theme.colors.primary;
+                    default:
+                      return theme.colors.primary;
+                  }
+                };
+
+                const getIcon = () => {
+                  switch (rec.type) {
+                    case 'NEW_CLASS':
+                      return Activity;
+                    case 'REPEAT_CLASS':
+                      return Target;
+                    case 'TIME_SUGGESTION':
+                      return Clock;
+                    case 'CATEGORY_EXPLORATION':
+                      return TrendingUp;
+                    case 'TRAINER_RECOMMENDATION':
+                      return Users;
+                    default:
+                      return Lightbulb;
+                  }
+                };
+
+                const Icon = getIcon();
+                const priorityColor = getPriorityColor();
+
+                return (
+                  <TouchableOpacity
+                    key={index}
+                    style={[
+                      themedStyles.recommendationCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderLeftColor: priorityColor,
+                      },
+                    ]}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      // Handle recommendation action
+                      if (rec.action === 'VIEW_SCHEDULE') {
+                        // Navigate to schedules with filter
+                        if (rec.data?.classCategory) {
+                          setSelectedCategory(
+                            rec.data.classCategory as ClassCategory
+                          );
+                        }
+                      } else if (rec.action === 'EXPLORE_CATEGORY') {
+                        // Navigate to category filter
+                        if (
+                          rec.data?.categories &&
+                          rec.data.categories.length > 0
+                        ) {
+                          setSelectedCategory(
+                            rec.data.categories[0] as ClassCategory
+                          );
+                        }
+                      }
+                    }}
+                  >
+                    <View style={themedStyles.recommendationHeader}>
+                      <View
+                        style={[
+                          themedStyles.recommendationIconContainer,
+                          { backgroundColor: priorityColor + '15' },
+                        ]}
+                      >
+                        <Icon size={18} color={priorityColor} />
+                      </View>
+                      <View style={themedStyles.recommendationContent}>
+                        <Text
+                          style={[
+                            themedStyles.recommendationTitle,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {rec.title}
+                        </Text>
+                        <Text
+                          style={[
+                            themedStyles.recommendationPriority,
+                            { color: priorityColor },
+                          ]}
+                        >
+                          {rec.priority === 'HIGH'
+                            ? t('classes.recommendationPriorityHigh')
+                            : rec.priority === 'MEDIUM'
+                            ? t('classes.recommendationPriorityMedium')
+                            : t('classes.recommendationPriorityLow')}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        themedStyles.recommendationMessage,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {rec.message}
+                    </Text>
+                    {rec.reasoning && (
+                      <Text
+                        style={[
+                          themedStyles.recommendationReasoning,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {rec.reasoning}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          )}
+        </View>
+      )}
+
       {/* Classes List */}
       <FlatList
         data={filteredSchedules}
@@ -1205,6 +1744,211 @@ const styles = (theme: any) =>
     dateMain: {
       ...Typography.h6,
       marginTop: 2,
+    },
+    suggestionsSection: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+    },
+    suggestionsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.xs,
+    },
+    suggestionsHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    suggestionsTitle: {
+      ...Typography.h5,
+      fontWeight: '700',
+    },
+    suggestionsDescription: {
+      ...Typography.bodySmall,
+      marginBottom: theme.spacing.md,
+    },
+    suggestionsLoading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    suggestionsLoadingText: {
+      ...Typography.bodyMedium,
+    },
+    suggestionsContainer: {
+      paddingVertical: theme.spacing.sm,
+      gap: theme.spacing.md,
+    },
+    suggestionCard: {
+      width: 320,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.xl,
+      borderLeftWidth: 4,
+      marginRight: theme.spacing.md,
+      ...theme.shadows.md,
+    },
+    suggestionHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: theme.spacing.sm,
+    },
+    suggestionIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: theme.spacing.sm,
+    },
+    suggestionContent: {
+      flex: 1,
+    },
+    suggestionTitle: {
+      ...Typography.bodyBold,
+      marginBottom: theme.spacing.xs / 2,
+    },
+    suggestionPriority: {
+      ...Typography.labelSmall,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      letterSpacing: 0.5,
+    },
+    suggestionTime: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginBottom: theme.spacing.xs,
+    },
+    suggestionTimeText: {
+      ...Typography.bodySmall,
+    },
+    suggestionTrainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginBottom: theme.spacing.sm,
+    },
+    suggestionTrainerText: {
+      ...Typography.bodySmall,
+    },
+    suggestionInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    suggestionSpots: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+    },
+    suggestionScore: {
+      ...Typography.labelSmall,
+    },
+    suggestionReason: {
+      ...Typography.bodySmall,
+      fontStyle: 'italic',
+    },
+    recommendationsSection: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+      paddingBottom: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+    },
+    recommendationsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.xs,
+    },
+    recommendationsHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    aiToggleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.sm,
+    },
+    aiToggleLabel: {
+      ...Typography.bodySmall,
+      fontSize: 12,
+    },
+    recommendationsTitle: {
+      ...Typography.h5,
+    },
+    recommendationsDescription: {
+      ...Typography.bodySmall,
+      marginBottom: theme.spacing.md,
+      opacity: 0.8,
+    },
+    recommendationsLoading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    recommendationsLoadingText: {
+      ...Typography.bodySmall,
+    },
+    recommendationsContainer: {
+      gap: theme.spacing.md,
+      paddingRight: theme.spacing.lg,
+    },
+    recommendationCard: {
+      width: 280,
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      borderLeftWidth: 4,
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? 'rgba(255, 255, 255, 0.1)'
+        : 'rgba(0, 0, 0, 0.05)',
+      ...theme.shadows.sm,
+    },
+    recommendationHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: theme.spacing.sm,
+    },
+    recommendationIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.md,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: theme.spacing.sm,
+    },
+    recommendationContent: {
+      flex: 1,
+    },
+    recommendationTitle: {
+      ...Typography.h6,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    recommendationPriority: {
+      ...Typography.caption,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      fontSize: 10,
+      letterSpacing: 0.5,
+    },
+    recommendationMessage: {
+      ...Typography.bodySmall,
+      lineHeight: 20,
+      marginTop: theme.spacing.xs,
+    },
+    recommendationReasoning: {
+      ...Typography.caption,
+      marginTop: theme.spacing.sm,
+      fontStyle: 'italic',
+      opacity: 0.7,
     },
     listContent: {
       paddingHorizontal: theme.spacing.lg,

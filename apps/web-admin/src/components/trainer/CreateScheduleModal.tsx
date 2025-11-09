@@ -8,11 +8,13 @@ import {
   ChevronRight,
   Clock,
   MapPin,
-  Users,
-  X,
+  Save,
 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { scheduleService } from '../../services/schedule.service';
+import AdminModal from '../common/AdminModal';
+import CustomSelect from '../common/CustomSelect';
+import Button from '../ui/Button/Button';
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
@@ -496,8 +498,11 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       if (response.ok) {
         const data = await response.json();
         if (data.success && data.data?.rooms) {
-          // Show all rooms, not just available ones
-          setAvailableRooms(data.data.rooms);
+          // Filter out rooms that are not available (MAINTENANCE, CLEANING, etc.)
+          const availableRooms = data.data.rooms.filter(
+            (room: Room) => room.status === 'AVAILABLE'
+          );
+          setAvailableRooms(availableRooms);
         }
       }
     } catch (error) {
@@ -511,7 +516,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   };
 
-  // Load all rooms when step 2 is shown (no need to check availability)
+  // Load available rooms when step 2 is shown (only AVAILABLE status)
   useEffect(() => {
     if (isOpen && currentStep === 2 && availableRooms.length === 0) {
       loadAllRooms();
@@ -562,6 +567,18 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
       if (startTime >= endTime) {
         newErrors.end_time = 'Giờ kết thúc phải sau giờ bắt đầu';
+      } else {
+        // Validate duration (30 minutes to 3 hours)
+        const durationMs = endTime.getTime() - startTime.getTime();
+        const durationMinutes = Math.round(durationMs / (1000 * 60));
+        const minDuration = 30; // 30 minutes
+        const maxDuration = 180; // 3 hours (180 minutes)
+
+        if (durationMinutes < minDuration) {
+          newErrors.end_time = 'Thời lượng lớp học tối thiểu 30 phút';
+        } else if (durationMinutes > maxDuration) {
+          newErrors.end_time = 'Thời lượng lớp học tối đa 3 giờ (180 phút)';
+        }
       }
     }
 
@@ -643,9 +660,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       const response = await scheduleService.createTrainerSchedule(userId, submitData);
 
       if (response.success) {
-        onSuccess();
-        onClose();
-        // Reset form
+        // Reset form first
         setFormData({
           category: '',
           difficulty: '',
@@ -659,11 +674,15 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           special_notes: '',
         });
         setErrors({});
+        setCurrentStep(1);
+
+        // Call onSuccess callback (which will refresh the list, show toast, and close modal)
+        // Don't call onClose() here as onSuccess handles it
+        onSuccess();
       } else {
         setErrors({ submit: response.message || 'Có lỗi xảy ra khi tạo lịch dạy' });
       }
     } catch (error: any) {
-
       // Handle specific error cases
       let errorMessage = 'Có lỗi xảy ra khi tạo lịch dạy';
       let errorDetails = '';
@@ -678,7 +697,10 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       // Extract detailed errors if available
       if (error.response?.data?.data?.errors && Array.isArray(error.response.data.data.errors)) {
         errorDetails = error.response.data.data.errors.join('\n• ');
-      } else if (error.response?.data?.data?.errors && typeof error.response.data.data.errors === 'string') {
+      } else if (
+        error.response?.data?.data?.errors &&
+        typeof error.response.data.data.errors === 'string'
+      ) {
         errorDetails = error.response.data.data.errors;
       }
 
@@ -689,7 +711,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         } else {
           errorMessage = 'Dữ liệu không hợp lệ. Vui lòng kiểm tra lại thông tin đã nhập.';
         }
-        
+
         // Show detailed validation errors for 400
         if (errorDetails) {
           errorMessage += `\n\nChi tiết lỗi:\n• ${errorDetails}`;
@@ -752,6 +774,46 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     setCurrentStep(1);
   };
 
+  // Category translation mapping
+  const categoryLabels: Record<string, string> = {
+    CARDIO: 'Cardio',
+    STRENGTH: 'Sức mạnh',
+    YOGA: 'Yoga',
+    PILATES: 'Pilates',
+    DANCE: 'Khiêu vũ',
+    MARTIAL_ARTS: 'Võ thuật',
+    AQUA: 'Bơi lội',
+    FUNCTIONAL: 'Chức năng',
+    RECOVERY: 'Phục hồi',
+    SPECIALIZED: 'Chuyên biệt',
+  };
+
+  // Prepare category options for CustomSelect with Vietnamese labels
+  const categoryOptions = availableCategories.map(cat => ({
+    value: cat,
+    label: categoryLabels[cat] || cat,
+  }));
+
+  // Difficulty translation mapping
+  const difficultyLabels: Record<string, string> = {
+    BEGINNER: 'Người mới bắt đầu',
+    INTERMEDIATE: 'Trung bình',
+    ADVANCED: 'Nâng cao',
+    ALL_LEVELS: 'Tất cả cấp độ',
+  };
+
+  // Prepare difficulty options for CustomSelect with Vietnamese labels
+  const difficultyOptions = getAvailableDifficulties(formData.category).map(diff => ({
+    value: diff,
+    label: difficultyLabels[diff] || diff,
+  }));
+
+  // Prepare room options for CustomSelect
+  const roomOptions = availableRooms.map(room => ({
+    value: room.id,
+    label: `${room.name} (Sức chứa: ${room.capacity})`,
+  }));
+
   if (!isOpen) return null;
 
   return (
@@ -801,16 +863,10 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           margin: 2px !important;
           border-radius: 6px !important;
         }
+        /* Hide navigation arrows */
         .flatpickr-prev-month,
         .flatpickr-next-month {
-          padding: 4px !important;
-          height: 24px !important;
-          width: 24px !important;
-        }
-        .flatpickr-prev-month svg,
-        .flatpickr-next-month svg {
-          width: 10px !important;
-          height: 10px !important;
+          display: none !important;
         }
         
         /* Compact timepicker for modal */
@@ -860,127 +916,179 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           color: #374151 !important;
           margin: 0 2px !important;
         }
+        /* Hide time picker arrows */
         .flatpickr-time .arrowUp,
         .flatpickr-time .arrowDown {
-          border: none !important;
-          width: 20px !important;
-          height: 16px !important;
-          padding: 0 !important;
-          background: transparent !important;
-        }
-        .flatpickr-time .arrowUp::after,
-        .flatpickr-time .arrowDown::after {
-          border-width: 4px !important;
+          display: none !important;
         }
       `}</style>
-      <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/10 backdrop-blur-sm animate-in fade-in duration-300'>
-        <div className='bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[85vh] overflow-y-auto animate-in zoom-in-95 duration-300'>
-          {/* Header */}
-          <div className='flex items-center justify-between p-4 border-b border-gray-200'>
+      <AdminModal
+        isOpen={isOpen}
+        onClose={onClose}
+        title='Mở Lớp Học Mới'
+        size='md'
+        footer={
+          <div className='flex justify-between items-center'>
             <div>
-              <h2 className='text-lg font-heading font-semibold text-gray-900'>Mở Lớp Học Mới</h2>
-              <p className='text-xs text-gray-600 mt-1'>
-                Bước {currentStep}/2:{' '}
-                {currentStep === 1 ? 'Thông tin lớp học' : 'Lịch trình & Phòng'}
-              </p>
+              {currentStep === 2 && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  size='sm'
+                  onClick={handlePrevious}
+                  startIcon={<ChevronLeft className='w-4 h-4' />}
+                  className='text-[11px] font-heading'
+                >
+                  Quay lại
+                </Button>
+              )}
             </div>
-            <button
-              onClick={onClose}
-              className='text-gray-400 hover:text-gray-600 transition-colors'
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          {/* Progress Bar */}
-          <div className='px-4 py-2 bg-gray-50'>
-            <div className='flex items-center space-x-2'>
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  currentStep >= 1 ? 'bg-orange-500' : 'bg-gray-300'
-                }`}
-              ></div>
-              <div
-                className={`flex-1 h-1 rounded-full ${
-                  currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-300'
-                }`}
-              ></div>
-              <div
-                className={`w-2 h-2 rounded-full ${
-                  currentStep >= 2 ? 'bg-orange-500' : 'bg-gray-300'
-                }`}
-              ></div>
+            <div className='flex gap-3'>
+              <Button
+                type='button'
+                variant='outline'
+                size='sm'
+                onClick={onClose}
+                disabled={loading}
+                className='text-[11px] font-heading'
+              >
+                Hủy
+              </Button>
+              {currentStep === 1 ? (
+                <Button
+                  type='button'
+                  variant='primary'
+                  size='sm'
+                  onClick={() => handleNext()}
+                  endIcon={<ChevronRight className='w-4 h-4' />}
+                  className='text-[11px] font-heading'
+                >
+                  Tiếp theo
+                </Button>
+              ) : (
+                <button
+                  type='button'
+                  onClick={e => {
+                    e.preventDefault();
+                    handleSubmit(e as any);
+                  }}
+                  disabled={loading}
+                  className='inline-flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-xl transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 active:scale-95 text-[11px] font-heading bg-orange-600 text-white hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 focus:ring-orange-500/30 disabled:bg-orange-300 disabled:opacity-60 shadow-sm hover:shadow-md disabled:cursor-not-allowed'
+                >
+                  {loading ? (
+                    <>
+                      <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                      Đang tạo...
+                    </>
+                  ) : (
+                    <>
+                      <Save className='w-4 h-4' />
+                      Tạo lịch dạy
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
+        }
+      >
+        {/* Progress Indicator */}
+        <div className='mb-6 pb-4 border-b border-gray-200 dark:border-gray-800'>
+          <div className='flex items-center justify-between mb-2'>
+            <span className='text-[11px] font-semibold font-heading text-gray-600 dark:text-gray-400'>
+              Bước {currentStep}/2
+            </span>
+            <span className='text-[11px] font-medium font-inter text-gray-500 dark:text-gray-500'>
+              {currentStep === 1 ? 'Thông tin lớp học' : 'Lịch trình & Phòng'}
+            </span>
+          </div>
+          <div className='flex items-center gap-2'>
+            <div
+              className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                currentStep >= 1
+                  ? 'bg-orange-500 dark:bg-orange-500'
+                  : 'bg-gray-300 dark:bg-gray-700'
+              }`}
+            />
+            <div
+              className={`flex-1 h-1 rounded-full transition-all duration-300 ${
+                currentStep >= 2
+                  ? 'bg-orange-500 dark:bg-orange-500'
+                  : 'bg-gray-300 dark:bg-gray-700'
+              }`}
+            />
+            <div
+              className={`h-2 w-2 rounded-full transition-all duration-300 ${
+                currentStep >= 2
+                  ? 'bg-orange-500 dark:bg-orange-500'
+                  : 'bg-gray-300 dark:bg-gray-700'
+              }`}
+            />
+          </div>
+        </div>
 
-          {/* Form */}
-          <form
-            onSubmit={handleSubmit}
-            className='p-4 space-y-4'
-            onKeyDown={e => {
-              // Prevent form submission on Enter key unless on final step and submit button is focused
-              if (e.key === 'Enter' && currentStep === 1) {
-                e.preventDefault();
-                e.stopPropagation();
-                handleNext();
-              }
-            }}
-          >
+        {/* Form */}
+        <form
+          onSubmit={handleSubmit}
+          className='space-y-3'
+          onKeyDown={e => {
+            // Prevent form submission on Enter key unless on final step and submit button is focused
+            if (e.key === 'Enter' && currentStep === 1) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleNext();
+            }
+          }}
+        >
+          {/* Step Container - Fixed height to prevent modal resize */}
+          <div className='min-h-[380px]'>
             {/* Step 1: Class Information */}
             {currentStep === 1 && (
-              <div className='space-y-4'>
+              <div className='space-y-3'>
                 {/* Category and Difficulty */}
-                <div className='grid grid-cols-1 gap-3'>
+                <div className='grid grid-cols-2 gap-3'>
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <BookOpen size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Môn học *
                     </label>
-                    <select
+                    <CustomSelect
+                      options={categoryOptions}
                       value={formData.category}
-                      onChange={e => handleInputChange('category', e.target.value)}
-                      className={`w-full px-3 py-2 text-xs border rounded-lg focus:ring-orange-500 focus:border-orange-500 ${
-                        errors.category ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    >
-                      <option value=''>Chọn môn học</option>
-                      {availableCategories.map(category => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={value => handleInputChange('category', value)}
+                      placeholder='Chọn môn học'
+                      icon={<BookOpen className='w-3.5 h-3.5' />}
+                      className={errors.category ? 'border-red-500 dark:border-red-500' : ''}
+                    />
                     {errors.category && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.category}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.category}
+                      </p>
                     )}
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>Cấp độ *</label>
-                    <select
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                      Cấp độ *
+                    </label>
+                    <CustomSelect
+                      options={difficultyOptions}
                       value={formData.difficulty}
-                      onChange={e => handleInputChange('difficulty', e.target.value)}
+                      onChange={value => handleInputChange('difficulty', value)}
+                      placeholder='Chọn cấp độ'
                       disabled={!formData.category}
-                      className={`w-full px-3 py-2 text-xs border rounded-lg focus:ring-orange-500 focus:border-orange-500 ${
-                        errors.difficulty ? 'border-red-500' : 'border-gray-300'
-                      } ${!formData.category ? 'bg-gray-100' : ''}`}
-                    >
-                      <option value=''>Chọn cấp độ</option>
-                      {getAvailableDifficulties(formData.category).map(difficulty => (
-                        <option key={difficulty} value={difficulty}>
-                          {difficulty}
-                        </option>
-                      ))}
-                    </select>
+                      className={errors.difficulty ? 'border-red-500 dark:border-red-500' : ''}
+                    />
                     {errors.difficulty && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.difficulty}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.difficulty}
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Class Name */}
                 <div>
-                  <label className='block text-xs font-medium text-gray-700 mb-2'>
+                  <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                     Tên lớp học *
                   </label>
                   <input
@@ -988,26 +1096,30 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     value={formData.class_name}
                     onChange={e => handleInputChange('class_name', e.target.value)}
                     placeholder='Nhập tên lớp học'
-                    className={`w-full px-3 py-2 text-xs border rounded-lg focus:ring-orange-500 focus:border-orange-500 ${
-                      errors.class_name ? 'border-red-500' : 'border-gray-300'
+                    className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                      errors.class_name
+                        ? 'border-red-500 dark:border-red-500'
+                        : 'border-gray-300 dark:border-gray-700'
                     }`}
                   />
                   {errors.class_name && (
-                    <p className='text-xs text-red-500 mt-1'>{errors.class_name}</p>
+                    <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                      {errors.class_name}
+                    </p>
                   )}
                 </div>
 
                 {/* Description */}
                 <div>
-                  <label className='block text-xs font-medium text-gray-700 mb-2'>
+                  <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                     Mô tả lớp học
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={e => handleInputChange('description', e.target.value)}
                     placeholder='Mô tả về lớp học (tùy chọn)'
-                    rows={2}
-                    className='w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500'
+                    rows={3}
+                    className='w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter resize-none shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 border-gray-300 dark:border-gray-700'
                   />
                 </div>
               </div>
@@ -1015,12 +1127,11 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
             {/* Step 2: Schedule and Room */}
             {currentStep === 2 && (
-              <div className='space-y-4'>
+              <div className='space-y-3'>
                 {/* Date and Time */}
-                <div className='grid grid-cols-3 gap-2'>
+                <div className='grid grid-cols-3 gap-3'>
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <Calendar size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Ngày *
                     </label>
                     <div className='relative'>
@@ -1030,22 +1141,26 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                         type='text'
                         placeholder='dd/mm/yyyy'
                         readOnly
-                        className={`w-full px-2.5 py-2 pr-8 text-xs border rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500 cursor-pointer bg-white transition-colors ${
-                          errors.date ? 'border-red-500' : 'border-gray-300 hover:border-gray-400'
+                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                          errors.date
+                            ? 'border-red-500 dark:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        style={{ fontSize: '12px' }}
                       />
                       <Calendar
                         size={14}
-                        className='absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none'
+                        className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none'
                       />
                     </div>
-                    {errors.date && <p className='text-xs text-red-500 mt-1'>{errors.date}</p>}
+                    {errors.date && (
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.date}
+                      </p>
+                    )}
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <Clock size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Bắt đầu *
                     </label>
                     <div className='relative'>
@@ -1055,26 +1170,26 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                         type='text'
                         placeholder='hh:mm'
                         readOnly
-                        className={`w-full px-2.5 py-2 pr-8 text-xs border rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500 cursor-pointer bg-white transition-colors ${
+                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
                           errors.start_time
-                            ? 'border-red-500'
-                            : 'border-gray-300 hover:border-gray-400'
+                            ? 'border-red-500 dark:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        style={{ fontSize: '12px' }}
                       />
                       <Clock
                         size={14}
-                        className='absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none'
+                        className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none'
                       />
                     </div>
                     {errors.start_time && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.start_time}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.start_time}
+                      </p>
                     )}
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <Clock size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Kết thúc *
                     </label>
                     <div className='relative'>
@@ -1084,57 +1199,51 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                         type='text'
                         placeholder='hh:mm'
                         readOnly
-                        className={`w-full px-2.5 py-2 pr-8 text-xs border rounded-lg focus:ring-1 focus:ring-orange-500 focus:border-orange-500 cursor-pointer bg-white transition-colors ${
+                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
                           errors.end_time
-                            ? 'border-red-500'
-                            : 'border-gray-300 hover:border-gray-400'
+                            ? 'border-red-500 dark:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700'
                         }`}
-                        style={{ fontSize: '12px' }}
                       />
                       <Clock
                         size={14}
-                        className='absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none'
+                        className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none'
                       />
                     </div>
                     {errors.end_time && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.end_time}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.end_time}
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Room and Capacity */}
-                <div className='grid grid-cols-1 gap-3'>
+                <div className='grid grid-cols-2 gap-3'>
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <MapPin size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Phòng học *
                     </label>
-                    <select
+                    <CustomSelect
+                      options={roomOptions}
                       value={formData.room_id}
-                      onChange={e => handleInputChange('room_id', e.target.value)}
-                      className={`w-full px-3 py-2 text-xs border rounded-lg focus:ring-orange-500 focus:border-orange-500 ${
-                        errors.room_id ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    >
-                      <option value=''>
-                        {availableRooms.length === 0
-                          ? 'Đang tải danh sách phòng...'
-                          : 'Chọn phòng'}
-                      </option>
-                      {availableRooms.map(room => (
-                        <option key={room.id} value={room.id}>
-                          {room.name} (Sức chứa: {room.capacity})
-                        </option>
-                      ))}
-                    </select>
+                      onChange={value => handleInputChange('room_id', value)}
+                      placeholder={
+                        availableRooms.length === 0 ? 'Đang tải danh sách phòng...' : 'Chọn phòng'
+                      }
+                      icon={<MapPin className='w-3.5 h-3.5' />}
+                      disabled={availableRooms.length === 0}
+                      className={errors.room_id ? 'border-red-500 dark:border-red-500' : ''}
+                    />
                     {errors.room_id && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.room_id}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.room_id}
+                      </p>
                     )}
                   </div>
 
                   <div>
-                    <label className='block text-xs font-medium text-gray-700 mb-2'>
-                      <Users size={14} className='inline mr-1' />
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                       Số lượng học viên *
                     </label>
                     <input
@@ -1144,132 +1253,93 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                       onChange={e =>
                         handleInputChange('max_capacity', parseInt(e.target.value) || 1)
                       }
-                      className={`w-full px-3 py-2 text-xs border rounded-lg focus:ring-orange-500 focus:border-orange-500 ${
-                        errors.max_capacity ? 'border-red-500' : 'border-gray-300'
+                      className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                        errors.max_capacity
+                          ? 'border-red-500 dark:border-red-500'
+                          : 'border-gray-300 dark:border-gray-700'
                       }`}
                     />
                     {errors.max_capacity && (
-                      <p className='text-xs text-red-500 mt-1'>{errors.max_capacity}</p>
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.max_capacity}
+                      </p>
                     )}
                   </div>
                 </div>
 
                 {/* Special Notes */}
                 <div>
-                  <label className='block text-xs font-medium text-gray-700 mb-2'>
+                  <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
                     Ghi chú đặc biệt
                   </label>
                   <textarea
                     value={formData.special_notes}
                     onChange={e => handleInputChange('special_notes', e.target.value)}
                     placeholder='Ghi chú đặc biệt cho lớp học (tùy chọn)'
-                    rows={2}
-                    className='w-full px-3 py-2 text-xs border border-gray-300 rounded-lg focus:ring-orange-500 focus:border-orange-500'
+                    rows={3}
+                    className='w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter resize-none shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 border-gray-300 dark:border-gray-700'
                   />
                 </div>
-              </div>
-            )}
 
-            {/* Submit Error */}
-            {errors.submit && (
-              <div
-                className={`flex items-start p-3 border rounded-lg ${
-                  errors.submit.includes('429') ||
-                  errors.submit.includes('giới hạn') ||
-                  errors.submit.includes('tối đa')
-                    ? 'bg-orange-50 border-orange-200'
-                    : 'bg-red-50 border-red-200'
-                }`}
-              >
-                <AlertCircle
-                  size={16}
-                  className={`mr-2 mt-0.5 flex-shrink-0 ${
-                    errors.submit.includes('429') ||
-                    errors.submit.includes('giới hạn') ||
-                    errors.submit.includes('tối đa')
-                      ? 'text-orange-500'
-                      : 'text-red-500'
-                  }`}
-                />
-                <div className='flex-1'>
+                {/* Submit Error - Moved here to avoid increasing modal height */}
+                {errors.submit && (
                   <div
-                    className={`text-xs font-medium whitespace-pre-line ${
+                    className={`flex items-start p-2.5 border rounded-lg mt-2 ${
                       errors.submit.includes('429') ||
                       errors.submit.includes('giới hạn') ||
                       errors.submit.includes('tối đa')
-                        ? 'text-orange-800'
-                        : 'text-red-600'
+                        ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'
+                        : 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
                     }`}
                   >
-                    {errors.submit.split('\n').map((line, index) => (
-                      <div key={index} className={index > 0 ? 'mt-1' : ''}>
-                        {line.startsWith('•') || line.startsWith('Chi tiết') ? (
-                          <span className='text-gray-600 font-normal'>{line}</span>
-                        ) : (
-                          <span>{line}</span>
-                        )}
+                    <AlertCircle
+                      size={14}
+                      className={`mr-2 mt-0.5 flex-shrink-0 ${
+                        errors.submit.includes('429') ||
+                        errors.submit.includes('giới hạn') ||
+                        errors.submit.includes('tối đa')
+                          ? 'text-orange-500 dark:text-orange-400'
+                          : 'text-red-500 dark:text-red-400'
+                      }`}
+                    />
+                    <div className='flex-1 min-w-0'>
+                      <div
+                        className={`text-[10px] font-medium font-inter whitespace-pre-line leading-relaxed ${
+                          errors.submit.includes('429') ||
+                          errors.submit.includes('giới hạn') ||
+                          errors.submit.includes('tối đa')
+                            ? 'text-orange-800 dark:text-orange-300'
+                            : 'text-red-600 dark:text-red-400'
+                        }`}
+                      >
+                        {errors.submit.split('\n').map((line, index) => (
+                          <div key={index} className={index > 0 ? 'mt-0.5' : ''}>
+                            {line.startsWith('•') || line.startsWith('Chi tiết') ? (
+                              <span className='text-gray-600 dark:text-gray-400 font-normal'>
+                                {line}
+                              </span>
+                            ) : (
+                              <span>{line}</span>
+                            )}
+                          </div>
+                        ))}
                       </div>
-                    ))}
+                      {(errors.submit.includes('429') ||
+                        errors.submit.includes('giới hạn') ||
+                        errors.submit.includes('tối đa')) && (
+                        <p className='text-[10px] text-orange-600 dark:text-orange-400 mt-1 font-inter leading-relaxed'>
+                          Bạn có thể xóa một số lịch đã tạo hôm nay để có thể tạo lịch mới, hoặc lên
+                          lịch cho các ngày khác.
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  {(errors.submit.includes('429') ||
-                    errors.submit.includes('giới hạn') ||
-                    errors.submit.includes('tối đa')) && (
-                    <p className='text-xs text-orange-600 mt-1'>
-                      Bạn có thể xóa một số lịch đã tạo hôm nay để có thể tạo lịch mới, hoặc lên
-                      lịch cho các ngày khác.
-                    </p>
-                  )}
-                </div>
+                )}
               </div>
             )}
-
-            {/* Actions */}
-            <div className='flex justify-between pt-4 border-t border-gray-200'>
-              <div>
-                {currentStep === 2 && (
-                  <button
-                    type='button'
-                    onClick={handlePrevious}
-                    className='flex items-center px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors'
-                  >
-                    <ChevronLeft size={14} className='mr-1' />
-                    Quay lại
-                  </button>
-                )}
-              </div>
-
-              <div className='flex space-x-2'>
-                <button
-                  type='button'
-                  onClick={onClose}
-                  className='px-3 py-2 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors'
-                >
-                  Hủy
-                </button>
-
-                {currentStep === 1 ? (
-                  <button
-                    type='button'
-                    onClick={e => handleNext(e)}
-                    className='flex items-center px-3 py-2 text-xs font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 transition-colors'
-                  >
-                    Tiếp theo
-                    <ChevronRight size={14} className='ml-1' />
-                  </button>
-                ) : (
-                  <button
-                    type='submit'
-                    disabled={loading}
-                    className='px-3 py-2 text-xs font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
-                  >
-                    {loading ? 'Đang tạo...' : 'Tạo lịch dạy'}
-                  </button>
-                )}
-              </div>
-            </div>
-          </form>
-        </div>
-      </div>
+          </div>
+        </form>
+      </AdminModal>
     </>
   );
 };

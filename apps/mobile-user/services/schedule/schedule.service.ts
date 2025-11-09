@@ -254,12 +254,17 @@ class ScheduleService {
   }> {
     try {
       const today = new Date();
-      const startOfWeek = new Date(
-        today.setDate(today.getDate() - today.getDay())
-      );
-      const endOfWeek = new Date(
-        today.setDate(today.getDate() - today.getDay() + 6)
-      );
+      // Week starts on Monday (day 1), not Sunday (day 0)
+      // getDay() returns: 0=Sunday, 1=Monday, ..., 6=Saturday
+      const dayOfWeek = today.getDay();
+      // If Sunday (0), go back 6 days to previous Monday
+      // Otherwise, go back (dayOfWeek - 1) days to current week's Monday
+      const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const startOfWeek = new Date(today);
+      startOfWeek.setDate(today.getDate() - daysToSubtract);
+      // End date is Sunday (6 days after Monday)
+      const endOfWeek = new Date(startOfWeek);
+      endOfWeek.setDate(startOfWeek.getDate() + 6);
 
       const startDate = startOfWeek.toISOString().split('T')[0];
       const endDate = endOfWeek.toISOString().split('T')[0];

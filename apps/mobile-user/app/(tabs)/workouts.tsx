@@ -6,14 +6,24 @@ import {
   memberService,
   workoutPlanService,
   type WorkoutPlan,
-  type WorkoutRecommendation,
 } from '@/services';
 import { MembershipType } from '@/types/memberTypes';
 import { Difficulty } from '@/types/workoutTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Bot, Boxes, Filter, Plus, Sparkles, Zap } from 'lucide-react-native';
+import {
+  Activity,
+  Bot,
+  Boxes,
+  Filter,
+  Lightbulb,
+  Plus,
+  Sparkles,
+  Target,
+  TrendingUp,
+  Zap,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -106,8 +116,17 @@ export default function WorkoutsScreen() {
   // Data states
   const [workoutPlans, setWorkoutPlans] = useState<WorkoutPlan[]>([]);
   const [recommendations, setRecommendations] = useState<
-    WorkoutRecommendation[]
+    Array<{
+      type: string;
+      priority: 'HIGH' | 'MEDIUM' | 'LOW';
+      title: string;
+      message: string;
+      action: string;
+      data?: any;
+      reasoning?: string;
+    }>
   >([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
   const [membershipType, setMembershipType] = useState<MembershipType>(
     MembershipType.BASIC
   );
@@ -138,7 +157,7 @@ export default function WorkoutsScreen() {
       }
 
       // Load all data in parallel
-        const [plansResponse, profileResponse] = await Promise.all([
+      const [plansResponse, profileResponse] = await Promise.all([
         workoutPlanService.getWorkoutPlans(user.id),
         memberService.getMemberProfile(),
       ]);
@@ -155,9 +174,9 @@ export default function WorkoutsScreen() {
         setWorkoutPlans([]);
       }
 
-      // Recommendations currently not available from backend
-      // TODO: Implement recommendations endpoint in backend
-      setRecommendations([]);
+      // Load AI-powered recommendations - use member.id if available, fallback to user.id
+      const memberId = profileResponse.data?.id || member?.id || user.id;
+      await loadRecommendations(memberId);
 
       // Handle profile (for membership type)
       if (profileResponse.success && profileResponse.data) {
@@ -184,6 +203,28 @@ export default function WorkoutsScreen() {
     setRefreshing(true);
     await loadData();
     setRefreshing(false);
+  };
+
+  // Load workout recommendations
+  const loadRecommendations = async (memberId: string) => {
+    try {
+      setLoadingRecommendations(true);
+      const response = await workoutPlanService.getWorkoutRecommendations(
+        memberId,
+        true
+      );
+
+      if (response.success && response.data?.recommendations) {
+        setRecommendations(response.data.recommendations);
+      } else {
+        setRecommendations([]);
+      }
+    } catch (err: any) {
+      console.error('❌ Error loading recommendations:', err);
+      setRecommendations([]);
+    } finally {
+      setLoadingRecommendations(false);
+    }
   };
 
   // Handle AI Workout Generation
@@ -497,6 +538,156 @@ export default function WorkoutsScreen() {
             </View>
           </View>
         </TouchableOpacity>
+
+        {/* AI Recommendations Section */}
+        {recommendations.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.recommendationsHeader}>
+              <View style={styles.recommendationsHeaderLeft}>
+                <Lightbulb size={20} color={theme.colors.primary} />
+                <Text
+                  style={[
+                    styles.sectionTitle,
+                    { color: theme.colors.text, marginLeft: 8 },
+                  ]}
+                >
+                  {t('workouts.recommendationsTitle')}
+                </Text>
+              </View>
+            </View>
+            <Text
+              style={[
+                styles.recommendationsDescription,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {t('workouts.recommendationsDescription')}
+            </Text>
+            {loadingRecommendations ? (
+              <View style={styles.recommendationsLoading}>
+                <ActivityIndicator size="small" color={theme.colors.primary} />
+                <Text
+                  style={[
+                    styles.recommendationsLoadingText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('workouts.loadingRecommendations')}
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.recommendationsContainer}>
+                {recommendations.map((rec, index) => {
+                  const getPriorityColor = () => {
+                    switch (rec.priority) {
+                      case 'HIGH':
+                        return theme.colors.error;
+                      case 'MEDIUM':
+                        return theme.colors.warning || '#FFA500';
+                      case 'LOW':
+                        return theme.colors.primary;
+                      default:
+                        return theme.colors.primary;
+                    }
+                  };
+
+                  const getIcon = () => {
+                    switch (rec.type) {
+                      case 'ACTIVITY':
+                        return Activity;
+                      case 'VARIETY':
+                        return Target;
+                      case 'PLAN_UPDATE':
+                        return TrendingUp;
+                      case 'PROGRESS':
+                        return TrendingUp;
+                      default:
+                        return Lightbulb;
+                    }
+                  };
+
+                  const Icon = getIcon();
+                  const priorityColor = getPriorityColor();
+
+                  return (
+                    <TouchableOpacity
+                      key={index}
+                      style={[
+                        styles.recommendationCard,
+                        {
+                          backgroundColor: theme.colors.surface,
+                          borderLeftColor: priorityColor,
+                        },
+                      ]}
+                      activeOpacity={0.7}
+                      onPress={() => {
+                        // Handle recommendation action
+                        if (rec.action === 'CREATE_WORKOUT_PLAN') {
+                          router.push('/workouts/create');
+                        } else if (rec.action === 'UPDATE_WORKOUT_PLAN') {
+                          if (rec.data?.planId) {
+                            router.push(`/workouts/${rec.data.planId}`);
+                          }
+                        }
+                      }}
+                    >
+                      <View style={styles.recommendationHeader}>
+                        <View
+                          style={[
+                            styles.recommendationIconContainer,
+                            { backgroundColor: priorityColor + '15' },
+                          ]}
+                        >
+                          <Icon size={18} color={priorityColor} />
+                        </View>
+                        <View style={styles.recommendationContent}>
+                          <Text
+                            style={[
+                              styles.recommendationTitle,
+                              { color: theme.colors.text },
+                            ]}
+                          >
+                            {rec.title}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.recommendationPriority,
+                              { color: priorityColor },
+                            ]}
+                          >
+                            {rec.priority === 'HIGH'
+                              ? t('workouts.recommendationPriorityHigh')
+                              : rec.priority === 'MEDIUM'
+                              ? t('workouts.recommendationPriorityMedium')
+                              : t('workouts.recommendationPriorityLow')}
+                          </Text>
+                        </View>
+                      </View>
+                      <Text
+                        style={[
+                          styles.recommendationMessage,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {rec.message}
+                      </Text>
+                      {rec.reasoning && (
+                        <Text
+                          style={[
+                            styles.recommendationReasoning,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {rec.reasoning}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+          </View>
+        )}
 
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
@@ -982,5 +1173,84 @@ const styles = StyleSheet.create({
   modalButtonText: {
     ...Typography.bodyMedium,
     fontWeight: '600',
+  },
+  recommendationsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  recommendationsHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  recommendationsDescription: {
+    ...Typography.bodySmall,
+    marginBottom: 16,
+    opacity: 0.8,
+  },
+  recommendationsLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 20,
+    gap: 8,
+  },
+  recommendationsLoadingText: {
+    ...Typography.bodySmall,
+  },
+  recommendationsContainer: {
+    gap: 12,
+  },
+  recommendationCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderLeftWidth: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(0,0,0,0.05)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  recommendationHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  recommendationIconContainer: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  recommendationContent: {
+    flex: 1,
+  },
+  recommendationTitle: {
+    ...Typography.h6,
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  recommendationPriority: {
+    ...Typography.caption,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  recommendationMessage: {
+    ...Typography.bodySmall,
+    lineHeight: 20,
+    marginTop: 4,
+  },
+  recommendationReasoning: {
+    ...Typography.caption,
+    marginTop: 8,
+    fontStyle: 'italic',
+    opacity: 0.7,
   },
 });

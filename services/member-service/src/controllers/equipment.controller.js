@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const s3UploadService = require('../services/s3-upload.service');
 
 class EquipmentController {
   // ==================== EQUIPMENT MANAGEMENT ====================
@@ -25,6 +26,21 @@ class EquipmentController {
               select: {
                 usage_logs: true,
                 maintenance_logs: true,
+                queue: true,
+              },
+            },
+            usage_logs: {
+              orderBy: { start_time: 'desc' },
+              take: 1,
+              include: {
+                member: {
+                  select: {
+                    id: true,
+                    full_name: true,
+                    membership_number: true,
+                    email: true,
+                  },
+                },
               },
             },
           },
@@ -124,7 +140,12 @@ class EquipmentController {
         has_calorie_counter,
         has_rep_counter,
         wifi_enabled,
+        photo,
+        status,
       } = req.body;
+
+      // Remove description if present (not in schema)
+      const { description, ...equipmentData } = req.body;
 
       const equipment = await prisma.equipment.create({
         data: {
@@ -136,9 +157,11 @@ class EquipmentController {
           purchase_date: purchase_date ? new Date(purchase_date) : null,
           warranty_until: warranty_until ? new Date(warranty_until) : null,
           location,
+          status: status || 'AVAILABLE',
           max_weight,
           has_heart_monitor: has_heart_monitor || false,
           has_calorie_counter: has_calorie_counter || false,
+          photo: photo || null,
           has_rep_counter: has_rep_counter || false,
           wifi_enabled: wifi_enabled || false,
         },
@@ -165,24 +188,27 @@ class EquipmentController {
       const { id } = req.params;
       const updateData = req.body;
 
+      // Remove fields that don't exist in the schema
+      const { description, ...validUpdateData } = updateData;
+
       // Convert date strings to Date objects
-      if (updateData.purchase_date) {
-        updateData.purchase_date = new Date(updateData.purchase_date);
+      if (validUpdateData.purchase_date) {
+        validUpdateData.purchase_date = new Date(validUpdateData.purchase_date);
       }
-      if (updateData.warranty_until) {
-        updateData.warranty_until = new Date(updateData.warranty_until);
+      if (validUpdateData.warranty_until) {
+        validUpdateData.warranty_until = new Date(validUpdateData.warranty_until);
       }
-      if (updateData.last_maintenance) {
-        updateData.last_maintenance = new Date(updateData.last_maintenance);
+      if (validUpdateData.last_maintenance) {
+        validUpdateData.last_maintenance = new Date(validUpdateData.last_maintenance);
       }
-      if (updateData.next_maintenance) {
-        updateData.next_maintenance = new Date(updateData.next_maintenance);
+      if (validUpdateData.next_maintenance) {
+        validUpdateData.next_maintenance = new Date(validUpdateData.next_maintenance);
       }
 
       const equipment = await prisma.equipment.update({
         where: { id },
         data: {
-          ...updateData,
+          ...validUpdateData,
           updated_at: new Date(),
         },
       });
@@ -998,6 +1024,52 @@ class EquipmentController {
     }
   }
 
+  // Get equipment usage stats by status (for admin/reports)
+  async getEquipmentUsageStatsByStatus(req, res) {
+    try {
+      console.log('📊 Getting equipment usage stats by status...');
+      
+      // Get all equipment grouped by status
+      const equipmentStats = await prisma.equipment.groupBy({
+        by: ['status'],
+        _count: {
+          id: true,
+        },
+      });
+
+      console.log('📊 Equipment stats:', equipmentStats);
+
+      // Format response
+      const stats = equipmentStats.map(stat => ({
+        status: stat.status,
+        count: stat._count.id,
+      }));
+
+      // If no equipment found, return empty array instead of error
+      if (stats.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Equipment usage statistics retrieved successfully',
+          data: [],
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Equipment usage statistics retrieved successfully',
+        data: stats,
+      });
+    } catch (error) {
+      console.error('Get equipment usage stats by status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  }
+
   // ==================== MAINTENANCE MANAGEMENT ====================
 
   // Get equipment maintenance logs
@@ -1457,6 +1529,86 @@ class EquipmentController {
           canQueue: false,
           reason: 'ERROR',
         },
+      });
+    }
+  }
+
+  // Upload equipment photo
+  async uploadEquipmentPhoto(req, res) {
+    try {
+      const { photo } = req.body; // Base64 data URL from frontend
+
+      if (!photo || !photo.startsWith('data:image/')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid photo data. Expected base64 data URL.',
+          data: null,
+        });
+      }
+
+      // Extract mime type and base64 data
+      const matches = photo.match(/^data:image\/(\w+);base64,(.+)$/);
+      if (!matches) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid base64 format',
+          data: null,
+        });
+      }
+
+      const mimeType = `image/${matches[1]}`;
+      const base64Data = matches[2];
+      const fileBuffer = Buffer.from(base64Data, 'base64');
+      const originalName = `equipment_${Date.now()}.${matches[1]}`;
+
+      // Get user ID from token if available
+      let userId = 'unknown';
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith('Bearer ')) {
+        try {
+          const token = authHeader.split(' ')[1];
+          const tokenParts = token.split('.');
+          if (tokenParts.length === 3) {
+            let payloadBase64 = tokenParts[1];
+            while (payloadBase64.length % 4) {
+              payloadBase64 += '=';
+            }
+            const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+            userId = payload.userId || payload.id || 'unknown';
+          }
+        } catch (error) {
+          console.warn('⚠️ Could not extract user ID from token:', error.message);
+        }
+      }
+
+      // Upload to S3 with folder 'equipment'
+      const uploadResult = await s3UploadService.uploadFile(fileBuffer, originalName, mimeType, userId, {
+        folder: 'equipment',
+        optimize: true, // Optimize equipment photos
+      });
+
+      if (!uploadResult.success) {
+        return res.status(500).json({
+          success: false,
+          message: uploadResult.error || 'Failed to upload photo',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Photo uploaded successfully',
+        data: {
+          photo: uploadResult.url,
+          key: uploadResult.key,
+        },
+      });
+    } catch (error) {
+      console.error('Upload equipment photo error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
       });
     }
   }

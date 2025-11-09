@@ -723,10 +723,32 @@ class WorkoutController {
     });
   }
 
-  // Get workout plan recommendations
+  // Get workout plan recommendations (AI-powered)
   async getWorkoutRecommendations(req, res) {
     try {
       const { id } = req.params;
+      const { useAI = 'true' } = req.query; // Default to AI if available
+
+      // Get member profile
+      const member = await prisma.member.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          height: true,
+          weight: true,
+          fitness_goals: true,
+          medical_conditions: true,
+          allergies: true,
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
 
       // Get member's current active plan
       const activePlan = await prisma.workoutPlan.findFirst({
@@ -736,11 +758,11 @@ class WorkoutController {
         },
       });
 
-      // Get recent equipment usage
+      // Get recent equipment usage (last 30 days)
       const recentEquipment = await prisma.equipmentUsage.findMany({
         where: {
           member_id: id,
-          start_time: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) }, // Last 7 days
+          start_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
         },
         include: {
           equipment: {
@@ -750,29 +772,87 @@ class WorkoutController {
             },
           },
         },
+        orderBy: { start_time: 'desc' },
+        take: 50,
       });
 
-      // Get health metrics
+      // Get recent gym sessions (last 30 days)
+      const recentSessions = await prisma.gymSession.findMany({
+        where: {
+          member_id: id,
+          entry_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+        },
+        orderBy: { entry_time: 'desc' },
+        take: 20,
+      });
+
+      // Get health metrics (last 90 days for trend analysis)
       const recentMetrics = await prisma.healthMetric.findMany({
         where: {
           member_id: id,
-          recorded_at: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) }, // Last 30 days
+          recorded_at: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
         },
         orderBy: { recorded_at: 'desc' },
-        take: 10,
+        take: 20,
       });
 
-      // Generate recommendations based on data
-      const recommendations = this.generateRecommendations({
-        activePlan,
-        recentEquipment,
-        recentMetrics,
-      });
+      let recommendations = [];
+      let analysis = null;
+
+      // Try AI-powered recommendations first
+      if (useAI === 'true') {
+        try {
+          const aiResult = await aiService.generateWorkoutRecommendations({
+            member,
+            activePlan,
+            recentEquipment,
+            recentMetrics,
+            recentSessions,
+            fitnessGoals: member.fitness_goals,
+          });
+
+          if (aiResult.success && aiResult.recommendations.length > 0) {
+            recommendations = aiResult.recommendations;
+            analysis = aiResult.analysis;
+            console.log('✅ AI recommendations generated:', recommendations.length);
+          } else {
+            console.log('⚠️ AI recommendations failed, falling back to rule-based');
+            // Fall back to rule-based recommendations
+            recommendations = this.generateRecommendations({
+              activePlan,
+              recentEquipment,
+              recentMetrics,
+              recentSessions,
+            });
+          }
+        } catch (aiError) {
+          console.error('AI recommendations error:', aiError);
+          // Fall back to rule-based recommendations
+          recommendations = this.generateRecommendations({
+            activePlan,
+            recentEquipment,
+            recentMetrics,
+            recentSessions,
+          });
+        }
+      } else {
+        // Use rule-based recommendations
+        recommendations = this.generateRecommendations({
+          activePlan,
+          recentEquipment,
+          recentMetrics,
+          recentSessions,
+        });
+      }
 
       res.json({
         success: true,
         message: 'Workout recommendations retrieved successfully',
-        data: { recommendations },
+        data: {
+          recommendations,
+          analysis,
+          generatedAt: new Date().toISOString(),
+        },
       });
     } catch (error) {
       console.error('Get workout recommendations error:', error);
@@ -784,11 +864,11 @@ class WorkoutController {
     }
   }
 
-  generateRecommendations({ activePlan, recentEquipment, recentMetrics }) {
+  generateRecommendations({ activePlan, recentEquipment, recentMetrics, recentSessions }) {
     const recommendations = [];
 
     // Check if member has been active
-    if (recentEquipment.length === 0) {
+    if (recentSessions && recentSessions.length === 0 && recentEquipment.length === 0) {
       recommendations.push({
         type: 'ACTIVITY',
         priority: 'HIGH',
@@ -797,37 +877,96 @@ class WorkoutController {
           "You haven't been active recently. Consider starting with a beginner workout plan.",
         action: 'CREATE_WORKOUT_PLAN',
         data: { difficulty: 'BEGINNER' },
+        reasoning: 'No recent gym sessions or equipment usage detected',
       });
+    } else if (recentSessions && recentSessions.length > 0) {
+      const daysSinceLastSession = Math.floor(
+        (Date.now() - new Date(recentSessions[0].entry_time).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      if (daysSinceLastSession > 7) {
+        recommendations.push({
+          type: 'ACTIVITY',
+          priority: 'HIGH',
+          title: 'Get Back on Track',
+          message: `It's been ${daysSinceLastSession} days since your last workout. Time to get back to the gym!`,
+          action: 'CREATE_WORKOUT_PLAN',
+          data: { difficulty: 'BEGINNER' },
+          reasoning: `Last session was ${daysSinceLastSession} days ago`,
+        });
+      }
     }
 
     // Check for variety in equipment usage
-    const categories = [...new Set(recentEquipment.map(usage => usage.equipment.category))];
-    if (categories.length < 2) {
-      recommendations.push({
-        type: 'VARIETY',
-        priority: 'MEDIUM',
-        title: 'Add Variety to Your Workouts',
-        message: 'Try incorporating different types of exercises for better results.',
-        action: 'SUGGEST_EXERCISES',
-        data: {
-          missingCategories: ['CARDIO', 'STRENGTH', 'FUNCTIONAL'].filter(
-            cat => !categories.includes(cat)
-          ),
-        },
-      });
+    if (recentEquipment && recentEquipment.length > 0) {
+      const categories = [...new Set(recentEquipment.map(usage => usage.equipment?.category).filter(Boolean))];
+      if (categories.length < 2) {
+        recommendations.push({
+          type: 'VARIETY',
+          priority: 'MEDIUM',
+          title: 'Add Variety to Your Workouts',
+          message: 'Try incorporating different types of exercises for better results.',
+          action: 'SUGGEST_EXERCISES',
+          data: {
+            missingCategories: ['CARDIO', 'STRENGTH', 'FUNCTIONAL'].filter(
+              cat => !categories.includes(cat)
+            ),
+          },
+          reasoning: `Only using ${categories.length} equipment category`,
+        });
+      }
     }
 
     // Check if current plan is getting stale
-    if (activePlan && activePlan.created_at < new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)) {
+    if (activePlan) {
+      const planAge = Math.floor(
+        (Date.now() - new Date(activePlan.created_at).getTime()) / (1000 * 60 * 60 * 24)
+      );
+      
+      if (planAge > 30) {
+        recommendations.push({
+          type: 'PLAN_UPDATE',
+          priority: 'MEDIUM',
+          title: 'Update Your Workout Plan',
+          message:
+            'Your current workout plan is over a month old. Consider updating it for continued progress.',
+          action: 'UPDATE_WORKOUT_PLAN',
+          data: { planId: activePlan.id },
+          reasoning: `Plan is ${planAge} days old`,
+        });
+      }
+    } else if (recentSessions && recentSessions.length > 3) {
+      // Has been active but no plan
       recommendations.push({
         type: 'PLAN_UPDATE',
         priority: 'MEDIUM',
-        title: 'Update Your Workout Plan',
-        message:
-          'Your current workout plan is over a month old. Consider updating it for continued progress.',
-        action: 'UPDATE_WORKOUT_PLAN',
-        data: { planId: activePlan.id },
+        title: 'Create a Workout Plan',
+        message: 'You\'ve been working out regularly! Consider creating a structured workout plan for better results.',
+        action: 'CREATE_WORKOUT_PLAN',
+        data: {},
+        reasoning: 'Active but no workout plan',
       });
+    }
+
+    // Check for progress indicators
+    if (recentMetrics && recentMetrics.length > 0) {
+      const weightMetrics = recentMetrics.filter(m => m.metric_type === 'WEIGHT');
+      if (weightMetrics.length >= 2) {
+        const trend = weightMetrics[0].value - weightMetrics[weightMetrics.length - 1].value;
+        if (Math.abs(trend) > 2) {
+          recommendations.push({
+            type: 'PROGRESS',
+            priority: 'MEDIUM',
+            title: trend > 0 ? 'Weight Gain Detected' : 'Weight Loss Progress',
+            message: trend > 0
+              ? 'You\'ve gained weight. Consider adjusting your workout plan to maintain your goals.'
+              : 'Great progress on weight loss! Keep up the good work and consider adjusting your plan.',
+            action: 'UPDATE_WORKOUT_PLAN',
+            data: {},
+            reasoning: `Weight ${trend > 0 ? 'increased' : 'decreased'} by ${Math.abs(trend).toFixed(1)}kg`,
+          });
+        }
+      }
     }
 
     return recommendations;

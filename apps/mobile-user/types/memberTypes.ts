@@ -5,6 +5,7 @@ export interface Member {
   phone?: string;
   date_of_birth?: string;
   gender?: Gender;
+  address?: string;
   height?: number;
   weight?: number;
   body_fat_percent?: number;

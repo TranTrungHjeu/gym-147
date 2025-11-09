@@ -46,6 +46,15 @@ import Videos from './pages/UiElements/Videos';
 import Unauthorized from './pages/Unauthorized';
 import UserManagement from './pages/UserManagement';
 import UserProfiles from './pages/UserProfiles';
+import EquipmentManagement from './pages/Management/EquipmentManagement';
+import TrainerManagement from './pages/Management/TrainerManagement';
+import ClassManagement from './pages/Management/ClassManagement';
+import MemberManagement from './pages/Management/MemberManagement';
+import RoomManagement from './pages/Management/RoomManagement';
+import ScheduleManagement from './pages/Management/ScheduleManagement';
+import BillingManagement from './pages/Management/BillingManagement';
+import ReportsManagement from './pages/Management/ReportsManagement';
+import SettingsManagement from './pages/Management/SettingsManagement';
 export default function App() {
   return (
     <ToastProvider>
@@ -146,7 +155,100 @@ export default function App() {
             path='/user-management'
             element={
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <UserManagement />
+                <AppLayout>
+                  <UserManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          {/* Management Routes for Admin/Super Admin */}
+          <Route
+            path='/management/members'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <MemberManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/equipment'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <EquipmentManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/trainers'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <TrainerManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/classes'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ClassManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/rooms'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RoomManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/schedules'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ScheduleManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/billing'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <BillingManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ReportsManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/settings'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <SettingsManagement />
+                </AppLayout>
               </ProtectedRoute>
             }
           />

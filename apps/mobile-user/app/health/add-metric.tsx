@@ -8,6 +8,7 @@ import { MetricType, type AddMetricRequest } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -17,8 +18,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddMetricScreen() {
   const router = useRouter();
@@ -200,18 +203,30 @@ export default function AddMetricScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
+    <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      edges={['top']}
     >
-      <ScrollView
-        style={styles.scrollView}
-        showsVerticalScrollIndicator={false}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
+        <ScrollView
+          style={styles.scrollView}
+          showsVerticalScrollIndicator={false}
+        >
         <View style={styles.header}>
-          <Text style={[Typography.h2, { color: theme.colors.text }]}>
-            {t('health.addMetric')}
-          </Text>
+          <View style={styles.headerTop}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => router.back()}
+            >
+              <ArrowLeft size={24} color={theme.colors.text} />
+            </TouchableOpacity>
+            <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
+              {t('health.addMetric')}
+            </Text>
+          </View>
           <Text
             style={[Typography.body, { color: theme.colors.textSecondary }]}
           >
@@ -320,7 +335,8 @@ export default function AddMetricScreen() {
           />
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -334,6 +350,15 @@ const styles = StyleSheet.create({
   },
   header: {
     marginBottom: 24,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   form: {
     marginBottom: 24,

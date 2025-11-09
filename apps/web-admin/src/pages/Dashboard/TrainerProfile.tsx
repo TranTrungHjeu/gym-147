@@ -1,17 +1,28 @@
 import { motion } from 'framer-motion';
 import { Camera, Download, Key, Mail, Phone, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import ChangePasswordModal from '../../components/modals/ChangePasswordModal';
 import UserInfoCard from '../../components/UserProfile/UserInfoCard';
 import Button from '../../components/ui/Button/Button';
 import { User as UserType, userService } from '../../services/user.service';
+import { Trainer } from '../../services/trainer.service';
 
 export default function TrainerProfile() {
   const [user, setUser] = useState<UserType | null>(null);
+  const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isChangePasswordModalOpen, setIsChangePasswordModalOpen] = useState(false);
 
   useEffect(() => {
     fetchCurrentUser();
   }, []);
+
+  useEffect(() => {
+    // Fetch trainer profile photo if user is a trainer
+    if (user?.role === 'TRAINER' && user?.id) {
+      fetchTrainerAvatar(user.id);
+    }
+  }, [user]);
 
   const fetchCurrentUser = async () => {
     try {
@@ -34,6 +45,35 @@ export default function TrainerProfile() {
     }
   };
 
+  const fetchTrainerAvatar = async (userId: string) => {
+    try {
+      const token = localStorage.getItem('accessToken');
+      if (!token) return;
+
+      const scheduleServiceUrl = 'http://localhost:3003';
+      const response = await fetch(`${scheduleServiceUrl}/trainers/user/${userId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const profilePhoto = data.data?.trainer?.profile_photo || data.data?.profile_photo || null;
+        if (profilePhoto) {
+          setTrainer({ profile_photo: profilePhoto } as Trainer);
+        } else {
+          setTrainer(null);
+        }
+      } else {
+        setTrainer(null);
+      }
+    } catch (error) {
+      console.error('Error fetching trainer avatar:', error);
+      setTrainer(null);
+    }
+  };
+
   const handleUserUpdate = (updatedUser: UserType) => {
     setUser(updatedUser);
     // Update localStorage with new user data
@@ -48,6 +88,10 @@ export default function TrainerProfile() {
         phone: updatedUser.phone,
       };
       localStorage.setItem('user', JSON.stringify(updatedUserData));
+    }
+    // Refetch trainer avatar if user is a trainer
+    if (updatedUser.role === 'TRAINER' && updatedUser.id) {
+      fetchTrainerAvatar(updatedUser.id);
     }
   };
 
@@ -136,9 +180,36 @@ export default function TrainerProfile() {
                   {/* Avatar */}
                   <div className='relative group flex-shrink-0'>
                     <div className='relative w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--color-white)] dark:border-[var(--color-gray-700)] shadow-sm'>
+                      {trainer?.profile_photo ? (
+                        <>
+                          <img
+                            src={trainer.profile_photo}
+                            alt={`${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim()}
+                            className='w-full h-full object-cover'
+                            onError={e => {
+                              // Hide image and show fallback
+                              e.currentTarget.style.display = 'none';
+                              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                              if (fallback) {
+                                fallback.classList.remove('hidden');
+                                fallback.classList.add('flex');
+                              }
+                            }}
+                          />
+                          <div className='hidden w-full h-full'>
+                            {generateAvatar(
+                              user?.firstName || user?.first_name || 'U',
+                              user?.lastName || user?.last_name || 'S'
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <div className='w-full h-full flex'>
                       {generateAvatar(
                         user?.firstName || user?.first_name || 'U',
                         user?.lastName || user?.last_name || 'S'
+                          )}
+                        </div>
                       )}
                     </div>
                     <button className='absolute -bottom-0.5 -right-0.5 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] p-1 rounded-full shadow-sm transition-all duration-300 hover:scale-110'>
@@ -227,15 +298,7 @@ export default function TrainerProfile() {
                 </div>
                 <div className='space-y-2'>
                   <Button
-                    onClick={() => {
-                      if (window.showToast) {
-                        window.showToast({
-                          type: 'info',
-                          message: 'Chức năng đổi mật khẩu đang được phát triển',
-                          duration: 3000,
-                        });
-                      }
-                    }}
+                    onClick={() => setIsChangePasswordModalOpen(true)}
                     className='w-full group relative overflow-hidden bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] border-0 shadow-sm hover:shadow-md transition-all duration-300 h-8'
                   >
                     <span className='relative z-10 flex items-center justify-center font-semibold text-xs font-sans'>
@@ -306,6 +369,14 @@ export default function TrainerProfile() {
           </div>
         </div>
       </div>
+
+      {/* Change Password Modal */}
+      <ChangePasswordModal
+        isOpen={isChangePasswordModalOpen}
+        onClose={() => setIsChangePasswordModalOpen(false)}
+        userEmail={user?.email}
+        userPhone={user?.phone}
+      />
     </div>
   );
 }

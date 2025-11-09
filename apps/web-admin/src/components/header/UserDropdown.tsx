@@ -1,11 +1,18 @@
+import { Globe } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import useTranslation from '../../hooks/useTranslation';
+import { changeLanguage, getCurrentLanguage } from '../../locales/i18n';
 import { User as UserType } from '../../services/user.service';
+import { Trainer } from '../../services/trainer.service';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
 
 export default function UserDropdown() {
+  const { t } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const [user, setUser] = useState<UserType | null>(null);
+  const [trainer, setTrainer] = useState<Trainer | null>(null);
+  const [currentLang, setCurrentLang] = useState<'en' | 'vi'>(getCurrentLanguage());
 
   useEffect(() => {
     // Get user data from localStorage
@@ -23,14 +30,70 @@ export default function UserDropdown() {
     // Load initial user data
     loadUserData();
 
+    // Fetch trainer avatar if user is a trainer (same as UserInfoCard)
+    const fetchTrainerAvatar = async (userId: string) => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return;
+
+        const scheduleServiceUrl = 'http://localhost:3003';
+        const response = await fetch(`${scheduleServiceUrl}/trainers/user/${userId}`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          const profilePhoto = data.data?.trainer?.profile_photo || data.data?.profile_photo || null;
+          if (profilePhoto) {
+            setTrainer({ profile_photo: profilePhoto } as Trainer);
+          } else {
+            setTrainer(null);
+          }
+        }
+      } catch (error) {
+        // Silently fail for 404 or network errors
+        setTrainer(null);
+      }
+    };
+
+    // Load trainer avatar if user is a trainer
+    const loadTrainerAvatar = () => {
+      const userData = localStorage.getItem('user');
+      if (userData) {
+        try {
+          const parsedUser = JSON.parse(userData);
+          if (parsedUser.role === 'TRAINER' && parsedUser.id) {
+            fetchTrainerAvatar(parsedUser.id);
+          }
+        } catch (error) {
+          console.error('Error parsing user data:', error);
+        }
+      }
+    };
+
+    loadTrainerAvatar();
+
     // Listen for storage changes (when user data is updated from other tabs)
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === 'user' && e.newValue) {
         try {
-          setUser(JSON.parse(e.newValue));
+          const updatedUser = JSON.parse(e.newValue);
+          setUser(updatedUser);
+          // Refetch trainer avatar if user is a trainer
+          if (updatedUser.role === 'TRAINER' && updatedUser.id) {
+            fetchTrainerAvatar(updatedUser.id);
+          } else {
+            setTrainer(null);
+          }
         } catch (error) {
           console.error('Error parsing updated user data:', error);
         }
+      }
+      // Update language when it changes
+      if (e.key === 'gym147_language' && e.newValue) {
+        setCurrentLang(e.newValue as 'en' | 'vi');
       }
     };
 
@@ -38,17 +101,30 @@ export default function UserDropdown() {
     const handleUserDataUpdate = (e: CustomEvent) => {
       if (e.detail) {
         setUser(e.detail);
+        // Refetch trainer avatar if user is a trainer
+        if (e.detail.role === 'TRAINER' && e.detail.id) {
+          fetchTrainerAvatar(e.detail.id);
+        } else {
+          setTrainer(null);
+        }
       }
+    };
+
+    // Listen for language changes
+    const handleLanguageChange = () => {
+      setCurrentLang(getCurrentLanguage());
     };
 
     // Add event listeners
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
+    window.addEventListener('languageChanged', handleLanguageChange);
 
     // Cleanup
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
+      window.removeEventListener('languageChanged', handleLanguageChange);
     };
   }, []);
 
@@ -71,6 +147,13 @@ export default function UserDropdown() {
 
     // Redirect to login page
     window.location.href = '/';
+  };
+
+  const handleLanguageChange = (langCode: 'en' | 'vi') => {
+    changeLanguage(langCode);
+    setCurrentLang(langCode);
+    // Close dropdown after language change
+    closeDropdown();
   };
 
   // Function to generate avatar based on name
@@ -108,7 +191,34 @@ export default function UserDropdown() {
         className='flex items-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-400)] hover:text-[var(--color-orange-600)] dark:hover:text-[var(--color-orange-400)] transition-colors duration-200'
       >
         <span className='mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
-          {user ? (
+          {trainer?.profile_photo ? (
+            <>
+              <img
+                src={trainer.profile_photo}
+                alt={user ? `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim() : 'User'}
+                className='w-full h-full object-cover'
+                onError={e => {
+                  // Hide image and show fallback
+                  e.currentTarget.style.display = 'none';
+                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                  if (fallback) {
+                    fallback.classList.remove('hidden');
+                    fallback.classList.add('flex');
+                  }
+                }}
+              />
+              <div className='hidden w-full h-full'>
+                {user ? (
+                  generateAvatar(
+                    user?.firstName || user?.first_name || 'U',
+                    user?.lastName || user?.last_name || 'S'
+                  )
+                ) : (
+                  <img src='/images/user/owner.jpg' alt='User' className='w-full h-full object-cover' />
+                )}
+              </div>
+            </>
+          ) : user ? (
             generateAvatar(
               user?.firstName || user?.first_name || 'U',
               user?.lastName || user?.last_name || 'S'
@@ -123,9 +233,10 @@ export default function UserDropdown() {
           style={{ fontFamily: 'Space Grotesk, sans-serif' }}
         >
           {user
-            ? `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim() ||
-              'User'
-            : 'Musharof'}
+            ? `${user?.firstName || user?.first_name || ''} ${
+                user?.lastName || user?.last_name || ''
+              }`.trim() || t('common.defaultUserName')
+            : t('common.defaultUserName')}
         </span>
         <svg
           className={`stroke-[var(--color-gray-500)] dark:stroke-[var(--color-gray-400)] transition-transform duration-200 ${
@@ -158,9 +269,10 @@ export default function UserDropdown() {
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
             {user
-              ? `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim() ||
-                'User'
-              : 'Musharof Chowdhury'}
+              ? `${user?.firstName || user?.first_name || ''} ${
+                  user?.lastName || user?.last_name || ''
+                }`.trim() || t('common.defaultUserName')
+              : t('common.defaultUserName')}
           </span>
           <span
             className='mt-0.5 block text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'
@@ -214,7 +326,7 @@ export default function UserDropdown() {
                   fill=''
                 />
               </svg>
-              Edit profile
+              {t('user.menu.editProfile')}
             </DropdownItem>
           </li>
           <li>
@@ -260,7 +372,7 @@ export default function UserDropdown() {
                   fill=''
                 />
               </svg>
-              Account settings
+              {t('user.menu.accountSettings')}
             </DropdownItem>
           </li>
           <li>
@@ -306,8 +418,45 @@ export default function UserDropdown() {
                   fill=''
                 />
               </svg>
-              Support
+              {t('user.menu.support')}
             </DropdownItem>
+          </li>
+          <li>
+            <div className='px-3 py-2'>
+              <div className='flex items-center gap-3 mb-2'>
+                <Globe className='w-5 h-5 text-[var(--color-gray-600)] dark:text-[var(--color-gray-300)]' />
+                <span
+                  className='font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] text-sm'
+                  style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+                >
+                  {t('user.menu.language')}
+                </span>
+              </div>
+              <div className='flex gap-2 ml-8'>
+                <button
+                  onClick={() => handleLanguageChange('vi')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    currentLang === 'vi'
+                      ? 'bg-[var(--color-orange-500)] text-white'
+                      : 'bg-[var(--color-gray-100)] dark:bg-[var(--color-gray-700)] text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20'
+                  }`}
+                  style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+                >
+                  {t('user.languages.vietnameseNative')}
+                </button>
+                <button
+                  onClick={() => handleLanguageChange('en')}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                    currentLang === 'en'
+                      ? 'bg-[var(--color-orange-500)] text-white'
+                      : 'bg-[var(--color-gray-100)] dark:bg-[var(--color-gray-700)] text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20'
+                  }`}
+                  style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+                >
+                  {t('user.languages.englishNative')}
+                </button>
+              </div>
+            </div>
           </li>
         </ul>
         <button
@@ -330,7 +479,7 @@ export default function UserDropdown() {
               fill=''
             />
           </svg>
-          Sign out
+          {t('user.menu.signOut')}
         </button>
       </Dropdown>
     </div>

@@ -7,6 +7,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import {
+  ArrowLeft,
   Calendar,
   CreditCard,
   FileText,
@@ -145,7 +146,13 @@ export default function SubscriptionScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
           {t('subscription.title')}
         </Text>
       </View>
@@ -443,9 +450,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   scrollView: {
     flex: 1,

@@ -5,7 +5,7 @@ import type { MemberPaymentMethod, PaymentMethod } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Check, CreditCard, Edit, Plus, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Check, CreditCard, Edit, Plus, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -184,7 +184,13 @@ export default function PaymentMethodsScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
           Payment Methods
         </Text>
         <Button
@@ -377,11 +383,15 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   scrollView: {
     flex: 1,

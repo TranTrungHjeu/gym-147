@@ -36,6 +36,10 @@ model User {
   push_enabled      Boolean   @default(true)
   push_platform     String?   // "ios" | "android"
   
+  // Notification Preferences
+  email_notifications_enabled Boolean @default(true)
+  sms_notifications_enabled   Boolean @default(false)
+  
   // Security & Access
   two_factor_enabled Boolean  @default(false)
   two_factor_secret String?

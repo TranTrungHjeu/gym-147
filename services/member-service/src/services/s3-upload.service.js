@@ -4,6 +4,9 @@ const multer = require('multer');
 const multerS3 = require('multer-s3');
 const path = require('path');
 const crypto = require('crypto');
+const imageOptimization = require('./image-optimization.service');
+const FileValidationUtil = require('../utils/file-validation.util');
+const cdnService = require('./cdn.service');
 
 /**
  * AWS S3 Upload Service for Member Avatars
@@ -23,7 +26,7 @@ class S3UploadService {
 
     // S3 bucket configuration
     this.bucketName = process.env.AWS_S3_BUCKET_NAME;
-    this.folder = 'avatars'; // Changed from 'certifications' to 'avatars'
+    this.folder = 'avatars'; // Default folder for avatars
 
     // Initialize multer with S3 storage
     this.upload = multer({
@@ -71,39 +74,92 @@ class S3UploadService {
   }
 
   /**
-   * Upload file to S3 manually
+   * Upload file to S3 manually with image optimization
    * @param {Buffer} fileBuffer - File buffer
    * @param {string} originalName - Original filename
    * @param {string} mimeType - File MIME type
    * @param {string} userId - User ID who uploaded
+   * @param {Object} options - Upload options (optimize, createThumbnail, folder)
    * @returns {Object} - Upload result with URL and key
    */
-  async uploadFile(fileBuffer, originalName, mimeType, userId = 'unknown') {
+  async uploadFile(fileBuffer, originalName, mimeType, userId = 'unknown', options = {}) {
     try {
-      console.log(`📤 Uploading avatar to S3: ${originalName}`);
+      const folder = options.folder || this.folder;
+      console.log(`📤 Uploading file to S3 (${folder}): ${originalName}`);
 
-      // Generate unique filename
+      // Comprehensive file validation
+      const fileValidation = FileValidationUtil.validateFile(fileBuffer, mimeType, {
+        maxSize: 5 * 1024 * 1024, // 5MB
+        minSize: 1024, // 1KB minimum
+        allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        checkSignature: true,
+      });
+
+      if (!fileValidation.valid) {
+        return {
+          success: false,
+          error: fileValidation.error,
+        };
+      }
+
+      // Validate image dimensions and format
+      const imageValidation = await imageOptimization.validateImage(fileBuffer, {
+        maxWidth: 4096,
+        maxHeight: 4096,
+        maxSize: 5 * 1024 * 1024, // 5MB
+        allowedFormats: ['jpeg', 'jpg', 'png', 'webp'],
+      });
+
+      if (!imageValidation.success) {
+        return {
+          success: false,
+          error: imageValidation.error,
+        };
+      }
+
+      // Optimize image if enabled (default: true for avatars)
+      let optimizedBuffer = fileBuffer;
+      let optimizationResult = null;
+      let finalMimeType = mimeType;
+
+      if (options.optimize !== false) {
+        console.log('🖼️ Optimizing image...');
+        optimizationResult = await imageOptimization.optimizeAvatar(fileBuffer);
+        
+        if (optimizationResult.success) {
+          optimizedBuffer = optimizationResult.buffer;
+          finalMimeType = 'image/jpeg'; // Avatar is always converted to JPEG
+          console.log(`✅ Image optimized: ${optimizationResult.compressionRatio}% smaller`);
+        } else {
+          console.warn('⚠️ Image optimization failed, using original:', optimizationResult.error);
+        }
+      }
+
+      // Generate unique filename (always .jpg for optimized images)
       const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-      const extension = path.extname(originalName);
-      const key = `${this.folder}/${uniqueSuffix}${extension}`;
+      const extension = options.optimize !== false ? '.jpg' : path.extname(originalName);
+      const key = `${folder}/${uniqueSuffix}${extension}`;
 
       // Upload to S3
       const command = new PutObjectCommand({
         Bucket: this.bucketName,
         Key: key,
-        Body: fileBuffer,
-        ContentType: mimeType,
+        Body: optimizedBuffer,
+        ContentType: finalMimeType,
+        CacheControl: 'public, max-age=31536000', // Cache for 1 year
         Metadata: {
           originalName,
           uploadedBy: userId,
           uploadedAt: new Date().toISOString(),
+          originalSize: fileBuffer.length.toString(),
+          optimizedSize: optimizedBuffer.length.toString(),
         },
       });
 
       await this.s3Client.send(command);
 
-      // Generate public URL
-      const url = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
+      // Generate public URL (with CDN if configured)
+      const url = cdnService.getUrl(key);
 
       console.log(`✅ Avatar uploaded successfully: ${url}`);
 
@@ -113,7 +169,10 @@ class S3UploadService {
         key,
         bucket: this.bucketName,
         originalName,
-        size: fileBuffer.length,
+        originalSize: fileBuffer.length,
+        optimizedSize: optimizedBuffer.length,
+        compressionRatio: optimizationResult?.compressionRatio || '0',
+        metadata: imageValidation.metadata,
       };
     } catch (error) {
       console.error('❌ Error uploading avatar to S3:', error);

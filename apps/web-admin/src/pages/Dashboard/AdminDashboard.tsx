@@ -1,15 +1,49 @@
+import {
+  Activity,
+  AlertTriangle,
+  Clock,
+  Dumbbell,
+  GraduationCap,
+  LayoutDashboard,
+  LogIn,
+  RotateCcw,
+  TrendingUp,
+  User,
+  UserPlus,
+  Users,
+} from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { RotateCcw, AlertTriangle } from 'lucide-react';
+import AdminButton from '../../components/common/AdminButton';
+import AdminCard from '../../components/common/AdminCard';
+import RoleBadge from '../../components/common/RoleBadge';
+import CompactMetricCard from '../../components/dashboard/CompactMetricCard';
+import DashboardHeader from '../../components/dashboard/DashboardHeader';
+import MetricCard from '../../components/dashboard/MetricCard';
+import QuickActionCard from '../../components/dashboard/QuickActionCard';
+import SectionHeader from '../../components/dashboard/SectionHeader';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { authService } from '../../services/auth.service';
 import { DashboardStats, dashboardService } from '../../services/dashboard.service';
 import { scheduleService } from '../../services/schedule.service';
 import { clearAuthData } from '../../utils/auth';
 
+interface RecentActivity {
+  id: string;
+  type: string;
+  user: {
+    name: string;
+    role: string;
+  };
+  timestamp: string;
+  description: string;
+}
+
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
     totalAdmins: 0,
@@ -19,30 +53,63 @@ const AdminDashboard: React.FC = () => {
     activeSessions: 0,
     totalEquipment: 0,
   });
+  const [recentActivities, setRecentActivities] = useState<RecentActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isResettingRateLimit, setIsResettingRateLimit] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-  // Fetch dashboard statistics
+  // Fetch dashboard statistics and recent activities
   useEffect(() => {
-    const fetchStats = async () => {
+    const fetchData = async () => {
       try {
         setIsLoading(true);
-        const data = await dashboardService.getAdminStats();
-        if (data.success) {
-          setStats(data.data);
+        const [statsData, activitiesData] = await Promise.all([
+          dashboardService.getAdminStats(),
+          dashboardService.getRecentActivities().catch(() => ({ success: false, data: [] })),
+        ]);
+
+        if (statsData.success) {
+          console.log('📊 Admin stats data received:', statsData.data);
+          const statsDataToSet = {
+            totalUsers: 0,
+            totalAdmins: 0,
+            totalTrainers: statsData.data.totalTrainers || 0,
+            totalMembers: statsData.data.totalMembers || 0,
+            recentRegistrations: statsData.data.recentRegistrations || 0,
+            activeSessions: statsData.data.activeSessions || 0,
+            totalEquipment: statsData.data.totalEquipment || 0,
+          };
+          console.log('📊 Setting stats state:', statsDataToSet);
+          setStats(statsDataToSet);
         } else {
-          showToast('Không thể tải thống kê dashboard', 'error');
+          showToast(t('dashboard.admin.errors.loadStatsFailed'), 'error');
+        }
+
+        if (activitiesData.success && activitiesData.data) {
+          console.log('📥 Recent activities received:', activitiesData.data);
+          console.log('📥 Activities count:', activitiesData.data.length);
+          activitiesData.data.forEach((activity, index) => {
+            console.log(`📥 Activity ${index}:`, {
+              id: activity.id,
+              type: activity.type,
+              user: activity.user,
+              userAvatar: activity.user?.avatar,
+              rootAvatar: (activity as any).avatar, // Check if avatar exists at root
+              description: activity.description,
+              fullActivity: activity, // Full activity object for debugging
+            });
+          });
+          setRecentActivities(activitiesData.data.slice(0, 5));
         }
       } catch (error) {
-        console.error('Error fetching dashboard stats:', error);
-        showToast('Lỗi khi tải dữ liệu dashboard', 'error');
+        console.error('Error fetching dashboard data:', error);
+        showToast(t('dashboard.admin.errors.loadDataError'), 'error');
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchStats();
+    fetchData();
   }, [showToast]);
 
   const handleCreateTrainer = () => {
@@ -59,7 +126,6 @@ const AdminDashboard: React.FC = () => {
     } catch (error) {
       console.error('Logout error:', error);
     } finally {
-      // Force logout even if API fails
       clearAuthData();
       navigate('/auth');
     }
@@ -69,306 +135,469 @@ const AdminDashboard: React.FC = () => {
     try {
       setIsResettingRateLimit(true);
       const response = await scheduleService.resetAllRateLimits();
-      
+
       if (response.success) {
-        showToast(`Đã reset ${response.data.count} rate limit(s) thành công`, 'success');
+        showToast(
+          t('dashboard.admin.system.resetSuccess', { count: response.data.count }),
+          'success'
+        );
         setShowResetConfirm(false);
       } else {
-        showToast('Không thể reset rate limits', 'error');
+        showToast(t('dashboard.admin.system.resetError'), 'error');
       }
     } catch (error) {
       console.error('Error resetting rate limits:', error);
-      showToast('Lỗi khi reset rate limits', 'error');
+      showToast(t('dashboard.admin.system.resetErrorGeneric'), 'error');
     } finally {
       setIsResettingRateLimit(false);
     }
   };
 
+  const formatTimeAgo = (timestamp: string) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return t('common.justNow');
+    if (diffInSeconds < 3600)
+      return t('common.minutesAgo', { count: Math.floor(diffInSeconds / 60) });
+    if (diffInSeconds < 86400)
+      return t('common.hoursAgo', { count: Math.floor(diffInSeconds / 3600) });
+    return t('common.daysAgo', { count: Math.floor(diffInSeconds / 86400) });
+  };
+
+  const getActivityIcon = (description: string) => {
+    if (description.includes('New trainer registered:')) {
+      return GraduationCap;
+    }
+    if (description.includes('New member registered:')) {
+      return UserPlus;
+    }
+    if (description.includes('New admin registered:')) {
+      return User;
+    }
+    if (description.startsWith('Logged in using')) {
+      return LogIn;
+    }
+    return Activity;
+  };
+
+  const getActivityIconColor = (description: string) => {
+    if (
+      description.includes('New trainer registered:') ||
+      description.includes('New member registered:')
+    ) {
+      return 'text-orange-500 dark:text-orange-400';
+    }
+    if (description.includes('New admin registered:')) {
+      return 'text-gray-500 dark:text-gray-400';
+    }
+    if (description.startsWith('Logged in using')) {
+      return 'text-blue-500 dark:text-blue-400';
+    }
+    return 'text-gray-400 dark:text-gray-500';
+  };
+
+  const formatActivityDescription = (activity: any) => {
+    const description = activity.description || '';
+    const userName = activity.user?.name || '';
+
+    // Parse activity description and translate
+    if (description.includes('New trainer registered:')) {
+      return `${t('dashboard.admin.activity.types.newTrainerRegistered')}: ${
+        userName || 'Unknown'
+      }`;
+    }
+    if (description.includes('New member registered:')) {
+      return `${t('dashboard.admin.activity.types.newMemberRegistered')}: ${userName || 'Unknown'}`;
+    }
+    if (description.includes('New admin registered:')) {
+      return `${t('dashboard.admin.activity.types.newAdminRegistered')}: ${userName || 'Unknown'}`;
+    }
+    if (description.startsWith('Logged in using')) {
+      const parts = description.replace('Logged in using', '').trim();
+      if (parts.includes(' at ')) {
+        const [method, location] = parts.split(' at ');
+        return `${t('dashboard.admin.activity.types.loggedIn')} ${method} ${t(
+          'dashboard.admin.activity.types.at'
+        )} ${location}`;
+      }
+      return `${t('dashboard.admin.activity.types.loggedIn')} ${parts}`;
+    }
+    // Fallback to original description if pattern doesn't match
+    return description;
+  };
+
+  const renderActivityDescription = (activity: any) => {
+    const description = formatActivityDescription(activity);
+    const role = activity.user?.role;
+    const userName = activity.user?.name || 'Unknown';
+
+    // For registration activities, replace only role text with badge, keep description text
+    if (
+      description.includes(t('dashboard.admin.activity.types.newTrainerRegistered')) ||
+      description.includes(t('dashboard.admin.activity.types.newMemberRegistered')) ||
+      description.includes(t('dashboard.admin.activity.types.newAdminRegistered'))
+    ) {
+      // Extract role text and remaining description
+      let roleText = '';
+      let remainingDesc = '';
+
+      if (description.includes(t('dashboard.admin.activity.types.newTrainerRegistered'))) {
+        roleText = t('dashboard.admin.activity.types.newTrainerRegistered');
+        // Extract "mới đăng ký" or equivalent from translation
+        remainingDesc = description.replace(roleText, '').trim();
+      } else if (description.includes(t('dashboard.admin.activity.types.newMemberRegistered'))) {
+        roleText = t('dashboard.admin.activity.types.newMemberRegistered');
+        remainingDesc = description.replace(roleText, '').trim();
+      } else if (description.includes(t('dashboard.admin.activity.types.newAdminRegistered'))) {
+        roleText = t('dashboard.admin.activity.types.newAdminRegistered');
+        remainingDesc = description.replace(roleText, '').trim();
+      }
+
+      // Extract description part (e.g., "mới đăng ký") and userName
+      // Format: "Trainer mới đăng ký: Long Phan" -> "mới đăng ký: Long Phan"
+      // We need to extract just the description part without the role
+      const descParts = roleText.split(' ');
+      const roleWord = descParts[0]; // "Trainer", "Member", "Admin"
+      const descText = descParts.slice(1).join(' '); // "mới đăng ký"
+
+      // Extract userName from remainingDesc (which should be ": userName")
+      const userNameText = remainingDesc.replace(':', '').trim() || userName;
+
+      return (
+        <>
+          {role && <RoleBadge role={role} size='sm' variant='dashboard' />}
+          <span className='ml-1.5'>{descText}</span>
+          <span className='ml-1.5 text-gray-500 dark:text-gray-400'>:</span>
+          <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
+            {userNameText}
+          </span>
+        </>
+      );
+    }
+
+    // For other activities, just show description
+    return <span>{description}</span>;
+  };
+
   return (
-    <div className='min-h-screen bg-gray-50'>
-      <div className='container mx-auto px-4 py-8'>
+    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+      <div className='p-3 space-y-3'>
         {/* Header */}
-        <div className='text-center mb-12 relative'>
-          <button
-            onClick={handleLogout}
-            className='absolute top-0 right-0 bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors duration-200'
-          >
-            Đăng xuất
-          </button>
-          <h1 className='text-3xl font-bold text-gray-900 mb-4'>Admin Dashboard</h1>
-          <p className='text-gray-600'>Quản lý phòng gym và nhân viên</p>
+        <DashboardHeader
+          title={t('dashboard.admin.title')}
+          subtitle={t('dashboard.admin.subtitle')}
+          onLogout={handleLogout}
+        />
+
+        {/* Top Primary Metrics */}
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+          <MetricCard
+            icon={GraduationCap}
+            label={t('dashboard.admin.metrics.trainer')}
+            value={stats.totalTrainers}
+            iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+            iconColor='text-orange-600 dark:text-orange-400'
+            isLoading={isLoading}
+          />
+          <MetricCard
+            icon={Users}
+            label={t('dashboard.admin.metrics.member')}
+            value={stats.totalMembers}
+            iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+            iconColor='text-orange-600 dark:text-orange-400'
+            isLoading={isLoading}
+          />
+          <MetricCard
+            icon={Dumbbell}
+            label={t('dashboard.admin.metrics.equipment')}
+            value={stats.totalEquipment || 0}
+            iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+            iconColor='text-orange-600 dark:text-orange-400'
+            isLoading={isLoading}
+          />
         </div>
 
-        {/* Action Cards */}
-        <div className='grid md:grid-cols-2 gap-6 max-w-3xl mx-auto'>
-          {/* Dashboard Card */}
-          <div
-            className='bg-white rounded-lg shadow-md p-6 border hover:shadow-lg transition-shadow cursor-pointer'
-            onClick={handleGoToDashboard}
-          >
-            <div className='text-center'>
-              <div className='w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center mx-auto mb-4'>
-                <svg
-                  className='w-6 h-6 text-blue-600'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'
-                  />
-                </svg>
+        {/* Main Content Grid */}
+        <div className='grid grid-cols-1 lg:grid-cols-12 gap-3'>
+          {/* Left Column - Main Actions */}
+          <div className='lg:col-span-8 space-y-4'>
+            {/* Quick Actions Section */}
+            <div className='space-y-2'>
+              <SectionHeader
+                icon={LayoutDashboard}
+                title={t('dashboard.admin.quickActions.title')}
+                subtitle={t('dashboard.admin.quickActions.subtitle')}
+              />
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                <QuickActionCard
+                  icon={LayoutDashboard}
+                  title={t('dashboard.admin.quickActions.viewDashboard')}
+                  description={t('dashboard.admin.quickActions.viewDashboardDesc')}
+                  iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+                  iconColor='text-orange-600 dark:text-orange-400'
+                  onClick={handleGoToDashboard}
+                />
+                <QuickActionCard
+                  icon={GraduationCap}
+                  title={t('dashboard.admin.quickActions.createTrainer')}
+                  description={t('dashboard.admin.quickActions.createTrainerDesc')}
+                  iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+                  iconColor='text-orange-600 dark:text-orange-400'
+                  onClick={handleCreateTrainer}
+                />
               </div>
-              <h3 className='text-lg font-semibold text-gray-900 mb-2'>Dashboard</h3>
-              <p className='text-gray-600 text-sm'>Xem tổng quan phòng gym</p>
             </div>
-          </div>
 
-          {/* Create Trainer Card */}
-          <div
-            className='bg-white rounded-lg shadow-md p-6 border hover:shadow-lg transition-shadow cursor-pointer'
-            onClick={handleCreateTrainer}
-          >
-            <div className='text-center'>
-              <div className='w-12 h-12 bg-orange-100 rounded-lg flex items-center justify-center mx-auto mb-4'>
-                <svg
-                  className='w-6 h-6 text-orange-600'
-                  fill='none'
-                  stroke='currentColor'
-                  viewBox='0 0 24 24'
-                >
-                  <path
-                    strokeLinecap='round'
-                    strokeLinejoin='round'
-                    strokeWidth={2}
-                    d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
-                  />
-                </svg>
+            {/* Activity Metrics Section */}
+            <div className='space-y-2'>
+              <SectionHeader
+                icon={TrendingUp}
+                title={t('dashboard.admin.activity.title')}
+                subtitle={t('dashboard.admin.activity.subtitle')}
+              />
+              <div className='grid grid-cols-1 sm:grid-cols-2 gap-2'>
+                <CompactMetricCard
+                  icon={TrendingUp}
+                  label={t('dashboard.admin.metrics.newMembers')}
+                  value={stats.recentRegistrations || 0}
+                  iconColor='text-orange-500 dark:text-orange-400'
+                  valueColor='text-orange-600 dark:text-orange-400'
+                  isLoading={isLoading}
+                />
+                <CompactMetricCard
+                  icon={Clock}
+                  label={t('dashboard.admin.metrics.activeSessions')}
+                  value={stats.activeSessions || 0}
+                  iconColor='text-orange-500 dark:text-orange-400'
+                  valueColor='text-orange-600 dark:text-orange-400'
+                  isLoading={isLoading}
+                />
               </div>
-              <h3 className='text-lg font-semibold text-gray-900 mb-2'>Tạo Trainer</h3>
-              <p className='text-gray-600 text-sm'>Tạo tài khoản huấn luyện viên</p>
             </div>
-          </div>
-        </div>
 
-        {/* Quick Stats */}
-        <div className='mt-12 grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto'>
-          <div className='bg-white rounded-lg shadow-sm p-4 border'>
-            <div className='text-center'>
-              <div className='text-2xl font-bold text-gray-900 mb-1'>
-                {isLoading ? '...' : stats.totalTrainers}
-              </div>
-              <div className='text-gray-600 text-sm'>Trainer</div>
-            </div>
-          </div>
-          <div className='bg-white rounded-lg shadow-sm p-4 border'>
-            <div className='text-center'>
-              <div className='text-2xl font-bold text-gray-900 mb-1'>
-                {isLoading ? '...' : stats.totalMembers}
-              </div>
-              <div className='text-gray-600 text-sm'>Member</div>
-            </div>
-          </div>
-          <div className='bg-white rounded-lg shadow-sm p-4 border'>
-            <div className='text-center'>
-              <div className='text-2xl font-bold text-gray-900 mb-1'>
-                {isLoading ? '...' : stats.totalEquipment || 0}
-              </div>
-              <div className='text-gray-600 text-sm'>Equipment</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Additional Stats */}
-        <div className='mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl mx-auto'>
-          <div className='bg-white rounded-lg shadow-sm p-4 border'>
-            <div className='text-center'>
-              <div className='text-2xl font-bold text-green-600 mb-1'>
-                {isLoading ? '...' : stats.recentRegistrations || 0}
-              </div>
-              <div className='text-gray-600 text-sm'>Member mới (30 ngày)</div>
-            </div>
-          </div>
-          <div className='bg-white rounded-lg shadow-sm p-4 border'>
-            <div className='text-center'>
-              <div className='text-2xl font-bold text-blue-600 mb-1'>
-                {isLoading ? '...' : stats.activeSessions || 0}
-              </div>
-              <div className='text-gray-600 text-sm'>Phiên hoạt động (24h)</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Admin Actions - System Management */}
-        <div className='mt-10 max-w-4xl mx-auto'>
-          <div className='bg-gradient-to-br from-white to-orange-50 rounded-xl shadow-lg p-6 border border-orange-100'>
-            <div className='flex items-center justify-between mb-4'>
-              <div>
-                <h3 className='text-xl font-bold text-gray-900 mb-1'>Quản lý Hệ thống</h3>
-                <p className='text-sm text-gray-600'>Công cụ quản trị và bảo trì hệ thống</p>
-              </div>
-            </div>
-            
-            <div className='bg-white rounded-lg p-4 border border-gray-200'>
-              <div className='flex items-start justify-between'>
-                <div className='flex-1'>
-                  <div className='flex items-center gap-2 mb-1'>
-                    <RotateCcw size={18} className='text-orange-600' />
-                    <h4 className='text-base font-semibold text-gray-900'>Reset Rate Limits</h4>
+            {/* System Management Section */}
+            <div className='space-y-2'>
+              <SectionHeader
+                icon={RotateCcw}
+                title={t('dashboard.admin.system.title')}
+                subtitle={t('dashboard.admin.system.subtitle')}
+              />
+              <AdminCard
+                padding='sm'
+                className='border-orange-200 dark:border-orange-800/80 bg-orange-50/30 dark:bg-orange-900/5 group'
+              >
+                <div className='flex items-center justify-between gap-3'>
+                  <div className='flex items-center gap-2.5 flex-1 min-w-0'>
+                    <div className='w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:rotate-180 group-hover:scale-110'>
+                      <RotateCcw className='w-4.5 h-4.5 text-orange-600 dark:text-orange-400' />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white leading-tight mb-0.5'>
+                        {t('dashboard.admin.system.resetRateLimits')}
+                      </h3>
+                      <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter line-clamp-1 leading-tight'>
+                        {t('dashboard.admin.system.resetRateLimitsDesc')}
+                      </p>
+                    </div>
                   </div>
-                  <p className='text-sm text-gray-600 mb-3'>
-                    Reset tất cả giới hạn tạo lịch dạy cho tất cả trainer (tối đa 10 lịch/ngày). 
-                    Hành động này sẽ cho phép trainer tạo lịch mới ngay lập tức.
-                  </p>
-                  <div className='flex items-center gap-2 text-xs text-gray-500'>
-                    <span className='px-2 py-1 bg-gray-100 rounded'>Admin Only</span>
-                    <span className='px-2 py-1 bg-orange-100 text-orange-700 rounded'>Cần xác nhận</span>
-                  </div>
+                  <AdminButton
+                    variant='primary'
+                    size='sm'
+                    icon={RotateCcw}
+                    onClick={() => setShowResetConfirm(true)}
+                    disabled={isResettingRateLimit}
+                    isLoading={isResettingRateLimit}
+                  >
+                    {t('common.reset')}
+                  </AdminButton>
                 </div>
-                <button
-                  onClick={() => setShowResetConfirm(true)}
-                  disabled={isResettingRateLimit}
-                  className='ml-4 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg text-sm font-semibold shadow-md hover:shadow-lg transition-all duration-200 disabled:cursor-not-allowed disabled:shadow-none transform hover:scale-105 disabled:transform-none'
-                >
-                  <RotateCcw size={16} className={isResettingRateLimit ? 'animate-spin' : ''} />
-                  {isResettingRateLimit ? 'Đang xử lý...' : 'Reset Tất cả'}
-                </button>
-              </div>
+              </AdminCard>
             </div>
+          </div>
+
+          {/* Right Column - Recent Activity Sidebar */}
+          <div className='lg:col-span-4'>
+            <AdminCard padding='sm' className='sticky top-4'>
+              <SectionHeader
+                icon={Activity}
+                title={t('dashboard.admin.activity.recentActivity')}
+                subtitle={t('dashboard.admin.activity.recentActivitySubtitle')}
+              />
+              <div className='relative'>
+                {recentActivities.length === 0 ? (
+                  <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter text-center py-8'>
+                    {t('dashboard.admin.activity.noActivity')}
+                  </p>
+                ) : (
+                  <div className='relative pl-6'>
+                    {/* Timeline line */}
+                    <div className='absolute left-2 top-0 bottom-0 w-0.5 bg-gray-200 dark:bg-gray-700/50'></div>
+
+                    <div className='space-y-0'>
+                      {recentActivities.map((activity, index) => {
+                        const ActivityIcon = getActivityIcon(activity.description);
+                        const iconColor = getActivityIconColor(activity.description);
+                        const userName = activity.user?.name || 'Unknown';
+                        const userAvatar = activity.user?.avatar;
+
+                        // Debug logging
+                        console.log(`🎨 Frontend Activity ${index}:`, {
+                          activityId: activity.id,
+                          activityType: activity.type,
+                          userRole: activity.user?.role,
+                          userName: userName,
+                          userAvatar: userAvatar,
+                          fullUser: activity.user,
+                        });
+
+                        const userInitials =
+                          userName
+                            .split(' ')
+                            .map(n => n[0])
+                            .join('')
+                            .toUpperCase()
+                            .slice(0, 2) || 'U';
+
+                        return (
+                          <div
+                            key={activity.id}
+                            className='relative flex items-start gap-3 pb-3 last:pb-0 group'
+                          >
+                            {/* Avatar container */}
+                            <div className='relative z-10 flex-shrink-0'>
+                              <div className='relative w-9 h-9 rounded-full overflow-hidden border-2 border-gray-200 dark:border-gray-700 transition-all duration-200 group-hover:scale-110 group-hover:border-orange-300 dark:group-hover:border-orange-600 group-hover:shadow-md bg-gray-100 dark:bg-gray-800'>
+                                {userAvatar ? (
+                                  <img
+                                    src={userAvatar}
+                                    alt={userName}
+                                    className='w-full h-full object-cover'
+                                    onError={e => {
+                                      e.currentTarget.style.display = 'none';
+                                      const fallback = e.currentTarget
+                                        .nextElementSibling as HTMLElement;
+                                      if (fallback) fallback.style.display = 'flex';
+                                    }}
+                                  />
+                                ) : null}
+                                <div
+                                  className={`w-full h-full rounded-full flex items-center justify-center text-white text-[11px] font-semibold ${
+                                    userAvatar ? 'hidden' : 'flex'
+                                  }`}
+                                  style={{
+                                    backgroundColor: userAvatar ? 'transparent' : '#fb6514',
+                                  }}
+                                >
+                                  {userInitials}
+                                </div>
+                              </div>
+                              {/* Activity type badge */}
+                              <div
+                                className={`absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 flex items-center justify-center shadow-sm`}
+                              >
+                                <ActivityIcon className={`w-2.5 h-2.5 ${iconColor}`} />
+                              </div>
+                            </div>
+
+                            {/* Content */}
+                            <div className='flex-1 min-w-0 pt-0.5'>
+                              <p className='text-theme-xs text-gray-900 dark:text-white font-inter font-medium leading-snug mb-1 group-hover:text-gray-950 dark:group-hover:text-white transition-colors flex items-center gap-1.5 flex-wrap'>
+                                {renderActivityDescription(activity)}
+                              </p>
+                              <div className='flex items-center gap-1.5'>
+                                <Clock className='w-3 h-3 text-gray-400 dark:text-gray-500' />
+                                <p className='text-[11px] text-gray-500 dark:text-gray-400 font-inter leading-tight'>
+                                  {formatTimeAgo(activity.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </AdminCard>
           </div>
         </div>
 
-        {/* Confirmation Modal - Professional Design */}
+        {/* Confirmation Modal */}
         {showResetConfirm && (
-          <div 
-            className='fixed inset-0 z-50 flex items-center justify-center p-4'
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.6)',
-              backdropFilter: 'blur(4px)',
-              animation: 'fadeIn 0.2s ease-out',
-            }}
+          <div
+            className='fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm'
             onClick={() => !isResettingRateLimit && setShowResetConfirm(false)}
           >
-            <div 
-              className='bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden transform transition-all'
-              style={{
-                animation: 'slideUp 0.3s ease-out',
-                boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.05)',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header with Gradient */}
-              <div className='relative bg-gradient-to-r from-orange-500 via-orange-500 to-orange-600 px-6 py-5'>
-                <div className='absolute inset-0 bg-black/5'></div>
-                <div className='relative flex items-center gap-4'>
-                  <div className='flex-shrink-0 w-14 h-14 bg-white/25 backdrop-blur-sm rounded-xl flex items-center justify-center shadow-lg border border-white/30'>
-                    <AlertTriangle className='w-7 h-7 text-white drop-shadow-sm' strokeWidth={2.5} />
+            <AdminCard className='max-w-lg w-full' onClick={e => e.stopPropagation()} padding='md'>
+              <div className='space-y-4'>
+                {/* Modal Header */}
+                <div className='flex items-center gap-3 pb-3 border-b border-gray-200 dark:border-gray-800'>
+                  <div className='w-10 h-10 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                    <AlertTriangle className='w-5 h-5 text-orange-600 dark:text-orange-400' />
                   </div>
-                  <div className='flex-1 min-w-0'>
-                    <h3 className='text-xl font-bold text-white mb-1 tracking-tight'>
-                      Xác nhận Reset Rate Limits
+                  <div>
+                    <h3 className='text-lg font-bold font-heading text-gray-900 dark:text-white'>
+                      {t('dashboard.admin.system.confirmReset')}
                     </h3>
-                    <p className='text-sm text-orange-50/90 font-medium'>
-                      Thao tác hệ thống quan trọng
+                    <p className='text-xs text-gray-600 dark:text-gray-400 font-inter'>
+                      {t('dashboard.admin.system.confirmResetSubtitle')}
                     </p>
                   </div>
                 </div>
-              </div>
 
-              {/* Modal Body */}
-              <div className='p-6 bg-gradient-to-b from-white to-gray-50/50'>
-                <div className='space-y-4'>
-                  {/* Warning Box */}
-                  <div className='relative bg-gradient-to-br from-orange-50 to-orange-100/50 border border-orange-200 rounded-xl p-5 shadow-sm'>
-                    <div className='absolute top-3 left-3 w-1 h-20 bg-gradient-to-b from-orange-500 to-orange-600 rounded-full'></div>
-                    <div className='ml-4'>
-                      <p className='text-sm font-semibold text-gray-900 mb-3 leading-relaxed'>
-                        Bạn có chắc chắn muốn <span className='text-orange-600 font-bold'>reset tất cả rate limits</span> không?
-                      </p>
-                      <div className='space-y-2'>
-                        <p className='text-xs font-medium text-gray-600 uppercase tracking-wide mb-2'>
-                          Hành động này sẽ:
-                        </p>
-                        <ul className='space-y-2.5'>
-                          <li className='flex items-start gap-3 text-sm text-gray-700'>
-                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-2'></div>
-                            <span className='leading-relaxed'>Xóa toàn bộ giới hạn tạo lịch dạy cho tất cả trainer trong hệ thống</span>
-                          </li>
-                          <li className='flex items-start gap-3 text-sm text-gray-700'>
-                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-2'></div>
-                            <span className='leading-relaxed'>Cho phép trainer tạo lịch mới ngay lập tức không bị giới hạn</span>
-                          </li>
-                          <li className='flex items-start gap-3 text-sm text-gray-700'>
-                            <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-red-500 mt-2'></div>
-                            <span className='leading-relaxed font-medium text-red-600'>Không thể hoàn tác sau khi reset</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Info Badge */}
-                  <div className='flex items-center gap-2 text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200'>
-                    <div className='w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse'></div>
-                    <span>Thao tác này chỉ dành cho quản trị viên hệ thống</span>
+                {/* Modal Body */}
+                <div className='space-y-3'>
+                  <div className='bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-3'>
+                    <p className='text-sm font-semibold text-gray-900 dark:text-white mb-2 font-inter'>
+                      {t('dashboard.admin.system.confirmResetMessage')}{' '}
+                      <span className='text-orange-600 dark:text-orange-400 font-bold'>
+                        {t('dashboard.admin.system.resetAllRateLimits')}
+                      </span>{' '}
+                      {t('dashboard.admin.system.confirmResetQuestion')}
+                    </p>
+                    <ul className='space-y-1.5'>
+                      <li className='flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5'></div>
+                        <span>{t('dashboard.admin.system.resetEffects.removeLimits')}</span>
+                      </li>
+                      <li className='flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-orange-500 mt-1.5'></div>
+                        <span>{t('dashboard.admin.system.resetEffects.allowImmediate')}</span>
+                      </li>
+                      <li className='flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300 font-inter'>
+                        <div className='flex-shrink-0 w-1.5 h-1.5 rounded-full bg-error-500 mt-1.5'></div>
+                        <span className='font-medium text-error-600 dark:text-error-400'>
+                          {t('dashboard.admin.system.resetEffects.cannotUndo')}
+                        </span>
+                      </li>
+                    </ul>
                   </div>
                 </div>
-              </div>
 
-              {/* Modal Footer */}
-              <div className='px-6 py-4 bg-white border-t border-gray-100 flex items-center justify-end gap-3'>
-                <button
-                  onClick={() => setShowResetConfirm(false)}
-                  disabled={isResettingRateLimit}
-                  className='px-6 py-2.5 text-sm font-semibold text-gray-700 bg-white border-2 border-gray-300 rounded-xl hover:bg-gray-50 hover:border-gray-400 hover:shadow-md transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:shadow-none'
-                >
-                  Hủy
-                </button>
-                <button
-                  onClick={handleResetAllRateLimits}
-                  disabled={isResettingRateLimit}
-                  className='px-6 py-2.5 text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-orange-600 rounded-xl hover:from-orange-600 hover:to-orange-700 shadow-lg hover:shadow-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:shadow-lg flex items-center gap-2 transform hover:scale-[1.02] active:scale-[0.98] disabled:transform-none'
-                >
-                  {isResettingRateLimit ? (
-                    <>
-                      <RotateCcw size={16} className='animate-spin' />
-                      <span>Đang xử lý...</span>
-                    </>
-                  ) : (
-                    <>
-                      <RotateCcw size={16} />
-                      <span>Xác nhận Reset</span>
-                    </>
-                  )}
-                </button>
+                {/* Modal Footer */}
+                <div className='flex items-center justify-end gap-2 pt-3 border-t border-gray-200 dark:border-gray-800'>
+                  <AdminButton
+                    variant='outline'
+                    size='sm'
+                    onClick={() => setShowResetConfirm(false)}
+                    disabled={isResettingRateLimit}
+                  >
+                    {t('common.cancel')}
+                  </AdminButton>
+                  <AdminButton
+                    variant='danger'
+                    size='sm'
+                    icon={RotateCcw}
+                    onClick={handleResetAllRateLimits}
+                    disabled={isResettingRateLimit}
+                    isLoading={isResettingRateLimit}
+                  >
+                    {t('common.confirm')}
+                  </AdminButton>
+                </div>
               </div>
-            </div>
-
-            {/* Custom CSS Animations */}
-            <style>{`
-              @keyframes fadeIn {
-                from {
-                  opacity: 0;
-                }
-                to {
-                  opacity: 1;
-                }
-              }
-              
-              @keyframes slideUp {
-                from {
-                  opacity: 0;
-                  transform: translateY(20px) scale(0.95);
-                }
-                to {
-                  opacity: 1;
-                  transform: translateY(0) scale(1);
-                }
-              }
-            `}</style>
+            </AdminCard>
           </div>
         )}
       </div>

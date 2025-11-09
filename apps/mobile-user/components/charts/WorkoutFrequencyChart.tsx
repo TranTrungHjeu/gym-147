@@ -90,29 +90,8 @@ export default function WorkoutFrequencyChart({
     }
   };
 
-  // Default data if none provided
-  const defaultData = {
-    labels: getLabels(),
-    datasets: [
-      {
-        data:
-          selectedPeriod === 'week'
-            ? [2, 1, 3, 2, 4, 1, 2]
-            : selectedPeriod === 'month'
-            ? [8, 12, 10, 14]
-            : [45, 52, 48, 61, 55, 58, 62, 59, 54, 57, 60, 56],
-        color: (opacity = 1) =>
-          theme.colors.primary +
-          Math.floor(opacity * 255)
-            .toString(16)
-            .padStart(2, '0'),
-        strokeWidth: 3,
-      },
-    ],
-  };
-
   // Use API data if available, with translated labels
-  const chartData = apiData
+  const chartData = apiData && apiData.datasets && apiData.datasets[0] && apiData.datasets[0].data && apiData.datasets[0].data.length > 0
     ? {
         labels: getLabels(),
         datasets: [
@@ -127,7 +106,22 @@ export default function WorkoutFrequencyChart({
           },
         ],
       }
-    : data || defaultData;
+    : data && data.datasets && data.datasets[0] && data.datasets[0].data && data.datasets[0].data.length > 0
+    ? data
+    : {
+        labels: getLabels(),
+        datasets: [
+          {
+            data: [],
+            color: (opacity = 1) =>
+              theme.colors.primary +
+              Math.floor(opacity * 255)
+                .toString(16)
+                .padStart(2, '0'),
+            strokeWidth: 3,
+          },
+        ],
+      };
 
   const chartConfig = {
     backgroundColor: theme.colors.surface,
@@ -211,74 +205,84 @@ export default function WorkoutFrequencyChart({
         </View>
       </View>
 
-      <View style={themedStyles.chartContainer}>
-        <LineChart
-          data={chartData}
-          width={screenWidth - 32}
-          height={220}
-          chartConfig={chartConfig}
-          bezier
-          style={themedStyles.chart}
-          withInnerLines={true}
-          withOuterLines={true}
-          withVerticalLines={true}
-          withHorizontalLines={true}
-          withDots={true}
-          withShadow={false}
-          withScrollableDot={false}
-        />
-      </View>
+      {chartData.datasets[0].data.length > 0 ? (
+        <>
+          <View style={themedStyles.chartContainer}>
+            <LineChart
+              data={chartData}
+              width={screenWidth - 32}
+              height={220}
+              chartConfig={chartConfig}
+              bezier
+              style={themedStyles.chart}
+              withInnerLines={true}
+              withOuterLines={true}
+              withVerticalLines={true}
+              withHorizontalLines={true}
+              withDots={true}
+              withShadow={false}
+              withScrollableDot={false}
+            />
+          </View>
 
-      <View style={themedStyles.statsContainer}>
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.primary }]}>
-            {chartData.datasets[0].data.reduce((a, b) => a + b, 0)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.totalWorkouts')}
+          <View style={themedStyles.statsContainer}>
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.primary }]}>
+                {chartData.datasets[0].data.reduce((a, b) => a + b, 0)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.totalWorkouts')}
+              </Text>
+            </View>
+
+            <View style={themedStyles.statDivider} />
+
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.success }]}>
+                {Math.max(...chartData.datasets[0].data)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.peakDay')}
+              </Text>
+            </View>
+
+            <View style={themedStyles.statDivider} />
+
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.warning }]}>
+                {(
+                  chartData.datasets[0].data.reduce((a, b) => a + b, 0) /
+                  chartData.datasets[0].data.length
+                ).toFixed(1)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.average')}
+              </Text>
+            </View>
+          </View>
+        </>
+      ) : (
+        <View style={[themedStyles.chartContainer, { height: 220, justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+            {t('stats.noDataAvailable') || 'No data available'}
           </Text>
         </View>
-
-        <View style={themedStyles.statDivider} />
-
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.success }]}>
-            {Math.max(...chartData.datasets[0].data)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.peakDay')}
-          </Text>
-        </View>
-
-        <View style={themedStyles.statDivider} />
-
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.warning }]}>
-            {(
-              chartData.datasets[0].data.reduce((a, b) => a + b, 0) /
-              chartData.datasets[0].data.length
-            ).toFixed(1)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.average')}
-          </Text>
-        </View>
-      </View>
+      )}
     </View>
   );
 }

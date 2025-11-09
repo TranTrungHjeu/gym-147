@@ -5,7 +5,7 @@ import type { MembershipPlan, Subscription } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Check, Crown, Star, Zap } from 'lucide-react-native';
+import { ArrowLeft, Check, Crown, Star, Zap } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -163,12 +163,20 @@ export default function PlansScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Membership Plans
-        </Text>
-        <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
-          Choose the plan that's right for you
-        </Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={[Typography.h2, { color: theme.colors.text }]}>
+            Membership Plans
+          </Text>
+          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+            Choose the plan that's right for you
+          </Text>
+        </View>
       </View>
 
       <ScrollView
@@ -367,9 +375,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerContent: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,

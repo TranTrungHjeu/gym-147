@@ -105,6 +105,30 @@ const verifyCertification = async (req, res) => {
       },
     });
 
+    // Auto-sync specializations when certification is verified
+    try {
+      const specializationSyncService = require('../services/specialization-sync.service.js');
+      console.log(
+        `🔄 Starting specialization sync for trainer ${certification.trainer_id} after admin verification`
+      );
+      const syncResult = await specializationSyncService.updateTrainerSpecializations(certification.trainer_id);
+      if (syncResult && syncResult.success) {
+        console.log(
+          `✅ Auto-synced specializations for trainer ${certification.trainer_id} after admin verification`
+        );
+        console.log(`📋 Updated specializations:`, syncResult.specializations);
+      } else {
+        console.error(
+          `❌ Specialization sync returned failure for trainer ${certification.trainer_id}:`,
+          syncResult?.error || 'Unknown error'
+        );
+      }
+    } catch (syncError) {
+      console.error('❌ Error auto-syncing specializations:', syncError);
+      console.error('❌ Sync error stack:', syncError.stack);
+      // Don't fail the request if sync fails, but log it for debugging
+    }
+
     // Send notification to trainer about approval
     await notificationService.notifyCertificationStatusChange(
       certification.trainer_id,
@@ -112,6 +136,27 @@ const verifyCertification = async (req, res) => {
       'VERIFIED',
       verified_by
     );
+
+    // Emit socket event to all admins to reload trainer list (specializations may have changed)
+    if (global.io) {
+      try {
+        const admins = await notificationService.getAdminsAndSuperAdmins();
+        admins.forEach(admin => {
+          const roomName = `user:${admin.user_id}`;
+          global.io.to(roomName).emit('certification:verified', {
+            certification_id: certId,
+            trainer_id: certification.trainer_id,
+            trainer_name: certification.trainer.full_name,
+            category: certification.category,
+            verification_status: 'VERIFIED',
+            verified_by: verified_by,
+          });
+        });
+        console.log(`📡 Emitted certification:verified event to ${admins.length} admin(s) for trainer list reload`);
+      } catch (error) {
+        console.error('❌ Error emitting certification:verified event to admins:', error);
+      }
+    }
 
     res.json({
       success: true,
@@ -171,6 +216,27 @@ const rejectCertification = async (req, res) => {
       verified_by,
       rejection_reason
     );
+
+    // Emit socket event to all admins to reload trainer list (specializations may have changed)
+    if (global.io) {
+      try {
+        const admins = await notificationService.getAdminsAndSuperAdmins();
+        admins.forEach(admin => {
+          const roomName = `user:${admin.user_id}`;
+          global.io.to(roomName).emit('certification:rejected', {
+            certification_id: certId,
+            trainer_id: certification.trainer_id,
+            trainer_name: certification.trainer.full_name,
+            category: certification.category,
+            verification_status: 'REJECTED',
+            verified_by: verified_by,
+          });
+        });
+        console.log(`📡 Emitted certification:rejected event to ${admins.length} admin(s) for trainer list reload`);
+      } catch (error) {
+        console.error('❌ Error emitting certification:rejected event to admins:', error);
+      }
+    }
 
     res.json({
       success: true,

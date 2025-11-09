@@ -9,7 +9,7 @@ import type {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { CreditCard, Download, Eye } from 'lucide-react-native';
+import { ArrowLeft, CreditCard, Download, Eye } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -124,17 +124,28 @@ export default function PaymentHistoryScreen() {
   };
 
   const handleViewPayment = (payment: Payment) => {
-    // TODO: Navigate to payment detail
-    Alert.alert('Payment Detail', 'Payment detail screen not implemented yet');
+    router.push({
+      pathname: '/subscription/payment-detail',
+      params: { paymentId: payment.id },
+    });
   };
 
   const handleDownloadReceipt = async (payment: Payment) => {
     try {
-      // TODO: Implement receipt download
-      Alert.alert('Download', 'Receipt download not implemented yet');
-    } catch (error) {
+      const receiptData = await paymentService.downloadReceipt(payment.id);
+      if (receiptData.receiptUrl) {
+        const { Linking } = require('expo-linking');
+        const canOpen = await Linking.canOpenURL(receiptData.receiptUrl);
+        if (canOpen) {
+          await Linking.openURL(receiptData.receiptUrl);
+          Alert.alert('Success', 'Receipt opened in browser');
+        } else {
+          Alert.alert('Error', 'Cannot open receipt URL');
+        }
+      }
+    } catch (error: any) {
       console.error('Error downloading receipt:', error);
-      Alert.alert('Error', 'Failed to download receipt');
+      Alert.alert('Error', error.message || 'Failed to download receipt');
     }
   };
 
@@ -228,7 +239,13 @@ export default function PaymentHistoryScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
           Payment History
         </Text>
       </View>
@@ -431,9 +448,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   header: {
-    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   filters: {
     flexDirection: 'row',

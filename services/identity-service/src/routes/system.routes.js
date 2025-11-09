@@ -8,6 +8,7 @@ const systemController = new SystemController();
 
 // System management routes (public for health check)
 router.get('/health-check', (req, res) => systemController.healthCheck(req, res));
+router.get('/health', (req, res) => systemController.healthCheck(req, res)); // Alias
 
 // Admin-only routes
 router.get('/stats', authMiddleware, requireAdmin, (req, res) =>

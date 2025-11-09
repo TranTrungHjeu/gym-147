@@ -28,30 +28,50 @@ async function startServer() {
     authController.startPasswordResetCleanupJob();
 
     app.use(express.json());
-    app.use(cors());
+
+    // CORS configuration
+    const allowedOrigins = process.env.ALLOWED_ORIGINS
+      ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+      : process.env.NODE_ENV === 'production'
+      ? []
+      : [
+          'http://localhost:3000',
+          'http://localhost:5173',
+          'http://localhost:8080',
+          'http://localhost:8081',
+        ];
+
+    app.use(
+      cors({
+        origin: (origin, callback) => {
+          if (!origin) return callback(null, true);
+          if (allowedOrigins.includes(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        credentials: true,
+        methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+      })
+    );
+
     app.use(helmet());
     app.use(morgan('dev'));
     app.use('/', routes);
 
-    app.use((err, req, res, next) => {
-      console.error(err.stack);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
-    });
-
-    app.use('*', (req, res) => {
-      res.status(404).json({
-        success: false,
-        message: 'Route not found',
-        data: null,
-      });
-    });
+    // Error handling middleware (must be after routes)
+    const {
+      errorHandler,
+      notFoundHandler,
+    } = require('../../../packages/shared-middleware/src/error.middleware.js');
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
     const port = process.env.PORT || 3001;
-    app.listen(port, () => {
+    const host = process.env.HOST || '0.0.0.0';
+    app.listen(port, host, () => {
       console.log(`identity-service listening on port ${port}`);
     });
   } catch (error) {

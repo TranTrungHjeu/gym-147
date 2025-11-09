@@ -4,10 +4,8 @@ const authMiddleware = (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.header('Authorization');
-    console.log('Auth header:', authHeader); // Debug log
 
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.log('No valid auth header found'); // Debug log
       return res.status(401).json({
         success: false,
         message: 'Access denied. No valid token provided.',
@@ -19,7 +17,16 @@ const authMiddleware = (req, res, next) => {
     const token = authHeader.substring(7);
 
     // Verify token
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret');
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('JWT_SECRET is not set in environment variables');
+      return res.status(500).json({
+        success: false,
+        message: 'Server configuration error',
+        data: null,
+      });
+    }
+    const decoded = jwt.verify(token, jwtSecret);
 
     // Add user info to request object
     req.user = decoded;

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
+import { socketService } from '../services/socket.service';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
 import Backdrop from './Backdrop';
@@ -43,6 +44,67 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
     if (!isLoggedIn) {
       navigate('/auth');
+      return;
+    }
+
+    // Get user ID and connect socket for real-time notifications
+    const userDataStr = localStorage.getItem('userData') || localStorage.getItem('user');
+    if (userDataStr) {
+      try {
+        const userData = JSON.parse(userDataStr);
+        const userId = userData.id || userData.userId;
+
+        if (userId) {
+          // Connect socket and subscribe to user notifications
+          const socket = socketService.connect(userId);
+
+          // Setup schedule notification listeners for admin/super admin
+          socket.on('schedule:new', (data: any) => {
+            console.log('📢 schedule:new event received in AppLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('schedule:updated', { detail: data }));
+            }
+          });
+
+          // Setup certification notification listeners for admin/super admin
+          socket.on('certification:pending', (data: any) => {
+            console.log('📢 certification:pending event received in AppLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          socket.on('certification:verified', (data: any) => {
+            console.log('📢 certification:verified event received in AppLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          socket.on('certification:rejected', (data: any) => {
+            console.log('📢 certification:rejected event received in AppLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          // Cleanup on unmount - only remove listeners, don't disconnect socket
+          // Socket should stay connected as long as user is logged in
+          return () => {
+            socket.off('schedule:new');
+            socket.off('certification:pending');
+            socket.off('certification:verified');
+            socket.off('certification:rejected');
+            // Don't disconnect here - socket is shared across components
+          };
+        }
+      } catch (err) {
+        console.error('Error parsing user data for socket:', err);
+      }
     }
   }, [navigate]);
 

@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const trainerController = require('../controllers/trainer.controller.js');
+const certificationController = require('../controllers/certification.controller.js');
 
 const router = Router();
 
@@ -28,6 +29,29 @@ router.get('/user/:user_id/certifications', (req, res) =>
 router.get('/user/:user_id/available-categories', (req, res) =>
   trainerController.getAvailableCategories(req, res)
 );
+
+// Trainer Certification routes (must be BEFORE /:id route to avoid route conflicts)
+// These routes use /trainers/:trainerId/... pattern
+// Note: Routes with specific patterns (like /certifications) must come before generic routes (like /:id)
+router.get('/:trainerId/certifications', (req, res, next) => {
+  console.log('✅ GET /trainers/:trainerId/certifications route matched');
+  console.log('📍 Request params:', req.params);
+  console.log('📍 Request query:', req.query);
+  certificationController.getTrainerCertifications(req, res, next);
+});
+router.post('/:trainerId/certifications', (req, res, next) => {
+  console.log('✅ POST /trainers/:trainerId/certifications route matched');
+  console.log('📍 Request params:', req.params);
+  console.log('📍 Request body:', req.body);
+  console.log('📍 TrainerId from params:', req.params.trainerId);
+  certificationController.createCertification(req, res, next);
+});
+router.post('/:trainerId/upload-certificate', certificationController.uploadCertificateToS3);
+router.post('/:trainerId/presigned-url', certificationController.generatePresignedUrl);
+router.get('/:trainerId/available-categories', certificationController.getAvailableCategories);
+router.get('/:trainerId/categories/:category/access', certificationController.checkCategoryAccess);
+
+// Basic trainer routes (/:id must be after specific routes like /:trainerId/certifications)
 router.get('/:id', (req, res) => trainerController.getTrainerById(req, res));
 router.post('/', (req, res) => trainerController.createTrainer(req, res));
 router.post('/user/:user_id/schedules', (req, res) =>
@@ -51,6 +75,10 @@ router.get('/user/:user_id/revenue', (req, res) => trainerController.getTrainerR
 
 router.put('/user/:user_id', (req, res) => trainerController.updateTrainerByUserId(req, res));
 router.put('/:id', (req, res) => trainerController.updateTrainer(req, res));
+router.post('/:id/sync-specializations', (req, res) =>
+  trainerController.syncTrainerSpecializations(req, res)
+);
+
 router.delete('/user/:user_id', (req, res) => trainerController.deleteTrainerByUserId(req, res));
 router.delete('/:id', (req, res) => trainerController.deleteTrainer(req, res));
 

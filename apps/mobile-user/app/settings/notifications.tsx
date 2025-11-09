@@ -7,6 +7,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import {
+  ArrowLeft,
   Bell,
   Clock,
   Mail,
@@ -179,12 +180,20 @@ export default function NotificationSettingsScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Notification Settings
-        </Text>
-        <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
-          Customize how and when you receive notifications
-        </Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <Text style={[Typography.h2, { color: theme.colors.text }]}>
+            Notification Settings
+          </Text>
+          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+            Customize how and when you receive notifications
+          </Text>
+        </View>
       </View>
 
       <ScrollView
@@ -680,9 +689,19 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   header: {
-    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
+  },
+  headerContent: {
+    flex: 1,
   },
   scrollView: {
     flex: 1,

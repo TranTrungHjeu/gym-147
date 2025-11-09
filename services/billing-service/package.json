@@ -9,6 +9,8 @@
     "type-check": "echo 'No type check needed for JS'"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.490.0",
+    "@aws-sdk/s3-request-presigner": "^3.490.0",
     "@prisma/client": "^6.16.2",
     "axios": "^1.13.1",
     "cors": "^2.8.5",
@@ -16,7 +18,10 @@
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "morgan": "^1.10.0",
+    "node-cron": "^3.0.3",
+    "pdfkit": "^0.14.0",
     "prisma": "^6.16.2",
-    "qrcode": "^1.5.4"
+    "qrcode": "^1.5.4",
+    "exceljs": "^4.4.0"
   }
 }

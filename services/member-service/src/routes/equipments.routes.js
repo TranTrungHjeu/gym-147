@@ -7,8 +7,16 @@ const equipmentController = require('../controllers/equipment.controller');
 // Get all equipment
 router.get('/equipment', (req, res) => equipmentController.getAllEquipment(req, res));
 
+// Get equipment usage stats by status (for admin/reports) - MUST be before /equipment/:id routes
+router.get('/equipment/usage-stats', (req, res) =>
+  equipmentController.getEquipmentUsageStatsByStatus(req, res)
+);
+
 // Get equipment by ID
 router.get('/equipment/:id', (req, res) => equipmentController.getEquipmentById(req, res));
+
+// Upload equipment photo (must be before /equipment routes)
+router.post('/equipment/photo/upload', (req, res) => equipmentController.uploadEquipmentPhoto(req, res));
 
 // Create equipment
 router.post('/equipment', (req, res) => equipmentController.createEquipment(req, res));

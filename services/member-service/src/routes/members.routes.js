@@ -18,8 +18,22 @@ router.get('/members/profile', (req, res) => memberController.getCurrentMemberPr
 // Update current member profile (static route - must be before dynamic routes)
 router.put('/members/profile', (req, res) => memberController.updateCurrentMemberProfile(req, res));
 
+// Toggle AI Class Recommendations (Premium feature)
+// MUST be before /members/:id route to avoid being matched as :id = "preferences"
+router.put('/members/preferences/ai-class-recommendations', (req, res) =>
+  memberController.toggleAIClassRecommendations(req, res)
+);
+
 // Upload avatar (static route - must be before dynamic routes)
 router.post('/members/avatar/upload', (req, res) => memberController.uploadAvatar(req, res));
+
+// Onboarding tracking (static routes - must be before dynamic routes)
+router.get('/members/onboarding/status', (req, res) =>
+  memberController.getOnboardingStatus(req, res)
+);
+router.patch('/members/onboarding/progress', (req, res) =>
+  memberController.updateOnboardingProgress(req, res)
+);
 
 // Get member by user_id (static route - must be before :id)
 router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
@@ -38,7 +52,7 @@ router.post('/members/create-with-user', (req, res) =>
 // Get multiple members by user_ids (for cross-service integration)
 router.post('/members/batch', (req, res) => memberController.getMembersByIds(req, res));
 
-// Update member
+// Update member (dynamic route - must be after static routes like /members/preferences/*)
 router.put('/members/:id', (req, res) => memberController.updateMember(req, res));
 
 // Update member by user_id (for cross-service integration)

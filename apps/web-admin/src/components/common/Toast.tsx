@@ -7,6 +7,8 @@ interface ToastProps {
   onClose: () => void;
   duration?: number;
   countdown?: number; // Thời gian countdown (giây)
+  buttonLabel?: string; // Optional button label
+  onButtonClick?: () => void; // Optional button click handler
 }
 
 export default function Toast({
@@ -16,6 +18,8 @@ export default function Toast({
   onClose,
   duration = 5000,
   countdown,
+  buttonLabel,
+  onButtonClick,
 }: ToastProps) {
   const [isAnimating, setIsAnimating] = useState(false);
   const [countdownTime, setCountdownTime] = useState(countdown || 0);
@@ -58,15 +62,17 @@ export default function Toast({
   if (!isVisible) return null;
 
   const getToastStyles = () => {
+    // Style 1: Dark background with colored accent based on type
     switch (type) {
       case 'error':
         return {
-          bg: 'bg-gradient-to-br from-red-600/95 to-red-700/95',
-          border: 'border-red-400/30',
+          bg: 'bg-[#2d3438]',
+          iconBg: 'bg-[#F04349]/20',
+          iconColor: 'text-[#F04349]',
           icon: (
-            <div className='w-8 h-8 bg-red-500/20 rounded-full flex items-center justify-center'>
+            <div className='w-8 h-8 bg-[#F04349]/20 rounded-full flex items-center justify-center flex-shrink-0 relative'>
               <svg
-                className='w-5 h-5 text-red-300'
+                className='w-6 h-6 text-[#F04349] absolute inset-0 m-auto'
                 fill='none'
                 stroke='currentColor'
                 viewBox='0 0 24 24'
@@ -83,12 +89,13 @@ export default function Toast({
         };
       case 'success':
         return {
-          bg: 'bg-gradient-to-br from-green-600/95 to-green-700/95',
-          border: 'border-green-400/30',
+          bg: 'bg-[#2d3438]',
+          iconBg: 'bg-[#01E17B]/20',
+          iconColor: 'text-[#01E17B]',
           icon: (
-            <div className='w-8 h-8 bg-green-500/20 rounded-full flex items-center justify-center'>
+            <div className='w-8 h-8 bg-[#01E17B]/20 rounded-full flex items-center justify-center flex-shrink-0 relative'>
               <svg
-                className='w-5 h-5 text-green-300'
+                className='w-6 h-6 text-[#01E17B] absolute inset-0 m-auto'
                 fill='none'
                 stroke='currentColor'
                 viewBox='0 0 24 24'
@@ -105,12 +112,13 @@ export default function Toast({
         };
       case 'warning':
         return {
-          bg: 'bg-gradient-to-br from-orange-500/95 to-orange-600/95',
-          border: 'border-orange-400/30',
+          bg: 'bg-[#2d3438]',
+          iconBg: 'bg-[#FDCD0F]/20',
+          iconColor: 'text-[#FDCD0F]',
           icon: (
-            <div className='w-8 h-8 bg-orange-500/20 rounded-full flex items-center justify-center'>
+            <div className='w-8 h-8 bg-[#FDCD0F]/20 rounded-full flex items-center justify-center flex-shrink-0 relative'>
               <svg
-                className='w-5 h-5 text-orange-300'
+                className='w-6 h-6 text-[#FDCD0F] absolute inset-0 m-auto'
                 fill='none'
                 stroke='currentColor'
                 viewBox='0 0 24 24'
@@ -127,12 +135,13 @@ export default function Toast({
         };
       case 'info':
         return {
-          bg: 'bg-gradient-to-br from-gray-800/95 to-gray-900/95',
-          border: 'border-white/20',
+          bg: 'bg-[#2d3438]',
+          iconBg: 'bg-[#4B85F5]/20',
+          iconColor: 'text-[#4B85F5]',
           icon: (
-            <div className='w-8 h-8 bg-white/10 rounded-full flex items-center justify-center'>
+            <div className='w-8 h-8 bg-[#4B85F5]/20 rounded-full flex items-center justify-center flex-shrink-0 relative'>
               <svg
-                className='w-5 h-5 text-white/80'
+                className='w-6 h-6 text-[#4B85F5] absolute inset-0 m-auto'
                 fill='none'
                 stroke='currentColor'
                 viewBox='0 0 24 24'
@@ -149,9 +158,26 @@ export default function Toast({
         };
       default:
         return {
-          bg: 'bg-gradient-to-br from-gray-800/95 to-gray-900/95',
-          border: 'border-white/20',
-          icon: null,
+          bg: 'bg-[#2d3438]',
+          iconBg: 'bg-white/10',
+          iconColor: 'text-white',
+          icon: (
+            <div className='w-8 h-8 bg-white/10 rounded-full flex items-center justify-center flex-shrink-0 relative'>
+              <svg
+                className='w-6 h-6 text-white absolute inset-0 m-auto'
+                fill='none'
+                stroke='currentColor'
+                viewBox='0 0 24 24'
+              >
+                <path
+                  strokeLinecap='round'
+                  strokeLinejoin='round'
+                  strokeWidth={2}
+                  d='M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z'
+                />
+              </svg>
+            </div>
+          ),
         };
     }
   };
@@ -159,30 +185,40 @@ export default function Toast({
   const styles = getToastStyles();
 
   return (
-    <div className='fixed inset-0 z-50 flex items-center justify-center pointer-events-none'>
-      <div
-        className={`
-          ${styles.bg} ${styles.border}
-          backdrop-blur-xl border rounded-2xl shadow-2xl
-          px-6 py-5 min-w-[360px] max-w-[500px] mx-4
-          transform transition-all duration-300 ease-out
-          ${isAnimating ? 'translate-y-0 opacity-100 scale-100' : 'translate-y-8 opacity-0 scale-95'}
-          flex items-center space-x-4 pointer-events-auto
-          font-space-grotesk
-        `}
-      >
-        {/* Icon */}
+    <div
+      className={`
+        ${styles.bg}
+        rounded-2xl shadow-[0px_16px_20px_-8px_rgba(3,5,18,0.1)]
+        px-4 py-3 min-w-[320px] max-w-[420px]
+        transform transition-all duration-300 ease-out
+        ${isAnimating ? 'translate-x-0 opacity-100 scale-100' : 'translate-x-full opacity-0 scale-95'}
+        flex items-center gap-3
+        font-sans
+      `}
+      style={{ fontFamily: 'var(--font-family-body, Inter, system-ui, sans-serif)' }}
+    >
+        {/* Icon - Style 1: Pill-shaped container with colored accent */}
         <div className='flex-shrink-0'>{styles.icon}</div>
 
         {/* Message */}
-        <div className='flex-1'>
-          <p className='text-white font-medium text-sm leading-relaxed'>
+        <div className='flex-1 min-w-0'>
+          <p className='text-white font-medium text-base leading-[22px] font-sans'>
             {message}
             {countdown && countdownTime > 0 && (
-              <span className='ml-2 text-orange-300 font-bold'>({countdownTime}s)</span>
+              <span className='ml-2 text-white/70 font-semibold'>({countdownTime}s)</span>
             )}
           </p>
         </div>
+
+        {/* Optional Button */}
+        {buttonLabel && onButtonClick && (
+          <button
+            onClick={onButtonClick}
+            className='flex-shrink-0 px-2 py-1 text-white font-semibold text-sm leading-[22px] hover:bg-white/10 rounded-lg transition-all duration-200 active:scale-95 whitespace-nowrap font-sans'
+          >
+            {buttonLabel}
+          </button>
+        )}
 
         {/* Close Button */}
         <button
@@ -190,10 +226,11 @@ export default function Toast({
             setIsAnimating(false);
             setTimeout(onClose, 300);
           }}
-          className='flex-shrink-0 p-2 rounded-full hover:bg-white/10 transition-all duration-200 hover:scale-110'
+          className='flex-shrink-0 w-6 h-6 flex items-center justify-center hover:bg-white/10 rounded-lg transition-all duration-200 active:scale-95'
+          aria-label='Close notification'
         >
           <svg
-            className='w-4 h-4 text-white/60 hover:text-white transition-colors duration-200'
+            className='w-6 h-6 text-white/70 hover:text-white transition-colors duration-200'
             fill='none'
             stroke='currentColor'
             viewBox='0 0 24 24'
@@ -206,7 +243,6 @@ export default function Toast({
             />
           </svg>
         </button>
-      </div>
     </div>
   );
 }

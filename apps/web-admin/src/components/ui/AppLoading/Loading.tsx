@@ -157,3 +157,8 @@ export const SimpleLoading: React.FC<LoadingProps> = ({
     </div>
   );
 };
+
+// Compact Spinner for buttons - Đồng bộ với hệ thống
+export const CompactSpinner: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <div className={`w-4 h-4 border-2 border-gray-400 dark:border-gray-500 border-t-transparent rounded-full animate-spin ${className}`} />
+);

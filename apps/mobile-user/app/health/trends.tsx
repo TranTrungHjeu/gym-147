@@ -11,6 +11,7 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
+import { ArrowLeft } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -22,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function HealthTrendsScreen() {
   const { t, i18n } = useTranslation();
@@ -38,24 +40,24 @@ export default function HealthTrendsScreen() {
   const [metrics, setMetrics] = useState<HealthMetric[]>([]);
 
   const metricTypes = [
-    { value: MetricType.WEIGHT, label: 'Weight' },
-    { value: MetricType.BODY_FAT, label: 'Body Fat' },
-    { value: MetricType.MUSCLE_MASS, label: 'Muscle Mass' },
-    { value: MetricType.BMI, label: 'BMI' },
-    { value: MetricType.HEART_RATE, label: 'Heart Rate' },
-    { value: MetricType.BLOOD_PRESSURE, label: 'Blood Pressure' },
-    { value: MetricType.BODY_TEMPERATURE, label: 'Body Temperature' },
-    { value: MetricType.SLEEP_HOURS, label: 'Sleep Hours' },
-    { value: MetricType.WATER_INTAKE, label: 'Water Intake' },
-    { value: MetricType.STEPS, label: 'Steps' },
-    { value: MetricType.CALORIES_BURNED, label: 'Calories Burned' },
-    { value: MetricType.CALORIES_CONSUMED, label: 'Calories Consumed' },
+    { value: MetricType.WEIGHT, label: t('health.metricTypes.weight') },
+    { value: MetricType.BODY_FAT, label: t('health.metricTypes.bodyFat') },
+    { value: MetricType.MUSCLE_MASS, label: t('health.metricTypes.muscleMass') },
+    { value: MetricType.BMI, label: t('health.metricTypes.bmi') },
+    { value: MetricType.HEART_RATE, label: t('health.metricTypes.heartRate') },
+    { value: MetricType.BLOOD_PRESSURE, label: t('health.metricTypes.bloodPressure') },
+    { value: MetricType.BODY_TEMPERATURE, label: t('health.metricTypes.bodyTemperature') },
+    { value: MetricType.SLEEP_HOURS, label: t('health.metricTypes.sleepHours') },
+    { value: MetricType.WATER_INTAKE, label: t('health.metricTypes.waterIntake') },
+    { value: MetricType.STEPS, label: t('health.metricTypes.steps') },
+    { value: MetricType.CALORIES_BURNED, label: t('health.metricTypes.caloriesBurned') },
+    { value: MetricType.CALORIES_CONSUMED, label: t('health.metricTypes.caloriesConsumed') },
   ];
 
   const periods = [
-    { label: 'Daily', value: 'daily' },
-    { label: 'Weekly', value: 'weekly' },
-    { label: 'Monthly', value: 'monthly' },
+    { label: t('health.trends.periods.daily'), value: 'daily' },
+    { label: t('health.trends.periods.weekly'), value: 'weekly' },
+    { label: t('health.trends.periods.monthly'), value: 'monthly' },
   ];
 
   const loadTrends = async () => {
@@ -134,20 +136,27 @@ export default function HealthTrendsScreen() {
   );
 
   return (
-    <View
+    <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
+      edges={['top']}
     >
       <View style={styles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Health Trends
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
+          {t('health.trends.title')}
         </Text>
-        <Button title="Add Metric" onPress={handleAddMetric} size="small" />
+        <Button title={t('health.addMetric')} onPress={handleAddMetric} size="small" />
       </View>
 
       <View style={styles.filters}>
         <View style={styles.filterGroup}>
           <Text style={[Typography.label, { color: theme.colors.text }]}>
-            Metric Type
+            {t('health.trends.metricType')}
           </Text>
           <Picker
             selectedValue={selectedMetric}
@@ -161,7 +170,7 @@ export default function HealthTrendsScreen() {
 
         <View style={styles.filterGroup}>
           <Text style={[Typography.label, { color: theme.colors.text }]}>
-            Period
+            {t('health.trends.period')}
           </Text>
           <Picker
             selectedValue={period}
@@ -282,7 +291,7 @@ export default function HealthTrendsScreen() {
           </View>
         )}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -297,11 +306,14 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'transparent',
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   filters: {
     flexDirection: 'row',

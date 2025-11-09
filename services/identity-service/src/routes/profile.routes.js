@@ -10,6 +10,10 @@ const profileController = new ProfileController();
 router.get('/', authMiddleware, (req, res) => profileController.getProfile(req, res));
 router.put('/', authMiddleware, (req, res) => profileController.updateProfile(req, res));
 router.put('/change-password', authMiddleware, (req, res) => profileController.changePassword(req, res));
+router.post('/send-otp-for-password-change', authMiddleware, (req, res) => profileController.sendOTPForPasswordChange(req, res));
+router.post('/change-password-with-otp', authMiddleware, (req, res) => profileController.changePasswordWithOTP(req, res));
+router.post('/send-otp-for-email-phone-change', authMiddleware, (req, res) => profileController.sendOTPForEmailPhoneChange(req, res));
+router.put('/update-email-phone-with-otp', authMiddleware, (req, res) => profileController.updateEmailPhoneWithOTP(req, res));
 router.post('/upload-avatar', authMiddleware, (req, res) => profileController.uploadAvatar(req, res));
 
 // Account management routes

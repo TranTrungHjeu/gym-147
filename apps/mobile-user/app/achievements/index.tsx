@@ -1,4 +1,5 @@
 import AchievementCard from '@/components/AchievementCard';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   achievementService,
   type Achievement,
@@ -8,6 +9,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import {
+  ArrowLeft,
   Calendar,
   Droplet,
   Dumbbell,
@@ -21,18 +23,19 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AchievementsScreen() {
   const { theme } = useTheme();
   const router = useRouter();
   const { t } = useTranslation();
+  const { member } = useAuth();
 
   // State for API data
   const [loading, setLoading] = useState(true);
@@ -43,10 +46,12 @@ export default function AchievementsScreen() {
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [summary, setSummary] = useState<AchievementSummary | null>(null);
 
-  // Load data on component mount
+  // Load data on component mount and when member ID is available
   useEffect(() => {
-    loadData();
-  }, []);
+    if (member?.id) {
+      loadData();
+    }
+  }, [member?.id]);
 
   const loadData = async () => {
     try {
@@ -54,9 +59,10 @@ export default function AchievementsScreen() {
       setError(null);
 
       // Load all data in parallel
+      const memberId = member?.id;
       const [achievementsResponse, summaryResponse] = await Promise.all([
-        achievementService.getAchievements(),
-        achievementService.getAchievementSummary(),
+        achievementService.getAchievements(memberId),
+        achievementService.getAchievementSummary(memberId),
       ]);
 
       // Handle achievements data
@@ -70,7 +76,7 @@ export default function AchievementsScreen() {
       }
     } catch (err: any) {
       console.error('Error loading achievements data:', err);
-      setError(err.message || 'Failed to load achievements data');
+      setError(err.message || t('achievements.failedToLoad'));
     } finally {
       setLoading(false);
     }
@@ -111,6 +117,7 @@ export default function AchievementsScreen() {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['top']}
       >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -127,6 +134,7 @@ export default function AchievementsScreen() {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['top']}
       >
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
@@ -156,9 +164,16 @@ export default function AchievementsScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
+      edges={['top']}
     >
       <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
+        <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
           {t('achievements.title')}
         </Text>
         <TouchableOpacity
@@ -299,14 +314,15 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 12,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'transparent',
   },
-  headerTitle: {
-    ...Typography.h2,
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   leaderboardButton: {
     flexDirection: 'row',
@@ -323,6 +339,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     paddingHorizontal: 16,
     marginBottom: 24,
+    marginTop: 8,
   },
   statCard: {
     flex: 1,
@@ -392,3 +409,4 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
+

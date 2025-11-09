@@ -53,17 +53,16 @@ const RegisterProfileScreen = () => {
   const paymentId = params.paymentId as string;
 
   const fitnessGoals = [
-    { key: 'loseWeight', label: t('profile.fitnessGoalOptions.loseWeight') },
-    { key: 'gainMuscle', label: t('profile.fitnessGoalOptions.gainMuscle') },
-    {
-      key: 'increaseEndurance',
-      label: t('profile.fitnessGoalOptions.increaseEndurance'),
-    },
-    {
-      key: 'improveFlexibility',
-      label: t('profile.fitnessGoalOptions.improveFlexibility'),
-    },
-    { key: 'maintain', label: t('profile.fitnessGoalOptions.maintain') },
+    { key: 'WEIGHT_LOSS', label: t('profile.fitnessGoalWeightLoss') },
+    { key: 'MUSCLE_GAIN', label: t('profile.fitnessGoalMuscleGain') },
+    { key: 'ENDURANCE', label: t('profile.fitnessGoalEndurance') },
+    { key: 'FLEXIBILITY', label: t('profile.fitnessGoalFlexibility') },
+    { key: 'STRENGTH', label: t('profile.fitnessGoalStrength') },
+    { key: 'CARDIO', label: t('profile.fitnessGoalCardio') },
+    { key: 'GENERAL_FITNESS', label: t('profile.fitnessGoalGeneral') },
+    { key: 'SPORTS_PERFORMANCE', label: t('profile.fitnessGoalSports') },
+    { key: 'REHABILITATION', label: t('profile.fitnessGoalRehabilitation') },
+    { key: 'MAINTENANCE', label: t('profile.fitnessGoalMaintenance') },
   ];
 
   const genders: { value: 'MALE' | 'FEMALE' | 'OTHER'; label: string }[] = [

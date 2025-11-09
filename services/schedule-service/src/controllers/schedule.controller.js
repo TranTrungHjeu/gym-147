@@ -202,16 +202,25 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     } else {
       maxCapacityValue = parsedCapacity;
     }
-  } else if (!isUpdate && gymClass) {
-    maxCapacityValue = gymClass.max_capacity;
   }
 
+  // If creating new schedule and max_capacity not provided, use GymClass.max_capacity
   if (!isUpdate && (maxCapacityValue === null || maxCapacityValue === undefined)) {
+    if (gymClass && gymClass.max_capacity) {
+      maxCapacityValue = gymClass.max_capacity;
+    } else {
     errors.push('max_capacity là bắt buộc');
+    }
   }
 
+  // Validate max_capacity against GymClass.max_capacity (if gymClass exists)
   if (gymClass && maxCapacityValue !== null && maxCapacityValue > gymClass.max_capacity) {
-    errors.push(`max_capacity không được vượt quá ${gymClass.max_capacity}`);
+    errors.push(`Sức chứa không được vượt quá sức chứa của lớp học (${gymClass.max_capacity} người)`);
+  }
+
+  // Validate max_capacity against room.capacity
+  if (room && maxCapacityValue !== null && maxCapacityValue > room.capacity) {
+    errors.push(`Sức chứa không được vượt quá sức chứa của phòng (${room.capacity} người)`);
   }
 
   if (
@@ -221,6 +230,20 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     maxCapacityValue < (currentSchedule.current_bookings || 0)
   ) {
     errors.push('max_capacity không được nhỏ hơn số lượng đặt chỗ hiện tại');
+  }
+
+  // Validate duration from start_time and end_time
+  if (parsedStart && parsedEnd && errors.filter(msg => msg.includes('time')).length === 0) {
+    const durationMs = parsedEnd.getTime() - parsedStart.getTime();
+    const durationMinutes = Math.round(durationMs / (1000 * 60));
+    
+    // Validate duration range (15 minutes to 3 hours)
+    if (durationMinutes < 15) {
+      errors.push('Thời lượng lớp học tối thiểu 15 phút');
+    } else if (durationMinutes > 180) {
+      errors.push('Thời lượng lớp học tối đa 180 phút (3 giờ)');
+    }
+
   }
 
   if (

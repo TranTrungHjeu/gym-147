@@ -1,9 +1,10 @@
 import { MembershipBadge } from '@/components/MembershipBadge';
 import ProfileSection from '@/components/ProfileSection';
-import { authService, memberService, notificationService } from '@/services';
+import { authService, memberService, notificationService, pointsService } from '@/services';
 import { MembershipType, type Member } from '@/types/memberTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import {
   Bell,
@@ -18,8 +19,12 @@ import {
   Trophy,
   CircleUser as UserCircle,
   Weight,
+  Coins,
+  Sparkles,
+  Flame,
+  Zap,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -38,6 +43,29 @@ import {
 import PremiumFrame from '@/assets/frame/premium.svg';
 import VipFrame from '@/assets/frame/vip.svg';
 
+const getGoalLabelKey = (goal: string): string => {
+  const mapping: Record<string, string> = {
+    // Enum values
+    WEIGHT_LOSS: 'fitnessGoalWeightLoss',
+    MUSCLE_GAIN: 'fitnessGoalMuscleGain',
+    ENDURANCE: 'fitnessGoalEndurance',
+    FLEXIBILITY: 'fitnessGoalFlexibility',
+    STRENGTH: 'fitnessGoalStrength',
+    CARDIO: 'fitnessGoalCardio',
+    GENERAL_FITNESS: 'fitnessGoalGeneral',
+    SPORTS_PERFORMANCE: 'fitnessGoalSports',
+    REHABILITATION: 'fitnessGoalRehabilitation',
+    MAINTENANCE: 'fitnessGoalMaintenance',
+    // CamelCase values from register-profile
+    loseWeight: 'fitnessGoalWeightLoss',
+    gainMuscle: 'fitnessGoalMuscleGain',
+    increaseEndurance: 'fitnessGoalEndurance',
+    improveFlexibility: 'fitnessGoalFlexibility',
+    maintain: 'fitnessGoalMaintenance',
+  };
+  return mapping[goal] || goal;
+};
+
 export default function ProfileScreen() {
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
@@ -51,15 +79,14 @@ export default function ProfileScreen() {
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<Member | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [pointsBalance, setPointsBalance] = useState<number>(0);
+  const hasLoadedOnce = useRef(false);
 
-  // Load profile data on component mount
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  const loadProfile = async () => {
+  const loadProfile = useCallback(async () => {
     try {
-      setLoading(true);
+      if (!hasLoadedOnce.current) {
+        setLoading(true);
+      }
       setError(null);
 
       const response = await memberService.getMemberProfile();
@@ -67,15 +94,19 @@ export default function ProfileScreen() {
       if (response.success && response.data) {
         setUserProfile(response.data);
 
-        // Load notification count
+        // Load notification count and points balance
         if (response.data.id) {
           try {
-            const count = await notificationService.getUnreadCount(
-              response.data.id
-            );
+            const [count, pointsResponse] = await Promise.all([
+              notificationService.getUnreadCount(response.data.id),
+              pointsService.getBalance(response.data.id),
+            ]);
             setUnreadCount(count);
+            if (pointsResponse.success && pointsResponse.data) {
+              setPointsBalance(pointsResponse.data.current);
+            }
           } catch (error) {
-            console.error('Error loading notification count:', error);
+            console.error('Error loading notification count or points:', error);
           }
         } else {
           console.warn(
@@ -112,8 +143,9 @@ export default function ProfileScreen() {
       }
     } finally {
       setLoading(false);
+      hasLoadedOnce.current = true;
     }
-  };
+  }, []);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -125,6 +157,13 @@ export default function ProfileScreen() {
     // Navigate to profile edit options
     router.push('/profile/edit-personal');
   };
+
+  // Load profile data when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      loadProfile();
+    }, [loadProfile])
+  );
 
   // Show loading state
   if (loading) {
@@ -216,10 +255,28 @@ export default function ProfileScreen() {
 
   const accountItems = [
     {
+      id: 'leaderboard',
+      label: t('leaderboard.title'),
+      icon: <Trophy size={20} color={theme.colors.warning} />,
+      onPress: () => router.push('/leaderboard'),
+    },
+    {
       id: 'achievements',
       label: t('navigation.achievements'),
       icon: <Trophy size={20} color={theme.colors.warning} />,
       onPress: () => router.push('/achievements'),
+    },
+    {
+      id: 'streaks',
+      label: t('streaks.title'),
+      icon: <Flame size={20} color={theme.colors.error} />,
+      onPress: () => router.push('/streaks'),
+    },
+    {
+      id: 'challenges',
+      label: t('challenges.title'),
+      icon: <Zap size={20} color={theme.colors.info} />,
+      onPress: () => router.push('/challenges'),
     },
     {
       id: 'settings',
@@ -370,6 +427,27 @@ export default function ProfileScreen() {
           </View>
         </View>
 
+        {/* Points Card */}
+        <TouchableOpacity
+          style={themedStyles.pointsCard}
+          onPress={() => router.push('/rewards')}
+        >
+          <View style={themedStyles.pointsHeader}>
+            <View style={themedStyles.pointsIconContainer}>
+              <Coins size={28} color="#FFD700" />
+              <Sparkles size={16} color="#FFD700" style={themedStyles.sparkleIcon} />
+            </View>
+            <View style={themedStyles.pointsContent}>
+              <Text style={themedStyles.pointsLabel}>Điểm thưởng</Text>
+              <Text style={themedStyles.pointsValue}>{pointsBalance.toLocaleString()}</Text>
+            </View>
+            <View style={themedStyles.pointsArrow}>
+              <Gift size={20} color={theme.colors.primary} />
+            </View>
+          </View>
+          <Text style={themedStyles.pointsSubtext}>Nhấn để xem phần thưởng</Text>
+        </TouchableOpacity>
+
         <View style={themedStyles.statsContainer}>
           <View style={themedStyles.statsItem}>
             <View
@@ -396,7 +474,7 @@ export default function ProfileScreen() {
             >
               {userProfile?.fitness_goals &&
               userProfile.fitness_goals.length > 0
-                ? userProfile.fitness_goals[0]
+                ? t(`profile.${getGoalLabelKey(userProfile.fitness_goals[0])}`)
                 : t('common.notAvailable')}
             </Text>
           </View>
@@ -717,6 +795,52 @@ const styles = (theme: any) =>
     appVersion: {
       alignItems: 'center',
       marginVertical: theme.spacing.xl,
+    },
+    pointsCard: {
+      backgroundColor: theme.colors.card,
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.sm,
+    },
+    pointsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
+    pointsIconContainer: {
+      position: 'relative',
+      marginRight: theme.spacing.md,
+    },
+    sparkleIcon: {
+      position: 'absolute',
+      top: -4,
+      right: -4,
+    },
+    pointsContent: {
+      flex: 1,
+    },
+    pointsLabel: {
+      ...Typography.caption,
+      color: theme.colors.textSecondary,
+      marginBottom: 4,
+    },
+    pointsValue: {
+      fontSize: 28,
+      fontFamily: 'SpaceGrotesk-Bold',
+      color: '#FFD700',
+      fontWeight: '700',
+    },
+    pointsArrow: {
+      marginLeft: theme.spacing.sm,
+    },
+    pointsSubtext: {
+      ...Typography.caption,
+      color: theme.colors.textSecondary,
+      fontStyle: 'italic',
     },
     loadingContainer: {
       flex: 1,

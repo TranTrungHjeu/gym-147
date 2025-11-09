@@ -1,80 +1,61 @@
 import { useEffect, useState } from 'react';
+import {
+  CheckCircle2,
+  Clock,
+  FileText,
+  Plus,
+  RefreshCw,
+  Search,
+  XCircle,
+  AlertCircle,
+  Eye,
+  Award,
+  Calendar,
+  Building2,
+  CalendarCheck,
+  CalendarX,
+  X,
+  Download,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react';
 import AddCertificationModal from '../../components/certification/AddCertificationModal';
-import Button from '../../components/ui/Button/Button';
+import MetricCard from '../../components/dashboard/MetricCard';
+import Modal from '../../components/Modal/Modal';
+import CustomSelect from '../../components/common/CustomSelect';
+import Pagination from '../../components/common/Pagination';
+import { useToast } from '../../context/ToastContext';
 import {
   AvailableCategory,
   Certification,
   certificationService,
 } from '../../services/certification.service';
 
-// Icons
-const PlusIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M12 4v16m8-8H4' />
-  </svg>
-);
-
-const DocumentIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      strokeWidth={2}
-      d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-    />
-  </svg>
-);
-
-const ClockIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      strokeWidth={2}
-      d='M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z'
-    />
-  </svg>
-);
-
-const CheckIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M5 13l4 4L19 7' />
-  </svg>
-);
-
-const XIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M6 18L18 6M6 6l12 12' />
-  </svg>
-);
-
-const AlertIcon = () => (
-  <svg className='w-5 h-5' fill='none' stroke='currentColor' viewBox='0 0 24 24'>
-    <path
-      strokeLinecap='round'
-      strokeLinejoin='round'
-      strokeWidth={2}
-      d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.732-.833-2.5 0L4.268 19.5c-.77.833.192 2.5 1.732 2.5z'
-    />
-  </svg>
-);
-
 export default function TrainerCertifications() {
+  const { showToast } = useToast();
   const [certifications, setCertifications] = useState<Certification[]>([]);
   const [availableCategories, setAvailableCategories] = useState<AvailableCategory[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [filterStatus, setFilterStatus] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage] = useState(10);
+  const [viewCertificateModal, setViewCertificateModal] = useState(false);
+  const [certificateImageUrl, setCertificateImageUrl] = useState<string | null>(null);
+  const [certificateName, setCertificateName] = useState<string>('');
+  const [imageZoom, setImageZoom] = useState(1);
 
-  // Get current trainer ID from localStorage or context
-  const getCurrentUserId = () => {
-    // Get user_id from localStorage
+  // Get current trainer ID from localStorage
+  // Prefer trainerId if available (from login), otherwise fallback to user_id
+  const getCurrentTrainerId = () => {
     const user = localStorage.getItem('user');
     if (user) {
       const userData = JSON.parse(user);
-      return userData.id;
+      // Use trainerId if available (set during login), otherwise use user_id
+      return userData.trainerId || userData.id;
     }
-    return 'cmgrzx43a0002tz4or35rf13p'; // Fallback for testing
+    return null;
   };
 
   useEffect(() => {
@@ -82,30 +63,43 @@ export default function TrainerCertifications() {
     fetchAvailableCategories();
   }, []);
 
-  const fetchCertifications = async () => {
+  const fetchCertifications = async (showLoading = true) => {
     try {
-      setLoading(true);
-      const userId = getCurrentUserId();
-      const data = await certificationService.getTrainerCertifications(userId);
+      if (showLoading) {
+        setLoading(true);
+      }
+      const trainerId = getCurrentTrainerId();
+      if (!trainerId) {
+        throw new Error('Trainer ID not found');
+      }
+      const data = await certificationService.getTrainerCertifications(trainerId);
       setCertifications(data);
     } catch (error) {
       console.error('Error fetching certifications:', error);
-      if (window.showToast) {
-        window.showToast({
-          type: 'error',
-          message: 'Lỗi tải danh sách chứng chỉ',
-          duration: 3000,
-        });
-      }
+      showToast({
+        type: 'error',
+        message: 'Lỗi tải danh sách chứng chỉ',
+        duration: 3000,
+      });
     } finally {
-      setLoading(false);
+      if (showLoading) {
+        setLoading(false);
+      }
     }
+  };
+
+  const handleRefresh = async () => {
+    await fetchCertifications(false);
   };
 
   const fetchAvailableCategories = async () => {
     try {
-      const userId = getCurrentUserId();
-      const data = await certificationService.getAvailableCategories(userId);
+      const trainerId = getCurrentTrainerId();
+      if (!trainerId) {
+        console.error('Trainer ID not found');
+        return;
+      }
+      const data = await certificationService.getAvailableCategories(trainerId);
       setAvailableCategories(data);
     } catch (error) {
       console.error('Error fetching available categories:', error);
@@ -113,17 +107,28 @@ export default function TrainerCertifications() {
   };
 
   const filteredCertifications = certifications.filter(cert => {
-    if (!filterStatus) return true;
-    return cert.verification_status === filterStatus;
+    const matchesStatus = filterStatus === 'all' || cert.verification_status === filterStatus;
+    const matchesSearch =
+      !searchTerm ||
+      cert.certification_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cert.certification_issuer?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      getCategoryLabel(cert.category).toLowerCase().includes(searchTerm.toLowerCase());
+    return matchesStatus && matchesSearch;
   });
+
+  const totalPages = Math.ceil(filteredCertifications.length / itemsPerPage);
+  const paginatedCertifications = filteredCertifications.slice(
+    (currentPage - 1) * itemsPerPage,
+    currentPage * itemsPerPage
+  );
 
   const getCategoryLabel = (category: string) => {
     const categories: { [key: string]: string } = {
-      CARDIO: 'Cardio',
-      STRENGTH: 'Tăng cơ',
+      CARDIO: 'Tim mạch',
+      STRENGTH: 'Sức mạnh',
       YOGA: 'Yoga',
       PILATES: 'Pilates',
-      DANCE: 'Nhảy',
+      DANCE: 'Khiêu vũ',
       MARTIAL_ARTS: 'Võ thuật',
       AQUA: 'Bơi lội',
       FUNCTIONAL: 'Chức năng',
@@ -156,34 +161,82 @@ export default function TrainerCertifications() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case 'VERIFIED':
-        return <CheckIcon />;
+        return <CheckCircle2 className='w-3.5 h-3.5' />;
       case 'REJECTED':
-        return <XIcon />;
+        return <XCircle className='w-3.5 h-3.5' />;
       case 'PENDING':
-        return <ClockIcon />;
+        return <Clock className='w-3.5 h-3.5' />;
       case 'EXPIRED':
-        return <AlertIcon />;
+        return <AlertCircle className='w-3.5 h-3.5' />;
       case 'SUSPENDED':
-        return <AlertIcon />;
+        return <AlertCircle className='w-3.5 h-3.5' />;
       default:
-        return <ClockIcon />;
+        return <Clock className='w-3.5 h-3.5' />;
     }
+  };
+
+  const handleViewCertificate = (cert: Certification) => {
+    if (cert.certificate_file_url) {
+      try {
+        // Use certificate URL directly (same as equipment images)
+        // URL is already public/CDN URL from backend
+        const imageUrl = cert.certificate_file_url;
+        console.log('Using certificate URL directly (like equipment):', imageUrl);
+        
+        setCertificateImageUrl(imageUrl);
+        setCertificateName(cert.certification_name || 'Chứng chỉ');
+        setImageZoom(1);
+        setViewCertificateModal(true);
+      } catch (error) {
+        console.error('Error viewing certificate:', error);
+        showToast({
+          type: 'error',
+          message: 'Không thể tải ảnh chứng chỉ',
+          duration: 3000,
+        });
+      }
+    }
+  };
+
+  const handleCloseCertificateModal = () => {
+    setViewCertificateModal(false);
+    setCertificateImageUrl(null);
+    setCertificateName('');
+    setImageZoom(1);
+  };
+
+  const handleDownloadCertificate = () => {
+    if (certificateImageUrl) {
+      const link = document.createElement('a');
+      link.href = certificateImageUrl;
+      link.download = `${certificateName.replace(/\s+/g, '_')}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handleZoomIn = () => {
+    setImageZoom(prev => Math.min(prev + 0.1, 1));
+  };
+
+  const handleZoomOut = () => {
+    setImageZoom(prev => Math.max(prev - 0.1, 0.5));
+  };
+
+  const handleResetZoom = () => {
+    setImageZoom(1);
   };
 
   if (loading) {
     return (
-      <div className='min-h-screen bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-        <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-          <div className='flex items-center justify-center min-h-[400px]'>
-            <div className='text-center'>
-              <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--color-orange-500)] mx-auto mb-4'></div>
-              <p
-                className='text-gray-600 dark:text-gray-400'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                Đang tải danh sách chứng chỉ...
-              </p>
-            </div>
+      <div className='p-3 space-y-3'>
+        <div className='flex items-center justify-center min-h-[400px]'>
+          <div className='text-center'>
+            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4'></div>
+            <p className='text-gray-600 dark:text-gray-400 font-inter'>
+              Đang tải danh sách chứng chỉ...
+            </p>
           </div>
         </div>
       </div>
@@ -191,298 +244,450 @@ export default function TrainerCertifications() {
   }
 
   return (
-    <div className='min-h-screen bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6'>
-        {/* Header Section */}
-        <div className='mb-6'>
-          <div className='flex items-center justify-between'>
-            <div>
-              <h1
-                className='text-2xl font-bold text-gray-800 dark:text-white/90 mb-2'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                Quản lý Chứng chỉ
-              </h1>
-              <p className='text-gray-600 dark:text-gray-400'>
-                Quản lý chứng chỉ chuyên môn để mở các lớp học
-              </p>
-            </div>
-            <Button
-              onClick={() => setShowAddModal(true)}
-              className='bg-[var(--color-orange-500)] hover:bg-[var(--color-orange-600)] text-white'
-            >
-              <PlusIcon />
-              Thêm chứng chỉ
-            </Button>
+    <div className='p-3 space-y-3'>
+      {/* Header */}
+      <div className='flex justify-between items-start'>
+        <div>
+          <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
+            Quản lý Chứng chỉ
+          </h1>
+          <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+            Quản lý chứng chỉ chuyên môn để mở các lớp học
+          </p>
+        </div>
+        <div className='flex items-center gap-3'>
+          <button
+            onClick={handleRefresh}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+          >
+            <RefreshCw className='w-4 h-4' />
+            Làm mới
+          </button>
+          <button
+            onClick={() => setShowAddModal(true)}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+          >
+            <Plus className='w-4 h-4' />
+            Thêm chứng chỉ
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3'>
+        <MetricCard
+          icon={CheckCircle2}
+          label='Đã xác thực'
+          value={certifications.filter(c => c.verification_status === 'VERIFIED').length}
+          iconBgColor='bg-green-100 dark:bg-green-900/30'
+          iconColor='text-green-600 dark:text-green-400'
+          isLoading={loading}
+        />
+        <MetricCard
+          icon={Clock}
+          label='Chờ xác thực'
+          value={certifications.filter(c => c.verification_status === 'PENDING').length}
+          iconBgColor='bg-yellow-100 dark:bg-yellow-900/30'
+          iconColor='text-yellow-600 dark:text-yellow-400'
+          isLoading={loading}
+        />
+        <MetricCard
+          icon={AlertCircle}
+          label='Sắp hết hạn'
+          value={
+            certifications.filter(
+              c =>
+                c.verification_status === 'VERIFIED' &&
+                c.expiration_date &&
+                certificationService.isExpiringSoon(c.expiration_date)
+            ).length
+          }
+          iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+          iconColor='text-orange-600 dark:text-orange-400'
+          isLoading={loading}
+        />
+        <MetricCard
+          icon={FileText}
+          label='Tổng cộng'
+          value={certifications.length}
+          iconBgColor='bg-blue-100 dark:bg-blue-900/30'
+          iconColor='text-blue-600 dark:text-blue-400'
+          isLoading={loading}
+        />
+      </div>
+
+      {/* Search and Filters */}
+      <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+          {/* Search Input */}
+          <div className='md:col-span-2 group relative'>
+            <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
+            <input
+              type='text'
+              placeholder='Tìm kiếm chứng chỉ...'
+              value={searchTerm}
+              onChange={e => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
+              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+            />
+          </div>
+
+          {/* Status Filter */}
+          <div>
+            <CustomSelect
+              options={[
+                { value: 'all', label: 'Tất cả trạng thái' },
+                { value: 'VERIFIED', label: 'Đã xác thực' },
+                { value: 'PENDING', label: 'Chờ xác thực' },
+                { value: 'REJECTED', label: 'Bị từ chối' },
+                { value: 'EXPIRED', label: 'Hết hạn' },
+                { value: 'SUSPENDED', label: 'Tạm dừng' },
+              ]}
+              value={filterStatus}
+              onChange={value => {
+                setFilterStatus(value);
+                setCurrentPage(1);
+              }}
+              placeholder='Tất cả trạng thái'
+              className='font-inter'
+            />
           </div>
         </div>
+      </div>
 
-        {/* Stats Cards */}
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-6 mb-8'>
-          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6'>
-            <div className='flex items-center'>
-              <div className='p-3 rounded-full bg-green-100 dark:bg-green-900'>
-                <CheckIcon />
-              </div>
-              <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Đã xác thực</p>
-                <p className='text-2xl font-bold text-gray-900 dark:text-white'>
-                  {certifications.filter(c => c.verification_status === 'VERIFIED').length}
-                </p>
-              </div>
-            </div>
-          </div>
+      {/* Certifications Cards */}
+      {filteredCertifications.length > 0 ? (
+        <>
+          <div className='grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'>
+            {paginatedCertifications.map((cert, index) => {
+              const isExpired = cert.expiration_date
+                ? certificationService.isExpired(cert.expiration_date)
+                : false;
+              const isExpiringSoon = cert.expiration_date
+                ? certificationService.isExpiringSoon(cert.expiration_date)
+                : false;
+              const statusColor = certificationService.getStatusColor(cert.verification_status);
 
-          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6'>
-            <div className='flex items-center'>
-              <div className='p-3 rounded-full bg-yellow-100 dark:bg-yellow-900'>
-                <ClockIcon />
-              </div>
-              <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Chờ xác thực</p>
-                <p className='text-2xl font-bold text-gray-900 dark:text-white'>
-                  {certifications.filter(c => c.verification_status === 'PENDING').length}
-                </p>
-              </div>
-            </div>
-          </div>
+              return (
+                <div
+                  key={cert.id}
+                  className='group relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-300 overflow-hidden hover:-translate-y-1 flex flex-col h-full opacity-0'
+                  style={{
+                    animationDelay: `${index * 50}ms`,
+                    animation: 'fadeInUp 0.6s ease-out forwards',
+                  }}
+                >
+                  {/* Gradient Accent Bar */}
+                  <div
+                    className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r transition-opacity duration-300 ${
+                      cert.verification_status === 'VERIFIED'
+                        ? 'from-green-500 via-green-400 to-green-500 opacity-0 group-hover:opacity-100'
+                        : cert.verification_status === 'PENDING'
+                          ? 'from-yellow-500 via-yellow-400 to-yellow-500 opacity-0 group-hover:opacity-100'
+                          : cert.verification_status === 'REJECTED'
+                            ? 'from-red-500 via-red-400 to-red-500 opacity-0 group-hover:opacity-100'
+                            : 'from-orange-500 via-orange-400 to-orange-500 opacity-0 group-hover:opacity-100'
+                    }`}
+                  ></div>
 
-          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6'>
-            <div className='flex items-center'>
-              <div className='p-3 rounded-full bg-orange-100 dark:bg-orange-900'>
-                <AlertIcon />
-              </div>
-              <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Sắp hết hạn</p>
-                <p className='text-2xl font-bold text-gray-900 dark:text-white'>
-                  {
-                    certifications.filter(
-                      c =>
-                        c.verification_status === 'VERIFIED' &&
-                        c.expiration_date &&
-                        certificationService.isExpiringSoon(c.expiration_date)
-                    ).length
-                  }
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6'>
-            <div className='flex items-center'>
-              <div className='p-3 rounded-full bg-blue-100 dark:bg-blue-900'>
-                <DocumentIcon />
-              </div>
-              <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Tổng cộng</p>
-                <p className='text-2xl font-bold text-gray-900 dark:text-white'>
-                  {certifications.length}
-                </p>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Filter Bar */}
-        <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 p-6 mb-8'>
-          <div className='flex items-center gap-4'>
-            <div className='flex-1'>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                Lọc theo trạng thái
-              </label>
-              <select
-                value={filterStatus}
-                onChange={e => setFilterStatus(e.target.value)}
-                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent'
-              >
-                <option value=''>Tất cả trạng thái</option>
-                <option value='VERIFIED'>Đã xác thực</option>
-                <option value='PENDING'>Chờ xác thực</option>
-                <option value='REJECTED'>Bị từ chối</option>
-                <option value='EXPIRED'>Hết hạn</option>
-                <option value='SUSPENDED'>Tạm dừng</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        {/* Certifications Grid */}
-        {filteredCertifications.length > 0 ? (
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6'>
-            {filteredCertifications.map((cert, index) => (
-              <div
-                key={cert.id}
-                className='bg-white dark:bg-gray-800 rounded-2xl shadow-lg border border-gray-200 dark:border-gray-700 hover:shadow-2xl transition-all duration-300 overflow-hidden group'
-                style={{
-                  animationDelay: `${index * 100}ms`,
-                  animation: 'fadeInUp 0.6s ease-out forwards',
-                }}
-              >
-                {/* Header */}
-                <div className='p-6 border-b border-gray-200 dark:border-gray-700'>
-                  <div className='flex items-start justify-between mb-4'>
-                    <div className='flex-1'>
-                      <h3
-                        className='text-lg font-bold text-gray-900 dark:text-white mb-2'
-                        style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+                  {/* Card Header */}
+                  <div className='relative p-5 pb-4 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 border-b border-gray-100 dark:border-gray-800'>
+                    <div className='flex items-start justify-between gap-3 mb-3'>
+                      {/* Award Icon */}
+                      <div
+                        className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${getCategoryColor(cert.category)} p-3 shadow-md transition-all duration-300 group-hover:shadow-lg group-hover:scale-105`}
                       >
-                        {cert.certification_name}
-                      </h3>
-                      <p className='text-sm text-gray-600 dark:text-gray-400'>
-                        {cert.certification_issuer}
-                      </p>
+                        <Award className='w-7 h-7' />
+                      </div>
+
+                      {/* Status Badge */}
+                      <div
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold font-heading tracking-wide flex-shrink-0 transition-all duration-200 ${statusColor}`}
+                      >
+                        {getStatusIcon(cert.verification_status)}
+                        <span className='hidden sm:inline'>
+                          {certificationService.formatVerificationStatus(cert.verification_status)}
+                        </span>
+                      </div>
                     </div>
-                    <div className='flex items-center gap-2'>
+
+                    {/* Certification Name */}
+                    <h3 className='text-base font-bold font-heading text-gray-900 dark:text-white mb-2 line-clamp-2 leading-tight'>
+                      {cert.certification_name}
+                    </h3>
+
+                    {/* Category and Level Badges */}
+                    <div className='flex flex-wrap items-center gap-2'>
                       <span
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${getCategoryColor(cert.category)}`}
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold font-heading tracking-wide transition-all duration-200 ${getCategoryColor(cert.category)}`}
                       >
                         {getCategoryLabel(cert.category)}
                       </span>
-                    </div>
-                  </div>
-
-                  {/* Status Badge */}
-                  <div className='flex items-center justify-between'>
-                    <div
-                      className={`flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium ${certificationService.getStatusColor(cert.verification_status)}`}
-                    >
-                      {getStatusIcon(cert.verification_status)}
-                      {certificationService.formatVerificationStatus(cert.verification_status)}
-                    </div>
-                    <div
-                      className={`px-3 py-1 rounded-full text-xs font-medium ${certificationService.getLevelColor(cert.certification_level)}`}
-                    >
-                      {certificationService.formatCertificationLevel(cert.certification_level)}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Content */}
-                <div className='p-6'>
-                  <div className='space-y-3 mb-4'>
-                    <div className='flex items-center justify-between text-sm'>
-                      <span className='text-gray-500 dark:text-gray-400'>Ngày cấp:</span>
-                      <span className='text-gray-900 dark:text-white font-medium'>
-                        {formatDate(cert.issued_date)}
+                      <span
+                        className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold font-heading tracking-wide transition-all duration-200 ${certificationService.getLevelColor(cert.certification_level)}`}
+                      >
+                        {certificationService.formatCertificationLevel(cert.certification_level)}
                       </span>
                     </div>
-                    {cert.expiration_date && (
-                      <div className='flex items-center justify-between text-sm'>
-                        <span className='text-gray-500 dark:text-gray-400'>Ngày hết hạn:</span>
-                        <span
-                          className={`font-medium ${
-                            certificationService.isExpired(cert.expiration_date)
-                              ? 'text-red-600 dark:text-red-400'
-                              : certificationService.isExpiringSoon(cert.expiration_date)
-                                ? 'text-orange-600 dark:text-orange-400'
-                                : 'text-gray-900 dark:text-white'
+                  </div>
+
+                  {/* Card Body */}
+                  <div className='p-5 space-y-3 flex-1 flex flex-col'>
+                    {/* Issuer */}
+                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700'>
+                      <Building2 className='w-4 h-4 flex-shrink-0 text-orange-500 dark:text-orange-400' />
+                      <span className='text-[11px] font-semibold font-heading text-gray-800 dark:text-gray-200 truncate flex-1'>
+                        {cert.certification_issuer}
+                      </span>
+                    </div>
+
+                    {/* Dates Grid */}
+                    <div className='grid grid-cols-1 gap-2'>
+                      {/* Issued Date */}
+                      <div className='flex items-center gap-2.5 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50'>
+                        <CalendarCheck className='w-4 h-4 flex-shrink-0 text-blue-600 dark:text-blue-400' />
+                        <div className='min-w-0 flex-1'>
+                          <div className='text-[10px] font-medium font-inter text-blue-600 dark:text-blue-400 mb-0.5'>
+                            Ngày cấp
+                          </div>
+                          <div className='text-[11px] font-bold font-heading text-blue-700 dark:text-blue-300'>
+                            {formatDate(cert.issued_date)}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Expiration Date */}
+                      {cert.expiration_date ? (
+                        <div
+                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${
+                            isExpired
+                              ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/50'
+                              : isExpiringSoon
+                                ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/50'
+                                : 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/50'
                           }`}
                         >
-                          {formatDate(cert.expiration_date)}
-                        </span>
-                      </div>
-                    )}
-                    {cert.verified_at && (
-                      <div className='flex items-center justify-between text-sm'>
-                        <span className='text-gray-500 dark:text-gray-400'>Xác thực:</span>
-                        <span className='text-gray-900 dark:text-white font-medium'>
-                          {formatDate(cert.verified_at)}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Rejection Reason */}
-                  {cert.rejection_reason && (
-                    <div className='mb-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800'>
-                      <p className='text-sm text-red-800 dark:text-red-200'>
-                        <strong>Lý do từ chối:</strong> {cert.rejection_reason}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Actions */}
-                  <div className='flex items-center justify-between pt-4 border-t border-gray-200 dark:border-gray-700'>
-                    <div className='flex items-center gap-2'>
-                      {cert.certificate_file_url && (
-                        <Button
-                          variant='outline'
-                          size='sm'
-                          onClick={() =>
-                            window.open(
-                              certificationService.getCertificateFileUrl(
-                                cert.certificate_file_url!.split('/').pop()!
-                              ),
-                              '_blank'
-                            )
-                          }
-                          className='text-[var(--color-orange-600)] border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:text-[var(--color-orange-400)] dark:border-[var(--color-orange-400)] dark:hover:bg-[var(--color-orange-900)]'
-                        >
-                          <DocumentIcon />
-                          Xem chứng chỉ
-                        </Button>
+                          <CalendarX
+                            className={`w-4 h-4 flex-shrink-0 ${
+                              isExpired
+                                ? 'text-red-600 dark:text-red-400'
+                                : isExpiringSoon
+                                  ? 'text-orange-600 dark:text-orange-400'
+                                  : 'text-green-600 dark:text-green-400'
+                            }`}
+                          />
+                          <div className='min-w-0 flex-1'>
+                            <div
+                              className={`text-[10px] font-medium font-inter mb-0.5 ${
+                                isExpired
+                                  ? 'text-red-600 dark:text-red-400'
+                                  : isExpiringSoon
+                                    ? 'text-orange-600 dark:text-orange-400'
+                                    : 'text-green-600 dark:text-green-400'
+                              }`}
+                            >
+                              Hết hạn
+                            </div>
+                            <div
+                              className={`text-[11px] font-bold font-heading ${
+                                isExpired
+                                  ? 'text-red-700 dark:text-red-300'
+                                  : isExpiringSoon
+                                    ? 'text-orange-700 dark:text-orange-300'
+                                    : 'text-green-700 dark:text-green-300'
+                              }`}
+                            >
+                              {formatDate(cert.expiration_date)}
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700'>
+                          <Calendar className='w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500' />
+                          <div className='min-w-0 flex-1'>
+                            <div className='text-[10px] font-medium font-inter text-gray-500 dark:text-gray-400 mb-0.5'>
+                              Hết hạn
+                            </div>
+                            <div className='text-[11px] font-medium font-heading text-gray-500 dark:text-gray-400'>
+                              Không có
+                            </div>
+                          </div>
+                        </div>
                       )}
                     </div>
-                    <div className='flex items-center gap-2'>
-                      {cert.verification_status === 'PENDING' && (
-                        <span className='text-xs text-yellow-600 dark:text-yellow-400 font-medium'>
-                          Đang chờ xác thực
-                        </span>
-                      )}
-                      {cert.verification_status === 'VERIFIED' &&
-                        cert.expiration_date &&
-                        certificationService.isExpiringSoon(cert.expiration_date) && (
-                          <span className='text-xs text-orange-600 dark:text-orange-400 font-medium'>
-                            Sắp hết hạn
-                          </span>
-                        )}
-                    </div>
+
+                    {/* Action Button */}
+                    {cert.certificate_file_url && (
+                      <button
+                        onClick={() => handleViewCertificate(cert)}
+                        className='mt-auto w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl transition-all duration-200 hover:shadow-md active:scale-95'
+                      >
+                        <Eye className='w-4 h-4' />
+                        <span>Xem chứng chỉ</span>
+                      </button>
+                    )}
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        ) : (
-          <div className='text-center py-16'>
-            <div className='max-w-md mx-auto'>
-              <div className='w-24 h-24 mx-auto mb-6 bg-gradient-to-br from-[var(--color-orange-100)] to-[var(--color-orange-200)] dark:from-[var(--color-orange-900)] dark:to-[var(--color-orange-800)] rounded-full flex items-center justify-center'>
-                <DocumentIcon />
+
+          {totalPages > 1 && (
+            <div className='flex justify-center mt-6'>
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                onPageChange={setCurrentPage}
+              />
+            </div>
+          )}
+        </>
+      ) : (
+        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+          <div className='text-center'>
+            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mb-2'>
+              {filterStatus !== 'all' || searchTerm
+                ? 'Không tìm thấy chứng chỉ nào'
+                : 'Chưa có chứng chỉ nào'}
+            </div>
+            {filterStatus === 'all' && !searchTerm && (
+              <div className='text-[11px] text-gray-400 dark:text-gray-500 font-inter mt-2'>
+                Thêm chứng chỉ chuyên môn để có thể mở các lớp học
               </div>
-              <h3
-                className='text-2xl font-bold text-gray-900 dark:text-white mb-3'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                {filterStatus ? 'Không tìm thấy chứng chỉ phù hợp' : 'Chưa có chứng chỉ nào'}
-              </h3>
-              <p className='text-gray-600 dark:text-gray-400 mb-6 leading-relaxed'>
-                {filterStatus
-                  ? 'Thử thay đổi bộ lọc để xem chứng chỉ khác'
-                  : 'Bạn cần thêm chứng chỉ chuyên môn để có thể mở các lớp học. Hãy bắt đầu bằng việc thêm chứng chỉ đầu tiên.'}
-              </p>
-              {!filterStatus && (
-                <Button
-                  onClick={() => setShowAddModal(true)}
-                  className='bg-[var(--color-orange-500)] hover:bg-[var(--color-orange-600)] text-white'
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Add Certification Modal */}
+      <AddCertificationModal
+        isOpen={showAddModal}
+        onClose={() => setShowAddModal(false)}
+        trainerId={getCurrentTrainerId() || ''}
+        onSuccess={() => {
+          fetchCertifications();
+          fetchAvailableCategories();
+        }}
+      />
+
+      {/* View Certificate Image Modal */}
+      <Modal
+        isOpen={viewCertificateModal}
+        onClose={handleCloseCertificateModal}
+        className='max-w-6xl m-4'
+      >
+        <div className='relative w-full max-w-6xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
+          {/* Header */}
+          <div className='p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-gray-800 dark:to-gray-800/50'>
+            <div className='flex items-center gap-3'>
+              <div className='p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg'>
+                <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
+              </div>
+              <div>
+                <h3 className='text-lg font-bold font-heading text-gray-900 dark:text-white'>
+                  {certificateName}
+                </h3>
+                <p className='text-[11px] text-gray-600 dark:text-gray-400 font-inter'>
+                  Xem chứng chỉ đã tải lên
+                </p>
+              </div>
+            </div>
+            <div className='flex items-center gap-2'>
+              {/* Zoom Controls */}
+              <div className='flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1'>
+                <button
+                  type='button'
+                  onClick={handleZoomOut}
+                  disabled={imageZoom <= 0.5}
+                  className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  title='Thu nhỏ'
                 >
-                  <PlusIcon />
-                  Thêm chứng chỉ đầu tiên
-                </Button>
-              )}
+                  <ZoomOut className='w-4 h-4 text-gray-600 dark:text-gray-400' />
+                </button>
+                <button
+                  type='button'
+                  onClick={handleResetZoom}
+                  className='px-2 py-1 text-[10px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 min-w-[40px]'
+                  title='Đặt lại'
+                >
+                  {Math.round(imageZoom * 100)}%
+                </button>
+                <button
+                  type='button'
+                  onClick={handleZoomIn}
+                  disabled={imageZoom >= 1}
+                  className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                  title='Phóng to'
+                >
+                  <ZoomIn className='w-4 h-4 text-gray-600 dark:text-gray-400' />
+                </button>
+              </div>
+              {/* Download Button */}
+              <button
+                type='button'
+                onClick={handleDownloadCertificate}
+                className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200'
+                title='Tải xuống'
+              >
+                <Download className='w-4 h-4' />
+                <span className='hidden sm:inline'>Tải xuống</span>
+              </button>
+              {/* Close Button */}
+              <button
+                type='button'
+                onClick={handleCloseCertificateModal}
+                className='p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200'
+                title='Đóng'
+              >
+                <X className='w-5 h-5 text-gray-500 dark:text-gray-400' />
+              </button>
             </div>
           </div>
-        )}
 
-        {/* Add Certification Modal */}
-        <AddCertificationModal
-          isOpen={showAddModal}
-          onClose={() => setShowAddModal(false)}
-          trainerId={getCurrentUserId()}
-          onSuccess={() => {
-            fetchCertifications();
-            fetchAvailableCategories();
-          }}
-        />
-      </div>
+          {/* Image Container */}
+          <div className='p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-800/50 min-h-[400px] max-h-[75vh] overflow-hidden'>
+            {certificateImageUrl ? (
+              <div className='relative w-full h-full flex items-center justify-center'>
+                <img
+                  src={certificateImageUrl}
+                  alt={certificateName}
+                  className='max-w-full max-h-[calc(75vh-120px)] w-auto h-auto object-contain rounded-lg shadow-lg'
+                  style={{
+                    transform: `scale(${Math.min(imageZoom, 1)})`,
+                  }}
+                  onError={(e) => {
+                    console.error('Error loading certificate image:', {
+                      url: certificateImageUrl,
+                      error: e,
+                    });
+                    showToast({
+                      type: 'error',
+                      message: 'Không thể tải ảnh chứng chỉ. Vui lòng thử lại sau.',
+                      duration: 5000,
+                    });
+                    // Don't close modal automatically, let user see the error
+                  }}
+                  onLoad={() => {
+                    console.log('Certificate image loaded successfully:', certificateImageUrl);
+                  }}
+                />
+              </div>
+            ) : (
+              <div className='text-center py-12'>
+                <AlertCircle className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-4' />
+                <p className='text-gray-600 dark:text-gray-400 font-inter'>
+                  Không thể tải ảnh chứng chỉ
+                </p>
+                <p className='text-[11px] text-gray-500 dark:text-gray-500 font-inter mt-2'>
+                  URL: {certificateImageUrl || 'Không có URL'}
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

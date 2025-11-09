@@ -3,8 +3,31 @@ const prisma = new PrismaClient();
 const aiScanner = require('../services/ai-certification-scanner.service.js');
 const notificationService = require('../services/notification.service.js');
 const s3UploadService = require('../services/s3-upload.service.js');
+const specializationSyncService = require('../services/specialization-sync.service.js');
+const cdnService = require('../services/cdn.service.js');
 
 // ==================== TRAINER CERTIFICATION ENDPOINTS ====================
+
+/**
+ * Helper function to find trainer by id or user_id
+ * @param {string} trainerIdOrUserId - Either trainer.id or trainer.user_id
+ * @returns {Promise<Object|null>} Trainer object with id, or null if not found
+ */
+const findTrainerByIdOrUserId = async trainerIdOrUserId => {
+  // Try to find by trainer.id first
+  let trainer = await prisma.trainer.findUnique({
+    where: { id: trainerIdOrUserId },
+  });
+
+  // If not found by id, try to find by user_id (since frontend might send user_id)
+  if (!trainer) {
+    trainer = await prisma.trainer.findUnique({
+      where: { user_id: trainerIdOrUserId },
+    });
+  }
+
+  return trainer;
+};
 
 /**
  * Get all certifications for a trainer
@@ -13,9 +36,22 @@ const getTrainerCertifications = async (req, res) => {
   try {
     const { trainerId } = req.params;
 
+    const trainer = await findTrainerByIdOrUserId(trainerId);
+
+    if (!trainer) {
+      console.error(`❌ Trainer not found with id/user_id: ${trainerId}`);
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `Trainer not found with id: ${trainerId}`,
+      });
+    }
+
+    const actualTrainerId = trainer.id;
+
     const certifications = await prisma.trainerCertification.findMany({
       where: {
-        trainer_id: trainerId,
+        trainer_id: actualTrainerId,
         is_active: true,
       },
       orderBy: {
@@ -43,7 +79,11 @@ const getTrainerCertifications = async (req, res) => {
  */
 const createCertification = async (req, res) => {
   try {
+    console.log('🔍 createCertification called');
+    console.log('📍 req.params:', req.params);
+    console.log('📍 req.body:', req.body);
     const { trainerId } = req.params;
+    console.log('📍 trainerId from params:', trainerId);
     const {
       category,
       certification_name,
@@ -52,6 +92,7 @@ const createCertification = async (req, res) => {
       issued_date,
       expiration_date,
       certificate_file_url,
+      aiScanResult, // AI scan result from frontend (if already scanned)
     } = req.body;
 
     // Validate required fields
@@ -70,22 +111,27 @@ const createCertification = async (req, res) => {
     }
 
     // Check if trainer exists
-    const trainer = await prisma.trainer.findUnique({
-      where: { id: trainerId },
-    });
+    const trainer = await findTrainerByIdOrUserId(trainerId);
 
     if (!trainer) {
+      console.error(`❌ Trainer not found with id/user_id: ${trainerId}`);
       return res.status(404).json({
         success: false,
         data: null,
-        message: 'Trainer not found',
+        message: `Trainer not found with id: ${trainerId}`,
       });
     }
+
+    // Use trainer.id for all subsequent operations
+    const actualTrainerId = trainer.id;
+    console.log(
+      `✅ Found trainer: id=${actualTrainerId}, user_id=${trainer.user_id}, name=${trainer.full_name}`
+    );
 
     // Check for existing certification in the same category
     const existingCert = await prisma.trainerCertification.findFirst({
       where: {
-        trainer_id: trainerId,
+        trainer_id: actualTrainerId,
         category: category,
         is_active: true,
       },
@@ -113,81 +159,298 @@ const createCertification = async (req, res) => {
     }
 
     // AI Scan the certificate if URL is provided
+    // Logic: Use AI scan result from frontend if available, otherwise scan on backend
+    // Only auto-verify if AI scan is successful with high confidence
     let verificationStatus = 'PENDING';
-    let aiScanResult = null;
+    let finalAiScanResult = null;
+    let aiScanPerformed = false;
 
-    if (certificate_file_url) {
-      console.log('🔍 Starting AI scan for certificate...');
-      aiScanResult = await aiScanner.scanForRedSeal(certificate_file_url);
-
-      if (aiScanResult.hasRedSeal && aiScanResult.confidence > 0.7) {
-        verificationStatus = 'VERIFIED';
-        console.log('✅ AI auto-verification successful');
-      } else {
-        console.log('❌ AI scan failed or low confidence, manual review required');
+    // Validate and normalize aiScanResult from frontend
+    if (aiScanResult && typeof aiScanResult === 'object') {
+      try {
+        // Extract only the fields we need, avoid circular references
+        finalAiScanResult = {
+          hasRedSeal: Boolean(aiScanResult.hasRedSeal),
+          isGym147Seal: Boolean(aiScanResult.isGym147Seal),
+          confidence: Number(aiScanResult.confidence) || 0,
+          similarityScore: aiScanResult.similarityScore
+            ? Number(aiScanResult.similarityScore)
+            : undefined,
+          description: aiScanResult.description || undefined,
+          sealLocation: aiScanResult.sealLocation || undefined,
+          sealType: aiScanResult.sealType || undefined,
+          source: aiScanResult.source || 'Frontend',
+          extractedData: aiScanResult.extractedData || undefined,
+        };
+        console.log('✅ Using AI scan result from frontend (already scanned during upload)');
+        console.log('📍 AI scan result summary:', {
+          hasRedSeal: finalAiScanResult.hasRedSeal,
+          confidence: finalAiScanResult.confidence,
+          source: finalAiScanResult.source,
+        });
+      } catch (parseError) {
+        console.error('❌ Error parsing aiScanResult from frontend:', parseError);
+        finalAiScanResult = null; // Will trigger backend scan
       }
     }
 
+    if (certificate_file_url) {
+      // If frontend already provided AI scan result, use it (avoid re-scanning)
+      if (finalAiScanResult) {
+        aiScanPerformed = true;
+
+        // Only auto-verify if AI scan is successful with high confidence
+        if (finalAiScanResult.hasRedSeal && finalAiScanResult.confidence > 0.7) {
+          verificationStatus = 'VERIFIED';
+          console.log('✅ AI auto-verification successful - Certification automatically approved');
+        } else {
+          verificationStatus = 'PENDING';
+          console.log(
+            '⚠️ AI scan completed but verification failed or low confidence - Manual review required'
+          );
+          console.log(`   - Has red seal: ${finalAiScanResult?.hasRedSeal || false}`);
+          console.log(`   - Confidence: ${finalAiScanResult?.confidence || 0}`);
+        }
+      } else {
+        // Frontend didn't provide AI scan result, scan on backend
+        try {
+          console.log('🔍 Starting AI scan for certificate on backend...');
+          finalAiScanResult = await aiScanner.scanForRedSeal(certificate_file_url);
+          aiScanPerformed = true;
+
+          // Only auto-verify if AI scan is successful with high confidence
+          if (
+            finalAiScanResult &&
+            finalAiScanResult.hasRedSeal &&
+            finalAiScanResult.confidence > 0.7
+          ) {
+            verificationStatus = 'VERIFIED';
+            console.log(
+              '✅ AI auto-verification successful - Certification automatically approved'
+            );
+          } else {
+            verificationStatus = 'PENDING';
+            console.log(
+              '⚠️ AI scan completed but verification failed or low confidence - Manual review required'
+            );
+            console.log(`   - Has red seal: ${finalAiScanResult?.hasRedSeal || false}`);
+            console.log(`   - Confidence: ${finalAiScanResult?.confidence || 0}`);
+          }
+        } catch (aiError) {
+          console.error('❌ AI scan error:', aiError);
+          verificationStatus = 'PENDING';
+          console.log('⚠️ AI scan failed - Manual review required');
+        }
+      }
+    } else {
+      console.log('ℹ️ No certificate file uploaded - Manual review required (PENDING)');
+    }
+
+    // Validate and parse dates
+    let issuedDate;
+    let expirationDate = null;
+
+    try {
+      issuedDate = new Date(issued_date);
+      if (isNaN(issuedDate.getTime())) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          message: `Ngày cấp không hợp lệ: ${issued_date}. Vui lòng kiểm tra lại định dạng ngày.`,
+        });
+      }
+
+      // Validate issued_date is not in the future
+      const now = new Date();
+      if (issuedDate > now) {
+        return res.status(400).json({
+          success: false,
+          data: null,
+          message: `Ngày cấp không thể là ngày trong tương lai. Vui lòng kiểm tra lại ngày cấp: ${issued_date}`,
+        });
+      }
+
+      if (expiration_date) {
+        expirationDate = new Date(expiration_date);
+        if (isNaN(expirationDate.getTime())) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            message: `Ngày hết hạn không hợp lệ: ${expiration_date}. Vui lòng kiểm tra lại định dạng ngày.`,
+          });
+        }
+
+        // Validate expiration_date is after issued_date
+        if (expirationDate < issuedDate) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            message: `Ngày hết hạn (${expiration_date}) không thể trước ngày cấp (${issued_date}). Vui lòng kiểm tra lại.`,
+          });
+        }
+
+        // Reject if expiration_date is in the past (certification already expired)
+        if (expirationDate < now) {
+          return res.status(400).json({
+            success: false,
+            data: null,
+            message: `Chứng chỉ đã hết hạn. Ngày hết hạn (${
+              expiration_date.toISOString().split('T')[0]
+            }) đã qua. Vui lòng kiểm tra lại ngày hết hạn hoặc tải lên chứng chỉ mới còn hiệu lực.`,
+          });
+        }
+      }
+    } catch (dateError) {
+      console.error('❌ Date parsing error:', dateError);
+      return res.status(400).json({
+        success: false,
+        data: null,
+        message: `Lỗi xử lý ngày tháng: ${dateError.message}. Vui lòng kiểm tra lại định dạng ngày.`,
+      });
+    }
+
     // Create certification
-    const certification = await prisma.trainerCertification.create({
-      data: {
-        trainer_id: trainerId,
+    console.log('📝 Creating certification with data:', {
+      trainer_id: actualTrainerId,
+      category,
+      certification_name,
+      certification_level,
+      issued_date: issuedDate,
+      expiration_date: expirationDate,
+      verification_status: verificationStatus,
+    });
+
+    let certification;
+    try {
+      certification = await prisma.trainerCertification.create({
+        data: {
+          trainer_id: actualTrainerId,
+          category,
+          certification_name,
+          certification_issuer,
+          certification_level,
+          issued_date: issuedDate,
+          expiration_date: expirationDate,
+          verification_status: verificationStatus,
+          verified_by: verificationStatus === 'VERIFIED' ? 'AI_SYSTEM' : null,
+          verified_at: verificationStatus === 'VERIFIED' ? new Date() : null,
+          certificate_file_url,
+          certificate_file_type: certificate_file_url ? 'image' : null,
+          is_active: true,
+        },
+      });
+      console.log('✅ Certification created successfully:', certification.id);
+    } catch (dbError) {
+      console.error('❌ Database error creating certification:', dbError);
+      console.error('❌ Database error details:', {
+        message: dbError.message,
+        code: dbError.code,
+        meta: dbError.meta,
+      });
+      throw dbError; // Re-throw to be caught by outer catch block
+    }
+
+    // Auto-sync specializations if verified
+    if (verificationStatus === 'VERIFIED') {
+      try {
+        console.log(
+          `🔄 Starting specialization sync for trainer ${actualTrainerId} after certification creation with status VERIFIED`
+        );
+        const syncResult = await specializationSyncService.updateTrainerSpecializations(
+          actualTrainerId
+        );
+        if (syncResult && syncResult.success) {
+          console.log(
+            `✅ Auto-synced specializations for trainer ${actualTrainerId} after certification creation`
+          );
+          console.log(`📋 Updated specializations:`, syncResult.specializations);
+        } else {
+          console.error(
+            `❌ Specialization sync returned failure for trainer ${actualTrainerId}:`,
+            syncResult?.error || 'Unknown error'
+          );
+        }
+      } catch (syncError) {
+        console.error('❌ Error auto-syncing specializations:', syncError);
+        console.error('❌ Sync error stack:', syncError.stack);
+        // Don't fail the request if sync fails, but log it for debugging
+      }
+    } else {
+      console.log(
+        `ℹ️ Skipping specialization sync - certification status is ${verificationStatus}, not VERIFIED`
+      );
+    }
+
+    // Send notification to admins (don't fail if notification fails)
+    try {
+      await notificationService.sendCertificationUploadNotification({
+        trainerId: actualTrainerId,
+        trainerName: trainer.full_name,
+        certificationId: certification.id,
         category,
-        certification_name,
-        certification_issuer,
-        certification_level,
-        issued_date: new Date(issued_date),
-        expiration_date: expiration_date ? new Date(expiration_date) : null,
-        verification_status: verificationStatus,
-        verified_by: verificationStatus === 'VERIFIED' ? 'AI_SYSTEM' : null,
-        verified_at: verificationStatus === 'VERIFIED' ? new Date() : null,
-        certificate_file_url,
-        certificate_file_type: certificate_file_url ? 'image' : null,
-        is_active: true,
-      },
-    });
+        certificationLevel: certification_level,
+        verificationStatus,
+        aiScanResult: finalAiScanResult,
+      });
+    } catch (notifError) {
+      console.error('❌ Error sending admin notification:', notifError);
+      // Don't fail the request if notification fails
+    }
 
-    // Send notification to admins
-    await notificationService.sendCertificationUploadNotification({
-      trainerId,
-      trainerName: trainer.full_name,
-      certificationId: certification.id,
-      category,
-      certificationLevel: certification_level,
-      verificationStatus,
-      aiScanResult,
-    });
-
-    // Send notification to trainer
-    await notificationService.sendCertificationStatusNotification({
-      trainerId,
-      trainerName: trainer.full_name,
-      certificationId: certification.id,
-      category,
-      verificationStatus,
-      message:
-        verificationStatus === 'VERIFIED'
-          ? 'Your certification has been automatically verified by AI'
-          : 'Your certification is pending manual review',
-    });
+    // Send notification to trainer (don't fail if notification fails)
+    try {
+      await notificationService.sendCertificationStatusNotification({
+        trainerId: actualTrainerId,
+        trainerName: trainer.full_name,
+        certificationId: certification.id,
+        category,
+        verificationStatus,
+        message:
+          verificationStatus === 'VERIFIED'
+            ? 'Chứng chỉ của bạn đã được tự động xác thực bởi AI'
+            : aiScanPerformed
+            ? 'Chứng chỉ của bạn đang chờ xem xét thủ công bởi quản trị viên (AI scan không đạt yêu cầu)'
+            : 'Chứng chỉ của bạn đang chờ xem xét thủ công bởi quản trị viên (không có quét AI)',
+      });
+    } catch (notifError) {
+      console.error('❌ Error sending trainer notification:', notifError);
+      // Don't fail the request if notification fails
+    }
 
     res.json({
       success: true,
       data: {
         ...certification,
-        aiScanResult,
+        aiScanResult: finalAiScanResult,
+        aiScanPerformed,
       },
       message:
         verificationStatus === 'VERIFIED'
-          ? 'Certification created successfully and auto-verified by AI'
-          : 'Certification created successfully and is pending verification',
+          ? 'Chứng chỉ đã được tạo và tự động xác thực bởi AI'
+          : aiScanPerformed
+          ? 'Chứng chỉ đã được tạo và đang chờ xem xét thủ công (AI scan không đạt yêu cầu)'
+          : 'Chứng chỉ đã được tạo và đang chờ xem xét thủ công (không có quét AI)',
     });
   } catch (error) {
-    console.error('Error creating certification:', error);
+    console.error('❌ Error creating certification:', error);
+    console.error('❌ Error stack:', error.stack);
+    console.error('❌ Error details:', {
+      message: error.message,
+      name: error.name,
+      code: error.code,
+    });
+
+    // Return detailed error message in development, generic in production
+    const errorMessage =
+      process.env.NODE_ENV === 'development'
+        ? `Internal server error: ${error.message}`
+        : 'Internal server error';
+
     res.status(500).json({
       success: false,
       data: null,
-      message: 'Internal server error',
+      message: errorMessage,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -200,15 +463,75 @@ const updateCertification = async (req, res) => {
     const { certId } = req.params;
     const updateData = req.body;
 
+    // Get current certification to check if verification_status changed
+    const currentCert = await prisma.trainerCertification.findUnique({
+      where: { id: certId },
+      select: { trainer_id: true, verification_status: true },
+    });
+
+    if (!currentCert) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: 'Certification not found',
+      });
+    }
+
     // Remove fields that shouldn't be updated directly
     delete updateData.id;
     delete updateData.trainer_id;
     delete updateData.created_at;
 
+    // Check if verification_status is being changed to VERIFIED
+    const isBeingVerified =
+      updateData.verification_status === 'VERIFIED' &&
+      currentCert.verification_status !== 'VERIFIED';
+
+    // Update verification timestamps if being verified
+    if (isBeingVerified) {
+      updateData.verified_at = new Date();
+      if (!updateData.verified_by) {
+        updateData.verified_by = req.user?.id || 'ADMIN';
+      }
+    }
+
     const certification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: updateData,
     });
+
+    // Auto-sync specializations if verification_status changed to VERIFIED
+    if (isBeingVerified) {
+      try {
+        console.log(
+          `🔄 Starting specialization sync for trainer ${currentCert.trainer_id} after certification status changed to VERIFIED`
+        );
+        const syncResult = await specializationSyncService.updateTrainerSpecializations(
+          currentCert.trainer_id
+        );
+        if (syncResult && syncResult.success) {
+          console.log(
+            `✅ Auto-synced specializations for trainer ${currentCert.trainer_id} after certification verification`
+          );
+          console.log(`📋 Updated specializations:`, syncResult.specializations);
+        } else {
+          console.error(
+            `❌ Specialization sync returned failure for trainer ${currentCert.trainer_id}:`,
+            syncResult?.error || 'Unknown error'
+          );
+        }
+      } catch (syncError) {
+        console.error('❌ Error auto-syncing specializations:', syncError);
+        console.error('❌ Sync error stack:', syncError.stack);
+        // Don't fail the request if sync fails, but log it for debugging
+      }
+    } else {
+      console.log(
+        `ℹ️ Skipping specialization sync - certification status is ${
+          updateData.verification_status || currentCert.verification_status
+        }, not being changed to VERIFIED`
+      );
+    }
 
     res.json({
       success: true,
@@ -262,6 +585,16 @@ const uploadCertificateToS3 = async (req, res) => {
   try {
     const { trainerId } = req.params;
 
+    // Verify trainer exists
+    const trainer = await findTrainerByIdOrUserId(trainerId);
+    if (!trainer) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `Trainer not found with id: ${trainerId}`,
+      });
+    }
+
     // Use multer middleware for S3 upload
     const uploadMiddleware = s3UploadService.getUploadMiddleware('certificate_file');
 
@@ -283,8 +616,11 @@ const uploadCertificateToS3 = async (req, res) => {
         });
       }
 
+      // Convert S3 URL to CDN URL if CDN is configured (similar to equipment images)
+      const url = cdnService.convertS3UrlToCDN(req.file.location) || req.file.location;
+
       const fileInfo = {
-        url: req.file.location,
+        url,
         key: req.file.key,
         originalName: req.file.originalname,
         size: req.file.size,
@@ -337,7 +673,19 @@ const generatePresignedUrl = async (req, res) => {
       });
     }
 
-    const result = await s3UploadService.generatePresignedUrl(fileName, mimeType, trainerId);
+    // Verify trainer exists
+    const trainer = await findTrainerByIdOrUserId(trainerId);
+    if (!trainer) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `Trainer not found with id: ${trainerId}`,
+      });
+    }
+
+    // Use trainer.id for S3 upload
+    const actualTrainerId = trainer.id;
+    const result = await s3UploadService.generatePresignedUrl(fileName, mimeType, actualTrainerId);
 
     if (!result.success) {
       return res.status(500).json({
@@ -409,9 +757,21 @@ const getAvailableCategories = async (req, res) => {
   try {
     const { trainerId } = req.params;
 
+    // Verify trainer exists
+    const trainer = await findTrainerByIdOrUserId(trainerId);
+    if (!trainer) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `Trainer not found with id: ${trainerId}`,
+      });
+    }
+
+    const actualTrainerId = trainer.id;
+
     const certifications = await prisma.trainerCertification.findMany({
       where: {
-        trainer_id: trainerId,
+        trainer_id: actualTrainerId,
         verification_status: 'VERIFIED',
         is_active: true,
         OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
@@ -449,9 +809,21 @@ const checkCategoryAccess = async (req, res) => {
   try {
     const { trainerId, category } = req.params;
 
+    // Verify trainer exists
+    const trainer = await findTrainerByIdOrUserId(trainerId);
+    if (!trainer) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: `Trainer not found with id: ${trainerId}`,
+      });
+    }
+
+    const actualTrainerId = trainer.id;
+
     const certification = await prisma.trainerCertification.findFirst({
       where: {
-        trainer_id: trainerId,
+        trainer_id: actualTrainerId,
         category: category,
         verification_status: 'VERIFIED',
         is_active: true,

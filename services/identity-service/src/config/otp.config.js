@@ -1,7 +1,12 @@
 const config = {
   // SMS Configuration
   sms: {
-    provider: process.env.SMS_PROVIDER || 'mock', // 'esms', 'mock'
+    provider: process.env.SMS_PROVIDER || 'mock', // 'speedsms', 'esms', 'mock'
+    speedsms: {
+      accessToken: process.env.SPEEDSMS_ACCESS_TOKEN,
+      apiUrl: 'https://api.speedsms.vn/index.php/sms/send',
+      brandname: process.env.SPEEDSMS_BRANDNAME || null, // Không set brandname mặc định, để SpeedSMS tự chọn
+    },
     esms: {
       apiKey: process.env.ESMS_API_KEY,
       secretKey: process.env.ESMS_SECRET_KEY,

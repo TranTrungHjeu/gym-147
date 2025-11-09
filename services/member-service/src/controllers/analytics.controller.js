@@ -141,7 +141,7 @@ class AnalyticsController {
     }
   }
 
-  // Get equipment utilization data
+  // Get equipment utilization data (optimized - no N+1)
   async getEquipmentUtilizationData(startDate) {
     const utilization = await prisma.equipmentUsage.groupBy({
       by: ['equipment_id'],
@@ -154,7 +154,7 @@ class AnalyticsController {
       take: 10,
     });
 
-    // Get equipment details
+    // Get equipment details in batch (fix N+1)
     const equipmentIds = utilization.map(item => item.equipment_id);
     const equipment = await prisma.equipment.findMany({
       where: { id: { in: equipmentIds } },
@@ -166,19 +166,20 @@ class AnalyticsController {
       },
     });
 
+    // Create map for O(1) lookup
     const equipmentMap = {};
     equipment.forEach(eq => {
       equipmentMap[eq.id] = eq;
     });
 
     return utilization.map(item => ({
-      equipment: equipmentMap[item.equipment_id],
+      equipment: equipmentMap[item.equipment_id] || null,
       usageCount: item._count.id,
       totalDuration: item._sum.duration || 0,
     }));
   }
 
-  // Get popular equipment data
+  // Get popular equipment data (optimized - no N+1)
   async getPopularEquipmentData(startDate) {
     const popular = await prisma.equipmentUsage.groupBy({
       by: ['equipment_id'],
@@ -190,6 +191,7 @@ class AnalyticsController {
       take: 5,
     });
 
+    // Get equipment details in batch (fix N+1)
     const equipmentIds = popular.map(item => item.equipment_id);
     const equipment = await prisma.equipment.findMany({
       where: { id: { in: equipmentIds } },
@@ -200,13 +202,14 @@ class AnalyticsController {
       },
     });
 
+    // Create map for O(1) lookup
     const equipmentMap = {};
     equipment.forEach(eq => {
       equipmentMap[eq.id] = eq;
     });
 
     return popular.map(item => ({
-      equipment: equipmentMap[item.equipment_id],
+      equipment: equipmentMap[item.equipment_id] || null,
       usageCount: item._count.id,
     }));
   }

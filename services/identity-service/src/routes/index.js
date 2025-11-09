@@ -11,6 +11,16 @@ const dashboardRoutes = require('./dashboard.routes.js');
 
 const router = express.Router();
 
+// Root health check endpoint (public)
+router.get('/health', (req, res) => {
+  res.json({
+    success: true,
+    message: 'Identity service is running',
+    service: 'identity-service',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // Mount all route modules
 router.use('/auth', authRoutes);
 router.use('/profile', profileRoutes);
