@@ -628,6 +628,21 @@
   @apply border-brand-500 bg-brand-500;
 }
 
+/* Custom checkbox color for orange theme */
+input[type='checkbox'] {
+  accent-color: #ea580c; /* orange-600 */
+}
+
+input[type='checkbox']:checked {
+  background-color: #ea580c; /* orange-600 */
+  border-color: #ea580c; /* orange-600 */
+}
+
+.dark input[type='checkbox']:checked {
+  background-color: #ea580c; /* orange-600 */
+  border-color: #ea580c; /* orange-600 */
+}
+
 /* third-party libraries CSS */
 .apexcharts-legend-text {
   @apply !text-gray-700 dark:!text-gray-400;
@@ -1427,4 +1442,46 @@ span.flatpickr-weekday,
 }
 .delay-1100 {
   animation-delay: 1.1s;
+}
+
+/* Custom Select Scrollbar - Smaller and more subtle */
+.custom-select-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db rgba(0, 0, 0, 0.05);
+}
+
+.custom-select-scrollbar::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.custom-select-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.02);
+  border-radius: 4px;
+}
+
+.custom-select-scrollbar::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 4px;
+  transition: background 0.2s ease;
+}
+
+.custom-select-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+
+.dark .custom-select-scrollbar {
+  scrollbar-color: #4b5563 rgba(255, 255, 255, 0.05);
+}
+
+.dark .custom-select-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.dark .custom-select-scrollbar::-webkit-scrollbar-thumb {
+  background: #4b5563;
+}
+
+.dark .custom-select-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #6b7280;
 }
