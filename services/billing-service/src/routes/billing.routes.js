@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { BillingController } = require('../controllers/billing.controller.js');
+const analyticsController = require('../controllers/analytics.controller.js');
 
 const router = Router();
 const billingController = new BillingController();
@@ -24,11 +25,13 @@ router.patch('/subscriptions/:id/cancel', (req, res) =>
 
 // Payments Routes
 router.get('/payments', (req, res) => billingController.getAllPayments(req, res));
+router.get('/payments/:id', (req, res) => billingController.getPaymentById(req, res));
 router.post('/payments', (req, res) => billingController.createPayment(req, res));
 router.put('/payments/:id', (req, res) => billingController.updatePayment(req, res));
 router.post('/payments/initiate', (req, res) => billingController.initiatePayment(req, res));
 router.post('/payments/webhook', (req, res) => billingController.handlePaymentWebhook(req, res));
 router.patch('/payments/:id/process', (req, res) => billingController.processPayment(req, res));
+router.get('/payments/:id/receipt', (req, res) => billingController.downloadReceipt(req, res));
 
 // Invoices Routes
 router.get('/invoices', (req, res) => billingController.getAllInvoices(req, res));
@@ -39,5 +42,23 @@ router.post('/validate-coupon', (req, res) => billingController.validateCoupon(r
 
 // Statistics Routes
 router.get('/stats', (req, res) => billingController.getStats(req, res));
+
+// Analytics Routes
+router.get('/analytics/dashboard', (req, res) => analyticsController.getDashboardAnalytics(req, res));
+router.get('/analytics/revenue-reports', (req, res) => analyticsController.getRevenueReports(req, res));
+router.get('/analytics/revenue-trends', (req, res) => analyticsController.getRevenueTrends(req, res));
+router.post('/analytics/revenue-reports/generate', (req, res) => analyticsController.generateRevenueReport(req, res));
+router.get('/analytics/revenue-forecast', (req, res) => analyticsController.getRevenueForecast(req, res));
+
+// Member Analytics Routes
+router.get('/analytics/members/:memberId/ltv', (req, res) => analyticsController.getMemberLTV(req, res));
+router.put('/analytics/members/:memberId/ltv', (req, res) => analyticsController.updateMemberLTV(req, res));
+router.get('/analytics/members/at-risk', (req, res) => analyticsController.getAtRiskMembers(req, res));
+router.get('/analytics/members/top-ltv', (req, res) => analyticsController.getTopMembersByLTV(req, res));
+
+// Export Routes
+router.get('/analytics/revenue-reports/export/pdf', (req, res) => analyticsController.exportRevenueReportPDF(req, res));
+router.get('/analytics/revenue-reports/export/excel', (req, res) => analyticsController.exportRevenueReportExcel(req, res));
+router.get('/analytics/members/export/excel', (req, res) => analyticsController.exportMemberAnalyticsExcel(req, res));
 
 module.exports = { billingRoutes: router };

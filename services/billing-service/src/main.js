@@ -8,7 +8,30 @@ const app = express();
 
 // Middleware
 app.use(express.json());
-app.use(cors());
+
+// CORS configuration
+const allowedOrigins = process.env.ALLOWED_ORIGINS
+  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
+  : process.env.NODE_ENV === 'production'
+    ? []
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error('Not allowed by CORS'));
+      }
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  })
+);
+
 app.use(helmet());
 app.use(morgan('dev'));
 
@@ -39,26 +62,34 @@ try {
   console.error('❌ Error importing routes:', error.message);
 }
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(500).json({
-    success: false,
-    message: 'Internal server error',
-    data: null,
-  });
+// Error handling middleware (must be after routes)
+const { errorHandler, notFoundHandler } = require('../../../packages/shared-middleware/src/error.middleware.js');
+app.use(notFoundHandler);
+app.use(errorHandler);
+
+// Scheduled jobs
+const cron = require('node-cron');
+const revenueReportService = require('./services/revenue-report.service.js');
+
+// Generate revenue report daily at 2 AM
+cron.schedule('0 2 * * *', async () => {
+  console.log('🔄 Generating daily revenue report...');
+  try {
+    const result = await revenueReportService.generateYesterdayReport();
+    if (result.success) {
+      console.log(`✅ Revenue report generated successfully (${result.isNew ? 'new' : 'updated'})`);
+    } else {
+      console.error('❌ Failed to generate revenue report:', result.error);
+    }
+  } catch (error) {
+    console.error('❌ Error generating revenue report:', error);
+  }
 });
 
-// 404 handler
-app.use('*', (req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
-    data: null,
-  });
-});
+console.log('✅ Scheduled jobs initialized');
 
 const port = process.env.PORT || 3004;
-app.listen(port, () => {
+const host = process.env.HOST || '0.0.0.0';
+app.listen(port, host, () => {
   console.log(`billing-service listening on port ${port}`);
 });

@@ -1,5 +1,6 @@
 const { prisma } = require('../lib/prisma.js');
 const axios = require('axios');
+const receiptService = require('../services/receipt.service.js');
 
 const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
 
@@ -395,6 +396,46 @@ class BillingController {
       res.status(500).json({
         success: false,
         message: 'Failed to create payment',
+        data: null,
+      });
+    }
+  }
+
+  async getPaymentById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const payment = await prisma.payment.findUnique({
+        where: { id },
+        include: {
+          subscription: {
+            include: {
+              plan: true,
+            },
+          },
+          bank_transfer: true,
+          invoice: true,
+        },
+      });
+
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Payment not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Payment retrieved successfully',
+        data: payment,
+      });
+    } catch (error) {
+      console.error('Get payment by id error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve payment',
         data: null,
       });
     }
@@ -1148,6 +1189,90 @@ class BillingController {
       res.status(500).json({
         success: false,
         message: 'Lỗi khi lấy danh sách gói',
+        data: null,
+      });
+    }
+  }
+
+  // Receipt Download
+  async downloadReceipt(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Get payment with all related data
+      const payment = await prisma.payment.findUnique({
+        where: { id },
+        include: {
+          subscription: {
+            include: {
+              plan: true,
+            },
+          },
+          bank_transfer: true,
+          invoice: true, // Include invoice if exists
+        },
+      });
+
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Payment not found',
+          data: null,
+        });
+      }
+
+      // Get member information if available
+      let member = null;
+      if (payment.member_id) {
+        try {
+          const axios = require('axios');
+          const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+          const memberResponse = await axios.get(
+            `${memberServiceUrl}/members/${payment.member_id}`
+          );
+          if (memberResponse.data?.success) {
+            member = memberResponse.data.data;
+          }
+        } catch (error) {
+          console.warn('Could not fetch member info for receipt:', error.message);
+          // Continue without member info
+        }
+      }
+
+      // Check if receipt already exists in S3
+      let receiptUrl = await receiptService.getReceiptUrl(id);
+
+      // If not exists, generate and upload
+      if (!receiptUrl) {
+        const { url } = await receiptService.generateAndUploadReceipt(payment, member);
+        receiptUrl = url;
+      }
+
+      // If S3 is not configured, generate PDF and return directly
+      if (!receiptUrl) {
+        const pdfBuffer = await receiptService.generateReceipt(payment, member);
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader(
+          'Content-Disposition',
+          `attachment; filename="receipt-${id.substring(0, 8)}.pdf"`
+        );
+        return res.send(pdfBuffer);
+      }
+
+      // Return S3 URL
+      res.json({
+        success: true,
+        message: 'Receipt URL generated successfully',
+        data: {
+          receiptUrl: receiptUrl,
+          paymentId: id,
+        },
+      });
+    } catch (error) {
+      console.error('Download receipt error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate receipt',
         data: null,
       });
     }
