@@ -78,12 +78,23 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
-          // Cleanup on unmount
+          // Setup certification status notification listener for trainer
+          socket.on('certification:status', (data: any) => {
+            console.log('📢 certification:status event received in TrainerLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          // Cleanup on unmount - only remove listeners, don't disconnect socket
+          // Socket should stay connected as long as user is logged in
           return () => {
             socket.off('booking:new');
             socket.off('booking:pending_payment');
             socket.off('booking:confirmed');
-            socketService.disconnect();
+            socket.off('certification:status');
+            // Don't disconnect here - socket is shared across components
           };
         }
       } catch (err) {

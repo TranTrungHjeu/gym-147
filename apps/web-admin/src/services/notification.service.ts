@@ -1,4 +1,5 @@
-const API_BASE_URL = 'http://localhost:3003';
+import { scheduleApi } from './api';
+import type { AxiosResponse } from 'axios';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -34,31 +35,31 @@ export interface NotificationResponse {
 class NotificationService {
   private async request<T>(
     endpoint: string,
-    method: string = 'GET',
+    method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
     data?: any
   ): Promise<ApiResponse<T>> {
-    const token = localStorage.getItem('accessToken');
+    try {
+      let response: AxiosResponse<ApiResponse<T>>;
 
-    const config: RequestInit = {
-      method,
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { Authorization: `Bearer ${token}` }),
-      },
-    };
+      switch (method) {
+        case 'POST':
+          response = await scheduleApi.post<ApiResponse<T>>(endpoint, data);
+          break;
+        case 'PUT':
+          response = await scheduleApi.put<ApiResponse<T>>(endpoint, data);
+          break;
+        case 'DELETE':
+          response = await scheduleApi.delete<ApiResponse<T>>(endpoint, { data });
+          break;
+        default:
+          response = await scheduleApi.get<ApiResponse<T>>(endpoint);
+      }
 
-    if (data && method !== 'GET') {
-      config.body = JSON.stringify(data);
+      return response.data;
+    } catch (error: any) {
+      const errorData = error.response?.data || { message: error.message || 'Request failed' };
+      throw new Error(errorData.message || 'Request failed');
     }
-
-    const response = await fetch(`${API_BASE_URL}${endpoint}`, config);
-    const result = await response.json();
-
-    if (!response.ok) {
-      throw new Error(result.message || 'Request failed');
-    }
-
-    return result;
   }
 
   async getUserNotifications(
@@ -87,7 +88,7 @@ class NotificationService {
   }
 
   async markAllAsRead(userId: string): Promise<ApiResponse<{ updatedCount: number }>> {
-    return this.request<{ updatedCount: number }>(`/users/${userId}/notifications/read-all`, 'PUT');
+    return this.request<{ updatedCount: number }>(`/notifications/read-all/${userId}`, 'PUT');
   }
 
   async deleteNotification(notificationId: string, userId: string): Promise<ApiResponse<any>> {
