@@ -5,7 +5,14 @@ import type { LeaderboardEntry } from '@/types/achievementTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Award, Crown, Medal, Star, Trophy } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Award,
+  Crown,
+  Medal,
+  Star,
+  Trophy,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -13,8 +20,10 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function LeaderboardScreen() {
   const router = useRouter();
@@ -98,7 +107,7 @@ export default function LeaderboardScreen() {
 
   if (loading) {
     return (
-      <View style={themedStyles.container}>
+      <SafeAreaView style={themedStyles.container} edges={['top']}>
         <View style={themedStyles.loadingContainer}>
           <Text
             style={[
@@ -109,13 +118,19 @@ export default function LeaderboardScreen() {
             {t('achievements.leaderboardLoading')}
           </Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   return (
-    <View style={themedStyles.container}>
+    <SafeAreaView style={themedStyles.container} edges={['top']}>
       <View style={themedStyles.header}>
+        <TouchableOpacity
+          style={themedStyles.backButton}
+          onPress={() => router.back()}
+        >
+          <ArrowLeft size={24} color={theme.colors.text} />
+        </TouchableOpacity>
         <View style={themedStyles.titleContainer}>
           <Trophy size={24} color={theme.colors.primary} />
           <Text
@@ -130,7 +145,7 @@ export default function LeaderboardScreen() {
       </View>
 
       <View style={themedStyles.filterContainer}>
-        <Text style={[Typography.bodyBold, { color: theme.colors.text }]}>
+        <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
           {t('common.period')}:
         </Text>
         <View style={themedStyles.periodSelector}>
@@ -165,7 +180,10 @@ export default function LeaderboardScreen() {
               </View>
               <View style={themedStyles.userRankBadge}>
                 <Text
-                  style={[Typography.bodyBold, { color: theme.colors.primary }]}
+                  style={[
+                    Typography.bodyMedium,
+                    { color: theme.colors.primary },
+                  ]}
                 >
                   #{userRank.rank}
                 </Text>
@@ -179,7 +197,7 @@ export default function LeaderboardScreen() {
               </View>
               <View style={themedStyles.userRankDetails}>
                 <Text
-                  style={[Typography.bodyBold, { color: theme.colors.text }]}
+                  style={[Typography.bodyMedium, { color: theme.colors.text }]}
                 >
                   {userRank.memberName}
                 </Text>
@@ -247,7 +265,7 @@ export default function LeaderboardScreen() {
                     </View>
                     <Text
                       style={[
-                        Typography.bodyBold,
+                        Typography.bodyMedium,
                         { color: getRankColor(entry.rank) },
                       ]}
                     >
@@ -259,7 +277,7 @@ export default function LeaderboardScreen() {
                     <View style={themedStyles.memberAvatar}>
                       <Text
                         style={[
-                          Typography.bodyBold,
+                          Typography.bodyMedium,
                           { color: theme.colors.primary },
                         ]}
                       >
@@ -348,7 +366,7 @@ export default function LeaderboardScreen() {
           </Text>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -364,10 +382,18 @@ const styles = (theme: any) =>
       alignItems: 'center',
     },
     header: {
+      flexDirection: 'row',
+      alignItems: 'center',
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.md,
       paddingBottom: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: 'transparent',
+    },
+    backButton: {
+      padding: 8,
+      marginRight: 8,
     },
     titleContainer: {
       flexDirection: 'row',

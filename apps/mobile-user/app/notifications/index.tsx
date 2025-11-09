@@ -10,7 +10,7 @@ import type {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Bell, Check, MoreVertical, Search, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Bell, Check, MoreVertical, Search, Trash2 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -23,6 +23,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NotificationCenterScreen() {
   const router = useRouter();
@@ -368,12 +369,19 @@ export default function NotificationCenterScreen() {
   }
 
   return (
-    <View
+    <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
+      edges={['top']}
     >
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Text style={[Typography.h2, { color: theme.colors.text }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}
+          >
+            <ArrowLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
             {t('notifications.title')}
           </Text>
           {unreadCount > 0 && (
@@ -632,7 +640,7 @@ export default function NotificationCenterScreen() {
           />
         </View>
       )}
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -654,6 +662,10 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 12,
+  },
+  backButton: {
+    padding: 8,
+    marginRight: 8,
   },
   badge: {
     marginLeft: 8,

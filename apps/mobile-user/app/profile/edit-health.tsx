@@ -25,6 +25,14 @@ interface HealthInfo {
   allergies: string[];
 }
 
+interface HealthErrors {
+  height?: string;
+  weight?: string;
+  body_fat_percent?: string;
+  medical_conditions?: string;
+  allergies?: string;
+}
+
 export default function EditHealthScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
@@ -39,7 +47,7 @@ export default function EditHealthScreen() {
     medical_conditions: [],
     allergies: [],
   });
-  const [errors, setErrors] = useState<Partial<HealthInfo>>({});
+  const [errors, setErrors] = useState<HealthErrors>({});
   const [newCondition, setNewCondition] = useState('');
   const [newAllergy, setNewAllergy] = useState('');
 
@@ -68,7 +76,7 @@ export default function EditHealthScreen() {
   };
 
   const validateForm = (): boolean => {
-    const newErrors: Partial<HealthInfo> = {};
+    const newErrors: HealthErrors = {};
 
     if (
       formData.height !== null &&
@@ -123,7 +131,7 @@ export default function EditHealthScreen() {
 
   const updateField = (field: keyof HealthInfo, value: any) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
-    if (errors[field]) {
+    if (errors[field as keyof HealthErrors]) {
       setErrors((prev) => ({ ...prev, [field]: undefined }));
     }
   };
@@ -198,8 +206,8 @@ export default function EditHealthScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView 
-        style={styles.content} 
+      <ScrollView
+        style={styles.content}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
       >
