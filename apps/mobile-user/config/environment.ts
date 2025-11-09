@@ -1,3 +1,4 @@
+import { buildServiceUrls, normalizeBaseUrl } from '@gym-147/shared-config';
 import Constants from 'expo-constants';
 
 export interface EnvironmentConfig {
@@ -7,29 +8,68 @@ export interface EnvironmentConfig {
   ENVIRONMENT: 'development' | 'staging' | 'production';
   GOOGLE_CLIENT_ID?: string;
   FACEBOOK_APP_ID?: string;
+  PROVINCES_API_KEY?: string; // API key for Vietnam address API (if needed)
   DEBUG: boolean;
 }
 
+const extraConfig = (Constants.expoConfig?.extra ?? {}) as Record<string, any>;
+
+const pickFirstNonEmpty = (
+  ...values: Array<string | undefined | null>
+): string | undefined =>
+  values.find(
+    (value): value is string =>
+      typeof value === 'string' && value.trim().length > 0
+  );
+
+const resolveApiBaseUrl = (): string => {
+  const value = pickFirstNonEmpty(
+    process.env.EXPO_PUBLIC_API_BASE_URL,
+    process.env.EXPO_PUBLIC_API_URL,
+    extraConfig.API_BASE_URL,
+    extraConfig.API_URL
+  );
+
+  if (!value) {
+    throw new Error(
+      'Missing API base URL configuration. Set EXPO_PUBLIC_API_BASE_URL or define expo.extra.API_BASE_URL.'
+    );
+  }
+
+  return normalizeBaseUrl(value.trim());
+};
+
 const getEnvironmentConfig = (): EnvironmentConfig => {
-  const config = Constants.expoConfig?.extra || {};
+  const API_BASE_URL = resolveApiBaseUrl();
 
   return {
-    API_URL:
-      process.env.EXPO_PUBLIC_API_URL ||
-      config.API_URL ||
-      'http://192.168.2.19:3001', // Real device - Identity Service
-    // 'http://10.0.2.2:3001', // Android emulator - Identity Service
-    // 'http://localhost:3001', // iOS simulator - Identity Service
-    APP_NAME: process.env.EXPO_PUBLIC_APP_NAME || config.APP_NAME || 'Gym147',
+    API_URL: API_BASE_URL,
+    APP_NAME:
+      pickFirstNonEmpty(
+        process.env.EXPO_PUBLIC_APP_NAME,
+        extraConfig.APP_NAME
+      ) || 'Gym147',
     APP_VERSION:
-      process.env.EXPO_PUBLIC_APP_VERSION || config.APP_VERSION || '1.0.0',
-    ENVIRONMENT: (process.env.EXPO_PUBLIC_ENVIRONMENT ||
-      config.ENVIRONMENT ||
-      'development') as 'development' | 'staging' | 'production',
-    GOOGLE_CLIENT_ID:
-      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID || config.GOOGLE_CLIENT_ID,
-    FACEBOOK_APP_ID:
-      process.env.EXPO_PUBLIC_FACEBOOK_APP_ID || config.FACEBOOK_APP_ID,
+      pickFirstNonEmpty(
+        process.env.EXPO_PUBLIC_APP_VERSION,
+        extraConfig.APP_VERSION
+      ) || '1.0.0',
+    ENVIRONMENT: (pickFirstNonEmpty(
+      process.env.EXPO_PUBLIC_ENVIRONMENT,
+      extraConfig.ENVIRONMENT
+    ) || 'development') as 'development' | 'staging' | 'production',
+    GOOGLE_CLIENT_ID: pickFirstNonEmpty(
+      process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
+      extraConfig.GOOGLE_CLIENT_ID
+    ),
+    FACEBOOK_APP_ID: pickFirstNonEmpty(
+      process.env.EXPO_PUBLIC_FACEBOOK_APP_ID,
+      extraConfig.FACEBOOK_APP_ID
+    ),
+    PROVINCES_API_KEY: pickFirstNonEmpty(
+      process.env.EXPO_PUBLIC_PROVINCES_API_KEY,
+      extraConfig.PROVINCES_API_KEY
+    ),
     DEBUG: __DEV__,
   };
 };
@@ -122,25 +162,7 @@ export const API_ENDPOINTS = {
 //
 // ================================
 
-export const SERVICE_URLS = {
-  // 📱 REAL DEVICE (current configuration)
-  IDENTITY: 'http://192.168.2.19:3001',
-  MEMBER: 'http://192.168.2.19:3002',
-  SCHEDULE: 'http://192.168.2.19:3003',
-  BILLING: 'http://192.168.2.19:3004',
-
-  // 🖥️ ANDROID EMULATOR (uncomment to use)
-  // IDENTITY: 'http://10.0.2.2:3001',
-  // MEMBER: 'http://10.0.2.2:3002',
-  // SCHEDULE: 'http://10.0.2.2:3003',
-  // BILLING: 'http://10.0.2.2:3004',
-
-  // 🍎 iOS SIMULATOR (uncomment to use)
-  // IDENTITY: 'http://localhost:3001',
-  // MEMBER: 'http://localhost:3002',
-  // SCHEDULE: 'http://localhost:3003',
-  // BILLING: 'http://localhost:3004',
-} as const;
+export const SERVICE_URLS = buildServiceUrls(environment.API_URL);
 
 // App Configuration
 export const APP_CONFIG = {
