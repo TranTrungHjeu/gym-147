@@ -19,5 +19,5 @@ COPY src ./src
 # Remove dev dependencies for smaller image
 RUN npm prune --production
 
-EXPOSE 3000
+EXPOSE 3004
 CMD ["node", "src/main.js"]
