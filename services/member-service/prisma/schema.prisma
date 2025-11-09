@@ -1,4 +1,3 @@
-
 // Member Service Prisma Schema - IoT Gym Management
 generator client {
   provider = "prisma-client-js"
@@ -10,46 +9,58 @@ datasource db {
 }
 
 model Member {
-  id                String            @id @default(cuid())
-  user_id           String            @unique // Reference to identity service
-  membership_number String            @unique // Auto-generated member ID
+  id                String    @id @default(cuid())
+  user_id           String    @unique // Reference to identity service
+  membership_number String    @unique // Auto-generated member ID
   full_name         String
-  phone             String?           @unique // Optional during registration
-  email             String            @unique
+  phone             String?   @unique // Optional during registration
+  email             String    @unique
   date_of_birth     DateTime?
   gender            Gender?
   address           String?
   emergency_contact String?
   emergency_phone   String?
-  
+
   // Health & Fitness Data
-  height            Float?            // in cm
-  weight            Float?            // in kg
-  body_fat_percent  Float?
-  fitness_goals     String[]          // Array of goals         // Weekly workout goal
-  medical_conditions String[]         // Array of medical notes
-  allergies         String[]
-  
+  height             Float? // in cm
+  weight             Float? // in kg
+  body_fat_percent   Float?
+  fitness_goals      String[] // Array of goals         // Weekly workout goal
+  medical_conditions String[] // Array of medical notes
+  allergies          String[]
+
   // Membership Info
-  membership_status MembershipStatus  @default(ACTIVE)
-  membership_type   MembershipType    @default(BASIC)
-  joined_at         DateTime          @default(now())
+  membership_status MembershipStatus @default(ACTIVE)
+  membership_type   MembershipType   @default(BASIC)
+  joined_at         DateTime         @default(now())
   expires_at        DateTime?
-  
+
   // Access Control
-  rfid_tag          String?           @unique
-  qr_code           String?           @unique // Generated QR for mobile access
-  access_enabled    Boolean           @default(true)
-  
+  rfid_tag       String? @unique
+  qr_code        String? @unique // Generated QR for mobile access
+  access_enabled Boolean @default(true)
+
   // Profile
-  profile_photo     String?
-  notes             String?
-  created_at        DateTime          @default(now())
-  updated_at        DateTime          @updatedAt
+  profile_photo String?
+  notes         String?
+
+  // Onboarding
+  onboarding_completed    Boolean   @default(false)
+  onboarding_steps        Json? // Track completion of each step
+  onboarding_completed_at DateTime?
+
+  // Notification Preferences
+  notification_preferences Json? // { push: boolean, email: boolean, sms: boolean, in_app: boolean }
+
+  // Premium Features (only for PREMIUM and VIP)
+  ai_class_recommendations_enabled Boolean @default(false) // AI-powered class recommendations
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   // Relations
   memberships       Membership[]
-  gym_sessions      GymSession[]      // Gym entry/exit sessions
+  gym_sessions      GymSession[] // Gym entry/exit sessions
   equipment_usage   EquipmentUsage[]
   health_metrics    HealthMetric[]
   workout_plans     WorkoutPlan[]
@@ -57,7 +68,20 @@ model Member {
   notifications     Notification[]
   equipment_queue   EquipmentQueue[]
   equipment_reports EquipmentIssueReport[]
+  daily_streaks     DailyStreak[]
+  challenge_progress ChallengeProgress[]
+  points_transactions PointsTransaction[]
+  reward_redemptions RewardRedemption[]
 
+  // Indexes for performance
+  @@index([membership_status])
+  @@index([membership_type])
+  @@index([membership_status, membership_type])
+  @@index([created_at])
+  @@index([updated_at])
+  @@index([expires_at])
+  @@index([access_enabled])
+  @@index([onboarding_completed])
   @@map("members")
 }
 
@@ -69,98 +93,130 @@ model Membership {
   end_date   DateTime
   status     MembershipStatus @default(ACTIVE)
   price      Decimal          @db.Decimal(10, 2)
-  benefits   String[]         // Array of benefits
+  benefits   String[] // Array of benefits
   notes      String?
   created_at DateTime         @default(now())
   updated_at DateTime         @updatedAt
 
   member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([status])
+  @@index([member_id, status])
+  @@index([start_date])
+  @@index([end_date])
+  @@index([created_at])
   @@map("memberships")
 }
 
 // IoT Integration - Gym Entry/Exit Sessions
 model GymSession {
-  id           String      @id @default(cuid())
-  member_id    String
-  entry_time   DateTime    @default(now())
-  exit_time    DateTime?
-  duration     Int?        // in minutes
-  entry_method AccessMethod
-  exit_method  AccessMethod?
-  entry_gate   String?     // Gate/Reader ID
-  exit_gate    String?
-  calories_burned Int?     // Estimated from session
-  session_rating Int?      // 1-5 rating by member
-  notes        String?
-  
-  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  id              String        @id @default(cuid())
+  member_id       String
+  entry_time      DateTime      @default(now())
+  exit_time       DateTime?
+  duration        Int? // in minutes
+  entry_method    AccessMethod
+  exit_method     AccessMethod?
+  entry_gate      String? // Gate/Reader ID
+  exit_gate       String?
+  calories_burned Int? // Estimated from session
+  session_rating  Int? // 1-5 rating by member
+  notes           String?
+
+  member          Member           @relation(fields: [member_id], references: [id], onDelete: Cascade)
   equipment_usage EquipmentUsage[] // Equipment used during this session
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([member_id, entry_time])
+  @@index([entry_time])
+  @@index([exit_time])
+  @@index([entry_method])
   @@map("gym_sessions")
 }
 
 // Equipment Usage Tracking (IoT)
 model EquipmentUsage {
-  id           String   @id @default(cuid())
-  member_id    String
-  equipment_id String
-  session_id   String?  // Link to gym session
-  start_time   DateTime @default(now())
-  end_time     DateTime?
-  auto_end_at  DateTime? // Auto-end time if user forgets to stop (default 3 hours)
-  duration     Int?     // in minutes
+  id              String    @id @default(cuid())
+  member_id       String
+  equipment_id    String
+  session_id      String? // Link to gym session
+  start_time      DateTime  @default(now())
+  end_time        DateTime?
+  auto_end_at     DateTime? // Auto-end time if user forgets to stop (default 3 hours)
+  duration        Int? // in minutes
   calories_burned Int?
-  sets_completed Int?
-  weight_used  Float?   // in kg
-  reps_completed Int?
-  heart_rate_avg Int?   // from wearable devices
-  heart_rate_max Int?
-  
+  sets_completed  Int?
+  weight_used     Float? // in kg
+  reps_completed  Int?
+  heart_rate_avg  Int? // from wearable devices
+  heart_rate_max  Int?
+
   // IoT Sensor Data
-  sensor_data  Json?    // Additional IoT sensor readings
-  
+  sensor_data Json? // Additional IoT sensor readings
+
   member    Member      @relation(fields: [member_id], references: [id])
   equipment Equipment   @relation(fields: [equipment_id], references: [id])
   session   GymSession? @relation(fields: [session_id], references: [id], onDelete: SetNull)
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([equipment_id])
+  @@index([member_id, equipment_id])
+  @@index([member_id, start_time])
+  @@index([start_time])
+  @@index([end_time])
+  @@index([session_id])
   @@map("equipment_usage")
 }
 
 // Health Metrics Tracking
 model HealthMetric {
-  id           String     @id @default(cuid())
-  member_id    String
-  metric_type  MetricType
-  value        Float
-  unit         String     // kg, cm, bpm, etc.
-  recorded_at  DateTime   @default(now())
-  source       String?    // "MANUAL", "SCALE", "WEARABLE", "ASSESSMENT"
-  notes        String?
+  id          String     @id @default(cuid())
+  member_id   String
+  metric_type MetricType
+  value       Float
+  unit        String // kg, cm, bpm, etc.
+  recorded_at DateTime   @default(now())
+  source      String? // "MANUAL", "SCALE", "WEARABLE", "ASSESSMENT"
+  notes       String?
 
   member Member @relation(fields: [member_id], references: [id])
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([member_id, metric_type])
+  @@index([member_id, recorded_at])
+  @@index([recorded_at])
+  @@index([metric_type])
   @@map("health_metrics")
 }
 
 // AI-Generated Workout Plans
 model WorkoutPlan {
-  id           String   @id @default(cuid())
-  member_id    String
-  name         String
-  description  String?
-  difficulty   Difficulty
+  id             String     @id @default(cuid())
+  member_id      String
+  name           String
+  description    String?
+  difficulty     Difficulty
   duration_weeks Int
-  goal         String   // "WEIGHT_LOSS", "MUSCLE_GAIN", etc.
-  exercises    Json     // Structured workout data
-  is_active    Boolean  @default(true)
-  ai_generated Boolean  @default(false)
-  created_by   String?  // Trainer ID
-  created_at   DateTime @default(now())
-  updated_at   DateTime @updatedAt
+  goal           String // "WEIGHT_LOSS", "MUSCLE_GAIN", etc.
+  exercises      Json // Structured workout data
+  is_active      Boolean    @default(true)
+  ai_generated   Boolean    @default(false)
+  created_by     String? // Trainer ID
+  created_at     DateTime   @default(now())
+  updated_at     DateTime   @updatedAt
 
   member Member @relation(fields: [member_id], references: [id])
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([member_id, is_active])
+  @@index([is_active])
+  @@index([created_at])
   @@map("workout_plans")
 }
 
@@ -170,14 +226,209 @@ model Achievement {
   member_id   String
   title       String
   description String
-  category    String   // "FITNESS", "ATTENDANCE", "SOCIAL"
+  category    String // "FITNESS", "ATTENDANCE", "SOCIAL"
   points      Int      @default(0)
-  badge_icon  String?
+  badge_icon  String? // Lucide icon name (e.g., "Trophy", "Award")
+  progress    Int? // Current progress (for incremental achievements)
+  target      Int? // Target value (for incremental achievements)
   unlocked_at DateTime @default(now())
 
   member Member @relation(fields: [member_id], references: [id])
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([member_id, category])
+  @@index([category])
+  @@index([unlocked_at])
   @@map("achievements")
+}
+
+// Daily Streaks Tracking
+model DailyStreak {
+  id              String   @id @default(cuid())
+  member_id       String   @unique
+  current_streak  Int      @default(0) // Current consecutive days
+  longest_streak  Int      @default(0) // Best streak ever
+  last_activity_date DateTime? // Last day with gym session
+  streak_started_at DateTime? // When current streak started
+  last_updated    DateTime @default(now()) @updatedAt
+
+  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@index([member_id])
+  @@index([current_streak])
+  @@map("daily_streaks")
+}
+
+// Challenges System
+model Challenge {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  type        ChallengeType // "DAILY", "WEEKLY", "MONTHLY", "CUSTOM"
+  category    String // "FITNESS", "ATTENDANCE", "SOCIAL", "EQUIPMENT"
+  target_value Int // Target to achieve (e.g., 10 sessions, 5000 calories)
+  target_unit  String? // "sessions", "calories", "minutes", "equipment"
+  reward_points Int @default(0) // Points reward
+  start_date  DateTime
+  end_date    DateTime
+  is_active   Boolean  @default(true)
+  is_public   Boolean  @default(true) // Public challenges vs member-specific
+  max_participants Int? // Limit participants
+  created_by  String? // Admin/Trainer ID
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  progress ChallengeProgress[]
+
+  @@index([type])
+  @@index([category])
+  @@index([is_active])
+  @@index([start_date, end_date])
+  @@map("challenges")
+}
+
+enum ChallengeType {
+  DAILY
+  WEEKLY
+  MONTHLY
+  CUSTOM
+}
+
+// Challenge Progress Tracking
+model ChallengeProgress {
+  id          String   @id @default(cuid())
+  challenge_id String
+  member_id   String
+  current_value Int    @default(0) // Current progress
+  target_value Int // Target to achieve
+  completed   Boolean  @default(false)
+  completed_at DateTime?
+  joined_at   DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  challenge Challenge @relation(fields: [challenge_id], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@unique([challenge_id, member_id])
+  @@index([challenge_id])
+  @@index([member_id])
+  @@index([completed])
+  @@index([member_id, completed])
+  @@map("challenge_progress")
+}
+
+// Points & Rewards System
+model PointsTransaction {
+  id          String   @id @default(cuid())
+  member_id   String
+  points      Int // Positive for earning, negative for spending
+  type        PointsTransactionType
+  source      String? // "ACHIEVEMENT", "CHALLENGE", "STREAK", "REDEMPTION", "REFUND"
+  source_id   String? // ID of achievement/challenge/reward
+  description String?
+  balance_after Int // Points balance after this transaction
+  created_at  DateTime @default(now())
+
+  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  @@index([member_id])
+  @@index([member_id, type])
+  @@index([type])
+  @@index([created_at])
+  @@map("points_transactions")
+}
+
+enum PointsTransactionType {
+  EARNED
+  SPENT
+  EXPIRED
+  REFUNDED
+}
+
+// Rewards System
+model Reward {
+  id          String   @id @default(cuid())
+  title       String
+  description String
+  category    RewardCategory
+  points_cost Int // Points required to redeem
+  image_url   String?
+  discount_percent Float? // For discount rewards (e.g., 10% off)
+  discount_amount  Decimal? @db.Decimal(10, 2) // For fixed amount discounts
+  reward_type RewardType
+  is_active   Boolean  @default(true)
+  stock_quantity Int? // null = unlimited
+  redemption_limit Int? // Max redemptions per member (null = unlimited)
+  valid_from  DateTime @default(now())
+  valid_until DateTime?
+  terms_conditions String? // Terms and conditions
+  created_by  String? // Admin ID
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  redemptions RewardRedemption[]
+
+  @@index([category])
+  @@index([is_active])
+  @@index([points_cost])
+  @@index([valid_from, valid_until])
+  @@map("rewards")
+}
+
+enum RewardCategory {
+  DISCOUNT
+  FREE_CLASS
+  MERCHANDISE
+  MEMBERSHIP_EXTENSION
+  PREMIUM_FEATURE
+  OTHER
+}
+
+enum RewardType {
+  PERCENTAGE_DISCOUNT
+  FIXED_AMOUNT_DISCOUNT
+  FREE_ITEM
+  MEMBERSHIP_UPGRADE
+  PREMIUM_FEATURE_ACCESS
+  CASHBACK
+  OTHER
+}
+
+// Reward Redemption Tracking
+model RewardRedemption {
+  id          String   @id @default(cuid())
+  member_id   String
+  reward_id   String
+  points_spent Int
+  status      RedemptionStatus @default(PENDING)
+  redeemed_at DateTime @default(now())
+  used_at     DateTime? // When member actually used the reward
+  expires_at  DateTime? // Reward expiration date
+  code        String? @unique // Unique redemption code (e.g., for discounts)
+  notes       String? // Admin notes
+  created_at  DateTime @default(now())
+  updated_at  DateTime @updatedAt
+
+  member Member @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  reward Reward @relation(fields: [reward_id], references: [id])
+
+  @@index([member_id])
+  @@index([reward_id])
+  @@index([status])
+  @@index([member_id, status])
+  @@index([code])
+  @@index([redeemed_at])
+  @@map("reward_redemptions")
+}
+
+enum RedemptionStatus {
+  PENDING
+  ACTIVE
+  USED
+  EXPIRED
+  CANCELLED
+  REFUNDED
 }
 
 // Smart Notifications
@@ -189,63 +440,72 @@ model Notification {
   message    String
   is_read    Boolean          @default(false)
   is_sent    Boolean          @default(false)
-  send_at    DateTime?        // For scheduled notifications
-  channels   String[]         // ["EMAIL", "SMS", "PUSH", "IN_APP"]
-  data       Json?            // Additional notification data
+  send_at    DateTime? // For scheduled notifications
+  channels   String[] // ["EMAIL", "SMS", "PUSH", "IN_APP"]
+  data       Json? // Additional notification data
   created_at DateTime         @default(now())
 
   member Member @relation(fields: [member_id], references: [id])
 
+  // Indexes for performance
+  @@index([member_id])
+  @@index([member_id, is_read])
+  @@index([member_id, type])
+  @@index([is_read])
+  @@index([type])
+  @@index([created_at])
+  @@index([send_at])
   @@map("notifications")
 }
 
 // Equipment Master Data (IoT Devices)
 model Equipment {
-  id                String             @id @default(cuid())
-  name              String
-  category          EquipmentCategory
-  brand             String?
-  model             String?
-  serial_number     String?            @unique
-  purchase_date     DateTime?
-  warranty_until    DateTime?
-  location          String             // Zone/Area in gym
-  status            EquipmentStatus    @default(AVAILABLE)
-  
+  id             String            @id @default(cuid())
+  name           String
+  category       EquipmentCategory
+  brand          String?
+  model          String?
+  serial_number  String?           @unique
+  purchase_date  DateTime?
+  warranty_until DateTime?
+  location       String // Zone/Area in gym
+  status         EquipmentStatus   @default(AVAILABLE)
+  photo          String? // Real photo URL of the equipment
+
   // IoT Integration
-  sensor_id         String?            @unique // IoT sensor identifier
-  last_maintenance  DateTime?
-  next_maintenance  DateTime?
-  usage_hours       Int                @default(0)
-  max_weight        Float?             // in kg
-  
+  sensor_id        String?   @unique // IoT sensor identifier
+  last_maintenance DateTime?
+  next_maintenance DateTime?
+  usage_hours      Int       @default(0)
+  max_weight       Float? // in kg
+
   // Smart Features
-  has_heart_monitor Boolean            @default(false)
-  has_calorie_counter Boolean          @default(false)
-  has_rep_counter   Boolean            @default(false)
-  wifi_enabled      Boolean            @default(false)
-  
-  maintenance_logs  MaintenanceLog[]
-  usage_logs        EquipmentUsage[]
-  queue             EquipmentQueue[]
-  issue_reports     EquipmentIssueReport[]
-  
-  created_at        DateTime           @default(now())
-  updated_at        DateTime           @updatedAt
+  has_heart_monitor   Boolean @default(false)
+  has_calorie_counter Boolean @default(false)
+  has_rep_counter     Boolean @default(false)
+  wifi_enabled        Boolean @default(false)
+
+  maintenance_logs MaintenanceLog[]
+  usage_logs       EquipmentUsage[]
+  queue            EquipmentQueue[]
+  issue_reports    EquipmentIssueReport[]
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
 
   @@map("equipment")
 }
 
 model MaintenanceLog {
-  id             String      @id @default(cuid())
-  equipment_id   String
-  maintenance_type String    // "ROUTINE", "REPAIR", "CALIBRATION"
-  description    String
-  performed_by   String      // Staff ID
-  cost           Decimal?    @db.Decimal(10, 2)
-  parts_replaced String[]
-  next_due       DateTime?
-  completed_at   DateTime    @default(now())
+  id               String    @id @default(cuid())
+  equipment_id     String
+  maintenance_type String // "ROUTINE", "REPAIR", "CALIBRATION"
+  description      String
+  performed_by     String // Staff ID
+  cost             Decimal?  @db.Decimal(10, 2)
+  parts_replaced   String[]
+  next_due         DateTime?
+  completed_at     DateTime  @default(now())
 
   equipment Equipment @relation(fields: [equipment_id], references: [id])
 
@@ -254,21 +514,21 @@ model MaintenanceLog {
 
 // Equipment Queue Management
 model EquipmentQueue {
-  id            String      @id @default(cuid())
-  member_id     String
-  equipment_id  String
-  position      Int
-  joined_at     DateTime    @default(now())
-  notified_at   DateTime?
-  status        QueueStatus @default(WAITING)
-  expires_at    DateTime?   // Auto-expire after 5 minutes if notified
-  
-  member        Member      @relation(fields: [member_id], references: [id], onDelete: Cascade)
-  equipment     Equipment   @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
-  
-  created_at    DateTime    @default(now())
-  updated_at    DateTime    @updatedAt
-  
+  id           String      @id @default(cuid())
+  member_id    String
+  equipment_id String
+  position     Int
+  joined_at    DateTime    @default(now())
+  notified_at  DateTime?
+  status       QueueStatus @default(WAITING)
+  expires_at   DateTime? // Auto-expire after 5 minutes if notified
+
+  member    Member    @relation(fields: [member_id], references: [id], onDelete: Cascade)
+  equipment Equipment @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   @@index([equipment_id, position])
   @@index([member_id])
   @@index([status])
@@ -277,24 +537,24 @@ model EquipmentQueue {
 
 // Equipment Issue Reporting
 model EquipmentIssueReport {
-  id            String       @id @default(cuid())
-  equipment_id  String
-  member_id     String
-  issue_type    IssueType
-  description   String
-  severity      Severity
-  status        ReportStatus @default(PENDING)
-  images        String[]     // S3 URLs
-  resolved_at   DateTime?
-  resolved_by   String?      // Staff user_id
+  id               String       @id @default(cuid())
+  equipment_id     String
+  member_id        String
+  issue_type       IssueType
+  description      String
+  severity         Severity
+  status           ReportStatus @default(PENDING)
+  images           String[] // S3 URLs
+  resolved_at      DateTime?
+  resolved_by      String? // Staff user_id
   resolution_notes String?
-  
-  equipment     Equipment    @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
-  member        Member       @relation(fields: [member_id], references: [id], onDelete: Cascade)
-  
-  created_at    DateTime     @default(now())
-  updated_at    DateTime     @updatedAt
-  
+
+  equipment Equipment @relation(fields: [equipment_id], references: [id], onDelete: Cascade)
+  member    Member    @relation(fields: [member_id], references: [id], onDelete: Cascade)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
   @@index([equipment_id])
   @@index([member_id])
   @@index([status])
