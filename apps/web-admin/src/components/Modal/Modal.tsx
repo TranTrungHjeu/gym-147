@@ -31,12 +31,15 @@ export const Modal: React.FC<ModalProps> = ({
             left: 0,
             right: 0,
             bottom: 0,
+            width: '100vw',
+            height: '100vh',
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: 100000,
             padding: '20px',
+            overflow: 'hidden',
           }}
           onClick={onClose}
         >
@@ -55,8 +58,11 @@ export const Modal: React.FC<ModalProps> = ({
               position: 'relative',
               maxWidth: '90vw',
               maxHeight: '90vh',
+              willChange: 'auto',
+              transform: 'translateZ(0)',
             }}
             onClick={e => e.stopPropagation()}
+            layout={false}
           >
             <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
@@ -83,6 +89,7 @@ export const Modal: React.FC<ModalProps> = ({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1, duration: 0.3 }}
+              layout={false}
             >
               {children}
             </motion.div>

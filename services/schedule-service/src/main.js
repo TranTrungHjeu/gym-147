@@ -132,6 +132,25 @@ async function startServer() {
     console.log(`WebSocket server initialized`);
     console.log(`Auto-update cron job started (every 1 minute)`);
     console.log(`Auto check-out service started (every 1 minute)`);
+    
+    // Start certification expiry warning cron job
+    // Can be configured via environment variables
+    const expiryWarningHour = parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_HOUR || '9');
+    const expiryWarningMinutes = parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_MINUTES || '0');
+    const expiryWarningDays = parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_DAYS || '30');
+    // Production mode: Run daily at specified time (default: 9:00 AM)
+    // Test mode: Set CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS env var to run at interval (e.g., 5 for every 5 seconds)
+    const expiryWarningIntervalSeconds = process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS
+      ? parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS)
+      : null; // Production mode: null = daily schedule at specified hour
+    
+    // If interval is set, use test mode (run at interval), otherwise use daily schedule
+    cronService.startCertificationExpiryWarningCron(
+      expiryWarningHour,
+      expiryWarningMinutes,
+      expiryWarningDays,
+      expiryWarningIntervalSeconds
+    );
   });
 }
 

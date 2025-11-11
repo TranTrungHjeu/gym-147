@@ -1,5 +1,6 @@
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 interface Option {
   value: string;
@@ -27,6 +28,7 @@ export default function CustomSelect({
 }: CustomSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [focusedIndex, setFocusedIndex] = useState(-1);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
   const selectRef = useRef<HTMLDivElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -34,7 +36,13 @@ export default function CustomSelect({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (selectRef.current && !selectRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        selectRef.current &&
+        !selectRef.current.contains(target) &&
+        listRef.current &&
+        !listRef.current.contains(target)
+      ) {
         setIsOpen(false);
         setFocusedIndex(-1);
       }
@@ -114,14 +122,40 @@ export default function CustomSelect({
     setFocusedIndex(-1);
   };
 
+  const updateDropdownPosition = () => {
+    if (selectRef.current) {
+      const rect = selectRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + window.scrollY + 8, // mt-2 = 8px
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  };
+
   const handleToggle = () => {
     if (disabled) return;
-    setIsOpen(!isOpen);
     if (!isOpen) {
+      updateDropdownPosition();
       const currentIndex = options.findIndex(opt => opt.value === value);
       setFocusedIndex(currentIndex >= 0 ? currentIndex : 0);
     }
+    setIsOpen(!isOpen);
   };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateDropdownPosition();
+      const handleResize = () => updateDropdownPosition();
+      const handleScroll = () => updateDropdownPosition();
+      window.addEventListener('resize', handleResize);
+      window.addEventListener('scroll', handleScroll, true);
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        window.removeEventListener('scroll', handleScroll, true);
+      };
+    }
+  }, [isOpen]);
 
   // Extract error class from className if present
   const hasError = className.includes('border-red-500');
@@ -183,57 +217,70 @@ export default function CustomSelect({
         </div>
       </button>
 
-      {/* Dropdown List */}
-      {isOpen && !disabled && (
-        <div className='absolute z-50 w-full mt-2 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden'>
+      {/* Dropdown List - Rendered via Portal */}
+      {isOpen &&
+        !disabled &&
+        typeof document !== 'undefined' &&
+        createPortal(
           <div
-            ref={listRef}
-            className='custom-select-scrollbar max-h-60 overflow-y-auto'
+            className='fixed bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden'
             style={{
-              scrollbarWidth: 'thin',
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              width: `${dropdownPosition.width}px`,
+              zIndex: 100002,
+              position: 'fixed',
             }}
           >
-            {options.map((option, index) => {
-              const isSelected = option.value === value;
-              const isFocused = index === focusedIndex;
+            <div
+              ref={listRef}
+              className='custom-select-scrollbar max-h-60 overflow-y-auto'
+              style={{
+                scrollbarWidth: 'thin',
+              }}
+            >
+              {options.map((option, index) => {
+                const isSelected = option.value === value;
+                const isFocused = index === focusedIndex;
 
-              return (
-                <button
-                  key={option.value}
-                  type='button'
-                  onClick={() => handleSelect(option.value)}
-                  className={`w-full px-2.5 py-1.5 text-[10px] text-left font-inter transition-all duration-150 ${
-                    isSelected
-                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-semibold'
-                      : 'text-gray-900 dark:text-white'
-                  } ${
-                    isFocused && !isSelected ? 'bg-gray-50 dark:bg-gray-800/50' : ''
-                  } hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 focus:outline-none focus:bg-orange-50 dark:focus:bg-orange-900/20`}
-                >
-                  <div className='flex items-center justify-between'>
-                    <span>{option.label}</span>
-                    {isSelected && (
-                      <svg
-                        className='w-3 h-3 text-orange-600 dark:text-orange-400'
-                        fill='none'
-                        viewBox='0 0 24 24'
-                        stroke='currentColor'
-                      >
-                        <path
-                          strokeLinecap='round'
-                          strokeLinejoin='round'
-                          strokeWidth={2}
-                          d='M5 13l4 4L19 7'
-                        />
-                      </svg>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+                return (
+                  <button
+                    key={option.value}
+                    type='button'
+                    onClick={() => handleSelect(option.value)}
+                    className={`w-full px-2.5 py-1.5 text-[10px] text-left font-inter transition-all duration-150 ${
+                      isSelected
+                        ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-semibold'
+                        : 'text-gray-900 dark:text-white'
+                    } ${
+                      isFocused && !isSelected ? 'bg-gray-50 dark:bg-gray-800/50' : ''
+                    } hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 focus:outline-none focus:bg-orange-50 dark:focus:bg-orange-900/20`}
+                  >
+                    <div className='flex items-center justify-between'>
+                      <span>{option.label}</span>
+                      {isSelected && (
+                        <svg
+                          className='w-3 h-3 text-orange-600 dark:text-orange-400'
+                          fill='none'
+                          viewBox='0 0 24 24'
+                          stroke='currentColor'
+                        >
+                          <path
+                            strokeLinecap='round'
+                            strokeLinejoin='round'
+                            strokeWidth={2}
+                            d='M5 13l4 4L19 7'
+                          />
+                        </svg>
+                      )}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

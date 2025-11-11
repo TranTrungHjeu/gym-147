@@ -1,3 +1,4 @@
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   AlertCircle,
   Bell,
@@ -18,12 +19,22 @@ interface NotificationDropdownProps {
   userId: string;
 }
 
+// Note: Debounced fetch functions are no longer needed
+// We use optimistic updates from socket events instead
+
 export default function NotificationDropdown({ userId }: NotificationDropdownProps) {
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [markingAsRead, setMarkingAsRead] = useState<Set<string>>(new Set()); // Track notifications being marked as read
+  const [newNotificationIds, setNewNotificationIds] = useState<Set<string>>(new Set()); // Track newly received notifications
+  const [markingAllAsRead, setMarkingAllAsRead] = useState(false); // Track if marking all as read
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Add refs to track pending fetches and processed events
+  const isFetchingRef = useRef(false);
+  const processedEventsRef = useRef<Set<string>>(new Set());
 
   const fetchNotifications = useCallback(async () => {
     if (!userId) return;
@@ -60,6 +71,21 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     }
   }, [userId]);
 
+  // Update document title when unread count changes
+  useEffect(() => {
+    const baseTitle = 'GYM 147';
+    if (unreadCount > 0) {
+      document.title = `${baseTitle} (${unreadCount})`;
+    } else {
+      document.title = baseTitle;
+    }
+
+    // Cleanup: reset title when component unmounts
+    return () => {
+      document.title = baseTitle;
+    };
+  }, [unreadCount]);
+
   useEffect(() => {
     if (!userId) return;
 
@@ -69,61 +95,346 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     // Socket should already be connected by AppLayout/TrainerLayout
     // Just get the socket and setup listeners
     const setupSocketListeners = () => {
+      console.log(`🔌 [NOTIFICATION_DROPDOWN] Setting up socket listeners for userId: ${userId}`);
+
       // Ensure socket is connected (but don't create new connection if already exists)
       const currentSocket = socketService.getSocket() || socketService.connect(userId);
-      
+
       if (!currentSocket) {
+        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Socket not available, retrying in 1s...`);
         setTimeout(setupSocketListeners, 1000);
         return null;
       }
 
       if (!currentSocket.connected) {
-        currentSocket.once('connect', setupSocketListeners);
+        console.log(
+          `⏳ [NOTIFICATION_DROPDOWN] Socket not connected yet, waiting for connect event...`
+        );
+        currentSocket.once('connect', () => {
+          console.log(`✅ [NOTIFICATION_DROPDOWN] Socket connected, setting up listeners...`);
+          setupSocketListeners();
+        });
         return null;
       }
-      
-      // Ensure we're subscribed to the user room
+
+      console.log(
+        `✅ [NOTIFICATION_DROPDOWN] Socket is connected: ${currentSocket.id}, User ID: ${userId}`
+      );
+
+      // Ensure we're subscribed to the user room FIRST, before setting up listeners
       if (userId) {
+        console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribing to user room: user:${userId}`);
         currentSocket.emit('subscribe:user', userId);
       }
-      
-      const handleBookingNew = (eventName: string, data?: any) => {
-        // Add a delay to ensure notification is saved to database
-        // Use longer delay for schedule:new and certification events as they need to save to multiple admins
-        const needsLongDelay = eventName === 'schedule:new' || 
-                               eventName === 'certification:pending' || 
-                               eventName === 'certification:verified' ||
-                               eventName === 'certification:rejected' ||
-                               eventName === 'certification:status';
-        const delay = needsLongDelay ? 1000 : 500;
-        
-        // First fetch after delay
-        setTimeout(() => {
-          fetchNotifications();
-          fetchUnreadCount();
-        }, delay);
-        
-        // Retry fetch after additional delay if needed (for schedule:new and certification events)
-        if (needsLongDelay) {
-          setTimeout(() => {
-            fetchNotifications();
-            fetchUnreadCount();
-          }, delay + 1000);
+
+      // Helper function to add notification optimistically (without fetching from server)
+      const addNotificationOptimistically = (notificationData: any) => {
+        console.log(
+          `🔍 [NOTIFICATION_DROPDOWN] addNotificationOptimistically called with:`,
+          JSON.stringify(notificationData, null, 2)
+        );
+
+        // Extract notification_id from various possible locations
+        const notificationId =
+          notificationData?.notification_id ||
+          notificationData?.id ||
+          notificationData?.data?.notification_id;
+
+        if (!notificationId) {
+          console.warn(
+            '⚠️ [NOTIFICATION_DROPDOWN] Cannot add notification: missing notification_id',
+            notificationData
+          );
+          return;
         }
+
+        console.log(
+          `✅ [NOTIFICATION_DROPDOWN] Found notification_id: ${notificationId}, adding to state`
+        );
+
+        // Check if notification already exists and add to state
+        setNotifications(prev => {
+          const exists = prev.some(n => n.id === notificationId);
+          if (exists) {
+            console.log(
+              `ℹ️ [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists in state, skipping`
+            );
+            return prev; // Don't modify state if already exists
+          }
+
+          // Create new notification object from socket data
+          // Handle different data structures from backend
+          const newNotification: Notification = {
+            id: notificationId,
+            user_id: userId,
+            type: notificationData.type || notificationData.data?.type || 'GENERAL',
+            title: notificationData.title || notificationData.data?.title || 'Thông báo mới',
+            message: notificationData.message || notificationData.data?.message || '',
+            data: notificationData.data || notificationData || {},
+            is_read: notificationData.is_read || false,
+            created_at:
+              notificationData.created_at ||
+              notificationData.data?.created_at ||
+              new Date().toISOString(),
+            updated_at:
+              notificationData.created_at ||
+              notificationData.updated_at ||
+              notificationData.data?.created_at ||
+              new Date().toISOString(),
+          };
+
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Created notification object:`,
+            JSON.stringify(newNotification, null, 2)
+          );
+
+          // Add to beginning of list (newest first) - NO RELOAD, just state update
+          const updated = [newNotification, ...prev].slice(0, 50); // Keep only latest 50
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} to state. Total notifications: ${updated.length}`
+          );
+          return updated;
+        });
+
+        // Update unread count immediately (no reload)
+        setUnreadCount(prev => {
+          const newCount = prev + 1;
+          console.log(`🔢 [NOTIFICATION_DROPDOWN] Unread count updated: ${prev} → ${newCount}`);
+          return newCount;
+        });
+
+        // Track for animation
+        setNewNotificationIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(notificationId);
+          console.log(`🎬 [NOTIFICATION_DROPDOWN] Added ${notificationId} to animation set`);
+          return newSet;
+        });
+
+        setTimeout(() => {
+          setNewNotificationIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(notificationId);
+            return newSet;
+          });
+        }, 2000); // Remove from animation set after 2s
       };
 
-      currentSocket.on('booking:new', data => handleBookingNew('booking:new', data));
-      currentSocket.on('booking:pending_payment', data => handleBookingNew('booking:pending_payment', data));
-      currentSocket.on('booking:confirmed', data => handleBookingNew('booking:confirmed', data));
-      currentSocket.on('schedule:new', data => handleBookingNew('schedule:new', data));
-      currentSocket.on('certification:pending', data => handleBookingNew('certification:pending', data));
-      currentSocket.on('certification:status', data => handleBookingNew('certification:status', data));
-      currentSocket.on('certification:verified', data => handleBookingNew('certification:verified', data));
-      currentSocket.on('certification:rejected', data => handleBookingNew('certification:rejected', data));
+      const handleBookingNew = (eventName: string, data?: any) => {
+        console.log(
+          `📢 [NOTIFICATION_DROPDOWN] Received ${eventName} event:`,
+          JSON.stringify(data, null, 2)
+        );
 
-      // Poll for new notifications every 30 seconds as backup
+        // Extract notification_id from various possible locations
+        // Backend emits different structures:
+        // 1. notification:new: { notification_id, type, title, message, data: {...}, created_at, is_read }
+        // 2. certification:upload: { notification_id, certification_id, trainer_id, ... } (socketData)
+        // 3. certification:verified: { notification_id, certification_id, trainer_id, ... } (socketData)
+        const notificationId =
+          data?.notification_id ||
+          data?.data?.notification_id ||
+          (data?.data && typeof data.data === 'object' && data.data.notification_id);
+
+        // Create unique event ID from event name and notification_id (if available)
+        const eventId = notificationId
+          ? `${eventName}:${notificationId}`
+          : `${eventName}:${Date.now()}:${Math.random()}`;
+
+        // Skip if we've already processed this event recently (within 5 seconds)
+        if (processedEventsRef.current.has(eventId)) {
+          console.log(
+            `⏭️ [NOTIFICATION_DROPDOWN] Skipping duplicate ${eventName} event: ${eventId}`
+          );
+          return;
+        }
+
+        // Mark event as processed
+        processedEventsRef.current.add(eventId);
+        // Clean up old event IDs after 5 seconds
+        setTimeout(() => {
+          processedEventsRef.current.delete(eventId);
+        }, 5000);
+
+        console.log(
+          `✅ [NOTIFICATION_DROPDOWN] Processing ${eventName} event optimistically (no reload)`
+        );
+        console.log(`🔍 [NOTIFICATION_DROPDOWN] Extracted notification_id: ${notificationId}`);
+
+        // For notification:new event, data structure is already correct
+        if (eventName === 'notification:new' && data) {
+          if (notificationId) {
+            console.log(
+              `📝 [NOTIFICATION_DROPDOWN] Adding notification from notification:new event (ID: ${notificationId}):`,
+              data
+            );
+            // Add notification immediately to UI (optimistic update)
+            addNotificationOptimistically(data);
+
+            // Sync unread count in background after delay (no UI impact)
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 2000);
+          } else {
+            console.warn(
+              `⚠️ [NOTIFICATION_DROPDOWN] notification:new event missing notification_id:`,
+              data
+            );
+          }
+          return;
+        }
+
+        // For certification events (certification:upload, certification:verified, etc.)
+        // These events contain notification_id in the socketData
+        // Structure: { notification_id, certification_id, trainer_id, title, message, ... }
+        if (notificationId) {
+          // Construct notification object from certification event data
+          // Backend emits socketData with notification_id, title, message, etc.
+          // For certification:verified/rejected, backend also emits notification:new separately
+          // But we handle certification events here as backup
+
+          // Determine notification type based on event name
+          let notificationType = 'CERTIFICATION_UPLOAD';
+          if (eventName === 'certification:verified') {
+            notificationType = 'CERTIFICATION_VERIFIED';
+          } else if (eventName === 'certification:rejected') {
+            notificationType = 'CERTIFICATION_REJECTED';
+          } else if (eventName === 'certification:pending') {
+            notificationType = 'CERTIFICATION_UPLOAD';
+          }
+
+          const notificationData = {
+            notification_id: notificationId,
+            type: data?.type || data?.data?.type || notificationType,
+            title: data?.title || data?.data?.title || 'Chứng chỉ mới',
+            message: data?.message || data?.data?.message || '',
+            data: data?.data || data || {},
+            created_at: data?.created_at || data?.data?.created_at || new Date().toISOString(),
+            is_read: false,
+          };
+
+          console.log(
+            `📝 [NOTIFICATION_DROPDOWN] Adding notification from ${eventName} event (ID: ${notificationId}):`,
+            notificationData
+          );
+
+          // Add notification optimistically
+          addNotificationOptimistically(notificationData);
+
+          // Sync unread count in background after delay (no UI impact)
+          setTimeout(() => {
+            fetchUnreadCount().catch(error => {
+              console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+            });
+          }, 2000);
+          return;
+        }
+
+        // Fallback: For events without notification_id, do NOT reload notifications
+        // Only sync unread count in background (no UI impact)
+        console.log(
+          `ℹ️ [NOTIFICATION_DROPDOWN] Event ${eventName} doesn't contain notification_id. Data:`,
+          data
+        );
+        console.log(`ℹ️ [NOTIFICATION_DROPDOWN] Syncing unread count only (no reload).`);
+        setTimeout(() => {
+          fetchUnreadCount().catch(error => {
+            console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+          });
+        }, 1000);
+      };
+
+      // Remove existing listeners first to avoid duplicates
+      currentSocket.off('booking:new');
+      currentSocket.off('booking:pending_payment');
+      currentSocket.off('booking:confirmed');
+      currentSocket.off('schedule:new');
+      currentSocket.off('certification:upload');
+      currentSocket.off('certification:pending');
+      currentSocket.off('certification:status');
+      currentSocket.off('certification:verified');
+      currentSocket.off('certification:rejected');
+      currentSocket.off('notification:new');
+
+      // Register all event listeners
+      currentSocket.on('booking:new', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:new event received`);
+        handleBookingNew('booking:new', data);
+      });
+      currentSocket.on('booking:pending_payment', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:pending_payment event received`);
+        handleBookingNew('booking:pending_payment', data);
+      });
+      currentSocket.on('booking:confirmed', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:confirmed event received`);
+        handleBookingNew('booking:confirmed', data);
+      });
+      currentSocket.on('schedule:new', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:new event received`);
+        handleBookingNew('schedule:new', data);
+      });
+
+      // Listen for certification:upload (new certification uploaded, needs review)
+      // Note: Backend may emit multiple events (certification:upload, certification:pending, notification:new)
+      // Our debounce logic will handle duplicate events
+      currentSocket.on('certification:upload', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:upload event received:`, data);
+        handleBookingNew('certification:upload', data);
+      });
+
+      // Also listen for certification:pending for backward compatibility
+      currentSocket.on('certification:pending', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:pending event received:`, data);
+        handleBookingNew('certification:pending', data);
+      });
+
+      currentSocket.on('certification:status', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:status event received`);
+        handleBookingNew('certification:status', data);
+      });
+
+      currentSocket.on('certification:verified', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:verified event received`);
+        handleBookingNew('certification:verified', data);
+      });
+
+      currentSocket.on('certification:rejected', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:rejected event received`);
+        handleBookingNew('certification:rejected', data);
+      });
+
+      // Listen for notification:new event (general notification event)
+      // This is the PRIMARY event - other events are for backward compatibility
+      console.log(
+        `👂 [NOTIFICATION_DROPDOWN] Registering notification:new listener on socket: ${currentSocket.id}`
+      );
+      currentSocket.on('notification:new', data => {
+        console.log(
+          '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received directly from socket:',
+          JSON.stringify(data, null, 2)
+        );
+        handleBookingNew('notification:new', data);
+      });
+
+      console.log(
+        `✅ [NOTIFICATION_DROPDOWN] All socket listeners registered successfully on socket: ${currentSocket.id}`
+      );
+
+      // Verify subscription after a short delay
+      setTimeout(() => {
+        console.log(
+          `🔍 [NOTIFICATION_DROPDOWN] Socket subscription verification - Socket ID: ${currentSocket.id}, User ID: ${userId}, Connected: ${currentSocket.connected}`
+        );
+      }, 500);
+
+      // Poll for new notifications every 30 seconds as backup (only unread count, not full fetch)
       const interval = setInterval(() => {
-        fetchUnreadCount();
+        // Only fetch unread count in polling, not full notifications (to reduce load)
+        if (!isFetchingRef.current) {
+          fetchUnreadCount();
+        }
       }, 30000);
 
       return () => {
@@ -131,49 +442,158 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         currentSocket.off('booking:pending_payment');
         currentSocket.off('booking:confirmed');
         currentSocket.off('schedule:new');
+        currentSocket.off('certification:upload');
         currentSocket.off('certification:pending');
         currentSocket.off('certification:status');
         currentSocket.off('certification:verified');
         currentSocket.off('certification:rejected');
+        currentSocket.off('notification:new');
         clearInterval(interval);
       };
     };
 
     const cleanup = setupSocketListeners();
 
-    // Fallback to polling if socket is not available
-    const pollingInterval = setInterval(() => {
-      fetchUnreadCount();
-    }, 30000);
+    // Listen for certification:created event (triggered after trainer uploads certification)
+    // Note: Socket events should handle this, but this is a fallback
+    // We don't reload here - socket events will handle adding notifications optimistically
+    const handleCertificationCreated = (event: CustomEvent) => {
+      console.log('📢 [NOTIFICATION_DROPDOWN] certification:created event received:', event.detail);
+      // Don't reload notifications - socket events will handle this optimistically
+      // Just sync unread count in the background after a delay to ensure accuracy
+      setTimeout(() => {
+        fetchUnreadCount().catch(error => {
+          console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+        });
+      }, 2000);
+    };
+
+    window.addEventListener('certification:created', handleCertificationCreated as EventListener);
+
+    // Listen for notification:new custom event from AppLayout/TrainerLayout (fallback if socket event missed)
+    // This is important because sometimes socket events might be received by Layout components first
+    const handleNotificationNew = (event: CustomEvent) => {
+      console.log(
+        '📢 [NOTIFICATION_DROPDOWN] ⭐⭐ notification:new custom event received from Layout:',
+        JSON.stringify(event.detail, null, 2)
+      );
+      // Extract notification data and add optimistically
+      const notificationData = event.detail;
+
+      // Extract notification_id from various possible locations
+      const notificationId =
+        notificationData?.notification_id ||
+        notificationData?.id ||
+        notificationData?.data?.notification_id;
+
+      if (notificationId) {
+        console.log(
+          `✅ [NOTIFICATION_DROPDOWN] Found notification_id from custom event: ${notificationId}`
+        );
+
+        setNotifications(prev => {
+          const exists = prev.some(n => n.id === notificationId);
+          if (exists) {
+            console.log(
+              `ℹ️ [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists, skipping`
+            );
+            return prev;
+          }
+
+          // Construct notification object - handle different data structures
+          // Structure 1: { notification_id, type, title, message, data: {...}, created_at, is_read }
+          // Structure 2: { notification_id, certification_id, title, message, ... } (from certification events)
+          const notificationType =
+            notificationData.type || notificationData.data?.type || 'GENERAL';
+          const notificationTitle =
+            notificationData.title ||
+            notificationData.data?.title ||
+            notificationData.data?.title ||
+            'Thông báo mới';
+          const notificationMessage =
+            notificationData.message || notificationData.data?.message || '';
+
+          // Merge data - prioritize data.data if it exists (from notification:new structure)
+          // Otherwise use notificationData directly (from certification events)
+          const notificationDataObj = notificationData.data || notificationData || {};
+
+          const newNotification: Notification = {
+            id: notificationId,
+            user_id: userId,
+            type: notificationType,
+            title: notificationTitle,
+            message: notificationMessage,
+            data: notificationDataObj,
+            is_read: false,
+            created_at:
+              notificationData.created_at ||
+              notificationData.data?.created_at ||
+              notificationDataObj.created_at ||
+              new Date().toISOString(),
+            updated_at:
+              notificationData.created_at ||
+              notificationData.updated_at ||
+              notificationData.data?.created_at ||
+              notificationDataObj.created_at ||
+              new Date().toISOString(),
+          };
+
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} from custom event`
+          );
+          return [newNotification, ...prev].slice(0, 50);
+        });
+
+        setUnreadCount(prev => {
+          const newCount = prev + 1;
+          console.log(
+            `🔢 [NOTIFICATION_DROPDOWN] Unread count updated from custom event: ${prev} → ${newCount}`
+          );
+          return newCount;
+        });
+      } else {
+        console.warn(
+          '⚠️ [NOTIFICATION_DROPDOWN] Custom event notification:new missing notification_id:',
+          notificationData
+        );
+      }
+    };
+
+    window.addEventListener('notification:new', handleNotificationNew as EventListener);
 
     return () => {
       if (cleanup) cleanup();
-      clearInterval(pollingInterval);
+      window.removeEventListener(
+        'certification:created',
+        handleCertificationCreated as EventListener
+      );
+      window.removeEventListener('notification:new', handleNotificationNew as EventListener);
     };
-  }, [userId, fetchNotifications, fetchUnreadCount]);
+  }, [userId, fetchUnreadCount]);
 
   // Listen for custom events from AppLayout/TrainerLayout (for certification updates)
+  // Note: These events are dispatched from AppLayout/TrainerLayout when socket events are received
+  // Socket events should already be handled in setupSocketListeners, but this is a fallback
   useEffect(() => {
-    const handleCertificationUpdated = (event: CustomEvent) => {
-      // Use same delay logic as socket events (1000ms + retry 2000ms)
+    const handleCertificationUpdated = () => {
+      // Don't reload notifications - socket events will handle this optimistically
+      // Just sync unread count in the background after a delay to ensure accuracy
       setTimeout(() => {
-        fetchNotifications();
-        fetchUnreadCount();
+        fetchUnreadCount().catch(error => {
+          console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+        });
       }, 1000);
-      
-      // Retry after additional delay
-      setTimeout(() => {
-        fetchNotifications();
-        fetchUnreadCount();
-      }, 2000);
     };
 
     window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
 
     return () => {
-      window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
+      window.removeEventListener(
+        'certification:updated',
+        handleCertificationUpdated as EventListener
+      );
     };
-  }, [fetchNotifications, fetchUnreadCount]);
+  }, [fetchUnreadCount]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -186,11 +606,17 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-
   const handleMarkAsRead = async (notificationId: string) => {
     try {
+      // Add to marking set to trigger transition state
+      setMarkingAsRead(prev => new Set(prev).add(notificationId));
+
+      // Wait for CSS transition to start rendering
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       const response = await notificationService.markAsRead(notificationId, userId);
       if (response.success) {
+        // Update notification state - this triggers the main transition
         setNotifications(prev =>
           prev.map(notif =>
             notif.id === notificationId
@@ -199,22 +625,76 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           )
         );
         setUnreadCount(prev => Math.max(0, prev - 1));
+
+        // Wait for transition to complete before removing from marking set
+        setTimeout(() => {
+          setMarkingAsRead(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(notificationId);
+            return newSet;
+          });
+        }, 700); // Match transition duration (650ms) + buffer
+      } else {
+        // If failed, remove from marking set immediately
+        setMarkingAsRead(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(notificationId);
+          return newSet;
+        });
       }
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      // Remove from marking set on error
+      setMarkingAsRead(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(notificationId);
+        return newSet;
+      });
     }
   };
 
   const handleMarkAllAsRead = async () => {
     try {
+      // Start marking all as read animation
+      setMarkingAllAsRead(true);
+
+      // Get all unread notification IDs
+      const unreadNotificationIds = notifications
+        .filter(notif => !notif.is_read)
+        .map(notif => notif.id);
+
+      // Add all unread notifications to marking set for staggered animation
+      unreadNotificationIds.forEach(id => {
+        setMarkingAsRead(prev => new Set(prev).add(id));
+      });
+
+      // Wait for animations to complete (staggered: 0.05s delay * number of items + 0.65s transition)
+      const animationDuration = unreadNotificationIds.length * 50 + 650;
+      await new Promise(resolve => setTimeout(resolve, animationDuration));
+
       const response = await notificationService.markAllAsRead(userId);
       if (response.success) {
-        // Reload notifications and unread count from backend to ensure consistency
-        await fetchNotifications();
-        await fetchUnreadCount();
+        // Update all notifications to read state
+        setNotifications(prev =>
+          prev.map(notif => ({
+            ...notif,
+            is_read: true,
+            read_at: notif.read_at || new Date().toISOString(),
+          }))
+        );
+        setUnreadCount(0);
       }
+
+      // Clean up marking states
+      setTimeout(() => {
+        setMarkingAsRead(new Set());
+        setMarkingAllAsRead(false);
+      }, 100);
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
+      // Clean up on error
+      setMarkingAsRead(new Set());
+      setMarkingAllAsRead(false);
     }
   };
 
@@ -222,9 +702,10 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     try {
       const response = await notificationService.deleteNotification(notificationId, userId);
       if (response.success) {
+        // Remove notification from state immediately - AnimatePresence will handle exit animation
+        const deletedNotification = notifications.find(notif => notif.id === notificationId);
         setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
         // Check if the deleted notification was unread
-        const deletedNotification = notifications.find(notif => notif.id === notificationId);
         if (deletedNotification && !deletedNotification.is_read) {
           setUnreadCount(prev => Math.max(0, prev - 1));
         }
@@ -235,7 +716,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   };
 
   const getNotificationIcon = (type: string) => {
-    const iconClass = 'w-5 h-5';
+    const iconClass = 'w-5 h-5 text-orange-600 dark:text-orange-400';
     switch (type) {
       case 'CERTIFICATION_VERIFIED':
         return <CheckCheck className={iconClass} />;
@@ -243,6 +724,8 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         return <XCircle className={iconClass} />;
       case 'CERTIFICATION_AUTO_VERIFIED':
         return <Sparkles className={iconClass} />;
+      case 'CERTIFICATION_PENDING':
+        return <AlertCircle className={iconClass} />;
       case 'CLASS_BOOKING':
         return <Calendar className={iconClass} />;
       case 'CLASS_CANCELLED':
@@ -317,12 +800,20 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   };
 
   const getNotificationRole = (notification: Notification): string | null => {
-    const { type, data } = notification;
+    const { type, data, message } = notification;
 
-    // Check if data contains role information
+    // Priority 1: Check if data contains role information (highest priority)
     if (data && typeof data === 'object') {
-      if ('role' in data) {
+      if ('role' in data && data.role) {
         return data.role as string;
+      }
+      // If notification has auto_verified: true or verified_by: 'AI_SYSTEM', it's from AI
+      if (data.auto_verified === true || data.verified_by === 'AI_SYSTEM') {
+        return 'AI';
+      }
+      // If notification has admin_id or admin_name, it's from ADMIN
+      if ('admin_id' in data || 'admin_name' in data) {
+        return 'ADMIN';
       }
       // If notification has trainer_id or trainer_name, it's from TRAINER
       if ('trainer_id' in data || 'trainer_name' in data) {
@@ -334,24 +825,43 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       }
     }
 
-    // Infer role from notification type
+    // Priority 2: Check message content for role hints (before type inference)
+    const messageLower = message?.toLowerCase() || '';
+    if (
+      messageLower.includes('admin đã') ||
+      messageLower.includes('quản trị viên đã') ||
+      messageLower.startsWith('admin')
+    ) {
+      return 'ADMIN';
+    }
+    if (messageLower.includes('trainer') || messageLower.includes('huấn luyện viên')) {
+      return 'TRAINER';
+    }
+
+    // Priority 3: Infer role from notification type
     if (type.startsWith('CERTIFICATION_')) {
+      // If title is "AI duyệt", it's from AI
+      const titleLower = notification.title?.toLowerCase() || '';
+      if (titleLower.includes('ai duyệt') || titleLower === 'ai duyệt') {
+        return 'AI';
+      }
+      // If title is "Admin duyệt" or "Admin từ chối", it's from ADMIN
+      if (titleLower.includes('admin duyệt') || titleLower.includes('admin từ chối')) {
+        return 'ADMIN';
+      }
+      // If type is CERTIFICATION_AUTO_VERIFIED, it's from AI
+      if (type === 'CERTIFICATION_AUTO_VERIFIED') {
+        return 'AI';
+      }
+      // Otherwise, default to TRAINER for certification notifications
       return 'TRAINER';
     }
     if (type === 'CLASS_BOOKING' || type === 'MEMBERSHIP_' || type.startsWith('MEMBERSHIP_')) {
       return 'MEMBER';
     }
     if (type === 'SYSTEM_ANNOUNCEMENT' || type === 'GENERAL') {
-      // Check message content for hints
-      const message = notification.message.toLowerCase();
-      if (message.includes('trainer') || message.includes('huấn luyện viên')) {
-        return 'TRAINER';
-      }
-      if (message.includes('admin') || message.includes('quản trị')) {
-        return 'ADMIN';
-      }
       // Default for GENERAL from trainer creating class
-      if (message.includes('tạo lớp') || message.includes('lớp học mới')) {
+      if (messageLower.includes('tạo lớp') || messageLower.includes('lớp học mới')) {
         return 'TRAINER';
       }
       return 'SYSTEM';
@@ -363,43 +873,38 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   const getRoleBadge = (role: string | null) => {
     if (!role) return null;
 
-    const roleConfig: Record<string, { label: string; className: string }> = {
+    const roleConfig: Record<string, { label: string }> = {
       TRAINER: {
         label: 'Huấn luyện viên',
-        className:
-          'bg-blue-100 text-blue-700 dark:bg-blue-500/20 dark:text-blue-400 border-blue-200 dark:border-blue-500/30',
       },
       MEMBER: {
         label: 'Thành viên',
-        className:
-          'bg-green-100 text-green-700 dark:bg-green-500/20 dark:text-green-400 border-green-200 dark:border-green-500/30',
       },
       ADMIN: {
         label: 'Quản trị viên',
-        className:
-          'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200 dark:border-orange-500/30',
+      },
+      AI: {
+        label: 'AI',
       },
       SUPER_ADMIN: {
         label: 'Super Admin',
-        className:
-          'bg-purple-100 text-purple-700 dark:bg-purple-500/20 dark:text-purple-400 border-purple-200 dark:border-purple-500/30',
       },
       SYSTEM: {
         label: 'Hệ thống',
-        className:
-          'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400 border-gray-200 dark:border-gray-500/30',
       },
     };
 
+    // Tất cả badge đều dùng màu cam để đồng bộ
+    const orangeBadgeClassName =
+      'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200 dark:border-orange-500/30';
+
     const config = roleConfig[role] || {
       label: role,
-      className:
-        'bg-gray-100 text-gray-700 dark:bg-gray-500/20 dark:text-gray-400 border-gray-200 dark:border-gray-500/30',
     };
 
     return (
       <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-md text-theme-xs font-heading font-semibold border ${config.className} shadow-sm`}
+        className={`inline-flex items-center px-2 py-0.5 rounded-md text-theme-xs font-heading font-semibold border ${orangeBadgeClassName} shadow-sm`}
       >
         {config.label}
       </span>
@@ -409,47 +914,105 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
   const renderMessageWithBadge = (notification: Notification) => {
     const role = getNotificationRole(notification);
     const badge = getRoleBadge(role);
-    
+
     // Extract name from message or data
+    // Priority: admin_name > trainer_name > member_name > extract from message
     let name = '';
     if (notification.data && typeof notification.data === 'object') {
-      name = notification.data.trainer_name || notification.data.member_name || '';
-    }
-    
-    // If no name in data, try to extract from message (first word before "đã")
-    if (!name) {
-      const match = notification.message.match(/^([^đ]+?)\s+đã/);
-      if (match) {
-        name = match[1].trim();
+      // For ADMIN role, prioritize admin_name
+      if (role === 'ADMIN' && notification.data.admin_name) {
+        name = notification.data.admin_name;
+      } else {
+        // For other roles, use the appropriate name field
+        name =
+          notification.data.trainer_name ||
+          notification.data.member_name ||
+          notification.data.admin_name ||
+          '';
       }
     }
-    
-    // Format message with bold name
-    const formatMessage = (message: string, nameToBold: string) => {
+
+    // If no name in data and not ADMIN/AI role, try to extract from message (first word before "đã")
+    // But skip if it's "Admin" or "AI" since we have badges for those
+    if (!name && role !== 'ADMIN' && role !== 'AI') {
+      const match = notification.message.match(/^([^đ]+?)\s+đã/);
+      if (match) {
+        const extractedName = match[1].trim();
+        const extractedNameLower = extractedName.toLowerCase();
+        // Don't use "Admin" as name if we have ADMIN badge
+        // Don't use "AI" as name if we have AI badge
+        if (
+          (role !== 'ADMIN' || extractedNameLower !== 'admin') &&
+          (role !== 'AI' || extractedNameLower !== 'ai')
+        ) {
+          name = extractedName;
+        }
+      }
+    }
+
+    // For ADMIN role, if we have admin_name in data, use it (don't extract from message)
+    // If admin_name is "Admin" (default), don't show it in message since we have badge
+    if (role === 'ADMIN' && notification.data && typeof notification.data === 'object') {
+      const adminNameFromData = notification.data.admin_name;
+      if (adminNameFromData && adminNameFromData.toLowerCase() !== 'admin') {
+        name = adminNameFromData; // Use actual admin name
+      } else {
+        name = ''; // Don't extract "Admin" from message, badge will show it
+      }
+    }
+
+    // Format message: for ADMIN/AI roles with badges, remove the name from message since badge shows it
+    // If admin_name exists and is not "Admin", show it in message
+    // If admin_name is "Admin" or doesn't exist, remove "Admin" from message (badge shows it)
+    const formatMessage = (
+      message: string,
+      nameToBold: string,
+      shouldRemoveName: boolean = false
+    ) => {
+      if (shouldRemoveName && nameToBold) {
+        // Remove name from message (e.g., "Admin đã duyệt..." -> "đã duyệt...")
+        const namePattern = nameToBold.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        const regex = new RegExp(`^\\s*${namePattern}\\s+`, 'i');
+        return message.replace(regex, '');
+      }
+
       if (!nameToBold) {
         return message;
       }
+
       // Replace name with bold version
       const regex = new RegExp(`(${nameToBold.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'g');
       const parts = message.split(regex);
-      return parts.map((part, index) => 
+      return parts.map((part, index) =>
         part === nameToBold ? (
-          <strong key={index} className='font-bold'>{part}</strong>
+          <strong key={index} className='font-bold'>
+            {part}
+          </strong>
         ) : (
           part
         )
       );
     };
-    
+
+    // Determine if we should remove name from message
+    // For ADMIN/AI roles with badges, remove "Admin" or "AI" from message if it's the default name
+    const shouldRemoveNameFromMessage: boolean = !!(
+      badge &&
+      (role === 'ADMIN' || role === 'AI') &&
+      (!name || name.toLowerCase() === 'admin' || name.toLowerCase() === 'ai')
+    );
+
     if (!badge) {
-      return <span>{formatMessage(notification.message, name)}</span>;
+      return <span>{formatMessage(notification.message, name, false)}</span>;
     }
 
     // Render badge and message as inline elements within the same container
     return (
       <>
         {badge}
-        <span className='ml-2'>{formatMessage(notification.message, name)}</span>
+        <span className='ml-2'>
+          {formatMessage(notification.message, name, shouldRemoveNameFromMessage)}
+        </span>
       </>
     );
   };
@@ -465,153 +1028,661 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       >
         <Bell className='w-5 h-5 transition-transform duration-300 hover:scale-110' />
         {unreadCount > 0 && (
-          <span className='absolute -top-0.5 -right-0.5 bg-error-500 text-white text-theme-xs font-heading font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg shadow-error-500/50 border-2 border-white dark:border-gray-900 animate-pulse'>
-            {unreadCount > 9 ? '9+' : unreadCount}
-          </span>
+          <>
+            {/* Ping effect - ripple animation */}
+            <span className='absolute -top-0.5 -right-0.5 h-5 w-5 rounded-full bg-orange-500 opacity-75 animate-ping' />
+            {/* Badge with faster pulse */}
+            <span className='absolute -top-0.5 -right-0.5 bg-orange-500 text-white text-theme-xs font-heading font-bold rounded-full h-5 w-5 flex items-center justify-center shadow-lg shadow-orange-500/50 border-2 border-white dark:border-gray-900 z-10 notification-badge-pulse'>
+              {unreadCount > 9 ? '9+' : unreadCount}
+            </span>
+          </>
         )}
       </button>
 
       {/* Dropdown */}
-      {isOpen && (
-        <div className='absolute right-0 mt-2.5 w-[420px] bg-white dark:bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-xl shadow-gray-900/10 dark:shadow-gray-900/50 border border-gray-200/80 dark:border-gray-800/80 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300'>
-          {/* Header */}
-          <div className='px-5 py-4 border-b border-gray-200/80 dark:border-gray-800/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900/95'>
-            <div className='flex items-center justify-between'>
-              <div className='flex items-center gap-3'>
-                <h3 className='text-theme-xl font-heading font-semibold text-gray-900 dark:text-white tracking-tight'>
-                  Thông báo
-                </h3>
-                {unreadCount > 0 && (
-                  <span className='inline-flex items-center px-2.5 py-1 rounded-full text-theme-xs font-heading font-bold bg-error-100 text-error-700 dark:bg-error-500/20 dark:text-error-400 shadow-sm'>
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div
+            initial={{ opacity: 0, y: -10, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: -10, scale: 0.95 }}
+            transition={{ duration: 0.2, ease: 'easeOut' }}
+            className='absolute right-0 mt-2.5 w-[420px] bg-white dark:bg-gray-900/95 backdrop-blur-sm rounded-xl shadow-xl shadow-gray-900/10 dark:shadow-gray-900/50 border border-gray-200/80 dark:border-gray-800/80 z-50 overflow-hidden'
+          >
+            {/* Header - fixed height to prevent layout shift */}
+            <div className='px-5 py-4 border-b border-gray-200/80 dark:border-gray-800/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900/95 min-h-[72px]'>
+              <div className='flex items-center justify-between'>
+                <div className='flex items-center gap-3 flex-1 min-w-0'>
+                  <h3 className='text-theme-xl font-heading font-semibold text-gray-900 dark:text-white tracking-tight flex-shrink-0'>
+                    Thông báo
+                  </h3>
+                  {/* Badge - always present to prevent layout shift, hidden with visibility */}
+                  <span
+                    className={`inline-flex items-center px-2.5 py-1 rounded-full text-theme-xs font-heading font-bold bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 shadow-sm transition-opacity duration-300 ${
+                      unreadCount > 0
+                        ? 'opacity-100 visible pointer-events-auto'
+                        : 'opacity-0 invisible pointer-events-none'
+                    }`}
+                    aria-hidden={unreadCount === 0}
+                  >
                     {unreadCount} mới
                   </span>
-                )}
-              </div>
-              {unreadCount > 0 && (
+                </div>
+                {/* Button - always present to prevent layout shift, hidden with visibility */}
                 <button
                   onClick={handleMarkAllAsRead}
-                  className='text-theme-xs font-heading font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-all duration-200 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 active:scale-95'
+                  disabled={unreadCount === 0}
+                  className={`text-theme-xs font-heading font-medium text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-opacity duration-300 flex items-center gap-1.5 px-3 py-1.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 active:scale-95 flex-shrink-0 ${
+                    unreadCount > 0
+                      ? 'opacity-100 visible pointer-events-auto'
+                      : 'opacity-0 invisible pointer-events-none'
+                  }`}
+                  aria-hidden={unreadCount === 0}
                 >
                   <CheckCheck className='w-3.5 h-3.5' />
-                  Đánh dấu tất cả đã đọc
+                  <span>Đánh dấu tất cả đã đọc</span>
                 </button>
-              )}
-            </div>
-          </div>
-
-          {/* Notifications List */}
-          <div className='max-h-[480px] overflow-y-auto custom-scrollbar'>
-            {loading ? (
-              <div className='p-10 text-center'>
-                <div className='animate-spin rounded-full h-9 w-9 border-[3px] border-orange-200 border-t-orange-600 dark:border-orange-800 dark:border-t-orange-400 mx-auto'></div>
-                <p className='text-theme-sm font-inter font-medium text-gray-600 dark:text-gray-400 mt-4'>
-                  Đang tải thông báo...
-                </p>
               </div>
-            ) : !Array.isArray(notifications) || notifications.length === 0 ? (
-              <div className='p-12 text-center'>
-                <div className='w-20 h-20 mx-auto mb-5 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center shadow-inner'>
-                  <Bell className='w-9 h-9 text-gray-400 dark:text-gray-500' />
-                </div>
-                <p className='text-theme-sm font-heading font-semibold text-gray-700 dark:text-gray-300 mb-1.5'>
-                  Không có thông báo nào
-                </p>
-                <p className='text-theme-xs font-inter text-gray-500 dark:text-gray-400'>
-                  Các thông báo mới sẽ hiển thị ở đây
-                </p>
-                {!Array.isArray(notifications) && (
-                  <p className='text-theme-xs font-inter text-error-500 mt-2'>
-                    Debug: notifications is not an array ({typeof notifications})
+            </div>
+
+            {/* Notifications List */}
+            <motion.div
+              className='notification-scroll-container max-h-[480px] overflow-y-auto overflow-x-hidden'
+              style={{
+                scrollBehavior: 'smooth',
+                overscrollBehavior: 'contain',
+                scrollbarWidth: 'thin',
+                scrollbarColor: '#d1d5db transparent',
+              }}
+              variants={{
+                hidden: { opacity: 0 },
+                visible: {
+                  opacity: 1,
+                  transition: {
+                    staggerChildren: 0.05, // Delay between items
+                    delayChildren: 0.05, // Delay before starting
+                  },
+                },
+              }}
+              initial='hidden'
+              animate='visible'
+            >
+              <style>{`
+              .notification-scroll-container::-webkit-scrollbar {
+                width: 4px;
+              }
+              .notification-scroll-container::-webkit-scrollbar-track {
+                background: transparent;
+              }
+              .notification-scroll-container::-webkit-scrollbar-thumb {
+                background-color: #d1d5db;
+                border-radius: 2px;
+              }
+              .notification-scroll-container::-webkit-scrollbar-thumb:hover {
+                background-color: #9ca3af;
+              }
+              .dark .notification-scroll-container::-webkit-scrollbar-thumb {
+                background-color: #4b5563;
+              }
+              .dark .notification-scroll-container::-webkit-scrollbar-thumb:hover {
+                background-color: #6b7280;
+              }
+              
+              /* Enhanced pulse animation for notification badge - faster and more noticeable */
+              @keyframes notification-pulse {
+                0%, 100% {
+                  opacity: 1;
+                  transform: scale(1);
+                  box-shadow: 0 0 0 0 rgba(249, 115, 22, 0.8);
+                }
+                25% {
+                  opacity: 0.85;
+                  transform: scale(1.08);
+                  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.5);
+                }
+                50% {
+                  opacity: 1;
+                  transform: scale(1);
+                  box-shadow: 0 0 0 6px rgba(249, 115, 22, 0);
+                }
+                75% {
+                  opacity: 0.85;
+                  transform: scale(1.08);
+                  box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.5);
+                }
+              }
+              
+              .notification-badge-pulse {
+                animation: notification-pulse 0.8s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+              }
+              
+              /* Optimized smooth transitions - faster and smoother */
+              .notification-item-transition {
+                transition: background-color 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: background-color;
+              }
+              
+              .notification-border-transition {
+                transition: background-color 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                            opacity 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: background-color, opacity;
+              }
+              
+              .notification-shadow-transition {
+                transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: opacity;
+              }
+              
+              /* Dark mode - same optimized transitions */
+              .dark .notification-item-transition {
+                transition: background-color 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: background-color;
+              }
+              
+              .dark .notification-border-transition {
+                transition: background-color 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+                            opacity 0.65s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: background-color, opacity;
+              }
+              
+              .dark .notification-shadow-transition {
+                transition: opacity 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+                will-change: opacity;
+              }
+              
+              /* Smooth checkmark animation when marking as read */
+              @keyframes checkmark-success {
+                0% {
+                  transform: scale(0.8);
+                  opacity: 0.7;
+                  color: rgb(107 114 128); /* gray-500 */
+                }
+                50% {
+                  transform: scale(1.15);
+                }
+                100% {
+                  transform: scale(1);
+                  opacity: 1;
+                  color: rgb(34 197 94); /* success-500 */
+                }
+              }
+              
+              .checkmark-reading {
+                animation: checkmark-success 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+              }
+              
+              /* Mark all as read animation - stagger background transition */
+              .mark-all-as-read-animation {
+                animation: mark-all-as-read-fade 0.65s ease-in-out forwards;
+              }
+              
+              @keyframes mark-all-as-read-fade {
+                0% {
+                  background-color: rgb(254 243 199); /* orange-50 */
+                }
+                100% {
+                  background-color: rgb(255 255 255); /* white */
+                }
+              }
+              
+              .dark .mark-all-as-read-animation {
+                animation: mark-all-as-read-fade-dark 0.65s ease-in-out forwards;
+              }
+              
+              @keyframes mark-all-as-read-fade-dark {
+                0% {
+                  background-color: rgb(154 52 18 / 0.2); /* orange-900/20 */
+                }
+                100% {
+                  background-color: rgb(17 24 39 / 0.95); /* gray-900/95 */
+                }
+              }
+              
+              /* Border fade out animation for mark all as read */
+              @keyframes border-fade-out {
+                0% {
+                  background-color: rgb(249 115 22); /* orange-500 */
+                }
+                100% {
+                  background-color: transparent;
+                }
+              }
+              
+              .dark @keyframes border-fade-out-dark {
+                0% {
+                  background-color: rgb(251 146 60); /* orange-400 */
+                }
+                100% {
+                  background-color: transparent;
+                }
+              }
+              
+              /* Shadow fade out animation for mark all as read */
+              @keyframes shadow-fade-out {
+                0% {
+                  opacity: 1;
+                }
+                100% {
+                  opacity: 0;
+                }
+              }
+            `}</style>
+              {loading ? (
+                <div className='p-10 text-center'>
+                  <div className='animate-spin rounded-full h-9 w-9 border-[3px] border-orange-200 border-t-orange-600 dark:border-orange-800 dark:border-t-orange-400 mx-auto'></div>
+                  <p className='text-theme-sm font-inter font-medium text-gray-600 dark:text-gray-400 mt-4'>
+                    Đang tải thông báo...
                   </p>
-                )}
-              </div>
-            ) : (
-              notifications
-                .filter(notification => notification && notification.id)
-                .map((notification, index) => {
-                  const colors = getNotificationColor(notification.type);
-                  return (
-                    <div
-                      key={notification.id}
-                      className={`group relative pl-16 pr-5 py-4 transition-all duration-300 ease-in-out ${
-                        !notification.is_read
-                          ? `${colors.bg} border-l-[3px] border-orange-500 dark:border-orange-400 shadow-sm ring-1 ring-orange-200 dark:ring-orange-500/20`
-                          : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/40 bg-white dark:bg-gray-900/95'
-                      } ${index === 0 ? 'pt-4' : ''}`}
-                    >
-                      {/* Icon - positioned at center left */}
-                      <div className='absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center'>
-                        <div className={colors.text}>
-                          {getNotificationIcon(notification.type)}
-                        </div>
-                      </div>
+                </div>
+              ) : !Array.isArray(notifications) || notifications.length === 0 ? (
+                <div className='p-12 text-center'>
+                  <div className='w-20 h-20 mx-auto mb-5 rounded-full bg-gray-100 dark:bg-gray-800/50 flex items-center justify-center shadow-inner'>
+                    <Bell className='w-9 h-9 text-gray-400 dark:text-gray-500' />
+                  </div>
+                  <p className='text-theme-sm font-heading font-semibold text-gray-700 dark:text-gray-300 mb-1.5'>
+                    Không có thông báo nào
+                  </p>
+                  <p className='text-theme-xs font-inter text-gray-500 dark:text-gray-400'>
+                    Các thông báo mới sẽ hiển thị ở đây
+                  </p>
+                  {!Array.isArray(notifications) && (
+                    <p className='text-theme-xs font-inter text-error-500 mt-2'>
+                      Debug: notifications is not an array ({typeof notifications})
+                    </p>
+                  )}
+                </div>
+              ) : (
+                <AnimatePresence mode='popLayout'>
+                  {notifications
+                    .filter(notification => notification && notification.id)
+                    .map((notification, index) => {
+                      const colors = getNotificationColor(notification.type);
+                      // Check if this is a certification pending notification
+                      const isCertificationPending =
+                        notification.type === 'CERTIFICATION_PENDING' ||
+                        (notification.data &&
+                          (notification.data.trainer_id || notification.data.certification_id));
 
-                      {/* Content */}
-                      <div className='flex-1 min-w-0 relative'>
-                          <div className='flex items-start justify-between gap-3'>
-                            <div className='flex-1 min-w-0'>
-                              <h4
-                                className={`text-theme-sm font-heading font-semibold ${colors.text} mb-1.5 leading-tight tracking-tight`}
-                              >
-                                {notification.title}
-                              </h4>
-                              <p className='text-theme-xs font-heading text-gray-600 dark:text-gray-300 leading-relaxed mb-2'>
-                                {renderMessageWithBadge(notification)}
-                              </p>
+                      const handleNotificationClick = (e: React.MouseEvent) => {
+                        // Don't navigate if clicking on action buttons
+                        if ((e.target as HTMLElement).closest('button')) {
+                          return;
+                        }
+
+                        // Navigate based on notification type and data
+                        setIsOpen(false);
+
+                        // Check if notification has action_route in data
+                        if (notification.data && (notification.data as any).action_route) {
+                          window.location.href = (notification.data as any).action_route;
+                        }
+                        // Navigate to trainer management if it's a certification pending notification
+                        else if (isCertificationPending) {
+                          // Construct route with certification_id and trainer_id if available
+                          const certificationId = (notification.data as any)?.certification_id;
+                          const trainerId = (notification.data as any)?.trainer_id;
+                          if (certificationId && trainerId) {
+                            window.location.href = `/management/trainers?certification_id=${certificationId}&trainer_id=${trainerId}`;
+                          } else if (certificationId) {
+                            window.location.href = `/management/trainers?certification_id=${certificationId}`;
+                          } else {
+                            window.location.href = '/management/trainers';
+                          }
+                        }
+                      };
+
+                      // Check if this notification is being marked as read (for smooth transition)
+                      const isMarkingAsRead =
+                        markingAsRead.has(notification.id) ||
+                        (markingAllAsRead && !notification.is_read);
+                      const isUnread = !notification.is_read && !isMarkingAsRead;
+                      const isNew = newNotificationIds.has(notification.id);
+
+                      // Calculate delay for stagger animation when marking all as read
+                      // Find index of this notification in the unread list
+                      const unreadNotifications = notifications.filter(notif => !notif.is_read);
+                      const unreadIndex =
+                        markingAllAsRead && isUnread
+                          ? unreadNotifications.findIndex(notif => notif.id === notification.id)
+                          : -1;
+                      const staggerDelay = unreadIndex >= 0 ? unreadIndex * 50 : 0; // 50ms delay per item
+
+                      // Variants for normal items (stagger animation - only if not new)
+                      const itemVariants = {
+                        hidden: { opacity: 0, y: -20, scale: 0.95 },
+                        visible: {
+                          opacity: 1,
+                          y: 0,
+                          scale: 1,
+                          transition: {
+                            duration: 0.3,
+                            ease: [0.25, 0.46, 0.45, 0.94] as const,
+                          },
+                        },
+                        exit: {
+                          opacity: 0,
+                          x: 100,
+                          scale: 0.8,
+                          height: 0,
+                          marginBottom: 0,
+                          paddingTop: 0,
+                          paddingBottom: 0,
+                          transition: {
+                            duration: 0.3,
+                            ease: [0.42, 0, 1, 1] as const,
+                          },
+                        },
+                      };
+
+                      // New notifications use their own animation (not affected by stagger)
+                      if (isNew) {
+                        return (
+                          <motion.div
+                            key={notification.id}
+                            initial={{ opacity: 0, x: 100, scale: 0.8 }}
+                            animate={{
+                              opacity: 1,
+                              x: 0,
+                              scale: 1,
+                            }}
+                            exit={{
+                              opacity: 0,
+                              x: 100,
+                              scale: 0.8,
+                              height: 0,
+                              marginBottom: 0,
+                              paddingTop: 0,
+                              paddingBottom: 0,
+                            }}
+                            transition={{
+                              type: 'spring',
+                              stiffness: 300,
+                              damping: 25,
+                            }}
+                            onClick={handleNotificationClick}
+                            className={`group relative pl-16 pr-5 py-4 cursor-pointer notification-item-transition ${
+                              isUnread
+                                ? 'bg-orange-50 dark:bg-orange-900/20'
+                                : isMarkingAsRead
+                                ? 'bg-orange-50/50 dark:bg-orange-900/10'
+                                : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/40 bg-white dark:bg-gray-900/95'
+                            } ${index === 0 ? 'pt-4' : ''}`}
+                          >
+                            {/* Render notification content - same as below */}
+                            {/* Border left */}
+                            <div
+                              className={`absolute left-0 top-0 bottom-0 w-[3px] notification-border-transition ${
+                                isUnread
+                                  ? 'bg-orange-500 dark:bg-orange-400'
+                                  : isMarkingAsRead
+                                  ? 'bg-orange-400/60 dark:bg-orange-500/50'
+                                  : 'bg-transparent'
+                              }`}
+                            />
+                            {/* Shadow/Ring overlay */}
+                            <div
+                              className={`absolute inset-0 pointer-events-none notification-shadow-transition ${
+                                isUnread
+                                  ? 'shadow-sm ring-1 ring-orange-200 dark:ring-orange-500/20 opacity-100'
+                                  : isMarkingAsRead
+                                  ? 'opacity-0'
+                                  : 'opacity-0'
+                              }`}
+                            />
+                            {/* Icon */}
+                            <div className='absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center z-10'>
+                              {getNotificationIcon(notification.type)}
                             </div>
+                            {/* Content */}
+                            <div className='flex-1 min-w-0 relative z-10'>
+                              <div className='flex items-start justify-between gap-3'>
+                                <div className='flex-1 min-w-0'>
+                                  <h4
+                                    className={`text-theme-sm font-heading font-semibold ${colors.text} mb-1.5 leading-tight tracking-tight`}
+                                  >
+                                    {notification.title}
+                                  </h4>
+                                  <p className='text-theme-xs font-heading text-gray-600 dark:text-gray-300 leading-relaxed mb-2'>
+                                    {renderMessageWithBadge(notification)}
+                                  </p>
+                                </div>
+                                {/* Actions */}
+                                <div className='flex items-start gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 w-[56px]'>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      if (isUnread || isMarkingAsRead) {
+                                        handleMarkAsRead(notification.id);
+                                      }
+                                    }}
+                                    disabled={(!isUnread && !isMarkingAsRead) || isMarkingAsRead}
+                                    className={`w-7 h-7 p-1.5 rounded-lg transition-all duration-300 active:scale-95 flex items-center justify-center flex-shrink-0 ${
+                                      isUnread || isMarkingAsRead
+                                        ? 'text-gray-400 hover:text-success-600 dark:hover:text-success-400 hover:bg-success-50 dark:hover:bg-success-500/10 opacity-100 pointer-events-auto cursor-pointer'
+                                        : 'text-gray-400 opacity-0 pointer-events-none cursor-default'
+                                    } ${
+                                      isMarkingAsRead
+                                        ? 'disabled:opacity-50 disabled:cursor-not-allowed'
+                                        : ''
+                                    }`}
+                                    title={
+                                      isMarkingAsRead
+                                        ? 'Đang đánh dấu...'
+                                        : isUnread
+                                        ? 'Đánh dấu đã đọc'
+                                        : ''
+                                    }
+                                    aria-label={
+                                      isMarkingAsRead
+                                        ? 'Đang đánh dấu...'
+                                        : isUnread
+                                        ? 'Đánh dấu đã đọc'
+                                        : ''
+                                    }
+                                    aria-hidden={!isUnread && !isMarkingAsRead}
+                                  >
+                                    <Check
+                                      className={`w-4 h-4 flex-shrink-0 ${
+                                        isMarkingAsRead ? 'checkmark-reading' : ''
+                                      }`}
+                                    />
+                                  </button>
+                                  <button
+                                    onClick={e => {
+                                      e.stopPropagation();
+                                      handleDeleteNotification(notification.id);
+                                    }}
+                                    className='w-7 h-7 p-1.5 text-gray-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-lg transition-all duration-200 active:scale-95 flex items-center justify-center flex-shrink-0'
+                                    title='Xóa thông báo'
+                                    aria-label='Xóa thông báo'
+                                  >
+                                    <Trash2 className='w-4 h-4 flex-shrink-0' />
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Time */}
+                              <div className='absolute bottom-0 right-0'>
+                                <span className='text-[10px] font-heading font-medium text-gray-400 dark:text-gray-500'>
+                                  {formatTimeAgo(notification.created_at)}
+                                </span>
+                              </div>
+                            </div>
+                          </motion.div>
+                        );
+                      }
 
-                            {/* Actions */}
-                            <div className='flex items-start gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200'>
-                              {!notification.is_read && (
-                                <button
-                                  onClick={() => handleMarkAsRead(notification.id)}
-                                  className='p-1.5 text-gray-400 hover:text-success-600 dark:hover:text-success-400 hover:bg-success-50 dark:hover:bg-success-500/10 rounded-lg transition-all duration-200 active:scale-95'
-                                  title='Đánh dấu đã đọc'
-                                  aria-label='Đánh dấu đã đọc'
+                      // Normal items use stagger animation
+                      return (
+                        <motion.div
+                          key={notification.id}
+                          variants={itemVariants}
+                          initial='hidden'
+                          animate='visible'
+                          exit='exit'
+                          onClick={handleNotificationClick}
+                          className={`group relative pl-16 pr-5 py-4 cursor-pointer notification-item-transition ${
+                            isUnread && !isMarkingAsRead
+                              ? 'bg-orange-50 dark:bg-orange-900/20'
+                              : isMarkingAsRead && markingAllAsRead
+                              ? 'bg-white dark:bg-gray-900/95' // Transitioning to read state
+                              : isMarkingAsRead
+                              ? 'bg-orange-50/50 dark:bg-orange-900/10'
+                              : 'hover:bg-gray-50/80 dark:hover:bg-gray-800/40 bg-white dark:bg-gray-900/95'
+                          } ${index === 0 ? 'pt-4' : ''} ${
+                            markingAllAsRead && isUnread && unreadIndex >= 0
+                              ? 'mark-all-as-read-animation'
+                              : ''
+                          }`}
+                          style={
+                            markingAllAsRead && isUnread && unreadIndex >= 0
+                              ? {
+                                  animationDelay: `${staggerDelay}ms`,
+                                }
+                              : undefined
+                          }
+                        >
+                          {/* Border left - always present to prevent layout shift */}
+                          <div
+                            className={`absolute left-0 top-0 bottom-0 w-[3px] notification-border-transition ${
+                              isUnread && !isMarkingAsRead
+                                ? 'bg-orange-500 dark:bg-orange-400'
+                                : isMarkingAsRead && markingAllAsRead
+                                ? 'bg-transparent' // Fade to transparent when marking all
+                                : isMarkingAsRead
+                                ? 'bg-orange-400/60 dark:bg-orange-500/50'
+                                : 'bg-transparent'
+                            }`}
+                            style={
+                              markingAllAsRead && isUnread && unreadIndex >= 0
+                                ? {
+                                    animation: 'border-fade-out 0.65s ease-in-out forwards',
+                                    animationDelay: `${staggerDelay}ms`,
+                                  }
+                                : undefined
+                            }
+                          />
+                          {/* Shadow/Ring overlay - always present to prevent layout shift, fade out smoothly */}
+                          <div
+                            className={`absolute inset-0 pointer-events-none notification-shadow-transition ${
+                              isUnread && !isMarkingAsRead
+                                ? 'shadow-sm ring-1 ring-orange-200 dark:ring-orange-500/20 opacity-100'
+                                : 'opacity-0'
+                            }`}
+                            style={
+                              markingAllAsRead && isUnread && unreadIndex >= 0
+                                ? {
+                                    animation: 'shadow-fade-out 0.5s ease-in-out forwards',
+                                    animationDelay: `${staggerDelay}ms`,
+                                  }
+                                : undefined
+                            }
+                          />
+                          {/* Icon - positioned at center left, z-index to stay above overlay */}
+                          <div className='absolute left-5 top-1/2 -translate-y-1/2 flex items-center justify-center z-10'>
+                            {getNotificationIcon(notification.type)}
+                          </div>
+
+                          {/* Content - z-index to stay above overlay */}
+                          <div className='flex-1 min-w-0 relative z-10'>
+                            <div className='flex items-start justify-between gap-3'>
+                              <div className='flex-1 min-w-0'>
+                                <h4
+                                  className={`text-theme-sm font-heading font-semibold ${colors.text} mb-1.5 leading-tight tracking-tight`}
                                 >
-                                  <Check className='w-4 h-4' />
+                                  {notification.title}
+                                </h4>
+                                <p className='text-theme-xs font-heading text-gray-600 dark:text-gray-300 leading-relaxed mb-2'>
+                                  {renderMessageWithBadge(notification)}
+                                </p>
+                              </div>
+
+                              {/* Actions - fixed width container to prevent layout shift */}
+                              <div className='flex items-start gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 w-[56px]'>
+                                {/* Mark as read button - always present with fixed size to prevent layout shift */}
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    if (isUnread || isMarkingAsRead) {
+                                      handleMarkAsRead(notification.id);
+                                    }
+                                  }}
+                                  disabled={(!isUnread && !isMarkingAsRead) || isMarkingAsRead}
+                                  className={`w-7 h-7 p-1.5 rounded-lg transition-all duration-300 active:scale-95 flex items-center justify-center flex-shrink-0 ${
+                                    isUnread || isMarkingAsRead
+                                      ? 'text-gray-400 hover:text-success-600 dark:hover:text-success-400 hover:bg-success-50 dark:hover:bg-success-500/10 opacity-100 pointer-events-auto cursor-pointer'
+                                      : 'text-gray-400 opacity-0 pointer-events-none cursor-default'
+                                  } ${
+                                    isMarkingAsRead
+                                      ? 'disabled:opacity-50 disabled:cursor-not-allowed'
+                                      : ''
+                                  }`}
+                                  title={
+                                    isMarkingAsRead
+                                      ? 'Đang đánh dấu...'
+                                      : isUnread
+                                      ? 'Đánh dấu đã đọc'
+                                      : ''
+                                  }
+                                  aria-label={
+                                    isMarkingAsRead
+                                      ? 'Đang đánh dấu...'
+                                      : isUnread
+                                      ? 'Đánh dấu đã đọc'
+                                      : ''
+                                  }
+                                  aria-hidden={!isUnread && !isMarkingAsRead}
+                                >
+                                  <Check
+                                    className={`w-4 h-4 flex-shrink-0 ${
+                                      isMarkingAsRead ? 'checkmark-reading' : ''
+                                    }`}
+                                  />
                                 </button>
-                              )}
-                              <button
-                                onClick={() => handleDeleteNotification(notification.id)}
-                                className='p-1.5 text-gray-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-lg transition-all duration-200 active:scale-95'
-                                title='Xóa thông báo'
-                                aria-label='Xóa thông báo'
-                              >
-                                <Trash2 className='w-4 h-4' />
-                              </button>
+                                <button
+                                  onClick={e => {
+                                    e.stopPropagation();
+                                    handleDeleteNotification(notification.id);
+                                  }}
+                                  className='w-7 h-7 p-1.5 text-gray-400 hover:text-error-600 dark:hover:text-error-400 hover:bg-error-50 dark:hover:bg-error-500/10 rounded-lg transition-all duration-200 active:scale-95 flex items-center justify-center flex-shrink-0'
+                                  title='Xóa thông báo'
+                                  aria-label='Xóa thông báo'
+                                >
+                                  <Trash2 className='w-4 h-4 flex-shrink-0' />
+                                </button>
+                              </div>
+                            </div>
+                            {/* Time - positioned at bottom right */}
+                            <div className='absolute bottom-0 right-0'>
+                              <span className='text-[10px] font-heading font-medium text-gray-400 dark:text-gray-500'>
+                                {formatTimeAgo(notification.created_at)}
+                              </span>
                             </div>
                           </div>
-                          {/* Time - positioned at bottom right */}
-                          <div className='absolute bottom-0 right-0'>
-                            <span className='text-[10px] font-heading font-medium text-gray-400 dark:text-gray-500'>
-                              {formatTimeAgo(notification.created_at)}
-                            </span>
-                          </div>
-                        </div>
-                    </div>
-                  );
-                })
-            )}
-          </div>
+                        </motion.div>
+                      );
+                    })}
+                </AnimatePresence>
+              )}
+            </motion.div>
 
-          {/* Footer */}
-          {Array.isArray(notifications) && notifications.length > 0 && (
-            <div className='px-5 py-3 border-t border-gray-200/80 dark:border-gray-800/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900/95'>
-              <button
-                onClick={() => {
-                  setIsOpen(false);
-                  // Navigate to full notifications page
-                  window.location.href = '/notifications';
-                }}
-                className='w-full text-center text-theme-xs font-heading font-semibold text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-all duration-200 py-2.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 active:scale-[0.98]'
-              >
-                Xem tất cả thông báo →
-              </button>
-            </div>
-          )}
-        </div>
-      )}
+            {/* Footer */}
+            {Array.isArray(notifications) && notifications.length > 0 && (
+              <div className='px-5 py-3 border-t border-gray-200/80 dark:border-gray-800/80 bg-gradient-to-r from-gray-50/50 to-white dark:from-gray-900/50 dark:to-gray-900/95'>
+                <button
+                  onClick={() => {
+                    setIsOpen(false);
+                    // Navigate to full notifications page
+                    window.location.href = '/notifications';
+                  }}
+                  className='w-full text-center text-theme-xs font-heading font-semibold text-orange-600 hover:text-orange-700 dark:text-orange-400 dark:hover:text-orange-300 transition-all duration-200 py-2.5 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-500/10 active:scale-[0.98]'
+                >
+                  Xem tất cả thông báo →
+                </button>
+              </div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

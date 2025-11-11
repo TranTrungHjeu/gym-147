@@ -6,6 +6,47 @@ const s3UploadService = require('../services/s3-upload.service.js');
 const specializationSyncService = require('../services/specialization-sync.service.js');
 const cdnService = require('../services/cdn.service.js');
 
+// Import dayjs for timezone handling
+const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// ==================== HELPER FUNCTIONS ====================
+
+/**
+ * Map certification level to Vietnamese
+ */
+const getLevelLabel = (level) => {
+  const levelMap = {
+    BASIC: 'Cơ bản',
+    INTERMEDIATE: 'Trung cấp',
+    ADVANCED: 'Nâng cao',
+    EXPERT: 'Chuyên gia',
+  };
+  return levelMap[level] || level;
+};
+
+/**
+ * Map category to Vietnamese
+ */
+const getCategoryLabel = (category) => {
+  const categoryMap = {
+    CARDIO: 'Tim mạch',
+    STRENGTH: 'Sức mạnh',
+    YOGA: 'Yoga',
+    PILATES: 'Pilates',
+    DANCE: 'Khiêu vũ',
+    MARTIAL_ARTS: 'Võ thuật',
+    AQUA: 'Bơi lội',
+    FUNCTIONAL: 'Chức năng',
+    RECOVERY: 'Phục hồi',
+    SPECIALIZED: 'Chuyên biệt',
+  };
+  return categoryMap[category] || category;
+};
+
 // ==================== TRAINER CERTIFICATION ENDPOINTS ====================
 
 /**
@@ -49,14 +90,31 @@ const getTrainerCertifications = async (req, res) => {
 
     const actualTrainerId = trainer.id;
 
+    // Get all certifications (including inactive ones) for trainer to see full history
+    // With new logic allowing multiple certifications per category, we want to show all
     const certifications = await prisma.trainerCertification.findMany({
       where: {
         trainer_id: actualTrainerId,
-        is_active: true,
+        // Include both active and inactive to show full history
+        // Frontend can filter if needed
       },
-      orderBy: {
-        created_at: 'desc',
-      },
+      orderBy: [
+        {
+          category: 'asc',
+        },
+        {
+          verification_status: 'asc', // VERIFIED first, then PENDING, REJECTED, etc.
+        },
+        {
+          certification_level: 'desc', // Higher level first
+        },
+        {
+          expiration_date: 'desc', // Later expiration first (nulls last)
+        },
+        {
+          created_at: 'desc', // Newer first
+        },
+      ],
     });
 
     res.json({
@@ -79,11 +137,20 @@ const getTrainerCertifications = async (req, res) => {
  */
 const createCertification = async (req, res) => {
   try {
-    console.log('🔍 createCertification called');
-    console.log('📍 req.params:', req.params);
-    console.log('📍 req.body:', req.body);
+    console.log('\n🚀 [CREATE_CERT] ========== CERTIFICATION CREATION REQUEST RECEIVED ==========');
+    console.log('🚀 [CREATE_CERT] Request method:', req.method);
+    console.log('🚀 [CREATE_CERT] Request URL:', req.url);
+    console.log('🚀 [CREATE_CERT] Request params:', JSON.stringify(req.params, null, 2));
+    console.log('🚀 [CREATE_CERT] Request body keys:', Object.keys(req.body || {}));
+    console.log('🚀 [CREATE_CERT] Request body:', JSON.stringify({
+      ...req.body,
+      certificate_file_url: req.body?.certificate_file_url ? 'PRESENT' : 'MISSING',
+      aiScanResult: req.body?.aiScanResult ? 'PRESENT' : 'MISSING',
+    }, null, 2));
+    
     const { trainerId } = req.params;
-    console.log('📍 trainerId from params:', trainerId);
+    console.log('📍 [CREATE_CERT] trainerId from params:', trainerId);
+    
     const {
       category,
       certification_name,
@@ -93,7 +160,19 @@ const createCertification = async (req, res) => {
       expiration_date,
       certificate_file_url,
       aiScanResult, // AI scan result from frontend (if already scanned)
+      skipAiScan, // Flag to skip AI scan for manual entry
     } = req.body;
+
+    console.log('📍 [CREATE_CERT] Extracted data:', {
+      category,
+      certification_name,
+      certification_level,
+      hasCertificateFile: !!certificate_file_url,
+      skipAiScan: skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1,
+      skipAiScanType: typeof skipAiScan,
+      skipAiScanValue: skipAiScan,
+      hasAiScanResult: !!aiScanResult,
+    });
 
     // Validate required fields
     if (
@@ -128,45 +207,83 @@ const createCertification = async (req, res) => {
       `✅ Found trainer: id=${actualTrainerId}, user_id=${trainer.user_id}, name=${trainer.full_name}`
     );
 
-    // Check for existing certification in the same category
-    const existingCert = await prisma.trainerCertification.findFirst({
+    // Check for existing VERIFIED certifications in the same category
+    // Only check VERIFIED certs to determine if we should reject the new cert
+    // We will NOT deactivate old certs here - only when new cert is verified
+    const existingVerifiedCerts = await prisma.trainerCertification.findMany({
       where: {
         trainer_id: actualTrainerId,
         category: category,
+        verification_status: 'VERIFIED',
         is_active: true,
       },
     });
 
-    if (existingCert) {
-      // Check if new certification level is higher
-      const levelOrder = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3, EXPERT: 4 };
-      const currentLevel = levelOrder[existingCert.certification_level];
-      const newLevel = levelOrder[certification_level];
+    const levelOrder = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3, EXPERT: 4 };
+    const newLevel = levelOrder[certification_level];
 
-      if (newLevel <= currentLevel) {
+    // Only validate and reject if there's a higher level VERIFIED cert
+    // Don't deactivate anything here - wait for admin verification
+    if (existingVerifiedCerts.length > 0) {
+      // Check if there's a VERIFIED cert with higher level
+      const higherLevelCerts = existingVerifiedCerts.filter(
+        cert => levelOrder[cert.certification_level] > newLevel
+      );
+
+      if (higherLevelCerts.length > 0) {
+        // Reject if there's a higher level VERIFIED cert
+        const highestCert = higherLevelCerts.reduce((prev, curr) =>
+          levelOrder[curr.certification_level] > levelOrder[prev.certification_level]
+            ? curr
+            : prev
+        );
+        const levelLabel = getLevelLabel(highestCert.certification_level);
+        const categoryLabel = getCategoryLabel(category);
         return res.status(400).json({
           success: false,
           data: null,
-          message: `Trainer already has a ${existingCert.certification_level} certification for ${category}. Only higher level certifications are allowed.`,
+          message: `Đã có chứng chỉ ${levelLabel} đã được xác thực cho ${categoryLabel}. Chỉ chấp nhận cấp độ cao hơn.`,
         });
       }
 
-      // Deactivate old certification
-      await prisma.trainerCertification.update({
-        where: { id: existingCert.id },
-        data: { is_active: false },
-      });
+      // Check if there's a VERIFIED cert with same name/issuer but higher or same level
+      const sameNameIssuerCert = existingVerifiedCerts.find(
+        cert =>
+          cert.certification_name === certification_name &&
+          cert.certification_issuer === certification_issuer
+      );
+
+      if (sameNameIssuerCert) {
+        const currentLevel = levelOrder[sameNameIssuerCert.certification_level];
+        if (newLevel <= currentLevel) {
+          // Level thấp hơn hoặc bằng: Reject
+          const levelLabel = getLevelLabel(sameNameIssuerCert.certification_level);
+          const categoryLabel = getCategoryLabel(category);
+          return res.status(400).json({
+            success: false,
+            data: null,
+            message: `Đã có chứng chỉ ${levelLabel} đã được xác thực cho ${categoryLabel} từ cùng tổ chức. Chỉ chấp nhận cấp độ cao hơn.`,
+          });
+        }
+        // If newLevel > currentLevel, allow creation but don't deactivate yet
+        // Will be handled when new cert is verified
+      }
     }
 
     // AI Scan the certificate if URL is provided
     // Logic: Use AI scan result from frontend if available, otherwise scan on backend
     // Only auto-verify if AI scan is successful with high confidence
+    // IMPORTANT: If skipAiScan is true, skip AI scan regardless of whether file exists
     let verificationStatus = 'PENDING';
     let finalAiScanResult = null;
     let aiScanPerformed = false;
 
-    // Validate and normalize aiScanResult from frontend
-    if (aiScanResult && typeof aiScanResult === 'object') {
+    // Normalize skipAiScan flag (handle boolean, string, number)
+    const shouldSkipAiScan = skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
+    console.log(`🔍 [CREATE_CERT] AI Scan Logic: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScan}, hasFile=${!!certificate_file_url}`);
+
+    // Validate and normalize aiScanResult from frontend (only if not skipping AI scan)
+    if (!shouldSkipAiScan && aiScanResult && typeof aiScanResult === 'object') {
       try {
         // Extract only the fields we need, avoid circular references
         finalAiScanResult = {
@@ -182,19 +299,27 @@ const createCertification = async (req, res) => {
           source: aiScanResult.source || 'Frontend',
           extractedData: aiScanResult.extractedData || undefined,
         };
-        console.log('✅ Using AI scan result from frontend (already scanned during upload)');
-        console.log('📍 AI scan result summary:', {
+        console.log('✅ [CREATE_CERT] Using AI scan result from frontend (already scanned during upload)');
+        console.log('📍 [CREATE_CERT] AI scan result summary:', {
           hasRedSeal: finalAiScanResult.hasRedSeal,
           confidence: finalAiScanResult.confidence,
           source: finalAiScanResult.source,
         });
       } catch (parseError) {
-        console.error('❌ Error parsing aiScanResult from frontend:', parseError);
+        console.error('❌ [CREATE_CERT] Error parsing aiScanResult from frontend:', parseError);
         finalAiScanResult = null; // Will trigger backend scan
       }
     }
 
-    if (certificate_file_url) {
+    // Determine verification status based on skipAiScan flag and file presence
+    if (shouldSkipAiScan) {
+      // Manual entry - skip AI scan, always set to PENDING for admin review
+      verificationStatus = 'PENDING';
+      console.log('ℹ️ [CREATE_CERT] Manual entry detected (skipAiScan=true) - Skipping AI scan, requires admin review (PENDING)');
+      console.log('ℹ️ [CREATE_CERT] skipAiScan value:', skipAiScan, 'type:', typeof skipAiScan);
+      // Don't perform AI scan, even if file exists
+    } else if (certificate_file_url) {
+      // File uploaded and AI scan is not skipped
       // If frontend already provided AI scan result, use it (avoid re-scanning)
       if (finalAiScanResult) {
         aiScanPerformed = true;
@@ -202,11 +327,11 @@ const createCertification = async (req, res) => {
         // Only auto-verify if AI scan is successful with high confidence
         if (finalAiScanResult.hasRedSeal && finalAiScanResult.confidence > 0.7) {
           verificationStatus = 'VERIFIED';
-          console.log('✅ AI auto-verification successful - Certification automatically approved');
+          console.log('✅ [CREATE_CERT] AI auto-verification successful - Certification automatically approved');
         } else {
           verificationStatus = 'PENDING';
           console.log(
-            '⚠️ AI scan completed but verification failed or low confidence - Manual review required'
+            '⚠️ [CREATE_CERT] AI scan completed but verification failed or low confidence - Manual review required'
           );
           console.log(`   - Has red seal: ${finalAiScanResult?.hasRedSeal || false}`);
           console.log(`   - Confidence: ${finalAiScanResult?.confidence || 0}`);
@@ -214,7 +339,7 @@ const createCertification = async (req, res) => {
       } else {
         // Frontend didn't provide AI scan result, scan on backend
         try {
-          console.log('🔍 Starting AI scan for certificate on backend...');
+          console.log('🔍 [CREATE_CERT] Starting AI scan for certificate on backend...');
           finalAiScanResult = await aiScanner.scanForRedSeal(certificate_file_url);
           aiScanPerformed = true;
 
@@ -226,86 +351,182 @@ const createCertification = async (req, res) => {
           ) {
             verificationStatus = 'VERIFIED';
             console.log(
-              '✅ AI auto-verification successful - Certification automatically approved'
+              '✅ [CREATE_CERT] AI auto-verification successful - Certification automatically approved'
             );
           } else {
             verificationStatus = 'PENDING';
             console.log(
-              '⚠️ AI scan completed but verification failed or low confidence - Manual review required'
+              '⚠️ [CREATE_CERT] AI scan completed but verification failed or low confidence - Manual review required'
             );
             console.log(`   - Has red seal: ${finalAiScanResult?.hasRedSeal || false}`);
             console.log(`   - Confidence: ${finalAiScanResult?.confidence || 0}`);
           }
         } catch (aiError) {
-          console.error('❌ AI scan error:', aiError);
+          console.error('❌ [CREATE_CERT] AI scan error:', aiError);
           verificationStatus = 'PENDING';
-          console.log('⚠️ AI scan failed - Manual review required');
+          console.log('⚠️ [CREATE_CERT] AI scan failed - Manual review required');
         }
       }
     } else {
-      console.log('ℹ️ No certificate file uploaded - Manual review required (PENDING)');
+      // No certificate file uploaded (manual entry without file)
+      console.log('ℹ️ [CREATE_CERT] No certificate file uploaded - Manual review required (PENDING)');
+      verificationStatus = 'PENDING'; // Ensure PENDING status for manual entry
+      console.log(`✅ [CREATE_CERT] Verification status set to PENDING for manual entry (no file)`);
     }
+    
+    // Final verification status check
+    const isManualEntryFinal = shouldSkipAiScan || !certificate_file_url;
+    console.log(`📊 [CREATE_CERT] Final verification status: ${verificationStatus}`);
+    console.log(`📊 [CREATE_CERT] Final determination: isManualEntry=${isManualEntryFinal}, hasFile=${!!certificate_file_url}, shouldSkipAiScan=${shouldSkipAiScan}, aiScanPerformed=${aiScanPerformed}`);
+
+    // Helper function to get current date in Vietnam timezone (GMT+7) - date only (no time)
+    const getVietnamDateOnly = () => {
+      // Get current time in Vietnam timezone and return date only (00:00:00)
+      const vnTime = dayjs().tz('Asia/Ho_Chi_Minh');
+      return vnTime.startOf('day').toDate();
+    };
+
+    // Helper function to parse date string and convert to Vietnam timezone - date only (no time)
+    const parseDateVietnam = (dateString) => {
+      if (!dateString) return null;
+      
+      try {
+        // Parse the date string (assume it's in YYYY-MM-DD format or ISO format)
+        // Strategy: Parse as local date first, then interpret it as Vietnam timezone
+        
+        // If dateString is just a date (YYYY-MM-DD), parse it and set to Vietnam timezone at 00:00:00
+        if (typeof dateString === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+          // Date only format (YYYY-MM-DD) - interpret as Vietnam timezone
+          const [year, month, day] = dateString.split('-').map(Number);
+          // Create date in Vietnam timezone (GMT+7)
+          const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+          if (vnDate.isValid()) {
+            return vnDate.toDate();
+          }
+        }
+        
+        // Try parsing as ISO string or other formats
+        // First try parsing as if it's already in Vietnam timezone
+        let vnDate = dayjs.tz(dateString, 'Asia/Ho_Chi_Minh');
+        
+        if (!vnDate.isValid()) {
+          // Try parsing as UTC, then convert to Vietnam timezone
+          const utcDate = dayjs.utc(dateString);
+          if (utcDate.isValid()) {
+            vnDate = utcDate.tz('Asia/Ho_Chi_Minh');
+          } else {
+            // Try parsing as local date, then convert to Vietnam timezone
+            const localDate = dayjs(dateString);
+            if (localDate.isValid()) {
+              // Assume the date string represents a date in Vietnam timezone
+              // Extract date parts and create in Vietnam timezone
+              const dateObj = localDate.toDate();
+              const year = dateObj.getFullYear();
+              const month = dateObj.getMonth() + 1;
+              const day = dateObj.getDate();
+              vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+            } else {
+              return null;
+            }
+          }
+        }
+        
+        if (!vnDate.isValid()) {
+          return null;
+        }
+        
+        // Return date only (00:00:00 in Vietnam timezone)
+        return vnDate.startOf('day').toDate();
+      } catch (error) {
+        console.error(`❌ [CREATE_CERT] Error parsing date: ${dateString}`, error);
+        return null;
+      }
+    };
 
     // Validate and parse dates
     let issuedDate;
     let expirationDate = null;
 
     try {
-      issuedDate = new Date(issued_date);
-      if (isNaN(issuedDate.getTime())) {
+      console.log(`\n📅 [CREATE_CERT] ========== VALIDATING DATES WITH VIETNAM TIMEZONE (GMT+7) ==========`);
+      console.log(`📅 [CREATE_CERT] issued_date input: ${issued_date}`);
+      console.log(`📅 [CREATE_CERT] expiration_date input: ${expiration_date}`);
+      
+      // Get current date in Vietnam timezone (GMT+7) - date only (no time)
+      const nowVietnam = getVietnamDateOnly();
+      const nowVietnamStr = dayjs(nowVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+      console.log(`📅 [CREATE_CERT] Current date (Vietnam GMT+7): ${nowVietnamStr}`);
+      
+      // Parse issued_date in Vietnam timezone
+      const issuedDateVietnam = parseDateVietnam(issued_date);
+      
+      if (!issuedDateVietnam) {
         return res.status(400).json({
           success: false,
           data: null,
-          message: `Ngày cấp không hợp lệ: ${issued_date}. Vui lòng kiểm tra lại định dạng ngày.`,
+          message: `Ngày cấp không hợp lệ: ${issued_date}. Vui lòng kiểm tra lại định dạng ngày (định dạng: YYYY-MM-DD).`,
         });
       }
 
-      // Validate issued_date is not in the future
-      const now = new Date();
-      if (issuedDate > now) {
+      // Convert to Date object for database storage (still in UTC, but we compare in Vietnam timezone)
+      issuedDate = issuedDateVietnam;
+      const issuedDateStr = dayjs(issuedDateVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+      console.log(`📅 [CREATE_CERT] Issued date (Vietnam GMT+7): ${issuedDateStr}`);
+
+      // Validate issued_date is not in the future (compare dates only, not time)
+      if (issuedDateVietnam > nowVietnam) {
         return res.status(400).json({
           success: false,
           data: null,
-          message: `Ngày cấp không thể là ngày trong tương lai. Vui lòng kiểm tra lại ngày cấp: ${issued_date}`,
+          message: `Ngày cấp (${issuedDateStr}) không thể là ngày trong tương lai (hôm nay là ${nowVietnamStr} theo giờ Việt Nam). Vui lòng kiểm tra lại ngày cấp.`,
         });
       }
 
       if (expiration_date) {
-        expirationDate = new Date(expiration_date);
-        if (isNaN(expirationDate.getTime())) {
+        // Parse expiration_date in Vietnam timezone
+        const expirationDateVietnam = parseDateVietnam(expiration_date);
+        
+        if (!expirationDateVietnam) {
           return res.status(400).json({
             success: false,
             data: null,
-            message: `Ngày hết hạn không hợp lệ: ${expiration_date}. Vui lòng kiểm tra lại định dạng ngày.`,
+            message: `Ngày hết hạn không hợp lệ: ${expiration_date}. Vui lòng kiểm tra lại định dạng ngày (định dạng: YYYY-MM-DD).`,
           });
         }
 
-        // Validate expiration_date is after issued_date
-        if (expirationDate < issuedDate) {
+        // Convert to Date object for database storage
+        expirationDate = expirationDateVietnam;
+        const expirationDateStr = dayjs(expirationDateVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+        console.log(`📅 [CREATE_CERT] Expiration date (Vietnam GMT+7): ${expirationDateStr}`);
+
+        // Validate expiration_date is after issued_date (compare dates only)
+        if (expirationDateVietnam < issuedDateVietnam) {
           return res.status(400).json({
             success: false,
             data: null,
-            message: `Ngày hết hạn (${expiration_date}) không thể trước ngày cấp (${issued_date}). Vui lòng kiểm tra lại.`,
+            message: `Ngày hết hạn (${expirationDateStr}) không thể trước ngày cấp (${issuedDateStr}). Vui lòng kiểm tra lại.`,
           });
         }
 
         // Reject if expiration_date is in the past (certification already expired)
-        if (expirationDate < now) {
+        // Compare dates only (not time) in Vietnam timezone
+        if (expirationDateVietnam < nowVietnam) {
           return res.status(400).json({
             success: false,
             data: null,
-            message: `Chứng chỉ đã hết hạn. Ngày hết hạn (${
-              expiration_date.toISOString().split('T')[0]
-            }) đã qua. Vui lòng kiểm tra lại ngày hết hạn hoặc tải lên chứng chỉ mới còn hiệu lực.`,
+            message: `Chứng chỉ đã hết hạn. Ngày hết hạn (${expirationDateStr}) đã qua (hôm nay là ${nowVietnamStr} theo giờ Việt Nam). Vui lòng kiểm tra lại ngày hết hạn hoặc tải lên chứng chỉ mới còn hiệu lực.`,
           });
         }
       }
+      
+      console.log(`✅ [CREATE_CERT] Date validation passed (Vietnam timezone GMT+7)`);
     } catch (dateError) {
-      console.error('❌ Date parsing error:', dateError);
+      console.error('❌ [CREATE_CERT] Date parsing error:', dateError);
+      console.error('❌ [CREATE_CERT] Error stack:', dateError.stack);
       return res.status(400).json({
         success: false,
         data: null,
-        message: `Lỗi xử lý ngày tháng: ${dateError.message}. Vui lòng kiểm tra lại định dạng ngày.`,
+        message: `Lỗi xử lý ngày tháng: ${dateError.message}. Vui lòng kiểm tra lại định dạng ngày (định dạng: YYYY-MM-DD).`,
       });
     }
 
@@ -336,7 +557,7 @@ const createCertification = async (req, res) => {
           verified_at: verificationStatus === 'VERIFIED' ? new Date() : null,
           certificate_file_url,
           certificate_file_type: certificate_file_url ? 'image' : null,
-          is_active: true,
+          is_active: true, // Always create as active - deactivation will happen when verified
         },
       });
       console.log('✅ Certification created successfully:', certification.id);
@@ -381,8 +602,35 @@ const createCertification = async (req, res) => {
       );
     }
 
-    // Send notification to admins (don't fail if notification fails)
+    // Send notification to admins and trainer (don't fail if notification fails)
+    // IMPORTANT: Always send notification for PENDING certifications (manual entry, AI scan failed, or no file)
+    // Also send notification for VERIFIED certifications (AI auto-verified)
+    // Manual entry is determined by: skipAiScan flag is true OR no certificate file URL
+    const shouldSkipAiScanFinal = skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
+    const isManualEntry = shouldSkipAiScanFinal || !certificate_file_url;
+    
+    console.log(`\n📢 [CREATE_CERT] ========== STARTING NOTIFICATION PROCESS ==========`);
+    console.log(`📢 [CREATE_CERT] Certification created successfully:`, {
+      certificationId: certification.id,
+      trainerId: actualTrainerId,
+      trainerName: trainer.full_name,
+      category,
+      certificationLevel: certification_level,
+      verificationStatus,
+      isManualEntry,
+      shouldSkipAiScan: shouldSkipAiScanFinal,
+      skipAiScanRaw: skipAiScan,
+      skipAiScanType: typeof skipAiScan,
+      hasCertificateFile: !!certificate_file_url,
+      hasAiScanResult: !!finalAiScanResult,
+      aiScanPerformed,
+    });
+    console.log(`📢 [CREATE_CERT] Manual entry determination: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScanFinal}, hasFile=${!!certificate_file_url}, isManualEntry=${isManualEntry}`);
+    
+    // Send notification to admins (for PENDING or VERIFIED certifications)
+    // This should ALWAYS be called for PENDING certifications (including manual entry)
     try {
+      console.log(`📢 [CREATE_CERT] Step 1: Sending notification to admins...`);
       await notificationService.sendCertificationUploadNotification({
         trainerId: actualTrainerId,
         trainerName: trainer.full_name,
@@ -391,29 +639,69 @@ const createCertification = async (req, res) => {
         certificationLevel: certification_level,
         verificationStatus,
         aiScanResult: finalAiScanResult,
+        isManualEntry, // Flag to indicate manual entry
       });
-    } catch (notifError) {
-      console.error('❌ Error sending admin notification:', notifError);
+      console.log(`✅ [CREATE_CERT] Step 1: Admin notification sent successfully`);
+    } catch (adminNotifError) {
+      console.error('❌ [CREATE_CERT] Step 1: Error sending admin notification:', adminNotifError);
+      console.error('❌ [CREATE_CERT] Step 1: Error stack:', adminNotifError.stack);
+      console.error('❌ [CREATE_CERT] Step 1: Error details:', {
+        message: adminNotifError.message,
+        code: adminNotifError.code,
+        trainerId: actualTrainerId,
+        certificationId: certification.id,
+        verificationStatus,
+        isManualEntry,
+      });
       // Don't fail the request if notification fails
     }
-
-    // Send notification to trainer (don't fail if notification fails)
+    
+    // Send notification to trainer
     try {
-      await notificationService.sendCertificationStatusNotification({
+      if (verificationStatus === 'VERIFIED' && finalAiScanResult) {
+        // AI auto-verified: send "AI duyệt" notification to trainer (role: AI)
+        console.log(`📢 [CREATE_CERT] Step 2: Sending AI verification notification to trainer...`);
+        await notificationService.notifyCertificationAutoVerified(
+          actualTrainerId,
+          certification.id,
+          finalAiScanResult
+        );
+        console.log(`✅ [CREATE_CERT] Step 2: AI verification notification sent to trainer`);
+      } else if (verificationStatus === 'PENDING') {
+        // PENDING: send notification to trainer about pending status
+        console.log(`📢 [CREATE_CERT] Step 2: Sending pending status notification to trainer...`);
+        console.log(`📢 [CREATE_CERT] Step 2: isManualEntry=${isManualEntry}, aiScanPerformed=${aiScanPerformed}`);
+        
+        await notificationService.sendCertificationStatusNotification({
+          trainerId: actualTrainerId,
+          trainerName: trainer.full_name,
+          certificationId: certification.id,
+          category,
+          certificationLevel: certification_level,
+          verificationStatus: 'PENDING',
+          isManualEntry,
+          message:
+            isManualEntry
+              ? `Chứng chỉ ${category} (${certification_level}) của bạn đã được gửi và đang chờ quản trị viên duyệt`
+              : aiScanPerformed
+              ? `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (AI scan không đạt yêu cầu)`
+              : `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (không có quét AI)`,
+        });
+        console.log(`✅ [CREATE_CERT] Step 2: Pending status notification sent to trainer (isManualEntry: ${isManualEntry})`);
+      } else {
+        console.log(`ℹ️ [CREATE_CERT] Step 2: Skipping trainer notification - verificationStatus is ${verificationStatus}`);
+      }
+    } catch (trainerNotifError) {
+      console.error('❌ [CREATE_CERT] Step 2: Error sending trainer notification:', trainerNotifError);
+      console.error('❌ [CREATE_CERT] Step 2: Error stack:', trainerNotifError.stack);
+      console.error('❌ [CREATE_CERT] Step 2: Error details:', {
+        message: trainerNotifError.message,
+        code: trainerNotifError.code,
         trainerId: actualTrainerId,
-        trainerName: trainer.full_name,
         certificationId: certification.id,
-        category,
         verificationStatus,
-        message:
-          verificationStatus === 'VERIFIED'
-            ? 'Chứng chỉ của bạn đã được tự động xác thực bởi AI'
-            : aiScanPerformed
-            ? 'Chứng chỉ của bạn đang chờ xem xét thủ công bởi quản trị viên (AI scan không đạt yêu cầu)'
-            : 'Chứng chỉ của bạn đang chờ xem xét thủ công bởi quản trị viên (không có quét AI)',
+        isManualEntry,
       });
-    } catch (notifError) {
-      console.error('❌ Error sending trainer notification:', notifError);
       // Don't fail the request if notification fails
     }
 
@@ -463,13 +751,19 @@ const updateCertification = async (req, res) => {
     const { certId } = req.params;
     const updateData = req.body;
 
-    // Get current certification to check if verification_status changed
-    const currentCert = await prisma.trainerCertification.findUnique({
+    // Get FULL certification before update to track all changes
+    const certBeforeUpdate = await prisma.trainerCertification.findUnique({
       where: { id: certId },
-      select: { trainer_id: true, verification_status: true },
+      select: {
+        trainer_id: true,
+        verification_status: true,
+        category: true,
+        expiration_date: true,
+        is_active: true,
+      },
     });
 
-    if (!currentCert) {
+    if (!certBeforeUpdate) {
       return res.status(404).json({
         success: false,
         data: null,
@@ -482,10 +776,29 @@ const updateCertification = async (req, res) => {
     delete updateData.trainer_id;
     delete updateData.created_at;
 
-    // Check if verification_status is being changed to VERIFIED
+    // Track all changes that might affect specializations
+    const statusChanged =
+      updateData.verification_status &&
+      updateData.verification_status !== certBeforeUpdate.verification_status;
+    const categoryChanged =
+      updateData.category && updateData.category !== certBeforeUpdate.category;
+    const expirationChanged =
+      updateData.expiration_date !== undefined &&
+      (!certBeforeUpdate.expiration_date ||
+        new Date(updateData.expiration_date).getTime() !==
+          new Date(certBeforeUpdate.expiration_date).getTime());
+    const isActiveChanged =
+      updateData.is_active !== undefined &&
+      updateData.is_active !== certBeforeUpdate.is_active;
+
     const isBeingVerified =
+      statusChanged &&
       updateData.verification_status === 'VERIFIED' &&
-      currentCert.verification_status !== 'VERIFIED';
+      certBeforeUpdate.verification_status !== 'VERIFIED';
+    const isBeingUnverified =
+      statusChanged &&
+      certBeforeUpdate.verification_status === 'VERIFIED' &&
+      updateData.verification_status !== 'VERIFIED';
 
     // Update verification timestamps if being verified
     if (isBeingVerified) {
@@ -495,42 +808,180 @@ const updateCertification = async (req, res) => {
       }
     }
 
+    // Update certification
     const certification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: updateData,
     });
 
-    // Auto-sync specializations if verification_status changed to VERIFIED
-    if (isBeingVerified) {
-      try {
+    // Handle specialization sync based on ALL changes
+    const specializationSyncService = require('../services/specialization-sync.service.js');
+
+    try {
+      // Case 1: Verification status changed to VERIFIED → Add specialization
+      if (isBeingVerified) {
         console.log(
-          `🔄 Starting specialization sync for trainer ${currentCert.trainer_id} after certification status changed to VERIFIED`
+          `🔄 Status changed to VERIFIED - syncing specializations for trainer ${certBeforeUpdate.trainer_id}`
         );
         const syncResult = await specializationSyncService.updateTrainerSpecializations(
-          currentCert.trainer_id
+          certBeforeUpdate.trainer_id
         );
         if (syncResult && syncResult.success) {
+          console.log(`✅ Specializations synced after verification`);
+        }
+      }
+      // Case 2: Verification status changed from VERIFIED → Remove specialization
+      else if (isBeingUnverified) {
+        console.log(
+          `🔄 Status changed from VERIFIED to ${updateData.verification_status} - removing specialization ${certBeforeUpdate.category}`
+        );
+        const removeResult = await specializationSyncService.removeSpecialization(
+          certBeforeUpdate.trainer_id,
+          certBeforeUpdate.category
+        );
+        if (removeResult && removeResult.success) {
           console.log(
-            `✅ Auto-synced specializations for trainer ${currentCert.trainer_id} after certification verification`
-          );
-          console.log(`📋 Updated specializations:`, syncResult.specializations);
-        } else {
-          console.error(
-            `❌ Specialization sync returned failure for trainer ${currentCert.trainer_id}:`,
-            syncResult?.error || 'Unknown error'
+            removeResult.removed
+              ? `✅ Specialization ${certBeforeUpdate.category} removed`
+              : `ℹ️ Specialization kept - trainer has other valid certifications`
           );
         }
-      } catch (syncError) {
-        console.error('❌ Error auto-syncing specializations:', syncError);
-        console.error('❌ Sync error stack:', syncError.stack);
-        // Don't fail the request if sync fails, but log it for debugging
       }
-    } else {
-      console.log(
-        `ℹ️ Skipping specialization sync - certification status is ${
-          updateData.verification_status || currentCert.verification_status
-        }, not being changed to VERIFIED`
-      );
+      // Case 3: Category changed (and was VERIFIED) → Remove old, add new
+      else if (categoryChanged && certBeforeUpdate.verification_status === 'VERIFIED') {
+        console.log(
+          `🔄 Category changed from ${certBeforeUpdate.category} to ${updateData.category} - updating specializations`
+        );
+        // Remove old category
+        const removeResult = await specializationSyncService.removeSpecialization(
+          certBeforeUpdate.trainer_id,
+          certBeforeUpdate.category
+        );
+        // Add new category (if new status is also VERIFIED)
+        if (certification.verification_status === 'VERIFIED') {
+          const syncResult = await specializationSyncService.updateTrainerSpecializations(
+            certBeforeUpdate.trainer_id
+          );
+          if (syncResult && syncResult.success) {
+            console.log(`✅ Specializations updated after category change`);
+          }
+        }
+      }
+      // Case 4: Expiration date changed → Check if expired (using Vietnam timezone)
+      else if (
+        expirationChanged &&
+        certBeforeUpdate.verification_status === 'VERIFIED' &&
+        certification.verification_status === 'VERIFIED'
+      ) {
+        // Helper function to parse date in Vietnam timezone
+        const parseDateVietnamForUpdate = (dateValue) => {
+          if (!dateValue) return null;
+          try {
+            const dateString = dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : String(dateValue);
+            if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
+              const [year, month, day] = dateString.split('-').map(Number);
+              const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+              return vnDate.isValid() ? vnDate.toDate() : null;
+            }
+            const vnDate = dayjs.tz(dateString, 'Asia/Ho_Chi_Minh');
+            if (vnDate.isValid()) {
+              return vnDate.startOf('day').toDate();
+            }
+            const utcDate = dayjs.utc(dateString);
+            if (utcDate.isValid()) {
+              return utcDate.tz('Asia/Ho_Chi_Minh').startOf('day').toDate();
+            }
+            return null;
+          } catch (error) {
+            return null;
+          }
+        };
+        
+        // Get current date in Vietnam timezone (GMT+7) - date only (no time)
+        const nowVietnam = dayjs().tz('Asia/Ho_Chi_Minh').startOf('day').toDate();
+        const newExpiration = parseDateVietnamForUpdate(updateData.expiration_date);
+
+        // Compare dates only (not time) in Vietnam timezone
+        if (newExpiration && newExpiration < nowVietnam) {
+          const expirationDateStr = dayjs(newExpiration).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+          const nowStr = dayjs(nowVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+          console.log(
+            `🔄 Certification expired after expiration_date update (${expirationDateStr} < ${nowStr} Vietnam GMT+7) - removing specialization ${certBeforeUpdate.category}`
+          );
+          const removeResult = await specializationSyncService.removeSpecialization(
+            certBeforeUpdate.trainer_id,
+            certBeforeUpdate.category
+          );
+          if (removeResult && removeResult.success) {
+            console.log(`✅ Specialization removed due to expiration`);
+          }
+        } else {
+          // Expiration date updated but not expired - sync to ensure consistency
+          console.log(`🔄 Expiration date updated - syncing specializations for consistency`);
+          const syncResult = await specializationSyncService.updateTrainerSpecializations(
+            certBeforeUpdate.trainer_id
+          );
+          if (syncResult && syncResult.success) {
+            console.log(`✅ Specializations synced after expiration date update`);
+          }
+        }
+      }
+      // Case 5: is_active changed (reactivate/deactivate)
+      else if (isActiveChanged) {
+        if (updateData.is_active === false && certBeforeUpdate.verification_status === 'VERIFIED') {
+          // Deactivate: Remove specialization
+          console.log(
+            `🔄 Certification deactivated - removing specialization ${certBeforeUpdate.category}`
+          );
+          const removeResult = await specializationSyncService.removeSpecialization(
+            certBeforeUpdate.trainer_id,
+            certBeforeUpdate.category
+          );
+          if (removeResult && removeResult.success) {
+            console.log(`✅ Specialization removed after deactivation`);
+          }
+        } else if (
+          updateData.is_active === true &&
+          certification.verification_status === 'VERIFIED'
+        ) {
+          // Reactivate: Add specialization
+          console.log(
+            `🔄 Certification reactivated - syncing specializations for trainer ${certBeforeUpdate.trainer_id}`
+          );
+          const syncResult = await specializationSyncService.updateTrainerSpecializations(
+            certBeforeUpdate.trainer_id
+          );
+          if (syncResult && syncResult.success) {
+            console.log(`✅ Specializations synced after reactivation`);
+          }
+        }
+      }
+      // Case 6: Other updates (level, name, etc.) - sync to ensure consistency if VERIFIED
+      else if (
+        certification.verification_status === 'VERIFIED' &&
+        certification.is_active === true
+      ) {
+        // Sync to ensure we have the highest level certification
+        console.log(
+          `🔄 Certification updated (level/name/etc.) - syncing specializations for consistency`
+        );
+        const syncResult = await specializationSyncService.updateTrainerSpecializations(
+          certBeforeUpdate.trainer_id
+        );
+        if (syncResult && syncResult.success && syncResult.changed) {
+          console.log(`✅ Specializations updated after certification change`);
+        } else {
+          console.log(`ℹ️ No changes needed in specializations`);
+        }
+      } else {
+        console.log(
+          `ℹ️ Skipping specialization sync - certification status: ${certification.verification_status}, is_active: ${certification.is_active}`
+        );
+      }
+    } catch (syncError) {
+      console.error('❌ Error syncing specializations after certification update:', syncError);
+      console.error('❌ Sync error stack:', syncError.stack);
+      // Don't fail the request if sync fails, but log it for debugging
     }
 
     res.json({
@@ -550,20 +1001,93 @@ const updateCertification = async (req, res) => {
 
 /**
  * Delete certification (soft delete)
+ * Updates is_active to false, syncs specialization, and sends notification to trainer
  */
 const deleteCertification = async (req, res) => {
   try {
     const { certId } = req.params;
+    const { reason } = req.body;
+
+    // Get certification with trainer info
+    const certification = await prisma.trainerCertification.findUnique({
+      where: { id: certId },
+      include: {
+        trainer: {
+          select: {
+            id: true,
+            full_name: true,
+            user_id: true,
+          },
+        },
+      },
+    });
+
+    if (!certification) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: 'Certification not found',
+      });
+    }
 
     // Soft delete by setting is_active to false
-    const certification = await prisma.trainerCertification.update({
+    const deletedCertification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: { is_active: false },
     });
 
+    // Remove only the specific specialization related to this certification
+    // Only remove if there are no other valid certifications for that category
+    try {
+      console.log(
+        `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after certification deletion`
+      );
+      const removeResult = await specializationSyncService.removeSpecialization(
+        certification.trainer_id,
+        certification.category
+      );
+      if (removeResult && removeResult.success) {
+        if (removeResult.removed) {
+          console.log(
+            `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after certification deletion`
+          );
+          console.log(`📋 Updated specializations:`, removeResult.specializations);
+        } else {
+          console.log(
+            `ℹ️  Specialization ${certification.category} kept for trainer ${certification.trainer_id} - still has other valid certifications`
+          );
+        }
+      } else {
+        console.error(
+          `❌ Failed to remove specialization for trainer ${certification.trainer_id}:`,
+          removeResult?.error || 'Unknown error'
+        );
+      }
+    } catch (removeError) {
+      console.error('❌ Error removing specialization:', removeError);
+      console.error('❌ Remove error stack:', removeError.stack);
+      // Don't fail the request if removal fails
+    }
+
+    // Send notification to trainer with reason
+    try {
+      await notificationService.sendCertificationDeletedNotification({
+        trainerId: certification.trainer_id,
+        trainerName: certification.trainer.full_name,
+        certificationId: certId,
+        category: certification.category,
+        certificationName: certification.certification_name,
+        reason: reason || 'Không có lý do được cung cấp',
+        deletedBy: req.user?.id || 'ADMIN',
+      });
+    } catch (notifError) {
+      console.error('❌ Error sending deletion notification:', notifError);
+      // Don't fail the request if notification fails
+    }
+
     res.json({
       success: true,
-      data: certification,
+      data: deletedCertification,
       message: 'Certification deleted successfully',
     });
   } catch (error) {

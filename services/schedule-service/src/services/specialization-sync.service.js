@@ -85,6 +85,7 @@ class SpecializationSyncService {
       }
 
       // Extract unique categories and get the highest level for each
+      // If same level, prefer certification with later expiration_date
       const categoryLevels = {};
       certifications.forEach(cert => {
         const levelHierarchy = {
@@ -95,10 +96,51 @@ class SpecializationSyncService {
         };
 
         const currentLevel = levelHierarchy[cert.certification_level] || 0;
-        const existingLevel =
-          levelHierarchy[categoryLevels[cert.category]?.certification_level] || 0;
+        const existing = categoryLevels[cert.category];
+        const existingLevel = existing
+          ? levelHierarchy[existing.certification_level] || 0
+          : 0;
 
         if (currentLevel > existingLevel) {
+          // Higher level: always choose this one
+          categoryLevels[cert.category] = {
+            category: cert.category,
+            certification_level: cert.certification_level,
+            certification_name: cert.certification_name,
+          };
+        } else if (currentLevel === existingLevel && existing) {
+          // Same level: choose based on expiration_date
+          const existingExp = existing.expiration_date
+            ? new Date(existing.expiration_date)
+            : null;
+          const currentExp = cert.expiration_date ? new Date(cert.expiration_date) : null;
+
+          let shouldReplace = false;
+
+          if (!currentExp && existingExp) {
+            // Current has no expiration, prefer it
+            shouldReplace = true;
+          } else if (currentExp && existingExp && currentExp > existingExp) {
+            // Current expires later, prefer it
+            shouldReplace = true;
+          } else if (currentExp && !existingExp) {
+            // Existing has no expiration, keep existing
+            shouldReplace = false;
+          } else {
+            // Both have same expiration or both have no expiration
+            // Keep existing (first one found)
+            shouldReplace = false;
+          }
+
+          if (shouldReplace) {
+            categoryLevels[cert.category] = {
+              category: cert.category,
+              certification_level: cert.certification_level,
+              certification_name: cert.certification_name,
+            };
+          }
+        } else if (!existing) {
+          // No existing certification for this category
           categoryLevels[cert.category] = {
             category: cert.category,
             certification_level: cert.certification_level,
@@ -107,46 +149,83 @@ class SpecializationSyncService {
         }
       });
 
-      const specializations = Object.values(categoryLevels);
+      const newSpecializations = Object.values(categoryLevels).map(s => s.category);
       
-      if (specializations.length === 0) {
-        console.log(`⚠️  No valid certifications found to sync - specializations will be empty array`);
+      // Compare with current specializations
+      const currentSpecs = trainer.specializations || [];
+      const specsChanged = JSON.stringify(currentSpecs.sort()) !== JSON.stringify(newSpecializations.sort());
+      
+      if (newSpecializations.length === 0) {
+        console.log(`⚠️  WARNING: No valid certifications found for trainer ${trainer.full_name} (${trainerId})`);
+        console.log(`   Current specializations: ${currentSpecs.length > 0 ? currentSpecs.join(', ') : 'NONE'}`);
         console.log(`   This could be because:`);
         console.log(`   - All certifications have expired`);
         console.log(`   - No certifications are VERIFIED`);
         console.log(`   - No certifications are active`);
+        console.log(`   ⚠️  SPECIALIZATIONS WILL BE CLEARED (set to empty array)`);
+        
+        // Only update if there's a change to avoid unnecessary database writes
+        if (currentSpecs.length > 0) {
+          console.log(`   ⚠️  This will REMOVE ${currentSpecs.length} specialization(s): ${currentSpecs.join(', ')}`);
+        }
       } else {
         console.log(
           `🎯 Specializations to sync:`,
-          specializations.map(s => `${s.category} (${s.certification_level})`)
+          newSpecializations.map(cat => {
+            const cert = categoryLevels[cat];
+            return `${cat} (${cert.certification_level})`;
+          })
         );
+        
+        if (specsChanged) {
+          const added = newSpecializations.filter(s => !currentSpecs.includes(s));
+          const removed = currentSpecs.filter(s => !newSpecializations.includes(s));
+          
+          if (added.length > 0) {
+            console.log(`   ➕ Added: ${added.join(', ')}`);
+          }
+          if (removed.length > 0) {
+            console.log(`   ➖ Removed: ${removed.join(', ')}`);
+          }
+        } else {
+          console.log(`   ℹ️  No changes detected - specializations unchanged`);
+        }
       }
 
-      // Update trainer specializations
-      const updatedTrainer = await prisma.trainer.update({
-        where: { id: trainerId },
-        data: {
-          specializations: specializations.map(s => s.category),
-        },
-        select: {
-          id: true,
-          full_name: true,
-          specializations: true,
-        },
-      });
+      // Only update if specializations actually changed
+      let updatedTrainer;
+      if (specsChanged) {
+        updatedTrainer = await prisma.trainer.update({
+          where: { id: trainerId },
+          data: {
+            specializations: newSpecializations,
+          },
+          select: {
+            id: true,
+            full_name: true,
+            specializations: true,
+          },
+        });
 
-      console.log(`✅ Specializations updated for trainer ${updatedTrainer.full_name}`);
-      console.log(`📊 Before sync: ${trainer.specializations?.length || 0} specializations -`, trainer.specializations || []);
-      console.log(`📊 After sync: ${updatedTrainer.specializations.length} specializations -`, updatedTrainer.specializations);
+        console.log(`✅ Specializations updated for trainer ${updatedTrainer.full_name}`);
+        console.log(`📊 Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
+        console.log(`📊 After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
+      } else {
+        console.log(`ℹ️  No update needed - specializations unchanged for trainer ${trainer.full_name}`);
+        updatedTrainer = trainer;
+      }
 
       return {
         success: true,
         trainerId,
         specializations: updatedTrainer.specializations,
-        certificationDetails: specializations,
+        certificationDetails: Object.values(categoryLevels),
         totalCertifications: allVerifiedCerts.length,
         eligibleCertifications: certifications.length,
         expiredCertifications: allVerifiedCerts.length - certifications.length,
+        changed: specsChanged,
+        before: currentSpecs,
+        after: newSpecializations,
       };
     } catch (error) {
       console.error('❌ Error updating trainer specializations:', error);
@@ -397,6 +476,113 @@ class SpecializationSyncService {
       };
     } catch (error) {
       console.error('❌ Error in bulk sync:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Remove a specific specialization from trainer (when certification is deleted)
+   * Only removes if there are no other valid certifications for that category
+   * @param {string} trainerId - Trainer ID
+   * @param {string} category - Category to remove
+   * @returns {Object} - Update result
+   */
+  async removeSpecialization(trainerId, category) {
+    try {
+      console.log(`🗑️  Removing specialization ${category} from trainer: ${trainerId}`);
+
+      // Verify trainer exists
+      const trainer = await prisma.trainer.findUnique({
+        where: { id: trainerId },
+        select: { id: true, full_name: true, specializations: true },
+      });
+
+      if (!trainer) {
+        console.error(`❌ Trainer not found: ${trainerId}`);
+        return {
+          success: false,
+          error: `Trainer not found: ${trainerId}`,
+        };
+      }
+
+      console.log(`✅ Trainer found: ${trainer.full_name} (${trainerId})`);
+      console.log(`📊 Current specializations:`, trainer.specializations || []);
+
+      // Check if trainer has this specialization
+      const currentSpecs = trainer.specializations || [];
+      if (!currentSpecs.includes(category)) {
+        console.log(`ℹ️  Trainer ${trainer.full_name} does not have specialization ${category} - no action needed`);
+        return {
+          success: true,
+          trainerId,
+          specializations: currentSpecs,
+          message: `Specialization ${category} not found in trainer's specializations`,
+          removed: false,
+        };
+      }
+
+      // Check if there are other valid certifications for this category
+      const otherCerts = await prisma.trainerCertification.findMany({
+        where: {
+          trainer_id: trainerId,
+          category: category,
+          verification_status: 'VERIFIED',
+          is_active: true,
+          OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
+        },
+        select: {
+          id: true,
+          category: true,
+          certification_level: true,
+        },
+      });
+
+      if (otherCerts.length > 0) {
+        console.log(`ℹ️  Trainer ${trainer.full_name} still has ${otherCerts.length} valid certification(s) for ${category} - keeping specialization`);
+        console.log(`   Certifications:`, otherCerts.map(c => `${c.category} (${c.certification_level})`));
+        return {
+          success: true,
+          trainerId,
+          specializations: currentSpecs,
+          message: `Specialization ${category} kept - trainer still has valid certifications`,
+          removed: false,
+          remainingCertifications: otherCerts.length,
+        };
+      }
+
+      // Remove the specialization
+      const updatedSpecs = currentSpecs.filter(spec => spec !== category);
+      
+      const updatedTrainer = await prisma.trainer.update({
+        where: { id: trainerId },
+        data: {
+          specializations: updatedSpecs,
+        },
+        select: {
+          id: true,
+          full_name: true,
+          specializations: true,
+        },
+      });
+
+      console.log(`✅ Removed specialization ${category} from trainer ${updatedTrainer.full_name}`);
+      console.log(`📊 Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
+      console.log(`📊 After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
+
+      return {
+        success: true,
+        trainerId,
+        specializations: updatedTrainer.specializations,
+        removedCategory: category,
+        removed: true,
+        before: currentSpecs,
+        after: updatedSpecs,
+      };
+    } catch (error) {
+      console.error('❌ Error removing specialization:', error);
       return {
         success: false,
         error: error.message,

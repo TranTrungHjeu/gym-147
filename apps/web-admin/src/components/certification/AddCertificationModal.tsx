@@ -1,10 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, CheckCircle, AlertCircle, Award, Sparkles, Brain, Edit2, Lock } from 'lucide-react';
+import { Plus, Save, CheckCircle, AlertCircle, Award, Sparkles, Brain, Edit2, Lock, FileText } from 'lucide-react';
 import { certificationService, CreateCertificationData, AIScanResult, UploadResult } from '../../services/certification.service';
 import CertificationUpload from './CertificationUpload';
+import ManualCertificationUpload from './ManualCertificationUpload';
 import Modal from '../Modal/Modal';
 import CustomSelect from '../common/CustomSelect';
 import { useToast } from '../../context/ToastContext';
+import dayjs from 'dayjs';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 interface AddCertificationModalProps {
   isOpen: boolean;
@@ -59,6 +66,12 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   const [scanResult, setScanResult] = useState<AIScanResult | null>(null);
   const [autoFilled, setAutoFilled] = useState(false);
   const [fieldsLocked, setFieldsLocked] = useState(false); // Lock fields when AI auto-fills
+  const [activeTab, setActiveTab] = useState<'ai' | 'manual'>('ai'); // Tab state: 'ai' or 'manual'
+  
+  // Determine if fields should be disabled
+  // In AI tab: disable fields until file is uploaded and scanned (or user unlocks)
+  // In manual tab: fields are always enabled
+  const areFieldsDisabled = activeTab === 'ai' ? (fieldsLocked || !scanResult) : false;
 
   useEffect(() => {
     if (isOpen) {
@@ -78,6 +91,8 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
       setUploadResult(null);
       setScanResult(null);
       setAutoFilled(false);
+      setFieldsLocked(false);
+      setActiveTab('ai'); // Reset to AI tab when modal opens
     } else {
       // Also reset when modal closes to ensure clean state
       setHasSubmitted(false);
@@ -85,10 +100,79 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     }
   }, [isOpen]);
 
+  // Reset form when switching tabs
+  useEffect(() => {
+    if (isOpen) {
+      setHasSubmitted(false);
+      setErrors({});
+      setUploadResult(null);
+      setScanResult(null);
+      setAutoFilled(false);
+      setFieldsLocked(false);
+      if (activeTab === 'manual') {
+        // Keep form data when switching to manual, but clear AI-related data
+        setFormData(prev => ({
+          ...prev,
+          certificate_file_url: prev.certificate_file_url || '',
+        }));
+      } else {
+        // Reset form when switching to AI tab
+        setFormData({
+          category: '',
+          certification_name: '',
+          certification_issuer: '',
+          certification_level: 'BASIC',
+          issued_date: '',
+          expiration_date: '',
+          certificate_file_url: '',
+        });
+      }
+    }
+  }, [activeTab, isOpen]);
+
+  // Helper function to normalize date input (handle DD/MM/YYYY format)
+  const normalizeDateInput = (dateStr: string): string => {
+    if (!dateStr) return '';
+    
+    // If input is in format DD/MM/YYYY or DD-MM-YYYY, convert to YYYY-MM-DD
+    const dateMatch = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+    if (dateMatch) {
+      const [, day, month, year] = dateMatch;
+      return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    }
+    
+    // If already in YYYY-MM-DD format, return as is
+    if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      return dateStr;
+    }
+    
+    // Try to parse as date and convert to YYYY-MM-DD
+    try {
+      const date = new Date(dateStr);
+      if (!isNaN(date.getTime())) {
+        // Format as YYYY-MM-DD (local date, not UTC)
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+      }
+    } catch (error) {
+      // Ignore parsing errors
+    }
+    
+    return dateStr;
+  };
+
   const handleInputChange = (field: keyof CreateCertificationData, value: string) => {
+    // Normalize date fields if needed
+    let normalizedValue = value;
+    if ((field === 'issued_date' || field === 'expiration_date') && value) {
+      normalizedValue = normalizeDateInput(value);
+    }
+    
     setFormData(prev => ({
       ...prev,
-      [field]: value,
+      [field]: normalizedValue,
     }));
     // Only clear error if form has been submitted (to avoid showing errors prematurely)
     if (hasSubmitted && errors[field]) {
@@ -113,35 +197,91 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
       newErrors.certification_issuer = 'Tổ chức cấp chứng chỉ là bắt buộc';
     }
 
+    // Helper function to get current date in Vietnam timezone (GMT+7) - date only (no time)
+    const getVietnamDateOnly = () => {
+      return dayjs().tz('Asia/Ho_Chi_Minh').startOf('day');
+    };
+
+    // Helper function to parse date string in Vietnam timezone - date only (no time)
+    const parseDateVietnam = (dateStr: string) => {
+      if (!dateStr) return null;
+      
+      try {
+        // Normalize date string first
+        const normalized = normalizeDateInput(dateStr);
+        
+        // Parse as date in Vietnam timezone
+        // If format is YYYY-MM-DD, parse it as Vietnam timezone at 00:00:00
+        if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
+          const [year, month, day] = normalized.split('-').map(Number);
+          const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+          if (vnDate.isValid()) {
+            return vnDate.startOf('day');
+          }
+        }
+        
+        // Try parsing as-is
+        const vnDate = dayjs.tz(normalized, 'Asia/Ho_Chi_Minh');
+        if (vnDate.isValid()) {
+          return vnDate.startOf('day');
+        }
+        
+        // Try parsing as UTC, then convert to Vietnam timezone
+        const utcDate = dayjs.utc(normalized);
+        if (utcDate.isValid()) {
+          return utcDate.tz('Asia/Ho_Chi_Minh').startOf('day');
+        }
+        
+        return null;
+      } catch (error) {
+        return null;
+      }
+    };
+
     if (!formData.issued_date) {
       newErrors.issued_date = 'Ngày cấp là bắt buộc';
     } else {
-      const issuedDate = new Date(formData.issued_date);
-      const today = new Date();
-      if (issuedDate > today) {
-        newErrors.issued_date = 'Ngày cấp không được là ngày tương lai';
+      const issuedDateVietnam = parseDateVietnam(formData.issued_date);
+      if (!issuedDateVietnam || !issuedDateVietnam.isValid()) {
+        newErrors.issued_date = 'Ngày cấp không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)';
+      } else {
+        const nowVietnam = getVietnamDateOnly();
+        // Compare dates only (not time) in Vietnam timezone
+        if (issuedDateVietnam.isAfter(nowVietnam)) {
+          const issuedDateStr = issuedDateVietnam.format('DD/MM/YYYY');
+          const todayStr = nowVietnam.format('DD/MM/YYYY');
+          newErrors.issued_date = `Ngày cấp (${issuedDateStr}) không được là ngày tương lai (hôm nay là ${todayStr} theo giờ Việt Nam)`;
+        }
       }
     }
 
     if (formData.expiration_date) {
-      const expirationDate = new Date(formData.expiration_date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0); // Reset time to compare dates only
-      expirationDate.setHours(0, 0, 0, 0);
-      
-      const issuedDate = formData.issued_date ? new Date(formData.issued_date) : null;
-      if (issuedDate) {
-        issuedDate.setHours(0, 0, 0, 0);
+      const expirationDateVietnam = parseDateVietnam(formData.expiration_date);
+      if (!expirationDateVietnam || !expirationDateVietnam.isValid()) {
+        newErrors.expiration_date = 'Ngày hết hạn không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)';
+      } else {
+        const nowVietnam = getVietnamDateOnly();
         
-        // Check if expiration_date is before or equal to issued_date
-        if (expirationDate <= issuedDate) {
-          newErrors.expiration_date = 'Ngày hết hạn phải sau ngày cấp';
+        // Check if expiration_date is after issued_date
+        if (formData.issued_date) {
+          const issuedDateVietnam = parseDateVietnam(formData.issued_date);
+          if (issuedDateVietnam && issuedDateVietnam.isValid()) {
+            // Use isBefore or isSame instead of isSameOrBefore if plugin not available
+            if (expirationDateVietnam.isBefore(issuedDateVietnam) || expirationDateVietnam.isSame(issuedDateVietnam)) {
+              const expirationDateStr = expirationDateVietnam.format('DD/MM/YYYY');
+              const issuedDateStr = issuedDateVietnam.format('DD/MM/YYYY');
+              newErrors.expiration_date = `Ngày hết hạn (${expirationDateStr}) phải sau ngày cấp (${issuedDateStr})`;
+            }
+          }
         }
-      }
-      
-      // Check if expiration_date is in the past (certification already expired)
-      if (expirationDate < today) {
-        newErrors.expiration_date = 'Chứng chỉ đã hết hạn. Ngày hết hạn không thể là ngày trong quá khứ. Vui lòng kiểm tra lại hoặc tải lên chứng chỉ mới còn hiệu lực.';
+        
+        // Check if expiration_date is in the past (certification already expired)
+        // Compare dates only (not time) in Vietnam timezone
+        if (expirationDateVietnam.isBefore(nowVietnam)) {
+          const expirationDateStr = expirationDateVietnam.format('DD/MM/YYYY');
+          const todayStr = nowVietnam.format('DD/MM/YYYY');
+          newErrors.expiration_date = `Chứng chỉ đã hết hạn. Ngày hết hạn (${expirationDateStr}) đã qua (hôm nay là ${todayStr} theo giờ Việt Nam)`;
+        }
       }
     }
 
@@ -149,6 +289,31 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     return Object.keys(newErrors).length === 0;
   };
 
+  // Handler for manual upload (no AI scan)
+  const handleManualUploadComplete = (upload: UploadResult) => {
+    setUploadResult(upload);
+    setScanResult(null); // No AI scan for manual entry
+    
+    // Clear all errors and reset submitted state
+    setErrors({});
+    setHasSubmitted(false);
+    
+    // Set file URL in form data - use publicUrl if available, otherwise use url
+    const fileUrl = upload.publicUrl || upload.url;
+    setFormData(prev => ({
+      ...prev,
+      certificate_file_url: fileUrl,
+    }));
+    
+    // Show success toast
+    showToast({
+      message: 'Đã tải lên chứng chỉ thành công',
+      type: 'success',
+      duration: 3000,
+    });
+  };
+
+  // Handler for AI upload (with AI scan)
   const handleUploadComplete = (upload: UploadResult, scan: AIScanResult) => {
     setUploadResult(upload);
     setScanResult(scan);
@@ -333,11 +498,14 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      // Include AI scan result if available (to avoid re-scanning on backend)
+      // Include AI scan result only for AI tab (to avoid re-scanning on backend)
+      // For manual tab, explicitly skip AI scan
       const dataToSubmit = {
         ...formData,
-        // Include AI scan result if we already have it from upload
-        aiScanResult: scanResult || undefined,
+        // Include AI scan result only if we're on AI tab and have scan result
+        aiScanResult: activeTab === 'ai' && scanResult ? scanResult : undefined,
+        // Flag to skip AI scan for manual entry
+        skipAiScan: activeTab === 'manual',
       };
       
       await certificationService.createCertification(trainerId, dataToSubmit);
@@ -346,30 +514,33 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         type: 'success',
         duration: 3000,
       });
+      
+      // Note: Socket events will handle notification updates automatically
+      // No need to dispatch custom event here - backend will emit socket events
+      // which will be handled by TrainerLayout and NotificationDropdown
+      
       onSuccess();
       setTimeout(() => {
         onClose();
       }, 100);
     } catch (error: any) {
-      console.error('❌ Error creating certification:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Có lỗi xảy ra khi tạo chứng chỉ';
+      console.error('Error creating certification:', error);
       
-      // Show error toast with detailed message
+      // Extract error message from response
+      const errorMessage = 
+        error?.response?.data?.message || 
+        error?.message || 
+        'Có lỗi xảy ra khi tạo chứng chỉ. Vui lòng thử lại.';
+      
+      // Show error toast with message from backend
+      // This includes validation errors like "Đã có chứng chỉ X đã được xác thực cho Y. Chỉ chấp nhận cấp độ cao hơn."
       showToast({
         message: errorMessage,
         type: 'error',
-        duration: 5000, // Longer duration for error messages
+        duration: 5000, // Show for 5 seconds for validation errors
       });
       
-      // Set error in form state to display in UI
-      setErrors(prev => ({ ...prev, submit: errorMessage }));
-      
-      // If it's a validation error (400), also set field-specific errors if available
-      if (error.response?.status === 400) {
-        // The backend returns a clear message, we'll show it in the toast and error state
-        console.error('❌ Validation error:', errorMessage);
-      }
-    } finally {
+      // Reset submitting state
       setIsSubmitting(false);
     }
   };
@@ -406,13 +577,41 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
       <div className='relative w-full min-w-[600px] max-w-[900px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[85vh] flex flex-col'>
         {/* Header */}
         <div className='flex-shrink-0 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
-          <div className='flex items-center gap-3'>
+          <div className='flex items-center gap-3 mb-4'>
             <div className='w-10 h-10 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center'>
               <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
             </div>
             <h2 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
               Thêm chứng chỉ mới
             </h2>
+          </div>
+          
+          {/* Tabs */}
+          <div className='flex gap-2 border-b border-orange-200 dark:border-orange-700'>
+            <button
+              type='button'
+              onClick={() => setActiveTab('ai')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold font-heading transition-all duration-200 border-b-2 ${
+                activeTab === 'ai'
+                  ? 'text-orange-600 dark:text-orange-400 border-orange-600 dark:border-orange-400'
+                  : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-orange-500 dark:hover:text-orange-500'
+              }`}
+            >
+              <Sparkles className='w-4 h-4' />
+              <span>Quét bằng AI</span>
+            </button>
+            <button
+              type='button'
+              onClick={() => setActiveTab('manual')}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold font-heading transition-all duration-200 border-b-2 ${
+                activeTab === 'manual'
+                  ? 'text-orange-600 dark:text-orange-400 border-orange-600 dark:border-orange-400'
+                  : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-orange-500 dark:hover:text-orange-500'
+              }`}
+            >
+              <FileText className='w-4 h-4' />
+              <span>Nhập thủ công</span>
+            </button>
           </div>
         </div>
 
@@ -448,8 +647,9 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
           `}</style>
 
           <div className='space-y-3'>
-            {/* AI Scan Badge - Show when file has been scanned by AI (distinguishes from manual entry) */}
-            {scanResult && uploadResult ? (
+            {/* Tab-specific indicators */}
+            {activeTab === 'ai' && scanResult && uploadResult ? (
+              /* AI Scan Badge - Show when file has been scanned by AI */
               <div className='flex items-center gap-3 p-3.5 bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border-2 border-purple-300 dark:border-purple-700 rounded-xl shadow-sm'>
                 <div className='flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-500 shadow-md'>
                   <Sparkles className='w-5 h-5 text-white' />
@@ -477,25 +677,10 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   </div>
                 )}
               </div>
-            ) : (
-              // Manual entry indicator (when no AI scan)
-              <div className='flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg'>
-                <div className='flex items-center justify-center w-8 h-8 rounded-lg bg-gray-200 dark:bg-gray-700'>
-                  <AlertCircle className='w-4 h-4 text-gray-500 dark:text-gray-400' />
-                </div>
-                <div className='flex-1'>
-                  <p className='text-[11px] font-medium text-gray-600 dark:text-gray-400 font-heading'>
-                    Nhập thủ công
-                  </p>
-                  <p className='text-[10px] text-gray-500 dark:text-gray-500 font-inter'>
-                    Chứng chỉ sẽ được xem xét thủ công bởi quản trị viên
-                  </p>
-                </div>
-              </div>
-            )}
+            ) : null}
 
-            {/* Edit Button - Show when fields are locked */}
-            {fieldsLocked && (
+            {/* Edit Button - Show when fields are locked in AI tab */}
+            {activeTab === 'ai' && areFieldsDisabled && scanResult && (
               <div className='flex items-center justify-end mb-2'>
                 <button
                   type='button'
@@ -515,13 +700,14 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               </div>
             )}
 
+
             <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                     Danh mục *
                   </label>
-                  {fieldsLocked && (
+                  {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0' />
                   )}
                 </div>
@@ -531,10 +717,10 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   onChange={value => handleInputChange('category', value)}
                   placeholder='Chọn danh mục'
                   className='font-inter'
-                  disabled={fieldsLocked}
+                  disabled={areFieldsDisabled}
                 />
                 {isOpen && hasSubmitted && errors.category && (
-                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter break-words max-w-full'>
                     {errors.category}
                   </p>
                 )}
@@ -545,7 +731,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                     Cấp độ chứng chỉ *
                   </label>
-                  {fieldsLocked && (
+                  {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0' />
                   )}
                 </div>
@@ -555,7 +741,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   onChange={value => handleInputChange('certification_level', value as 'BASIC' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT')}
                   placeholder='Chọn cấp độ'
                   className='font-inter'
-                  disabled={fieldsLocked}
+                  disabled={areFieldsDisabled}
                 />
               </div>
             </div>
@@ -565,7 +751,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Tên chứng chỉ *
                 </label>
-                {fieldsLocked && (
+                {areFieldsDisabled && (
                   <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
                 )}
               </div>
@@ -574,21 +760,21 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 value={formData.certification_name || ''}
                 onChange={e => handleInputChange('certification_name', e.target.value)}
                 placeholder='Ví dụ: Yoga Alliance RYT-500'
-                disabled={fieldsLocked}
+                disabled={areFieldsDisabled}
                 className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
-                  fieldsLocked
+                  areFieldsDisabled
                     ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                     : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
                 } ${
                   isOpen && hasSubmitted && errors.certification_name
                     ? 'border-red-500 dark:border-red-500'
-                    : fieldsLocked
+                    : areFieldsDisabled
                     ? ''
                     : 'border-gray-300 dark:border-gray-700'
                 }`}
               />
               {isOpen && hasSubmitted && errors.certification_name && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter break-words max-w-full'>
                   {errors.certification_name}
                 </p>
               )}
@@ -599,7 +785,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Tổ chức cấp chứng chỉ *
                 </label>
-                {fieldsLocked && (
+                {areFieldsDisabled && (
                   <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
                 )}
               </div>
@@ -608,21 +794,21 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 value={formData.certification_issuer || ''}
                 onChange={e => handleInputChange('certification_issuer', e.target.value)}
                 placeholder='Ví dụ: Yoga Alliance International'
-                disabled={fieldsLocked}
+                disabled={areFieldsDisabled}
                 className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
-                  fieldsLocked
+                  areFieldsDisabled
                     ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                     : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
                 } ${
                   isOpen && hasSubmitted && errors.certification_issuer
                     ? 'border-red-500 dark:border-red-500'
-                    : fieldsLocked
+                    : areFieldsDisabled
                     ? ''
                     : 'border-gray-300 dark:border-gray-700'
                 }`}
               />
               {isOpen && hasSubmitted && errors.certification_issuer && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter break-words max-w-full'>
                   {errors.certification_issuer}
                 </p>
               )}
@@ -634,7 +820,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                     Ngày cấp *
                   </label>
-                  {fieldsLocked && (
+                  {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
                   )}
                 </div>
@@ -642,22 +828,31 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   type='date'
                   value={formData.issued_date || ''}
                   onChange={e => handleInputChange('issued_date', e.target.value)}
-                  max={new Date().toISOString().split('T')[0]}
-                  disabled={fieldsLocked}
+                  onBlur={e => {
+                    // Normalize date on blur if user typed manually
+                    if (e.target.value) {
+                      const normalized = normalizeDateInput(e.target.value);
+                      if (normalized !== e.target.value) {
+                        handleInputChange('issued_date', normalized);
+                      }
+                    }
+                  }}
+                  max={dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')}
+                  disabled={areFieldsDisabled}
                   className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
-                    fieldsLocked
+                    areFieldsDisabled
                       ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                       : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
                   } ${
                     isOpen && hasSubmitted && errors.issued_date
                       ? 'border-red-500 dark:border-red-500'
-                      : fieldsLocked
+                      : areFieldsDisabled
                       ? ''
                       : 'border-gray-300 dark:border-gray-700'
                   }`}
                 />
                 {isOpen && hasSubmitted && errors.issued_date && (
-                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter break-words max-w-full'>
                     {errors.issued_date}
                   </p>
                 )}
@@ -668,7 +863,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                     Ngày hết hạn
                   </label>
-                  {fieldsLocked && (
+                  {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
                   )}
                 </div>
@@ -676,22 +871,31 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   type='date'
                   value={formData.expiration_date || ''}
                   onChange={e => handleInputChange('expiration_date', e.target.value)}
+                  onBlur={e => {
+                    // Normalize date on blur if user typed manually
+                    if (e.target.value) {
+                      const normalized = normalizeDateInput(e.target.value);
+                      if (normalized !== e.target.value) {
+                        handleInputChange('expiration_date', normalized);
+                      }
+                    }
+                  }}
                   min={formData.issued_date || undefined}
-                  disabled={fieldsLocked}
+                  disabled={areFieldsDisabled}
                   className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
-                    fieldsLocked
+                    areFieldsDisabled
                       ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                       : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
                   } ${
                     isOpen && hasSubmitted && errors.expiration_date
                       ? 'border-red-500 dark:border-red-500'
-                      : fieldsLocked
+                      : areFieldsDisabled
                       ? ''
                       : 'border-gray-300 dark:border-gray-700'
                   }`}
                 />
                 {isOpen && hasSubmitted && errors.expiration_date && (
-                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter break-words max-w-full'>
                     {errors.expiration_date}
                   </p>
                 )}
@@ -705,35 +909,52 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               Upload chứng chỉ
             </label>
             <div className='min-h-[200px]'>
-              <CertificationUpload
-                trainerId={trainerId}
-                onUploadComplete={(upload, scan) => {
-                  // Clear all errors and reset submitted state before handling upload complete
-                  setErrors({});
-                  setHasSubmitted(false);
-                  handleUploadComplete(upload, scan);
-                }}
-                onUploadError={(error) => {
-                  // Clear all validation errors, only show file error
-                  setErrors({ certificate_file: error });
-                  setHasSubmitted(false);
-                }}
-                onFileSelect={() => {
-                  // Clear all errors and reset submitted state when file is selected
-                  setErrors({});
-                  setHasSubmitted(false);
-                }}
-              />
+              {activeTab === 'ai' ? (
+                <CertificationUpload
+                  trainerId={trainerId}
+                  onUploadComplete={(upload, scan) => {
+                    // Clear all errors and reset submitted state before handling upload complete
+                    setErrors({});
+                    setHasSubmitted(false);
+                    handleUploadComplete(upload, scan);
+                  }}
+                  onUploadError={(error) => {
+                    // Clear all validation errors, only show file error
+                    setErrors({ certificate_file: error });
+                    setHasSubmitted(false);
+                  }}
+                  onFileSelect={() => {
+                    // Clear all errors and reset submitted state when file is selected
+                    setErrors({});
+                    setHasSubmitted(false);
+                  }}
+                />
+              ) : (
+                <ManualCertificationUpload
+                  trainerId={trainerId}
+                  onUploadComplete={(upload) => {
+                    // Clear all errors and reset submitted state before handling upload complete
+                    setErrors({});
+                    setHasSubmitted(false);
+                    handleManualUploadComplete(upload);
+                  }}
+                  onUploadError={(error) => {
+                    // Clear all validation errors, only show file error
+                    setErrors({ certificate_file: error });
+                    setHasSubmitted(false);
+                  }}
+                  onFileSelect={() => {
+                    // Clear all errors and reset submitted state when file is selected
+                    setErrors({});
+                    setHasSubmitted(false);
+                  }}
+                />
+              )}
             </div>
-            {errors.certificate_file && (
-              <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                {errors.certificate_file}
-              </p>
-            )}
           </div>
 
-          {/* Auto-fill Notification */}
-          {autoFilled && scanResult?.extractedData && (
+          {/* Auto-fill Notification - Only show for AI tab */}
+          {activeTab === 'ai' && autoFilled && scanResult?.extractedData && (
             <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl'>
               <div className='flex items-start gap-2'>
                 <CheckCircle className='w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5' />
@@ -746,15 +967,6 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   </p>
                 </div>
               </div>
-            </div>
-          )}
-
-
-          {errors.submit && (
-            <div className='p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl'>
-              <p className='text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                {errors.submit}
-              </p>
             </div>
           )}
         </form>

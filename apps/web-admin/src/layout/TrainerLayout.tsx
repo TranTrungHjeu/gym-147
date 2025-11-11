@@ -79,11 +79,118 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           // Setup certification status notification listener for trainer
-          socket.on('certification:status', (data: any) => {
-            console.log('📢 certification:status event received in TrainerLayout:', data);
-            // Refresh notifications if on notification page
+          // Listen for certification:pending (when trainer uploads certification, status is PENDING)
+          socket.on('certification:pending', (data: any) => {
+            console.log('📢 certification:pending event received in TrainerLayout:', data);
+            // Dispatch certification:updated for page refreshes
             if (window.dispatchEvent) {
               window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
+            if (data?.notification_id && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
+          // Listen for certification:upload (when trainer uploads certification)
+          socket.on('certification:upload', (data: any) => {
+            console.log('📢 certification:upload event received in TrainerLayout:', data);
+            // Dispatch certification:updated for page refreshes
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
+            if (data?.notification_id && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
+          // Listen for notification:new (general notification event)
+          // This is the PRIMARY event - backend emits this for all notifications
+          socket.on('notification:new', (data: any) => {
+            console.log(
+              '📢 notification:new event received in TrainerLayout:',
+              JSON.stringify(data, null, 2)
+            );
+            // Dispatch notification:new custom event for NotificationDropdown to handle
+            if (window.dispatchEvent && data) {
+              console.log(
+                '📢 [TrainerLayout] Dispatching notification:new custom event (from socket notification:new event)'
+              );
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+            // Also dispatch certification:updated for backward compatibility (if it's a certification notification)
+            if (
+              window.dispatchEvent &&
+              data &&
+              (data.type?.includes('CERTIFICATION') || data.data?.certification_id)
+            ) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          socket.on('certification:status', (data: any) => {
+            console.log('📢 certification:status event received in TrainerLayout:', data);
+            // Dispatch certification:updated for page refreshes
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
+            if (data?.notification_id && window.dispatchEvent) {
+              console.log(
+                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:status'
+              );
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
+          socket.on('certification:verified', (data: any) => {
+            console.log(
+              '📢 certification:verified event received in TrainerLayout:',
+              JSON.stringify(data, null, 2)
+            );
+            // Dispatch certification:updated for page refreshes
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+            // ALWAYS dispatch notification:new if data exists (notification_id might be in data.data or data.certification)
+            // Backend emits notification:new event separately, but we also dispatch custom event as fallback
+            if (data && window.dispatchEvent) {
+              console.log(
+                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:verified'
+              );
+              console.log(
+                '📢 [TrainerLayout] Data contains notification_id:',
+                !!data?.notification_id,
+                'notification_id:',
+                data?.notification_id
+              );
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
+          socket.on('certification:rejected', (data: any) => {
+            console.log(
+              '📢 certification:rejected event received in TrainerLayout:',
+              JSON.stringify(data, null, 2)
+            );
+            // Dispatch certification:updated for page refreshes
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+            // ALWAYS dispatch notification:new if data exists (notification_id might be in data.data or data.certification)
+            // Backend emits notification:new event separately, but we also dispatch custom event as fallback
+            if (data && window.dispatchEvent) {
+              console.log(
+                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:rejected'
+              );
+              console.log(
+                '📢 [TrainerLayout] Data contains notification_id:',
+                !!data?.notification_id,
+                'notification_id:',
+                data?.notification_id
+              );
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
             }
           });
 
@@ -93,7 +200,12 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             socket.off('booking:new');
             socket.off('booking:pending_payment');
             socket.off('booking:confirmed');
+            socket.off('certification:pending');
+            socket.off('certification:upload');
+            socket.off('notification:new');
             socket.off('certification:status');
+            socket.off('certification:verified');
+            socket.off('certification:rejected');
             // Don't disconnect here - socket is shared across components
           };
         }

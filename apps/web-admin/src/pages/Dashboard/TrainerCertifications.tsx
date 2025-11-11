@@ -16,8 +16,6 @@ import {
   CalendarX,
   X,
   Download,
-  ZoomIn,
-  ZoomOut,
 } from 'lucide-react';
 import AddCertificationModal from '../../components/certification/AddCertificationModal';
 import MetricCard from '../../components/dashboard/MetricCard';
@@ -44,7 +42,6 @@ export default function TrainerCertifications() {
   const [viewCertificateModal, setViewCertificateModal] = useState(false);
   const [certificateImageUrl, setCertificateImageUrl] = useState<string | null>(null);
   const [certificateName, setCertificateName] = useState<string>('');
-  const [imageZoom, setImageZoom] = useState(1);
 
   // Get current trainer ID from localStorage
   // Prefer trainerId if available (from login), otherwise fallback to user_id
@@ -61,6 +58,129 @@ export default function TrainerCertifications() {
   useEffect(() => {
     fetchCertifications();
     fetchAvailableCategories();
+  }, []);
+
+  // Listen for certification events to update certifications list optimistically
+  useEffect(() => {
+    // Helper to update certification status optimistically
+    const updateCertificationStatus = (certificationId: string, status: string, data?: any) => {
+      setCertifications(prev => {
+        const index = prev.findIndex(cert => cert.id === certificationId);
+        if (index === -1) {
+          // Certification not found, might be new - will be added by socket data if available
+          console.log(`ℹ️ [TRAINER_CERTS] Certification ${certificationId} not found in list, skipping optimistic update`);
+          return prev;
+        }
+
+        // Update existing certification
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          verification_status: status as any,
+          updated_at: new Date().toISOString(),
+        };
+        console.log(`✅ [TRAINER_CERTS] Updated certification ${certificationId} status to ${status} optimistically`);
+        return updated;
+      });
+    };
+
+    // Helper to add new certification optimistically
+    const addCertificationOptimistically = (certData: any) => {
+      if (!certData?.certification_id && !certData?.id) {
+        console.warn('⚠️ [TRAINER_CERTS] Cannot add certification: missing id');
+        return;
+      }
+
+      const certId = certData.certification_id || certData.id;
+      
+      setCertifications(prev => {
+        // Check if certification already exists
+        const exists = prev.some(cert => cert.id === certId);
+        if (exists) {
+          console.log(`ℹ️ [TRAINER_CERTS] Certification ${certId} already exists, updating status instead`);
+          // Update status if it exists
+          updateCertificationStatus(certId, certData.verification_status || 'PENDING', certData);
+          return prev;
+        }
+
+        // Create new certification object from socket data
+        // Note: This is a partial object, full data will be synced from server
+        const newCert: Certification = {
+          id: certId,
+          trainer_id: getCurrentTrainerId() || '',
+          category: certData.category || '',
+          certification_name: certData.certification_name || certData.certificationName || 'Chứng chỉ mới',
+          certification_issuer: certData.certification_issuer || certData.certificationIssuer || '',
+          certification_level: certData.certification_level || certData.certificationLevel || 'BASIC',
+          issued_date: certData.issued_date || certData.issuedDate || new Date().toISOString(),
+          expiration_date: certData.expiration_date || certData.expirationDate,
+          verification_status: certData.verification_status || certData.verificationStatus || 'PENDING',
+          certificate_file_url: certData.certificate_file_url || certData.certificateFileUrl,
+          is_active: true,
+          created_at: certData.created_at || new Date().toISOString(),
+          updated_at: certData.updated_at || new Date().toISOString(),
+        };
+
+        // Add to beginning of list (newest first)
+        console.log(`✅ [TRAINER_CERTS] Added certification ${certId} optimistically`);
+        return [newCert, ...prev];
+      });
+
+      // Also update available categories if needed
+      fetchAvailableCategories();
+    };
+
+    const handleCertificationUpdated = (event: CustomEvent) => {
+      console.log('📢 certification:updated event received in TrainerCertifications:', event.detail);
+      const data = event.detail;
+
+      // If we have certification data, update optimistically
+      if (data?.certification_id || data?.id) {
+        const certId = data.certification_id || data.id;
+        const status = data.verification_status || data.status || 'PENDING';
+        
+        // Update certification status optimistically
+        updateCertificationStatus(certId, status, data);
+        
+        // Background sync after delay to ensure data consistency
+        setTimeout(() => {
+          fetchCertifications(false);
+          fetchAvailableCategories();
+        }, 1500);
+      } else {
+        // No certification data, do full refresh
+        setTimeout(() => {
+          fetchCertifications(false);
+          fetchAvailableCategories();
+        }, 1000);
+      }
+    };
+
+    const handleCertificationCreated = (event: CustomEvent) => {
+      console.log('📢 certification:created event received in TrainerCertifications:', event.detail);
+      const data = event.detail;
+
+      // Note: This event is dispatched from AddCertificationModal after successful creation
+      // However, socket events should handle the actual updates
+      // Just do a background sync to get the latest certification data
+      setTimeout(() => {
+        fetchCertifications(false);
+        fetchAvailableCategories();
+      }, 2000);
+    };
+
+    // Listen for socket events directly (for real-time updates)
+    // Socket is managed by TrainerLayout, so we can access it via window
+    // For now, we rely on custom events dispatched by TrainerLayout
+    // Socket events are already handled in TrainerLayout and dispatched as custom events
+    window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
+    window.addEventListener('certification:created', handleCertificationCreated as EventListener);
+
+    return () => {
+      window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
+      window.removeEventListener('certification:created', handleCertificationCreated as EventListener);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCertifications = async (showLoading = true) => {
@@ -107,6 +227,8 @@ export default function TrainerCertifications() {
   };
 
   const filteredCertifications = certifications.filter(cert => {
+    // With new logic, we show all certifications (including inactive ones)
+    // But we can still filter by status and search
     const matchesStatus = filterStatus === 'all' || cert.verification_status === filterStatus;
     const matchesSearch =
       !searchTerm ||
@@ -185,7 +307,6 @@ export default function TrainerCertifications() {
         
         setCertificateImageUrl(imageUrl);
         setCertificateName(cert.certification_name || 'Chứng chỉ');
-        setImageZoom(1);
         setViewCertificateModal(true);
       } catch (error) {
         console.error('Error viewing certificate:', error);
@@ -202,7 +323,6 @@ export default function TrainerCertifications() {
     setViewCertificateModal(false);
     setCertificateImageUrl(null);
     setCertificateName('');
-    setImageZoom(1);
   };
 
   const handleDownloadCertificate = () => {
@@ -214,18 +334,6 @@ export default function TrainerCertifications() {
       link.click();
       document.body.removeChild(link);
     }
-  };
-
-  const handleZoomIn = () => {
-    setImageZoom(prev => Math.min(prev + 0.1, 1));
-  };
-
-  const handleZoomOut = () => {
-    setImageZoom(prev => Math.max(prev - 0.1, 0.5));
-  };
-
-  const handleResetZoom = () => {
-    setImageZoom(1);
   };
 
   if (loading) {
@@ -279,16 +387,16 @@ export default function TrainerCertifications() {
           icon={CheckCircle2}
           label='Đã xác thực'
           value={certifications.filter(c => c.verification_status === 'VERIFIED').length}
-          iconBgColor='bg-green-100 dark:bg-green-900/30'
-          iconColor='text-green-600 dark:text-green-400'
+          iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+          iconColor='text-orange-600 dark:text-orange-400'
           isLoading={loading}
         />
         <MetricCard
           icon={Clock}
           label='Chờ xác thực'
           value={certifications.filter(c => c.verification_status === 'PENDING').length}
-          iconBgColor='bg-yellow-100 dark:bg-yellow-900/30'
-          iconColor='text-yellow-600 dark:text-yellow-400'
+          iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+          iconColor='text-orange-600 dark:text-orange-400'
           isLoading={loading}
         />
         <MetricCard
@@ -310,8 +418,8 @@ export default function TrainerCertifications() {
           icon={FileText}
           label='Tổng cộng'
           value={certifications.length}
-          iconBgColor='bg-blue-100 dark:bg-blue-900/30'
-          iconColor='text-blue-600 dark:text-blue-400'
+          iconBgColor='bg-orange-100 dark:bg-orange-900/30'
+          iconColor='text-orange-600 dark:text-orange-400'
           isLoading={loading}
         />
       </div>
@@ -373,86 +481,128 @@ export default function TrainerCertifications() {
               return (
                 <div
                   key={cert.id}
-                  className='group relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-300 overflow-hidden hover:-translate-y-1 flex flex-col h-full opacity-0'
+                  className={`group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full ${
+                    cert.is_active === false ? 'opacity-60' : 'opacity-0'
+                  }`}
                   style={{
                     animationDelay: `${index * 50}ms`,
-                    animation: 'fadeInUp 0.6s ease-out forwards',
+                    animation: cert.is_active === false ? 'none' : 'fadeInUp 0.6s ease-out forwards',
+                    filter: cert.is_active === false ? 'grayscale(100%)' : 'none',
                   }}
                 >
-                  {/* Gradient Accent Bar */}
+                  {/* Status Accent Bar */}
                   <div
-                    className={`absolute top-0 left-0 right-0 h-1 bg-gradient-to-r transition-opacity duration-300 ${
+                    className={`absolute top-0 left-0 right-0 h-0.5 ${
                       cert.verification_status === 'VERIFIED'
-                        ? 'from-green-500 via-green-400 to-green-500 opacity-0 group-hover:opacity-100'
+                        ? 'bg-green-500'
                         : cert.verification_status === 'PENDING'
-                          ? 'from-yellow-500 via-yellow-400 to-yellow-500 opacity-0 group-hover:opacity-100'
+                          ? 'bg-yellow-500'
                           : cert.verification_status === 'REJECTED'
-                            ? 'from-red-500 via-red-400 to-red-500 opacity-0 group-hover:opacity-100'
-                            : 'from-orange-500 via-orange-400 to-orange-500 opacity-0 group-hover:opacity-100'
+                            ? 'bg-red-500'
+                            : 'bg-orange-500'
                     }`}
                   ></div>
 
-                  {/* Card Header */}
-                  <div className='relative p-5 pb-4 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 border-b border-gray-100 dark:border-gray-800'>
-                    <div className='flex items-start justify-between gap-3 mb-3'>
-                      {/* Award Icon */}
-                      <div
-                        className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${getCategoryColor(cert.category)} p-3 shadow-md transition-all duration-300 group-hover:shadow-lg group-hover:scale-105`}
-                      >
-                        <Award className='w-7 h-7' />
+                  {/* Card Header with Certificate Image Background */}
+                  <div 
+                    className='relative overflow-hidden'
+                    style={{
+                      backgroundImage: cert.certificate_file_url 
+                        ? `url(${cert.certificate_file_url})` 
+                        : 'linear-gradient(to bottom right, rgb(249, 250, 251), rgb(255, 255, 255))',
+                      backgroundSize: 'cover',
+                      backgroundPosition: 'center',
+                      backgroundRepeat: 'no-repeat',
+                      minHeight: '160px',
+                    }}
+                  >
+                    {/* Overlay for better text readability */}
+                    <div className='absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80 dark:from-black/80 dark:via-black/60 dark:to-black/90'></div>
+                    
+                    {/* Content with relative positioning */}
+                    <div className='relative z-10 p-4'>
+                      {/* Status Badge - Top Right */}
+                      <div className='flex items-start justify-between gap-2 mb-3'>
+                        <div className='flex-1 min-w-0'>
+                          {/* Certification Name with Gradient Animation */}
+                          <h3 
+                            className='text-sm font-bold font-heading mb-2 line-clamp-2 leading-tight drop-shadow-md'
+                            style={{ 
+                              backgroundImage: cert.is_active === false 
+                                ? 'none' 
+                                : 'linear-gradient(90deg, #f06f05, #fbbf24, #fd8d47, #fbbf24, #f06f05)',
+                              backgroundSize: cert.is_active === false ? 'auto' : '300% 100%',
+                              backgroundPosition: cert.is_active === false ? 'center' : '200% center',
+                              WebkitBackgroundClip: cert.is_active === false ? 'initial' : 'text',
+                              WebkitTextFillColor: cert.is_active === false ? 'rgba(255, 255, 255, 0.7)' : 'transparent',
+                              backgroundClip: cert.is_active === false ? 'initial' : 'text',
+                              color: cert.is_active === false ? 'rgba(255, 255, 255, 0.7)' : undefined,
+                              animation: cert.is_active === false ? 'none' : 'gradientFlowHorizontal 3s ease-in-out infinite',
+                            }}
+                          >
+                            {cert.certification_name}
+                          </h3>
+                        </div>
+                        {/* Status Badge */}
+                        <div
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading tracking-wide flex-shrink-0 backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${statusColor}`}
+                        >
+                          {getStatusIcon(cert.verification_status)}
+                          <span className='hidden sm:inline'>
+                            {certificationService.formatVerificationStatus(cert.verification_status)}
+                          </span>
+                        </div>
                       </div>
 
-                      {/* Status Badge */}
-                      <div
-                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-semibold font-heading tracking-wide flex-shrink-0 transition-all duration-200 ${statusColor}`}
-                      >
-                        {getStatusIcon(cert.verification_status)}
-                        <span className='hidden sm:inline'>
-                          {certificationService.formatVerificationStatus(cert.verification_status)}
+                      {/* Category and Level Badges */}
+                      <div className='flex flex-wrap items-center gap-1.5'>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${getCategoryColor(cert.category)}`}
+                        >
+                          {getCategoryLabel(cert.category)}
+                        </span>
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${certificationService.getLevelColor(cert.certification_level)}`}
+                        >
+                          {certificationService.formatCertificationLevel(cert.certification_level)}
                         </span>
                       </div>
                     </div>
-
-                    {/* Certification Name */}
-                    <h3 className='text-base font-bold font-heading text-gray-900 dark:text-white mb-2 line-clamp-2 leading-tight'>
-                      {cert.certification_name}
-                    </h3>
-
-                    {/* Category and Level Badges */}
-                    <div className='flex flex-wrap items-center gap-2'>
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold font-heading tracking-wide transition-all duration-200 ${getCategoryColor(cert.category)}`}
-                      >
-                        {getCategoryLabel(cert.category)}
-                      </span>
-                      <span
-                        className={`inline-flex items-center px-3 py-1 rounded-full text-[10px] font-semibold font-heading tracking-wide transition-all duration-200 ${certificationService.getLevelColor(cert.certification_level)}`}
-                      >
-                        {certificationService.formatCertificationLevel(cert.certification_level)}
-                      </span>
-                    </div>
                   </div>
 
+                  {/* Inactive Overlay - Centered (on top of everything) */}
+                  {cert.is_active === false && (
+                    <div 
+                      className='absolute inset-0 z-50 pointer-events-none flex items-center justify-center'
+                    >
+                      <img 
+                        src='/images/cetificate/inactive.png'
+                        alt='Inactive'
+                        className='w-40 h-40 object-contain opacity-90'
+                      />
+                    </div>
+                  )}
+
                   {/* Card Body */}
-                  <div className='p-5 space-y-3 flex-1 flex flex-col'>
+                  <div className='p-4 space-y-2.5 flex-1 flex flex-col relative z-10'>
                     {/* Issuer */}
-                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700'>
-                      <Building2 className='w-4 h-4 flex-shrink-0 text-orange-500 dark:text-orange-400' />
-                      <span className='text-[11px] font-semibold font-heading text-gray-800 dark:text-gray-200 truncate flex-1'>
+                    <div className='flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700'>
+                      <Building2 className='w-3.5 h-3.5 flex-shrink-0 text-orange-500 dark:text-orange-400' />
+                      <span className='text-[11px] font-medium font-heading text-gray-800 dark:text-gray-200 truncate flex-1'>
                         {cert.certification_issuer}
                       </span>
                     </div>
 
                     {/* Dates Grid */}
-                    <div className='grid grid-cols-1 gap-2'>
+                    <div className='grid grid-cols-2 gap-2'>
                       {/* Issued Date */}
-                      <div className='flex items-center gap-2.5 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50'>
-                        <CalendarCheck className='w-4 h-4 flex-shrink-0 text-blue-600 dark:text-blue-400' />
+                      <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                        <CalendarCheck className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                         <div className='min-w-0 flex-1'>
-                          <div className='text-[10px] font-medium font-inter text-blue-600 dark:text-blue-400 mb-0.5'>
-                            Ngày cấp
+                          <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
+                            Cấp
                           </div>
-                          <div className='text-[11px] font-bold font-heading text-blue-700 dark:text-blue-300'>
+                          <div className='text-[11px] font-bold font-heading text-orange-700 dark:text-orange-300 leading-tight'>
                             {formatDate(cert.issued_date)}
                           </div>
                         </div>
@@ -460,57 +610,25 @@ export default function TrainerCertifications() {
 
                       {/* Expiration Date */}
                       {cert.expiration_date ? (
-                        <div
-                          className={`flex items-center gap-2.5 px-3 py-2 rounded-lg border ${
-                            isExpired
-                              ? 'bg-red-50 dark:bg-red-900/20 border-red-100 dark:border-red-800/50'
-                              : isExpiringSoon
-                                ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-100 dark:border-orange-800/50'
-                                : 'bg-green-50 dark:bg-green-900/20 border-green-100 dark:border-green-800/50'
-                          }`}
-                        >
-                          <CalendarX
-                            className={`w-4 h-4 flex-shrink-0 ${
-                              isExpired
-                                ? 'text-red-600 dark:text-red-400'
-                                : isExpiringSoon
-                                  ? 'text-orange-600 dark:text-orange-400'
-                                  : 'text-green-600 dark:text-green-400'
-                            }`}
-                          />
+                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                          <CalendarX className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                           <div className='min-w-0 flex-1'>
-                            <div
-                              className={`text-[10px] font-medium font-inter mb-0.5 ${
-                                isExpired
-                                  ? 'text-red-600 dark:text-red-400'
-                                  : isExpiringSoon
-                                    ? 'text-orange-600 dark:text-orange-400'
-                                    : 'text-green-600 dark:text-green-400'
-                              }`}
-                            >
+                            <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
                               Hết hạn
                             </div>
-                            <div
-                              className={`text-[11px] font-bold font-heading ${
-                                isExpired
-                                  ? 'text-red-700 dark:text-red-300'
-                                  : isExpiringSoon
-                                    ? 'text-orange-700 dark:text-orange-300'
-                                    : 'text-green-700 dark:text-green-300'
-                              }`}
-                            >
+                            <div className='text-[11px] font-bold font-heading text-orange-700 dark:text-orange-300 leading-tight'>
                               {formatDate(cert.expiration_date)}
                             </div>
                           </div>
                         </div>
                       ) : (
-                        <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700'>
-                          <Calendar className='w-4 h-4 flex-shrink-0 text-gray-400 dark:text-gray-500' />
+                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                          <Calendar className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                           <div className='min-w-0 flex-1'>
-                            <div className='text-[10px] font-medium font-inter text-gray-500 dark:text-gray-400 mb-0.5'>
+                            <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
                               Hết hạn
                             </div>
-                            <div className='text-[11px] font-medium font-heading text-gray-500 dark:text-gray-400'>
+                            <div className='text-[11px] font-medium font-heading text-orange-600 dark:text-orange-400 leading-tight'>
                               Không có
                             </div>
                           </div>
@@ -522,9 +640,9 @@ export default function TrainerCertifications() {
                     {cert.certificate_file_url && (
                       <button
                         onClick={() => handleViewCertificate(cert)}
-                        className='mt-auto w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-xl transition-all duration-200 hover:shadow-md active:scale-95'
+                        className='mt-auto w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 hover:shadow-sm active:scale-95'
                       >
-                        <Eye className='w-4 h-4' />
+                        <Eye className='w-3.5 h-3.5' />
                         <span>Xem chứng chỉ</span>
                       </button>
                     )}
@@ -539,7 +657,10 @@ export default function TrainerCertifications() {
               <Pagination
                 currentPage={currentPage}
                 totalPages={totalPages}
+                totalItems={filteredCertifications.length}
+                itemsPerPage={itemsPerPage}
                 onPageChange={setCurrentPage}
+                showItemsPerPage={false}
               />
             </div>
           )}
@@ -580,7 +701,7 @@ export default function TrainerCertifications() {
       >
         <div className='relative w-full max-w-6xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
           {/* Header */}
-          <div className='p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-gray-800 dark:to-gray-800/50'>
+          <div className='p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-gray-800 dark:to-gray-800/50 pr-16'>
             <div className='flex items-center gap-3'>
               <div className='p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg'>
                 <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
@@ -594,56 +715,16 @@ export default function TrainerCertifications() {
                 </p>
               </div>
             </div>
-            <div className='flex items-center gap-2'>
-              {/* Zoom Controls */}
-              <div className='flex items-center gap-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg p-1'>
-                <button
-                  type='button'
-                  onClick={handleZoomOut}
-                  disabled={imageZoom <= 0.5}
-                  className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
-                  title='Thu nhỏ'
-                >
-                  <ZoomOut className='w-4 h-4 text-gray-600 dark:text-gray-400' />
-                </button>
-                <button
-                  type='button'
-                  onClick={handleResetZoom}
-                  className='px-2 py-1 text-[10px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 min-w-[40px]'
-                  title='Đặt lại'
-                >
-                  {Math.round(imageZoom * 100)}%
-                </button>
-                <button
-                  type='button'
-                  onClick={handleZoomIn}
-                  disabled={imageZoom >= 1}
-                  className='p-1.5 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
-                  title='Phóng to'
-                >
-                  <ZoomIn className='w-4 h-4 text-gray-600 dark:text-gray-400' />
-                </button>
-              </div>
-              {/* Download Button */}
-              <button
-                type='button'
-                onClick={handleDownloadCertificate}
-                className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200'
-                title='Tải xuống'
-              >
-                <Download className='w-4 h-4' />
-                <span className='hidden sm:inline'>Tải xuống</span>
-              </button>
-              {/* Close Button */}
-              <button
-                type='button'
-                onClick={handleCloseCertificateModal}
-                className='p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all duration-200'
-                title='Đóng'
-              >
-                <X className='w-5 h-5 text-gray-500 dark:text-gray-400' />
-              </button>
-            </div>
+            {/* Download Button */}
+            <button
+              type='button'
+              onClick={handleDownloadCertificate}
+              className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 flex-shrink-0'
+              title='Tải xuống'
+            >
+              <Download className='w-4 h-4' />
+              <span className='hidden sm:inline'>Tải xuống</span>
+            </button>
           </div>
 
           {/* Image Container */}
@@ -654,9 +735,6 @@ export default function TrainerCertifications() {
                   src={certificateImageUrl}
                   alt={certificateName}
                   className='max-w-full max-h-[calc(75vh-120px)] w-auto h-auto object-contain rounded-lg shadow-lg'
-                  style={{
-                    transform: `scale(${Math.min(imageZoom, 1)})`,
-                  }}
                   onError={(e) => {
                     console.error('Error loading certificate image:', {
                       url: certificateImageUrl,
