@@ -104,7 +104,6 @@ class CertificationService {
       const response = await scheduleApi.get(`/trainers/${trainerId}/certifications`);
       return response.data.data;
     } catch (error) {
-      console.error('Error fetching trainer certifications:', error);
       throw error;
     }
   }
@@ -125,7 +124,6 @@ class CertificationService {
       );
       return response.data.data;
     } catch (error) {
-      console.error('Error creating certification:', error);
       throw error;
     }
   }
@@ -141,7 +139,6 @@ class CertificationService {
       const response = await scheduleApi.put(`/certifications/${certId}`, data);
       return response.data.data;
     } catch (error) {
-      console.error('Error updating certification:', error);
       throw error;
     }
   }
@@ -153,7 +150,68 @@ class CertificationService {
     try {
       await scheduleApi.delete(`/certifications/${certId}`);
     } catch (error) {
-      console.error('Error deleting certification:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all pending certifications for admin review
+   */
+  async getPendingCertifications(params?: {
+    page?: number;
+    limit?: number;
+    category?: string;
+    trainer_id?: string;
+  }): Promise<{ certifications: Certification[]; pagination: any }> {
+    try {
+      const response = await scheduleApi.get('/admin/certifications/pending', { params });
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Verify (approve) a certification
+   */
+  async verifyCertification(certId: string, verifiedBy: string): Promise<Certification> {
+    try {
+      const response = await scheduleApi.put(`/admin/certifications/${certId}/verify`, {
+        verified_by: verifiedBy,
+      });
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Reject a certification
+   */
+  async rejectCertification(
+    certId: string,
+    verifiedBy: string,
+    rejectionReason: string
+  ): Promise<Certification> {
+    try {
+      const response = await scheduleApi.put(`/admin/certifications/${certId}/reject`, {
+        verified_by: verifiedBy,
+        rejection_reason: rejectionReason,
+      });
+      return response.data.data;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  /**
+   * Get certification by ID
+   */
+  async getCertificationById(certId: string): Promise<Certification> {
+    try {
+      const response = await scheduleApi.get(`/admin/certifications/${certId}`);
+      return response.data.data;
+    } catch (error) {
       throw error;
     }
   }
@@ -176,10 +234,26 @@ class CertificationService {
         }
       );
 
-      return response.data.data;
-    } catch (error) {
-      console.error('Error uploading certificate file:', error);
-      throw error;
+      const result = response.data.data;
+      
+      if (!result) {
+        throw new Error('Không nhận được dữ liệu từ server');
+      }
+      
+      const uploadResult: UploadResult = {
+        url: result.url,
+        publicUrl: result.publicUrl || result.url,
+        key: result.key,
+        originalName: result.originalName || file.name,
+        size: result.size || file.size,
+        mimeType: result.mimeType || file.type,
+        bucket: result.bucket,
+      };
+      
+      return uploadResult;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.message || error.message || 'Lỗi khi upload file';
+      throw new Error(errorMessage);
     }
   }
 
@@ -199,7 +273,6 @@ class CertificationService {
 
       return response.data.data;
     } catch (error) {
-      console.error('Error generating presigned URL:', error);
       throw error;
     }
   }
@@ -223,7 +296,6 @@ class CertificationService {
         throw new Error(`S3 upload failed: ${response.status} ${response.statusText}`);
       }
     } catch (error) {
-      console.error('Error uploading to S3:', error);
       throw error;
     }
   }
@@ -240,7 +312,6 @@ class CertificationService {
       );
       return response.data.data;
     } catch (error) {
-      console.error('Error scanning certificate with AI:', error);
       throw error;
     }
   }
@@ -255,7 +326,21 @@ class CertificationService {
       const response = await scheduleApi.get(`/trainers/${trainerId}/available-categories`);
       return response.data.data.categories;
     } catch (error) {
-      console.error('Error fetching available categories:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Delete a certification
+   * @param certId - Certification ID
+   * @param reason - Reason for deletion
+   */
+  async deleteCertification(certId: string, reason: string): Promise<void> {
+    try {
+      await scheduleApi.delete(`/certifications/${certId}`, {
+        data: { reason },
+      });
+    } catch (error) {
       throw error;
     }
   }
@@ -273,7 +358,6 @@ class CertificationService {
       );
       return response.data.data;
     } catch (error) {
-      console.error('Error checking category access:', error);
       throw error;
     }
   }
@@ -288,7 +372,6 @@ class CertificationService {
       const uploadResult = await this.uploadCertificateFile(trainerId, file);
       return uploadResult;
     } catch (error) {
-      console.error('Error in upload file only:', error);
       throw error;
     }
   }
@@ -329,7 +412,6 @@ class CertificationService {
         scanResult,
       };
     } catch (error) {
-      console.error('Error in complete upload flow:', error);
       throw error;
     }
   }

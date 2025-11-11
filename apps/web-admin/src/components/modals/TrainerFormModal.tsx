@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
 import { Save, UserPlus } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '../../context/ToastContext';
+import { Trainer } from '../../services/trainer.service';
 import Modal from '../Modal/Modal';
 import CustomSelect from '../common/CustomSelect';
-import { Trainer, trainerService } from '../../services/trainer.service';
-import { useToast } from '../../context/ToastContext';
 
 interface TrainerFormModalProps {
   isOpen: boolean;
@@ -12,7 +12,6 @@ interface TrainerFormModalProps {
   onSave: (data: Partial<Trainer>) => Promise<void>;
   trainer?: Trainer | null;
 }
-
 
 const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
   isOpen,
@@ -49,7 +48,7 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
           status: trainer.status || 'ACTIVE',
         });
       } else {
-          setFormData({
+        setFormData({
           full_name: '',
           email: '',
           phone: '',
@@ -64,29 +63,10 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
     }
   }, [isOpen, trainer]);
 
-
   const validate = (): boolean => {
     const newErrors: Record<string, string> = {};
 
-    if (!formData.full_name || formData.full_name.trim().length === 0) {
-      newErrors.full_name = 'Tên đầy đủ là bắt buộc';
-    } else if (formData.full_name.length < 2) {
-      newErrors.full_name = 'Tên phải có ít nhất 2 ký tự';
-    } else if (formData.full_name.length > 100) {
-      newErrors.full_name = 'Tên không được quá 100 ký tự';
-    }
-
-    if (!formData.email || formData.email.trim().length === 0) {
-      newErrors.email = 'Email là bắt buộc';
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-      newErrors.email = 'Email không hợp lệ';
-    }
-
-    if (formData.phone && !/^(0[3|5|7|8|9])[0-9]{8}$/.test(formData.phone)) {
-      newErrors.phone = 'Số điện thoại phải bắt đầu bằng 0 và có 10 số';
-    }
-
-    if (formData.experience_years < 0) {
+    if ((formData.experience_years ?? 0) < 0) {
       newErrors.experience_years = 'Số năm kinh nghiệm không được âm';
     }
 
@@ -111,9 +91,10 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
 
     setIsLoading(true);
     try {
-      // Remove specializations from formData before saving
+      // Remove specializations, full_name, email, phone from formData before saving
       // Specializations are managed by trainers through certifications
-      const { specializations, ...dataToSave } = formData;
+      // full_name, email, phone cannot be edited here
+      const { specializations, full_name, email, phone, ...dataToSave } = formData;
       await onSave(dataToSave);
       showToast({
         message: 'Cập nhật huấn luyện viên thành công',
@@ -143,15 +124,17 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
     }
   };
 
-
   const handleCreateNew = () => {
     onClose();
     navigate('/create-trainer');
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} className='max-w-[900px] m-4'>
-      <div className='relative w-full max-w-[900px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[75vh] flex flex-col'>
+    <Modal isOpen={isOpen} onClose={onClose} className='max-w-[1000px] w-[320px]'>
+      <div
+        className='relative w-full rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl flex flex-col'
+        style={{ maxHeight: '85vh', width: '100%' }}
+      >
         {/* Header */}
         <div className='flex-shrink-0 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
           <h2 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
@@ -191,7 +174,7 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
           `}</style>
           {!trainer ? (
             <div className='text-center py-8'>
-              <p className='text-theme-xs text-gray-600 dark:text-gray-400 mb-4 font-inter'>
+              <p className='text-theme-xs text-gray-600 dark:text-gray-400 mb-4 font-heading'>
                 Để tạo huấn luyện viên mới, bạn cần tạo tài khoản người dùng trước.
               </p>
               <button
@@ -204,167 +187,107 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
             </div>
           ) : (
             <div className='space-y-3'>
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                Tên đầy đủ *
-              </label>
-              <input
-                type='text'
-                value={formData.full_name || ''}
-                onChange={e => handleInputChange('full_name', e.target.value)}
-                placeholder='Nhập tên đầy đủ'
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                  errors.full_name
-                    ? 'border-red-500 dark:border-red-500'
-                    : 'border-gray-300 dark:border-gray-700'
-                }`}
-              />
-              {errors.full_name && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                  {errors.full_name}
-                </p>
-              )}
-            </div>
+              <div>
+                <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                  Kinh nghiệm (năm) *
+                </label>
+                <input
+                  type='number'
+                  min='0'
+                  value={formData.experience_years?.toString() || '0'}
+                  onChange={e =>
+                    handleInputChange('experience_years', parseInt(e.target.value) || 0)
+                  }
+                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-heading shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                    errors.experience_years
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  }`}
+                />
+                {errors.experience_years && (
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-heading'>
+                    {errors.experience_years}
+                  </p>
+                )}
+              </div>
 
-            <div>
-              <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                Email *
-              </label>
-              <input
-                type='email'
-                value={formData.email || ''}
-                onChange={e => handleInputChange('email', e.target.value)}
-                placeholder='email@example.com'
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                  errors.email
-                    ? 'border-red-500 dark:border-red-500'
-                    : 'border-gray-300 dark:border-gray-700'
-                }`}
-              />
-              {errors.email && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                  {errors.email}
-                </p>
-              )}
-            </div>
-          </div>
+              <div>
+                <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                  Giá theo giờ (VNĐ)
+                </label>
+                <input
+                  type='number'
+                  min='0'
+                  value={formData.hourly_rate?.toString() || ''}
+                  onChange={e =>
+                    handleInputChange(
+                      'hourly_rate',
+                      e.target.value ? parseFloat(e.target.value) : 0
+                    )
+                  }
+                  placeholder='Nhập giá theo giờ'
+                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-heading shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                    errors.hourly_rate
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  }`}
+                />
+                {errors.hourly_rate && (
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-heading'>
+                    {errors.hourly_rate}
+                  </p>
+                )}
+              </div>
 
-          <div className='grid grid-cols-2 gap-3'>
-            <div>
-              <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                Số điện thoại
-              </label>
-              <input
-                type='text'
-                value={formData.phone || ''}
-                onChange={e => handleInputChange('phone', e.target.value)}
-                placeholder='0123456789'
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                  errors.phone
-                    ? 'border-red-500 dark:border-red-500'
-                    : 'border-gray-300 dark:border-gray-700'
-                }`}
-              />
-              {errors.phone && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                  {errors.phone}
-                </p>
-              )}
-            </div>
+              <div>
+                <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                  Tiểu sử
+                </label>
+                <textarea
+                  value={formData.bio || ''}
+                  onChange={e => handleInputChange('bio', e.target.value)}
+                  rows={4}
+                  placeholder='Nhập tiểu sử (tùy chọn)'
+                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-heading resize-none shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                    errors.bio
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-700'
+                  }`}
+                />
+                {errors.bio && (
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-heading'>
+                    {errors.bio}
+                  </p>
+                )}
+              </div>
 
-            <div>
-              <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                Kinh nghiệm (năm) *
-              </label>
-              <input
-                type='number'
-                min='0'
-                value={formData.experience_years?.toString() || '0'}
-                onChange={e => handleInputChange('experience_years', parseInt(e.target.value) || 0)}
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                  errors.experience_years
-                    ? 'border-red-500 dark:border-red-500'
-                    : 'border-gray-300 dark:border-gray-700'
-                }`}
-              />
-              {errors.experience_years && (
-                <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                  {errors.experience_years}
-                </p>
-              )}
-            </div>
-          </div>
-
-          <div>
-            <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-              Giá theo giờ (VNĐ)
-            </label>
-            <input
-              type='number'
-              min='0'
-              value={formData.hourly_rate?.toString() || ''}
-              onChange={e =>
-                handleInputChange('hourly_rate', e.target.value ? parseFloat(e.target.value) : undefined)
-              }
-              placeholder='Nhập giá theo giờ'
-              className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                errors.hourly_rate
-                  ? 'border-red-500 dark:border-red-500'
-                  : 'border-gray-300 dark:border-gray-700'
-              }`}
-            />
-            {errors.hourly_rate && (
-              <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                {errors.hourly_rate}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-              Tiểu sử
-            </label>
-            <textarea
-              value={formData.bio || ''}
-              onChange={e => handleInputChange('bio', e.target.value)}
-              rows={4}
-              placeholder='Nhập tiểu sử (tùy chọn)'
-              className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter resize-none shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                errors.bio
-                  ? 'border-red-500 dark:border-red-500'
-                  : 'border-gray-300 dark:border-gray-700'
-              }`}
-            />
-            {errors.bio && (
-              <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                {errors.bio}
-              </p>
-            )}
-          </div>
-
-          <div>
-            <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-              Trạng thái
-            </label>
-            <CustomSelect
-              options={[
-                { value: 'ACTIVE', label: 'Hoạt động' },
-                { value: 'INACTIVE', label: 'Không hoạt động' },
-                { value: 'ON_LEAVE', label: 'Nghỉ phép' },
-                { value: 'TERMINATED', label: 'Đã chấm dứt' },
-              ]}
-              value={formData.status || 'ACTIVE'}
-              onChange={value => handleInputChange('status', value as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED')}
-              placeholder='Chọn trạng thái'
-              className='font-inter'
-            />
-            {errors.status && (
-              <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
-                {errors.status}
-              </p>
-            )}
-          </div>
+              <div>
+                <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                  Trạng thái
+                </label>
+                <CustomSelect
+                  options={[
+                    { value: 'ACTIVE', label: 'Hoạt động' },
+                    { value: 'INACTIVE', label: 'Không hoạt động' },
+                    { value: 'ON_LEAVE', label: 'Nghỉ phép' },
+                    { value: 'TERMINATED', label: 'Đã chấm dứt' },
+                  ]}
+                  value={formData.status || 'ACTIVE'}
+                  onChange={value =>
+                    handleInputChange(
+                      'status',
+                      value as 'ACTIVE' | 'INACTIVE' | 'ON_LEAVE' | 'TERMINATED'
+                    )
+                  }
+                  placeholder='Chọn trạng thái'
+                  className='font-heading'
+                />
+                {errors.status && (
+                  <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-heading'>
+                    {errors.status}
+                  </p>
+                )}
+              </div>
             </div>
           )}
         </form>
@@ -377,7 +300,7 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
                 type='button'
                 onClick={onClose}
                 disabled={isLoading}
-                className='px-5 py-2.5 text-theme-xs font-semibold font-inter text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                className='px-5 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
               >
                 Hủy
               </button>
@@ -385,7 +308,7 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
                 type='submit'
                 onClick={handleSubmit}
                 disabled={isLoading}
-                className='inline-flex items-center gap-2 px-5 py-2.5 text-theme-xs font-semibold font-inter text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                className='inline-flex items-center gap-2 px-5 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
               >
                 {isLoading ? (
                   <>
@@ -408,4 +331,3 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
 };
 
 export default TrainerFormModal;
-

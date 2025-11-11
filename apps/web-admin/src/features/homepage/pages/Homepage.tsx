@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import bannerBg from '../../../assets/images/banner-bg.jpg';
 import classImg1 from '../../../assets/images/classes/class-1.jpg';
@@ -36,6 +36,18 @@ const Homepage: React.FC = () => {
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const [isLoginLoading, setIsLoginLoading] = useState<boolean>(false);
+
+  // Add homepage-active class to body and html when component mounts
+  useEffect(() => {
+    document.body.classList.add('homepage-active');
+    document.documentElement.classList.add('homepage-active');
+
+    // Cleanup: remove class when component unmounts
+    return () => {
+      document.body.classList.remove('homepage-active');
+      document.documentElement.classList.remove('homepage-active');
+    };
+  }, []);
 
   const openImagePopup = (imageSrc: string) => {
     setSelectedImage(imageSrc);

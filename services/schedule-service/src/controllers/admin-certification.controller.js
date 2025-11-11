@@ -86,6 +86,28 @@ const verifyCertification = async (req, res) => {
       });
     }
 
+    // Get certification before update to check category, level, and expiration
+    const certBeforeUpdate = await prisma.trainerCertification.findUnique({
+      where: { id: certId },
+      select: {
+        trainer_id: true,
+        category: true,
+        certification_level: true,
+        certification_name: true,
+        certification_issuer: true,
+        expiration_date: true,
+        verification_status: true,
+      },
+    });
+
+    if (!certBeforeUpdate) {
+      return res.status(404).json({
+        success: false,
+        data: null,
+        message: 'Certification not found',
+      });
+    }
+
     const certification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: {
@@ -104,6 +126,107 @@ const verifyCertification = async (req, res) => {
         },
       },
     });
+
+    // When a certification is verified, deactivate older VERIFIED certifications in the same category
+    // that have lower level or same level but earlier expiration (only if new cert is better)
+    try {
+      const levelOrder = { BASIC: 1, INTERMEDIATE: 2, ADVANCED: 3, EXPERT: 4 };
+      const newLevel = levelOrder[certification.certification_level];
+
+      // Find all VERIFIED, active certifications in the same category (excluding the current one)
+      const existingVerifiedCerts = await prisma.trainerCertification.findMany({
+        where: {
+          trainer_id: certification.trainer_id,
+          category: certification.category,
+          verification_status: 'VERIFIED',
+          is_active: true,
+          id: { not: certId }, // Exclude the current cert
+        },
+        select: {
+          id: true,
+          certification_level: true,
+          certification_name: true,
+          certification_issuer: true,
+          expiration_date: true,
+        },
+      });
+
+      // Determine which certs should be deactivated
+      const certsToDeactivate = [];
+      
+      for (const existingCert of existingVerifiedCerts) {
+        const existingLevel = levelOrder[existingCert.certification_level];
+        
+        // Case 1: Lower level - definitely deactivate
+        if (existingLevel < newLevel) {
+          certsToDeactivate.push(existingCert.id);
+          console.log(
+            `🗑️  Will deactivate cert ${existingCert.id} (${existingCert.certification_level}) - new cert has higher level (${certification.certification_level})`
+          );
+        }
+        // Case 2: Same level
+        else if (existingLevel === newLevel) {
+          // Same name/issuer - upgrade, deactivate old
+          if (
+            existingCert.certification_name === certification.certification_name &&
+            existingCert.certification_issuer === certification.certification_issuer
+          ) {
+            certsToDeactivate.push(existingCert.id);
+            console.log(
+              `🗑️  Will deactivate cert ${existingCert.id} - same name/issuer, upgrading to new cert`
+            );
+          }
+          // Different name/issuer - check expiration date
+          else {
+            const existingExp = existingCert.expiration_date ? new Date(existingCert.expiration_date) : null;
+            const newExp = certification.expiration_date ? new Date(certification.expiration_date) : null;
+            
+            if (newExp && existingExp && newExp > existingExp) {
+              // New cert expires later - deactivate old
+              certsToDeactivate.push(existingCert.id);
+              console.log(
+                `🗑️  Will deactivate cert ${existingCert.id} - new cert expires later (${newExp.toISOString()} vs ${existingExp.toISOString()})`
+              );
+            } else if (newExp && !existingExp) {
+              // New cert has expiration, old doesn't - deactivate old (prefer cert with expiration)
+              certsToDeactivate.push(existingCert.id);
+              console.log(
+                `🗑️  Will deactivate cert ${existingCert.id} - new cert has expiration date, old doesn't`
+              );
+            } else if (!newExp && existingExp) {
+              // New cert has no expiration, old has - keep both (don't deactivate)
+              console.log(
+                `ℹ️  Keeping cert ${existingCert.id} - old cert has expiration date, new doesn't (both will be active)`
+              );
+            }
+            // If both have no expiration or new expires earlier, keep both active
+          }
+        }
+        // Case 3: Higher level - don't deactivate (should not happen as we reject higher levels)
+      }
+
+      // Deactivate the certs
+      if (certsToDeactivate.length > 0) {
+        await prisma.trainerCertification.updateMany({
+          where: {
+            id: { in: certsToDeactivate },
+          },
+          data: {
+            is_active: false,
+          },
+        });
+        console.log(
+          `✅ Deactivated ${certsToDeactivate.length} older certification(s) in category ${certification.category} after verifying new certification`
+        );
+      } else {
+        console.log(
+          `ℹ️  No older certifications to deactivate for category ${certification.category}`
+        );
+      }
+    } catch (deactivateError) {
+      console.error('❌ Error deactivating older certifications:', deactivateError);
+      // Don't fail the request if deactivation fails
+    }
 
     // Auto-sync specializations when certification is verified
     try {
@@ -189,6 +312,12 @@ const rejectCertification = async (req, res) => {
       });
     }
 
+    // Get certification before update to check if it was VERIFIED
+    const certBeforeUpdate = await prisma.trainerCertification.findUnique({
+      where: { id: certId },
+      select: { verification_status: true, category: true },
+    });
+
     const certification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: {
@@ -207,6 +336,34 @@ const rejectCertification = async (req, res) => {
         },
       },
     });
+
+    // If certification was VERIFIED before rejection, remove the specialization
+    // (only if no other valid certifications exist for that category)
+    if (certBeforeUpdate && certBeforeUpdate.verification_status === 'VERIFIED') {
+      try {
+        const specializationSyncService = require('../services/specialization-sync.service.js');
+        console.log(
+          `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after rejecting verified certification`
+        );
+        const removeResult = await specializationSyncService.removeSpecialization(
+          certification.trainer_id,
+          certification.category
+        );
+        if (removeResult && removeResult.success) {
+          if (removeResult.removed) {
+            console.log(
+              `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after rejection`
+            );
+          } else {
+            console.log(
+              `ℹ️  Specialization ${certification.category} kept - trainer still has other valid certifications`
+            );
+          }
+        }
+      } catch (removeError) {
+        console.error('❌ Error removing specialization after rejection:', removeError);
+      }
+    }
 
     // Send notification to trainer about rejection
     await notificationService.notifyCertificationStatusChange(
@@ -486,6 +643,12 @@ const suspendCertification = async (req, res) => {
       });
     }
 
+    // Get certification before update to check if it was VERIFIED
+    const certBeforeUpdate = await prisma.trainerCertification.findUnique({
+      where: { id: certId },
+      select: { verification_status: true, category: true },
+    });
+
     const certification = await prisma.trainerCertification.update({
       where: { id: certId },
       data: {
@@ -504,6 +667,34 @@ const suspendCertification = async (req, res) => {
         },
       },
     });
+
+    // If certification was VERIFIED before suspension, remove the specialization
+    // (only if no other valid certifications exist for that category)
+    if (certBeforeUpdate && certBeforeUpdate.verification_status === 'VERIFIED') {
+      try {
+        const specializationSyncService = require('../services/specialization-sync.service.js');
+        console.log(
+          `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after suspending verified certification`
+        );
+        const removeResult = await specializationSyncService.removeSpecialization(
+          certification.trainer_id,
+          certification.category
+        );
+        if (removeResult && removeResult.success) {
+          if (removeResult.removed) {
+            console.log(
+              `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after suspension`
+            );
+          } else {
+            console.log(
+              `ℹ️  Specialization ${certification.category} kept - trainer still has other valid certifications`
+            );
+          }
+        }
+      } catch (removeError) {
+        console.error('❌ Error removing specialization after suspension:', removeError);
+      }
+    }
 
     res.json({
       success: true,

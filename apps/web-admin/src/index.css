@@ -23,6 +23,18 @@
   animation: fadeInUp 0.6s ease-out forwards;
 }
 
+@keyframes gradientFlowHorizontal {
+  0% {
+    background-position: 200% center;
+  }
+  50% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
 @custom-variant dark (&:is(.dark *));
 
 @theme {
@@ -214,7 +226,7 @@
   html,
   body {
     scrollbar-width: thin;
-    scrollbar-color: #f36100 rgba(15, 15, 15, 0.8);
+    scrollbar-color: #d1d5db transparent;
   }
 
   html::-webkit-scrollbar,
@@ -225,29 +237,46 @@
 
   html::-webkit-scrollbar-track,
   body::-webkit-scrollbar-track {
-    background: rgba(15, 15, 15, 0.8);
+    background: transparent;
     border-radius: 6px;
-    backdrop-filter: blur(10px);
   }
 
   html::-webkit-scrollbar-thumb,
   body::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #f36100 0%, #e55a2b 50%, #d35400 100%);
+    background-color: #d1d5db;
     border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
+    transition: background-color 0.2s ease;
   }
 
   html::-webkit-scrollbar-thumb:hover,
   body::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #ff6b35 0%, #f36100 50%, #e55a2b 100%);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+    background-color: #9ca3af;
   }
 
   html::-webkit-scrollbar-corner,
   body::-webkit-scrollbar-corner {
-    background: rgba(15, 15, 15, 0.8);
+    background: transparent;
+  }
+
+  /* Dark mode scrollbar */
+  .dark html::-webkit-scrollbar-track,
+  .dark body::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .dark html::-webkit-scrollbar-thumb,
+  .dark body::-webkit-scrollbar-thumb {
+    background-color: #4b5563;
+  }
+
+  .dark html::-webkit-scrollbar-thumb:hover,
+  .dark body::-webkit-scrollbar-thumb:hover {
+    background-color: #6b7280;
+  }
+
+  .dark html,
+  .dark body {
+    scrollbar-color: #4b5563 transparent;
   }
 
   /* Mobile responsive scrollbar */
@@ -577,37 +606,51 @@
   scrollbar-width: none; /* Firefox */
 }
 @utility custom-scrollbar {
+  scroll-behavior: smooth;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+  
   &::-webkit-scrollbar {
-    width: 6px;
-    height: 6px;
+    width: 4px;
+    height: 4px;
   }
 
   &::-webkit-scrollbar-track {
-    background: rgba(15, 15, 15, 0.8);
-    border-radius: 6px;
-    backdrop-filter: blur(10px);
+    background: transparent;
+    border-radius: 4px;
   }
 
   &::-webkit-scrollbar-thumb {
-    background: linear-gradient(135deg, #f36100 0%, #e55a2b 50%, #d35400 100%);
-    border-radius: 6px;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
+    background-color: #d1d5db;
+    border-radius: 4px;
+    transition: background-color 0.2s ease;
   }
 
   &::-webkit-scrollbar-thumb:hover {
-    background: linear-gradient(135deg, #ff6b35 0%, #f36100 50%, #e55a2b 100%);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: scale(1.1);
+    background-color: #9ca3af;
   }
 
   &::-webkit-scrollbar-corner {
-    background: rgba(15, 15, 15, 0.8);
+    background: transparent;
   }
 
-  /* Firefox support */
-  scrollbar-width: thin;
-  scrollbar-color: #f36100 rgba(15, 15, 15, 0.8);
+  /* Dark mode adjustments */
+  .dark & {
+    scrollbar-color: #4b5563 transparent;
+    
+    &::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    &::-webkit-scrollbar-thumb {
+      background-color: #4b5563;
+    }
+    
+    &::-webkit-scrollbar-thumb:hover {
+      background-color: #6b7280;
+    }
+  }
 }
 
 @layer utilities {

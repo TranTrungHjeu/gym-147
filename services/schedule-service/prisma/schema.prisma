@@ -314,12 +314,14 @@ model TrainerCertification {
   // Relations
   trainer              Trainer             @relation(fields: [trainer_id], references: [id], onDelete: Cascade)
   
-  // Unique constraint to prevent duplicate active verified certifications for same category
-  @@unique([trainer_id, category], name: "unique_active_certification_per_category")
+  // Note: Removed unique constraint on (trainer_id, category) to allow multiple certifications
+  // for the same category (e.g., different levels, issuers, or expiration dates)
+  // Application logic handles prioritization and deactivation of old certifications
   @@index([trainer_id])
   @@index([category])
   @@index([verification_status])
   @@index([expiration_date])
+  @@index([trainer_id, category]) // Composite index for efficient queries
   @@map("trainer_certifications")
 }
 

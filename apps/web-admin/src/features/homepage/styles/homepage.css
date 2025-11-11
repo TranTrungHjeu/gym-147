@@ -3881,68 +3881,120 @@ html,
 }
 
 /* ===== UNIFIED SCROLLBAR SYSTEM - GYM 147 THEME ===== */
-/* Modern, responsive scrollbar with Gym 147 branding */
+/* Modern, responsive scrollbar with Gym 147 branding - Orange on black background */
+/* Using !important to override global styles */
+/* Apply to html and body when homepage-wrapper exists on page */
 
-/* WebKit browsers (Chrome, Safari, Edge) */
+/* Target body and html directly when homepage is active */
+body:has(.homepage-wrapper),
+html:has(.homepage-wrapper),
+body.homepage-active,
+html.homepage-active {
+  scrollbar-width: thin !important;
+  scrollbar-color: #f36100 #000000 !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar,
+html:has(.homepage-wrapper)::-webkit-scrollbar,
+body.homepage-active::-webkit-scrollbar,
+html.homepage-active::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar-track,
+html:has(.homepage-wrapper)::-webkit-scrollbar-track,
+body.homepage-active::-webkit-scrollbar-track,
+html.homepage-active::-webkit-scrollbar-track {
+  background: #000000 !important;
+  border-radius: 6px !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar-thumb,
+html:has(.homepage-wrapper)::-webkit-scrollbar-thumb,
+body.homepage-active::-webkit-scrollbar-thumb,
+html.homepage-active::-webkit-scrollbar-thumb {
+  background: #f36100 !important;
+  border-radius: 6px !important;
+  transition: all 0.3s ease !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar-thumb:hover,
+html:has(.homepage-wrapper)::-webkit-scrollbar-thumb:hover,
+body.homepage-active::-webkit-scrollbar-thumb:hover,
+html.homepage-active::-webkit-scrollbar-thumb:hover {
+  background: #ff6b35 !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar-thumb:active,
+html:has(.homepage-wrapper)::-webkit-scrollbar-thumb:active,
+body.homepage-active::-webkit-scrollbar-thumb:active,
+html.homepage-active::-webkit-scrollbar-thumb:active {
+  background: #ff8c42 !important;
+}
+
+body:has(.homepage-wrapper)::-webkit-scrollbar-corner,
+html:has(.homepage-wrapper)::-webkit-scrollbar-corner,
+body.homepage-active::-webkit-scrollbar-corner,
+html.homepage-active::-webkit-scrollbar-corner {
+  background: #000000 !important;
+}
+
+/* Also apply to all scrollbars within homepage-wrapper */
 .homepage-wrapper ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 6px !important;
+  height: 6px !important;
 }
 
 .homepage-wrapper ::-webkit-scrollbar-track {
-  background: rgba(15, 15, 15, 0.8);
-  border-radius: 6px;
-  backdrop-filter: blur(10px);
+  background: #000000 !important;
+  border-radius: 6px !important;
 }
 
 .homepage-wrapper ::-webkit-scrollbar-thumb {
-  background: linear-gradient(135deg, #f36100 0%, #e55a2b 50%, #d35400 100%);
-  border-radius: 6px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  transition: all 0.3s ease;
+  background: #f36100 !important;
+  border-radius: 6px !important;
+  transition: all 0.3s ease !important;
 }
 
 .homepage-wrapper ::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(135deg, #ff6b35 0%, #f36100 50%, #e55a2b 100%);
-  border-color: rgba(255, 255, 255, 0.2);
-  transform: scale(1.1);
+  background: #ff6b35 !important;
 }
 
 .homepage-wrapper ::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(135deg, #d35400 0%, #c0392b 50%, #a93226 100%);
+  background: #ff8c42 !important;
 }
 
 .homepage-wrapper ::-webkit-scrollbar-corner {
-  background: rgba(15, 15, 15, 0.8);
+  background: #000000 !important;
 }
 
-/* Firefox support */
 .homepage-wrapper {
-  scrollbar-width: thin;
-  scrollbar-color: #f36100 rgba(15, 15, 15, 0.8);
+  scrollbar-width: thin !important;
+  scrollbar-color: #f36100 #000000 !important;
 }
 
 /* Mobile responsive scrollbar */
 @media only screen and (max-width: 768px) {
   .homepage-wrapper ::-webkit-scrollbar {
-    width: 4px;
-    height: 4px;
+    width: 4px !important;
+    height: 4px !important;
   }
 
   .homepage-wrapper ::-webkit-scrollbar-thumb {
-    border-radius: 4px;
+    border-radius: 4px !important;
   }
 
   .homepage-wrapper ::-webkit-scrollbar-track {
-    border-radius: 4px;
+    border-radius: 4px !important;
   }
 }
 
 /* High DPI displays */
 @media screen and (min-resolution: 2dppx) {
   .homepage-wrapper ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
+    width: 5px !important;
+    height: 5px !important;
   }
 }
 @keyframes fadeIn {

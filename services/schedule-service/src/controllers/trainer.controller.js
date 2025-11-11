@@ -365,6 +365,7 @@ class TrainerController {
       }
 
       // If specializations are being updated directly, validate against verified certifications
+      let shouldAutoSync = false;
       if (specializations && Array.isArray(specializations)) {
         const verifiedCerts = await prisma.trainerCertification.findMany({
           where: {
@@ -387,7 +388,8 @@ class TrainerController {
               ', '
             )}`
           );
-          // Still allow the update but log a warning
+          // Auto-sync after update to ensure consistency
+          shouldAutoSync = true;
         }
       }
 
@@ -405,6 +407,33 @@ class TrainerController {
           status,
         },
       });
+
+      // Auto-sync specializations after manual update to ensure consistency
+      if (shouldAutoSync || (specializations && Array.isArray(specializations))) {
+        try {
+          const specializationSyncService = require('../services/specialization-sync.service.js');
+          console.log(
+            `🔄 Auto-syncing specializations after manual update for trainer ${trainer.id}`
+          );
+          const syncResult = await specializationSyncService.updateTrainerSpecializations(
+            trainer.id
+          );
+          if (syncResult && syncResult.success) {
+            if (syncResult.changed) {
+              console.log(
+                `✅ Specializations auto-synced after manual update - corrected to match certifications`
+              );
+              console.log(`   Before: [${syncResult.before.join(', ')}]`);
+              console.log(`   After: [${syncResult.after.join(', ')}]`);
+            } else {
+              console.log(`ℹ️ Specializations already match certifications - no changes needed`);
+            }
+          }
+        } catch (syncError) {
+          console.error('❌ Error auto-syncing specializations after manual update:', syncError);
+          // Don't fail the request, just log the error
+        }
+      }
 
       console.log('✅ Trainer updated successfully:', {
         trainerId: updatedTrainer.id,

@@ -68,6 +68,16 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           });
 
           // Setup certification notification listeners for admin/super admin
+          // Listen for certification:upload (new certification uploaded, needs review)
+          socket.on('certification:upload', (data: any) => {
+            console.log('📢 certification:upload event received in AppLayout:', data);
+            // Refresh notifications if on notification page
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+            }
+          });
+
+          // Also listen for certification:pending for backward compatibility
           socket.on('certification:pending', (data: any) => {
             console.log('📢 certification:pending event received in AppLayout:', data);
             // Refresh notifications if on notification page
@@ -92,13 +102,24 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             }
           });
 
+          // Listen for notification:new event (primary event for notifications)
+          socket.on('notification:new', (data: any) => {
+            console.log('📢 notification:new event received in AppLayout:', data);
+            // Dispatch custom event for NotificationDropdown to handle
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
           // Cleanup on unmount - only remove listeners, don't disconnect socket
           // Socket should stay connected as long as user is logged in
           return () => {
             socket.off('schedule:new');
+            socket.off('certification:upload');
             socket.off('certification:pending');
             socket.off('certification:verified');
             socket.off('certification:rejected');
+            socket.off('notification:new');
             // Don't disconnect here - socket is shared across components
           };
         }

@@ -13,6 +13,8 @@ import {
   Trash2,
   User,
   XCircle,
+  Award,
+  AlertCircle,
 } from 'lucide-react';
 import React, { useEffect, useState } from 'react';
 import {
@@ -27,8 +29,11 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
 import Pagination from '../../components/common/Pagination';
 import TrainerFormModal from '../../components/modals/TrainerFormModal';
+import ReviewCertificationModal from '../../components/modals/ReviewCertificationModal';
+import ViewTrainerCertificationsModal from '../../components/modals/ViewTrainerCertificationsModal';
 import { useToast } from '../../hooks/useToast';
 import { Trainer, trainerService } from '../../services/trainer.service';
+import { certificationService, Certification } from '../../services/certification.service';
 
 const TrainerManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -47,24 +52,642 @@ const TrainerManagement: React.FC = () => {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [trainerPendingCerts, setTrainerPendingCerts] = useState<Record<string, Certification[]>>({});
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [selectedCertification, setSelectedCertification] = useState<Certification | null>(null);
+  const [selectedTrainerForReview, setSelectedTrainerForReview] = useState<Trainer | null>(null);
+  const [isViewCertificationsModalOpen, setIsViewCertificationsModalOpen] = useState(false);
 
   useEffect(() => {
     loadTrainers();
+    loadPendingCertifications();
   }, []);
 
-  // Listen for certification:updated event to reload trainers list
-  // This happens when trainer uploads/updates certification and specializations are synced
+  // Load pending certifications for all trainers
+  const loadPendingCertifications = async () => {
+    try {
+      const response = await certificationService.getPendingCertifications({ limit: 1000 });
+      const pendingCerts = response.certifications || [];
+      
+      // Group by trainer_id
+      const grouped: Record<string, Certification[]> = {};
+      pendingCerts.forEach(cert => {
+        if (!grouped[cert.trainer_id]) {
+          grouped[cert.trainer_id] = [];
+        }
+        grouped[cert.trainer_id].push(cert);
+      });
+      
+      setTrainerPendingCerts(grouped);
+    } catch (error) {
+      console.error('Error loading pending certifications:', error);
+    }
+  };
+
+  // Listen for certification events to update trainers list and pending certifications optimistically
   useEffect(() => {
-    const handleCertificationUpdated = (event: CustomEvent) => {
-      console.log('📢 certification:updated event received in TrainerManagement:', event.detail);
-      // Reload trainers list when certification is updated (specializations may have changed)
-      loadTrainers();
+    // Use ref to track pending reload to avoid multiple rapid reloads
+    let reloadTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    // Helper to update pending certifications optimistically
+    const updatePendingCertsOptimistically = (certData: any, action: 'add' | 'remove' | 'update') => {
+      // Try to extract trainer_id from various possible locations in the data structure
+      const trainerId = 
+        certData.trainer_id || 
+        certData.trainerId || 
+        certData.data?.trainer_id || 
+        certData.data?.trainerId;
+      
+      if (!trainerId) {
+        console.warn(
+          '⚠️ [TRAINER_MGMT] Cannot update pending certs: missing trainer_id',
+          certData
+        );
+        return;
+      }
+
+      const certId = 
+        certData.certification_id || 
+        certData.id || 
+        certData.data?.certification_id || 
+        certData.data?.id;
+
+      setTrainerPendingCerts(prev => {
+        const updated = { ...prev };
+
+        if (action === 'add') {
+          // Add new pending certification
+          if (!updated[trainerId]) {
+            updated[trainerId] = [];
+          }
+          
+          // Check if certification already exists
+          const exists = updated[trainerId].some(cert => cert.id === certId);
+          if (exists) {
+            console.log(`ℹ️ [TRAINER_MGMT] Certification ${certId} already in pending list for trainer ${trainerId}`);
+            return prev;
+          }
+
+          // Create certification object from socket data
+          // Try to extract data from various possible locations in the data structure
+          const category = 
+            certData.category || 
+            certData.data?.category || 
+            '';
+          const certificationName = 
+            certData.certification_name || 
+            certData.certificationName || 
+            certData.data?.certification_name || 
+            'Chứng chỉ mới';
+          const certificationIssuer = 
+            certData.certification_issuer || 
+            certData.certificationIssuer || 
+            certData.data?.certification_issuer || 
+            '';
+          const certificationLevel = 
+            certData.certification_level || 
+            certData.certificationLevel || 
+            certData.data?.certification_level || 
+            'BASIC';
+
+          const newCert: Certification = {
+            id: certId || `temp-${Date.now()}`,
+            trainer_id: trainerId,
+            category,
+            certification_name: certificationName,
+            certification_issuer: certificationIssuer,
+            certification_level: certificationLevel as any,
+            issued_date: certData.issued_date || certData.issuedDate || certData.data?.issued_date || new Date().toISOString(),
+            expiration_date: certData.expiration_date || certData.expirationDate || certData.data?.expiration_date,
+            verification_status: 'PENDING',
+            certificate_file_url: certData.certificate_file_url || certData.certificateFileUrl || certData.data?.certificate_file_url,
+            is_active: true,
+            created_at: certData.created_at || certData.data?.created_at || new Date().toISOString(),
+            updated_at: certData.updated_at || certData.data?.updated_at || new Date().toISOString(),
+          };
+
+          updated[trainerId] = [newCert, ...updated[trainerId]];
+          console.log(`✅ [TRAINER_MGMT] Added pending certification ${certId} for trainer ${trainerId} optimistically`);
+        } else if (action === 'remove') {
+          // Remove certification from pending (verified or rejected)
+          if (updated[trainerId]) {
+            updated[trainerId] = updated[trainerId].filter(cert => cert.id !== certId);
+            if (updated[trainerId].length === 0) {
+              delete updated[trainerId];
+            }
+            console.log(`✅ [TRAINER_MGMT] Removed pending certification ${certId} for trainer ${trainerId} optimistically`);
+          }
+        } else if (action === 'update') {
+          // Update certification status
+          if (updated[trainerId]) {
+            const index = updated[trainerId].findIndex(cert => cert.id === certId);
+            if (index !== -1) {
+              updated[trainerId][index] = {
+                ...updated[trainerId][index],
+                verification_status: certData.verification_status || certData.status || 'PENDING',
+                updated_at: new Date().toISOString(),
+              };
+              console.log(`✅ [TRAINER_MGMT] Updated pending certification ${certId} for trainer ${trainerId} optimistically`);
+            }
+          }
+        }
+
+        return updated;
+      });
     };
 
+    const handleCertificationUpdated = (event: CustomEvent) => {
+      console.log('📢 certification:updated event received in TrainerManagement:', event.detail);
+      const data = event.detail;
+      
+      // Clear any pending reload
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout);
+        reloadTimeout = null;
+      }
+
+      // Try to extract trainer_id from various possible locations
+      const trainerId = 
+        data?.trainer_id || 
+        data?.trainerId || 
+        data?.data?.trainer_id || 
+        data?.data?.trainerId;
+      
+      const status = 
+        data?.verification_status || 
+        data?.status || 
+        data?.data?.verification_status || 
+        data?.data?.status;
+
+      if (trainerId) {
+        if (status === 'VERIFIED' || status === 'REJECTED') {
+          // Remove from pending list (verified or rejected)
+          updatePendingCertsOptimistically(data, 'remove');
+          
+          // Update trainer optimistically (specializations may have changed)
+          // Fetch only the specific trainer to update, not reload entire list
+          console.log(
+            `🔄 [TRAINER_MGMT] Certification ${status} - updating trainer ${trainerId} optimistically (no full reload)`
+          );
+          
+          // For VERIFIED status, specializations may have changed
+          // Backend already syncs specializations when verifying, but we'll trigger a sync to ensure it's done
+          if (status === 'VERIFIED') {
+            // Trigger specialization sync - the endpoint returns the updated trainer with specializations
+            console.log(`🔄 [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId}`);
+            
+            trainerService.syncTrainerSpecializations(trainerId)
+              .then(syncResponse => {
+                console.log(`✅ [TRAINER_MGMT] Specialization sync response:`, syncResponse);
+                
+                if (syncResponse.success && syncResponse.data?.trainer) {
+                  // Sync endpoint returns { success: true, data: { trainer } } with updated specializations
+                  const syncedTrainer = syncResponse.data.trainer;
+                  
+                  // Normalize specializations to array
+                  const normalizedTrainer = {
+                    ...syncedTrainer,
+                    specializations: Array.isArray(syncedTrainer.specializations) 
+                      ? syncedTrainer.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                      : syncedTrainer.specializations 
+                        ? [syncedTrainer.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                        : [],
+                  };
+                  
+                  console.log(`📋 [TRAINER_MGMT] Trainer data from sync:`, {
+                    id: normalizedTrainer.id,
+                    full_name: normalizedTrainer.full_name,
+                    specializations: normalizedTrainer.specializations,
+                  });
+                  
+                  // Check if specializations are still empty after sync
+                  if (normalizedTrainer.specializations.length === 0) {
+                    console.warn(`⚠️ [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`);
+                  }
+                  
+                  // Update trainer in state immediately with data from sync response
+                  setTrainers(prev => {
+                    const index = prev.findIndex(t => t.id === trainerId);
+                    if (index !== -1) {
+                      const updated = [...prev];
+                      // Merge synced trainer data with existing trainer data to preserve other fields
+                      updated[index] = {
+                        ...prev[index],
+                        ...normalizedTrainer,
+                        // Ensure specializations are updated
+                        specializations: normalizedTrainer.specializations,
+                      };
+                      console.log(`✅ [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`, normalizedTrainer.specializations, ')');
+                      return updated;
+                    }
+                    console.warn(`⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list`);
+                    return prev;
+                  });
+                  
+                  // Also fetch full trainer data to ensure we have all fields (optional, but ensures consistency)
+                  // This happens in the background and won't block the UI update
+                  setTimeout(() => {
+                    trainerService.getTrainerById(trainerId)
+                      .then(response => {
+                        const trainerData = response.data?.trainer || response.data;
+                        if (response.success && trainerData) {
+                          // Only update if we get different specializations (shouldn't happen, but safety check)
+                          setTrainers(prev => {
+                            const index = prev.findIndex(t => t.id === trainerId);
+                            if (index !== -1) {
+                              const currentSpecializations = prev[index].specializations || [];
+                              const newSpecializations = Array.isArray(trainerData.specializations) 
+                                ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                                : trainerData.specializations 
+                                  ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                                  : [];
+                              
+                              // Only update if specializations changed (to avoid unnecessary re-renders)
+                              if (JSON.stringify(currentSpecializations) !== JSON.stringify(newSpecializations)) {
+                                console.log(`🔄 [TRAINER_MGMT] Specializations changed after fetch, updating:`, newSpecializations);
+                                const updated = [...prev];
+                                updated[index] = {
+                                  ...prev[index],
+                                  ...trainerData,
+                                  specializations: newSpecializations,
+                                };
+                                return updated;
+                              }
+                            }
+                            return prev;
+                          });
+                        }
+                      })
+                      .catch(error => {
+                        console.error(`❌ [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                        // Ignore error - we already updated from sync response
+                      });
+                  }, 500);
+                } else {
+                  console.warn(`⚠️ [TRAINER_MGMT] Specialization sync returned invalid response:`, syncResponse);
+                  // Fallback: fetch trainer directly
+                  setTimeout(() => {
+                    trainerService.getTrainerById(trainerId)
+                      .then(response => {
+                        const trainerData = response.data?.trainer || response.data;
+                        if (response.success && trainerData) {
+                          const normalizedTrainer = {
+                            ...trainerData,
+                            specializations: Array.isArray(trainerData.specializations) 
+                              ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                              : trainerData.specializations 
+                                ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                                : [],
+                          };
+                          setTrainers(prev => {
+                            const index = prev.findIndex(t => t.id === trainerId);
+                            if (index !== -1) {
+                              const updated = [...prev];
+                              updated[index] = normalizedTrainer;
+                              return updated;
+                            }
+                            return prev;
+                          });
+                        }
+                      })
+                      .catch(error => {
+                        console.error(`❌ [TRAINER_MGMT] Error fetching trainer after sync failure:`, error);
+                        // Final fallback: reload entire list
+                        reloadTimeout = setTimeout(() => {
+                          loadTrainers();
+                          loadPendingCertifications();
+                          reloadTimeout = null;
+                        }, 1000);
+                      });
+                  }, 1000);
+                }
+              })
+              .catch(syncError => {
+                console.error(`❌ [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+                // Fallback: fetch trainer directly (backend may have already synced)
+                setTimeout(() => {
+                  trainerService.getTrainerById(trainerId)
+                    .then(response => {
+                      const trainerData = response.data?.trainer || response.data;
+                      if (response.success && trainerData) {
+                        const normalizedTrainer = {
+                          ...trainerData,
+                          specializations: Array.isArray(trainerData.specializations) 
+                            ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                            : trainerData.specializations 
+                              ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                              : [],
+                        };
+                        setTrainers(prev => {
+                          const index = prev.findIndex(t => t.id === trainerId);
+                          if (index !== -1) {
+                            const updated = [...prev];
+                            updated[index] = normalizedTrainer;
+                            return updated;
+                          }
+                          return prev;
+                        });
+                      }
+                    })
+                    .catch(error => {
+                      console.error(`❌ [TRAINER_MGMT] Error fetching trainer after sync error:`, error);
+                      // Final fallback: reload entire list
+                      reloadTimeout = setTimeout(() => {
+                        loadTrainers();
+                        loadPendingCertifications();
+                        reloadTimeout = null;
+                      }, 1000);
+                    });
+                }, 1500);
+              });
+          } else {
+            // For REJECTED, specializations shouldn't change
+            console.log(`✅ [TRAINER_MGMT] Certification REJECTED - no specialization change needed`);
+          }
+          
+          // Sync pending certs in background (always, regardless of status)
+          // This ensures the pending certs count is accurate
+          reloadTimeout = setTimeout(() => {
+            loadPendingCertifications(); // Sync with server to ensure accuracy
+            reloadTimeout = null;
+          }, 1000);
+        } else if (status === 'PENDING' || !status) {
+          // Add to pending list or update - NO RELOAD needed
+          // If status is not provided, assume PENDING (new certification upload)
+          const certId = 
+            data?.certification_id || 
+            data?.id || 
+            data?.data?.certification_id || 
+            data?.data?.id;
+          updatePendingCertsOptimistically(data, certId ? 'update' : 'add');
+          console.log(
+            `✅ [TRAINER_MGMT] Certification PENDING - updated pending certs optimistically (no reload)`
+          );
+          
+          // Only sync pending certs in background, don't reload trainers
+          // because specializations haven't changed yet (certification not verified)
+          reloadTimeout = setTimeout(() => {
+            loadPendingCertifications(); // Sync with server to ensure accuracy
+            reloadTimeout = null;
+          }, 2000);
+        }
+      } else {
+        // No trainer_id in data - fallback to reload (shouldn't happen often)
+        console.log(
+          `⚠️ [TRAINER_MGMT] No trainer_id in certification:updated event, reloading as fallback`,
+          data
+        );
+        reloadTimeout = setTimeout(() => {
+          loadTrainers();
+          loadPendingCertifications();
+          reloadTimeout = null;
+        }, 1500);
+      }
+    };
+
+    const handleCertificationCreated = (event: CustomEvent) => {
+      console.log('📢 certification:created event received in TrainerManagement:', event.detail);
+      const data = event.detail;
+      
+      // Clear any pending reload
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout);
+        reloadTimeout = null;
+      }
+
+      // Try to extract trainer_id from various possible locations
+      const trainerId = 
+        data?.trainer_id || 
+        data?.trainerId || 
+        data?.data?.trainer_id || 
+        data?.data?.trainerId;
+      
+      const status = 
+        data?.verification_status || 
+        data?.status || 
+        data?.data?.verification_status || 
+        data?.data?.status || 
+        'PENDING'; // Default to PENDING for new certifications
+
+      if (trainerId) {
+        if (status === 'PENDING') {
+          updatePendingCertsOptimistically(data, 'add');
+          console.log(
+            `✅ [TRAINER_MGMT] Certification created (PENDING) - added to pending certs optimistically (no reload)`
+          );
+          
+          // Only sync pending certs in background, don't reload trainers
+          // because specializations haven't changed yet (certification not verified)
+          reloadTimeout = setTimeout(() => {
+            loadPendingCertifications(); // Sync with server to ensure accuracy
+            reloadTimeout = null;
+          }, 2000);
+        } else if (status === 'VERIFIED') {
+          // AI auto-verified - specializations may have changed, update only this trainer
+          // Backend already syncs specializations when creating with VERIFIED status
+          console.log(
+            `🔄 [TRAINER_MGMT] Certification created (VERIFIED) - updating trainer ${trainerId} optimistically (no full reload)`
+          );
+          
+          // Trigger specialization sync - the endpoint returns the updated trainer with specializations
+          console.log(`🔄 [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId} (from created event)`);
+          
+          trainerService.syncTrainerSpecializations(trainerId)
+            .then(syncResponse => {
+              console.log(`✅ [TRAINER_MGMT] Specialization sync response (from created):`, syncResponse);
+              
+              if (syncResponse.success && syncResponse.data?.trainer) {
+                // Sync endpoint returns { success: true, data: { trainer } } with updated specializations
+                const syncedTrainer = syncResponse.data.trainer;
+                
+                // Normalize specializations to array
+                const normalizedTrainer = {
+                  ...syncedTrainer,
+                  specializations: Array.isArray(syncedTrainer.specializations) 
+                    ? syncedTrainer.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                    : syncedTrainer.specializations 
+                      ? [syncedTrainer.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                      : [],
+                };
+                
+                console.log(`📋 [TRAINER_MGMT] Trainer data from sync (from created):`, {
+                  id: normalizedTrainer.id,
+                  full_name: normalizedTrainer.full_name,
+                  specializations: normalizedTrainer.specializations,
+                });
+                
+                // Check if specializations are still empty after sync
+                if (normalizedTrainer.specializations.length === 0) {
+                  console.warn(`⚠️ [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`);
+                }
+                
+                // Update trainer in state immediately with data from sync response
+                setTrainers(prev => {
+                  const index = prev.findIndex(t => t.id === trainerId);
+                  if (index !== -1) {
+                    const updated = [...prev];
+                    // Merge synced trainer data with existing trainer data to preserve other fields
+                    updated[index] = {
+                      ...prev[index],
+                      ...normalizedTrainer,
+                      // Ensure specializations are updated
+                      specializations: normalizedTrainer.specializations,
+                    };
+                    console.log(`✅ [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`, normalizedTrainer.specializations, ')');
+                    return updated;
+                  }
+                  console.warn(`⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list`);
+                  return prev;
+                });
+                
+                // Also fetch full trainer data to ensure we have all fields (optional, but ensures consistency)
+                // This happens in the background and won't block the UI update
+                setTimeout(() => {
+                  trainerService.getTrainerById(trainerId)
+                    .then(response => {
+                      const trainerData = response.data?.trainer || response.data;
+                      if (response.success && trainerData) {
+                        // Only update if we get different specializations (shouldn't happen, but safety check)
+                        setTrainers(prev => {
+                          const index = prev.findIndex(t => t.id === trainerId);
+                          if (index !== -1) {
+                            const currentSpecializations = prev[index].specializations || [];
+                            const newSpecializations = Array.isArray(trainerData.specializations) 
+                              ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                              : trainerData.specializations 
+                                ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                                : [];
+                            
+                            // Only update if specializations changed (to avoid unnecessary re-renders)
+                            if (JSON.stringify(currentSpecializations) !== JSON.stringify(newSpecializations)) {
+                              console.log(`🔄 [TRAINER_MGMT] Specializations changed after fetch, updating:`, newSpecializations);
+                              const updated = [...prev];
+                              updated[index] = {
+                                ...prev[index],
+                                ...trainerData,
+                                specializations: newSpecializations,
+                              };
+                              return updated;
+                            }
+                          }
+                          return prev;
+                        });
+                      }
+                    })
+                    .catch(error => {
+                      console.error(`❌ [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                      // Ignore error - we already updated from sync response
+                    });
+                }, 500);
+              } else {
+                console.warn(`⚠️ [TRAINER_MGMT] Specialization sync returned invalid response:`, syncResponse);
+                // Fallback: fetch trainer directly
+                setTimeout(() => {
+                  trainerService.getTrainerById(trainerId)
+                    .then(response => {
+                      const trainerData = response.data?.trainer || response.data;
+                      if (response.success && trainerData) {
+                        const normalizedTrainer = {
+                          ...trainerData,
+                          specializations: Array.isArray(trainerData.specializations) 
+                            ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                            : trainerData.specializations 
+                              ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                              : [],
+                        };
+                        setTrainers(prev => {
+                          const index = prev.findIndex(t => t.id === trainerId);
+                          if (index !== -1) {
+                            const updated = [...prev];
+                            updated[index] = normalizedTrainer;
+                            return updated;
+                          }
+                          return prev;
+                        });
+                      }
+                    })
+                    .catch(error => {
+                      console.error(`❌ [TRAINER_MGMT] Error fetching trainer after sync failure:`, error);
+                      // Final fallback: reload entire list
+                      reloadTimeout = setTimeout(() => {
+                        loadTrainers();
+                        loadPendingCertifications();
+                        reloadTimeout = null;
+                      }, 1000);
+                    });
+                }, 1000);
+              }
+            })
+            .catch(syncError => {
+              console.error(`❌ [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+              // Fallback: fetch trainer directly (backend may have already synced)
+              setTimeout(() => {
+                trainerService.getTrainerById(trainerId)
+                  .then(response => {
+                    const trainerData = response.data?.trainer || response.data;
+                    if (response.success && trainerData) {
+                      const normalizedTrainer = {
+                        ...trainerData,
+                        specializations: Array.isArray(trainerData.specializations) 
+                          ? trainerData.specializations.filter(s => s && typeof s === 'string' && s.trim())
+                          : trainerData.specializations 
+                            ? [trainerData.specializations].filter(s => s && typeof s === 'string' && s.trim())
+                            : [],
+                      };
+                      setTrainers(prev => {
+                        const index = prev.findIndex(t => t.id === trainerId);
+                        if (index !== -1) {
+                          const updated = [...prev];
+                          updated[index] = normalizedTrainer;
+                          return updated;
+                        }
+                        return prev;
+                      });
+                    }
+                  })
+                  .catch(error => {
+                    console.error(`❌ [TRAINER_MGMT] Error fetching trainer after sync error:`, error);
+                    // Final fallback: reload entire list
+                    reloadTimeout = setTimeout(() => {
+                      loadTrainers();
+                      loadPendingCertifications();
+                      reloadTimeout = null;
+                    }, 1000);
+                  });
+              }, 1500);
+            });
+          
+          // Sync pending certs in background
+          reloadTimeout = setTimeout(() => {
+            loadPendingCertifications();
+            reloadTimeout = null;
+          }, 1000);
+        }
+      } else {
+        // No trainer_id in data - fallback to reload (shouldn't happen often)
+        console.log(
+          `⚠️ [TRAINER_MGMT] No trainer_id in certification:created event, reloading as fallback`,
+          data
+        );
+        reloadTimeout = setTimeout(() => {
+          loadTrainers();
+          loadPendingCertifications();
+          reloadTimeout = null;
+        }, 2000);
+      }
+    };
+
+    // Listen to custom events (dispatched by AppLayout from socket events)
+    // This is more reliable than accessing socket directly
     window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
+    window.addEventListener('certification:created', handleCertificationCreated as EventListener);
 
     return () => {
       window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
+      window.removeEventListener('certification:created', handleCertificationCreated as EventListener);
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout);
+      }
     };
   }, []);
 
@@ -270,6 +893,15 @@ const TrainerManagement: React.FC = () => {
     } catch (error: any) {
       // Error toast sẽ được hiển thị trong TrainerFormModal
       throw error;
+    }
+  };
+
+  const handleReviewCertification = (trainer: Trainer) => {
+    const pendingCerts = trainerPendingCerts[trainer.id];
+    if (pendingCerts && pendingCerts.length > 0) {
+      setSelectedCertification(pendingCerts[0]);
+      setSelectedTrainerForReview(trainer);
+      setIsReviewModalOpen(true);
     }
   };
 
@@ -537,12 +1169,22 @@ const TrainerManagement: React.FC = () => {
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
-                {paginatedTrainers.map((trainer, index) => (
+                {paginatedTrainers.map((trainer, index) => {
+                  const hasPendingCerts = trainerPendingCerts[trainer.id]?.length > 0;
+                  return (
                   <AdminTableRow
                     key={trainer.id}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                    className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
+                      hasPendingCerts
+                        ? 'border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-900/10 hover:bg-yellow-50/50 dark:hover:bg-yellow-900/20'
+                        : 'border-l-transparent hover:border-l-orange-500'
+                    } ${
                       index % 2 === 0
-                        ? 'bg-white dark:bg-gray-900'
+                        ? hasPendingCerts
+                          ? 'bg-yellow-50/30 dark:bg-yellow-900/10'
+                          : 'bg-white dark:bg-gray-900'
+                        : hasPendingCerts
+                        ? 'bg-yellow-50/40 dark:bg-yellow-900/15'
                         : 'bg-gray-50/50 dark:bg-gray-800/50'
                     } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
                     onClick={(e?: React.MouseEvent) => {
@@ -583,8 +1225,16 @@ const TrainerManagement: React.FC = () => {
                         )}
                       </div>
                       <div className='min-w-0 flex-1 overflow-hidden'>
-                        <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
-                          {trainer.full_name}
+                        <div className='flex items-center gap-1.5'>
+                          <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
+                            {trainer.full_name}
+                          </div>
+                          {hasPendingCerts && (
+                            <span className='flex items-center gap-0.5 px-1.5 py-0.5 bg-yellow-500 dark:bg-yellow-600 text-white text-[8px] font-bold font-heading rounded-full border border-yellow-600 dark:border-yellow-700 shadow-sm'>
+                              <AlertCircle className='w-2.5 h-2.5' />
+                              {trainerPendingCerts[trainer.id]?.length}
+                            </span>
+                          )}
                         </div>
                         {trainer.bio && (
                           <div className='text-[8px] sm:text-[9px] text-gray-500 dark:text-gray-400 font-inter truncate mt-0.5 leading-tight'>
@@ -713,7 +1363,8 @@ const TrainerManagement: React.FC = () => {
                     </div>
                   </AdminTableCell>
                 </AdminTableRow>
-                ))}
+                );
+                })}
               </AdminTableBody>
             </AdminTable>
           </AdminCard>
@@ -784,6 +1435,29 @@ const TrainerManagement: React.FC = () => {
               <button
                 onClick={() => {
                   setActionMenuOpen(false);
+                  setSelectedTrainer(selectedTrainerForAction);
+                  setIsViewCertificationsModalOpen(true);
+                }}
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
+              >
+                <Award className='w-3.5 h-3.5' />
+                Xem chứng chỉ
+              </button>
+              {selectedTrainerForAction && trainerPendingCerts[selectedTrainerForAction.id]?.length > 0 && (
+                <button
+                  onClick={() => {
+                    setActionMenuOpen(false);
+                    handleReviewCertification(selectedTrainerForAction!);
+                  }}
+                  className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-warning-600 dark:text-warning-400 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors duration-150'
+                >
+                  <AlertCircle className='w-3.5 h-3.5' />
+                  Duyệt chứng chỉ
+                </button>
+              )}
+              <button
+                onClick={() => {
+                  setActionMenuOpen(false);
                   setTrainerToDelete(selectedTrainerForAction);
                   setIsDeleteDialogOpen(true);
                 }}
@@ -811,6 +1485,42 @@ const TrainerManagement: React.FC = () => {
         cancelText='Hủy'
         variant='danger'
         isLoading={isDeleting}
+      />
+
+      {/* Review Certification Modal */}
+      <ReviewCertificationModal
+        isOpen={isReviewModalOpen}
+        onClose={() => {
+          setIsReviewModalOpen(false);
+          setSelectedCertification(null);
+          setSelectedTrainerForReview(null);
+        }}
+        certification={selectedCertification}
+        trainerName={selectedTrainerForReview?.full_name}
+        onReviewComplete={() => {
+          // Socket events will handle the updates optimistically
+          // Just sync pending certs in background, no need to reload entire trainers list
+          setTimeout(() => {
+            loadPendingCertifications();
+          }, 1000);
+        }}
+      />
+
+      {/* View Trainer Certifications Modal */}
+      <ViewTrainerCertificationsModal
+        isOpen={isViewCertificationsModalOpen}
+        onClose={() => {
+          setIsViewCertificationsModalOpen(false);
+          setSelectedTrainer(null);
+        }}
+        trainer={selectedTrainer}
+        onCertificationDeleted={() => {
+          // Socket events will handle the updates optimistically
+          // Just sync pending certs in background, no need to reload entire trainers list
+          setTimeout(() => {
+            loadPendingCertifications();
+          }, 1000);
+        }}
       />
     </div>
   );

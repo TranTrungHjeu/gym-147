@@ -274,7 +274,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       <div
                         key={notification.id}
                         className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
-                          !notification.read ? 'bg-blue-50/50 dark:bg-blue-900/10' : ''
+                          !notification.read ? 'bg-orange-50 dark:bg-orange-900/20' : ''
                         }`}
                         onClick={() => handleNotificationClick(notification)}
                       >
