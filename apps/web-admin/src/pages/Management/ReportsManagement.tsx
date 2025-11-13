@@ -8,7 +8,8 @@ import ExportButton, { ExportUtils } from '../../components/common/ExportButton'
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
-import { BarChart3, Download, Calendar, TrendingUp, Users, DollarSign, FileText, Filter } from 'lucide-react';
+import { BarChart3, Download, Calendar, TrendingUp, Users, DollarSign, FileText, Filter, Search, RefreshCw } from 'lucide-react';
+import { TableLoading } from '../../components/ui/AppLoading';
 import RevenueTrendChart from '../../components/charts/RevenueTrendChart';
 import MonthlyRevenueBarChart from '../../components/charts/MonthlyRevenueBarChart';
 import UserGrowthChart from '../../components/charts/UserGrowthChart';
@@ -18,6 +19,15 @@ import EquipmentUsageChart from '../../components/charts/EquipmentUsageChart';
 const ReportsManagement: React.FC = () => {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<'revenue' | 'members' | 'classes' | 'equipment'>('revenue');
+
+  // Check URL params for tab
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam && ['revenue', 'members', 'classes', 'equipment'].includes(tabParam)) {
+      setActiveTab(tabParam as 'revenue' | 'members' | 'classes' | 'equipment');
+    }
+  }, []);
   const [dateRange, setDateRange] = useState({ from: '', to: '' });
   const [isLoading, setIsLoading] = useState(false);
   const [revenueData, setRevenueData] = useState<any>(null);
@@ -270,72 +280,75 @@ const ReportsManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-6 space-y-6'>
-      <div className='flex justify-between items-center'>
+    <div className='p-3 space-y-3'>
+      {/* Header */}
+      <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
-          <h1 className='text-3xl font-bold font-heading text-gray-900 dark:text-white'>
+          <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
             Báo cáo & Phân tích
           </h1>
-          <p className='text-gray-600 dark:text-gray-400 mt-1 font-inter'>
+          <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
             Xem các báo cáo và thống kê hệ thống
           </p>
         </div>
         <div className='flex gap-2'>
-          <AdminButton
-            variant='secondary'
-            icon={Download}
+          <button
             onClick={() => exportReport('pdf')}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md'
           >
+            <Download className='w-4 h-4' />
             Xuất PDF
-          </AdminButton>
-          <AdminButton
-            variant='primary'
-            icon={Download}
+          </button>
+          <button
             onClick={() => exportReport('excel')}
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md'
           >
+            <Download className='w-4 h-4' />
             Xuất Excel
-          </AdminButton>
+          </button>
         </div>
       </div>
 
       {/* Date Range Filter */}
-      <AdminCard>
-        <div className='flex gap-4 items-end'>
-          <div className='flex-1'>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-inter'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md p-4'>
+        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+          <div>
+            <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
               Từ ngày
             </label>
             <input
               type='date'
               value={dateRange.from}
               onChange={e => setDateRange({ ...dateRange, from: e.target.value })}
-              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter'
+              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
-          <div className='flex-1'>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-inter'>
+          <div>
+            <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
               Đến ngày
             </label>
             <input
               type='date'
               value={dateRange.to}
               onChange={e => setDateRange({ ...dateRange, to: e.target.value })}
-              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter'
+              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
-          <AdminButton
-            variant='primary'
-            icon={Filter}
-            onClick={loadData}
-          >
-            Lọc
-          </AdminButton>
+          <div className='flex items-end'>
+            <button
+              onClick={loadData}
+              className='w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md'
+            >
+              <Filter className='w-4 h-4' />
+              Lọc
+            </button>
+          </div>
         </div>
-      </AdminCard>
+      </div>
 
       {/* Tabs */}
-      <div className='border-b border-gray-200 dark:border-gray-800'>
-        <nav className='-mb-px flex space-x-8'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
+        <nav className='flex space-x-1'>
           {[
             { id: 'revenue', name: 'Doanh thu', icon: DollarSign },
             { id: 'members', name: 'Thành viên', icon: Users },
@@ -345,13 +358,13 @@ const ReportsManagement: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm font-inter transition-colors duration-200 ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-semibold text-theme-xs font-heading transition-all ${
                 activeTab === tab.id
-                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                  ? 'bg-orange-600 text-white dark:bg-orange-500 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <tab.icon className='w-5 h-5' />
+              <tab.icon className='w-4 h-4' />
               {tab.name}
             </button>
           ))}
@@ -360,51 +373,77 @@ const ReportsManagement: React.FC = () => {
 
       {/* Revenue Tab */}
       {activeTab === 'revenue' && (
-        <div className='space-y-6'>
+        <div className='space-y-3'>
           {/* Stats Cards */}
-          {revenueData && (
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-              <AdminCard>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                      Tổng doanh thu
-                    </p>
-                    <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                      {formatCurrency(revenueData.total_revenue || 0)}
-                    </p>
+          {isLoading ? (
+            <TableLoading text='Đang tải dữ liệu doanh thu...' />
+          ) : revenueData ? (
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+              <AdminCard padding='sm' className='relative overflow-hidden group'>
+                <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl'></div>
+                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+                <div className='relative'>
+                  <div className='flex items-center gap-3'>
+                    <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <DollarSign className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400' />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-baseline gap-1.5 mb-0.5'>
+                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                          {formatCurrency(revenueData.total_revenue || 0)}
+                        </div>
+                      </div>
+                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                        Tổng doanh thu
+                      </div>
+                    </div>
                   </div>
-                  <DollarSign className='w-8 h-8 text-success-500 dark:text-success-400' />
                 </div>
               </AdminCard>
-              <AdminCard>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                      Doanh thu trung bình
-                    </p>
-                    <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                      {formatCurrency(revenueData.average_revenue || 0)}
-                    </p>
+              <AdminCard padding='sm' className='relative overflow-hidden group'>
+                <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl'></div>
+                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+                <div className='relative'>
+                  <div className='flex items-center gap-3'>
+                    <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <TrendingUp className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400' />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-baseline gap-1.5 mb-0.5'>
+                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                          {formatCurrency(revenueData.average_revenue || 0)}
+                        </div>
+                      </div>
+                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                        Doanh thu trung bình
+                      </div>
+                    </div>
                   </div>
-                  <TrendingUp className='w-8 h-8 text-blue-500 dark:text-blue-400' />
                 </div>
               </AdminCard>
-              <AdminCard>
-                <div className='flex items-center justify-between'>
-                  <div>
-                    <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                      Số giao dịch
-                    </p>
-                    <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                      {revenueData.total_transactions || 0}
-                    </p>
+              <AdminCard padding='sm' className='relative overflow-hidden group'>
+                <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                <div className='relative'>
+                  <div className='flex items-center gap-3'>
+                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <BarChart3 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
+                    </div>
+                    <div className='flex-1 min-w-0'>
+                      <div className='flex items-baseline gap-1.5 mb-0.5'>
+                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                          {revenueData.total_transactions || 0}
+                        </div>
+                      </div>
+                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                        Số giao dịch
+                      </div>
+                    </div>
                   </div>
-                  <BarChart3 className='w-8 h-8 text-orange-500 dark:text-orange-400' />
                 </div>
               </AdminCard>
             </div>
-          )}
+          ) : null}
 
           {/* Charts */}
           {revenueTrendData ? (
@@ -426,11 +465,11 @@ const ReportsManagement: React.FC = () => {
           ) : (
             <AdminCard>
               <div className='text-center py-12'>
-                <BarChart3 className='w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4' />
-                <p className='text-gray-500 dark:text-gray-400 font-inter'>
+                <BarChart3 className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3' />
+                <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
                   Chưa có dữ liệu doanh thu
                 </p>
-                <p className='text-sm text-gray-400 dark:text-gray-500 mt-2 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
                   Vui lòng đảm bảo billing service đang chạy hoặc chọn khoảng thời gian để xem báo cáo
                 </p>
               </div>
@@ -441,33 +480,34 @@ const ReportsManagement: React.FC = () => {
 
       {/* Members Tab */}
       {activeTab === 'members' && (
-        <div className='space-y-6'>
+        <div className='space-y-3'>
           {/* Stats Cards */}
-          {memberStats && (
+          {isLoading ? (
+            <TableLoading text='Đang tải dữ liệu thành viên...' />
+          ) : memberStats && Array.isArray(memberStats) && memberStats.length > 0 ? (
             <AdminCard>
-              <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-4'>
+              <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
                 Thống kê thành viên
               </h3>
-              <div className='grid grid-cols-1 md:grid-cols-4 gap-4'>
-                {Array.isArray(memberStats) && memberStats.map((stat: any, index: number) => (
-                  <div
-                    key={index}
-                    className='border border-gray-200 dark:border-gray-800 rounded-lg p-4'
-                  >
-                    <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
+              <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+                {memberStats.map((stat: any, index: number) => (
+                  <AdminCard key={index} padding='sm' className='border border-gray-200 dark:border-gray-800'>
+                    <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
                       {stat.role || 'N/A'}
                     </p>
-                    <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
+                    <p className='text-xl font-bold font-heading text-gray-900 dark:text-white'>
                       {stat.count || 0}
                     </p>
-                  </div>
+                  </AdminCard>
                 ))}
               </div>
             </AdminCard>
-          )}
+          ) : null}
 
           {/* Chart */}
-          {userGrowthData ? (
+          {isLoading ? (
+            <TableLoading text='Đang tải biểu đồ...' />
+          ) : userGrowthData ? (
             <UserGrowthChart
               data={userGrowthData}
               loading={isLoading}
@@ -476,11 +516,11 @@ const ReportsManagement: React.FC = () => {
           ) : (
             <AdminCard>
               <div className='text-center py-12'>
-                <Users className='w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4' />
-                <p className='text-gray-500 dark:text-gray-400 font-inter'>
+                <Users className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3' />
+                <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
                   Chưa có dữ liệu thành viên
                 </p>
-                <p className='text-sm text-gray-400 dark:text-gray-500 mt-2 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
                   Vui lòng đảm bảo dashboard service đang chạy hoặc chọn khoảng thời gian để xem báo cáo
                 </p>
               </div>
@@ -491,56 +531,82 @@ const ReportsManagement: React.FC = () => {
 
       {/* Classes Tab */}
       {activeTab === 'classes' && (
-        <div className='space-y-6'>
+        <div className='space-y-3'>
           {/* Stats Cards */}
-          {classAttendanceData ? (
+          {isLoading ? (
+            <TableLoading text='Đang tải dữ liệu lớp học...' />
+          ) : classAttendanceData ? (
             <>
-              <div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
-                <AdminCard>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                        Tổng lớp học
-                      </p>
-                      <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                        {classAttendanceData?.classNames?.length || 0}
-                      </p>
+              <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <FileText className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400' />
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {classAttendanceData?.classNames?.length || 0}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          Tổng lớp học
+                        </div>
+                      </div>
                     </div>
-                    <FileText className='w-8 h-8 text-blue-500 dark:text-blue-400' />
                   </div>
                 </AdminCard>
-                <AdminCard>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                        Tổng tham gia
-                      </p>
-                      <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                        {classAttendanceData?.attendance?.reduce((sum: number, arr: number[]) => 
-                          sum + arr.reduce((a: number, b: number) => a + b, 0), 0
-                        ) || 0}
-                      </p>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <Users className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400' />
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {classAttendanceData?.attendance?.reduce((sum: number, arr: number[]) => 
+                              sum + arr.reduce((a: number, b: number) => a + b, 0), 0
+                            ) || 0}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          Tổng tham gia
+                        </div>
+                      </div>
                     </div>
-                    <Users className='w-8 h-8 text-success-500 dark:text-success-400' />
                   </div>
                 </AdminCard>
-                <AdminCard>
-                  <div className='flex items-center justify-between'>
-                    <div>
-                      <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                        Trung bình/lớp
-                      </p>
-                      <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
-                        {classAttendanceData?.attendance?.length 
-                          ? Math.round(
-                              classAttendanceData.attendance.reduce((sum: number, arr: number[]) => 
-                                sum + arr.reduce((a: number, b: number) => a + b, 0), 0
-                              ) / classAttendanceData.attendance.length
-                            )
-                          : 0}
-                      </p>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
+                      </div>
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {classAttendanceData?.attendance?.length 
+                              ? Math.round(
+                                  classAttendanceData.attendance.reduce((sum: number, arr: number[]) => 
+                                    sum + arr.reduce((a: number, b: number) => a + b, 0), 0
+                                  ) / classAttendanceData.attendance.length
+                                )
+                              : 0}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          Trung bình/lớp
+                        </div>
+                      </div>
                     </div>
-                    <TrendingUp className='w-8 h-8 text-orange-500 dark:text-orange-400' />
                   </div>
                 </AdminCard>
               </div>
@@ -555,11 +621,11 @@ const ReportsManagement: React.FC = () => {
           ) : (
             <AdminCard>
               <div className='text-center py-12'>
-                <FileText className='w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4' />
-                <p className='text-gray-500 dark:text-gray-400 font-inter'>
+                <FileText className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3' />
+                <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
                   Chưa có dữ liệu lớp học
                 </p>
-                <p className='text-sm text-gray-400 dark:text-gray-500 mt-2 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
                   Vui lòng đảm bảo schedule service đang chạy hoặc chọn khoảng thời gian để xem báo cáo
                 </p>
               </div>
@@ -570,9 +636,11 @@ const ReportsManagement: React.FC = () => {
 
       {/* Equipment Tab */}
       {activeTab === 'equipment' && (
-        <div className='space-y-6'>
-          {equipmentUsageData && Array.isArray(equipmentUsageData) && equipmentUsageData.length > 0 ? (
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
+        <div className='space-y-3'>
+          {isLoading ? (
+            <TableLoading text='Đang tải dữ liệu thiết bị...' />
+          ) : equipmentUsageData && Array.isArray(equipmentUsageData) && equipmentUsageData.length > 0 ? (
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
               {/* Chart */}
               <EquipmentUsageChart
                 data={equipmentUsageData}
@@ -581,13 +649,13 @@ const ReportsManagement: React.FC = () => {
               />
 
               {/* Stats Cards */}
-              <div className='space-y-4'>
+              <div className='space-y-3'>
                 {equipmentUsageData.map((item: any, index: number) => {
                   const statusColors: { [key: string]: string } = {
-                    AVAILABLE: 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300',
-                    IN_USE: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300',
-                    MAINTENANCE: 'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300',
-                    OUT_OF_ORDER: 'bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-300',
+                    AVAILABLE: 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800',
+                    IN_USE: 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800',
+                    MAINTENANCE: 'bg-warning-100 dark:bg-warning-900/30 text-warning-800 dark:text-warning-300 border-warning-200 dark:border-warning-800',
+                    OUT_OF_ORDER: 'bg-error-100 dark:bg-error-900/30 text-error-800 dark:text-error-300 border-error-200 dark:border-error-800',
                   };
 
                   const statusLabels: { [key: string]: string } = {
@@ -598,17 +666,17 @@ const ReportsManagement: React.FC = () => {
                   };
 
                   return (
-                    <AdminCard key={index}>
+                    <AdminCard key={index} padding='sm'>
                       <div className='flex items-center justify-between'>
                         <div>
-                          <p className='text-sm font-medium text-gray-600 dark:text-gray-400 font-inter'>
+                          <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
                             {statusLabels[item.status] || item.status}
                           </p>
-                          <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white mt-2'>
+                          <p className='text-xl font-bold font-heading text-gray-900 dark:text-white'>
                             {item.count || 0}
                           </p>
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-inter ${statusColors[item.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300'}`}>
+                        <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border ${statusColors[item.status] || 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700'}`}>
                           {item.status}
                         </span>
                       </div>
@@ -620,11 +688,11 @@ const ReportsManagement: React.FC = () => {
           ) : (
             <AdminCard>
               <div className='text-center py-12'>
-                <TrendingUp className='w-16 h-16 text-gray-400 dark:text-gray-500 mx-auto mb-4' />
-                <p className='text-gray-500 dark:text-gray-400 font-inter'>
+                <TrendingUp className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3' />
+                <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
                   Chưa có dữ liệu thiết bị
                 </p>
-                <p className='text-sm text-gray-400 dark:text-gray-500 mt-2 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
                   Vui lòng đảm bảo equipment service đang chạy để xem báo cáo sử dụng thiết bị
                 </p>
               </div>
