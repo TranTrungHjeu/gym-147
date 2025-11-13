@@ -4,6 +4,8 @@
   "description": "Shared configuration constants for Gym Management System",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "react-native": "src/index.ts",
+  "source": "src/index.ts",
   "scripts": {
     "build": "tsc",
     "dev": "tsc --watch",
@@ -17,6 +19,7 @@
     "rimraf": "^5.0.0"
   },
   "files": [
-    "dist/**/*"
+    "dist/**/*",
+    "src/**/*"
   ]
 }

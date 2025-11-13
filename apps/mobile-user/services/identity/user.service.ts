@@ -61,12 +61,19 @@ class UserService {
    */
   async updateProfile(data: UpdateProfileData): Promise<ApiResponse<User>> {
     try {
+      console.log('🔍 Updating profile with SERVICE_URLS.IDENTITY:', this.baseUrl);
       const response = await identityApiService.put('/profile', data);
       return {
         success: true,
         data: response.data?.user || response.data,
       };
     } catch (error: any) {
+      console.error('❌ Update profile error:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        status: error.status,
+        url: error.url || `${this.baseUrl}/profile`,
+      });
       return {
         success: false,
         message: error.message || 'Failed to update profile',

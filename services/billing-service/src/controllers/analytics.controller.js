@@ -591,6 +591,129 @@ class AnalyticsController {
   }
 
   /**
+   * Get revenue by plan
+   */
+  async getRevenueByPlan(req, res) {
+    try {
+      console.log('📊 Getting revenue by plan...', { query: req.query });
+      const { from, to, period = '30' } = req.query;
+
+      let startDate, endDate;
+      if (from && to) {
+        startDate = new Date(from);
+        endDate = new Date(to);
+        
+        // Validate dates
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          console.error('❌ Invalid date format:', { from, to });
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid date format. Use ISO format (YYYY-MM-DD)',
+            data: null,
+          });
+        }
+      } else {
+        // Default to last N days based on period
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setDate(startDate.getDate() - parseInt(period));
+      }
+
+      // Ensure endDate is at end of day
+      endDate.setHours(23, 59, 59, 999);
+      startDate.setHours(0, 0, 0, 0);
+
+      console.log('📅 Date range:', { startDate, endDate });
+
+      // Get payments with subscription and plan information
+      const payments = await prisma.payment.findMany({
+        where: {
+          status: 'COMPLETED',
+          created_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+          subscription_id: {
+            not: null, // Only subscription payments
+          },
+        },
+        include: {
+          subscription: {
+            include: {
+              plan: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                },
+              },
+            },
+          },
+        },
+        orderBy: {
+          created_at: 'desc',
+        },
+      });
+
+      console.log(`📊 Found ${payments.length} subscription payments`);
+
+      // Group by plan
+      const revenueByPlan = {};
+      payments.forEach(payment => {
+        if (!payment.subscription || !payment.subscription.plan) {
+          return; // Skip if no plan info
+        }
+
+        const planId = payment.subscription.plan.id;
+        const planName = payment.subscription.plan.name;
+
+        if (!revenueByPlan[planId]) {
+          revenueByPlan[planId] = {
+            planId,
+            planName,
+            revenue: 0,
+            transactions: 0,
+          };
+        }
+
+        revenueByPlan[planId].revenue += Number(payment.amount) || 0;
+        revenueByPlan[planId].transactions += 1;
+      });
+
+      // Convert to array and sort by revenue (descending)
+      const plans = Object.values(revenueByPlan)
+        .sort((a, b) => b.revenue - a.revenue)
+        .map(item => ({
+          planId: item.planId,
+          planName: item.planName,
+          revenue: Number(item.revenue),
+          transactions: item.transactions,
+        }));
+
+      console.log('✅ Revenue by plan generated:', { plansCount: plans.length });
+
+      res.json({
+        success: true,
+        message: 'Revenue by plan retrieved successfully',
+        data: {
+          plans,
+          totalRevenue: plans.reduce((sum, p) => sum + p.revenue, 0),
+          totalTransactions: plans.reduce((sum, p) => sum + p.transactions, 0),
+        },
+      });
+    } catch (error) {
+      console.error('❌ Get revenue by plan error:', error);
+      console.error('Error stack:', error.stack);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  }
+
+  /**
    * Export member analytics to Excel
    */
   async exportMemberAnalyticsExcel(req, res) {

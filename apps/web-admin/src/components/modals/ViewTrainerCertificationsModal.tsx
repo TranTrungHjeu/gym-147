@@ -48,6 +48,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   const [certToDelete, setCertToDelete] = useState<Certification | null>(null);
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [certToReview, setCertToReview] = useState<Certification | null>(null);
+  const [deletingCertIds, setDeletingCertIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     if (isOpen && trainer) {
@@ -56,8 +57,56 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
       setShowImageModal(false);
       setActionMenuOpen(false);
       setSelectedCertForAction(null);
+      setDeletingCertIds(new Set());
     }
   }, [isOpen, trainer]);
+
+  // Listen for certification:deleted event for optimistic updates
+  useEffect(() => {
+    const handleCertificationDeleted = (event: CustomEvent) => {
+      console.log('📢 certification:deleted event received in ViewTrainerCertificationsModal:', event.detail);
+      const data = event.detail;
+
+      // Check if this certification belongs to the current trainer
+      if (data?.certification_id || data?.id) {
+        const certId = data.certification_id || data.id;
+        
+        // Mark as deleting for animation
+        setDeletingCertIds(prev => {
+          const newSet = new Set(prev);
+          newSet.add(certId);
+          return newSet;
+        });
+
+        // Remove certification after animation
+        setTimeout(() => {
+          setCertifications(prev => {
+            const filtered = prev.filter(cert => cert.id !== certId);
+            console.log(`✅ [VIEW_CERTS_MODAL] Removed certification ${certId} after animation. Remaining: ${filtered.length}`);
+            return filtered;
+          });
+          
+          // Remove from deleting set
+          setDeletingCertIds(prev => {
+            const newSet = new Set(prev);
+            newSet.delete(certId);
+            return newSet;
+          });
+        }, 400); // Wait for animation to complete
+
+        // Background sync after delay
+        setTimeout(() => {
+          loadCertifications();
+        }, 1500);
+      }
+    };
+
+    window.addEventListener('certification:deleted', handleCertificationDeleted as EventListener);
+
+    return () => {
+      window.removeEventListener('certification:deleted', handleCertificationDeleted as EventListener);
+    };
+  }, []);
 
   const loadCertifications = async () => {
     if (!trainer?.id) return;
@@ -166,12 +215,44 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   };
 
   const handleDeleteComplete = () => {
-    loadCertifications();
+    // Optimistic update: Mark certification as deleting for smooth animation
+    if (certToDelete) {
+      setDeletingCertIds(prev => {
+        const newSet = new Set(prev);
+        newSet.add(certToDelete.id);
+        return newSet;
+      });
+
+      // Remove certification after animation completes
+      setTimeout(() => {
+        setCertifications(prev => {
+          const filtered = prev.filter(cert => cert.id !== certToDelete.id);
+          console.log(`✅ [VIEW_CERTS_MODAL] Removed certification ${certToDelete.id} after animation. Remaining: ${filtered.length}`);
+          return filtered;
+        });
+        
+        // Remove from deleting set
+        setDeletingCertIds(prev => {
+          const newSet = new Set(prev);
+          newSet.delete(certToDelete.id);
+          return newSet;
+        });
+      }, 400); // Wait for fade-out animation
+    }
+
+    // Close modal immediately
+    setIsDeleteModalOpen(false);
+    setCertToDelete(null);
+
+    // Call callback if provided
     if (onCertificationDeleted) {
       onCertificationDeleted();
     }
-    setIsDeleteModalOpen(false);
-    setCertToDelete(null);
+
+    // Background sync after delay to ensure data consistency
+    setTimeout(() => {
+      loadCertifications();
+    }, 1500);
   };
 
   const handleReviewClick = (cert: Certification) => {
@@ -260,22 +341,29 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
                   </AdminTableRow>
                 </AdminTableHeader>
                 <AdminTableBody>
-                  {certifications.map((cert, index) => (
+                  {certifications.map((cert, index) => {
+                    const isDeleting = deletingCertIds.has(cert.id);
+                    
+                    return (
                     <AdminTableRow
                       key={cert.id}
                       onClick={(e?: React.MouseEvent) => {
-                        if (e) {
+                        if (e && !isDeleting) {
                           e.stopPropagation();
                           setSelectedCertForAction(cert);
                           setMenuPosition({ x: e.clientX, y: e.clientY });
                           setActionMenuOpen(true);
                         }
                       }}
-                      className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
+                      className={`group relative border-l-4 transition-all duration-200 ${
+                        isDeleting ? 'certification-deleting pointer-events-none' : 'cursor-pointer'
+                      } ${
                         index % 2 === 0
                           ? 'bg-white dark:bg-gray-900'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } border-l-transparent hover:border-l-orange-500 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      } border-l-transparent ${
+                        !isDeleting ? 'hover:border-l-orange-500 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10' : ''
+                      }`}
                     >
                       <AdminTableCell className='overflow-hidden font-space-grotesk'>
                         <span className='font-medium'>{getCategoryLabel(cert.category)}</span>
@@ -305,7 +393,8 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
                         {getStatusBadge(cert.verification_status)}
                       </AdminTableCell>
                     </AdminTableRow>
-                  ))}
+                    );
+                  })}
                 </AdminTableBody>
               </AdminTable>
             )}
@@ -317,7 +406,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
               <button
                 type='button'
                 onClick={onClose}
-                className='inline-flex items-center justify-center min-w-[80px] h-9 px-4 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
+                className='inline-flex items-center justify-center min-w-[80px] h-9 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
               >
                 Đóng
               </button>
@@ -362,7 +451,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
                   link.click();
                   document.body.removeChild(link);
                 }}
-                className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 flex-shrink-0'
+                className='inline-flex items-center gap-2 px-3 py-2 text-theme-xs font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 flex-shrink-0'
                 title='Tải xuống'
               >
                 <Download className='w-4 h-4' />

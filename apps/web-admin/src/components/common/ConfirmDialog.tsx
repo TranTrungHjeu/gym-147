@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import Modal from '../Modal/Modal';
+import { ButtonSpinner } from '../ui/AppLoading';
 
 interface ConfirmDialogProps {
   isOpen: boolean;
@@ -111,15 +112,6 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                 </p>
               </div>
             </div>
-            {!isLoading && (
-              <button
-                onClick={onClose}
-                className='p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors duration-200 flex-shrink-0'
-                aria-label='Close modal'
-              >
-                <X className='w-5 h-5' />
-              </button>
-            )}
           </div>
         </div>
 
@@ -187,7 +179,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
             >
               {isLoading ? (
                 <>
-                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                  <ButtonSpinner />
                   Đang xử lý...
                 </>
               ) : (

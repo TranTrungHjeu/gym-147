@@ -1,8 +1,9 @@
+import type { EChartsOption } from 'echarts';
+import ReactECharts from 'echarts-for-react';
 import React from 'react';
-import Chart from 'react-apexcharts';
-import { ApexOptions } from 'apexcharts';
-import AdminChart from './AdminChart';
 import { useTheme } from '../../context/ThemeContext';
+import { getEChartsTheme } from '../../theme/echartsTheme';
+import AdminChart from './AdminChart';
 
 interface EquipmentUsageChartProps {
   data?: {
@@ -11,15 +12,17 @@ interface EquipmentUsageChartProps {
   }[];
   loading?: boolean;
   height?: number;
+  theme?: 'light' | 'dark';
 }
 
 const EquipmentUsageChart: React.FC<EquipmentUsageChartProps> = ({
   data,
   loading = false,
   height = 350,
+  theme = 'light',
 }) => {
-  const { theme } = useTheme();
-  const isDark = theme === 'dark';
+  const { theme: appTheme } = useTheme();
+  const isDark = appTheme === 'dark' || theme === 'dark';
 
   const defaultData = [
     { status: 'AVAILABLE', count: 0 },
@@ -44,119 +47,97 @@ const EquipmentUsageChart: React.FC<EquipmentUsageChartProps> = ({
     OUT_OF_ORDER: 'Hỏng',
   };
 
-  const colors = chartData.map(item => statusColors[item.status] || '#6b7280');
-  const labels = chartData.map(item => statusLabels[item.status] || item.status);
-  const values = chartData.map(item => item.count);
+  const total = chartData.reduce((sum, item) => sum + item.count, 0);
+  const hasData = total > 0;
 
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: 'Inter, sans-serif',
-      height: height,
-      type: 'donut',
-      toolbar: {
-        show: false,
+  // Prepare pie chart data
+  const pieData = chartData
+    .filter(item => item.count > 0)
+    .map(item => ({
+      value: item.count,
+      name: statusLabels[item.status] || item.status,
+      itemStyle: {
+        color: statusColors[item.status] || '#ff6422',
       },
-      background: 'transparent',
-    },
-    colors: colors,
-    labels: labels,
-    legend: {
-      show: true,
-      position: 'bottom',
-      horizontalAlign: 'center',
-      labels: {
-        colors: isDark ? '#d1d5db' : '#374151',
-        useSeriesColors: false,
-      },
-      markers: {
-        width: 12,
-        height: 12,
-        radius: 6,
-      },
-    },
-    dataLabels: {
-      enabled: true,
-      style: {
-        fontSize: '12px',
-        fontFamily: 'Inter, sans-serif',
-        colors: [isDark ? '#fff' : '#000'],
-      },
-      formatter: (val: number, opts: any) => {
-        return `${opts.w.globals.labels[opts.seriesIndex]}: ${val.toFixed(1)}%`;
-      },
-    },
+    }));
+
+  const option: EChartsOption = {
     tooltip: {
-      enabled: true,
-      theme: isDark ? 'dark' : 'light',
-      style: {
-        fontSize: '12px',
-        fontFamily: 'Inter, sans-serif',
-      },
-      y: {
-        formatter: (val: number) => `${val} thiết bị`,
+      trigger: 'item',
+      formatter: '{b}: {c} ({d}%)',
+      backgroundColor: 'rgba(17, 24, 39, 0.95)',
+      borderColor: 'rgba(55, 65, 81, 0.8)',
+      textStyle: {
+        color: '#f3f4f6',
+        fontFamily: "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
       },
     },
-    plotOptions: {
-      pie: {
-        donut: {
-          size: '65%',
-          labels: {
+    legend: {
+      orient: 'vertical',
+      left: 'left',
+      top: 'middle',
+      itemGap: 15,
+      textStyle: {
+        fontFamily: "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+        fontSize: 12,
+      },
+    },
+    series: [
+      {
+        name: 'Trạng thái Thiết bị',
+        type: 'pie',
+        radius: ['45%', '70%'],
+        center: ['60%', '50%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 8,
+          borderColor: isDark ? '#1f2937' : '#fff',
+          borderWidth: 2,
+        },
+        label: {
+          show: false,
+          position: 'center',
+        },
+        emphasis: {
+          label: {
             show: true,
-            name: {
-              show: true,
-              fontSize: '14px',
-              fontFamily: 'Inter, sans-serif',
-              color: isDark ? '#d1d5db' : '#374151',
-              offsetY: -10,
-            },
-            value: {
-              show: true,
-              fontSize: '20px',
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 600,
-              color: isDark ? '#fff' : '#111827',
-              offsetY: 10,
-              formatter: (val: string) => {
-                return val;
-              },
-            },
-            total: {
-              show: true,
-              label: 'Tổng',
-              fontSize: '14px',
-              fontFamily: 'Inter, sans-serif',
-              fontWeight: 600,
-              color: isDark ? '#d1d5db' : '#374151',
-              formatter: () => {
-                const total = values.reduce((a, b) => a + b, 0);
-                return total.toString();
-              },
-            },
+            fontSize: 20,
+            fontWeight: 600,
+            fontFamily:
+              "'Space Grotesk', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+          },
+          itemStyle: {
+            shadowBlur: 10,
+            shadowOffsetX: 0,
+            shadowColor: 'rgba(0, 0, 0, 0.5)',
           },
         },
+        labelLine: {
+          show: false,
+        },
+        data: pieData,
       },
-    },
+    ],
   };
-
-  const series = values;
-
-  const hasData = values.some(val => val > 0);
 
   return (
     <AdminChart
-      title='Sử dụng Thiết bị'
-      description='Biểu đồ thể hiện tỷ lệ sử dụng thiết bị theo trạng thái'
+      title='Phân bổ Trạng thái Thiết bị'
+      description='Biểu đồ thể hiện tỷ lệ thiết bị theo từng trạng thái'
       height={height}
       loading={loading}
       empty={!hasData}
       emptyMessage='Chưa có dữ liệu thiết bị'
     >
       {hasData && (
-        <Chart options={options} series={series} type='donut' height={height} />
+        <ReactECharts
+          option={option}
+          theme={getEChartsTheme(appTheme)}
+          style={{ width: '100%', height }}
+        />
       )}
     </AdminChart>
   );
 };
 
 export default EquipmentUsageChart;
-

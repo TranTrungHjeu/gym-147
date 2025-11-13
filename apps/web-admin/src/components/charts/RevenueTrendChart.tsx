@@ -1,8 +1,9 @@
 import React from 'react';
-import Chart from 'react-apexcharts';
-import { ApexOptions } from 'apexcharts';
-import AdminChart from './AdminChart';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import { useTheme } from '../../context/ThemeContext';
+import AdminChart from './AdminChart';
+import { getEChartsTheme } from '../../theme/echartsTheme';
 
 interface RevenueTrendChartProps {
   data?: {
@@ -30,133 +31,90 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
 
   const chartData = data || defaultData;
 
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: 'Inter, sans-serif',
-      height: height,
-      type: 'area',
-      toolbar: {
-        show: false,
-      },
-      background: 'transparent',
-    },
-    colors: ['#f97316', '#10b981'],
-    stroke: {
-      curve: 'smooth',
-      width: [2, 2],
-    },
-    fill: {
-      type: 'gradient',
-      gradient: {
-        opacityFrom: 0.55,
-        opacityTo: 0,
-        stops: [0, 100],
-      },
-    },
-    markers: {
-      size: 0,
-      strokeColors: '#fff',
-      strokeWidth: 2,
-      hover: {
-        size: 6,
-      },
-    },
-    grid: {
-      borderColor: isDark ? '#374151' : '#e5e7eb',
-      strokeDashArray: 4,
-      xaxis: {
-        lines: {
-          show: false,
-        },
-      },
-      yaxis: {
-        lines: {
-          show: true,
-        },
-      },
-    },
-    dataLabels: {
-      enabled: false,
-    },
+  const hasData = chartData.revenues.some((val) => val > 0);
+
+  const option: EChartsOption = {
     tooltip: {
-      enabled: true,
-      theme: isDark ? 'dark' : 'light',
-      style: {
-        fontSize: '12px',
-        fontFamily: 'Inter, sans-serif',
-      },
-      y: {
-        formatter: (val: number) => {
-          return new Intl.NumberFormat('vi-VN', {
-            style: 'currency',
-            currency: 'VND',
-          }).format(val);
-        },
-      },
-    },
-    xaxis: {
-      categories: chartData.dates,
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
-        },
-      },
-      axisBorder: {
-        show: false,
-      },
-      axisTicks: {
-        show: false,
-      },
-    },
-    yaxis: {
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
-        },
-        formatter: (val: number) => {
-          return new Intl.NumberFormat('vi-VN', {
-            notation: 'compact',
-            maximumFractionDigits: 1,
-          }).format(val);
-        },
-      },
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      valueFormatter: (value) =>
+        typeof value === 'number'
+          ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
+          : String(value),
     },
     legend: {
-      show: true,
-      position: 'top',
-      horizontalAlign: 'right',
-      labels: {
-        colors: isDark ? '#d1d5db' : '#374151',
-        useSeriesColors: false,
-      },
-      markers: {
-        width: 12,
-        height: 12,
-        radius: 6,
+      top: 10,
+      right: 10,
+    },
+    grid: { 
+      left: 50, 
+      right: 30, 
+      bottom: 50, 
+      top: 50,
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'category',
+      data: chartData.dates,
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        formatter: (val: number) => new Intl.NumberFormat('vi-VN', { notation: 'compact', maximumFractionDigits: 1 }).format(val),
       },
     },
-  };
-
-  const series = [
-    {
-      name: 'Doanh thu',
-      data: chartData.revenues,
-    },
-    ...(chartData.transactions
-      ? [
-          {
-            name: 'Giao dịch',
-            data: chartData.transactions,
+    series: [
+      {
+        name: 'Doanh thu',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2, color: '#ff6422' },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(255, 100, 34, 0.35)' },
+              { offset: 1, color: 'rgba(255, 100, 34, 0.00)' },
+            ],
           },
-        ]
-      : []),
-  ];
-
-  const hasData = chartData.revenues.some(val => val > 0);
+        },
+        data: chartData.revenues,
+      },
+      ...(chartData.transactions
+        ? [
+            {
+              name: 'Giao dịch',
+              type: 'line',
+              smooth: true,
+              showSymbol: false,
+              lineStyle: { width: 2, color: '#38bdf8' },
+              areaStyle: {
+                color: {
+                  type: 'linear',
+                  x: 0,
+                  y: 0,
+                  x2: 0,
+                  y2: 1,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(56, 189, 248, 0.25)' },
+                    { offset: 1, color: 'rgba(56, 189, 248, 0.00)' },
+                  ],
+                },
+              },
+              data: chartData.transactions,
+            } as any,
+          ]
+        : []),
+    ],
+  };
 
   return (
     <AdminChart
@@ -168,11 +126,14 @@ const RevenueTrendChart: React.FC<RevenueTrendChartProps> = ({
       emptyMessage='Chưa có dữ liệu doanh thu'
     >
       {hasData && (
-        <Chart options={options} series={series} type='area' height={height} />
+        <ReactECharts 
+          option={option} 
+          theme={getEChartsTheme(theme)} 
+          style={{ width: '100%', height }} 
+        />
       )}
     </AdminChart>
   );
 };
 
 export default RevenueTrendChart;
-

@@ -429,11 +429,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   accountText: {
-    ...Typography.bodyMedium,
+    ...Typography.footerText,
   },
   signupText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
+    ...Typography.footerTextBold,
   },
   successContainer: {
     flex: 1,

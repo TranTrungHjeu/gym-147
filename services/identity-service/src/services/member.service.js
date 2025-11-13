@@ -2,7 +2,10 @@ const axios = require('axios');
 
 class MemberService {
   constructor() {
-    this.baseURL = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+    // In Docker, use container name. In local dev, use localhost or configured URL
+    const isDocker = process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
+    this.baseURL = process.env.MEMBER_SERVICE_URL || (isDocker ? 'http://member:3002' : 'http://localhost:3002');
+    console.log('🔧 MemberService initialized with baseURL:', this.baseURL, 'isDocker:', isDocker);
   }
 
   async updateMember(userId, userData) {

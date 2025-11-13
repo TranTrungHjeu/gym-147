@@ -4,6 +4,7 @@ import 'swiper/swiper-bundle.css';
 import RoleBasedRouter from './components/RoleBasedRouter';
 import AuthGuard from './components/auth/AuthGuard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
+import ToastContainer from './components/common/ToastContainer';
 import { NavigationProvider } from './context/NavigationContext';
 import { ToastProvider } from './context/ToastContext';
 import Homepage from './features/homepage/pages/Homepage';
@@ -14,8 +15,6 @@ import Auth from './pages/AuthPages/Auth';
 import ResetPassword from './pages/AuthPages/ResetPassword';
 import Blank from './pages/Blank';
 import Calendar from './pages/Calendar';
-import BarChart from './pages/Charts/BarChart';
-import LineChart from './pages/Charts/LineChart';
 import CreateAdmin from './pages/CreateAdmin';
 import CreateTrainer from './pages/CreateTrainer';
 import Home from './pages/Dashboard/Home';
@@ -35,7 +34,22 @@ import TrainerReviews from './pages/Dashboard/TrainerReviews';
 import TrainerSchedule from './pages/Dashboard/TrainerSchedule';
 import TrainerStats from './pages/Dashboard/TrainerStats';
 import FormElements from './pages/Forms/FormElements';
+import BillingManagement from './pages/Management/BillingManagement';
+import ClassManagement from './pages/Management/ClassManagement';
+import EquipmentManagement from './pages/Management/EquipmentManagement';
+import MemberManagement from './pages/Management/MemberManagement';
+import ReportsManagement from './pages/Management/ReportsManagement';
+import RoomManagement from './pages/Management/RoomManagement';
+import ScheduleManagement from './pages/Management/ScheduleManagement';
+import SettingsManagement from './pages/Management/SettingsManagement';
+import TrainerManagement from './pages/Management/TrainerManagement';
 import NotFound from './pages/OtherPage/NotFound';
+import ClassesReport from './pages/Reports/ClassesReport';
+import EquipmentReport from './pages/Reports/EquipmentReport';
+import MembersReport from './pages/Reports/MembersReport';
+import RevenueReport from './pages/Reports/RevenueReport';
+import SystemReport from './pages/Reports/SystemReport';
+import UsersReport from './pages/Reports/UsersReport';
 import BasicTables from './pages/Tables/BasicTables';
 import Alerts from './pages/UiElements/Alerts';
 import Avatars from './pages/UiElements/Avatars';
@@ -46,19 +60,11 @@ import Videos from './pages/UiElements/Videos';
 import Unauthorized from './pages/Unauthorized';
 import UserManagement from './pages/UserManagement';
 import UserProfiles from './pages/UserProfiles';
-import EquipmentManagement from './pages/Management/EquipmentManagement';
-import TrainerManagement from './pages/Management/TrainerManagement';
-import ClassManagement from './pages/Management/ClassManagement';
-import MemberManagement from './pages/Management/MemberManagement';
-import RoomManagement from './pages/Management/RoomManagement';
-import ScheduleManagement from './pages/Management/ScheduleManagement';
-import BillingManagement from './pages/Management/BillingManagement';
-import ReportsManagement from './pages/Management/ReportsManagement';
-import SettingsManagement from './pages/Management/SettingsManagement';
 export default function App() {
   return (
     <ToastProvider>
       <NavigationProvider>
+        <ToastContainer position='top-right' maxToasts={5} />
         <Routes>
           <Route path='/' element={<Homepage />} />
           <Route path='/homepage' element={<Homepage />} />
@@ -151,16 +157,6 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path='/user-management'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <UserManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
           {/* Management Routes for Admin/Super Admin */}
           <Route
             path='/management/members'
@@ -168,6 +164,16 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <MemberManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/users'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <UserManagement />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -238,6 +244,66 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <ReportsManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/users'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <UsersReport />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/system'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <SystemReport />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/revenue'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RevenueReport />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/members'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <MembersReport />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/classes'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ClassesReport />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/reports/equipment'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <EquipmentReport />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -415,8 +481,6 @@ export default function App() {
             <Route path='buttons' element={<Buttons />} />
             <Route path='images' element={<Images />} />
             <Route path='videos' element={<Videos />} />
-            <Route path='line-chart' element={<LineChart />} />
-            <Route path='bar-chart' element={<BarChart />} />
           </Route>
 
           {/* Full Dashboard Routes (with sidebar) */}
@@ -440,8 +504,6 @@ export default function App() {
             <Route path='buttons' element={<Buttons />} />
             <Route path='images' element={<Images />} />
             <Route path='videos' element={<Videos />} />
-            <Route path='line-chart' element={<LineChart />} />
-            <Route path='bar-chart' element={<BarChart />} />
           </Route>
 
           {/* Fallback Route */}

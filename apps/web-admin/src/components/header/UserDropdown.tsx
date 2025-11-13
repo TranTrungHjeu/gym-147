@@ -1,5 +1,6 @@
 import { Globe } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { motion } from 'framer-motion';
 import useTranslation from '../../hooks/useTranslation';
 import { changeLanguage, getCurrentLanguage } from '../../locales/i18n';
 import { User as UserType } from '../../services/user.service';
@@ -13,6 +14,7 @@ export default function UserDropdown() {
   const [user, setUser] = useState<UserType | null>(null);
   const [trainer, setTrainer] = useState<Trainer | null>(null);
   const [currentLang, setCurrentLang] = useState<'en' | 'vi'>(getCurrentLanguage());
+  const toggleButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     // Get user data from localStorage
@@ -129,7 +131,7 @@ export default function UserDropdown() {
   }, []);
 
   function toggleDropdown() {
-    setIsOpen(!isOpen);
+    setIsOpen(prev => !prev);
   }
 
   function closeDropdown() {
@@ -187,8 +189,17 @@ export default function UserDropdown() {
   return (
     <div className='relative'>
       <button
-        onClick={toggleDropdown}
-        className='flex items-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-400)] hover:text-[var(--color-orange-600)] dark:hover:text-[var(--color-orange-400)] transition-colors duration-200'
+        ref={toggleButtonRef}
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          toggleDropdown();
+        }}
+        onMouseDown={(e) => {
+          // Prevent dropdown from closing immediately when clicking toggle button
+          e.stopPropagation();
+        }}
+        className='dropdown-toggle flex items-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-400)] hover:text-[var(--color-orange-600)] dark:hover:text-[var(--color-orange-400)] transition-colors duration-200'
       >
         <span className='mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
           {trainer?.profile_photo ? (
@@ -238,10 +249,10 @@ export default function UserDropdown() {
               }`.trim() || t('common.defaultUserName')
             : t('common.defaultUserName')}
         </span>
-        <svg
-          className={`stroke-[var(--color-gray-500)] dark:stroke-[var(--color-gray-400)] transition-transform duration-200 ${
-            isOpen ? 'rotate-180' : ''
-          }`}
+        <motion.svg
+          animate={{ rotate: isOpen ? 180 : 0 }}
+          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          className='stroke-[var(--color-gray-500)] dark:stroke-[var(--color-gray-400)]'
           width='18'
           height='20'
           viewBox='0 0 18 20'
@@ -255,7 +266,7 @@ export default function UserDropdown() {
             strokeLinecap='round'
             strokeLinejoin='round'
           />
-        </svg>
+        </motion.svg>
       </button>
 
       <Dropdown
@@ -283,7 +294,11 @@ export default function UserDropdown() {
         </div>
 
         <ul className='flex flex-col gap-1 pt-4 pb-3 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
-          <li>
+          <motion.li
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: 0.05 }}
+          >
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
@@ -328,8 +343,12 @@ export default function UserDropdown() {
               </svg>
               {t('user.menu.editProfile')}
             </DropdownItem>
-          </li>
-          <li>
+          </motion.li>
+          <motion.li
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: 0.08 }}
+          >
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
@@ -374,8 +393,12 @@ export default function UserDropdown() {
               </svg>
               {t('user.menu.accountSettings')}
             </DropdownItem>
-          </li>
-          <li>
+          </motion.li>
+          <motion.li
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: 0.11 }}
+          >
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
@@ -420,8 +443,12 @@ export default function UserDropdown() {
               </svg>
               {t('user.menu.support')}
             </DropdownItem>
-          </li>
-          <li>
+          </motion.li>
+          <motion.li
+            initial={{ opacity: 0, x: -10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.2, delay: 0.14 }}
+          >
             <div className='px-3 py-2'>
               <div className='flex items-center gap-3 mb-2'>
                 <Globe className='w-5 h-5 text-[var(--color-gray-600)] dark:text-[var(--color-gray-300)]' />
@@ -457,9 +484,12 @@ export default function UserDropdown() {
                 </button>
               </div>
             </div>
-          </li>
+          </motion.li>
         </ul>
-        <button
+        <motion.button
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.2, delay: 0.17 }}
           onClick={handleSignOut}
           className='flex items-center gap-3 px-3 py-2 mt-3 font-medium text-[var(--color-red-600)] dark:text-[var(--color-red-400)] rounded-lg group text-sm hover:bg-[var(--color-red-50)] dark:hover:bg-[var(--color-red-900)]/20 hover:text-[var(--color-red-700)] dark:hover:text-[var(--color-red-200)] transition-colors duration-200 w-full text-left'
           style={{ fontFamily: 'Space Grotesk, sans-serif' }}
@@ -480,7 +510,7 @@ export default function UserDropdown() {
             />
           </svg>
           {t('user.menu.signOut')}
-        </button>
+        </motion.button>
       </Dropdown>
     </div>
   );

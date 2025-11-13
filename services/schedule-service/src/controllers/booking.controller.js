@@ -443,15 +443,27 @@ class BookingController {
           }
 
           // Emit socket event
-          global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', {
+          const socketPayload = {
             booking_id: booking.id,
             schedule_id: schedule_id,
             class_name: booking.schedule.gym_class?.name || 'Lớp học',
             member_name: member?.full_name || 'Thành viên',
             booked_at: booking.booked_at,
+            payment_status: 'PAID', // Free booking is auto-paid
             current_bookings: booking.schedule.current_bookings + 1,
             max_capacity: booking.schedule.max_capacity,
-          });
+          };
+
+          console.log(`📡 Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`, socketPayload);
+          global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', socketPayload);
+          console.log(`✅ Socket event booking:new emitted successfully to trainer (free booking)`);
+        } else {
+          if (!booking.schedule?.trainer?.user_id) {
+            console.log('⚠️ No trainer user_id found for booking notification');
+          }
+          if (!global.io) {
+            console.log('⚠️ Socket.io not available for booking notification');
+          }
         }
 
         return res.status(201).json({
@@ -539,34 +551,51 @@ class BookingController {
           await notificationService.sendNotification({
             user_id: booking.schedule.trainer.user_id,
             type: 'CLASS_BOOKING',
-            title: 'Đặt lớp mới (chờ thanh toán)',
+            title: 'Đặt lớp mới',
             message: `${member?.full_name || 'Thành viên'} đã đặt lớp ${
               booking.schedule.gym_class?.name || 'Lớp học'
-            } - Đang chờ thanh toán`,
+            }${bookingPrice > 0 ? ' - Đang chờ thanh toán' : ''}`,
             data: {
               booking_id: booking.id,
               schedule_id: schedule_id,
               class_name: booking.schedule.gym_class?.name || 'Lớp học',
               member_name: member?.full_name || 'Thành viên',
+              member_id: member?.id,
               booked_at: booking.booked_at,
               payment_amount: bookingPrice,
-              payment_status: 'PENDING',
+              payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+              role: 'MEMBER', // Add role to identify notification source
             },
           });
+          console.log('✅ Notification created for trainer when booking created (pending payment)');
         } catch (notifError) {
-          console.error('Error creating booking notification:', notifError);
+          console.error('❌ Error creating booking notification:', notifError);
         }
 
-        // Emit socket event
-        global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:pending_payment', {
+        // Emit socket event - use same event name as free booking for consistency
+        // Trainer will receive booking:new when booking is created, then booking:confirmed when payment succeeds
+        const socketPayload = {
           booking_id: booking.id,
           schedule_id: schedule_id,
           class_name: booking.schedule.gym_class?.name || 'Lớp học',
           member_name: member?.full_name || 'Thành viên',
           booked_at: booking.booked_at,
           payment_amount: bookingPrice,
-          payment_status: 'PENDING',
-        });
+          payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+          current_bookings: schedule.current_bookings, // Current count before increment (will be updated after payment)
+          max_capacity: schedule.max_capacity,
+        };
+
+        console.log(`📡 Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`, socketPayload);
+        global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', socketPayload);
+        console.log(`✅ Socket event booking:new emitted successfully to trainer (pending payment)`);
+      } else {
+        if (!booking.schedule?.trainer?.user_id) {
+          console.log('⚠️ No trainer user_id found for booking notification');
+        }
+        if (!global.io) {
+          console.log('⚠️ Socket.io not available for booking notification');
+        }
       }
 
       // Return booking with payment information
@@ -689,9 +718,10 @@ class BookingController {
         console.log('Payment confirmed - Trainer user_id:', trainerUserId);
         console.log('Socket available:', !!global.io);
 
-        if (trainerUserId && global.io) {
-          const notificationService = require('../services/notification.service.js');
+        const notificationService = require('../services/notification.service.js');
 
+        // Notify trainer
+        if (trainerUserId && global.io) {
           // Create notification in database
           try {
             console.log(`Creating notification for trainer user_id: ${trainerUserId}`);
@@ -716,7 +746,7 @@ class BookingController {
             console.error('❌ Error creating booking confirmation notification:', notifError);
           }
 
-          // Emit socket event
+          // Emit socket event to trainer
           const socketPayload = {
             booking_id: updatedBooking.id,
             schedule_id: updatedBooking.schedule_id,
@@ -731,7 +761,7 @@ class BookingController {
 
           console.log(`Emitting booking:confirmed to user:${trainerUserId}`, socketPayload);
           global.io.to(`user:${trainerUserId}`).emit('booking:confirmed', socketPayload);
-          console.log(`✅ Socket event booking:confirmed emitted successfully`);
+          console.log(`✅ Socket event booking:confirmed emitted successfully to trainer`);
         } else {
           if (!trainerUserId) {
             console.log('⚠️ No trainer user_id found for booking payment confirmation');
@@ -739,6 +769,91 @@ class BookingController {
           if (!global.io) {
             console.log('⚠️ Socket.io not available for booking payment confirmation');
           }
+        }
+
+        // Notify admins about successful payment
+        try {
+          console.log('📢 Notifying admins about booking payment success...');
+          const admins = await notificationService.getAdminsAndSuperAdmins();
+          
+          if (admins.length > 0) {
+            console.log(`📋 Found ${admins.length} admin/super-admin users to notify`);
+
+            // Create notifications for all admins
+            const adminNotifications = admins.map(admin => ({
+              user_id: admin.user_id,
+              type: 'CLASS_BOOKING',
+              title: 'Thanh toán lớp học thành công',
+              message: `${member?.full_name || 'Thành viên'} đã thanh toán ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)} cho lớp ${
+                booking.schedule.gym_class?.name || 'Lớp học'
+              }`,
+              data: {
+                booking_id: updatedBooking.id,
+                schedule_id: updatedBooking.schedule_id,
+                class_name: booking.schedule.gym_class?.name || 'Lớp học',
+                member_name: member?.full_name || 'Thành viên',
+                member_id: member?.id,
+                trainer_name: booking.schedule.trainer?.full_name || 'Trainer',
+                booked_at: updatedBooking.booked_at,
+                payment_amount: amount,
+                payment_status: 'PAID',
+                role: 'MEMBER', // Role indicates who performed the action
+              },
+              is_read: false,
+              created_at: new Date(),
+            }));
+
+            // Save notifications to database and emit socket events
+            if (adminNotifications.length > 0) {
+              console.log(`💾 Saving ${adminNotifications.length} notifications to database...`);
+              
+              // Create notifications one by one to get IDs
+              const createdNotifications = [];
+              for (const notificationData of adminNotifications) {
+                try {
+                  const createdNotification = await prisma.notification.create({
+                    data: notificationData,
+                  });
+                  createdNotifications.push(createdNotification);
+                } catch (error) {
+                  console.error(`Failed to create notification for user ${notificationData.user_id}:`, error);
+                }
+              }
+              
+              console.log(`✅ Saved ${createdNotifications.length} notifications to database`);
+
+              // Emit socket events to all admins
+              if (global.io) {
+                console.log(`📡 Emitting socket events to ${createdNotifications.length} admin(s)...`);
+                createdNotifications.forEach(notification => {
+                  const roomName = `user:${notification.user_id}`;
+                  const socketPayload = {
+                    notification_id: notification.id,
+                    booking_id: updatedBooking.id,
+                    schedule_id: updatedBooking.schedule_id,
+                    class_name: booking.schedule.gym_class?.name || 'Lớp học',
+                    member_name: member?.full_name || 'Thành viên',
+                    payment_amount: amount,
+                    payment_status: 'PAID',
+                    booked_at: updatedBooking.booked_at,
+                    title: notification.title,
+                    message: notification.message,
+                    type: notification.type,
+                    created_at: notification.created_at,
+                  };
+
+                  global.io.to(roomName).emit('booking:payment:success', socketPayload);
+                  console.log(`✅ Socket event booking:payment:success emitted to ${roomName}`);
+                });
+                console.log(`✅ All socket events emitted successfully to admins`);
+              }
+            }
+          } else {
+            console.log('⚠️ No admins found to notify');
+          }
+        } catch (adminNotifError) {
+          console.error('❌ Error notifying admins about booking payment:', adminNotifError);
+          // Don't fail the request if admin notification fails
         }
       }
 
@@ -815,6 +930,15 @@ class BookingController {
         bookingWithMember.schedule = booking.schedule;
       }
 
+      // Get schedule with trainer info for notification
+      const scheduleWithTrainer = await prisma.schedule.findUnique({
+        where: { id: booking.schedule_id },
+        include: {
+          trainer: true,
+          gym_class: true,
+        },
+      });
+
       // Update schedule current_bookings
       await prisma.schedule.update({
         where: { id: booking.schedule_id },
@@ -827,6 +951,50 @@ class BookingController {
               : undefined,
         },
       });
+
+      // Notify trainer about booking cancellation
+      if (scheduleWithTrainer?.trainer?.user_id && global.io) {
+        try {
+          const member = bookingWithMember?.member || null;
+          const memberName = member?.full_name || 'Thành viên';
+          
+          const notificationService = require('../services/notification.service.js');
+          await notificationService.sendNotification({
+            user_id: scheduleWithTrainer.trainer.user_id,
+            type: 'CLASS_BOOKING',
+            title: 'Hủy đặt lớp',
+            message: `${memberName} đã hủy đặt lớp ${scheduleWithTrainer.gym_class?.name || 'Lớp học'}`,
+            data: {
+              booking_id: booking.id,
+              schedule_id: booking.schedule_id,
+              class_name: scheduleWithTrainer.gym_class?.name || 'Lớp học',
+              member_name: memberName,
+              member_id: booking.member_id,
+              cancellation_reason: cancellation_reason || null,
+              cancelled_at: updatedBooking.cancelled_at,
+              role: 'MEMBER',
+            },
+          });
+
+          // Also emit socket event directly for real-time update
+          const socketPayload = {
+            booking_id: booking.id,
+            schedule_id: booking.schedule_id,
+            class_name: scheduleWithTrainer.gym_class?.name || 'Lớp học',
+            member_name: memberName,
+            member_id: booking.member_id,
+            cancelled_at: updatedBooking.cancelled_at,
+            cancellation_reason: cancellation_reason || null,
+          };
+
+          console.log(`📡 Emitting booking:cancelled to trainer user:${scheduleWithTrainer.trainer.user_id}`);
+          global.io.to(`user:${scheduleWithTrainer.trainer.user_id}`).emit('booking:cancelled', socketPayload);
+          console.log(`✅ Socket event booking:cancelled emitted successfully to trainer`);
+        } catch (notifError) {
+          console.error('❌ Error notifying trainer about booking cancellation:', notifError);
+          // Don't fail the cancellation if notification fails
+        }
+      }
 
       // Try to promote someone from waitlist
       let promotedMember = null;

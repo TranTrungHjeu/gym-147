@@ -58,12 +58,21 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           // Connect socket and subscribe to user notifications
           const socket = socketService.connect(userId);
 
-          // Setup booking notification listeners
-          // Note: Toast notifications are disabled - notifications will be shown in dropdown only
+          // Setup booking notification listeners with optimistic updates
           socket.on('booking:new', (data: any) => {
-            // Refresh schedule if on schedule page
+            console.log('📢 booking:new event received in TrainerLayout:', data);
+            // Dispatch events for optimistic updates (no page reload)
             if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('booking:new', { detail: data }));
               window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
+            }
+            // Show subtle toast notification
+            if (window.showToast && data.member_name && data.class_name) {
+              window.showToast({
+                type: 'info',
+                message: `${data.member_name} đã đặt lớp ${data.class_name}`,
+                duration: 3000,
+              });
             }
           });
 
@@ -72,9 +81,52 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           socket.on('booking:confirmed', (data: any) => {
-            // Refresh schedule if on schedule page
+            console.log('📢 booking:confirmed event received in TrainerLayout:', data);
+            // Dispatch events for optimistic updates (no page reload)
             if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('booking:confirmed', { detail: data }));
               window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
+            }
+            // Show success toast notification
+            if (window.showToast && data.member_name && data.class_name) {
+              window.showToast({
+                type: 'success',
+                message: `${data.member_name} đã thanh toán cho lớp ${data.class_name}`,
+                duration: 3000,
+              });
+            }
+          });
+
+          socket.on('booking:cancelled', (data: any) => {
+            console.log('📢 booking:cancelled event received in TrainerLayout:', data);
+            // Dispatch events for optimistic updates (no page reload)
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('booking:cancelled', { detail: data }));
+              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
+            }
+            // Show info toast notification
+            if (window.showToast && data.member_name && data.class_name) {
+              window.showToast({
+                type: 'warning',
+                message: `${data.member_name} đã hủy đặt lớp ${data.class_name}`,
+                duration: 3000,
+              });
+            }
+          });
+
+          socket.on('member:checked_in', (data: any) => {
+            console.log('📢 member:checked_in event received in TrainerLayout:', data);
+            // Dispatch events for optimistic updates (no page reload)
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('member:checked_in', { detail: data }));
+            }
+            // Show success toast notification
+            if (window.showToast && data.data?.member_name && data.data?.class_name) {
+              window.showToast({
+                type: 'success',
+                message: `${data.data.member_name} đã check-in vào lớp ${data.data.class_name}`,
+                duration: 3000,
+              });
             }
           });
 
@@ -194,18 +246,44 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
+          socket.on('certification:deleted', (data: any) => {
+            console.log(
+              '📢 certification:deleted event received in TrainerLayout:',
+              JSON.stringify(data, null, 2)
+            );
+            // Dispatch certification:deleted for optimistic updates
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:deleted', { detail: data }));
+            }
+            // Also dispatch notification:new for NotificationDropdown
+            if (data && window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+            // Show warning toast notification
+            if (window.showToast && data.certification_name) {
+              window.showToast({
+                type: 'warning',
+                message: `Chứng chỉ "${data.certification_name}" đã bị xóa. Lý do: ${data.reason || 'Không có lý do'}`,
+                duration: 5000,
+              });
+            }
+          });
+
           // Cleanup on unmount - only remove listeners, don't disconnect socket
           // Socket should stay connected as long as user is logged in
           return () => {
             socket.off('booking:new');
             socket.off('booking:pending_payment');
             socket.off('booking:confirmed');
+            socket.off('booking:cancelled');
+            socket.off('member:checked_in');
             socket.off('certification:pending');
             socket.off('certification:upload');
             socket.off('notification:new');
             socket.off('certification:status');
             socket.off('certification:verified');
             socket.off('certification:rejected');
+            socket.off('certification:deleted');
             // Don't disconnect here - socket is shared across components
           };
         }

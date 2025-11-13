@@ -9,6 +9,7 @@ import ClassDetailModal from '../../components/modals/ClassDetailModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import Pagination from '../../components/common/Pagination';
 import CustomSelect from '../../components/common/CustomSelect';
+import { TableLoading } from '../../components/ui/AppLoading';
 
 const ClassManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -410,14 +411,7 @@ const ClassManagement: React.FC = () => {
 
       {/* Classes List */}
       {isLoading ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
-          <div className='flex flex-col items-center justify-center gap-3'>
-            <div className='w-8 h-8 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin' />
-            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-              Đang tải...
-            </div>
-          </div>
-        </div>
+        <TableLoading text='Đang tải danh sách lớp học...' />
       ) : filteredClasses.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>

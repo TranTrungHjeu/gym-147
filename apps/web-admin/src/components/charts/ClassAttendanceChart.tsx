@@ -1,8 +1,9 @@
 import React from 'react';
-import Chart from 'react-apexcharts';
-import { ApexOptions } from 'apexcharts';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import AdminChart from './AdminChart';
 import { useTheme } from '../../context/ThemeContext';
+import { getEChartsTheme } from '../../theme/echartsTheme';
 
 interface ClassAttendanceChartProps {
   data?: {
@@ -30,111 +31,44 @@ const ClassAttendanceChart: React.FC<ClassAttendanceChartProps> = ({
 
   const chartData = data || defaultData;
 
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: 'Inter, sans-serif',
-      height: height,
-      type: 'bar',
-      toolbar: {
-        show: false,
-      },
-      background: 'transparent',
-    },
-    colors: ['#f97316', '#3b82f6', '#10b981', '#f59e0b', '#ef4444'],
-    plotOptions: {
-      bar: {
-        horizontal: false,
-        columnWidth: '60%',
-        borderRadius: 6,
-        borderRadiusApplication: 'end',
-        dataLabels: {
-          position: 'top',
-        },
-      },
-    },
-    dataLabels: {
-      enabled: false,
-    },
-    stroke: {
-      show: true,
-      width: 2,
-      colors: ['transparent'],
-    },
-    grid: {
-      borderColor: isDark ? '#374151' : '#e5e7eb',
-      strokeDashArray: 4,
-      xaxis: {
-        lines: {
-          show: false,
-        },
-      },
-      yaxis: {
-        lines: {
-          show: true,
-        },
-      },
-    },
-    tooltip: {
-      enabled: true,
-      theme: isDark ? 'dark' : 'light',
-      style: {
-        fontSize: '12px',
-        fontFamily: 'Inter, sans-serif',
-      },
-      y: {
-        formatter: (val: number) => `${val} người`,
-      },
-    },
-    xaxis: {
-      categories: chartData.dates || chartData.classNames,
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
-        },
-      },
-      axisBorder: {
-        show: false,
-      },
-      axisTicks: {
-        show: false,
-      },
-    },
-    yaxis: {
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
-        },
-      },
-    },
-    legend: {
-      show: true,
-      position: 'top',
-      horizontalAlign: 'right',
-      labels: {
-        colors: isDark ? '#d1d5db' : '#374151',
-        useSeriesColors: false,
-      },
-      markers: {
-        width: 12,
-        height: 12,
-        radius: 6,
-      },
-    },
-    fill: {
-      opacity: 1,
-    },
-  };
-
-  const series = chartData.classNames.map((className, index) => ({
-    name: className,
-    data: chartData.attendance[index] || [],
-  }));
-
   const hasData = chartData.attendance.some(arr => arr.some(val => val > 0));
+
+  const categories = chartData.dates || chartData.classNames;
+
+  const option: EChartsOption = {
+    tooltip: { 
+      trigger: 'axis', 
+      axisPointer: { type: 'shadow' },
+    },
+    legend: { 
+      top: 10, 
+      right: 10,
+    },
+    grid: { 
+      left: 50, 
+      right: 30, 
+      bottom: 50, 
+      top: 50,
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'category',
+      data: categories,
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+    },
+    series: chartData.classNames.map((className, index) => ({
+      name: className,
+      type: 'bar',
+      barMaxWidth: 22,
+      emphasis: { focus: 'series' },
+      data: chartData.attendance[index] || [],
+    })),
+  };
 
   return (
     <AdminChart
@@ -146,7 +80,11 @@ const ClassAttendanceChart: React.FC<ClassAttendanceChartProps> = ({
       emptyMessage='Chưa có dữ liệu tham gia lớp học'
     >
       {hasData && (
-        <Chart options={options} series={series} type='bar' height={height} />
+        <ReactECharts 
+          option={option} 
+          theme={getEChartsTheme(theme)} 
+          style={{ width: '100%', height }} 
+        />
       )}
     </AdminChart>
   );

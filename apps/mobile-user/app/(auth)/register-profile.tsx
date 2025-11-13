@@ -1,16 +1,18 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { memberService } from '@/services/member/member.service';
 import { useTheme } from '@/utils/theme';
+import { NumberPicker } from '@/components/ui/NumberPicker';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Ionicons } from '@expo/vector-icons';
-import DateTimePicker from '@react-native-community/datetimepicker';
 import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   Image,
+  KeyboardAvoidingView,
   Platform,
   ScrollView,
   StyleSheet,
@@ -19,6 +21,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const RegisterProfileScreen = () => {
   const router = useRouter();
@@ -26,6 +29,7 @@ const RegisterProfileScreen = () => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const { loadMemberProfile } = useAuth(); // Get loadMemberProfile from AuthContext
+  const insets = useSafeAreaInsets();
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -34,13 +38,22 @@ const RegisterProfileScreen = () => {
   const [avatarUri, setAvatarUri] = useState<string | null>(null);
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [dateOfBirth, setDateOfBirth] = useState(new Date(2000, 0, 1));
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [gender, setGender] = useState<'MALE' | 'FEMALE' | 'OTHER'>('MALE');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [bodyFatPercent, setBodyFatPercent] = useState('');
   const [isManualBodyFat, setIsManualBodyFat] = useState(false);
-  const [selectedGoals, setSelectedGoals] = useState<string[]>([]);
+  // Weight goal with pickers
+  const [weightGoalKg, setWeightGoalKg] = useState(5);
+  const [weightGoalMonths, setWeightGoalMonths] = useState(3);
+  
+  const handleWeightGoalKgChange = useCallback((value: number) => {
+    setWeightGoalKg(value);
+  }, []);
+  
+  const handleWeightGoalMonthsChange = useCallback((value: number) => {
+    setWeightGoalMonths(value);
+  }, []);
   const [medicalConditions, setMedicalConditions] = useState('');
   const [allergies, setAllergies] = useState('');
   const [emergencyContactName, setEmergencyContactName] = useState('');
@@ -52,32 +65,11 @@ const RegisterProfileScreen = () => {
   const subscriptionId = params.subscriptionId as string;
   const paymentId = params.paymentId as string;
 
-  const fitnessGoals = [
-    { key: 'WEIGHT_LOSS', label: t('profile.fitnessGoalWeightLoss') },
-    { key: 'MUSCLE_GAIN', label: t('profile.fitnessGoalMuscleGain') },
-    { key: 'ENDURANCE', label: t('profile.fitnessGoalEndurance') },
-    { key: 'FLEXIBILITY', label: t('profile.fitnessGoalFlexibility') },
-    { key: 'STRENGTH', label: t('profile.fitnessGoalStrength') },
-    { key: 'CARDIO', label: t('profile.fitnessGoalCardio') },
-    { key: 'GENERAL_FITNESS', label: t('profile.fitnessGoalGeneral') },
-    { key: 'SPORTS_PERFORMANCE', label: t('profile.fitnessGoalSports') },
-    { key: 'REHABILITATION', label: t('profile.fitnessGoalRehabilitation') },
-    { key: 'MAINTENANCE', label: t('profile.fitnessGoalMaintenance') },
-  ];
-
   const genders: { value: 'MALE' | 'FEMALE' | 'OTHER'; label: string }[] = [
     { value: 'MALE', label: t('profile.male') },
     { value: 'FEMALE', label: t('profile.female') },
     { value: 'OTHER', label: t('profile.other') },
   ];
-
-  const toggleGoal = (goalKey: string) => {
-    if (selectedGoals.includes(goalKey)) {
-      setSelectedGoals(selectedGoals.filter((g) => g !== goalKey));
-    } else {
-      setSelectedGoals([...selectedGoals, goalKey]);
-    }
-  };
 
   const formatDate = (date: Date): string => {
     const day = date.getDate().toString().padStart(2, '0');
@@ -93,15 +85,12 @@ const RegisterProfileScreen = () => {
     return `${year}-${month}-${day}`;
   };
 
-  const onDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
-    if (selectedDate) {
-      setDateOfBirth(selectedDate);
-    }
-  };
+  const handleDateChange = useCallback((date: Date) => {
+    setDateOfBirth(date);
+  }, []);
 
   // Calculate age from date of birth
-  const calculateAge = (dob: Date): number => {
+  const calculateAge = useCallback((dob: Date): number => {
     const today = new Date();
     let age = today.getFullYear() - dob.getFullYear();
     const monthDiff = today.getMonth() - dob.getMonth();
@@ -109,16 +98,16 @@ const RegisterProfileScreen = () => {
       age--;
     }
     return age;
-  };
+  }, []);
 
   // Calculate BMI
-  const calculateBMI = (heightCm: number, weightKg: number): number => {
+  const calculateBMI = useCallback((heightCm: number, weightKg: number): number => {
     const heightM = heightCm / 100;
     return weightKg / (heightM * heightM);
-  };
+  }, []);
 
   // Calculate Body Fat % using Deurenberg formula
-  const calculateBodyFat = (
+  const calculateBodyFat = useCallback((
     bmi: number,
     age: number,
     genderValue: 'MALE' | 'FEMALE' | 'OTHER'
@@ -137,7 +126,7 @@ const RegisterProfileScreen = () => {
 
     // Clamp between 5% and 50%
     return Math.max(5, Math.min(50, bodyFat));
-  };
+  }, []);
 
   // Auto-calculate body fat when height, weight, age, or gender changes
   React.useEffect(() => {
@@ -205,6 +194,14 @@ const RegisterProfileScreen = () => {
     setIsSaving(true);
 
     try {
+      // Build fitness goals array with weight goal
+      const goalsArray: string[] = [];
+      
+      // Add weight goal if kg and months are set
+      if (weightGoalKg > 0 && weightGoalMonths > 0) {
+        goalsArray.push(`WEIGHT_GOAL_CUSTOM:${weightGoalKg}kg:${weightGoalMonths}months`);
+      }
+
       // Step 1: Save profile data first (creates member if not exists)
       const profileData = {
         date_of_birth: formatDateForBackend(dateOfBirth),
@@ -214,7 +211,7 @@ const RegisterProfileScreen = () => {
         body_fat_percent: bodyFatPercent
           ? parseFloat(bodyFatPercent)
           : undefined,
-        fitness_goals: selectedGoals,
+        fitness_goals: goalsArray,
         medical_conditions: medicalConditions
           ? medicalConditions
               .split(',')
@@ -294,18 +291,17 @@ const RegisterProfileScreen = () => {
     }
   };
 
-  const handleSkip = () => {
-    router.push({
-      pathname: '/(auth)/register-complete',
-      params: {
-        userId,
-        accessToken,
-        refreshToken,
-      },
-    });
-  };
 
-  const themedStyles = StyleSheet.create({
+  // Calculate footer height for padding (button height + padding + safe area)
+  // Button: padding.md * 2 (top + bottom) + text line height + gap
+  const footerHeight = useMemo(() => {
+    const buttonHeight = theme.spacing.md * 2 + 24 + theme.spacing.sm; // ~56-60px
+    const footerPaddingTop = theme.spacing.lg; // Top padding
+    const footerPaddingBottom = Math.max(insets.bottom, theme.spacing.lg); // Bottom padding with safe area
+    return buttonHeight + footerPaddingTop + footerPaddingBottom;
+  }, [theme.spacing.md, theme.spacing.sm, theme.spacing.lg, insets.bottom]);
+
+  const themedStyles = useMemo(() => StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.colors.background,
@@ -313,7 +309,7 @@ const RegisterProfileScreen = () => {
     scrollContent: {
       flexGrow: 1,
       padding: theme.spacing.lg,
-      paddingBottom: 180,
+      paddingBottom: footerHeight + theme.spacing.md,
     },
     header: {
       marginTop: theme.spacing.xl,
@@ -419,7 +415,7 @@ const RegisterProfileScreen = () => {
       gap: theme.spacing.xs,
     },
     label: {
-      fontFamily: 'Inter-Medium',
+      fontFamily: 'SpaceGrotesk-Medium',
       fontSize: 15,
       lineHeight: 22,
       color: theme.colors.text,
@@ -483,7 +479,7 @@ const RegisterProfileScreen = () => {
       backgroundColor: `${theme.colors.primary}10`,
     },
     genderButtonText: {
-      fontFamily: 'Inter-Bold',
+      fontFamily: 'SpaceGrotesk-SemiBold',
       fontSize: 16,
       lineHeight: 24,
       color: theme.colors.text,
@@ -491,39 +487,60 @@ const RegisterProfileScreen = () => {
     genderButtonTextSelected: {
       color: theme.colors.primary,
     },
-    goalsContainer: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
-      gap: theme.spacing.sm,
+    weightGoalContainer: {
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.sm,
     },
-    goalChip: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radius.full,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-    },
-    goalChipSelected: {
-      borderColor: theme.colors.primary,
-      backgroundColor: `${theme.colors.primary}10`,
-    },
-    goalChipText: {
-      fontFamily: 'Inter-Regular',
+    weightGoalLabel: {
+      fontFamily: 'SpaceGrotesk-Medium',
       fontSize: 16,
       lineHeight: 24,
       color: theme.colors.text,
+      marginBottom: theme.spacing.sm,
     },
-    goalChipTextSelected: {
-      fontFamily: 'Inter-SemiBold',
-      color: theme.colors.primary,
+    weightGoalPickers: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      flexWrap: 'wrap',
+    },
+    weightGoalPickerRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    numberPickerWrapper: {
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    weightGoalUnit: {
+      fontFamily: 'SpaceGrotesk-Medium',
+      fontSize: 16,
+      lineHeight: 28,
+      color: theme.colors.text,
+      marginLeft: 4,
+    },
+    weightGoalDivider: {
+      fontFamily: 'SpaceGrotesk-Medium',
+      fontSize: 16,
+      lineHeight: 28,
+      color: theme.colors.text,
+      marginHorizontal: theme.spacing.sm,
     },
     footerContainer: {
       position: 'absolute',
       bottom: 0,
       left: 0,
       right: 0,
-      padding: theme.spacing.lg,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: Math.max(insets.bottom, theme.spacing.lg),
+      paddingHorizontal: theme.spacing.lg,
       backgroundColor: theme.colors.background,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
@@ -546,21 +563,23 @@ const RegisterProfileScreen = () => {
       lineHeight: 24,
       color: theme.colors.textInverse,
     },
-    skipButton: {
-      padding: theme.spacing.md,
-      alignItems: 'center',
-    },
-    skipButtonText: {
-      fontFamily: 'Inter-Bold',
-      fontSize: 16,
-      lineHeight: 24,
-      color: theme.colors.textTertiary,
-    },
-  });
+  }), [theme, footerHeight]);
 
   return (
-    <View style={themedStyles.container}>
-      <ScrollView contentContainerStyle={themedStyles.scrollContent}>
+    <KeyboardAvoidingView
+      style={themedStyles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <ScrollView
+        contentContainerStyle={themedStyles.scrollContent}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        showsVerticalScrollIndicator={true}
+        nestedScrollEnabled={true}
+        bounces={true}
+        scrollEventThrottle={16}
+      >
         <View style={themedStyles.header}>
           <TouchableOpacity
             style={themedStyles.backButton}
@@ -622,30 +641,13 @@ const RegisterProfileScreen = () => {
               <Text style={themedStyles.label}>
                 {t('registration.dateOfBirth')}
               </Text>
-              <TouchableOpacity
-                style={themedStyles.datePickerButton}
-                onPress={() => setShowDatePicker(true)}
-              >
-                <Ionicons
-                  name="calendar-outline"
-                  size={20}
-                  color={theme.colors.primary}
-                  style={themedStyles.dateIcon}
-                />
-                <Text style={themedStyles.dateText}>
-                  {formatDate(dateOfBirth)}
-                </Text>
-              </TouchableOpacity>
-              {showDatePicker && (
-                <DateTimePicker
-                  value={dateOfBirth}
-                  mode="date"
-                  display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                  onChange={onDateChange}
-                  maximumDate={new Date()}
-                  minimumDate={new Date(1940, 0, 1)}
-                />
-              )}
+              <DatePicker
+                value={dateOfBirth}
+                onChange={handleDateChange}
+                minimumDate={new Date(1940, 0, 1)}
+                maximumDate={new Date()}
+                placeholder={t('registration.selectDate') || 'Chọn ngày'}
+              />
             </View>
 
             <View style={themedStyles.inputContainer}>
@@ -740,28 +742,43 @@ const RegisterProfileScreen = () => {
             <Text style={themedStyles.sectionTitle}>
               {t('registration.fitnessGoals')}
             </Text>
-            <View style={themedStyles.goalsContainer}>
-              {fitnessGoals.map((goal) => (
-                <TouchableOpacity
-                  key={goal.key}
-                  style={[
-                    themedStyles.goalChip,
-                    selectedGoals.includes(goal.key) &&
-                      themedStyles.goalChipSelected,
-                  ]}
-                  onPress={() => toggleGoal(goal.key)}
-                >
-                  <Text
-                    style={[
-                      themedStyles.goalChipText,
-                      selectedGoals.includes(goal.key) &&
-                        themedStyles.goalChipTextSelected,
-                    ]}
-                  >
-                    {goal.label}
+            <View style={themedStyles.weightGoalContainer}>
+              <Text style={themedStyles.weightGoalLabel}>
+                {t('registration.weightGoal')}
+              </Text>
+              <View style={themedStyles.weightGoalPickers}>
+                <View style={themedStyles.weightGoalPickerRow}>
+                  <View style={themedStyles.numberPickerWrapper}>
+                    <NumberPicker
+                      value={weightGoalKg}
+                      onValueChange={handleWeightGoalKgChange}
+                      min={1}
+                      max={50}
+                      step={1}
+                    />
+                  </View>
+                  <Text style={themedStyles.weightGoalUnit}>
+                    {t('registration.kg')}
                   </Text>
-                </TouchableOpacity>
-              ))}
+                </View>
+                <Text style={themedStyles.weightGoalDivider}>
+                  {t('registration.in')}
+                </Text>
+                <View style={themedStyles.weightGoalPickerRow}>
+                  <View style={themedStyles.numberPickerWrapper}>
+                  <NumberPicker
+                    value={weightGoalMonths}
+                    onValueChange={handleWeightGoalMonthsChange}
+                    min={1}
+                    max={24}
+                    step={1}
+                  />
+                  </View>
+                  <Text style={themedStyles.weightGoalUnit}>
+                    {t('registration.months')}
+                  </Text>
+                </View>
+              </View>
             </View>
           </View>
 
@@ -848,14 +865,8 @@ const RegisterProfileScreen = () => {
             </Text>
           )}
         </TouchableOpacity>
-
-        <TouchableOpacity style={themedStyles.skipButton} onPress={handleSkip}>
-          <Text style={themedStyles.skipButtonText}>
-            {t('registration.skipForNow')}
-          </Text>
-        </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 

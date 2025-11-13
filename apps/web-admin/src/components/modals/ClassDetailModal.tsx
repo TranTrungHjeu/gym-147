@@ -175,7 +175,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         console.log('👨‍🏫 Trainer clicked:', trainer);
                         if (trainer?.user_id || trainer?.full_name) {
                           const searchName = trainer.full_name || '';
-                          const url = `/management/members?search=${encodeURIComponent(searchName)}&role=TRAINER`;
+                          const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
                           console.log('🔗 Navigating to:', url);
                           navigate(url);
                           onClose();
@@ -188,7 +188,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                           console.log('👨‍🏫 Trainer key pressed:', trainer);
                           if (trainer?.user_id || trainer?.full_name) {
                             const searchName = trainer.full_name || '';
-                            const url = `/management/members?search=${encodeURIComponent(searchName)}&role=TRAINER`;
+                            const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
                             console.log('🔗 Navigating to:', url);
                             navigate(url);
                             onClose();
@@ -233,7 +233,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         console.log('👥 Member clicked:', member);
                         if (member?.user_id || member?.id || member?.full_name) {
                           const searchName = member.full_name || '';
-                          const url = `/management/members?search=${encodeURIComponent(searchName)}&role=MEMBER`;
+                          const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
                           console.log('🔗 Navigating to:', url);
                           navigate(url);
                           onClose();
@@ -246,7 +246,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                           console.log('👥 Member key pressed:', member);
                           if (member?.user_id || member?.id || member?.full_name) {
                             const searchName = member.full_name || '';
-                            const url = `/management/members?search=${encodeURIComponent(searchName)}&role=MEMBER`;
+                            const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
                             console.log('🔗 Navigating to:', url);
                             navigate(url);
                             onClose();

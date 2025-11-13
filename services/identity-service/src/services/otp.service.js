@@ -116,9 +116,39 @@ class OTPService {
           verified_at: null, // Only accept unverified OTPs for verification
         },
       });
-      console.log('Found OTP record:', otpRecord ? 'YES' : 'NO');
+
+      console.log('🔍 OTP Lookup:');
+      console.log('  - Identifier:', identifier);
+      console.log('  - Type:', type);
+      console.log('  - Found OTP record:', otpRecord ? 'YES' : 'NO');
 
       if (!otpRecord) {
+        // Check if OTP exists but expired or already verified (for debugging)
+        const anyOTP = await prisma.oTPVerification.findFirst({
+          where: {
+            identifier,
+            type,
+          },
+          orderBy: {
+            created_at: 'desc',
+          },
+          take: 1,
+        });
+
+        if (anyOTP) {
+          const isExpired = anyOTP.expires_at <= new Date();
+          const isVerified = anyOTP.verified_at !== null;
+          console.log('  - Found OTP but:', {
+            expired: isExpired,
+            verified: isVerified,
+            expires_at: anyOTP.expires_at,
+            verified_at: anyOTP.verified_at,
+            created_at: anyOTP.created_at,
+          });
+        } else {
+          console.log('  - No OTP found for identifier:', identifier, 'type:', type);
+        }
+
         return {
           success: false,
           message: 'OTP không tồn tại hoặc đã hết hạn',
@@ -142,6 +172,21 @@ class OTPService {
       const hashedInputOTP = await this.hashOTP(inputOTP);
       const isValid = hashedInputOTP === otpRecord.otp;
 
+      // Debug logging (only in development)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('🔍 OTP Verification Debug:');
+        console.log('  - Input OTP:', inputOTP);
+        console.log('  - Hashed Input OTP:', hashedInputOTP);
+        console.log('  - Stored OTP Hash:', otpRecord.otp);
+        console.log('  - OTP Match:', isValid);
+        console.log('  - Identifier:', identifier);
+        console.log('  - Type:', type);
+        console.log('  - Expires At:', otpRecord.expires_at);
+        console.log('  - Current Time:', new Date());
+        console.log('  - Is Expired:', otpRecord.expires_at <= new Date());
+        console.log('  - Attempts:', otpRecord.attempts, '/', this.maxAttempts);
+      }
+
       if (isValid) {
         // Mark OTP as verified but don't delete yet (will be deleted after user creation)
         await prisma.oTPVerification.update({
@@ -149,6 +194,7 @@ class OTPService {
           data: { verified_at: new Date() },
         });
 
+        console.log('✅ OTP verified successfully for:', identifier);
         return {
           success: true,
           message: 'Xác thực thành công',
@@ -160,6 +206,12 @@ class OTPService {
           data: { attempts: otpRecord.attempts + 1 },
         });
 
+        console.log(
+          '❌ OTP verification failed for:',
+          identifier,
+          '- Attempts:',
+          otpRecord.attempts + 1
+        );
         return {
           success: false,
           message: 'Mã OTP không đúng',
@@ -620,17 +672,41 @@ class OTPService {
   // Clean up expired OTPs
   async cleanupExpiredOTPs() {
     try {
-      // Delete OTPs that expired more than 5 minutes ago (keep recent ones for audit)
-      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const now = new Date();
+      const fiveMinutesAgo = new Date(now.getTime() - 5 * 60 * 1000);
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000); // 30 days for audit
 
-      const result = await prisma.oTPVerification.deleteMany({
+      // 1. Delete unverified OTPs that expired more than 5 minutes ago
+      // These are OTPs that were never used and are safe to delete immediately
+      const unverifiedResult = await prisma.oTPVerification.deleteMany({
         where: {
           expires_at: { lt: fiveMinutesAgo },
+          verified_at: null, // Only delete unverified OTPs
         },
       });
 
-      console.log(`Cleaned up ${result.count} expired OTPs (older than 5 minutes)`);
-      return result.count;
+      // 2. Delete verified OTPs that are older than 30 days (for audit retention)
+      // These are OTPs that were successfully verified but can be cleaned up after retention period
+      const verifiedResult = await prisma.oTPVerification.deleteMany({
+        where: {
+          verified_at: { not: null }, // Only delete verified OTPs
+          verified_at: { lt: thirtyDaysAgo }, // Older than 30 days
+        },
+      });
+
+      const totalDeleted = unverifiedResult.count + verifiedResult.count;
+
+      if (totalDeleted > 0) {
+        console.log(
+          `Cleaned up ${totalDeleted} expired OTPs: ${unverifiedResult.count} unverified (expired > 5 min), ${verifiedResult.count} verified (older than 30 days)`
+        );
+      }
+
+      return {
+        total: totalDeleted,
+        unverified: unverifiedResult.count,
+        verified: verifiedResult.count,
+      };
     } catch (error) {
       console.error('Error cleaning up expired OTPs:', error);
       throw new Error('Failed to cleanup expired OTPs');
@@ -644,16 +720,30 @@ class OTPService {
       return;
     }
 
-    console.log('Starting OTP cleanup job - runs every 5 minutes');
+    // In development, run every 10 seconds for easier testing
+    // In production, run every 5 minutes
+    const isDev = process.env.NODE_ENV !== 'production';
+    const cleanupInterval = isDev ? 10 * 1000 : 5 * 60 * 1000; // 10 seconds (dev) or 5 minutes (prod)
+    const intervalDescription = isDev ? '10 seconds' : '5 minutes';
+
+    console.log(
+      `Starting OTP cleanup job - runs every ${intervalDescription} (${
+        process.env.NODE_ENV || 'development'
+      })`
+    );
 
     this.cleanupInterval = setInterval(async () => {
       try {
-        const cleanedCount = await this.cleanupExpiredOTPs();
-        console.log(`Cleanup job completed: ${cleanedCount} OTPs removed`);
+        const result = await this.cleanupExpiredOTPs();
+        if (result.total > 0) {
+          console.log(
+            `Cleanup job completed: ${result.total} OTPs removed (${result.unverified} unverified, ${result.verified} verified)`
+          );
+        }
       } catch (error) {
         console.error('Cleanup job error:', error);
       }
-    }, 5 * 60 * 1000); // Run every 5 minutes
+    }, cleanupInterval);
 
     // Run cleanup immediately on start
     this.cleanupExpiredOTPs().catch(error => {

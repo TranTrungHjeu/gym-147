@@ -7,8 +7,10 @@ import AdminModal from '../../components/common/AdminModal';
 import CustomSelect from '../../components/common/CustomSelect';
 import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import Button from '../../components/ui/Button/Button';
+import { useOptimisticScheduleUpdates } from '@/hooks/useOptimisticScheduleUpdates';
 // import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications'; // Disabled to prevent unnecessary re-renders
 import { scheduleService } from '../../services/schedule.service';
+import { socketService } from '../../services/socket.service';
 
 interface AttendanceRecord {
   id: string;
@@ -521,6 +523,7 @@ const ScheduleTable = ({
   onAttendanceClick,
   onEditClick,
   getCheckInButton,
+  updatedScheduleIds,
 }: {
   schedules: ScheduleItem[];
   loading: boolean;
@@ -536,6 +539,7 @@ const ScheduleTable = ({
   onAttendanceClick: (schedule: ScheduleItem) => void;
   onEditClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
+  updatedScheduleIds?: Set<string>;
 }) => {
 
   // Move filtering, sorting, pagination logic here
@@ -689,13 +693,21 @@ const ScheduleTable = ({
                 </tr>
               </thead>
               <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>
-                {paginatedSchedules.map((schedule, index) => (
+                {paginatedSchedules.map((schedule, index) => {
+                  const isUpdated = updatedScheduleIds?.has(schedule.id) || (schedule as any)._updated;
+                  const isCheckedIn = (schedule as any)._checked_in;
+                  
+                  return (
                   <tr
                     key={schedule.id}
                     className={`border-b border-l-4 border-l-transparent hover:border-l-orange-500 border-gray-200 dark:border-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10 transition-all duration-200 group ${
                       index % 2 === 0
                         ? 'bg-white dark:bg-gray-900'
                         : 'bg-gray-50/50 dark:bg-gray-800/50'
+                    } ${
+                      isUpdated ? 'schedule-row-updated' : ''
+                    } ${
+                      isCheckedIn ? 'animate-highlight-update' : ''
                     }`}
                   >
                     <td className='px-4 py-2.5 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
@@ -721,7 +733,9 @@ const ScheduleTable = ({
                       {schedule.room?.name || 'Phòng không xác định'}
                     </td>
                     <td className='px-4 py-2.5'>
-                      <div className='text-[11px] font-inter text-gray-900 dark:text-white leading-tight'>
+                      <div className={`text-[11px] font-inter text-gray-900 dark:text-white leading-tight transition-all duration-200 ${
+                        isUpdated ? 'animate-count-update font-semibold' : ''
+                      }`}>
                         {schedule.current_bookings || 0}/{schedule.max_capacity || 0}
                       </div>
                       <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
@@ -751,7 +765,8 @@ const ScheduleTable = ({
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -838,6 +853,7 @@ const ScheduleTableSection = ({
   onAttendanceClick,
   onEditClick,
   getCheckInButton,
+  updatedScheduleIds,
 }: {
   schedules: ScheduleItem[];
   loading: boolean;
@@ -853,6 +869,7 @@ const ScheduleTableSection = ({
   onAttendanceClick: (schedule: ScheduleItem) => void;
   onEditClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
+  updatedScheduleIds?: Set<string>;
 }) => {
   return (
     <div className='px-6 pb-6'>
@@ -871,6 +888,7 @@ const ScheduleTableSection = ({
         onAttendanceClick={onAttendanceClick}
         onEditClick={onEditClick}
         getCheckInButton={getCheckInButton}
+        updatedScheduleIds={updatedScheduleIds}
       />
     </div>
   );
@@ -962,6 +980,53 @@ export default function TrainerSchedule() {
       setUserId(userData.id);
     }
   }, []);
+
+  // Listen for schedule updates from socket
+  useEffect(() => {
+    if (!userId) return;
+
+    const socket = socketService.getSocket() || socketService.connect(userId);
+
+    const handleScheduleUpdate = (data: any) => {
+      console.log('📡 Received schedule:updated event:', data);
+      
+      // Update the schedule in the list without reloading
+      setSchedules(prevSchedules => {
+        const updatedSchedules = prevSchedules.map(schedule => {
+          if (schedule.id === data.schedule_id) {
+            // Update schedule with new data
+            const updated = {
+              ...schedule,
+              room_name: data.room_name || schedule.room_name,
+              date: data.date || schedule.date,
+              start_time: data.start_time 
+                ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
+                : schedule.start_time,
+              end_time: data.end_time
+                ? new Date(data.end_time).toISOString().split('T')[1].slice(0, 5)
+                : schedule.end_time,
+              max_capacity: data.max_capacity ?? schedule.max_capacity,
+              status: data.status || schedule.status,
+            };
+            
+            // Notification will be shown in NotificationDropdown automatically
+            // No need for toast notification
+            
+            return updated;
+          }
+          return schedule;
+        });
+        
+        return updatedSchedules;
+      });
+    };
+
+    socket.on('schedule:updated', handleScheduleUpdate);
+
+    return () => {
+      socket.off('schedule:updated', handleScheduleUpdate);
+    };
+  }, [userId]);
 
   const fetchSchedules = useCallback(
     async (isInitialLoad: boolean = false) => {
@@ -1058,21 +1123,23 @@ export default function TrainerSchedule() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDate, viewMode]);
 
-  // Listen for booking updates from socket
+  // Use optimistic updates hook for smooth real-time updates
+  const { updatedScheduleIds } = useOptimisticScheduleUpdates(schedules, setSchedules);
+
+  // Optional: Sync with server in background after optimistic update (debounced)
   useEffect(() => {
-    const handleBookingUpdate = () => {
-      // Refresh schedules when a booking is updated (only reload table, not initial load)
-      if (!initialLoading) {
-        fetchSchedules(false);
-      }
-    };
+    if (updatedScheduleIds.size === 0) return;
 
-    window.addEventListener('booking:updated', handleBookingUpdate);
+    // Debounce server sync - only sync after 5 seconds of no updates
+    const syncTimer = setTimeout(() => {
+      console.log('🔄 Syncing schedules with server after optimistic updates...');
+      fetchSchedules(false).catch(error => {
+        console.error('❌ Error syncing schedules:', error);
+      });
+    }, 5000);
 
-    return () => {
-      window.removeEventListener('booking:updated', handleBookingUpdate);
-    };
-  }, [fetchSchedules, initialLoading]);
+    return () => clearTimeout(syncTimer);
+  }, [updatedScheduleIds, fetchSchedules]);
 
   const getStatusLabelModal = (status: string) => {
     const statusLabels: { [key: string]: string } = {
@@ -2146,6 +2213,7 @@ export default function TrainerSchedule() {
         onAttendanceClick={openAttendanceModal}
         onEditClick={handleEditClick}
         getCheckInButton={getCheckInButton}
+        updatedScheduleIds={updatedScheduleIds}
       />
 
       {/* Attendance Detail Modal */}

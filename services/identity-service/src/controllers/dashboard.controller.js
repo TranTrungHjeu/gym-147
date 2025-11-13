@@ -329,6 +329,92 @@ class DashboardController {
   }
 
   /**
+   * Get user growth by role data over time
+   */
+  async getUserGrowthByRoleData(req, res) {
+    try {
+      const { from, to } = req.query;
+
+      let startDate, endDate;
+      if (from && to) {
+        startDate = new Date(from);
+        endDate = new Date(to);
+      } else {
+        // Default to last 12 months
+        endDate = new Date();
+        startDate = new Date();
+        startDate.setMonth(startDate.getMonth() - 12);
+      }
+
+      // Get all users created in the date range
+      const users = await prisma.user.findMany({
+        where: {
+          created_at: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        select: {
+          created_at: true,
+          role: true,
+        },
+        orderBy: {
+          created_at: 'asc',
+        },
+      });
+
+      // Group by month and role
+      const growthByMonth = {};
+      users.forEach(user => {
+        const monthKey = `${user.created_at.getFullYear()}-${String(user.created_at.getMonth() + 1).padStart(2, '0')}`;
+        if (!growthByMonth[monthKey]) {
+          growthByMonth[monthKey] = {
+            admins: 0,
+            trainers: 0,
+            members: 0,
+          };
+        }
+        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+          growthByMonth[monthKey].admins += 1;
+        } else if (user.role === 'TRAINER') {
+          growthByMonth[monthKey].trainers += 1;
+        } else if (user.role === 'MEMBER') {
+          growthByMonth[monthKey].members += 1;
+        }
+      });
+
+      // Convert to arrays sorted by month
+      const months = Object.keys(growthByMonth).sort();
+      const monthLabels = months.map(month => {
+        const [year, monthNum] = month.split('-');
+        const date = new Date(parseInt(year), parseInt(monthNum) - 1);
+        return date.toLocaleDateString('vi-VN', { month: 'short', year: 'numeric' });
+      });
+      const admins = months.map(month => growthByMonth[month].admins);
+      const trainers = months.map(month => growthByMonth[month].trainers);
+      const members = months.map(month => growthByMonth[month].members);
+
+      res.json({
+        success: true,
+        message: 'User growth by role data retrieved successfully',
+        data: {
+          months: monthLabels,
+          admins,
+          trainers,
+          members,
+        },
+      });
+    } catch (error) {
+      console.error('Get user growth by role data error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Get recent activities
    */
   async getRecentActivities(req, res) {
@@ -550,24 +636,36 @@ class DashboardController {
       console.log(`📊 Profile photos map keys:`, Object.keys(profilePhotosMap));
 
       const registrationActivities = recentRegistrations.map(user => {
-        // For members: use profile_photo from member-service
-        // For trainers: use profile_photo from schedule-service
-        // Otherwise: use face_photo_url from identity-service
-        let avatar = user.face_photo_url || null;
+        // Avatar logic based on role:
+        // - ADMIN and SUPER_ADMIN: use face_photo_url from user table
+        // - TRAINER: use profile_photo from schedule-service
+        // - MEMBER: use profile_photo from member-service
+        let avatar = null;
 
-        // Check if we have profile photo from service
-        const profilePhotoFromService = profilePhotosMap[user.id];
-        console.log(`🔍 Checking avatar for ${user.role} ${user.email} (${user.id}):`, {
-          hasInMap: profilePhotosMap.hasOwnProperty(user.id),
-          mapValue: profilePhotoFromService,
-          face_photo_url: user.face_photo_url,
-        });
-
-        if (profilePhotoFromService) {
-          avatar = profilePhotoFromService;
-          console.log(`✅ Using profile_photo from service: ${avatar}`);
+        if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
+          // For admin and super admin: use face_photo_url from user table
+          avatar = user.face_photo_url || null;
+          console.log(`🔍 Admin/SuperAdmin avatar for ${user.email} (${user.id}):`, {
+            role: user.role,
+            face_photo_url: user.face_photo_url,
+            final_avatar: avatar,
+          });
+        } else if (user.role === 'TRAINER' || user.role === 'MEMBER') {
+          // For trainer and member: use profile_photo from their respective services
+          const profilePhotoFromService = profilePhotosMap[user.id];
+          avatar = profilePhotoFromService || null;
+          console.log(`🔍 Trainer/Member avatar for ${user.role} ${user.email} (${user.id}):`, {
+            hasInMap: profilePhotosMap.hasOwnProperty(user.id),
+            mapValue: profilePhotoFromService,
+            final_avatar: avatar,
+          });
         } else {
-          console.log(`⚠️ No profile_photo from service, using face_photo_url: ${avatar}`);
+          // Fallback for other roles: use face_photo_url
+          avatar = user.face_photo_url || null;
+          console.log(`🔍 Fallback avatar for ${user.role} ${user.email} (${user.id}):`, {
+            face_photo_url: user.face_photo_url,
+            final_avatar: avatar,
+          });
         }
 
         // Debug logging
@@ -575,7 +673,7 @@ class DashboardController {
           userId: user.id,
           role: user.role,
           face_photo_url: user.face_photo_url,
-          profile_photo_from_service: profilePhotoFromService || null,
+          profile_photo_from_service: profilePhotosMap[user.id] || null,
           final_avatar: avatar,
         });
 
@@ -596,6 +694,7 @@ class DashboardController {
         if (!activity.user.avatar) {
           console.warn(`⚠️ Avatar is null for ${user.role} ${user.email}:`, {
             userId: user.id,
+            role: user.role,
             face_photo_url: user.face_photo_url,
             profilePhotosMap_has_key: profilePhotosMap.hasOwnProperty(user.id),
             profilePhotosMap_value: profilePhotosMap[user.id],
@@ -756,16 +855,48 @@ class DashboardController {
         loginActivities = recentLogins
           .filter(login => login.user) // Filter out any logins without user relation
           .map(login => {
-            // For members: use profile_photo from member-service
-            // For trainers: use profile_photo from schedule-service
-            // Otherwise: use face_photo_url from identity-service
-            let avatar = login.user.face_photo_url || null;
-            if (loginProfilePhotosMap[login.user_id]) {
-              avatar = loginProfilePhotosMap[login.user_id];
+            // Avatar logic based on role:
+            // - ADMIN and SUPER_ADMIN: use face_photo_url from user table
+            // - TRAINER: use profile_photo from schedule-service
+            // - MEMBER: use profile_photo from member-service
+            let avatar = null;
+
+            if (login.user.role === 'ADMIN' || login.user.role === 'SUPER_ADMIN') {
+              // For admin and super admin: use face_photo_url from user table
+              avatar = login.user.face_photo_url || null;
+              console.log(
+                `🔍 Admin/SuperAdmin login avatar for ${login.user.email} (${login.user_id}):`,
+                {
+                  role: login.user.role,
+                  face_photo_url: login.user.face_photo_url,
+                  final_avatar: avatar,
+                }
+              );
+            } else if (login.user.role === 'TRAINER' || login.user.role === 'MEMBER') {
+              // For trainer and member: use profile_photo from their respective services
+              avatar = loginProfilePhotosMap[login.user_id] || null;
+              console.log(
+                `🔍 Trainer/Member login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
+                {
+                  hasInMap: loginProfilePhotosMap.hasOwnProperty(login.user_id),
+                  mapValue: loginProfilePhotosMap[login.user_id],
+                  final_avatar: avatar,
+                }
+              );
+            } else {
+              // Fallback for other roles: use face_photo_url
+              avatar = login.user.face_photo_url || null;
+              console.log(
+                `🔍 Fallback login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
+                {
+                  face_photo_url: login.user.face_photo_url,
+                  final_avatar: avatar,
+                }
+              );
             }
 
             // Debug logging
-            console.log(`📸 Avatar for login ${login.user.role} ${login.user.email}:`, {
+            console.log(`📸 Final avatar for login ${login.user.role} ${login.user.email}:`, {
               userId: login.user_id,
               role: login.user.role,
               face_photo_url: login.user.face_photo_url,
@@ -829,6 +960,206 @@ class DashboardController {
         success: false,
         message: 'Internal server error',
         data: null,
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      });
+    }
+  }
+
+  /**
+   * Get system activity data for charts
+   * Returns daily activity counts from access logs
+   */
+  async getSystemActivityData(req, res) {
+    let daysCount = 30;
+    let startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    
+    try {
+      const { period = '30d' } = req.query;
+
+      switch (period) {
+        case '7d':
+          daysCount = 7;
+          startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          daysCount = 30;
+          startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '90d':
+          daysCount = 90;
+          startDate = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          daysCount = 30;
+          startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      }
+
+      console.log(`📊 Fetching system activity data for period: ${period}, daysCount: ${daysCount}, startDate: ${startDate.toISOString()}`);
+
+      // First, check total count of access logs (for debugging)
+      const totalCount = await prisma.accessLog.count();
+      const recentCount = await prisma.accessLog.count({
+        where: {
+          timestamp: {
+            gte: startDate,
+          },
+        },
+      });
+      const successCount = await prisma.accessLog.count({
+        where: {
+          timestamp: {
+            gte: startDate,
+          },
+          success: true,
+        },
+      });
+
+      console.log(`📊 Access logs stats:`, {
+        total: totalCount,
+        recent: recentCount,
+        recentSuccess: successCount,
+      });
+
+      // Get sample of recent logs to debug
+      const sampleLogs = await prisma.accessLog.findMany({
+        where: {
+          timestamp: {
+            gte: startDate,
+          },
+        },
+        select: {
+          timestamp: true,
+          success: true,
+          access_type: true,
+        },
+        orderBy: {
+          timestamp: 'desc',
+        },
+        take: 5,
+      });
+      console.log(`📊 Sample recent logs:`, sampleLogs);
+
+      // Get all access logs grouped by date (include both success and failed for now)
+      const accessLogs = await prisma.accessLog.findMany({
+        where: {
+          timestamp: {
+            gte: startDate,
+          },
+          success: true, // Only count successful accesses
+        },
+        select: {
+          timestamp: true,
+          success: true,
+        },
+        orderBy: {
+          timestamp: 'asc',
+        },
+      });
+
+      console.log(`📊 Found ${accessLogs.length} successful access logs`);
+
+      // Group by date (using UTC date string to match database timezone)
+      const activityByDate = {};
+      accessLogs.forEach(log => {
+        // Use UTC date string to group by day (matching database timezone)
+        const date = new Date(log.timestamp);
+        // Use UTC methods to avoid timezone issues
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        
+        if (!activityByDate[dateKey]) {
+          activityByDate[dateKey] = 0;
+        }
+        activityByDate[dateKey] += 1;
+      });
+
+      console.log(`📊 Activity by date (UTC):`, activityByDate);
+      console.log(`📊 Total unique dates: ${Object.keys(activityByDate).length}`);
+
+      // Generate all dates in the period (to ensure continuity)
+      // Use UTC to match database timezone
+      const allDates = [];
+      const allActivities = [];
+      const today = new Date();
+      
+      console.log(`📊 Generating dates for ${daysCount} days, starting from today: ${today.toISOString()}`);
+      console.log(`📊 daysCount value: ${daysCount}, type: ${typeof daysCount}`);
+      
+      for (let i = daysCount - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setUTCDate(date.getUTCDate() - i);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        allDates.push(dateKey);
+        allActivities.push(activityByDate[dateKey] || 0);
+      }
+      
+      console.log(`📊 Generated ${allDates.length} dates, first: ${allDates[0]}, last: ${allDates[allDates.length - 1]}`);
+      console.log(`📊 All dates array length: ${allDates.length}, first 5:`, allDates.slice(0, 5));
+      console.log(`📊 All activities array length: ${allActivities.length}, first 5:`, allActivities.slice(0, 5));
+
+      // Format dates for display (short format)
+      const formattedDates = allDates.map(dateKey => {
+        const [year, month, day] = dateKey.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
+      });
+
+      const response = {
+        success: true,
+        message: 'System activity data retrieved successfully',
+        data: {
+          dates: formattedDates,
+          activities: allActivities,
+          rawDates: allDates, // Keep original dates for reference
+        },
+      };
+
+      console.log(`📊 Response data:`, {
+        datesCount: formattedDates.length,
+        activitiesCount: allActivities.length,
+        totalActivities: allActivities.reduce((sum, val) => sum + val, 0),
+      });
+
+      res.json(response);
+    } catch (error) {
+      console.error('Get system activity data error:', error);
+      console.error('Error stack:', error.stack);
+      
+      // Even on error, return default empty data structure
+      const allDates = [];
+      const allActivities = [];
+      const today = new Date();
+      
+      for (let i = daysCount - 1; i >= 0; i--) {
+        const date = new Date(today);
+        date.setUTCDate(date.getUTCDate() - i);
+        const year = date.getUTCFullYear();
+        const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+        const day = String(date.getUTCDate()).padStart(2, '0');
+        const dateKey = `${year}-${month}-${day}`;
+        allDates.push(dateKey);
+        allActivities.push(0);
+      }
+      
+      const formattedDates = allDates.map(dateKey => {
+        const [year, month, day] = dateKey.split('-');
+        const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        return date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
+      });
+      
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: {
+          dates: formattedDates,
+          activities: allActivities,
+          rawDates: allDates,
+        },
         error: process.env.NODE_ENV === 'development' ? error.message : undefined,
       });
     }

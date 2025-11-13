@@ -222,12 +222,12 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
         </div>
 
         {/* Form Content */}
-        <form 
-          onSubmit={handleSubmit} 
+        <form
+          onSubmit={handleSubmit}
           className='flex-1 overflow-y-auto p-5'
           style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: '#d1d5db transparent'
+            scrollbarColor: '#d1d5db transparent',
           }}
         >
           <style>{`
@@ -390,7 +390,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                   <button
                     type='button'
                     onClick={() => setIsViewPhotoOpen(true)}
-                    className='mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold font-heading text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200'
+                    className='mt-2 w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 text-theme-xs font-semibold font-heading text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg hover:bg-blue-100 dark:hover:bg-blue-900/30 transition-all duration-200'
                   >
                     <Eye className='w-3.5 h-3.5' />
                     {t('equipmentManagement.form.viewPhoto')}
@@ -417,7 +417,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                   </div>
                   <button
                     type='button'
-                    className='inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold font-heading text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-200'
+                    className='inline-flex items-center gap-1.5 px-3 py-1.5 text-theme-xs font-semibold font-heading text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-all duration-200'
                   >
                     <Upload className='w-3.5 h-3.5' />
                     {t('equipmentManagement.form.uploadPhoto')}
@@ -586,7 +586,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                     onChange={e =>
                       setFormData(prev => ({ ...prev, has_heart_monitor: e.target.checked }))
                     }
-                    className='w-4 h-4 accent-orange-600 bg-white dark:bg-gray-900 rounded focus:ring-2 focus:ring-orange-500/30'
+                    className='w-4 h-4 text-orange-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-orange-500/30'
                   />
                   <span className='text-theme-xs font-medium text-gray-700 dark:text-gray-300'>
                     Đo nhịp tim
@@ -600,7 +600,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                     onChange={e =>
                       setFormData(prev => ({ ...prev, has_calorie_counter: e.target.checked }))
                     }
-                    className='w-4 h-4 accent-orange-600 bg-white dark:bg-gray-900 rounded focus:ring-2 focus:ring-orange-500/30'
+                    className='w-4 h-4 text-orange-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-orange-500/30'
                   />
                   <span className='text-theme-xs font-medium text-gray-700 dark:text-gray-300'>
                     Đếm calo
@@ -614,7 +614,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                     onChange={e =>
                       setFormData(prev => ({ ...prev, has_rep_counter: e.target.checked }))
                     }
-                    className='w-4 h-4 accent-orange-600 bg-white dark:bg-gray-900 rounded focus:ring-2 focus:ring-orange-500/30'
+                    className='w-4 h-4 text-orange-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-orange-500/30'
                   />
                   <span className='text-theme-xs font-medium text-gray-700 dark:text-gray-300'>
                     Đếm số lần tập
@@ -628,7 +628,7 @@ const EquipmentFormModal: React.FC<EquipmentFormModalProps> = ({
                     onChange={e =>
                       setFormData(prev => ({ ...prev, wifi_enabled: e.target.checked }))
                     }
-                    className='w-4 h-4 accent-orange-600 bg-white dark:bg-gray-900 rounded focus:ring-2 focus:ring-orange-500/30'
+                    className='w-4 h-4 text-orange-600 bg-white dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded focus:ring-2 focus:ring-orange-500/30'
                   />
                   <span className='text-theme-xs font-medium text-gray-700 dark:text-gray-300'>
                     Kết nối WiFi

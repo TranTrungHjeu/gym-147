@@ -156,10 +156,37 @@ class BillingController {
         orderBy: { created_at: 'desc' },
       });
 
+      // Fetch member information for each subscription
+      const subscriptionsWithMembers = await Promise.all(
+        subscriptions.map(async (sub) => {
+          let member = null;
+          if (sub.member_id) {
+            try {
+              const memberResponse = await axios.get(
+                `${MEMBER_SERVICE_URL}/api/members/${sub.member_id}`
+              );
+              if (memberResponse.data?.success) {
+                member = {
+                  id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
+                  full_name: memberResponse.data.data?.full_name || memberResponse.data.data?.member?.full_name,
+                  email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
+                };
+              }
+            } catch (error) {
+              console.warn(`Could not fetch member ${sub.member_id} for subscription:`, error.message);
+            }
+          }
+          return {
+            ...sub,
+            member,
+          };
+        })
+      );
+
       res.json({
         success: true,
         message: 'Subscriptions retrieved successfully',
-        data: subscriptions,
+        data: subscriptionsWithMembers,
       });
     } catch (error) {
       console.error('Get subscriptions error:', error);
@@ -346,10 +373,41 @@ class BillingController {
         orderBy: { created_at: 'desc' },
       });
 
+      // Fetch member information for each payment
+      const paymentsWithMembers = await Promise.all(
+        payments.map(async (payment) => {
+          let member = null;
+          if (payment.member_id) {
+            try {
+              const memberResponse = await axios.get(
+                `${MEMBER_SERVICE_URL}/api/members/${payment.member_id}`
+              );
+              if (memberResponse.data?.success) {
+                member = {
+                  id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
+                  full_name: memberResponse.data.data?.full_name || memberResponse.data.data?.member?.full_name,
+                  email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
+                };
+              }
+            } catch (error) {
+              console.warn(`Could not fetch member ${payment.member_id} for payment:`, error.message);
+            }
+          }
+          return {
+            ...payment,
+            member,
+            // Map status to match frontend expectations
+            status: payment.status === 'COMPLETED' ? 'PAID' : payment.status,
+            payment_date: payment.created_at,
+            transaction_id: payment.reference_id || payment.transaction_id,
+          };
+        })
+      );
+
       res.json({
         success: true,
         message: 'Payments retrieved successfully',
-        data: payments,
+        data: paymentsWithMembers,
       });
     } catch (error) {
       console.error('Get payments error:', error);
@@ -927,6 +985,58 @@ class BillingController {
           console.error('Failed to create member:', memberError);
           // Don't fail the webhook, member can be created later
         }
+
+        // Notify admins about successful subscription payment
+        try {
+          console.log('📢 Notifying admins about subscription payment success...');
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+          
+          // Get member info if available (payment.member_id might be user_id or member_id)
+          let memberInfo = null;
+          try {
+            const memberResponse = await axios.get(`${memberServiceUrl}/members/${payment.member_id}`, {
+              timeout: 5000,
+            });
+            memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
+          } catch (memberInfoError) {
+            // Try to get by user_id if member_id fails
+            try {
+              // payment.member_id might be user_id, so try to get member by user_id
+              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+              const userResponse = await axios.get(`${identityServiceUrl}/users/${payment.member_id}`, {
+                timeout: 5000,
+              });
+              memberInfo = userResponse.data?.data?.user || userResponse.data?.data;
+            } catch (userInfoError) {
+              console.log('Could not fetch member/user info for notification');
+            }
+          }
+
+          // Call schedule service to notify admins
+          await axios.post(
+            `${scheduleServiceUrl}/notifications/subscription-payment-success`,
+            {
+              payment_id: payment.id,
+              member_id: payment.member_id,
+              user_id: memberInfo?.user_id || payment.member_id,
+              amount: parseFloat(payment.amount),
+              plan_type: payment.subscription.plan.type,
+              plan_name: payment.subscription.plan.name,
+              member_name: memberInfo?.full_name || memberInfo?.firstName || null,
+              member_email: memberInfo?.email || null,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            }
+          );
+          console.log('✅ Successfully notified admins about subscription payment');
+        } catch (notifyError) {
+          console.error('❌ Failed to notify admins about subscription payment:', notifyError.message);
+          // Don't fail the webhook if notification fails
+        }
       }
 
       res.json({
@@ -1281,11 +1391,26 @@ class BillingController {
   // Statistics and Reports
   async getStats(req, res) {
     try {
-      const [totalPlans, activeSubscriptions, totalRevenue, pendingPayments] = await Promise.all([
+      // Calculate date range for monthly revenue (current month)
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const [totalPlans, activeSubscriptions, totalRevenue, monthlyRevenue, pendingPayments] = await Promise.all([
         prisma.membershipPlan.count({ where: { is_active: true } }),
         prisma.subscription.count({ where: { status: 'ACTIVE' } }),
         prisma.payment.aggregate({
           where: { status: 'COMPLETED' },
+          _sum: { amount: true },
+        }),
+        prisma.payment.aggregate({
+          where: {
+            status: 'COMPLETED',
+            created_at: {
+              gte: startOfMonth,
+              lte: endOfMonth,
+            },
+          },
           _sum: { amount: true },
         }),
         prisma.payment.count({ where: { status: 'PENDING' } }),
@@ -1295,10 +1420,11 @@ class BillingController {
         success: true,
         message: 'Billing statistics retrieved successfully',
         data: {
-          totalPlans,
-          activeSubscriptions,
-          totalRevenue: totalRevenue._sum.amount || 0,
-          pendingPayments,
+          total_plans: totalPlans,
+          active_subscriptions: activeSubscriptions,
+          total_revenue: Number(totalRevenue._sum.amount || 0),
+          monthly_revenue: Number(monthlyRevenue._sum.amount || 0),
+          pending_payments: pendingPayments,
         },
       });
     } catch (error) {

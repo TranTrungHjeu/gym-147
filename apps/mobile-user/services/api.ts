@@ -126,7 +126,12 @@ class ApiService {
       const token = await getToken();
       if (token) {
         headers.Authorization = `Bearer ${token}`;
+        console.log('🔑 Token found, added to headers');
+      } else {
+        console.log('⚠️ No token found for protected endpoint:', endpoint);
       }
+    } else {
+      console.log('🔓 Public endpoint, skipping token:', endpoint);
     }
 
     return headers;
@@ -282,6 +287,10 @@ class ApiService {
       const headers = await this.getHeaders(endpointPath);
 
       console.log('🌐 API GET Request:', url.toString());
+      console.log('🔑 Headers:', {
+        'Content-Type': headers['Content-Type'],
+        'Authorization': headers.Authorization ? `${headers.Authorization.substring(0, 20)}...` : 'NOT SET',
+      });
 
       return await fetch(url.toString(), {
         method: 'GET',
@@ -320,11 +329,20 @@ class ApiService {
   /**
    * PUT request with auto-refresh
    */
-  async put<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async put<T>(endpoint: string, data?: any, options?: { baseURL?: string }): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
-      return await fetch(`${this.baseURL}${endpoint}`, {
+      const baseURL = options?.baseURL || this.baseURL;
+      const url = `${baseURL}${endpoint}`;
+      const headers = await this.getHeaders(endpoint);
+      
+      console.log('🌐 API PUT Request:', url);
+      if (data) {
+        console.log('🌐 API PUT Body:', JSON.stringify(data, null, 2));
+      }
+      
+      return await fetch(url, {
         method: 'PUT',
-        headers: await this.getHeaders(endpoint),
+        headers,
         body: data ? JSON.stringify(data) : undefined,
       });
     };

@@ -164,6 +164,12 @@ export const API_ENDPOINTS = {
 
 export const SERVICE_URLS = buildServiceUrls(environment.API_URL);
 
+// Debug: Log service URLs on initialization
+if (__DEV__) {
+  console.log('🔧 Environment API_URL:', environment.API_URL);
+  console.log('🔧 Built SERVICE_URLS:', SERVICE_URLS);
+}
+
 // App Configuration
 export const APP_CONFIG = {
   STORAGE_KEYS: {

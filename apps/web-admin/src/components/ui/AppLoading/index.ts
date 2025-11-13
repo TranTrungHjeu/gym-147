@@ -21,14 +21,20 @@ export type { StatCardProps } from '../StatCard/StatCard';
 
 export {
   ButtonLoading,
+  ButtonSpinner,
+  InlineSpinner,
   Loading,
-  LoadingSpinner,
-  LoadingWithText,
   PageLoading,
   SearchLoading,
   SimpleLoading,
+  TableLoading,
 } from './Loading';
-export type { LoadingProps } from './Loading';
+export type {
+  ButtonSpinnerProps,
+  InlineSpinnerProps,
+  LoadingProps,
+  TableLoadingProps,
+} from './Loading';
 
 // Legacy exports for backward compatibility
 export { IconBadge } from '../../../shared/components/ui/IconBadge/IconBadge';

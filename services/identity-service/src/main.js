@@ -10,6 +10,10 @@ const { AuthController } = require('./controllers/auth.controller.js');
 
 const app = express();
 
+// Trust proxy - Required when behind reverse proxy (Nginx gateway)
+// This allows Express to correctly handle X-Forwarded-* headers
+app.set('trust proxy', true);
+
 // Global service instances for graceful shutdown
 let otpService = null;
 let authController = null;
@@ -44,16 +48,27 @@ async function startServer() {
     app.use(
       cors({
         origin: (origin, callback) => {
+          // Allow requests with no origin (mobile apps, Postman, etc.)
           if (!origin) return callback(null, true);
+          
+          // Check if origin is in allowed list
           if (allowedOrigins.includes(origin)) {
-            callback(null, true);
+            // Return the specific origin (not true) to avoid duplication
+            callback(null, origin);
           } else {
+            // In development, log the origin for debugging
+            if (process.env.NODE_ENV !== 'production') {
+              console.log('CORS: Origin not allowed:', origin);
+              console.log('CORS: Allowed origins:', allowedOrigins);
+            }
             callback(new Error('Not allowed by CORS'));
           }
         },
         credentials: true,
         methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
         allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+        preflightContinue: false,
+        optionsSuccessStatus: 204,
       })
     );
 

@@ -169,16 +169,38 @@ export default function TrainerCertifications() {
       }, 2000);
     };
 
+    const handleCertificationDeleted = (event: CustomEvent) => {
+      console.log('📢 certification:deleted event received in TrainerCertifications:', event.detail);
+      const data = event.detail;
+
+      // Remove certification optimistically (no reload)
+      if (data?.certification_id || data?.id) {
+        const certId = data.certification_id || data.id;
+        setCertifications(prev => {
+          const filtered = prev.filter(cert => cert.id !== certId);
+          console.log(`✅ [TRAINER_CERTS] Removed certification ${certId} optimistically. Remaining: ${filtered.length}`);
+          return filtered;
+        });
+
+        // Background sync after delay to ensure data consistency
+        setTimeout(() => {
+          fetchCertifications(false);
+        }, 2000);
+      }
+    };
+
     // Listen for socket events directly (for real-time updates)
     // Socket is managed by TrainerLayout, so we can access it via window
     // For now, we rely on custom events dispatched by TrainerLayout
     // Socket events are already handled in TrainerLayout and dispatched as custom events
     window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
     window.addEventListener('certification:created', handleCertificationCreated as EventListener);
+    window.addEventListener('certification:deleted', handleCertificationDeleted as EventListener);
 
     return () => {
       window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
       window.removeEventListener('certification:created', handleCertificationCreated as EventListener);
+      window.removeEventListener('certification:deleted', handleCertificationDeleted as EventListener);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -481,12 +503,9 @@ export default function TrainerCertifications() {
               return (
                 <div
                   key={cert.id}
-                  className={`group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full ${
-                    cert.is_active === false ? 'opacity-60' : 'opacity-0'
-                  }`}
+                  className={`group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full animate-fadeInUp`}
                   style={{
                     animationDelay: `${index * 50}ms`,
-                    animation: cert.is_active === false ? 'none' : 'fadeInUp 0.6s ease-out forwards',
                     filter: cert.is_active === false ? 'grayscale(100%)' : 'none',
                   }}
                 >

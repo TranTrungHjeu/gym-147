@@ -183,6 +183,11 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     room = await prisma.room.findUnique({ where: { id: targetRoomId } });
     if (!room) {
       errors.push('Phòng không tồn tại');
+    } else {
+      // Check room status - only AVAILABLE rooms can be used for new schedules
+      if (room.status !== 'AVAILABLE') {
+        errors.push(`Phòng ${room.name} đang không khả dụng (trạng thái: ${room.status}). Vui lòng chọn phòng khác.`);
+      }
     }
   }
 
@@ -191,6 +196,11 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     trainer = await prisma.trainer.findUnique({ where: { id: targetTrainerId } });
     if (!trainer) {
       errors.push('Huấn luyện viên không tồn tại');
+    } else {
+      // Check trainer status - only ACTIVE trainers can be assigned
+      if (trainer.status !== 'ACTIVE') {
+        errors.push(`Huấn luyện viên ${trainer.full_name} đang không hoạt động (trạng thái: ${trainer.status}). Vui lòng chọn huấn luyện viên khác.`);
+      }
     }
   }
 
@@ -632,8 +642,230 @@ class ScheduleController {
           gym_class: true,
           trainer: true,
           room: true,
+          bookings: {
+            include: {
+              member: {
+                select: {
+                  id: true,
+                  user_id: true,
+                  full_name: true,
+                },
+              },
+            },
+          },
         },
       });
+
+      // Detect changes for notification
+      const changes = [];
+      if (currentSchedule.room_id !== schedule.room_id) {
+        changes.push('phòng');
+      }
+      if (
+        currentSchedule.start_time?.toISOString() !== schedule.start_time?.toISOString() ||
+        currentSchedule.end_time?.toISOString() !== schedule.end_time?.toISOString()
+      ) {
+        changes.push('giờ');
+      }
+      if (currentSchedule.date?.toISOString() !== schedule.date?.toISOString()) {
+        changes.push('ngày');
+      }
+      if (currentSchedule.max_capacity !== schedule.max_capacity) {
+        changes.push('sức chứa');
+      }
+      if (currentSchedule.status !== schedule.status) {
+        changes.push('trạng thái');
+      }
+
+      // Send notifications if there are changes
+      if (changes.length > 0 && global.io) {
+        const notificationService = require('../services/notification.service.js');
+        const changesText = changes.join(', ');
+
+        // Notify trainer if exists
+        if (schedule.trainer?.user_id) {
+          try {
+            const trainerNotification = {
+              user_id: schedule.trainer.user_id,
+              type: 'SCHEDULE_UPDATE',
+              title: 'Lịch tập đã được cập nhật',
+              message: `Admin đã cập nhật ${changesText} của lớp ${schedule.gym_class.name}`,
+              data: {
+                schedule_id: schedule.id,
+                class_id: schedule.gym_class.id,
+                class_name: schedule.gym_class.name,
+                room_id: schedule.room.id,
+                room_name: schedule.room.name,
+                date: schedule.date,
+                start_time: schedule.start_time,
+                end_time: schedule.end_time,
+                max_capacity: schedule.max_capacity,
+                status: schedule.status,
+                changes: changes,
+                role: 'ADMIN',
+              },
+            };
+
+            const notification = await notificationService.sendNotification(trainerNotification);
+
+            // Emit notification:new event for NotificationDropdown
+            if (notification && notification.id) {
+              const notificationPayload = {
+                notification_id: notification.id,
+                type: trainerNotification.type,
+                title: trainerNotification.title,
+                message: trainerNotification.message,
+                data: trainerNotification.data,
+                created_at: notification.created_at || new Date().toISOString(),
+                is_read: false,
+              };
+
+              console.log(
+                `📡 Emitting notification:new to trainer user:${schedule.trainer.user_id}`,
+                notificationPayload
+              );
+              global.io
+                .to(`user:${schedule.trainer.user_id}`)
+                .emit('notification:new', notificationPayload);
+            }
+
+            // Emit schedule:updated event for real-time UI update
+            const socketPayload = {
+              schedule_id: schedule.id,
+              class_name: schedule.gym_class.name,
+              room_name: schedule.room.name,
+              date: schedule.date,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+              max_capacity: schedule.max_capacity,
+              status: schedule.status,
+              changes: changes,
+              updated_at: schedule.updated_at,
+            };
+
+            console.log(
+              `📡 Emitting schedule:updated to trainer user:${schedule.trainer.user_id}`,
+              socketPayload
+            );
+            global.io.to(`user:${schedule.trainer.user_id}`).emit('schedule:updated', socketPayload);
+          } catch (notifError) {
+            console.error('Error creating trainer notification:', notifError);
+          }
+        }
+
+        // Notify all members who booked this schedule
+        if (schedule.bookings && schedule.bookings.length > 0) {
+          const memberNotifications = schedule.bookings
+            .filter(booking => booking.member?.user_id)
+            .map(booking => ({
+              user_id: booking.member.user_id,
+              type: 'SCHEDULE_UPDATE',
+              title: 'Lịch tập đã được cập nhật',
+              message: `Admin đã cập nhật ${changesText} của lớp ${schedule.gym_class.name} bạn đã đặt`,
+              data: {
+                schedule_id: schedule.id,
+                booking_id: booking.id,
+                class_id: schedule.gym_class.id,
+                class_name: schedule.gym_class.name,
+                room_id: schedule.room.id,
+                room_name: schedule.room.name,
+                date: schedule.date,
+                start_time: schedule.start_time,
+                end_time: schedule.end_time,
+                max_capacity: schedule.max_capacity,
+                status: schedule.status,
+                changes: changes,
+                role: 'ADMIN',
+              },
+            }));
+
+          // Create notifications in database
+          if (memberNotifications.length > 0) {
+            try {
+              const createdNotifications = await prisma.notification.createMany({
+                data: memberNotifications.map(notif => ({
+                  ...notif,
+                  is_read: false,
+                  created_at: new Date(),
+                })),
+                skipDuplicates: true,
+              });
+
+              // Get created notifications with IDs
+              const notificationsWithIds = await prisma.notification.findMany({
+                where: {
+                  user_id: { in: memberNotifications.map(n => n.user_id) },
+                  type: 'SCHEDULE_UPDATE',
+                  created_at: {
+                    gte: new Date(Date.now() - 5000), // Within last 5 seconds
+                  },
+                },
+                orderBy: { created_at: 'desc' },
+                take: memberNotifications.length,
+              });
+
+              // Emit socket events to all members
+              memberNotifications.forEach((notification, index) => {
+                const createdNotif = notificationsWithIds.find(
+                  n => n.user_id === notification.user_id
+                );
+
+                // Emit notification:new event for NotificationDropdown
+                if (createdNotif) {
+                  const notificationPayload = {
+                    notification_id: createdNotif.id,
+                    type: notification.type,
+                    title: notification.title,
+                    message: notification.message,
+                    data: notification.data,
+                    created_at: createdNotif.created_at.toISOString(),
+                    is_read: false,
+                  };
+
+                  console.log(
+                    `📡 Emitting notification:new to member user:${notification.user_id}`,
+                    notificationPayload
+                  );
+                  global.io
+                    .to(`user:${notification.user_id}`)
+                    .emit('notification:new', notificationPayload);
+                }
+
+                // Emit schedule:updated event for real-time UI update
+                const socketPayload = {
+                  schedule_id: schedule.id,
+                  booking_id: schedule.bookings.find(
+                    b => b.member?.user_id === notification.user_id
+                  )?.id,
+                  class_name: schedule.gym_class.name,
+                  room_name: schedule.room.name,
+                  date: schedule.date,
+                  start_time: schedule.start_time,
+                  end_time: schedule.end_time,
+                  max_capacity: schedule.max_capacity,
+                  status: schedule.status,
+                  changes: changes,
+                  updated_at: schedule.updated_at,
+                };
+
+                console.log(
+                  `📡 Emitting schedule:updated to member user:${notification.user_id}`,
+                  socketPayload
+                );
+                global.io
+                  .to(`user:${notification.user_id}`)
+                  .emit('schedule:updated', socketPayload);
+              });
+
+              console.log(
+                `✅ Sent ${memberNotifications.length} notifications to members about schedule update`
+              );
+            } catch (notifError) {
+              console.error('Error creating member notifications:', notifError);
+            }
+          }
+        }
+      }
 
       res.json({
         success: true,

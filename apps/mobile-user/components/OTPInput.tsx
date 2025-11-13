@@ -32,13 +32,27 @@ export const OTPInput: React.FC<OTPInputProps> = ({
   const { t } = useTranslation();
   const [otp, setOtp] = useState<string[]>(Array(length).fill(''));
   const [resendTimer, setResendTimer] = useState(resendDelay);
-  const [canResend, setCanResend] = useState(false);
+  const [canResend, setCanResend] = useState(resendDelay === 0);
   const inputRefs = useRef<TextInput[]>([]);
 
   useEffect(() => {
     // Focus first input on mount
     inputRefs.current[0]?.focus();
   }, []);
+
+  // Sync resendTimer with resendDelay prop when it changes from parent (e.g., from AsyncStorage)
+  useEffect(() => {
+    if (resendDelay > resendTimer) {
+      // Update timer if parent cooldown is greater than current timer
+      // This handles cases where cooldown is loaded from AsyncStorage
+      setResendTimer(resendDelay);
+      setCanResend(false);
+    } else if (resendDelay === 0 && resendTimer > 0) {
+      // If delay is 0 and timer is still running, allow resend immediately
+      setResendTimer(0);
+      setCanResend(true);
+    }
+  }, [resendDelay]);
 
   useEffect(() => {
     if (resendTimer > 0) {

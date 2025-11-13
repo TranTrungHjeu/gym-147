@@ -125,9 +125,11 @@ export default function CustomSelect({
   const updateDropdownPosition = () => {
     if (selectRef.current) {
       const rect = selectRef.current.getBoundingClientRect();
+      // Use getBoundingClientRect directly since dropdown uses position: fixed
+      // No need to add scroll offsets for fixed positioning
       setDropdownPosition({
-        top: rect.bottom + window.scrollY + 8, // mt-2 = 8px
-        left: rect.left + window.scrollX,
+        top: rect.bottom + 8, // mt-2 = 8px
+        left: rect.left,
         width: rect.width,
       });
     }
@@ -145,14 +147,29 @@ export default function CustomSelect({
 
   useEffect(() => {
     if (isOpen) {
+      // Update position immediately when opening
       updateDropdownPosition();
+      
+      // Use requestAnimationFrame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        updateDropdownPosition();
+      });
+
       const handleResize = () => updateDropdownPosition();
-      const handleScroll = () => updateDropdownPosition();
+      const handleScroll = () => {
+        // Update position on any scroll (including modal scroll)
+        updateDropdownPosition();
+      };
+      
       window.addEventListener('resize', handleResize);
+      // Listen to scroll on all scrollable containers (window, modal, etc.)
       window.addEventListener('scroll', handleScroll, true);
+      document.addEventListener('scroll', handleScroll, true);
+      
       return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('scroll', handleScroll, true);
+        document.removeEventListener('scroll', handleScroll, true);
       };
     }
   }, [isOpen]);

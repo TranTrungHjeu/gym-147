@@ -485,7 +485,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   forgotPasswordText: {
-    ...Typography.bodySmallMedium,
+    ...Typography.label,
     textAlign: 'right',
     marginVertical: 10,
   },
@@ -555,11 +555,10 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   accountText: {
-    ...Typography.bodyMedium,
+    ...Typography.footerText,
   },
   signupText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
+    ...Typography.footerTextBold,
   },
   modalOverlay: {
     flex: 1,

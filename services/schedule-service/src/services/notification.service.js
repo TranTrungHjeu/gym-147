@@ -1009,15 +1009,29 @@ class NotificationService {
         },
       });
 
-      // Emit socket event to trainer
+      // Emit socket events to trainer
       if (global.io) {
         const roomName = `user:${trainer.user_id}`;
-        global.io.to(roomName).emit('certification:deleted', {
+        const socketPayload = {
+          notification_id: notification.id,
           certification_id: certificationId,
           category,
           certification_name: certificationName,
           reason,
-        });
+          deleted_by: deletedBy,
+          title: notification.title,
+          message: notification.message,
+          type: notification.type,
+          created_at: notification.created_at,
+        };
+
+        // Emit certification:deleted event
+        global.io.to(roomName).emit('certification:deleted', socketPayload);
+        
+        // Also emit notification:new event for NotificationDropdown
+        global.io.to(roomName).emit('notification:new', socketPayload);
+        
+        console.log(`✅ Emitted certification:deleted and notification:new events to ${roomName}`);
       }
 
       console.log(`✅ Sent certification deletion notification to trainer ${trainerId}`);
@@ -1492,9 +1506,25 @@ class NotificationService {
     try {
       const { type, user_id, member_id, title, message, data } = notificationData;
 
-      // Use user_id if provided (preferred for socket notifications)
-      // Otherwise use member_id (will need to lookup user_id from member service)
-      const targetUserId = user_id || member_id;
+      // Get user_id from member_id if needed
+      let targetUserId = user_id;
+      if (!targetUserId && member_id) {
+        try {
+          const memberService = require('./member.service.js');
+          const member = await memberService.getMemberById(member_id);
+          if (member && member.user_id) {
+            targetUserId = member.user_id;
+          } else {
+            console.warn(`⚠️ Could not get user_id for member_id: ${member_id}`);
+            // Fallback to member_id if user_id not found (for backward compatibility)
+            targetUserId = member_id;
+          }
+        } catch (memberError) {
+          console.error(`❌ Error getting user_id for member_id ${member_id}:`, memberError.message);
+          // Fallback to member_id if lookup fails
+          targetUserId = member_id;
+        }
+      }
 
       if (!targetUserId) {
         console.error('sendNotification: user_id or member_id is required');
@@ -1545,36 +1575,77 @@ class NotificationService {
       const finalMessage = message || template?.message || 'Bạn có thông báo mới';
 
       // Auto-detect role from data if not explicitly provided
-      let notificationData = data || {};
-      if (!notificationData.role) {
+      let notificationDataObj = data || {};
+      if (!notificationDataObj.role) {
         // Infer role from notification type or data
         if (type.startsWith('CERTIFICATION_')) {
-          notificationData.role = 'TRAINER';
+          notificationDataObj.role = 'TRAINER';
         } else if (type === 'CLASS_BOOKING' || type.startsWith('MEMBERSHIP_')) {
-          notificationData.role = 'MEMBER';
-        } else if (notificationData.trainer_id || notificationData.trainer_name) {
-          notificationData.role = 'TRAINER';
-        } else if (notificationData.member_id || notificationData.member_name) {
-          notificationData.role = 'MEMBER';
+          notificationDataObj.role = 'MEMBER';
+        } else if (notificationDataObj.trainer_id || notificationDataObj.trainer_name) {
+          notificationDataObj.role = 'TRAINER';
+        } else if (notificationDataObj.member_id || notificationDataObj.member_name) {
+          notificationDataObj.role = 'MEMBER';
         } else if (type === 'SYSTEM_ANNOUNCEMENT') {
-          notificationData.role = 'SYSTEM';
+          notificationDataObj.role = 'SYSTEM';
         }
       }
 
-      // Create notification
-      await prisma.notification.create({
+      // Create notification in database
+      const createdNotification = await prisma.notification.create({
         data: {
           user_id: targetUserId,
           type,
           title: finalTitle,
           message: finalMessage,
-          data: notificationData,
+          data: notificationDataObj,
         },
       });
 
-      console.log(`Notification sent: ${type} to user ${targetUserId}`);
+      console.log(`✅ Notification created: ${type} to user ${targetUserId} (notification_id: ${createdNotification.id})`);
+
+      // Emit socket event based on notification type
+      if (global.io) {
+        const roomName = `user:${targetUserId}`;
+        const socketPayload = {
+          notification_id: createdNotification.id,
+          type: createdNotification.type,
+          title: createdNotification.title,
+          message: createdNotification.message,
+          data: createdNotification.data,
+          created_at: createdNotification.created_at,
+          is_read: createdNotification.is_read,
+        };
+
+        // Map notification types to socket events
+        const socketEventMap = {
+          WAITLIST_ADDED: 'waitlist:added',
+          WAITLIST_PROMOTED: 'waitlist:promoted',
+          SCHEDULE_CANCELLED: 'schedule:cancelled',
+          ROOM_CHANGED: 'room:changed',
+          ROOM_CHANGE_REJECTED: 'room:change:rejected',
+          CLASS_BOOKING: 'booking:new', // Already handled in booking controller
+        };
+
+        const socketEvent = socketEventMap[type];
+        if (socketEvent) {
+          console.log(`📡 Emitting socket event ${socketEvent} to ${roomName}`);
+          global.io.to(roomName).emit(socketEvent, socketPayload);
+          
+          // Also emit general notification:new event for compatibility
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`✅ Socket events emitted successfully to ${roomName}`);
+        } else {
+          // For other notification types, just emit notification:new
+          console.log(`📡 Emitting notification:new to ${roomName}`);
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`✅ Socket event notification:new emitted successfully to ${roomName}`);
+        }
+      } else {
+        console.warn('⚠️ global.io not available - notification saved to database only');
+      }
     } catch (error) {
-      console.error('Error sending notification:', error);
+      console.error('❌ Error sending notification:', error);
       throw error;
     }
   }
@@ -1585,29 +1656,66 @@ class NotificationService {
    * @param {string} memberName - Member name
    * @param {string} className - Class name
    * @param {Date} checkInTime - Check-in time
+   * @param {string} scheduleId - Schedule ID (optional)
+   * @param {string} memberId - Member ID (optional)
    */
-  async notifyTrainerCheckIn(trainerId, memberName, className, checkInTime) {
+  async notifyTrainerCheckIn(trainerId, memberName, className, checkInTime, scheduleId = null, memberId = null) {
     try {
       console.log(`📢 Sending check-in notification to trainer: ${trainerId}`);
 
-      await prisma.notification.create({
+      const notificationData = {
+        member_name: memberName,
+        class_name: className,
+        check_in_time: checkInTime.toISOString(),
+        role: 'MEMBER',
+      };
+
+      if (scheduleId) {
+        notificationData.schedule_id = scheduleId;
+      }
+
+      if (memberId) {
+        notificationData.member_id = memberId;
+      }
+
+      // Create notification in database
+      const createdNotification = await prisma.notification.create({
         data: {
           user_id: trainerId,
           type: 'MEMBER_CHECKED_IN',
-          title: 'Member Check-in',
-          message: `${memberName} has checked in to ${className}`,
-          data: {
-            member_name: memberName,
-            class_name: className,
-            check_in_time: checkInTime.toISOString(),
-          },
+          title: 'Thành viên đã check-in',
+          message: `${memberName} đã check-in vào lớp ${className}`,
+          data: notificationData,
           is_read: false,
         },
       });
 
-      console.log(`📢 Check-in notification sent to trainer ${trainerId}`);
+      console.log(`✅ Check-in notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`);
+
+      // Emit socket event to trainer
+      if (global.io) {
+        const roomName = `user:${trainerId}`;
+        const socketPayload = {
+          notification_id: createdNotification.id,
+          type: createdNotification.type,
+          title: createdNotification.title,
+          message: createdNotification.message,
+          data: createdNotification.data,
+          created_at: createdNotification.created_at,
+          is_read: createdNotification.is_read,
+        };
+
+        console.log(`📡 Emitting socket event member:checked_in to ${roomName}`);
+        global.io.to(roomName).emit('member:checked_in', socketPayload);
+        
+        // Also emit general notification:new event for compatibility
+        global.io.to(roomName).emit('notification:new', socketPayload);
+        console.log(`✅ Socket events emitted successfully to ${roomName}`);
+      } else {
+        console.warn('⚠️ global.io not available - notification saved to database only');
+      }
     } catch (error) {
-      console.error('Error sending check-in notification:', error);
+      console.error('❌ Error sending check-in notification:', error);
       throw error;
     }
   }

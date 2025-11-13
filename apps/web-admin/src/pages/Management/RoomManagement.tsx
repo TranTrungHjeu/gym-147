@@ -13,6 +13,7 @@ import Pagination from '../../components/common/Pagination';
 import ExportButton, { ExportUtils } from '../../components/common/ExportButton';
 import CustomSelect from '../../components/common/CustomSelect';
 import AdminModal from '../../components/common/AdminModal';
+import { TableLoading, ButtonSpinner } from '../../components/ui/AppLoading';
 
 interface Room {
   id: string;
@@ -533,14 +534,7 @@ const RoomManagement: React.FC = () => {
 
       {/* Rooms List */}
       {isLoading ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
-          <div className='flex flex-col items-center justify-center gap-3'>
-            <div className='w-8 h-8 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin' />
-            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-              Đang tải...
-            </div>
-          </div>
-        </div>
+        <TableLoading text='Đang tải danh sách phòng...' />
       ) : filteredRooms.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
@@ -679,7 +673,7 @@ const RoomManagement: React.FC = () => {
                 setImportPreview([]);
               }}
               disabled={isImporting}
-              className='px-4 py-2 text-theme-xs font-semibold font-inter text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50'
+              className='px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50'
             >
               Hủy
             </button>
@@ -687,11 +681,11 @@ const RoomManagement: React.FC = () => {
               type='button'
               onClick={handleImport}
               disabled={isImporting || importPreview.length === 0}
-              className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-inter text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl transition-all duration-200 disabled:opacity-50'
+              className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl transition-all duration-200 disabled:opacity-50'
             >
               {isImporting ? (
                 <>
-                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin' />
+                  <ButtonSpinner />
                   Đang import...
                 </>
               ) : (

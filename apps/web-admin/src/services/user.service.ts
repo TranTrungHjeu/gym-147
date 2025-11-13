@@ -226,6 +226,19 @@ class UserService {
     return this.getAllUsers({ role: 'MEMBER', page, limit });
   }
 
+  // Get user statistics
+  async getUserStats(): Promise<{
+    success: boolean;
+    message: string;
+    data: Array<{
+      role: string;
+      count: number;
+      recentRegistrations: number;
+    }>;
+  }> {
+    return this.request('/dashboard/user-stats', 'GET');
+  }
+
   // Get trainer stats from schedule service
   async getTrainerStats(): Promise<{
     success: boolean;
