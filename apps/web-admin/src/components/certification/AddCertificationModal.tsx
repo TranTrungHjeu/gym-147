@@ -6,6 +6,7 @@ import ManualCertificationUpload from './ManualCertificationUpload';
 import Modal from '../Modal/Modal';
 import CustomSelect from '../common/CustomSelect';
 import { useToast } from '../../context/ToastContext';
+import { ButtonSpinner } from '../ui/AppLoading';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
@@ -990,7 +991,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             >
               {isSubmitting ? (
                 <>
-                  <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin flex-shrink-0'></div>
+                  <ButtonSpinner />
                   <span>Đang tạo...</span>
                 </>
               ) : (

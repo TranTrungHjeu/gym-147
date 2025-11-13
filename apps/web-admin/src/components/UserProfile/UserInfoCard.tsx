@@ -1,12 +1,9 @@
-import { AnimatePresence, motion } from 'framer-motion';
-import { Mail, Phone } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import Modal from '../../components/Modal/Modal';
 import { useModal } from '../../hooks/useModal';
 import { User, userService } from '../../services/user.service';
 import RoleBadge from '../common/RoleBadge';
 import Button from '../ui/Button/Button';
-import EmailPhoneOTPModal from '../modals/EmailPhoneOTPModal';
-import ChangeEmailPhoneModal from '../modals/ChangeEmailPhoneModal';
 interface UserInfoCardProps {
   userId: string;
   onUpdate?: (user: User) => void;
@@ -20,29 +17,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     openModal: openDeleteModal,
     closeModal: closeDeleteModal,
   } = useModal();
-  const {
-    isOpen: isOTPModalOpen,
-    openModal: openOTPModal,
-    closeModal: closeOTPModal,
-  } = useModal();
-  const {
-    isOpen: isChangeEmailModalOpen,
-    openModal: openChangeEmailModal,
-    closeModal: closeChangeEmailModal,
-  } = useModal();
-  const {
-    isOpen: isChangePhoneModalOpen,
-    openModal: openChangePhoneModal,
-    closeModal: closeChangePhoneModal,
-  } = useModal();
   const [user, setUser] = useState<User | null>(null);
-  const [pendingUpdate, setPendingUpdate] = useState<{
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone?: string;
-    isActive?: boolean;
-  } | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -59,35 +34,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     isActive?: boolean;
   } | null>(null);
   const [isActiveToggle, setIsActiveToggle] = useState<boolean>(true);
-
-  // Disable body scroll completely when modal is open
-  useEffect(() => {
-    if (isOpen || isDeleteOpen) {
-      // Store original overflow values
-      const originalOverflow = document.body.style.overflow;
-      const originalOverflowY = document.body.style.overflowY;
-      const originalPosition = document.body.style.position;
-      const originalTop = document.body.style.top;
-      const scrollY = window.scrollY;
-
-      // Disable scroll completely
-      document.body.style.overflow = 'hidden';
-      document.body.style.overflowY = 'hidden';
-      document.body.style.position = 'fixed';
-      document.body.style.top = `-${scrollY}px`;
-      document.body.style.width = '100%';
-
-      return () => {
-        // Restore original styles
-        document.body.style.overflow = originalOverflow;
-        document.body.style.overflowY = originalOverflowY;
-        document.body.style.position = originalPosition;
-        document.body.style.top = originalTop;
-        document.body.style.width = '';
-        window.scrollTo(0, scrollY);
-      };
-    }
-  }, [isOpen, isDeleteOpen]);
 
   // Track user state changes
   useEffect(() => {
@@ -283,8 +229,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         userPhone: user.phone,
       });
 
-      // No need to check for email/phone change anymore - they're changed via modal with OTP verification
-      // Proceed with normal update
       const response =
         userId === 'current'
           ? await userService.updateProfile({
@@ -396,63 +340,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       }
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleOTPSuccess = async () => {
-    if (!pendingUpdate || !user) return;
-
-    try {
-      setSaving(true);
-      // OTP verification already handled the update, just refresh user data
-      await fetchUser();
-      setPendingUpdate(null);
-      closeModal();
-      if (window.showToast) {
-        window.showToast({
-          type: 'success',
-          message: 'Thông tin đã được cập nhật thành công',
-          duration: 3000,
-        });
-      }
-    } catch (error) {
-      console.error('Error refreshing user after OTP:', error);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleEmailChangeSuccess = (newEmail?: string) => {
-    if (newEmail) {
-      setFormData(prev => ({
-        ...(prev || {
-          firstName: user?.firstName || user?.first_name || '',
-          lastName: user?.lastName || user?.last_name || '',
-          email: user?.email || '',
-          phone: user?.phone || '',
-          isActive: user?.isActive ?? true,
-        }),
-        email: newEmail,
-      }));
-      setUser(prev => prev ? { ...prev, email: newEmail } : null);
-      isEditingRef.current = true;
-    }
-  };
-
-  const handlePhoneChangeSuccess = (newPhone?: string) => {
-    if (newPhone) {
-      setFormData(prev => ({
-        ...(prev || {
-          firstName: user?.firstName || user?.first_name || '',
-          lastName: user?.lastName || user?.last_name || '',
-          email: user?.email || '',
-          phone: user?.phone || '',
-          isActive: user?.isActive ?? true,
-        }),
-        phone: newPhone,
-      }));
-      setUser(prev => prev ? { ...prev, phone: newPhone } : null);
-      isEditingRef.current = true;
     }
   };
 
@@ -695,45 +582,22 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         </div>
       </div>
 
-      <AnimatePresence>
       {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className='fixed inset-0 z-[100000] flex items-center justify-center p-4'
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            }}
-            onClick={() => {
+        <Modal
+          isOpen={isOpen}
+          onClose={() => {
             isEditingRef.current = false;
+            // Reset toggle to user's current state
             if (user) {
               setIsActiveToggle(user.isActive ?? true);
             }
             closeModal();
           }}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{
-                type: 'spring',
-                damping: 25,
-                stiffness: 300,
-                duration: 0.3,
-              }}
-              className='relative w-full max-w-[700px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl overflow-hidden'
-              onClick={e => e.stopPropagation()}
-            >
+          className='max-w-[700px] m-4'
+        >
+          <div className='relative w-full max-w-[700px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl'>
             {/* Header */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: 0.1 }}
-                className='sticky top-0 z-10 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'
-              >
+            <div className='sticky top-0 z-10 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex-1'>
                   <h4 className='text-xl font-bold font-heading text-gray-900 dark:text-white mb-1'>
@@ -744,13 +608,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   </p>
                 </div>
                 <button
-                    onClick={() => {
-                      isEditingRef.current = false;
-                      if (user) {
-                        setIsActiveToggle(user.isActive ?? true);
-                      }
-                      closeModal();
-                    }}
+                  onClick={closeModal}
                   className='w-8 h-8 flex items-center justify-center rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex-shrink-0'
                 >
                   <svg className='w-5 h-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
@@ -763,16 +621,10 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   </svg>
                 </button>
               </div>
-              </motion.div>
+            </div>
 
             {/* Form Content */}
-              <motion.form
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: 0.15 }}
-                className='flex flex-col'
-                onSubmit={e => e.preventDefault()}
-              >
+            <form className='flex flex-col' onSubmit={e => e.preventDefault()}>
               <div className='p-6 space-y-5'>
                 <div className='grid grid-cols-1 gap-5 lg:grid-cols-2'>
                   <div>
@@ -909,16 +761,13 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Email
                     </label>
-                    <div className='flex gap-2'>
                     <input
                       type='email'
                       value={formData?.email ?? user?.email ?? ''}
-                        disabled
-                        className='flex-1 px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 cursor-not-allowed font-inter'
-                      />
-                      <motion.button
-                        type='button'
-                        onClick={() => {
+                      onFocus={() => {
+                        console.log('👆 Email input focused, setting isEditingRef to true');
+                        isEditingRef.current = true;
+                        // Initialize formData if not exists
                         if (!formData && user) {
                           setFormData({
                             firstName: user.firstName || user.first_name || '',
@@ -928,32 +777,59 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             isActive: user.isActive ?? true,
                           });
                         }
-                          openChangeEmailModal();
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className='px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-md hover:shadow-orange-500/30 transition-all duration-200 font-space-grotesk text-xs whitespace-nowrap flex items-center gap-2'
-                      >
-                        <Mail className='w-3.5 h-3.5' />
-                        <span>Đổi</span>
-                      </motion.button>
-                    </div>
+                      }}
+                      onChange={e => {
+                        const newValue = e.target.value;
+                        console.log('✏️ email onChange:', {
+                          newValue,
+                          currentUserState: user?.email,
+                          fullUserState: user,
+                          isEditingBefore: isEditingRef.current,
+                        });
+                        isEditingRef.current = true;
+                        // Update formData first (immediate UI update, won't reset on re-render)
+                        setFormData(prev => ({
+                          ...(prev || {
+                            firstName: user?.firstName || user?.first_name || '',
+                            lastName: user?.lastName || user?.last_name || '',
+                            email: user?.email || '',
+                            phone: user?.phone || '',
+                            isActive: user?.isActive ?? true,
+                          }),
+                          email: newValue,
+                        }));
+                        // Also update user state for consistency
+                        setUser(prev => {
+                          if (!prev) {
+                            console.log('⚠️ prev is null in onChange!');
+                            return null;
+                          }
+                          const newUser = { ...prev, email: newValue };
+                          console.log('✏️ Updated user state:', {
+                            oldEmail: prev?.email,
+                            newEmail: newUser?.email,
+                          });
+                          return newUser;
+                        });
+                      }}
+                      onBlur={() => {
+                        console.log('👋 Email input blurred, current value:', user?.email);
+                      }}
+                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                    />
                   </div>
 
                   <div>
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Số điện thoại
                     </label>
-                    <div className='flex gap-2'>
                     <input
                       type='tel'
                       value={formData?.phone ?? user?.phone ?? ''}
-                        disabled
-                        className='flex-1 px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-600 dark:text-gray-400 cursor-not-allowed font-inter'
-                      />
-                      <motion.button
-                        type='button'
-                        onClick={() => {
+                      onFocus={() => {
+                        console.log('👆 Phone input focused, setting isEditingRef to true');
+                        isEditingRef.current = true;
+                        // Initialize formData if not exists
                         if (!formData && user) {
                           setFormData({
                             firstName: user.firstName || user.first_name || '',
@@ -963,16 +839,46 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             isActive: user.isActive ?? true,
                           });
                         }
-                          openChangePhoneModal();
-                        }}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
-                        className='px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-md hover:shadow-orange-500/30 transition-all duration-200 font-space-grotesk text-xs whitespace-nowrap flex items-center gap-2'
-                      >
-                        <Phone className='w-3.5 h-3.5' />
-                        <span>Đổi</span>
-                      </motion.button>
-                    </div>
+                      }}
+                      onChange={e => {
+                        const newValue = e.target.value;
+                        console.log('✏️ phone onChange:', {
+                          newValue,
+                          currentUserState: user?.phone,
+                          fullUserState: user,
+                          isEditingBefore: isEditingRef.current,
+                        });
+                        isEditingRef.current = true;
+                        // Update formData first (immediate UI update, won't reset on re-render)
+                        setFormData(prev => ({
+                          ...(prev || {
+                            firstName: user?.firstName || user?.first_name || '',
+                            lastName: user?.lastName || user?.last_name || '',
+                            email: user?.email || '',
+                            phone: user?.phone || '',
+                            isActive: user?.isActive ?? true,
+                          }),
+                          phone: newValue,
+                        }));
+                        // Also update user state for consistency
+                        setUser(prev => {
+                          if (!prev) {
+                            console.log('⚠️ prev is null in onChange!');
+                            return null;
+                          }
+                          const newUser = { ...prev, phone: newValue };
+                          console.log('✏️ Updated user state:', {
+                            oldPhone: prev?.phone,
+                            newPhone: newUser?.phone,
+                          });
+                          return newUser;
+                        });
+                      }}
+                      onBlur={() => {
+                        console.log('👋 Phone input blurred, current value:', user?.phone);
+                      }}
+                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                    />
                   </div>
 
                   {/* Status Toggle - Only show for non-current users */}
@@ -1035,24 +941,13 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               </div>
 
               {/* Footer */}
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.2, delay: 0.2 }}
-                  className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'
-                >
+              <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'>
                 <Button
                   size='sm'
                   variant='outline'
-                    onClick={() => {
-                      isEditingRef.current = false;
-                      if (user) {
-                        setIsActiveToggle(user.isActive ?? true);
-                      }
-                      closeModal();
-                    }}
+                  onClick={closeModal}
                   disabled={saving}
-                    className='px-5 py-2 text-xs font-semibold font-space-grotesk border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
+                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
                 >
                   Hủy
                 </Button>
@@ -1060,59 +955,25 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   size='sm'
                   onClick={handleSave}
                   disabled={saving}
-                    className='px-5 py-2 text-xs font-semibold font-space-grotesk bg-orange-600 hover:bg-orange-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
+                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-orange-600 hover:bg-orange-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
                 >
                   {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </Button>
-                </motion.div>
-              </motion.form>
-            </motion.div>
-          </motion.div>
+              </div>
+            </form>
+          </div>
+        </Modal>
       )}
-      </AnimatePresence>
 
       {/* Delete Confirmation Modal */}
-      <AnimatePresence>
       {isDeleteOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className='fixed inset-0 z-[100000] flex items-center justify-center p-4'
-            style={{
-              backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            }}
-            onClick={closeDeleteModal}
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              transition={{
-                type: 'spring',
-                damping: 25,
-                stiffness: 300,
-                duration: 0.3,
-              }}
-              className='relative w-full max-w-[500px] rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 shadow-xl overflow-hidden'
-              onClick={e => e.stopPropagation()}
-            >
+        <Modal isOpen={isDeleteOpen} onClose={closeDeleteModal} className='max-w-[500px] m-4'>
+          <div className='relative w-full max-w-[500px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 shadow-xl'>
             {/* Header */}
-              <motion.div
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: 0.1 }}
-                className='sticky top-0 z-10 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-b border-red-200 dark:border-red-700 px-6 py-4 rounded-t-2xl'
-              >
+            <div className='sticky top-0 z-10 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-b border-red-200 dark:border-red-700 px-6 py-4 rounded-t-2xl'>
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex items-center gap-3 flex-1'>
-                    <motion.div
-                      initial={{ scale: 0.8, rotate: -10 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      transition={{ type: 'spring', damping: 15, stiffness: 200, delay: 0.15 }}
-                      className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0'
-                    >
+                  <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0'>
                     <svg
                       className='w-5 h-5 text-red-600 dark:text-red-400'
                       fill='none'
@@ -1126,7 +987,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         d='M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z'
                       />
                     </svg>
-                    </motion.div>
+                  </div>
                   <div>
                     <h4 className='text-xl font-bold font-heading text-gray-900 dark:text-white mb-1'>
                       Xác nhận xóa user
@@ -1150,15 +1011,10 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   </svg>
                 </button>
               </div>
-              </motion.div>
+            </div>
 
             {/* Content */}
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.2, delay: 0.15 }}
-                className='p-6 space-y-4'
-              >
+            <div className='p-6 space-y-4'>
               <div className='bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-4'>
                 <p className='text-theme-xs text-gray-700 dark:text-gray-300 font-inter mb-3'>
                   Bạn đang xóa user:{' '}
@@ -1186,21 +1042,16 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   autoFocus
                 />
               </div>
-              </motion.div>
+            </div>
 
             {/* Footer */}
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: 0.2 }}
-                className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'
-              >
+            <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'>
               <Button
                 size='sm'
                 variant='outline'
                 onClick={closeDeleteModal}
                 disabled={deleting}
-                  className='px-5 py-2 text-xs font-semibold font-space-grotesk border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
+                className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
               >
                 Hủy
               </Button>
@@ -1208,48 +1059,14 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 size='sm'
                 onClick={handleDelete}
                 disabled={deleting || deleteConfirm.toLowerCase() !== 'delete'}
-                  className='px-5 py-2 text-xs font-semibold font-space-grotesk bg-red-600 hover:bg-red-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-red-600 hover:bg-red-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
               >
                 {deleting ? 'Đang xóa...' : 'Xóa user'}
               </Button>
-              </motion.div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* OTP Modal for email/phone change */}
-      <EmailPhoneOTPModal
-        isOpen={isOTPModalOpen}
-        onClose={closeOTPModal}
-        onSuccess={handleOTPSuccess}
-        userEmail={user?.email}
-        userPhone={user?.phone}
-        newEmail={pendingUpdate?.email}
-        newPhone={pendingUpdate?.phone}
-        firstName={pendingUpdate?.firstName}
-        lastName={pendingUpdate?.lastName}
-      />
-
-      {/* Change Email Modal */}
-      <ChangeEmailPhoneModal
-        isOpen={isChangeEmailModalOpen}
-        onClose={closeChangeEmailModal}
-        onSuccess={handleEmailChangeSuccess}
-        userEmail={user?.email}
-        userPhone={user?.phone}
-        type='EMAIL'
-      />
-
-      {/* Change Phone Modal */}
-      <ChangeEmailPhoneModal
-        isOpen={isChangePhoneModalOpen}
-        onClose={closeChangePhoneModal}
-        onSuccess={handlePhoneChangeSuccess}
-        userEmail={user?.email}
-        userPhone={user?.phone}
-        type='PHONE'
-      />
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
