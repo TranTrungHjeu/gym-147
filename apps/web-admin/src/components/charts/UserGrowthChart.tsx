@@ -1,8 +1,9 @@
 import React from 'react';
-import Chart from 'react-apexcharts';
-import { ApexOptions } from 'apexcharts';
-import AdminChart from './AdminChart';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
 import { useTheme } from '../../context/ThemeContext';
+import AdminChart from './AdminChart';
+import { getEChartsTheme } from '../../theme/echartsTheme';
 
 interface UserGrowthChartProps {
   data?: {
@@ -30,114 +31,82 @@ const UserGrowthChart: React.FC<UserGrowthChartProps> = ({
 
   const chartData = data || defaultData;
 
-  const options: ApexOptions = {
-    chart: {
-      fontFamily: 'Inter, sans-serif',
-      height: height,
-      type: 'line',
-      toolbar: {
-        show: false,
-      },
-      background: 'transparent',
-    },
-    colors: ['#3b82f6', '#10b981'],
-    stroke: {
-      curve: 'smooth',
-      width: [3, 3],
-    },
-    markers: {
-      size: 5,
-      strokeColors: '#fff',
-      strokeWidth: 2,
-      hover: {
-        size: 7,
-      },
-    },
-    grid: {
-      borderColor: isDark ? '#374151' : '#e5e7eb',
-      strokeDashArray: 4,
-      xaxis: {
-        lines: {
-          show: false,
-        },
-      },
-      yaxis: {
-        lines: {
-          show: true,
-        },
-      },
-    },
-    dataLabels: {
-      enabled: false,
-    },
+  const hasData = chartData.newUsers.some((val) => val > 0) || chartData.activeUsers?.some((val) => val > 0);
+
+  const option: EChartsOption = {
     tooltip: {
-      enabled: true,
-      theme: isDark ? 'dark' : 'light',
-      style: {
-        fontSize: '12px',
-        fontFamily: 'Inter, sans-serif',
-      },
-      y: {
-        formatter: (val: number) => `${val} người`,
-      },
+      trigger: 'axis',
+      axisPointer: { type: 'cross' },
+      valueFormatter: (v) => (typeof v === 'number' ? `${v} người` : String(v)),
     },
-    xaxis: {
-      categories: chartData.dates,
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
-        },
-      },
-      axisBorder: {
-        show: false,
-      },
-      axisTicks: {
-        show: false,
-      },
+    legend: { 
+      top: 10, 
+      right: 10,
     },
-    yaxis: {
-      labels: {
-        style: {
-          colors: isDark ? '#9ca3af' : '#6b7280',
-          fontSize: '12px',
-          fontFamily: 'Inter, sans-serif',
+    grid: { 
+      left: 50, 
+      right: 30, 
+      bottom: 50, 
+      top: 50,
+      containLabel: true,
+    },
+    xAxis: {
+      type: 'category',
+      data: chartData.dates,
+      axisTick: { show: false },
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        formatter: (val: number) => {
+          if (val >= 1000) return `${(val / 1000).toFixed(1)}k`;
+          return val.toString();
         },
       },
     },
-    legend: {
-      show: true,
-      position: 'top',
-      horizontalAlign: 'right',
-      labels: {
-        colors: isDark ? '#d1d5db' : '#374151',
-        useSeriesColors: false,
-      },
-      markers: {
-        width: 12,
-        height: 12,
-        radius: 6,
-      },
-    },
-  };
-
-  const series = [
-    {
-      name: 'Đăng ký mới',
-      data: chartData.newUsers,
-    },
-    ...(chartData.activeUsers
-      ? [
-          {
-            name: 'Người dùng hoạt động',
-            data: chartData.activeUsers,
+    series: [
+      {
+        name: 'Đăng ký mới',
+        type: 'line',
+        smooth: true,
+        showSymbol: false,
+        lineStyle: { width: 2, color: '#ff6422' },
+        areaStyle: {
+          color: {
+            type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: 'rgba(255, 100, 34, 0.28)' },
+              { offset: 1, color: 'rgba(255, 100, 34, 0.00)' },
+            ],
           },
-        ]
-      : []),
-  ];
-
-  const hasData = chartData.newUsers.some(val => val > 0) || chartData.activeUsers?.some(val => val > 0);
+        },
+        data: chartData.newUsers,
+      },
+      ...(chartData.activeUsers
+        ? [
+            {
+              name: 'Người dùng hoạt động',
+              type: 'line',
+              smooth: true,
+              showSymbol: false,
+              lineStyle: { width: 2, color: '#10b981' },
+              areaStyle: {
+                color: {
+                  type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+                  colorStops: [
+                    { offset: 0, color: 'rgba(16, 185, 129, 0.20)' },
+                    { offset: 1, color: 'rgba(16, 185, 129, 0.00)' },
+                  ],
+                },
+              },
+              data: chartData.activeUsers,
+            } as any,
+          ]
+        : []),
+    ],
+  };
 
   return (
     <AdminChart
@@ -149,11 +118,14 @@ const UserGrowthChart: React.FC<UserGrowthChartProps> = ({
       emptyMessage='Chưa có dữ liệu thành viên'
     >
       {hasData && (
-        <Chart options={options} series={series} type='line' height={height} />
+        <ReactECharts 
+          option={option} 
+          theme={getEChartsTheme(theme)} 
+          style={{ width: '100%', height }} 
+        />
       )}
     </AdminChart>
   );
 };
 
 export default UserGrowthChart;
-
