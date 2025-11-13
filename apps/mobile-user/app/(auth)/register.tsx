@@ -1,12 +1,17 @@
+import { ErrorModal } from '@/components/ErrorModal';
+import { SuccessModal } from '@/components/SuccessModal';
+import {
+  isValidVietnamesePhone,
+  normalizePhoneNumber,
+} from '@/utils/phone.utils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
-  Alert,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,6 +27,7 @@ const RegisterScreen = () => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
+  const [otpCooldown, setOtpCooldown] = useState(0); // Cooldown timer in seconds
 
   const [primaryMethod, setPrimaryMethod] = useState<'EMAIL' | 'PHONE'>(
     'EMAIL'
@@ -40,6 +46,95 @@ const RegisterScreen = () => {
     firstName: '',
     lastName: '',
   });
+
+  // Error modal state
+  const [errorModal, setErrorModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'error' as 'email' | 'phone' | 'error' | 'warning',
+  });
+
+  // Success modal state
+  const [successModal, setSuccessModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  // Load cooldown from AsyncStorage on component mount
+  useEffect(() => {
+    const loadCooldown = async () => {
+      try {
+        const identifier = primaryMethod === 'EMAIL' ? email : phone;
+        if (!identifier) return;
+
+        const cooldownKey = `otp_cooldown_${identifier}_${primaryMethod}`;
+        const savedCooldown = await AsyncStorage.getItem(cooldownKey);
+
+        if (savedCooldown) {
+          try {
+            const { expiresAt } = JSON.parse(savedCooldown);
+            const now = Date.now();
+            const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+
+            if (remaining > 0) {
+              setOtpCooldown(remaining);
+            } else {
+              await AsyncStorage.removeItem(cooldownKey);
+            }
+          } catch (error) {
+            await AsyncStorage.removeItem(cooldownKey);
+          }
+        }
+      } catch (error) {
+        // Ignore error
+      }
+    };
+
+    if (email || phone) {
+      loadCooldown();
+    }
+  }, [email, phone, primaryMethod]);
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (otpCooldown > 0) {
+      const timer = setTimeout(() => {
+        setOtpCooldown(otpCooldown - 1);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [otpCooldown]);
+
+  // Save cooldown to AsyncStorage
+  useEffect(() => {
+    const saveCooldown = async () => {
+      try {
+        const identifier = primaryMethod === 'EMAIL' ? email : phone;
+        if (!identifier) return;
+
+        const cooldownKey = `otp_cooldown_${identifier}_${primaryMethod}`;
+
+        if (otpCooldown > 0) {
+          const expiresAt = Date.now() + otpCooldown * 1000;
+          await AsyncStorage.setItem(
+            cooldownKey,
+            JSON.stringify({ expiresAt })
+          );
+        } else {
+          await AsyncStorage.removeItem(cooldownKey);
+        }
+      } catch (error) {
+        // Ignore error
+      }
+    };
+
+    if (email || phone) {
+      saveCooldown();
+    }
+  }, [otpCooldown, email, phone, primaryMethod]);
 
   const validateForm = () => {
     const newErrors = {
@@ -77,7 +172,7 @@ const RegisterScreen = () => {
       if (!phone.trim()) {
         newErrors.phone = t('validation.phoneRequired');
         isValid = false;
-      } else if (!/^(\+84|84|0)[1-9][0-9]{8}$/.test(phone.replace(/\s/g, ''))) {
+      } else if (!isValidVietnamesePhone(phone)) {
         newErrors.phone = t('validation.phoneInvalid');
         isValid = false;
       }
@@ -102,6 +197,11 @@ const RegisterScreen = () => {
   const handleSendOTP = async () => {
     if (!validateForm()) return;
 
+    // Check cooldown
+    if (otpCooldown > 0) {
+      return;
+    }
+
     setIsLoading(true);
     try {
       // Import from services/identity/api.service.ts
@@ -109,41 +209,97 @@ const RegisterScreen = () => {
         '@/services/identity/api.service'
       );
 
+      // Backend will normalize the phone number, but we can send it as-is
+      // Frontend normalization is optional - mainly for UX (auto-format on blur)
       const identifier = primaryMethod === 'EMAIL' ? email : phone;
 
-      await identityApiService.post('/auth/send-otp', {
+      const response = await identityApiService.post('/auth/send-otp', {
         identifier,
         type: primaryMethod,
       });
 
-      Alert.alert(t('common.success'), t('registration.otpSent'), [
-        {
-          text: t('common.ok'),
-          onPress: () => {
-            // Navigate to OTP screen with registration data
-            router.push({
-              pathname: '/(auth)/register-otp',
-              params: {
-                email,
-                phone,
-                password,
-                firstName,
-                lastName,
-                primaryMethod,
-              },
-            });
-          },
-        },
-      ]);
+      // Set cooldown from response or default to 60 seconds
+      const retryAfter = response.data?.data?.retryAfter || 60;
+      setOtpCooldown(retryAfter);
+
+      // Show success modal
+      setSuccessModal({
+        visible: true,
+        title: t('common.success'),
+        message: t('registration.otpSent'),
+      });
     } catch (error: any) {
-      console.error('Send OTP error:', error);
-      Alert.alert(
-        t('common.error'),
-        error.response?.data?.message || t('registration.otpSendFailed')
-      );
+      const errorMessage =
+        error.response?.data?.message || 
+        error.message || 
+        t('registration.otpSendFailed');
+
+      // Handle rate limit error - extract cooldown from response
+      if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
+        const retryAfter = error.response.data.data.retryAfter;
+        setOtpCooldown(retryAfter);
+      }
+
+      // Kiểm tra nếu lỗi liên quan đến email/phone đã tồn tại
+      const messageLower = errorMessage.toLowerCase();
+      let errorType: 'email' | 'phone' | 'error' = 'error';
+      let errorTitle = t('common.error');
+
+      // Check for email already used
+      if (
+        (messageLower.includes('email') || primaryMethod === 'EMAIL') &&
+        (messageLower.includes('đã được sử dụng') ||
+          messageLower.includes('already') ||
+          messageLower.includes('exists') ||
+          messageLower.includes('tồn tại') ||
+          messageLower.includes('đã sử dụng'))
+      ) {
+        errorType = 'email';
+        errorTitle =
+          t('registration.emailAlreadyUsed') || 'Email đã được sử dụng';
+      } 
+      // Check for phone already used
+      else if (
+        (messageLower.includes('số điện thoại') ||
+          messageLower.includes('phone') ||
+          primaryMethod === 'PHONE') &&
+        (messageLower.includes('đã được sử dụng') ||
+          messageLower.includes('already') ||
+          messageLower.includes('exists') ||
+          messageLower.includes('tồn tại') ||
+          messageLower.includes('đã sử dụng'))
+      ) {
+        errorType = 'phone';
+        errorTitle =
+          t('registration.phoneAlreadyUsed') || 'Số điện thoại đã được sử dụng';
+      }
+
+      // Hiển thị modal thay vì Alert
+      setErrorModal({
+        visible: true,
+        title: errorTitle,
+        message: errorMessage,
+        type: errorType,
+      });
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleSuccessModalClose = () => {
+    setSuccessModal({ ...successModal, visible: false });
+    // Navigate to OTP screen with registration data
+    router.push({
+      pathname: '/(auth)/register-otp',
+      params: {
+        email,
+        phone, // Backend will normalize when registering
+        password,
+        firstName,
+        lastName,
+        primaryMethod,
+      },
+    });
   };
 
   const themedStyles = StyleSheet.create({
@@ -196,10 +352,11 @@ const RegisterScreen = () => {
       backgroundColor: `${theme.colors.primary}10`,
     },
     methodButtonText: {
-      ...Typography.bodyBold,
+      ...Typography.buttonMedium,
       color: theme.colors.text,
     },
     methodButtonTextActive: {
+      ...Typography.buttonMedium,
       color: theme.colors.primary,
     },
     form: {
@@ -209,7 +366,7 @@ const RegisterScreen = () => {
       gap: theme.spacing.xs,
     },
     label: {
-      ...Typography.bodyMedium,
+      ...Typography.label,
       color: theme.colors.text,
     },
     input: {
@@ -249,18 +406,22 @@ const RegisterScreen = () => {
       color: theme.colors.error,
     },
     submitButton: {
-      marginTop: theme.spacing.xl,
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.md,
+      borderRadius: 16,
+      marginTop: 24,
+      paddingVertical: 16,
       backgroundColor: theme.colors.primary,
-      alignItems: 'center',
-      ...theme.shadows.md,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
+      elevation: 3,
     },
     submitButtonDisabled: {
       opacity: 0.6,
     },
     submitButtonText: {
-      ...Typography.bodyBold,
+      ...Typography.buttonLarge,
+      textAlign: 'center',
       color: theme.colors.textInverse,
     },
     footer: {
@@ -268,11 +429,11 @@ const RegisterScreen = () => {
       alignItems: 'center',
     },
     footerText: {
-      ...Typography.bodyRegular,
+      ...Typography.footerText,
       color: theme.colors.textSecondary,
     },
     loginButton: {
-      ...Typography.bodyBold,
+      ...Typography.footerTextBold,
       color: theme.colors.primary,
     },
   });
@@ -291,11 +452,7 @@ const RegisterScreen = () => {
             style={themedStyles.backButton}
             onPress={() => router.back()}
           >
-            <Ionicons
-              name="arrow-back"
-              size={24}
-              color={theme.colors.text}
-            />
+            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
 
           <Text style={themedStyles.title}>
@@ -428,6 +585,15 @@ const RegisterScreen = () => {
                   setPhone(text);
                   setErrors({ ...errors, phone: '' });
                 }}
+                onBlur={() => {
+                  // Auto-normalize phone number when user finishes typing
+                  if (phone.trim() && isValidVietnamesePhone(phone)) {
+                    const normalized = normalizePhoneNumber(phone);
+                    if (normalized && normalized !== phone) {
+                      setPhone(normalized);
+                    }
+                  }
+                }}
                 placeholder={t('registration.phonePlaceholder')}
                 placeholderTextColor={theme.colors.textTertiary}
                 keyboardType="phone-pad"
@@ -476,18 +642,18 @@ const RegisterScreen = () => {
         <TouchableOpacity
           style={[
             themedStyles.submitButton,
-            isLoading && themedStyles.submitButtonDisabled,
+            (isLoading || otpCooldown > 0) && themedStyles.submitButtonDisabled,
           ]}
           onPress={handleSendOTP}
-          disabled={isLoading}
+          disabled={isLoading || otpCooldown > 0}
         >
-          {isLoading ? (
-            <ActivityIndicator size="small" color={theme.colors.textInverse} />
-          ) : (
-            <Text style={themedStyles.submitButtonText}>
-              {t('registration.continue')}
-            </Text>
-          )}
+          <Text style={themedStyles.submitButtonText}>
+            {isLoading
+              ? t('common.loading')
+              : otpCooldown > 0
+              ? t('registration.resendAfter', { seconds: otpCooldown })
+              : t('registration.continue')}
+          </Text>
         </TouchableOpacity>
 
         <View style={themedStyles.footer}>
@@ -502,6 +668,25 @@ const RegisterScreen = () => {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={errorModal.visible}
+        onClose={() => setErrorModal({ ...errorModal, visible: false })}
+        title={errorModal.title}
+        message={errorModal.message}
+        type={errorModal.type}
+      />
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={successModal.visible}
+        onClose={handleSuccessModalClose}
+        title={successModal.title}
+        message={successModal.message}
+        countdown={2}
+        onCountdownComplete={handleSuccessModalClose}
+      />
     </KeyboardAvoidingView>
   );
 };

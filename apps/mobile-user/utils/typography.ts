@@ -97,19 +97,32 @@ export const Typography = StyleSheet.create({
     lineHeight: 20,
   } as TextStyle,
 
-  // Labels & Captions
+  // Labels & Captions - Form Labels (using Space Grotesk)
   label: {
-    fontFamily: FontFamily.interMedium,
+    fontFamily: FontFamily.spaceGroteskMedium,
     fontSize: 14,
     lineHeight: 20,
     letterSpacing: 0.1,
   } as TextStyle,
 
   labelSmall: {
-    fontFamily: FontFamily.interMedium,
+    fontFamily: FontFamily.spaceGroteskMedium,
     fontSize: 12,
     lineHeight: 16,
     letterSpacing: 0.2,
+  } as TextStyle,
+
+  // Footer Text - for "Already have account?", "Don't have account?" etc.
+  footerText: {
+    fontFamily: FontFamily.spaceGroteskRegular,
+    fontSize: 16,
+    lineHeight: 24,
+  } as TextStyle,
+
+  footerTextBold: {
+    fontFamily: FontFamily.spaceGroteskSemiBold,
+    fontSize: 16,
+    lineHeight: 24,
   } as TextStyle,
 
   caption: {

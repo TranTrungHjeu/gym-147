@@ -19,7 +19,7 @@ class MemberService {
       }
 
       // Try to get member profile
-      const response = await memberApiService.get('/members/profile');
+      const response = await memberApiService.get('/profile');
 
       if (response.data && (response.data as any).id) {
         console.log('Member exists:', (response.data as any).id);
@@ -29,8 +29,13 @@ class MemberService {
       console.log('❌ Member not found');
       return false;
     } catch (error: any) {
-      console.log('❌ Error checking member existence:', error.message);
-      // If 404 or any error, assume member doesn't exist
+      // 404 means member doesn't exist (expected for new users)
+      if (error.status === 404) {
+        console.log('ℹ️ Member profile not found (404) - user needs to complete registration');
+        return false;
+      }
+      // Other errors (500, 502, etc.) should be logged but also return false
+      console.log('❌ Error checking member existence:', error.message, 'Status:', error.status);
       return false;
     }
   }
@@ -69,7 +74,7 @@ class MemberService {
           try {
             // Try to get member data by user_id
             const memberResponse = await memberApiService.get(
-              `/members/user/${userData.id}`
+              `/user/${userData.id}`
             );
             console.log('🔑 Member Service response:', memberResponse);
 
@@ -102,7 +107,7 @@ class MemberService {
 
         // Fallback to Member Service endpoints
         try {
-          response = await memberApiService.get('/members/profile');
+          response = await memberApiService.get('/profile');
           console.log('🔑 Member Service profile response:', response);
         } catch (memberError: any) {
           console.log('🔑 Member Service failed:', memberError.message);
@@ -166,7 +171,7 @@ class MemberService {
     data: Partial<Member>
   ): Promise<{ success: boolean; data?: Member; error?: string }> {
     try {
-      const response = await memberApiService.put('/members/profile', data);
+      const response = await memberApiService.put('/profile', data);
       return { success: true, data: response.data as Member };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -182,7 +187,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/members/profile/stats');
+      const response = await memberApiService.get('/profile/stats');
       return { success: true, data: response.data as MemberStats };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -199,7 +204,7 @@ class MemberService {
   }> {
     try {
       const response = await memberApiService.put(
-        '/members/preferences/ai-class-recommendations'
+        '/preferences/ai-class-recommendations'
       );
       return {
         success: true,
@@ -221,7 +226,7 @@ class MemberService {
     offset?: number;
   }): Promise<{ success: boolean; data?: GymSession[]; error?: string }> {
     try {
-      const response = await memberApiService.get('/members/sessions', {
+      const response = await memberApiService.get('/sessions', {
         params,
       });
       return {
@@ -242,7 +247,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/members/sessions/current');
+      const response = await memberApiService.get('/sessions/current');
       return { success: true, data: response.data as GymSession };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -258,7 +263,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.post('/members/sessions/entry');
+      const response = await memberApiService.post('/sessions/entry');
       return { success: true, data: response.data as GymSession };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -274,7 +279,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.post('/members/sessions/exit');
+      const response = await memberApiService.post('/sessions/exit');
       return { success: true, data: response.data as GymSession };
     } catch (error: any) {
       return { success: false, error: error.message };
@@ -288,7 +293,7 @@ class MemberService {
     period: 'week' | 'month' | 'year' = 'month'
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await memberApiService.get('/members/sessions/stats', {
+      const response = await memberApiService.get('/sessions/stats', {
         params: { period },
       });
       return { success: true, data: response.data as GymSession };
@@ -325,7 +330,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.get('/members/onboarding/status');
+      const response = await memberApiService.get('/onboarding/status');
       return {
         success: true,
         data: response.data,
@@ -353,7 +358,7 @@ class MemberService {
   }> {
     try {
       const response = await memberApiService.patch(
-        '/members/onboarding/progress',
+        '/onboarding/progress',
         {
           step,
           completed,
@@ -378,7 +383,7 @@ class MemberService {
     filename: string = 'avatar.jpg'
   ): Promise<{ success: boolean; data?: any; error?: string }> {
     try {
-      const response = await memberApiService.post('/members/avatar/upload', {
+      const response = await memberApiService.post('/avatar/upload', {
         base64Image,
         mimeType,
         filename,

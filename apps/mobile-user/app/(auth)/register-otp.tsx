@@ -1,12 +1,14 @@
 import { OTPInput } from '@/components/OTPInput';
+import { SuccessModal } from '@/components/SuccessModal';
+import { ErrorModal } from '@/components/ErrorModal';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,6 +24,8 @@ const RegisterOTPScreen = () => {
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [otpCooldown, setOtpCooldown] = useState(0); // Cooldown timer in seconds
+  const [resendLoading, setResendLoading] = useState(false);
 
   const email = params.email as string;
   const phone = params.phone as string;
@@ -31,6 +35,89 @@ const RegisterOTPScreen = () => {
   const primaryMethod = params.primaryMethod as 'EMAIL' | 'PHONE';
 
   const identifier = primaryMethod === 'EMAIL' ? email : phone;
+
+  // Load cooldown from AsyncStorage on component mount
+  useEffect(() => {
+    const loadCooldown = async () => {
+      try {
+        if (!identifier) return;
+
+        const cooldownKey = `otp_cooldown_${identifier}_${primaryMethod}`;
+        const savedCooldown = await AsyncStorage.getItem(cooldownKey);
+
+        if (savedCooldown) {
+          try {
+            const { expiresAt } = JSON.parse(savedCooldown);
+            const now = Date.now();
+            const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
+
+            if (remaining > 0) {
+              setOtpCooldown(remaining);
+            } else {
+              await AsyncStorage.removeItem(cooldownKey);
+            }
+          } catch (error) {
+            await AsyncStorage.removeItem(cooldownKey);
+          }
+        }
+      } catch (error) {
+        // Ignore error
+      }
+    };
+
+    loadCooldown();
+  }, [identifier, primaryMethod]);
+
+  // Cooldown timer effect
+  useEffect(() => {
+    if (otpCooldown > 0) {
+      const timer = setTimeout(() => {
+        setOtpCooldown(otpCooldown - 1);
+      }, 1000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [otpCooldown]);
+
+  // Save cooldown to AsyncStorage
+  useEffect(() => {
+    const saveCooldown = async () => {
+      try {
+        if (!identifier) return;
+
+        const cooldownKey = `otp_cooldown_${identifier}_${primaryMethod}`;
+
+        if (otpCooldown > 0) {
+          const expiresAt = Date.now() + otpCooldown * 1000;
+          await AsyncStorage.setItem(
+            cooldownKey,
+            JSON.stringify({ expiresAt })
+          );
+        } else {
+          await AsyncStorage.removeItem(cooldownKey);
+        }
+      } catch (error) {
+        // Ignore error
+      }
+    };
+
+    saveCooldown();
+  }, [otpCooldown, identifier, primaryMethod]);
+
+  // Success modal state for resend OTP
+  const [successModal, setSuccessModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+  });
+
+  // Error modal state for resend OTP errors
+  const [errorModal, setErrorModal] = useState({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'error' as 'email' | 'phone' | 'error' | 'warning',
+  });
 
   const handleOTPComplete = async (otp: string) => {
     setIsLoading(true);
@@ -53,24 +140,16 @@ const RegisterOTPScreen = () => {
         otp,
       });
 
-      Alert.alert(t('common.success'), t('registration.accountCreated'), [
-        {
-          text: t('common.ok'),
-          onPress: () => {
-            // Navigate to plan selection with user data
-            router.push({
-              pathname: '/(auth)/register-plan',
-              params: {
-                userId: response.data.user.id,
-                accessToken: response.data.accessToken,
-                refreshToken: response.data.refreshToken,
-              },
-            });
-          },
+      // Navigate to plan selection with user data
+      router.push({
+        pathname: '/(auth)/register-plan',
+        params: {
+          userId: response.data.user.id,
+          accessToken: response.data.accessToken,
+          refreshToken: response.data.refreshToken,
         },
-      ]);
+      });
     } catch (error: any) {
-      console.error('OTP verification error:', error);
       setError(
         error.response?.data?.message || t('registration.otpVerificationFailed')
       );
@@ -80,24 +159,55 @@ const RegisterOTPScreen = () => {
   };
 
   const handleResendOTP = async () => {
+    // Check cooldown
+    if (otpCooldown > 0) {
+      return;
+    }
+
+    setResendLoading(true);
+    setError('');
     try {
       // Import from services/identity/api.service.ts
       const { identityApiService } = await import(
         '@/services/identity/api.service'
       );
 
-      await identityApiService.post('/auth/send-otp', {
+      const response = await identityApiService.post('/auth/send-otp', {
         identifier,
         type: primaryMethod,
       });
 
-      Alert.alert(t('common.success'), t('registration.otpResent'));
+      // Set cooldown from response or default to 60 seconds
+      const retryAfter = response.data?.data?.retryAfter || 60;
+      setOtpCooldown(retryAfter);
+
+      // Show success modal
+      setSuccessModal({
+        visible: true,
+        title: t('common.success'),
+        message: t('registration.otpResent') || t('registration.otpSent'),
+      });
     } catch (error: any) {
-      console.error('Resend OTP error:', error);
-      Alert.alert(
-        t('common.error'),
-        error.response?.data?.message || t('registration.otpResendFailed')
-      );
+      const errorMessage =
+        error.response?.data?.message || 
+        error.message || 
+        t('registration.otpResendFailed');
+
+      // Handle rate limit error - extract cooldown from response
+      if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
+        const retryAfter = error.response.data.data.retryAfter;
+        setOtpCooldown(retryAfter);
+      }
+
+      // Show error modal
+      setErrorModal({
+        visible: true,
+        title: t('common.error'),
+        message: errorMessage,
+        type: 'error',
+      });
+    } finally {
+      setResendLoading(false);
     }
   };
 
@@ -206,7 +316,7 @@ const RegisterOTPScreen = () => {
           onResend={handleResendOTP}
           isLoading={isLoading}
           error={error}
-          resendDelay={60}
+          resendDelay={otpCooldown || 60}
         />
       </View>
 
@@ -215,6 +325,24 @@ const RegisterOTPScreen = () => {
           {t('registration.otpExpiresIn', { minutes: 5 })}
         </Text>
       </View>
+
+      {/* Success Modal for Resend OTP */}
+      <SuccessModal
+        visible={successModal.visible}
+        onClose={() => setSuccessModal({ ...successModal, visible: false })}
+        title={successModal.title}
+        message={successModal.message}
+        countdown={2}
+      />
+
+      {/* Error Modal for Resend OTP Errors */}
+      <ErrorModal
+        visible={errorModal.visible}
+        onClose={() => setErrorModal({ ...errorModal, visible: false })}
+        title={errorModal.title}
+        message={errorModal.message}
+        type={errorModal.type}
+      />
     </ScrollView>
   );
 };

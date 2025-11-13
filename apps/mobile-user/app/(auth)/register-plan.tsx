@@ -1,4 +1,6 @@
+import { ConfirmLogoutModal } from '@/components/ConfirmLogoutModal';
 import { PlanCard } from '@/components/PlanCard';
+import { useAuth } from '@/contexts/AuthContext';
 import { billingService } from '@/services/billing/billing.service';
 import { MembershipPlan } from '@/types/billingTypes';
 import { getTokens } from '@/utils/auth/storage';
@@ -10,6 +12,8 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  BackHandler,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -22,12 +26,15 @@ const RegisterPlanScreen = () => {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { logout } = useAuth();
 
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<MembershipPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [accessToken, setAccessToken] = useState<string>(params.accessToken as string);
   const [refreshToken, setRefreshToken] = useState<string>(params.refreshToken as string);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const userId = params.userId as string;
 
@@ -48,6 +55,24 @@ const RegisterPlanScreen = () => {
   useEffect(() => {
     fetchPlans();
   }, []);
+
+  // Handle Android hardware back button
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        if (showLogoutModal) {
+          // Nếu modal đang mở, đóng modal thay vì logout
+          handleCloseLogoutModal();
+          return true;
+        }
+        // Nếu modal đóng, hiển thị modal xác nhận
+        handleBack();
+        return true; // Prevent default back behavior
+      });
+
+      return () => backHandler.remove();
+    }
+  }, [showLogoutModal]);
 
   const fetchPlans = async () => {
     try {
@@ -81,6 +106,34 @@ const RegisterPlanScreen = () => {
         durationMonths: selectedPlan.duration_months.toString(),
       },
     });
+  };
+
+  const handleBack = () => {
+    // Hiển thị modal xác nhận trước khi logout
+    setShowLogoutModal(true);
+  };
+
+  const handleConfirmLogout = async () => {
+    setIsLoggingOut(true);
+    try {
+      // Logout và clear auth data
+      await logout();
+      // Redirect về màn hình đăng nhập
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Vẫn redirect về login ngay cả khi logout API fail
+      router.replace('/(auth)/login');
+    } finally {
+      setIsLoggingOut(false);
+      setShowLogoutModal(false);
+    }
+  };
+
+  const handleCloseLogoutModal = () => {
+    if (!isLoggingOut) {
+      setShowLogoutModal(false);
+    }
   };
 
   const themedStyles = StyleSheet.create({
@@ -197,7 +250,7 @@ const RegisterPlanScreen = () => {
         <View style={themedStyles.header}>
           <TouchableOpacity
             style={themedStyles.backButton}
-            onPress={() => router.back()}
+            onPress={handleBack}
           >
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
@@ -236,6 +289,14 @@ const RegisterPlanScreen = () => {
           </Text>
         </TouchableOpacity>
       </View>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmLogoutModal
+        visible={showLogoutModal}
+        onClose={handleCloseLogoutModal}
+        onConfirm={handleConfirmLogout}
+        loading={isLoggingOut}
+      />
     </View>
   );
 };
