@@ -19,7 +19,7 @@ import {
   Wrench,
   Zap,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import Modal from '../../components/Modal/Modal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
@@ -27,6 +27,9 @@ import EquipmentIcon from '../../components/equipment/EquipmentIcon';
 import EquipmentFormModal from '../../components/modals/EquipmentFormModal';
 import useTranslation from '../../hooks/useTranslation';
 import { Equipment, equipmentService } from '../../services/equipment.service';
+import { TableLoading } from '../../components/ui/AppLoading';
+import ExportButton from '../../components/common/ExportButton';
+import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const EquipmentManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -301,6 +304,82 @@ const EquipmentManagement: React.FC = () => {
     }
   };
 
+  // Get status label
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'AVAILABLE':
+        return 'Sẵn sàng';
+      case 'IN_USE':
+        return 'Đang sử dụng';
+      case 'MAINTENANCE':
+        return 'Bảo trì';
+      case 'OUT_OF_ORDER':
+        return 'Hỏng';
+      case 'RESERVED':
+        return 'Đã đặt';
+      default:
+        return status;
+    }
+  };
+
+  // Get category label
+  const getCategoryLabel = (category: string) => {
+    switch (category) {
+      case 'CARDIO':
+        return 'Cardio';
+      case 'STRENGTH':
+        return 'Sức mạnh';
+      case 'FREE_WEIGHTS':
+        return 'Tạ tự do';
+      case 'FUNCTIONAL':
+        return 'Chức năng';
+      case 'STRETCHING':
+        return 'Kéo giãn';
+      case 'RECOVERY':
+        return 'Phục hồi';
+      case 'SPECIALIZED':
+        return 'Chuyên dụng';
+      default:
+        return category;
+    }
+  };
+
+  // Prepare export data
+  const getExportData = useCallback(() => {
+    const exportEquipment = filteredEquipment.length > 0 ? filteredEquipment : equipment;
+    
+    return exportEquipment.map(eq => ({
+      'Tên thiết bị': eq.name || 'N/A',
+      'Danh mục': getCategoryLabel(eq.category || ''),
+      'Trạng thái': getStatusLabel(eq.status || ''),
+      'Vị trí': eq.location || 'N/A',
+      'Thương hiệu': eq.brand || 'N/A',
+      'Model': eq.model || 'N/A',
+      'Giờ sử dụng': eq.usage_hours || 0,
+      'Ngày mua': eq.purchase_date ? formatVietnamDateTime(eq.purchase_date, 'date') : 'N/A',
+      'Bảo hành đến': eq.warranty_until ? formatVietnamDateTime(eq.warranty_until, 'date') : 'N/A',
+      'Bảo trì cuối': eq.last_maintenance ? formatVietnamDateTime(eq.last_maintenance, 'date') : 'N/A',
+      'Bảo trì tiếp theo': eq.next_maintenance ? formatVietnamDateTime(eq.next_maintenance, 'date') : 'N/A',
+      'Ngày tạo': eq.created_at ? formatVietnamDateTime(eq.created_at, 'datetime') : 'N/A',
+    }));
+  }, [filteredEquipment, equipment]);
+
+  // Export columns definition
+  const exportColumns = [
+    { key: 'Tên thiết bị', label: 'Tên thiết bị' },
+    { key: 'Danh mục', label: 'Danh mục' },
+    { key: 'Trạng thái', label: 'Trạng thái' },
+    { key: 'Vị trí', label: 'Vị trí' },
+    { key: 'Thương hiệu', label: 'Thương hiệu' },
+    { key: 'Model', label: 'Model' },
+    { key: 'Giờ sử dụng', label: 'Giờ sử dụng' },
+    { key: 'Ngày mua', label: 'Ngày mua' },
+    { key: 'Bảo hành đến', label: 'Bảo hành đến' },
+    { key: 'Bảo trì cuối', label: 'Bảo trì cuối' },
+    { key: 'Bảo trì tiếp theo', label: 'Bảo trì tiếp theo' },
+    { key: 'Ngày tạo', label: 'Ngày tạo' },
+  ];
+
   return (
     <div className='p-6 space-y-6'>
       {/* Header */}
@@ -321,6 +400,16 @@ const EquipmentManagement: React.FC = () => {
             <RefreshCw className='w-4 h-4' />
             {t('equipmentManagement.filter.refresh')}
           </button>
+          {filteredEquipment.length > 0 && (
+            <ExportButton
+              data={getExportData()}
+              columns={exportColumns}
+              filename='danh-sach-thiet-bi'
+              title='Danh sách Thiết bị'
+              variant='outline'
+              size='sm'
+            />
+          )}
           <button
             onClick={handleCreate}
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
@@ -399,11 +488,7 @@ const EquipmentManagement: React.FC = () => {
 
       {/* Equipment List */}
       {isLoading ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
-          <div className='text-center text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-            {t('common.loading')}
-          </div>
-        </div>
+        <TableLoading text={t('common.loading')} />
       ) : filteredEquipment.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='text-center text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
@@ -719,7 +804,7 @@ const EquipmentManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-medium font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
+                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
                 >
                   <ChevronLeft className='w-4 h-4' />
                   {t('common.prev')}
@@ -727,7 +812,7 @@ const EquipmentManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-medium font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
+                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
                 >
                   {t('common.next')}
                   <ChevronRight className='w-4 h-4' />
