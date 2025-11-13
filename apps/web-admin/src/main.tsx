@@ -5,7 +5,7 @@ import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
 import './locales/i18n'; // Initialize i18n
 createRoot(document.getElementById('root')!).render(
-  <BrowserRouter future={{ v7_startTransition: true }}>
+  <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <HelmetProvider>
       <ThemeProvider>
         <App />

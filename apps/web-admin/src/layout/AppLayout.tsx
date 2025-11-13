@@ -102,6 +102,18 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             }
           });
 
+          socket.on('certification:deleted', (data: any) => {
+            console.log('📢 certification:deleted event received in AppLayout:', data);
+            // Dispatch certification:deleted for optimistic updates
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('certification:deleted', { detail: data }));
+            }
+            // Also dispatch notification:new for NotificationDropdown
+            if (window.dispatchEvent) {
+              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            }
+          });
+
           // Listen for notification:new event (primary event for notifications)
           socket.on('notification:new', (data: any) => {
             console.log('📢 notification:new event received in AppLayout:', data);
@@ -119,6 +131,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             socket.off('certification:pending');
             socket.off('certification:verified');
             socket.off('certification:rejected');
+            socket.off('certification:deleted');
             socket.off('notification:new');
             // Don't disconnect here - socket is shared across components
           };

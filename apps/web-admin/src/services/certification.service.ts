@@ -144,17 +144,6 @@ class CertificationService {
   }
 
   /**
-   * Delete certification
-   */
-  async deleteCertification(certId: string): Promise<void> {
-    try {
-      await scheduleApi.delete(`/certifications/${certId}`);
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  /**
    * Get all pending certifications for admin review
    */
   async getPendingCertifications(params?: {
@@ -333,13 +322,17 @@ class CertificationService {
   /**
    * Delete a certification
    * @param certId - Certification ID
-   * @param reason - Reason for deletion
+   * @param reason - Optional reason for deletion
    */
-  async deleteCertification(certId: string, reason: string): Promise<void> {
+  async deleteCertification(certId: string, reason?: string): Promise<void> {
     try {
-      await scheduleApi.delete(`/certifications/${certId}`, {
-        data: { reason },
-      });
+      if (reason) {
+        await scheduleApi.delete(`/certifications/${certId}`, {
+          data: { reason },
+        });
+      } else {
+        await scheduleApi.delete(`/certifications/${certId}`);
+      }
     } catch (error) {
       throw error;
     }

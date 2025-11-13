@@ -650,21 +650,27 @@ class ScheduleService {
   // Admin Schedule Management APIs
   async getAllSchedules(filters?: {
     date?: string;
+    from_date?: string;
+    to_date?: string;
     status?: string;
     class_id?: string;
     trainer_id?: string;
     room_id?: string;
     page?: number;
     limit?: number;
+    search?: string;
   }): Promise<ApiResponse<ScheduleItem[] | { schedules: ScheduleItem[]; pagination?: any }>> {
     const params = new URLSearchParams();
     if (filters?.date) params.append('date', filters.date);
+    if (filters?.from_date) params.append('from_date', filters.from_date);
+    if (filters?.to_date) params.append('to_date', filters.to_date);
     if (filters?.status) params.append('status', filters.status);
     if (filters?.class_id) params.append('class_id', filters.class_id);
     if (filters?.trainer_id) params.append('trainer_id', filters.trainer_id);
     if (filters?.room_id) params.append('room_id', filters.room_id);
     if (filters?.page) params.append('page', filters.page.toString());
     if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.search) params.append('search', filters.search);
 
     return this.request<ScheduleItem[] | { schedules: ScheduleItem[]; pagination?: any }>(
       `/schedules?${params}`
@@ -743,6 +749,23 @@ class ScheduleService {
   }
 
   // Booking APIs
+  async getAllBookings(filters?: {
+    status?: string;
+    class_id?: string;
+    member_id?: string;
+    limit?: number;
+    page?: number;
+  }): Promise<ApiResponse<{ bookings: any[] } | any[]>> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.class_id) params.append('class_id', filters.class_id);
+    if (filters?.member_id) params.append('member_id', filters.member_id);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.page) params.append('page', filters.page.toString());
+
+    return this.request<{ bookings: any[] } | any[]>(`/bookings?${params}`);
+  }
+
   async getTrainerBookings(status?: string, classId?: string): Promise<ApiResponse<any[]>> {
     const params = new URLSearchParams();
     if (status) params.append('status', status);

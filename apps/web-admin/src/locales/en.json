@@ -175,6 +175,12 @@
       "active": "Active",
       "inactive": "Inactive"
     },
+    "badges": {
+      "view": "View",
+      "members": "Members",
+      "classes": "Classes",
+      "noEmail": "No email provided"
+    },
     "empty": {
       "selectUser": "Select a user to view details",
       "description": "User details will be displayed here",

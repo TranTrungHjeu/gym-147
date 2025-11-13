@@ -6,6 +6,7 @@ import {
   Clock,
   CreditCard,
   Dumbbell,
+  FolderOpen,
   GraduationCap,
   Grid3X3,
   LayoutDashboard,
@@ -107,19 +108,18 @@ const AppSidebar: React.FC = () => {
         path: dashboardPath,
       },
       {
-        icon: <Users className='w-5 h-5' />,
-        name: 'Thành viên',
-        path: '/management/members',
+        icon: <FolderOpen className='w-5 h-5' />,
+        name: 'Quản lý',
+        subItems: [
+          { name: 'Thành viên', path: '/management/users' },
+          { name: 'Huấn luyện viên', path: '/management/trainers' },
+          { name: 'Khách hàng', path: '/management/members' },
+        ],
       },
       {
         icon: <Dumbbell className='w-5 h-5' />,
         name: 'Thiết bị',
         path: '/management/equipment',
-      },
-      {
-        icon: <GraduationCap className='w-5 h-5' />,
-        name: 'Huấn luyện viên',
-        path: '/management/trainers',
       },
       {
         icon: <BookOpen className='w-5 h-5' />,
@@ -144,7 +144,15 @@ const AppSidebar: React.FC = () => {
       {
         icon: <BarChart3 className='w-5 h-5' />,
         name: 'Báo cáo',
-        path: '/management/reports',
+        subItems: [
+          { name: 'Tổng quan', path: '/management/reports' },
+          { name: 'Người dùng', path: '/management/reports/users' },
+          { name: 'Hệ thống', path: '/management/reports/system' },
+          { name: 'Doanh thu', path: '/management/reports/revenue' },
+          { name: 'Thành viên', path: '/management/reports/members' },
+          { name: 'Lớp học', path: '/management/reports/classes' },
+          { name: 'Thiết bị', path: '/management/reports/equipment' },
+        ],
       },
       {
         icon: <Settings className='w-5 h-5' />,
@@ -227,7 +235,7 @@ const AppSidebar: React.FC = () => {
     if (!submenuMatched) {
       setOpenSubmenu(null);
     }
-  }, [location, isActive]);
+  }, [location, isActive, navItems, othersItems]);
 
   useEffect(() => {
     if (openSubmenu !== null) {

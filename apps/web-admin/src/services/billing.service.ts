@@ -288,6 +288,42 @@ class BillingService {
     return response;
   }
 
+  async getRevenueByPlan(filters?: {
+    from?: string;
+    to?: string;
+    period?: number;
+  }): Promise<ApiResponse<{
+    plans: Array<{
+      planId: string;
+      planName: string;
+      revenue: number;
+      transactions: number;
+    }>;
+    totalRevenue: number;
+    totalTransactions: number;
+  }>> {
+    const params = new URLSearchParams();
+    if (filters?.from) params.append('from', filters.from);
+    if (filters?.to) params.append('to', filters.to);
+    if (filters?.period) params.append('period', filters.period.toString());
+
+    const response = await this.request<any>(`/analytics/revenue-by-plan?${params}`);
+    
+    // Transform response data to chart format
+    if (response.success && response.data) {
+      return {
+        ...response,
+        data: {
+          plans: response.data.plans || [],
+          totalRevenue: response.data.totalRevenue || 0,
+          totalTransactions: response.data.totalTransactions || 0,
+        },
+      };
+    }
+    
+    return response;
+  }
+
   async validateCoupon(code: string): Promise<ApiResponse<any>> {
     return this.request<any>('/validate-coupon', 'POST', { code });
   }

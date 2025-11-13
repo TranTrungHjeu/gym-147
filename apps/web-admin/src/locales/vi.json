@@ -172,8 +172,14 @@
       "member": "Member"
     },
     "status": {
-      "active": "Active",
-      "inactive": "Inactive"
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động"
+    },
+    "badges": {
+      "view": "Xem",
+      "members": "Thành viên",
+      "classes": "Lớp học",
+      "noEmail": "Chưa có email"
     },
     "empty": {
       "selectUser": "Chọn một user để xem chi tiết",
