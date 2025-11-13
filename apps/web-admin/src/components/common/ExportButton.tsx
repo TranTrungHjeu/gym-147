@@ -1,6 +1,9 @@
 import React from 'react';
 import { Download, FileText, FileSpreadsheet } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import AdminButton from './AdminButton';
+import { formatVietnamDateTime } from '../../utils/dateTime';
 
 interface ExportOptions {
   format: 'pdf' | 'excel' | 'csv';
@@ -15,10 +18,123 @@ interface ExportOptions {
 
 const ExportUtils = {
   exportToPDF: async (options: ExportOptions) => {
-    // TODO: Implement PDF export using jsPDF or similar
-    // For now, just show a message
-    console.log('PDF export not implemented yet', options);
-    alert('Tính năng export PDF đang được phát triển');
+    const { data, columns, filename = 'export', title } = options;
+
+    if (!data || data.length === 0) {
+      alert('Không có dữ liệu để xuất');
+      return;
+    }
+
+    try {
+      // Create new PDF document
+      const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation
+      
+      // Set font for Vietnamese characters
+      doc.setFont('helvetica');
+      
+      // Add title
+      if (title) {
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(title, 14, 15);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        // Add export date
+        const exportDate = formatVietnamDateTime(new Date(), 'datetime');
+        doc.setFontSize(8);
+        doc.text(`Xuất ngày: ${exportDate}`, 14, 22);
+      }
+      
+      // Prepare table data
+      const tableColumns = columns 
+        ? columns.map(col => col.label)
+        : (data.length > 0 ? Object.keys(data[0]) : []);
+      
+      const tableRows = data.map(row => {
+        if (columns) {
+          return columns.map(col => {
+            const value = row[col.key];
+            if (value === null || value === undefined) {
+              return '';
+            }
+            // Format dates if they look like dates
+            if (typeof value === 'string' && (value.includes('T') || value.includes('-'))) {
+              try {
+                const date = new Date(value);
+                if (!isNaN(date.getTime())) {
+                  return formatVietnamDateTime(date, 'datetime');
+                }
+              } catch (e) {
+                // Not a date, return as is
+              }
+            }
+            return String(value);
+          });
+        } else {
+          return Object.values(row).map(value => {
+            if (value === null || value === undefined) {
+              return '';
+            }
+            if (typeof value === 'string' && (value.includes('T') || value.includes('-'))) {
+              try {
+                const date = new Date(value);
+                if (!isNaN(date.getTime())) {
+                  return formatVietnamDateTime(date, 'datetime');
+                }
+              } catch (e) {
+                // Not a date
+              }
+            }
+            return String(value);
+          });
+        }
+      });
+      
+      // Add table using autoTable
+      autoTable(doc, {
+        head: [tableColumns],
+        body: tableRows,
+        startY: title ? 28 : 20,
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+        },
+        headStyles: {
+          fillColor: [249, 115, 22], // Orange color
+          textColor: [255, 255, 255],
+          fontStyle: 'bold',
+          fontSize: 9,
+        },
+        alternateRowStyles: {
+          fillColor: [249, 250, 251],
+        },
+        margin: { top: title ? 28 : 20, left: 14, right: 14 },
+        tableWidth: 'wrap',
+        showHead: 'everyPage',
+        theme: 'striped',
+      });
+      
+      // Add page numbers
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.text(
+          `Trang ${i} / ${pageCount}`,
+          doc.internal.pageSize.getWidth() / 2,
+          doc.internal.pageSize.getHeight() - 10,
+          { align: 'center' }
+        );
+      }
+      
+      // Save PDF
+      doc.save(`${filename}_${formatVietnamDateTime(new Date(), 'date').replace(/\//g, '-')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting PDF:', error);
+      alert('Không thể xuất PDF. Vui lòng thử lại.');
+    }
   },
 
   exportToExcel: (options: ExportOptions) => {
@@ -139,13 +255,23 @@ const ExportButton: React.FC<ExportButtonProps> = ({
   size = 'md',
 }) => {
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
-    ExportUtils.exportToExcel({
-      format,
-      filename,
-      data,
-      columns,
-      title,
-    });
+    if (format === 'pdf') {
+      ExportUtils.exportToPDF({
+        format,
+        filename,
+        data,
+        columns,
+        title,
+      });
+    } else {
+      ExportUtils.exportToExcel({
+        format,
+        filename,
+        data,
+        columns,
+        title,
+      });
+    }
   };
 
   return (
