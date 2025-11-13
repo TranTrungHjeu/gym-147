@@ -28,12 +28,14 @@ import AdminCard from '../../components/common/AdminCard';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
 import Pagination from '../../components/common/Pagination';
+import StatusBadge from '../../components/common/StatusBadge';
 import TrainerFormModal from '../../components/modals/TrainerFormModal';
 import ReviewCertificationModal from '../../components/modals/ReviewCertificationModal';
 import ViewTrainerCertificationsModal from '../../components/modals/ViewTrainerCertificationsModal';
 import { useToast } from '../../hooks/useToast';
 import { Trainer, trainerService } from '../../services/trainer.service';
 import { certificationService, Certification } from '../../services/certification.service';
+import { TableLoading } from '../../components/ui/AppLoading';
 
 const TrainerManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -169,14 +171,8 @@ const TrainerManagement: React.FC = () => {
           updated[trainerId] = [newCert, ...updated[trainerId]];
           console.log(`✅ [TRAINER_MGMT] Added pending certification ${certId} for trainer ${trainerId} optimistically`);
         } else if (action === 'remove') {
-          // Remove certification from pending (verified or rejected)
-          if (updated[trainerId]) {
-            updated[trainerId] = updated[trainerId].filter(cert => cert.id !== certId);
-            if (updated[trainerId].length === 0) {
-              delete updated[trainerId];
-            }
-            console.log(`✅ [TRAINER_MGMT] Removed pending certification ${certId} for trainer ${trainerId} optimistically`);
-          }
+          // Remove certification from pending (verified, rejected, or deleted)
+          removePendingCertOptimistically(certData);
         } else if (action === 'update') {
           // Update certification status
           if (updated[trainerId]) {
@@ -677,14 +673,32 @@ const TrainerManagement: React.FC = () => {
       }
     };
 
+    const handleCertificationDeleted = (event: CustomEvent) => {
+      console.log('📢 certification:deleted event received in TrainerManagement:', event.detail);
+      const data = event.detail;
+
+      // Remove certification from pending list optimistically (no reload)
+      removePendingCertOptimistically(data);
+
+      // Background sync after delay
+      if (reloadTimeout) {
+        clearTimeout(reloadTimeout);
+      }
+      reloadTimeout = setTimeout(() => {
+        loadPendingCertifications();
+      }, 1500);
+    };
+
     // Listen to custom events (dispatched by AppLayout from socket events)
     // This is more reliable than accessing socket directly
     window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
     window.addEventListener('certification:created', handleCertificationCreated as EventListener);
+    window.addEventListener('certification:deleted', handleCertificationDeleted as EventListener);
 
     return () => {
       window.removeEventListener('certification:updated', handleCertificationUpdated as EventListener);
       window.removeEventListener('certification:created', handleCertificationCreated as EventListener);
+      window.removeEventListener('certification:deleted', handleCertificationDeleted as EventListener);
       if (reloadTimeout) {
         clearTimeout(reloadTimeout);
       }
@@ -1060,7 +1074,7 @@ const TrainerManagement: React.FC = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className='w-full h-[42px] py-2 pl-9 pr-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
 
@@ -1114,14 +1128,7 @@ const TrainerManagement: React.FC = () => {
 
       {/* Trainers List */}
       {isLoading ? (
-        <AdminCard padding='md' className='text-center'>
-          <div className='flex flex-col items-center justify-center py-12'>
-            <div className='w-8 h-8 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin mb-4' />
-            <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-              Đang tải...
-            </div>
-          </div>
-        </AdminCard>
+        <TableLoading text='Đang tải danh sách trainer...' />
       ) : filteredTrainers.length === 0 ? (
         <AdminCard padding='md' className='text-center'>
           <div className='flex flex-col items-center justify-center py-12'>
@@ -1331,20 +1338,10 @@ const TrainerManagement: React.FC = () => {
                     </div>
                   </AdminTableCell>
                   <AdminTableCell>
-                    <div className='flex items-center'>
-                      <span
-                        className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border ${getStatusColor(
-                          trainer.status
-                        )}`}
-                      >
-                        {trainer.status === 'ACTIVE' ? (
-                          <CheckCircle2 className='w-2 h-2 sm:w-2.5 sm:h-2.5' />
-                        ) : trainer.status === 'INACTIVE' || trainer.status === 'TERMINATED' ? (
-                          <XCircle className='w-2 h-2 sm:w-2.5 sm:h-2.5' />
-                        ) : null}
-                        {getStatusLabel(trainer.status)}
-                      </span>
-                    </div>
+                    <StatusBadge 
+                      status={trainer.status === 'ACTIVE'} 
+                      size='sm' 
+                    />
                   </AdminTableCell>
                   <AdminTableCell className='hidden md:table-cell'>
                     <div className='flex items-center gap-1 sm:gap-1.5'>

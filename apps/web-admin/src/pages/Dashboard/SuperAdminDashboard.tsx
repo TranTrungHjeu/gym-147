@@ -62,7 +62,7 @@ const SuperAdminDashboard: React.FC = () => {
           dashboardService.getRecentActivities().catch(() => ({ success: false, data: [] })),
         ]);
 
-        if (statsData.success) {
+        if (statsData.success && statsData.data) {
           console.log('📊 SuperAdmin stats data received:', statsData.data);
           const statsDataToSet = {
             totalUsers: statsData.data.totalUsers || 0,
@@ -74,7 +74,11 @@ const SuperAdminDashboard: React.FC = () => {
           };
           console.log('📊 Setting stats state:', statsDataToSet);
           setStats(statsDataToSet);
-        } else {
+        } else if (!statsData.success && statsData.message?.includes('temporarily unavailable')) {
+          // Don't show error toast for service unavailable - it's expected during development
+          console.warn('⚠️ Service temporarily unavailable, using default stats');
+        } else if (!statsData.success) {
+          // Only show error for unexpected failures
           showToast(t('dashboard.superAdmin.errors.loadStatsFailed'), 'error');
         }
 
@@ -92,16 +96,26 @@ const SuperAdminDashboard: React.FC = () => {
           });
           setRecentActivities(activitiesData.data.slice(0, 5));
         }
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        showToast(t('dashboard.superAdmin.errors.loadDataError'), 'error');
+      } catch (error: any) {
+        // Only log error, don't show toast for network errors (they're expected if service is down)
+        if (
+          error?.message &&
+          !error.message.includes('Network Error') &&
+          !error.message.includes('temporarily unavailable')
+        ) {
+          console.error('Error fetching dashboard data:', error);
+          showToast(t('dashboard.superAdmin.errors.loadDataError'), 'error');
+        } else {
+          console.warn('Service unavailable, using fallback data:', error?.message);
+        }
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-  }, [showToast]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only fetch once on mount - showToast and t are stable or only used for error handling
 
   const handleCreateAdmin = () => {
     navigate('/create-admin');
@@ -127,8 +141,11 @@ const SuperAdminDashboard: React.FC = () => {
   };
 
   const formatTimeAgo = (timestamp: string) => {
+    // Parse timestamp - assuming it's in UTC from server
     const date = new Date(timestamp);
     const now = new Date();
+
+    // Calculate difference in milliseconds (timezone doesn't matter for difference calculation)
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
     if (diffInSeconds < 60) return t('common.justNow');
@@ -207,26 +224,44 @@ const SuperAdminDashboard: React.FC = () => {
         userName || 'Unknown'
       }`;
     }
-    if (description.startsWith('Logged in using')) {
-      const parts = description.replace('Logged in using', '').trim();
-      if (parts.includes(' at ')) {
-        const [method, location] = parts.split(' at ');
-        return `${t('dashboard.superAdmin.activity.types.loggedIn')} ${method} ${t(
-          'dashboard.superAdmin.activity.types.at'
-        )} ${location}`;
-      }
-      return `${t('dashboard.superAdmin.activity.types.loggedIn')} ${parts}`;
-    }
-    // Fallback to original description if pattern doesn't match
+    // For login activities, we'll handle them in renderActivityDescription
+    // Return the description as-is for now
     return description;
   };
 
   const renderActivityDescription = (activity: any) => {
-    const description = formatActivityDescription(activity);
+    const originalDescription = activity.description || '';
     const role = activity.user?.role;
     const userName = activity.user?.name || 'Unknown';
 
+    // For login activities
+    if (originalDescription.startsWith('Logged in using')) {
+      // Parse IP address from description
+      // Format: "Logged in using PASSWORD at 172.18.0.1"
+      let ipAddress = '';
+      if (originalDescription.includes(' at ')) {
+        const parts = originalDescription.split(' at ');
+        ipAddress = parts[parts.length - 1].trim();
+      }
+
+      return (
+        <>
+          {role && <RoleBadge role={role} size='sm' variant='dashboard' />}
+          <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
+            {userName}
+          </span>
+          {ipAddress && (
+            <>
+              <span className='ml-1.5 text-gray-500 dark:text-gray-400'>:</span>
+              <span className='ml-1.5 text-gray-500 dark:text-gray-400 text-xs'>{ipAddress}</span>
+            </>
+          )}
+        </>
+      );
+    }
+
     // For registration activities, replace only role text with badge, keep description text
+    const description = formatActivityDescription(activity);
     if (
       description.includes(t('dashboard.superAdmin.activity.types.newTrainerRegistered')) ||
       description.includes(t('dashboard.superAdmin.activity.types.newMemberRegistered')) ||

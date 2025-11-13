@@ -4,6 +4,8 @@ import { Settings, Save, Bell, Shield, Database } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
+import { ButtonSpinner } from '../../components/ui/AppLoading';
+import CustomSelect from '../../components/common/CustomSelect';
 
 const SettingsManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -65,30 +67,39 @@ const SettingsManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-6 space-y-6'>
-      <div className='flex justify-between items-center'>
+    <div className='p-3 space-y-3'>
+      {/* Header */}
+      <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
-          <h1 className='text-3xl font-bold font-heading text-gray-900 dark:text-white'>
+          <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
             Cài đặt Hệ thống
           </h1>
-          <p className='text-gray-600 dark:text-gray-400 mt-1 font-inter'>
+          <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
             Cấu hình và quản lý hệ thống
           </p>
         </div>
-        <AdminButton
-          variant='primary'
-          icon={Save}
+        <button
           onClick={saveSettings}
           disabled={isSaving}
-          isLoading={isSaving}
+          className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed'
         >
-          {isSaving ? 'Đang lưu...' : 'Lưu thay đổi'}
-        </AdminButton>
+          {isSaving ? (
+            <>
+              <ButtonSpinner />
+              Đang lưu...
+            </>
+          ) : (
+            <>
+              <Save className='w-4 h-4' />
+              Lưu thay đổi
+            </>
+          )}
+        </button>
       </div>
 
       {/* Tabs */}
-      <div className='border-b border-gray-200 dark:border-gray-800'>
-        <nav className='-mb-px flex space-x-8'>
+      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
+        <nav className='flex space-x-1'>
           {[
             { id: 'general', name: 'Tổng quan', icon: Settings },
             { id: 'notifications', name: 'Thông báo', icon: Bell },
@@ -98,13 +109,13 @@ const SettingsManagement: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-4 px-1 border-b-2 font-medium text-sm font-inter transition-colors duration-200 ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-semibold text-theme-xs font-heading transition-all ${
                 activeTab === tab.id
-                  ? 'border-orange-500 text-orange-600 dark:text-orange-400'
-                  : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 hover:border-gray-300 dark:hover:border-gray-600'
+                  ? 'bg-orange-600 text-white dark:bg-orange-500 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
               }`}
             >
-              <tab.icon className='w-5 h-5' />
+              <tab.icon className='w-4 h-4' />
               {tab.name}
             </button>
           ))}
@@ -114,11 +125,11 @@ const SettingsManagement: React.FC = () => {
       {/* General Settings */}
       {activeTab === 'general' && (
         <AdminCard>
-          <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-6'>
+          <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
             Thông tin phòng gym
           </h3>
           
-          <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
+          <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <AdminInput
               label='Tên phòng gym'
               value={settings.gymName}
@@ -141,44 +152,47 @@ const SettingsManagement: React.FC = () => {
               onChange={e => handleChange('gymEmail', e.target.value)}
             />
             <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-inter'>
+              <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
                 Múi giờ
               </label>
-              <select
+              <CustomSelect
+                options={[
+                  { value: 'Asia/Ho_Chi_Minh', label: 'Asia/Ho_Chi_Minh' },
+                  { value: 'UTC', label: 'UTC' },
+                ]}
                 value={settings.timezone}
-                onChange={e => handleChange('timezone', e.target.value)}
-                className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter'
-              >
-                <option value='Asia/Ho_Chi_Minh'>Asia/Ho_Chi_Minh</option>
-                <option value='UTC'>UTC</option>
-              </select>
+                onChange={value => handleChange('timezone', value)}
+                placeholder='Chọn múi giờ'
+              />
             </div>
             <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-inter'>
+              <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
                 Tiền tệ
               </label>
-              <select
+              <CustomSelect
+                options={[
+                  { value: 'VND', label: 'VND' },
+                  { value: 'USD', label: 'USD' },
+                  { value: 'EUR', label: 'EUR' },
+                ]}
                 value={settings.currency}
-                onChange={e => handleChange('currency', e.target.value)}
-                className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter'
-              >
-                <option value='VND'>VND</option>
-                <option value='USD'>USD</option>
-                <option value='EUR'>EUR</option>
-              </select>
+                onChange={value => handleChange('currency', value)}
+                placeholder='Chọn tiền tệ'
+              />
             </div>
             <div>
-              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-inter'>
+              <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
                 Ngôn ngữ
               </label>
-              <select
+              <CustomSelect
+                options={[
+                  { value: 'vi', label: 'Tiếng Việt' },
+                  { value: 'en', label: 'English' },
+                ]}
                 value={settings.language}
-                onChange={e => handleChange('language', e.target.value)}
-                className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter'
-              >
-                <option value='vi'>Tiếng Việt</option>
-                <option value='en'>English</option>
-              </select>
+                onChange={value => handleChange('language', value)}
+                placeholder='Chọn ngôn ngữ'
+              />
             </div>
           </div>
         </AdminCard>
@@ -187,17 +201,17 @@ const SettingsManagement: React.FC = () => {
       {/* Notifications Settings */}
       {activeTab === 'notifications' && (
         <AdminCard>
-          <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-6'>
+          <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
             Cài đặt thông báo
           </h3>
           
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Bật thông báo
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Cho phép hệ thống gửi thông báo
                 </p>
               </div>
@@ -208,12 +222,12 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Thông báo qua Email
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Gửi thông báo qua email
                 </p>
               </div>
@@ -224,12 +238,12 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Thông báo qua SMS
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Gửi thông báo qua SMS
                 </p>
               </div>
@@ -247,17 +261,17 @@ const SettingsManagement: React.FC = () => {
       {/* Security Settings */}
       {activeTab === 'security' && (
         <AdminCard>
-          <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-6'>
+          <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
             Cài đặt bảo mật
           </h3>
           
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Yêu cầu xác thực 2 bước
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Bắt buộc sử dụng 2FA cho tất cả tài khoản
                 </p>
               </div>
@@ -287,17 +301,17 @@ const SettingsManagement: React.FC = () => {
       {/* Integrations Settings */}
       {activeTab === 'integrations' && (
         <AdminCard>
-          <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-6'>
+          <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
             Tích hợp hệ thống
           </h3>
           
-          <div className='space-y-4'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+          <div className='space-y-3'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Bật API
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Cho phép truy cập API từ bên ngoài
                 </p>
               </div>
@@ -308,12 +322,12 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
-                <label className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
+                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   Bật Webhook
                 </label>
-                <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
+                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
                   Cho phép gửi webhook events
                 </p>
               </div>

@@ -2,6 +2,7 @@ import {
   Activity,
   AlertTriangle,
   Clock,
+  DollarSign,
   Dumbbell,
   GraduationCap,
   LayoutDashboard,
@@ -21,12 +22,21 @@ import CompactMetricCard from '../../components/dashboard/CompactMetricCard';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import MetricCard from '../../components/dashboard/MetricCard';
 import QuickActionCard from '../../components/dashboard/QuickActionCard';
+import RecentBookings from '../../components/dashboard/RecentBookings';
+import RecentPayments from '../../components/dashboard/RecentPayments';
 import SectionHeader from '../../components/dashboard/SectionHeader';
+import ClassAttendanceChart from '../../components/charts/ClassAttendanceChart';
+import EquipmentUsageChart from '../../components/charts/EquipmentUsageChart';
+import RevenueTrendChart from '../../components/charts/RevenueTrendChart';
+import UserGrowthChart from '../../components/charts/UserGrowthChart';
 import { useToast } from '../../hooks/useToast';
 import useTranslation from '../../hooks/useTranslation';
 import { authService } from '../../services/auth.service';
+import { billingService } from '../../services/billing.service';
 import { DashboardStats, dashboardService } from '../../services/dashboard.service';
+import { equipmentService } from '../../services/equipment.service';
 import { scheduleService } from '../../services/schedule.service';
+import { formatRelativeTime } from '../../utils/dateTime';
 import { clearAuthData } from '../../utils/auth';
 
 interface RecentActivity {
@@ -57,6 +67,23 @@ const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isResettingRateLimit, setIsResettingRateLimit] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
+  
+  // Revenue data
+  const [revenueData, setRevenueData] = useState<{ dates: string[]; revenues: number[]; transactions?: number[] } | null>(null);
+  const [billingStats, setBillingStats] = useState<any>(null);
+  const [isLoadingRevenue, setIsLoadingRevenue] = useState(false);
+  
+  // Member growth data
+  const [memberGrowthData, setMemberGrowthData] = useState<{ dates: string[]; newUsers: number[]; activeUsers?: number[] } | null>(null);
+  const [isLoadingMemberGrowth, setIsLoadingMemberGrowth] = useState(false);
+  
+  // Equipment utilization data
+  const [equipmentUsageData, setEquipmentUsageData] = useState<{ status: string; count: number }[]>([]);
+  const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
+  
+  // Class attendance data
+  const [classAttendanceData, setClassAttendanceData] = useState<{ classNames: string[]; attendance: number[][]; dates?: string[] } | null>(null);
+  const [isLoadingClassAttendance, setIsLoadingClassAttendance] = useState(false);
 
   // Fetch dashboard statistics and recent activities
   useEffect(() => {
@@ -154,17 +181,126 @@ const AdminDashboard: React.FC = () => {
   };
 
   const formatTimeAgo = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
-
-    if (diffInSeconds < 60) return t('common.justNow');
-    if (diffInSeconds < 3600)
-      return t('common.minutesAgo', { count: Math.floor(diffInSeconds / 60) });
-    if (diffInSeconds < 86400)
-      return t('common.hoursAgo', { count: Math.floor(diffInSeconds / 3600) });
-    return t('common.daysAgo', { count: Math.floor(diffInSeconds / 86400) });
+    // Use Vietnam timezone utility
+    return formatRelativeTime(timestamp);
   };
+  
+  // Fetch revenue data
+  useEffect(() => {
+    const fetchRevenueData = async () => {
+      try {
+        setIsLoadingRevenue(true);
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const fromDate = lastMonth.toISOString().split('T')[0];
+        const toDate = now.toISOString().split('T')[0];
+        
+        const [trendsResponse, statsResponse] = await Promise.all([
+          billingService.getRevenueTrends({ from: fromDate, to: toDate }).catch(() => ({
+            success: false,
+            data: { dates: [], revenues: [], transactions: [] },
+          })),
+          billingService.getStats().catch(() => ({
+            success: false,
+            data: null,
+          })),
+        ]);
+        
+        if (trendsResponse.success && trendsResponse.data) {
+          setRevenueData(trendsResponse.data);
+        }
+        
+        if (statsResponse.success && statsResponse.data) {
+          setBillingStats(statsResponse.data);
+        }
+      } catch (error) {
+        console.error('Error fetching revenue data:', error);
+      } finally {
+        setIsLoadingRevenue(false);
+      }
+    };
+    
+    fetchRevenueData();
+  }, []);
+  
+  // Fetch member growth data
+  useEffect(() => {
+    const fetchMemberGrowthData = async () => {
+      try {
+        setIsLoadingMemberGrowth(true);
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const fromDate = lastMonth.toISOString().split('T')[0];
+        const toDate = now.toISOString().split('T')[0];
+        
+        const response = await dashboardService.getUserGrowthData({ from: fromDate, to: toDate }).catch(() => ({
+          success: false,
+          data: { dates: [], newUsers: [], activeUsers: [] },
+        }));
+        
+        if (response.success && response.data) {
+          setMemberGrowthData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching member growth data:', error);
+      } finally {
+        setIsLoadingMemberGrowth(false);
+      }
+    };
+    
+    fetchMemberGrowthData();
+  }, []);
+  
+  // Fetch equipment utilization data
+  useEffect(() => {
+    const fetchEquipmentData = async () => {
+      try {
+        setIsLoadingEquipment(true);
+        const response = await equipmentService.getEquipmentUsageData().catch(() => ({
+          success: false,
+          data: [],
+        }));
+        
+        if (response.success && response.data) {
+          setEquipmentUsageData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching equipment data:', error);
+      } finally {
+        setIsLoadingEquipment(false);
+      }
+    };
+    
+    fetchEquipmentData();
+  }, []);
+  
+  // Fetch class attendance data
+  useEffect(() => {
+    const fetchClassAttendanceData = async () => {
+      try {
+        setIsLoadingClassAttendance(true);
+        const now = new Date();
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const fromDate = lastMonth.toISOString().split('T')[0];
+        const toDate = now.toISOString().split('T')[0];
+        
+        const response = await scheduleService.getClassAttendanceData({ from: fromDate, to: toDate }).catch(() => ({
+          success: false,
+          data: { classNames: [], attendance: [], dates: [] },
+        }));
+        
+        if (response.success && response.data) {
+          setClassAttendanceData(response.data);
+        }
+      } catch (error) {
+        console.error('Error fetching class attendance data:', error);
+      } finally {
+        setIsLoadingClassAttendance(false);
+      }
+    };
+    
+    fetchClassAttendanceData();
+  }, []);
 
   const getActivityIcon = (description: string) => {
     if (description.includes('New trainer registered:')) {
@@ -292,7 +428,7 @@ const AdminDashboard: React.FC = () => {
         />
 
         {/* Top Primary Metrics */}
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+        <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
           <MetricCard
             icon={GraduationCap}
             label={t('dashboard.admin.metrics.trainer')}
@@ -316,6 +452,14 @@ const AdminDashboard: React.FC = () => {
             iconBgColor='bg-orange-100 dark:bg-orange-900/30'
             iconColor='text-orange-600 dark:text-orange-400'
             isLoading={isLoading}
+          />
+          <MetricCard
+            icon={DollarSign}
+            label='Doanh thu tháng'
+            value={billingStats?.monthly_revenue ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billingStats.monthly_revenue) : '0₫'}
+            iconBgColor='bg-green-100 dark:bg-green-900/30'
+            iconColor='text-green-600 dark:text-green-400'
+            isLoading={isLoadingRevenue}
           />
         </div>
 
@@ -346,6 +490,62 @@ const AdminDashboard: React.FC = () => {
                   iconBgColor='bg-orange-100 dark:bg-orange-900/30'
                   iconColor='text-orange-600 dark:text-orange-400'
                   onClick={handleCreateTrainer}
+                />
+              </div>
+            </div>
+
+            {/* Revenue Charts Section */}
+            <div className='space-y-2'>
+              <SectionHeader
+                icon={DollarSign}
+                title='Doanh thu & Thống kê'
+                subtitle='Biểu đồ doanh thu và thống kê tài chính'
+              />
+              <RevenueTrendChart
+                data={revenueData || undefined}
+                loading={isLoadingRevenue}
+                height={300}
+              />
+            </div>
+
+            {/* Member Growth Charts Section */}
+            <div className='space-y-2'>
+              <SectionHeader
+                icon={TrendingUp}
+                title='Tăng trưởng Thành viên'
+                subtitle='Biểu đồ tăng trưởng thành viên theo thời gian'
+              />
+              <UserGrowthChart
+                data={memberGrowthData || undefined}
+                loading={isLoadingMemberGrowth}
+                height={300}
+              />
+            </div>
+
+            {/* Equipment & Class Statistics */}
+            <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
+              <div className='space-y-2'>
+                <SectionHeader
+                  icon={Dumbbell}
+                  title='Sử dụng Thiết bị'
+                  subtitle='Thống kê trạng thái thiết bị'
+                />
+                <EquipmentUsageChart
+                  data={equipmentUsageData}
+                  loading={isLoadingEquipment}
+                  height={300}
+                />
+              </div>
+              <div className='space-y-2'>
+                <SectionHeader
+                  icon={GraduationCap}
+                  title='Tham gia Lớp học'
+                  subtitle='Thống kê tham gia các lớp học'
+                />
+                <ClassAttendanceChart
+                  data={classAttendanceData || undefined}
+                  loading={isLoadingClassAttendance}
+                  height={300}
                 />
               </div>
             </div>
@@ -418,7 +618,7 @@ const AdminDashboard: React.FC = () => {
           </div>
 
           {/* Right Column - Recent Activity Sidebar */}
-          <div className='lg:col-span-4'>
+          <div className='lg:col-span-4 space-y-3'>
             <AdminCard padding='sm' className='sticky top-4'>
               <SectionHeader
                 icon={Activity}
@@ -520,6 +720,12 @@ const AdminDashboard: React.FC = () => {
                 )}
               </div>
             </AdminCard>
+            
+            {/* Recent Bookings */}
+            <RecentBookings limit={5} />
+            
+            {/* Recent Payments */}
+            <RecentPayments limit={5} />
           </div>
         </div>
 
