@@ -4,6 +4,89 @@ const s3UploadService = require('../services/s3-upload.service');
 const cacheService = require('../services/cache.service');
 
 class MemberController {
+  // ==================== HELPER METHODS ====================
+
+  /**
+   * Helper function to detect if running in Docker
+   * Check for Docker-specific files or environment indicators
+   */
+  _isRunningInDocker() {
+    try {
+      // Check if running in Docker by looking for .dockerenv file
+      const fs = require('fs');
+      if (fs.existsSync('/.dockerenv')) {
+        return true;
+      }
+      // Check cgroup (Linux containers)
+      if (fs.existsSync('/proc/self/cgroup')) {
+        const cgroup = fs.readFileSync('/proc/self/cgroup', 'utf8');
+        if (cgroup.includes('docker') || cgroup.includes('kubepods')) {
+          return true;
+        }
+      }
+    } catch (error) {
+      // If file system checks fail, assume not Docker (fallback to localhost)
+    }
+    // Fallback: check environment variables
+    return process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
+  }
+
+  /**
+   * Helper function to get Identity Service URL
+   * In Docker, use container name. In local dev, use localhost or configured URL
+   */
+  getIdentityServiceUrl() {
+    // Always use configured URL if provided (highest priority)
+    if (process.env.IDENTITY_SERVICE_URL) {
+      console.log('✅ Using IDENTITY_SERVICE_URL from env:', process.env.IDENTITY_SERVICE_URL);
+      return process.env.IDENTITY_SERVICE_URL;
+    }
+    
+    // Detect Docker environment
+    const isDocker = this._isRunningInDocker();
+    const url = isDocker ? 'http://identity:3001' : 'http://localhost:3001';
+    
+    console.log('🔧 Identity Service URL detection:', {
+      isDocker,
+      url,
+      NODE_ENV: process.env.NODE_ENV,
+      DOCKER_ENV: process.env.DOCKER_ENV,
+      IDENTITY_SERVICE_URL: process.env.IDENTITY_SERVICE_URL || 'NOT SET'
+    });
+    
+    return url;
+  }
+
+  /**
+   * Helper function to get userId from JWT token
+   */
+  getUserIdFromToken(req) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    try {
+      const token = authHeader.split(' ')[1];
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return null;
+      }
+
+      // Add padding to base64 if needed
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      return payload.userId || payload.id;
+    } catch (error) {
+      console.error('Error decoding JWT token:', error);
+      return null;
+    }
+  }
+
   // ==================== MEMBER CRUD OPERATIONS ====================
 
   // Get all members with pagination and filters
@@ -277,7 +360,8 @@ class MemberController {
 
       // Fetch user info from Identity Service
       const axios = require('axios');
-      const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://identity-service:3001';
+      const identityServiceUrl = this.getIdentityServiceUrl();
+      console.log('🔧 Calling Identity Service with URL:', identityServiceUrl);
 
       let userData = null;
       try {
@@ -332,9 +416,21 @@ class MemberController {
   // Get current member profile (for mobile app)
   async getCurrentMemberProfile(req, res) {
     try {
+      // Debug: Log headers
+      console.log('🔍 Request headers:', {
+        authorization: req.headers.authorization
+          ? `${req.headers.authorization.substring(0, 20)}...`
+          : 'NOT SET',
+        'content-type': req.headers['content-type'],
+      });
+
       // Get user_id from JWT token
-      const authHeader = req.headers.authorization;
-      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        console.log(
+          '❌ No userId extracted from token. Auth header:',
+          req.headers.authorization ? 'EXISTS' : 'MISSING'
+        );
         return res.status(401).json({
           success: false,
           message: 'No token provided',
@@ -342,29 +438,7 @@ class MemberController {
         });
       }
 
-      const token = authHeader.split(' ')[1];
-      // Decode JWT token to get user_id (simplified - in production use proper JWT verification)
-      const tokenParts = token.split('.');
-      if (tokenParts.length !== 3) {
-        return res.status(401).json({
-          success: false,
-          message: 'Invalid token format',
-          data: null,
-        });
-      }
-
-      // Add padding to base64 if needed
-      let payloadBase64 = tokenParts[1];
-      while (payloadBase64.length % 4) {
-        payloadBase64 += '=';
-      }
-
-      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
-      const userId = payload.userId || payload.id;
-
-      console.log('🔑 Decoded JWT payload:', payload);
       console.log('🔑 Extracted userId:', userId);
-
       console.log('🔍 Searching for member with user_id:', userId);
 
       const member = await prisma.member.findUnique({
@@ -389,11 +463,16 @@ class MemberController {
       }
 
       if (!member) {
-        console.log('❌ Member not found for user_id:', userId);
+        console.log(
+          'ℹ️ Member not found for user_id:',
+          userId,
+          '- User needs to complete registration'
+        );
         return res.status(404).json({
           success: false,
-          message: 'Member profile not found',
+          message: 'Member profile not found. Please complete your registration.',
           data: null,
+          error: 'MEMBER_NOT_FOUND',
         });
       }
 
@@ -479,13 +558,15 @@ class MemberController {
         // Get user info from Identity Service
         try {
           const axios = require('axios');
-          const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+          const identityServiceUrl = this.getIdentityServiceUrl();
+          console.log('🔧 Calling Identity Service to get user info, URL:', identityServiceUrl);
 
           const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
             headers: {
               Authorization: authHeader,
               'Content-Type': 'application/json',
             },
+            timeout: 5000, // 5 second timeout
           });
 
           console.log('👤 Full response from Identity Service:', userResponse.data);
@@ -574,8 +655,8 @@ class MemberController {
       if (updateData.full_name || updateData.phone) {
         try {
           const axios = require('axios');
-          const identityServiceUrl =
-            process.env.IDENTITY_SERVICE_URL || 'http://identity-service:3001';
+          const identityServiceUrl = this.getIdentityServiceUrl();
+          console.log('🔧 Calling Identity Service to update user, URL:', identityServiceUrl);
 
           const userUpdateData = {};
 
@@ -1275,17 +1356,48 @@ class MemberController {
    */
   async getMemberSessions(req, res) {
     try {
-      const { startDate, endDate, limit = 50, offset = 0 } = req.query;
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
 
-      const where = {};
-      if (startDate) where.entry_time = { gte: new Date(startDate) };
-      if (endDate) where.entry_time = { ...(where.entry_time || {}), lte: new Date(endDate) };
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      const { start_date, end_date, limit = 50, offset = 0 } = req.query;
+
+      const where = { member_id: member.id };
+      if (start_date) where.entry_time = { gte: new Date(start_date) };
+      if (end_date) where.entry_time = { ...(where.entry_time || {}), lte: new Date(end_date) };
 
       const sessions = await prisma.gymSession.findMany({
         where,
         orderBy: { entry_time: 'desc' },
         take: parseInt(limit),
         skip: parseInt(offset),
+        include: {
+          equipment_usage: {
+            include: {
+              equipment: true,
+            },
+          },
+        },
       });
 
       res.json({
@@ -1308,9 +1420,43 @@ class MemberController {
    */
   async getCurrentSession(req, res) {
     try {
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
       const session = await prisma.gymSession.findFirst({
-        where: { exit_time: null },
+        where: {
+          member_id: member.id,
+          exit_time: null,
+        },
         orderBy: { entry_time: 'desc' },
+        include: {
+          equipment_usage: {
+            include: {
+              equipment: true,
+            },
+          },
+        },
       });
 
       res.json({
@@ -1333,13 +1479,60 @@ class MemberController {
    */
   async recordGymEntry(req, res) {
     try {
-      const { memberId, workoutType = 'General' } = req.body;
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Check if there's already an active session
+      const activeSession = await prisma.gymSession.findFirst({
+        where: {
+          member_id: member.id,
+          exit_time: null,
+        },
+      });
+
+      if (activeSession) {
+        return res.status(400).json({
+          success: false,
+          message: 'Active session already exists',
+          data: activeSession,
+        });
+      }
 
       const session = await prisma.gymSession.create({
         data: {
-          member_id: memberId,
-          check_in_time: new Date(),
-          workout_type: workoutType,
+          member_id: member.id,
+          entry_time: new Date(),
+          entry_method: 'MOBILE_APP',
+        },
+        include: {
+          member: {
+            select: {
+              id: true,
+              full_name: true,
+              membership_number: true,
+            },
+          },
         },
       });
 
@@ -1363,11 +1556,74 @@ class MemberController {
    */
   async recordGymExit(req, res) {
     try {
-      const { sessionId } = req.body;
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
 
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Find active session
+      const activeSession = await prisma.gymSession.findFirst({
+        where: {
+          member_id: member.id,
+          exit_time: null,
+        },
+        orderBy: { entry_time: 'desc' },
+      });
+
+      if (!activeSession) {
+        return res.status(404).json({
+          success: false,
+          message: 'No active session found',
+          data: null,
+        });
+      }
+
+      // Calculate duration
+      const exitTime = new Date();
+      const entryTime = new Date(activeSession.entry_time);
+      const duration = Math.floor((exitTime - entryTime) / 1000 / 60); // duration in minutes
+
+      // Update session
       const session = await prisma.gymSession.update({
-        where: { id: sessionId },
-        data: { check_out_time: new Date() },
+        where: { id: activeSession.id },
+        data: {
+          exit_time: exitTime,
+          exit_method: 'MOBILE_APP',
+          duration: duration,
+        },
+        include: {
+          member: {
+            select: {
+              id: true,
+              full_name: true,
+              membership_number: true,
+            },
+          },
+          equipment_usage: {
+            include: {
+              equipment: true,
+            },
+          },
+        },
       });
 
       res.json({
@@ -1377,6 +1633,199 @@ class MemberController {
       });
     } catch (error) {
       console.error('Record gym exit error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get session statistics for current member
+   */
+  async getSessionStats(req, res) {
+    try {
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      // Get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      const { period = '30' } = req.query; // days
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - parseInt(period));
+
+      const [totalSessions, totalDuration, totalCalories, avgSessionDuration, recentSessions] =
+        await Promise.all([
+          prisma.gymSession.count({
+            where: {
+              member_id: member.id,
+              entry_time: { gte: startDate },
+            },
+          }),
+          prisma.gymSession.aggregate({
+            where: {
+              member_id: member.id,
+              entry_time: { gte: startDate },
+              duration: { not: null },
+            },
+            _sum: { duration: true },
+          }),
+          prisma.gymSession.aggregate({
+            where: {
+              member_id: member.id,
+              entry_time: { gte: startDate },
+              calories_burned: { not: null },
+            },
+            _sum: { calories_burned: true },
+          }),
+          prisma.gymSession.aggregate({
+            where: {
+              member_id: member.id,
+              entry_time: { gte: startDate },
+              duration: { not: null },
+            },
+            _avg: { duration: true },
+          }),
+          prisma.gymSession.findMany({
+            where: {
+              member_id: member.id,
+              entry_time: { gte: startDate },
+            },
+            orderBy: { entry_time: 'desc' },
+            take: 10,
+          }),
+        ]);
+
+      res.json({
+        success: true,
+        message: 'Session statistics retrieved successfully',
+        data: {
+          totalSessions,
+          totalDuration: totalDuration._sum.duration || 0,
+          totalCalories: totalCalories._sum.calories_burned || 0,
+          avgSessionDuration: Math.round(avgSessionDuration._avg.duration || 0),
+          recentSessions,
+        },
+      });
+    } catch (error) {
+      console.error('Get session stats error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get member profile statistics
+   */
+  async getProfileStats(req, res) {
+    try {
+      // Get user_id from JWT token
+      const userId = this.getUserIdFromToken(req);
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      // Get member by user_id with related data
+      const member = await prisma.member.findUnique({
+        where: { user_id: userId },
+        include: {
+          memberships: {
+            where: { status: 'ACTIVE' },
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+          gym_sessions: {
+            orderBy: { entry_time: 'desc' },
+            take: 10,
+          },
+          achievements: {
+            orderBy: { unlocked_at: 'desc' },
+            take: 10,
+          },
+          health_metrics: {
+            orderBy: { recorded_at: 'desc' },
+            take: 10,
+          },
+          workout_plans: {
+            where: { is_active: true },
+            take: 5,
+          },
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Calculate statistics
+      const totalSessions = await prisma.gymSession.count({
+        where: { member_id: member.id },
+      });
+
+      const totalWorkouts = await prisma.workoutPlan.count({
+        where: { member_id: member.id },
+      });
+
+      const totalAchievements = await prisma.achievement.count({
+        where: { member_id: member.id },
+      });
+
+      res.json({
+        success: true,
+        message: 'Profile statistics retrieved successfully',
+        data: {
+          member: {
+            id: member.id,
+            full_name: member.full_name,
+            email: member.email,
+            membership_status: member.membership_status,
+            membership_type: member.membership_type,
+          },
+          stats: {
+            totalSessions,
+            totalWorkouts,
+            totalAchievements,
+            activeMembership: member.memberships[0] || null,
+          },
+          recentSessions: member.gym_sessions,
+          recentAchievements: member.achievements,
+          recentHealthMetrics: member.health_metrics,
+          activeWorkouts: member.workout_plans,
+        },
+      });
+    } catch (error) {
+      console.error('Get profile stats error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -1532,13 +1981,15 @@ class MemberController {
         // Get user info from Identity Service
         try {
           const axios = require('axios');
-          const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+          const identityServiceUrl = this.getIdentityServiceUrl();
+          console.log('🔧 Calling Identity Service to get user info, URL:', identityServiceUrl);
 
           const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
             headers: {
               Authorization: authHeader,
               'Content-Type': 'application/json',
             },
+            timeout: 5000, // 5 second timeout
           });
 
           console.log('👤 Full response from Identity Service:', userResponse.data);

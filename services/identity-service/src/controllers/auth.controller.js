@@ -176,6 +176,40 @@ class AuthController {
     return { isValid: true };
   }
 
+  /**
+   * Normalize Vietnamese phone number to +84 format
+   * Converts various formats (0xxxxxxxxx, 84xxxxxxxxx, +84xxxxxxxxx) to +84xxxxxxxxx
+   * @param {string} phone - Phone number in any valid Vietnamese format
+   * @returns {string} Normalized phone number in +84 format, or original if invalid
+   */
+  normalizePhone(phone) {
+    if (!phone) return phone;
+
+    // Remove all spaces
+    let normalized = phone.replace(/\s/g, '').trim();
+
+    // Remove all non-digit characters except +
+    normalized = normalized.replace(/[^\d+]/g, '');
+
+    // Convert to +84 format
+    if (normalized.startsWith('+84')) {
+      // Already in +84 format
+      return normalized;
+    } else if (normalized.startsWith('84')) {
+      // Convert 84xxxxxxxxx to +84xxxxxxxxx
+      return '+' + normalized;
+    } else if (normalized.startsWith('0')) {
+      // Convert 0xxxxxxxxx to +84xxxxxxxxx
+      return '+84' + normalized.substring(1);
+    } else if (/^[1-9][0-9]{8}$/.test(normalized)) {
+      // If it's 9 digits starting with 1-9, assume it's missing the 0 prefix
+      return '+84' + normalized;
+    }
+
+    // Return original if format is not recognized (will fail validation later)
+    return phone;
+  }
+
   validateEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
@@ -217,6 +251,8 @@ class AuthController {
 
       if (!user) {
         logger.warn('Login failed: user not found', { identifier });
+        // Note: Cannot create access log for non-existent user due to foreign key constraint
+        // Access logs will only be created for existing users
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
@@ -239,6 +275,21 @@ class AuthController {
 
       if (!isPasswordValid) {
         logger.warn('Login failed: invalid password', { userId: user.id });
+        // Log failed login attempt (wrong password)
+        try {
+          await prisma.accessLog.create({
+            data: {
+              user_id: user.id,
+              access_type: 'LOGIN',
+              access_method: 'PASSWORD',
+              success: false,
+              failure_reason: 'Invalid password',
+              timestamp: new Date(),
+            },
+          });
+        } catch (logError) {
+          console.error('Failed to create access log:', logError);
+        }
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
@@ -315,6 +366,24 @@ class AuthController {
           expires_at: expiresAt,
         },
       });
+
+      // Create access log for successful login
+      try {
+        await prisma.accessLog.create({
+          data: {
+            user_id: user.id,
+            access_type: 'LOGIN',
+            access_method: 'PASSWORD',
+            success: true,
+            location: req.headers['x-forwarded-for'] || req.ip || 'Unknown',
+            timestamp: new Date(),
+          },
+        });
+        console.log(`✅ Access log created for successful login: user ${user.id}`);
+      } catch (logError) {
+        console.error('Failed to create access log:', logError);
+        // Don't fail login if logging fails
+      }
 
       // Generate JWT token with sessionId
       const token = jwt.sign(
@@ -488,7 +557,8 @@ class AuthController {
         }
       }
 
-      // Validate phone format if provided
+      // Normalize phone number if provided
+      let normalizedPhone = null;
       if (phone) {
         const phoneValidation = this.validatePhone(phone);
         if (!phoneValidation.isValid) {
@@ -498,6 +568,8 @@ class AuthController {
             data: null,
           });
         }
+        // Normalize phone to +84 format
+        normalizedPhone = this.normalizePhone(phone);
       }
 
       // Validate password strength
@@ -510,10 +582,13 @@ class AuthController {
         });
       }
 
-      // Check if user already exists
+      // Check if user already exists (use normalized phone for comparison)
       const existingUser = await prisma.user.findFirst({
         where: {
-          OR: [...(email ? [{ email }] : []), ...(phone ? [{ phone }] : [])],
+          OR: [
+            ...(email ? [{ email }] : []),
+            ...(normalizedPhone ? [{ phone: normalizedPhone }] : []),
+          ],
         },
       });
 
@@ -521,7 +596,7 @@ class AuthController {
         let message = 'Tài khoản với thông tin này đã tồn tại';
         if (existingUser.email === email) {
           message = 'Email này đã được sử dụng';
-        } else if (existingUser.phone === phone) {
+        } else if (existingUser.phone === normalizedPhone) {
           message = 'Số điện thoại này đã được sử dụng';
         }
         return res.status(400).json({
@@ -531,10 +606,11 @@ class AuthController {
         });
       }
 
-      // Verify OTP if provided
+      // Verify OTP if provided (use normalized phone for OTP verification)
       if (otp) {
+        const otpIdentifier = primaryMethod === 'EMAIL' ? email : normalizedPhone;
         const otpResult = await this.otpService.verifyOTP(
-          primaryMethod === 'EMAIL' ? email : phone,
+          otpIdentifier,
           otp,
           primaryMethod // Use primaryMethod ('EMAIL' or 'PHONE'), not otpType
         );
@@ -556,11 +632,11 @@ class AuthController {
       const emailVerified = primaryMethod === 'EMAIL';
       const phoneVerified = primaryMethod === 'PHONE';
 
-      // Create user
+      // Create user (use normalized phone)
       const newUser = await prisma.user.create({
         data: {
           email: email || null,
-          phone: phone || null,
+          phone: normalizedPhone || null,
           password_hash: hashedPassword,
           first_name: firstName,
           last_name: lastName,
@@ -608,7 +684,10 @@ class AuthController {
       // Update member table in member service
       try {
         const axios = require('axios');
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+        // In Docker, use container name. In local dev, use localhost or configured URL
+        const isDocker = process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || (isDocker ? 'http://member:3002' : 'http://localhost:3002');
+        console.log('🔧 Using memberServiceUrl:', memberServiceUrl, 'isDocker:', isDocker);
 
         await axios.put(
           `${memberServiceUrl}/members/user/${newUser.id}`,
@@ -709,21 +788,54 @@ class AuthController {
         });
       }
 
-      // Check if user already exists
-      const existingUser = await prisma.user.findFirst({
-        where: {
-          OR: [{ email: identifier }, { phone: identifier }],
-        },
-      });
+      // Normalize phone number if type is PHONE
+      let normalizedIdentifier = identifier;
+      if (type === 'PHONE') {
+        // Validate phone format first
+        const phoneValidation = this.validatePhone(identifier);
+        if (!phoneValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: phoneValidation.message,
+            data: null,
+          });
+        }
+        // Normalize phone to +84 format
+        normalizedIdentifier = this.normalizePhone(identifier);
+      }
+
+      // Check if user already exists (use normalized identifier for phone)
+      let existingUser = null;
+      if (type === 'EMAIL') {
+        // For email, check case-insensitive by converting to lowercase
+        // Note: Prisma doesn't support mode: 'insensitive' for all databases
+        // So we'll check both original and lowercase versions
+        const emailLower = identifier.toLowerCase().trim();
+        existingUser = await prisma.user.findFirst({
+          where: {
+            OR: [
+              { email: identifier },
+              { email: emailLower },
+            ],
+          },
+        });
+      } else if (type === 'PHONE') {
+        // For phone, use normalized identifier
+        existingUser = await prisma.user.findFirst({
+          where: {
+            phone: normalizedIdentifier,
+          },
+        });
+      }
 
       if (existingUser) {
-        let message = 'Tài khoản với thông tin này đã tồn tại';
-
-        if (existingUser.email === identifier) {
+        let message = '';
+        if (type === 'EMAIL') {
           message = 'Email này đã được sử dụng. Vui lòng thử email khác hoặc đăng nhập.';
-        } else if (existingUser.phone === identifier) {
-          message =
-            'Số điện thoại này đã được sử dụng. Vui lòng thử số điện thoại khác hoặc đăng nhập.';
+        } else if (type === 'PHONE') {
+          message = 'Số điện thoại này đã được sử dụng. Vui lòng thử số điện thoại khác hoặc đăng nhập.';
+        } else {
+          message = 'Tài khoản với thông tin này đã tồn tại';
         }
 
         return res.status(400).json({
@@ -733,8 +845,8 @@ class AuthController {
         });
       }
 
-      // Send OTP
-      const sendResult = await this.otpService.sendOTP(identifier, type);
+      // Send OTP (use normalized identifier for phone)
+      const sendResult = await this.otpService.sendOTP(normalizedIdentifier, type);
 
       if (!sendResult.success) {
         return res.status(400).json({
@@ -748,12 +860,17 @@ class AuthController {
       await this.incrementRateLimit(rateLimitKey);
       await this.setOTPCooldown(cooldownKey);
 
+      // Get cooldown remaining time to return to client (after setting, it will be 60 seconds)
+      const currentCooldown = await this.getOTPCooldown(cooldownKey);
+      const retryAfter = currentCooldown > 0 ? currentCooldown : 60; // Default 60 seconds
+
       res.json({
         success: true,
         message: sendResult.message,
         data: {
-          identifier,
+          identifier: normalizedIdentifier,
           type,
+          retryAfter, // Return cooldown time in seconds
           remainingAttempts: 5 - (await this.getRateLimitCount(rateLimitKey)),
           ...(process.env.NODE_ENV === 'development' && { otp: sendResult.otp }),
         },
@@ -783,7 +900,24 @@ class AuthController {
         });
       }
 
-      const result = await this.otpService.verifyOTP(identifier, otp, type);
+      // Normalize phone number if type is PHONE (same as when sending OTP)
+      let normalizedIdentifier = identifier;
+      if (type === 'PHONE') {
+        // Validate phone format first
+        const phoneValidation = this.validatePhone(identifier);
+        if (!phoneValidation.isValid) {
+          return res.status(400).json({
+            success: false,
+            message: phoneValidation.message,
+            data: null,
+          });
+        }
+        // Normalize phone to +84 format (same format used when storing OTP)
+        normalizedIdentifier = this.normalizePhone(identifier);
+        console.log('🔍 Verifying OTP - Original identifier:', identifier, 'Normalized:', normalizedIdentifier);
+      }
+
+      const result = await this.otpService.verifyOTP(normalizedIdentifier, otp, type);
 
       if (result.success) {
         res.json({
@@ -2148,6 +2282,7 @@ class AuthController {
             is_active: true,
             email_verified: true,
             phone_verified: true,
+            face_photo_url: true, // Include face_photo_url for avatar fallback
             created_at: true,
             updated_at: true,
           },

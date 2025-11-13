@@ -46,6 +46,17 @@ router.get('/user-stats', requireRole(['ADMIN', 'SUPER_ADMIN']), dashboardContro
 router.get('/user-growth-data', requireRole(['ADMIN', 'SUPER_ADMIN']), dashboardController.getUserGrowthData);
 
 /**
+ * @route GET /dashboard/user-growth-by-role
+ * @desc Get user growth data by role over time
+ * @access Admin and Super Admin
+ */
+router.get(
+  '/user-growth-by-role',
+  requireRole(['ADMIN', 'SUPER_ADMIN']),
+  dashboardController.getUserGrowthByRoleData
+);
+
+/**
  * @route GET /dashboard/recent-activities
  * @desc Get recent system activities
  * @access Admin and Super Admin
@@ -54,6 +65,17 @@ router.get(
   '/recent-activities',
   requireRole(['ADMIN', 'SUPER_ADMIN']),
   dashboardController.getRecentActivities
+);
+
+/**
+ * @route GET /dashboard/system-activity-data
+ * @desc Get system activity data for charts (daily activity counts)
+ * @access Admin and Super Admin
+ */
+router.get(
+  '/system-activity-data',
+  requireRole(['ADMIN', 'SUPER_ADMIN']),
+  dashboardController.getSystemActivityData
 );
 
 /**

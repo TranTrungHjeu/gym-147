@@ -33,4 +33,9 @@ router.delete('/notifications/:notification_id', (req, res) =>
   notificationController.deleteNotification(req, res)
 );
 
+// Notify admins about subscription payment success (called by billing service)
+router.post('/notifications/subscription-payment-success', (req, res) =>
+  notificationController.notifySubscriptionPaymentSuccess(req, res)
+);
+
 module.exports = router;

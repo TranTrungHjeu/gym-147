@@ -472,6 +472,64 @@ class BankTransferController {
         });
 
         console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+
+        // Notify admins about successful subscription payment
+        try {
+          console.log('📢 Notifying admins about subscription payment success (bank transfer)...');
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+          const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+          
+          // Get subscription and plan info
+          const subscription = await prisma.subscription.findUnique({
+            where: { id: bankTransfer.payment.subscription_id },
+            include: { plan: true },
+          });
+
+          // Get member info if available
+          let memberInfo = null;
+          try {
+            const memberResponse = await axios.get(`${memberServiceUrl}/members/${updatedPayment.member_id}`, {
+              timeout: 5000,
+            });
+            memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
+          } catch (memberInfoError) {
+            // Try to get by user_id if member_id fails
+            try {
+              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+              const userResponse = await axios.get(`${identityServiceUrl}/users/${updatedPayment.member_id}`, {
+                timeout: 5000,
+              });
+              memberInfo = userResponse.data?.data?.user || userResponse.data?.data;
+            } catch (userInfoError) {
+              console.log('Could not fetch member/user info for notification');
+            }
+          }
+
+          // Call schedule service to notify admins
+          await axios.post(
+            `${scheduleServiceUrl}/notifications/subscription-payment-success`,
+            {
+              payment_id: updatedPayment.id,
+              member_id: updatedPayment.member_id,
+              user_id: memberInfo?.user_id || updatedPayment.member_id,
+              amount: parseFloat(updatedPayment.amount),
+              plan_type: subscription?.plan?.type || null,
+              plan_name: subscription?.plan?.name || null,
+              member_name: memberInfo?.full_name || memberInfo?.firstName || null,
+              member_email: memberInfo?.email || null,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            }
+          );
+          console.log('✅ Successfully notified admins about subscription payment (bank transfer)');
+        } catch (notifyError) {
+          console.error('❌ Failed to notify admins about subscription payment (bank transfer):', notifyError.message);
+          // Don't fail the webhook if notification fails
+        }
       }
 
       // Update booking if payment is for CLASS_BOOKING

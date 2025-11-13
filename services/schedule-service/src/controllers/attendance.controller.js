@@ -345,12 +345,26 @@ const memberCheckIn = async (req, res) => {
     });
 
     // Send notification to trainer
-    if (schedule.trainer) {
+    if (schedule.trainer && schedule.trainer.user_id) {
+      // Get member info for better notification
+      let memberName = `Member ${member_id}`;
+      try {
+        const memberService = require('../services/member.service.js');
+        const member = await memberService.getMemberById(member_id);
+        if (member && member.full_name) {
+          memberName = member.full_name;
+        }
+      } catch (memberError) {
+        console.error('Error getting member info for check-in notification:', memberError);
+      }
+
       await notificationService.notifyTrainerCheckIn(
         schedule.trainer.user_id,
-        `Member ${member_id}`,
+        memberName,
         schedule.gym_class.name,
-        attendance.checked_in_at
+        attendance.checked_in_at,
+        schedule_id,
+        member_id
       );
     }
 
