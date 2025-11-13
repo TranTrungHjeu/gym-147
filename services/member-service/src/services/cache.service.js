@@ -17,7 +17,10 @@ class CacheService {
    */
   async initialize() {
     try {
-      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
+      if (!process.env.REDIS_URL) {
+        throw new Error('REDIS_URL environment variable is required. Please set it in your .env file.');
+      }
+      const redisUrl = process.env.REDIS_URL;
       
       this.client = createClient({
         url: redisUrl,

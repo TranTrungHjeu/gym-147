@@ -684,10 +684,11 @@ class AuthController {
       // Update member table in member service
       try {
         const axios = require('axios');
-        // In Docker, use container name. In local dev, use localhost or configured URL
-        const isDocker = process.env.DOCKER_ENV === 'true' || process.env.NODE_ENV === 'production';
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || (isDocker ? 'http://member:3002' : 'http://localhost:3002');
-        console.log('🔧 Using memberServiceUrl:', memberServiceUrl, 'isDocker:', isDocker);
+        if (!process.env.MEMBER_SERVICE_URL) {
+          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        }
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+        console.log('🔧 Using memberServiceUrl:', memberServiceUrl);
 
         await axios.put(
           `${memberServiceUrl}/members/user/${newUser.id}`,

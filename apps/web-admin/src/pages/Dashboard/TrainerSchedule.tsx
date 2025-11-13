@@ -11,6 +11,7 @@ import { useOptimisticScheduleUpdates } from '@/hooks/useOptimisticScheduleUpdat
 // import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications'; // Disabled to prevent unnecessary re-renders
 import { scheduleService } from '../../services/schedule.service';
 import { socketService } from '../../services/socket.service';
+import { memberApi } from '@/services/api';
 
 interface AttendanceRecord {
   id: string;
@@ -1259,16 +1260,10 @@ export default function TrainerSchedule() {
     try {
       setLoadingMembers(true);
 
-      const response = await fetch('http://localhost:3002/members/batch', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ memberIds }),
-      });
+      const response = await memberApi.post('/members/batch', { memberIds });
 
-      if (response.ok) {
-        const data = await response.json();
+      if (response.data?.success || response.data?.data) {
+        const data = response.data;
         const memberMap: { [key: string]: any } = {};
 
         // Handle different response structures

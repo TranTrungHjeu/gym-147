@@ -11,7 +11,10 @@ class AIService {
     if (!this.apiKey) {
       throw new Error('AI_API_KEY environment variable is required');
     }
-    this.apiUrl = process.env.AI_MODEL_URL || 'https://openrouter.ai/api/v1/chat/completions';
+    if (!process.env.AI_MODEL_URL) {
+      throw new Error('AI_MODEL_URL environment variable is required. Please set it in your .env file.');
+    }
+    this.apiUrl = process.env.AI_MODEL_URL;
     this.modelName = process.env.AI_MODEL_NAME || 'tngtech/deepseek-r1t2-chimera:free';
 
     console.log('AI Service Config:', {
@@ -330,7 +333,7 @@ LƯU Ý:
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'HTTP-Referer': process.env.AI_API_REFERER || '',
             'X-Title': 'GYM-147 Workout Recommendations',
           },
         }
@@ -580,7 +583,7 @@ LƯU Ý:
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'HTTP-Referer': process.env.AI_API_REFERER || '',
             'X-Title': 'GYM-147 Class Recommendations',
           },
           timeout: 60000, // 60 seconds timeout for AI processing
@@ -853,7 +856,7 @@ LƯU Ý:
           headers: {
             Authorization: `Bearer ${this.apiKey}`,
             'Content-Type': 'application/json',
-            'HTTP-Referer': process.env.AI_API_REFERER || 'https://gym-147.com',
+            'HTTP-Referer': process.env.AI_API_REFERER || '',
             'X-Title': 'GYM-147 Smart Scheduling',
           },
           timeout: 60000, // 60 seconds timeout for AI processing

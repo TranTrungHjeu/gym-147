@@ -1,8 +1,7 @@
 import React, { useEffect, useState } from 'react';
 // @ts-ignore
 import './ScheduleManagement.css';
-
-const SCHEDULE_API_BASE = 'http://localhost:3003';
+import { scheduleApi } from '@/services/api';
 
 interface GymClass {
   id: string;
@@ -92,8 +91,8 @@ const ScheduleManagement = () => {
   const fetchData = async (endpoint: string) => {
     setLoading(true);
     try {
-      const response = await fetch(`${SCHEDULE_API_BASE}/${endpoint}`);
-      const result = await response.json();
+      const response = await scheduleApi.get(`/${endpoint}`);
+      const result = response.data;
 
       if (result.success) {
         setData(prev => ({
@@ -116,11 +115,8 @@ const ScheduleManagement = () => {
   const createSampleData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${SCHEDULE_API_BASE}/sample-data`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      const result = await response.json();
+      const response = await scheduleApi.post('/sample-data', {});
+      const result = response.data;
 
       if (result.success) {
         alert('Sample data created successfully!');
@@ -142,12 +138,8 @@ const ScheduleManagement = () => {
   const createItem = async (endpoint: string, itemData: any) => {
     setLoading(true);
     try {
-      const response = await fetch(`${SCHEDULE_API_BASE}/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(itemData),
-      });
-      const result = await response.json();
+      const response = await scheduleApi.post(`/${endpoint}`, itemData);
+      const result = response.data;
 
       if (result.success) {
         alert(`${endpoint.slice(0, -1)} created successfully!`);

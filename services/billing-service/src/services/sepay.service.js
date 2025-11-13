@@ -13,8 +13,14 @@ class SepayService {
     this.baseURL = 'https://my.sepay.vn/userapi';
     this.accountNumber = process.env.SEPAY_ACCOUNT_NUMBER;
     this.accountName = process.env.SEPAY_ACCOUNT_NAME;
-    this.bankCode = process.env.SEPAY_BANK_CODE || 'VCB'; // Default: VietcomBank
-    this.bankName = process.env.SEPAY_BANK_NAME || 'VietcomBank';
+    if (!process.env.SEPAY_BANK_CODE) {
+      throw new Error('SEPAY_BANK_CODE environment variable is required. Please set it in your .env file.');
+    }
+    if (!process.env.SEPAY_BANK_NAME) {
+      throw new Error('SEPAY_BANK_NAME environment variable is required. Please set it in your .env file.');
+    }
+    this.bankCode = process.env.SEPAY_BANK_CODE;
+    this.bankName = process.env.SEPAY_BANK_NAME;
 
     // Log để verify (chỉ hiện 10 ký tự đầu để bảo mật)
     console.log(

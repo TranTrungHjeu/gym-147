@@ -15,6 +15,7 @@ import { scheduleService } from '../../services/schedule.service';
 import AdminModal from '../common/AdminModal';
 import CustomSelect from '../common/CustomSelect';
 import Button from '../ui/Button/Button';
+import { scheduleApi } from '@/services/api';
 
 interface CreateScheduleModalProps {
   isOpen: boolean;
@@ -494,9 +495,9 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const loadAllRooms = async () => {
     try {
       // Get all rooms from the rooms endpoint
-      const response = await fetch('http://localhost:3003/rooms');
-      if (response.ok) {
-        const data = await response.json();
+      const response = await scheduleApi.get('/rooms');
+      if (response.data?.success || response.data?.data) {
+        const data = response.data;
         if (data.success && data.data?.rooms) {
           // Filter out rooms that are not available (MAINTENANCE, CLEANING, etc.)
           const availableRooms = data.data.rooms.filter(

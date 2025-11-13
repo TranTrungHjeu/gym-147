@@ -2,12 +2,6 @@ import { GymSession, Member, MemberStats } from '@/types/memberTypes';
 import { memberApiService } from './api.service';
 
 class MemberService {
-  private baseUrl = 'http://10.0.2.2:3002/members'; // Direct connection to Member Service
-
-  /**
-   * Check if current user has a member record
-   * Returns true if member exists, false otherwise
-   */
   async checkMemberExists(): Promise<boolean> {
     try {
       console.log('Checking if member exists...');
@@ -31,11 +25,18 @@ class MemberService {
     } catch (error: any) {
       // 404 means member doesn't exist (expected for new users)
       if (error.status === 404) {
-        console.log('ℹ️ Member profile not found (404) - user needs to complete registration');
+        console.log(
+          'ℹ️ Member profile not found (404) - user needs to complete registration'
+        );
         return false;
       }
       // Other errors (500, 502, etc.) should be logged but also return false
-      console.log('❌ Error checking member existence:', error.message, 'Status:', error.status);
+      console.log(
+        '❌ Error checking member existence:',
+        error.message,
+        'Status:',
+        error.status
+      );
       return false;
     }
   }
@@ -357,14 +358,11 @@ class MemberService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.patch(
-        '/onboarding/progress',
-        {
-          step,
-          completed,
-          completedAll,
-        }
-      );
+      const response = await memberApiService.patch('/onboarding/progress', {
+        step,
+        completed,
+        completedAll,
+      });
       return {
         success: true,
         data: response.data,

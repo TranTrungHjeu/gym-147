@@ -9,6 +9,7 @@ export interface EnvironmentConfig {
   GOOGLE_CLIENT_ID?: string;
   FACEBOOK_APP_ID?: string;
   PROVINCES_API_KEY?: string; // API key for Vietnam address API (if needed)
+  PROVINCES_API_URL?: string; // Base URL for Vietnam address API (default: http://tinhthanhpho.com/api/v1)
   DEBUG: boolean;
 }
 
@@ -70,6 +71,10 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
       process.env.EXPO_PUBLIC_PROVINCES_API_KEY,
       extraConfig.PROVINCES_API_KEY
     ),
+    PROVINCES_API_URL: pickFirstNonEmpty(
+      process.env.EXPO_PUBLIC_PROVINCES_API_URL,
+      extraConfig.PROVINCES_API_URL
+    ) || 'http://tinhthanhpho.com/api/v1', // Default to public API
     DEBUG: __DEV__,
   };
 };
