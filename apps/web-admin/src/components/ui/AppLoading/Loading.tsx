@@ -10,6 +10,10 @@ export interface LoadingProps {
   textColor?: string;
 }
 
+/**
+ * Base Loading Component với backdrop
+ * Sử dụng BlinkBlur từ react-loading-indicators
+ */
 export const Loading: React.FC<LoadingProps> = ({
   size = 'medium',
   text = '',
@@ -50,17 +54,106 @@ export const Loading: React.FC<LoadingProps> = ({
   );
 };
 
-// Variant components cho các trường hợp sử dụng khác nhau
-export const LoadingSpinner: React.FC<Omit<LoadingProps, 'text'>> = props => <Loading {...props} />;
+// ============================================
+// STANDARDIZED LOADING COMPONENTS
+// ============================================
 
-export const LoadingWithText: React.FC<LoadingProps> = props => <Loading {...props} />;
-
-// Loading cho Search Modal
-export const SearchLoading: React.FC = () => (
-  <Loading text='AI đang phân tích...' color='#f97316' />
+/**
+ * Page Loading - Full page với backdrop
+ * Sử dụng cho initial page load
+ */
+export const PageLoading: React.FC = () => (
+  <Loading size='large' text='Đang tải...' color='#f97316' />
 );
 
-// Loading cho button - Professional & Beautiful
+/**
+ * Table Loading - Loading state cho tables và data lists
+ * Hiển thị spinner với text trong container
+ */
+export interface TableLoadingProps {
+  text?: string;
+  className?: string;
+}
+
+export const TableLoading: React.FC<TableLoadingProps> = ({
+  text = 'Đang tải...',
+  className = '',
+}) => (
+  <div className={`bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12 ${className}`}>
+    <div className='flex flex-col items-center justify-center gap-3'>
+      <div className='w-8 h-8 border-[3px] border-orange-500 border-t-transparent rounded-full animate-spin' />
+      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
+        {text}
+      </div>
+    </div>
+  </div>
+);
+
+/**
+ * Inline Spinner - Spinner nhỏ gọn cho inline loading
+ * Có thể tùy chỉnh size và color
+ */
+export interface InlineSpinnerProps {
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  color?: 'orange' | 'white' | 'gray';
+  className?: string;
+}
+
+export const InlineSpinner: React.FC<InlineSpinnerProps> = ({
+  size = 'md',
+  color = 'orange',
+  className = '',
+}) => {
+  const sizeClasses = {
+    xs: 'w-3 h-3 border',
+    sm: 'w-4 h-4 border-2',
+    md: 'w-5 h-5 border-2',
+    lg: 'w-8 h-8 border-[3px]',
+  };
+
+  const colorClasses = {
+    orange: 'border-orange-500 border-t-transparent',
+    white: 'border-white border-t-transparent',
+    gray: 'border-gray-400 dark:border-gray-500 border-t-transparent',
+  };
+
+  return (
+    <div
+      className={`${sizeClasses[size]} ${colorClasses[color]} rounded-full animate-spin ${className}`}
+    />
+  );
+};
+
+/**
+ * Button Spinner - Spinner cho buttons
+ * Size nhỏ, màu trắng (cho button có background)
+ */
+export interface ButtonSpinnerProps {
+  size?: 'sm' | 'md';
+  className?: string;
+}
+
+export const ButtonSpinner: React.FC<ButtonSpinnerProps> = ({
+  size = 'sm',
+  className = '',
+}) => {
+  const sizeClasses = {
+    sm: 'w-4 h-4',
+    md: 'w-5 h-5',
+  };
+
+  return (
+    <div
+      className={`${sizeClasses[size]} border-2 border-white border-t-transparent rounded-full animate-spin ${className}`}
+    />
+);
+};
+
+/**
+ * Button Loading - Full button loading với text
+ * Professional & Beautiful với animation phức tạp
+ * Sử dụng cho các button quan trọng (Login, Submit, etc.)
+ */
 export const ButtonLoading: React.FC = () => (
   <div className='flex items-center justify-center space-x-3 animate-pulse'>
     <div className='relative'>
@@ -104,27 +197,17 @@ export const ButtonLoading: React.FC = () => (
   </div>
 );
 
-// Loading cho page
-export const PageLoading: React.FC = () => (
-  <Loading size='large' text='Đang tải...' color='#f97316' />
+/**
+ * Search Loading - Loading cho Search Modal với AI
+ */
+export const SearchLoading: React.FC = () => (
+  <Loading text='AI đang phân tích...' color='#f97316' />
 );
 
-// Loading cho form submission
-export const FormLoading: React.FC = () => (
-  <Loading size='medium' text='Đang xử lý...' color='#f97316' />
-);
-
-// Loading cho authentication
-export const AuthLoading: React.FC = () => (
-  <Loading size='large' text='Đang xác thực...' color='#f97316' />
-);
-
-// Loading cho data fetching
-export const DataLoading: React.FC = () => (
-  <Loading size='medium' text='Đang tải dữ liệu...' color='#f97316' />
-);
-
-// Simple Loading Component - Không có background, để tái sử dụng
+/**
+ * Simple Loading - Không có backdrop, để tái sử dụng inline
+ * Sử dụng cho các trường hợp cần loading nhưng không muốn block toàn bộ UI
+ */
 export const SimpleLoading: React.FC<LoadingProps> = ({
   size = 'medium',
   text = '',
@@ -157,8 +240,3 @@ export const SimpleLoading: React.FC<LoadingProps> = ({
     </div>
   );
 };
-
-// Compact Spinner for buttons - Đồng bộ với hệ thống
-export const CompactSpinner: React.FC<{ className?: string }> = ({ className = '' }) => (
-  <div className={`w-4 h-4 border-2 border-gray-400 dark:border-gray-500 border-t-transparent rounded-full animate-spin ${className}`} />
-);

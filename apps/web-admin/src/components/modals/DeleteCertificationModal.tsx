@@ -98,11 +98,31 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
     setIsDeleting(true);
     try {
       await certificationService.deleteCertification(certification.id, reason.trim());
-      showToast('Đã xóa chứng chỉ thành công', 'success');
+      
+      // Show success toast
+      if (window.showToast) {
+        window.showToast({
+          type: 'success',
+          message: `Đã xóa chứng chỉ "${certification.certification_name}" thành công`,
+          duration: 3000,
+        });
+      } else {
+        showToast('Đã xóa chứng chỉ thành công', 'success');
+      }
+      
+      // Optimistic update will be handled by socket events and onDeleteComplete
       onDeleteComplete();
       onClose();
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa chứng chỉ', 'error');
+      if (window.showToast) {
+        window.showToast({
+          type: 'error',
+          message: error.message || 'Không thể xóa chứng chỉ',
+          duration: 3000,
+        });
+      } else {
+        showToast(error.message || 'Không thể xóa chứng chỉ', 'error');
+      }
     } finally {
       setIsDeleting(false);
     }
@@ -192,7 +212,7 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
               type='button'
               onClick={onClose}
               disabled={isDeleting}
-              className='inline-flex items-center justify-center min-w-[100px] h-10 px-5 py-2.5 text-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+              className='inline-flex items-center justify-center min-w-[100px] h-10 px-5 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
               Hủy
             </button>
@@ -200,7 +220,7 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
               type='button'
               onClick={handleDelete}
               disabled={isDeleting || !reason.trim() || deleteConfirm.toLowerCase() !== 'delete'}
-              className='inline-flex items-center justify-center gap-2 min-w-[120px] h-10 px-5 py-2.5 text-xs font-semibold font-heading text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+              className='inline-flex items-center justify-center gap-2 min-w-[120px] h-10 px-5 py-2.5 text-theme-xs font-semibold font-heading text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
               {isDeleting ? (
                 <>

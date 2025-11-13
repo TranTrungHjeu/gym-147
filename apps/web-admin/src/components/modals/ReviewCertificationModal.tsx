@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { Certification, certificationService } from '../../services/certification.service';
 import Modal from '../Modal/Modal';
+import { ButtonSpinner } from '../ui/AppLoading';
 
 // Custom scrollbar styles for review modal
 const scrollbarStyles = `
@@ -308,7 +309,7 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
                   <a
                     href={getCertificateImageUrl() || '#'}
                     download
-                    className='inline-flex items-center gap-1 px-2 py-1 text-xs font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-md transition-all duration-200'
+                    className='inline-flex items-center gap-1 px-2 py-1 text-theme-xs font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-md transition-all duration-200'
                     title='Tải xuống'
                   >
                     <Download className='w-4 h-4' />
@@ -361,7 +362,7 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
                     type='button'
                     onClick={() => setShowRejectInput(true)}
                     disabled={isLoading}
-                    className='inline-flex items-center justify-center gap-1.5 min-w-[90px] h-9 px-4 py-2 text-xs font-semibold font-heading text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                    className='inline-flex items-center justify-center gap-1.5 min-w-[90px] h-9 px-4 py-2 text-theme-xs font-semibold font-heading text-red-700 dark:text-red-400 bg-white dark:bg-gray-800 border border-red-300 dark:border-red-700 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
                   >
                     <XCircle className='w-4 h-4' />
                     Từ chối
@@ -370,11 +371,11 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
                     type='button'
                     onClick={handleVerify}
                     disabled={isLoading}
-                    className='inline-flex items-center justify-center gap-1.5 min-w-[90px] h-9 px-4 py-2 text-xs font-semibold font-heading text-white bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 rounded-lg shadow-sm hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                    className='inline-flex items-center justify-center gap-1.5 min-w-[90px] h-9 px-4 py-2 text-theme-xs font-semibold font-heading text-white bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 rounded-lg shadow-sm hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
                   >
                     {isLoading ? (
                       <>
-                        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                        <ButtonSpinner />
                         <span>Đang xử lý...</span>
                       </>
                     ) : (
@@ -394,7 +395,7 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
                       setRejectionReason('');
                     }}
                     disabled={isLoading}
-                    className='inline-flex items-center justify-center min-w-[90px] h-9 px-4 py-2 text-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                    className='inline-flex items-center justify-center min-w-[90px] h-9 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
                   >
                     Hủy
                   </button>
@@ -402,11 +403,11 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
                     type='button'
                     onClick={handleReject}
                     disabled={isLoading || !rejectionReason.trim()}
-                    className='inline-flex items-center justify-center gap-1.5 min-w-[110px] h-9 px-4 py-2 text-xs font-semibold font-heading text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 rounded-lg shadow-sm hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+                    className='inline-flex items-center justify-center gap-1.5 min-w-[110px] h-9 px-4 py-2 text-theme-xs font-semibold font-heading text-white bg-red-600 hover:bg-red-700 dark:bg-red-500 dark:hover:bg-red-600 rounded-lg shadow-sm hover:shadow transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
                   >
                     {isLoading ? (
                       <>
-                        <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                        <ButtonSpinner />
                         <span>Đang xử lý...</span>
                       </>
                     ) : (

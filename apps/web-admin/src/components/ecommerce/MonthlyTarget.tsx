@@ -1,68 +1,16 @@
-import { ApexOptions } from 'apexcharts';
 import { MoreHorizontal } from 'lucide-react';
 import { useState } from 'react';
-import Chart from 'react-apexcharts';
+import ReactECharts from 'echarts-for-react';
+import type { EChartsOption } from 'echarts';
+import { registerGymEChartsTheme, gymEChartsThemeName } from '../../theme/echartsTheme';
+import { useTheme } from '../../context/ThemeContext';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
 
 export default function MonthlyTarget() {
-  const series = [82.5];
-  const options: ApexOptions = {
-    colors: ['#f97316'],
-    chart: {
-      fontFamily: 'Inter, sans-serif',
-      type: 'radialBar',
-      height: 330,
-      sparkline: {
-        enabled: true,
-      },
-    },
-    plotOptions: {
-      radialBar: {
-        startAngle: -85,
-        endAngle: 85,
-        hollow: {
-          size: '80%',
-        },
-        track: {
-          background: '#fef3c7',
-          strokeWidth: '100%',
-          margin: 5, // margin is in pixels
-        },
-        dataLabels: {
-          name: {
-            show: false,
-          },
-          value: {
-            fontSize: '36px',
-            fontWeight: '600',
-            offsetY: -40,
-            color: '#1D2939',
-            formatter: function (val) {
-              return val + '%';
-            },
-          },
-        },
-      },
-    },
-    fill: {
-      type: 'gradient',
-      gradient: {
-        shade: 'light',
-        type: 'radial',
-        shadeIntensity: 0.4,
-        gradientToColors: ['#ea580c'],
-        inverseColors: false,
-        opacityFrom: 1,
-        opacityTo: 1,
-        stops: [0, 100],
-      },
-    },
-    stroke: {
-      lineCap: 'round',
-    },
-    labels: ['Progress'],
-  };
+  const value = 82.5;
+  const { theme } = useTheme();
+  const isDark = theme === 'dark';
   const [isOpen, setIsOpen] = useState(false);
 
   function toggleDropdown() {
@@ -86,11 +34,7 @@ export default function MonthlyTarget() {
           </div>
           <div className='relative inline-block'>
             <button className='dropdown-toggle' onClick={toggleDropdown}>
-              <img
-                src={MoreHorizontal}
-                alt='More'
-                className='text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6'
-              />
+              <MoreHorizontal className='text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 size-6' />
             </button>
             <Dropdown isOpen={isOpen} onClose={closeDropdown} className='w-40 p-2'>
               <DropdownItem
@@ -110,7 +54,48 @@ export default function MonthlyTarget() {
         </div>
         <div className='relative '>
           <div className='max-h-[330px]' id='chartDarkStyle'>
-            <Chart options={options} series={series} type='radialBar' height={330} />
+            {(() => {
+              const option: EChartsOption = {
+                series: [
+                  {
+                    type: 'gauge',
+                    startAngle: 210,
+                    endAngle: -30,
+                    min: 0,
+                    max: 100,
+                    pointer: { show: false },
+                    anchor: { show: false },
+                    progress: {
+                      show: true,
+                      width: 16,
+                      itemStyle: { color: '#ff6422' },
+                    },
+                    axisLine: {
+                      lineStyle: {
+                        width: 16,
+                        color: [[1, isDark ? '#1f2937' : '#fef3c7']],
+                      },
+                    },
+                    splitLine: { show: false },
+                    axisTick: { show: false },
+                    axisLabel: { show: false },
+                    title: { show: false },
+                    detail: {
+                      valueAnimation: true,
+                      formatter: '{value}%',
+                      fontSize: 36,
+                      fontWeight: 600,
+                      color: isDark ? '#f8f9fb' : '#1D2939',
+                    },
+                    data: [{ value }],
+                  },
+                ],
+              };
+              registerGymEChartsTheme();
+              return (
+                <ReactECharts option={option} theme={gymEChartsThemeName} style={{ width: '100%', height: 330 }} />
+              );
+            })()}
           </div>
 
           <span className='absolute left-1/2 top-full -translate-x-1/2 -translate-y-[95%] rounded-full bg-success-50 px-3 py-1 text-xs font-medium text-success-600 dark:bg-success-500/15 dark:text-success-500 font-inter'>

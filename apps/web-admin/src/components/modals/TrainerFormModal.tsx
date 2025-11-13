@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '../../context/ToastContext';
 import { Trainer } from '../../services/trainer.service';
 import Modal from '../Modal/Modal';
+import { ButtonSpinner } from '../ui/AppLoading';
 import CustomSelect from '../common/CustomSelect';
 
 interface TrainerFormModalProps {
@@ -312,7 +313,7 @@ const TrainerFormModal: React.FC<TrainerFormModalProps> = ({
               >
                 {isLoading ? (
                   <>
-                    <div className='w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin'></div>
+                    <ButtonSpinner />
                     Đang lưu...
                   </>
                 ) : (

@@ -21,30 +21,30 @@ const RoleBadge: React.FC<RoleBadgeProps> = ({
       // Dashboard variant uses different colors for activity section
       switch (role) {
         case 'SUPER_ADMIN':
-          return 'bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300';
+          return 'bg-gradient-to-r from-orange-600 via-orange-700 to-orange-600 dark:from-orange-800 dark:via-orange-900 dark:to-orange-800 border border-orange-700 dark:border-orange-600 text-white dark:text-orange-100';
         case 'ADMIN':
-          return 'bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300';
+          return 'bg-gradient-to-r from-orange-50 via-orange-100 to-orange-50 dark:from-orange-900/20 dark:via-orange-800/30 dark:to-orange-900/20 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
         case 'TRAINER':
-          return 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 text-blue-700 dark:text-blue-300';
+          return 'bg-gradient-to-r from-orange-100 via-amber-50 to-orange-100 dark:from-orange-900/30 dark:via-amber-900/20 dark:to-orange-900/30 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
         case 'MEMBER':
-          return 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
+          return 'bg-gradient-to-r from-gray-700 via-gray-800 to-gray-700 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border border-gray-900 dark:border-gray-700 text-white dark:text-gray-100';
         default:
-          return 'bg-gray-50 dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300';
+          return 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
       }
     }
 
-    // Default variant for user management
+    // Default variant for user management - all roles use orange-based colors with gradients
     switch (role) {
       case 'SUPER_ADMIN':
-        return 'bg-error-50 dark:bg-error-900/20 border border-error-200 dark:border-error-800 text-error-700 dark:text-error-300';
+        return 'bg-gradient-to-r from-orange-600 via-orange-700 to-orange-600 dark:from-orange-800 dark:via-orange-900 dark:to-orange-800 border border-orange-700 dark:border-orange-600 text-white dark:text-orange-100 shadow-sm';
       case 'ADMIN':
-        return 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 text-blue-700 dark:text-blue-300';
+        return 'bg-gradient-to-r from-orange-100 via-orange-200 to-orange-100 dark:from-orange-900/30 dark:via-orange-800/40 dark:to-orange-900/30 border border-orange-300 dark:border-orange-700 text-orange-800 dark:text-orange-300';
       case 'TRAINER':
-        return 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 text-orange-700 dark:text-orange-300';
+        return 'bg-gradient-to-r from-orange-100 via-amber-50 to-orange-100 dark:from-orange-900/30 dark:via-amber-900/20 dark:to-orange-900/30 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
       case 'MEMBER':
-        return 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300';
+        return 'bg-gradient-to-r from-gray-700 via-gray-800 to-gray-700 dark:from-gray-800 dark:via-gray-900 dark:to-gray-800 border border-gray-900 dark:border-gray-700 text-white dark:text-gray-100';
       default:
-        return 'bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300';
+        return 'bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-700 text-orange-700 dark:text-orange-300';
     }
   };
 
@@ -76,12 +76,10 @@ const RoleBadge: React.FC<RoleBadgeProps> = ({
     }
   };
 
+
   return (
     <span
-      className={`inline-flex items-center rounded-full font-semibold font-heading border transition-all duration-200 ${getRoleBadgeColor(
-        role,
-        variant
-      )} ${getSizeClasses()} ${className}`}
+      className={`inline-flex items-center rounded-full font-semibold font-heading border ${getRoleBadgeColor(role, variant)} ${getSizeClasses()} ${className}`}
     >
       {getRoleLabel(role)}
     </span>
