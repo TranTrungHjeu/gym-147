@@ -257,7 +257,10 @@ class BankTransferController {
           if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
             try {
               const axios = require('axios');
-              const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+              if (!process.env.MEMBER_SERVICE_URL) {
+                throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              }
+              const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
 
               // Get user_id from payment member_id (which is actually Member.id)
               const memberResponse = await axios.get(`${memberServiceUrl}/members/${updatedPayment.member_id}`);
@@ -280,7 +283,10 @@ class BankTransferController {
         if (updatedPayment.payment_type === 'CLASS_BOOKING' && updatedPayment.reference_id) {
           try {
             const axios = require('axios');
-            const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+            if (!process.env.SCHEDULE_SERVICE_URL) {
+              throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            }
+            const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
 
             console.log(
               `Calling confirmBookingPayment for booking: ${updatedPayment.reference_id}`
@@ -476,8 +482,14 @@ class BankTransferController {
         // Notify admins about successful subscription payment
         try {
           console.log('📢 Notifying admins about subscription payment success (bank transfer)...');
-          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
-          const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+          if (!process.env.SCHEDULE_SERVICE_URL) {
+            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          }
+          if (!process.env.MEMBER_SERVICE_URL) {
+            throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          }
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
+          const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
           
           // Get subscription and plan info
           const subscription = await prisma.subscription.findUnique({
@@ -495,7 +507,10 @@ class BankTransferController {
           } catch (memberInfoError) {
             // Try to get by user_id if member_id fails
             try {
-              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+              if (!process.env.IDENTITY_SERVICE_URL) {
+                throw new Error('IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              }
+              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL;
               const userResponse = await axios.get(`${identityServiceUrl}/users/${updatedPayment.member_id}`, {
                 timeout: 5000,
               });
@@ -536,7 +551,10 @@ class BankTransferController {
       if (updatedPayment.payment_type === 'CLASS_BOOKING' && updatedPayment.reference_id) {
         try {
           const axios = require('axios');
-          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+          if (!process.env.SCHEDULE_SERVICE_URL) {
+            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          }
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
 
           console.log(
             `Webhook: Calling confirmBookingPayment for booking: ${updatedPayment.reference_id}`

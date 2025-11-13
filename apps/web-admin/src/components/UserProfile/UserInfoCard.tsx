@@ -149,15 +149,10 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       if (role === 'MEMBER') {
         // Fetch from member-service
         try {
-          const memberServiceUrl = 'http://localhost:3002';
-          const response = await fetch(`${memberServiceUrl}/members/user/${userId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const response = await memberApi.get(`/members/user/${userId}`);
 
-          if (response.ok) {
-            const data = await response.json();
+          if (response.data?.success || response.data?.data) {
+            const data = response.data;
             avatarUrl = data.data?.member?.profile_photo || data.data?.profile_photo || null;
           }
         } catch (error) {
@@ -166,15 +161,10 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       } else if (role === 'TRAINER') {
         // Fetch from schedule-service
         try {
-          const scheduleServiceUrl = 'http://localhost:3003';
-          const response = await fetch(`${scheduleServiceUrl}/trainers/user/${userId}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const response = await scheduleApi.get(`/trainers/user/${userId}`);
 
-          if (response.ok) {
-            const data = await response.json();
+          if (response.data?.success || response.data?.data) {
+            const data = response.data;
             avatarUrl = data.data?.trainer?.profile_photo || data.data?.profile_photo || null;
           }
         } catch (error) {

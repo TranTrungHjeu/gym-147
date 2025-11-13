@@ -131,7 +131,10 @@ class DashboardController {
       let totalEquipment = 0;
       try {
         const axios = require('axios');
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+        if (!process.env.MEMBER_SERVICE_URL) {
+          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        }
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
 
         const equipmentResponse = await axios.get(`${memberServiceUrl}/equipment`, {
           headers: {
@@ -450,8 +453,14 @@ class DashboardController {
       );
 
       // Get profile photos from member-service for members and schedule-service for trainers
-      const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
-      const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+      if (!process.env.MEMBER_SERVICE_URL) {
+        throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+      }
+      if (!process.env.SCHEDULE_SERVICE_URL) {
+        throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+      }
+      const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+      const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
       const profilePhotosMap = {};
 
       // Separate users by role
@@ -749,7 +758,10 @@ class DashboardController {
         // Fetch member profile photos
         if (loginMemberUserIds.length > 0) {
           try {
-            const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+            if (!process.env.MEMBER_SERVICE_URL) {
+              throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            }
+            const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
             const loginProfilePhotosResponse = await Promise.allSettled(
               loginMemberUserIds.map(async userId => {
                 try {
@@ -802,7 +814,10 @@ class DashboardController {
         // Fetch trainer profile photos
         if (loginTrainerUserIds.length > 0) {
           try {
-            const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+            if (!process.env.SCHEDULE_SERVICE_URL) {
+              throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            }
+            const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
             const loginTrainerPhotosResponse = await Promise.allSettled(
               loginTrainerUserIds.map(async userId => {
                 try {

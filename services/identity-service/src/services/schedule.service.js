@@ -2,43 +2,11 @@ const axios = require('axios');
 
 class ScheduleService {
   constructor() {
-    // Priority order for Docker environment:
-    // 1. SCHEDULE_SERVICE_URL (explicit config from .env)
-    // 2. Docker container name (http://schedule:3003) - default for Docker
-    // 3. API_GATEWAY_URL + /schedule (via gateway)
-    // 4. Localhost fallback (for local development)
-
-    let baseURL = process.env.SCHEDULE_SERVICE_URL;
-
-    if (!baseURL) {
-      // Check if running in Docker
-      // In Docker, services communicate via container/service names
-      // Docker Compose creates a network where service names resolve to container IPs
-      const isDocker = this._isRunningInDocker();
-
-      if (isDocker) {
-        // Use Docker service name (from docker-compose.yml)
-        // Service name is 'schedule', container name is 'schedule-service'
-        baseURL = 'http://schedule:3003';
-        console.log('🐳 Detected Docker environment, using container name: schedule:3003');
-      } else {
-        // Local development - try API Gateway first, then localhost
-        const apiGatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
-        if (apiGatewayUrl) {
-          baseURL = `${apiGatewayUrl.replace(/\/$/, '')}/schedule`;
-          console.log('🌐 Using API Gateway URL:', baseURL);
-        } else {
-          baseURL = 'http://localhost:3003';
-          console.log('💻 Local development mode, using localhost:3003');
-        }
-      }
-    } else {
-      console.log('⚙️ Using explicit SCHEDULE_SERVICE_URL from environment:', baseURL);
+    if (!process.env.SCHEDULE_SERVICE_URL) {
+      throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
     }
-
-    this.baseURL = baseURL;
+    this.baseURL = process.env.SCHEDULE_SERVICE_URL;
     console.log('📡 Schedule Service URL configured:', this.baseURL);
-    console.log('📡 Schedule Service initialized with fallback mechanism');
   }
 
   /**
@@ -90,7 +58,7 @@ class ScheduleService {
   }
 
   async createTrainer(userData) {
-    console.log('🚀 [NEW CODE] createTrainer called with userData:', {
+    console.log('🚀 createTrainer called with userData:', {
       id: userData.id,
       email: userData.email,
       firstName: userData.firstName,
@@ -111,95 +79,38 @@ class ScheduleService {
       profile_photo: null,
     };
 
-    // Try multiple URLs as fallback
-    // Priority: configured URL -> Docker container name -> localhost
-    const isDocker = this._isRunningInDocker();
-    const urlsToTry = [];
+    try {
+      console.log(`🔄 Creating trainer at: ${this.baseURL}/trainers`);
 
-    // Add configured URL first
-    urlsToTry.push(this.baseURL);
+      const response = await axios.post(`${this.baseURL}/trainers`, trainerData, {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        timeout: 5000,
+      });
 
-    // Add Docker container name if not already in list and we're in Docker
-    if (isDocker && !urlsToTry.includes('http://schedule:3003')) {
-      urlsToTry.push('http://schedule:3003');
+      console.log('✅ Trainer created successfully in schedule-service:', response.data);
+
+      return {
+        success: true,
+        data: response.data,
+      };
+    } catch (error) {
+      console.error('❌ Failed to create trainer in schedule-service:', {
+        message: error.message,
+        code: error.code,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        data: error.response?.data,
+      });
+
+      return {
+        success: false,
+        error: error.message || 'Failed to connect to schedule service',
+        status: error.response?.status,
+        responseData: error.response?.data,
+      };
     }
-
-    // Add localhost as fallback (works in both Docker and local if port is exposed)
-    if (!urlsToTry.includes('http://localhost:3003')) {
-      urlsToTry.push('http://localhost:3003');
-    }
-
-    // Remove duplicates
-    const uniqueUrls = urlsToTry.filter((url, index, self) => self.indexOf(url) === index);
-
-    console.log('🔄 Starting trainer creation with fallback URLs:', uniqueUrls);
-    console.log(`🐳 Docker environment: ${isDocker ? 'Yes' : 'No'}`);
-
-    let lastError = null;
-    let workingURL = null;
-
-    for (const baseURL of uniqueUrls) {
-      try {
-        console.log(
-          `🔄 [${uniqueUrls.indexOf(baseURL) + 1}/${
-            uniqueUrls.length
-          }] Attempting: ${baseURL}/trainers`
-        );
-
-        const response = await axios.post(`${baseURL}/trainers`, trainerData, {
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 5000, // 5 seconds timeout per attempt
-        });
-
-        console.log('✅ Trainer created successfully in schedule-service:', response.data);
-        workingURL = baseURL;
-
-        // Update baseURL if this one worked
-        if (baseURL !== this.baseURL) {
-          console.log(`📡 Updating schedule service URL to working URL: ${baseURL}`);
-          this.baseURL = baseURL;
-        }
-
-        return {
-          success: true,
-          data: response.data,
-        };
-      } catch (error) {
-        lastError = error;
-        const errorMsg =
-          error.code === 'ECONNREFUSED'
-            ? `Connection refused - service may not be running on ${baseURL}`
-            : error.message;
-        console.warn(
-          `⚠️ [${uniqueUrls.indexOf(baseURL) + 1}/${uniqueUrls.length}] Failed: ${errorMsg}`
-        );
-        // Continue to next URL
-      }
-    }
-
-    // All URLs failed
-    console.error('❌ All schedule service URLs failed. Summary:', {
-      urlsTried: uniqueUrls.map((url, idx) => `${idx + 1}. ${url}`),
-      configuredURL: this.baseURL,
-      lastError: {
-        code: lastError?.code,
-        message: lastError?.message,
-        status: lastError?.response?.status,
-        statusText: lastError?.response?.statusText,
-      },
-      suggestion:
-        'Please ensure schedule-service is running. Check: docker-compose ps schedule or verify port 3003 is accessible',
-    });
-
-    return {
-      success: false,
-      error: lastError?.message || 'Failed to connect to schedule service',
-      status: lastError?.response?.status,
-      responseData: lastError?.response?.data,
-      urlsTried: uniqueUrls,
-    };
   }
 
   async updateTrainer(userId, userData) {

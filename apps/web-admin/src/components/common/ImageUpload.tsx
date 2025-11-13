@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
 import AdminButton from '../common/AdminButton';
+import { identityApi } from '@/services/api';
 
 interface ImageUploadProps {
   value?: string;
@@ -51,28 +52,19 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
     // Upload to S3 or server
     setIsUploading(true);
     try {
-      // TODO: Replace with actual S3 upload endpoint
       const formData = new FormData();
       formData.append('file', file);
 
-      const token = localStorage.getItem('accessToken');
-      const response = await fetch('http://localhost:3001/upload/image', {
-        method: 'POST',
+      const response = await identityApi.post('/upload/image', formData, {
         headers: {
-          Authorization: `Bearer ${token}`,
+          'Content-Type': 'multipart/form-data',
         },
-        body: formData,
       });
 
-      if (!response.ok) {
-        throw new Error('Upload failed');
-      }
-
-      const data = await response.json();
-      if (data.success && data.data?.url) {
-        onChange(data.data.url);
+      if (response.data?.success && response.data?.data?.url) {
+        onChange(response.data.data.url);
       } else {
-        throw new Error(data.message || 'Upload failed');
+        throw new Error(response.data?.message || 'Upload failed');
       }
     } catch (error: any) {
       console.error('Upload error:', error);

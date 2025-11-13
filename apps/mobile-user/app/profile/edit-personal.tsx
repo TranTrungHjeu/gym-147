@@ -125,7 +125,11 @@ export default function EditPersonalScreen() {
   const loadProvinces = async () => {
     try {
       setLoadingAddress(true);
-      const url = 'http://tinhthanhpho.com/api/v1/new-provinces?limit=100';
+      // Use environment variable or fallback to public API
+      const { environment } = require('@/config/environment');
+      const provincesApiUrl =
+        environment.PROVINCES_API_URL || 'http://tinhthanhpho.com/api/v1';
+      const url = `${provincesApiUrl}/new-provinces?limit=100`;
       console.log('Loading provinces from:', url);
       const response = await fetch(url);
 
@@ -166,7 +170,11 @@ export default function EditPersonalScreen() {
   const loadWards = async (provinceCode: string) => {
     try {
       setLoadingAddress(true);
-      const url = `http://tinhthanhpho.com/api/v1/new-provinces/${provinceCode}/wards?limit=1000`;
+      // Use environment variable or fallback to public API
+      const { environment } = require('@/config/environment');
+      const provincesApiUrl =
+        environment.PROVINCES_API_URL || 'http://tinhthanhpho.com/api/v1';
+      const url = `${provincesApiUrl}/new-provinces/${provinceCode}/wards?limit=1000`;
       console.log('Loading wards from:', url);
       const response = await fetch(url);
 

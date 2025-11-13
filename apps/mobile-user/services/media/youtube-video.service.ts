@@ -39,8 +39,15 @@ interface ExerciseVideo {
 
 export class YouTubeVideoService {
   private readonly baseUrl = 'https://www.googleapis.com/youtube/v3';
-  private readonly apiKey =
-    Constants.expoConfig?.extra?.YOUTUBE_API_KEY || 'YOUR_YOUTUBE_API_KEY';
+  private readonly apiKey = 
+    process.env.EXPO_PUBLIC_YOUTUBE_API_KEY || 
+    Constants.expoConfig?.extra?.YOUTUBE_API_KEY;
+
+  constructor() {
+    if (!this.apiKey || this.apiKey.trim() === '') {
+      throw new Error('YOUTUBE_API_KEY is required. Please set EXPO_PUBLIC_YOUTUBE_API_KEY in your .env file or in app.json extra section.');
+    }
+  }
 
   private cache = new Map<string, ExerciseVideo>();
 
@@ -81,7 +88,7 @@ export class YouTubeVideoService {
   async getExerciseVideo(exerciseName: string): Promise<ExerciseVideo | null> {
     try {
       // Check if API key is configured
-      if (!this.apiKey || this.apiKey === 'YOUR_YOUTUBE_API_KEY') {
+      if (!this.apiKey) {
         console.log(`⚠️ YouTube API key not configured for: ${exerciseName}`);
         return null;
       }
@@ -165,7 +172,7 @@ export class YouTubeVideoService {
     const videos: { [key: string]: ExerciseVideo } = {};
 
     // Check if API key is configured
-    if (!this.apiKey || this.apiKey === 'YOUR_YOUTUBE_API_KEY') {
+    if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey === 'YOUR_YOUTUBE_API_KEY' || this.apiKey === 'your-youtube-api-key') {
       console.log('⚠️ YouTube API key not configured - skipping video loading');
       return videos;
     }

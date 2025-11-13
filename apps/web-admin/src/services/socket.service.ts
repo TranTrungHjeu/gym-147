@@ -26,12 +26,7 @@ class SocketService {
     // Validate WebSocket URL
     if (!API_CONFIG.WS_SCHEDULE_URL) {
       console.error('❌ WS_SCHEDULE_URL is not configured. Please check your .env file.');
-      // Return a dummy socket that won't crash
-      this.socket = io('http://localhost:3003', {
-        autoConnect: false,
-        reconnection: false,
-      }) as Socket;
-      return this.socket;
+      throw new Error('WS_SCHEDULE_URL environment variable is required. Please set VITE_WS_SCHEDULE_URL in your .env file.');
     }
     
     // Log the WebSocket URL being used
@@ -52,12 +47,7 @@ class SocketService {
       });
     } catch (error) {
       console.error('❌ Failed to create socket connection:', error);
-      // Return a dummy socket that won't crash
-      this.socket = io('http://localhost:3003', {
-        autoConnect: false,
-        reconnection: false,
-      }) as Socket;
-      return this.socket;
+      throw error;
     }
 
     // Subscribe to user room when connected

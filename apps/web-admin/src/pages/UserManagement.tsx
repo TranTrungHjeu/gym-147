@@ -295,9 +295,9 @@ export default function UserManagement() {
       // Check for CORS error
       if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
         console.error('CORS or Network Error detected. Please check:');
-        console.error('1. API Gateway is running on http://localhost:8080');
+        console.error('1. API Gateway is running');
         console.error('2. CORS is configured in services');
-        console.error('3. VITE_API_BASE_URL is set to http://localhost:8080');
+        console.error('3. VITE_API_BASE_URL is set correctly in .env file');
 
         if (window.showToast) {
           window.showToast({

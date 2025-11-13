@@ -544,7 +544,10 @@ class ClassController {
 
       if (useAI === 'true' && canUseAI) {
         try {
-          const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+          if (!process.env.MEMBER_SERVICE_URL) {
+            throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          }
+          const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL;
           const aiClient = createHttpClient(MEMBER_SERVICE_URL, { timeout: 60000 }); // Increase timeout to 60s for AI calls
 
           // Send only necessary fields to reduce payload size

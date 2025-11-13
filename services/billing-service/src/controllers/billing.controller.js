@@ -2,7 +2,10 @@ const { prisma } = require('../lib/prisma.js');
 const axios = require('axios');
 const receiptService = require('../services/receipt.service.js');
 
-const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+if (!process.env.MEMBER_SERVICE_URL) {
+  throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+}
+const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL;
 
 // Configure axios defaults for all requests
 axios.defaults.headers.post['Content-Type'] = 'application/json';
@@ -968,7 +971,10 @@ class BillingController {
         // Call Member Service to create member
         // This would be an HTTP call to Member Service
         const axios = require('axios');
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+        if (!process.env.MEMBER_SERVICE_URL) {
+          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        }
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
 
         try {
           // NOTE: payment.member_id in database is Member.id (from member service)
@@ -989,7 +995,10 @@ class BillingController {
         // Notify admins about successful subscription payment
         try {
           console.log('📢 Notifying admins about subscription payment success...');
-          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3003';
+          if (!process.env.SCHEDULE_SERVICE_URL) {
+            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          }
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
           
           // Get member info if available (payment.member_id might be user_id or member_id)
           let memberInfo = null;
@@ -1002,7 +1011,10 @@ class BillingController {
             // Try to get by user_id if member_id fails
             try {
               // payment.member_id might be user_id, so try to get member by user_id
-              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+              if (!process.env.IDENTITY_SERVICE_URL) {
+                throw new Error('IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              }
+              const identityServiceUrl = process.env.IDENTITY_SERVICE_URL;
               const userResponse = await axios.get(`${identityServiceUrl}/users/${payment.member_id}`, {
                 timeout: 5000,
               });
@@ -1336,7 +1348,10 @@ class BillingController {
       if (payment.member_id) {
         try {
           const axios = require('axios');
-          const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://localhost:3002';
+          if (!process.env.MEMBER_SERVICE_URL) {
+          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        }
+        const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
           const memberResponse = await axios.get(
             `${memberServiceUrl}/members/${payment.member_id}`
           );

@@ -7,6 +7,8 @@ import { User as UserType } from '../../services/user.service';
 import { Trainer } from '../../services/trainer.service';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
+import { API_CONFIG } from '@/config/api.config';
+import { scheduleApi } from '@/services/api';
 
 export default function UserDropdown() {
   const { t } = useTranslation();
@@ -35,18 +37,10 @@ export default function UserDropdown() {
     // Fetch trainer avatar if user is a trainer (same as UserInfoCard)
     const fetchTrainerAvatar = async (userId: string) => {
       try {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return;
+        const response = await scheduleApi.get(`/trainers/user/${userId}`);
 
-        const scheduleServiceUrl = 'http://localhost:3003';
-        const response = await fetch(`${scheduleServiceUrl}/trainers/user/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
+        if (response.data?.success || response.data?.data) {
+          const data = response.data;
           const profilePhoto = data.data?.trainer?.profile_photo || data.data?.profile_photo || null;
           if (profilePhoto) {
             setTrainer({ profile_photo: profilePhoto } as Trainer);

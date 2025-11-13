@@ -3,6 +3,7 @@ import { getDashboardPath } from '../utils/auth';
 import { User as UserType } from '../services/user.service';
 import { useEffect, useState } from 'react';
 import { Trainer } from '../services/trainer.service';
+import { scheduleApi } from '@/services/api';
 
 export default function TrainerSidebarWidget() {
   const [user, setUser] = useState<UserType | null>(null);
@@ -27,18 +28,10 @@ export default function TrainerSidebarWidget() {
     // Fetch trainer profile photo if user is a trainer (same as UserInfoCard)
     const fetchTrainerAvatar = async (userId: string) => {
       try {
-        const token = localStorage.getItem('accessToken');
-        if (!token) return;
+        const response = await scheduleApi.get(`/trainers/user/${userId}`);
 
-        const scheduleServiceUrl = 'http://localhost:3003';
-        const response = await fetch(`${scheduleServiceUrl}/trainers/user/${userId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
-
-        if (response.ok) {
-          const data = await response.json();
+        if (response.data?.success || response.data?.data) {
+          const data = response.data;
           const profilePhoto = data.data?.trainer?.profile_photo || data.data?.profile_photo || null;
           if (profilePhoto) {
             setTrainer({ profile_photo: profilePhoto } as Trainer);

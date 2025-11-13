@@ -33,28 +33,17 @@ class MemberController {
 
   /**
    * Helper function to get Identity Service URL
-   * In Docker, use container name. In local dev, use localhost or configured URL
+   * REQUIRED: IDENTITY_SERVICE_URL must be set in environment variables
    */
   getIdentityServiceUrl() {
-    // Always use configured URL if provided (highest priority)
-    if (process.env.IDENTITY_SERVICE_URL) {
-      console.log('✅ Using IDENTITY_SERVICE_URL from env:', process.env.IDENTITY_SERVICE_URL);
-      return process.env.IDENTITY_SERVICE_URL;
+    if (!process.env.IDENTITY_SERVICE_URL) {
+      throw new Error(
+        'IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.'
+      );
     }
-    
-    // Detect Docker environment
-    const isDocker = this._isRunningInDocker();
-    const url = isDocker ? 'http://identity:3001' : 'http://localhost:3001';
-    
-    console.log('🔧 Identity Service URL detection:', {
-      isDocker,
-      url,
-      NODE_ENV: process.env.NODE_ENV,
-      DOCKER_ENV: process.env.DOCKER_ENV,
-      IDENTITY_SERVICE_URL: process.env.IDENTITY_SERVICE_URL || 'NOT SET'
-    });
-    
-    return url;
+
+    console.log('Using IDENTITY_SERVICE_URL from env:', process.env.IDENTITY_SERVICE_URL);
+    return process.env.IDENTITY_SERVICE_URL;
   }
 
   /**

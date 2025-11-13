@@ -3,7 +3,10 @@ const memberService = require('../services/member.service.js');
 const waitlistService = require('../services/waitlist.service.js');
 const axios = require('axios');
 
-const BILLING_SERVICE_URL = process.env.BILLING_SERVICE_URL || 'http://localhost:3004';
+if (!process.env.BILLING_SERVICE_URL) {
+  throw new Error('BILLING_SERVICE_URL environment variable is required. Please set it in your .env file.');
+}
+const BILLING_SERVICE_URL = process.env.BILLING_SERVICE_URL;
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {

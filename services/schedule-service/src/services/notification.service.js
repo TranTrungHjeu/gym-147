@@ -212,13 +212,13 @@ class NotificationService {
         // Get all admins and find the one matching adminId
         const allAdmins = await this.getAdminsAndSuperAdmins();
         const admin = allAdmins.find(a => a.user_id === adminId);
-        
+
         if (admin) {
           // Try to get full name from first_name and last_name
           const firstName = admin.first_name || '';
           const lastName = admin.last_name || '';
           const fullName = `${firstName} ${lastName}`.trim();
-          
+
           // Use full name if available, otherwise use email (without @domain), otherwise use 'Admin'
           if (fullName) {
             adminName = fullName;
@@ -229,11 +229,15 @@ class NotificationService {
           } else {
             adminName = 'Admin';
           }
-          
+
           adminEmail = admin.email;
-          console.log(`✅ Found admin user: ${adminName} (${adminEmail}), first_name: ${firstName}, last_name: ${lastName}`);
+          console.log(
+            `✅ Found admin user: ${adminName} (${adminEmail}), first_name: ${firstName}, last_name: ${lastName}`
+          );
         } else {
-          console.warn(`⚠️ Admin with ID ${adminId} not found in admin list, using default name 'Admin'`);
+          console.warn(
+            `⚠️ Admin with ID ${adminId} not found in admin list, using default name 'Admin'`
+          );
           console.warn(`⚠️ Available admin IDs: ${allAdmins.map(a => a.user_id).join(', ')}`);
         }
       } catch (adminError) {
@@ -247,12 +251,16 @@ class NotificationService {
         title = 'Admin duyệt';
         // Always include admin name in message (even if it's "Admin" as fallback)
         // The frontend will display it with a badge if role is ADMIN
-        message = `${adminName} đã duyệt chứng chỉ ${certification?.category || ''} (${certification?.certification_level || ''}) của bạn`;
+        message = `${adminName} đã duyệt chứng chỉ ${certification?.category || ''} (${
+          certification?.certification_level || ''
+        }) của bạn`;
       } else {
         title = 'Admin từ chối';
         // Always include admin name in message (even if it's "Admin" as fallback)
         // The frontend will display it with a badge if role is ADMIN
-        message = `${adminName} đã từ chối chứng chỉ ${certification?.category || ''} (${certification?.certification_level || ''}) của bạn${reason ? `: ${reason}` : ''}`;
+        message = `${adminName} đã từ chối chứng chỉ ${certification?.category || ''} (${
+          certification?.certification_level || ''
+        }) của bạn${reason ? `: ${reason}` : ''}`;
       }
 
       // Create notification for trainer
@@ -287,8 +295,9 @@ class NotificationService {
       if (global.io) {
         try {
           const roomName = `user:${trainer.user_id}`;
-          const eventName = action === 'VERIFIED' ? 'certification:verified' : 'certification:rejected';
-          
+          const eventName =
+            action === 'VERIFIED' ? 'certification:verified' : 'certification:rejected';
+
           const socketData = {
             notification_id: notification.id,
             certification_id: certificationId,
@@ -302,16 +311,18 @@ class NotificationService {
             message,
             created_at: notification.created_at,
             // Include full certification details for UI update
-            certification: certification ? {
-              id: certificationId,
-              category: certification.category,
-              certification_level: certification.certification_level,
-              certification_name: certification.certification_name,
-              certification_issuer: certification.certification_issuer,
-              verification_status: certification.verification_status,
-              issued_date: certification.issued_date,
-              expiration_date: certification.expiration_date,
-            } : null,
+            certification: certification
+              ? {
+                  id: certificationId,
+                  category: certification.category,
+                  certification_level: certification.certification_level,
+                  certification_name: certification.certification_name,
+                  certification_issuer: certification.certification_issuer,
+                  verification_status: certification.verification_status,
+                  issued_date: certification.issued_date,
+                  expiration_date: certification.expiration_date,
+                }
+              : null,
           };
 
           // Check if room has any sockets
@@ -325,7 +336,7 @@ class NotificationService {
             );
             // Emit certification:verified or certification:rejected event
             global.io.to(roomName).emit(eventName, socketData);
-            
+
             // Also emit notification:new event for real-time notification display
             global.io.to(roomName).emit('notification:new', {
               notification_id: notification.id,
@@ -338,10 +349,15 @@ class NotificationService {
             });
             console.log(`✅ Emitted ${eventName} and notification:new to room ${roomName}`);
           } else {
-            console.log(`⚠️ No sockets connected to room ${roomName} - notification saved to database only`);
+            console.log(
+              `⚠️ No sockets connected to room ${roomName} - notification saved to database only`
+            );
           }
         } catch (socketError) {
-          console.error('❌ Error emitting socket event for certification status change:', socketError);
+          console.error(
+            '❌ Error emitting socket event for certification status change:',
+            socketError
+          );
         }
       } else {
         console.warn('⚠️ global.io not available - skipping socket notification');
@@ -361,48 +377,18 @@ class NotificationService {
     const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
     const axios = require('axios');
 
-    // Declare triedUrl outside try block so it's accessible in catch
-    let triedUrl = '';
-
     try {
-      // Detect if running in Docker
-      const isDocker =
-        process.env.DOCKER_ENV === 'true' ||
-        require('fs').existsSync('/.dockerenv') ||
-        process.env.NODE_ENV === 'production';
-
-      // Try API Gateway URL first - prefer 8080 for Docker, 8081 for local dev (if API Gateway runs on 8081)
-      let apiGatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
-
-      // If no explicit gateway URL, try to detect
-      if (!apiGatewayUrl) {
-        if (isDocker) {
-          // If in Docker, API Gateway runs on port 8080 (mapped from container port 80)
-          apiGatewayUrl = 'http://host.docker.internal:8080';
-        } else {
-          // If not in Docker, try 8080 first (API Gateway), then 8081 (if API Gateway runs there)
-          // Note: 8081 might be Vite dev server, so prefer 8080
-          apiGatewayUrl = 'http://localhost:8080';
-        }
+      // API Gateway URL is required
+      if (!process.env.API_GATEWAY_URL && !process.env.GATEWAY_URL) {
+        throw new Error(
+          'API_GATEWAY_URL or GATEWAY_URL environment variable is required. Please set it in your .env file.'
+        );
       }
+      const apiGatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
 
-      let identityUrl = IDENTITY_SERVICE_URL;
-
-      // If in Docker and IDENTITY_SERVICE_URL is localhost, try Docker service name first
-      if (isDocker && IDENTITY_SERVICE_URL.includes('localhost:3001')) {
-        // In Docker, use service name for direct communication
-        identityUrl = 'http://identity:3001';
-        triedUrl = identityUrl;
-        console.log(`🐳 Using Docker service name for identity service: ${identityUrl}`);
-      } else if (!isDocker && IDENTITY_SERVICE_URL.includes('localhost:3001')) {
-        // Local dev: try API Gateway first
-        identityUrl = `${apiGatewayUrl.replace(/\/$/, '')}/identity`;
-        triedUrl = identityUrl;
-        console.log(`🌐 Using API Gateway URL for identity service: ${identityUrl}`);
-      } else {
-        triedUrl = identityUrl;
-        console.log(`🔗 Using direct Identity Service URL: ${identityUrl}`);
-      }
+      // Use IDENTITY_SERVICE_URL directly (no fallback logic)
+      const identityUrl = IDENTITY_SERVICE_URL;
+      console.log(`🔗 Using Identity Service URL: ${identityUrl}`);
 
       // Get all admins and super admins (public endpoint, no auth required)
       const adminsResponse = await axios.get(`${identityUrl}/auth/users/admins`, {
@@ -438,64 +424,40 @@ class NotificationService {
         config: error.config?.url,
       });
 
-      // Try fallback to API Gateway if direct connection failed
+      // Retry with API Gateway if direct connection failed
       if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-        // Try both 8080 (Docker) and 8081 (local dev) if not already tried
-        const gatewaysToTry = [];
-
-        // Add explicit gateway URL if set
+        if (!process.env.API_GATEWAY_URL && !process.env.GATEWAY_URL) {
+          throw new Error(
+            'API_GATEWAY_URL or GATEWAY_URL environment variable is required. Please set it in your .env file.'
+          );
+        }
         const explicitGateway = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
-        if (explicitGateway) {
-          gatewaysToTry.push(explicitGateway);
+
+        try {
+          const gatewayUrl = `${explicitGateway.replace(/\/$/, '')}/identity`;
+          console.log(`🔄 Retrying with API Gateway URL: ${gatewayUrl}`);
+
+          // Get all admins and super admins (public endpoint, no auth required)
+          const adminsResponse = await axios.get(`${gatewayUrl}/auth/users/admins`, {
+            timeout: 10000,
+          });
+
+          const allAdmins = (adminsResponse.data?.data?.users || []).map(user => ({
+            user_id: user.id,
+            email: user.email,
+            role: user.role,
+            first_name: user.first_name,
+            last_name: user.last_name,
+          }));
+
+          console.log(
+            `✅ Found ${allAdmins.length} admin/super-admin users via API Gateway: ${gatewayUrl}`
+          );
+          return allAdmins;
+        } catch (gatewayError) {
+          console.error(`❌ API Gateway retry failed:`, gatewayError.message);
+          throw gatewayError;
         }
-
-        // Always try both ports (8080 for API Gateway, 8081 might be Vite dev server)
-        // If in Docker, try host.docker.internal:8080 first (API Gateway in Docker)
-        // Then try localhost:8080 (if API Gateway runs locally)
-        if (isDocker) {
-          gatewaysToTry.push('http://host.docker.internal:8080'); // API Gateway in Docker
-          gatewaysToTry.push('http://host.docker.internal:8081'); // Fallback (might be Vite)
-        }
-        gatewaysToTry.push('http://localhost:8080'); // API Gateway (preferred)
-        gatewaysToTry.push('http://localhost:8081'); // Fallback (might be Vite dev server)
-
-        // Remove duplicates and already tried URLs
-        const uniqueGateways = [...new Set(gatewaysToTry)].filter(url => {
-          // Extract port from URL (8080 or 8081)
-          const urlPort = url.match(/:(\d+)/)?.[1];
-          // Check if this port was already tried
-          return !triedUrl.includes(urlPort);
-        });
-
-        for (const gatewayUrl of uniqueGateways) {
-          try {
-            const fallbackUrl = `${gatewayUrl.replace(/\/$/, '')}/identity`;
-            console.log(`🔄 Retrying with API Gateway URL: ${fallbackUrl}`);
-
-            // Get all admins and super admins (public endpoint, no auth required)
-            const adminsResponse = await axios.get(`${fallbackUrl}/auth/users/admins`, {
-              timeout: 10000,
-            });
-
-            const allAdmins = (adminsResponse.data?.data?.users || []).map(user => ({
-              user_id: user.id,
-              email: user.email,
-              role: user.role,
-              first_name: user.first_name,
-              last_name: user.last_name,
-            }));
-
-            console.log(
-              `✅ Found ${allAdmins.length} admin/super-admin users via API Gateway: ${fallbackUrl}`
-            );
-            return allAdmins;
-          } catch (fallbackError) {
-            console.error(`❌ Fallback to ${gatewayUrl} failed:`, fallbackError.message);
-            // Continue to next gateway
-          }
-        }
-
-        console.error('❌ All gateway fallbacks failed');
       }
 
       // Return empty array on error to prevent blocking
@@ -587,7 +549,9 @@ class NotificationService {
         return;
       }
 
-      console.log(`✅ [NOTIFICATION] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`);
+      console.log(
+        `✅ [NOTIFICATION] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
+      );
 
       // Get all admins and super-admins
       console.log(`🔍 [NOTIFICATION] Fetching all admins and super-admins...`);
@@ -598,7 +562,10 @@ class NotificationService {
         return;
       }
 
-      console.log(`✅ [NOTIFICATION] Found ${admins.length} admin(s)/super-admin(s):`, admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role })));
+      console.log(
+        `✅ [NOTIFICATION] Found ${admins.length} admin(s)/super-admin(s):`,
+        admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
+      );
 
       // Create notification message based on verification status and entry type
       let title, message;
@@ -667,8 +634,10 @@ class NotificationService {
       // Online admins will receive real-time WebSocket notifications
       // Offline admins will see notifications when they log in and open notification dropdown
       if (adminNotifications.length > 0) {
-        console.log(`💾 [NOTIFICATION] Saving ${adminNotifications.length} notifications to database for ALL admins (online and offline)...`);
-        
+        console.log(
+          `💾 [NOTIFICATION] Saving ${adminNotifications.length} notifications to database for ALL admins (online and offline)...`
+        );
+
         // Create notifications individually to get their IDs
         let createdNotifications = [];
         try {
@@ -679,11 +648,18 @@ class NotificationService {
               })
             )
           );
-          console.log(`✅ [NOTIFICATION] Saved ${createdNotifications.length} notifications to database`);
-          console.log(`📊 [NOTIFICATION] Notification saved for all admins - online admins will receive real-time, offline admins will see when they log in`);
-          
+          console.log(
+            `✅ [NOTIFICATION] Saved ${createdNotifications.length} notifications to database`
+          );
+          console.log(
+            `📊 [NOTIFICATION] Notification saved for all admins - online admins will receive real-time, offline admins will see when they log in`
+          );
+
           // Log notification IDs for debugging
-          console.log(`📋 [NOTIFICATION] Created notification IDs:`, createdNotifications.map(n => n.id));
+          console.log(
+            `📋 [NOTIFICATION] Created notification IDs:`,
+            createdNotifications.map(n => n.id)
+          );
         } catch (dbError) {
           console.error('❌ [NOTIFICATION] Error saving notifications to database:', dbError);
           console.error('❌ [NOTIFICATION] Database error details:', {
@@ -701,14 +677,14 @@ class NotificationService {
         if (global.io) {
           let onlineAdminsCount = 0;
           let offlineAdminsCount = 0;
-          
+
           console.log(
             `📡 Starting to emit socket events to online admins (${createdNotifications.length} total admin(s))...`
           );
-          
+
           createdNotifications.forEach(createdNotification => {
             const roomName = `user:${createdNotification.user_id}`;
-            
+
             const socketData = {
               notification_id: createdNotification.id,
               certification_id: certificationId,
@@ -736,7 +712,7 @@ class NotificationService {
             if (socketCount > 0) {
               // Admin is online - send real-time notification
               onlineAdminsCount++;
-              
+
               // Emit different events based on verification status
               if (verificationStatus === 'VERIFIED') {
                 // AI auto-verified: emit certification:verified
@@ -754,7 +730,7 @@ class NotificationService {
                 // Also emit certification:pending (for backward compatibility with frontend)
                 global.io.to(roomName).emit('certification:pending', socketData);
               }
-              
+
               // Also emit a general notification event for real-time notification display
               global.io.to(roomName).emit('notification:new', {
                 notification_id: createdNotification.id,
@@ -768,7 +744,7 @@ class NotificationService {
                 created_at: createdNotification.created_at,
                 is_read: false,
               });
-              
+
               console.log(`✅ [ONLINE] Emitted events and notification:new to ${roomName}`);
             } else {
               // Admin is offline - notification saved to database, will see when they log in
@@ -783,7 +759,9 @@ class NotificationService {
             `✅ Notification summary: ${onlineAdminsCount} online admin(s) received real-time notification, ${offlineAdminsCount} offline admin(s) will see notification when they log in`
           );
         } else {
-          console.warn('⚠️ global.io not available - all notifications saved to database only (admins will see when they log in)');
+          console.warn(
+            '⚠️ global.io not available - all notifications saved to database only (admins will see when they log in)'
+          );
         }
       }
     } catch (error) {
@@ -816,7 +794,9 @@ class NotificationService {
     isManualEntry = false,
   }) {
     try {
-      console.log(`\n📢 [TRAINER_NOTIF] ========== SENDING CERTIFICATION STATUS NOTIFICATION TO TRAINER ==========`);
+      console.log(
+        `\n📢 [TRAINER_NOTIF] ========== SENDING CERTIFICATION STATUS NOTIFICATION TO TRAINER ==========`
+      );
       console.log(`📢 [TRAINER_NOTIF] Parameters:`, {
         trainerId,
         trainerName,
@@ -827,7 +807,7 @@ class NotificationService {
         isManualEntry,
         messageLength: message?.length || 0,
       });
-      
+
       // Get trainer info
       console.log(`🔍 [TRAINER_NOTIF] Fetching trainer info for trainerId: ${trainerId}`);
       const trainer = await prisma.trainer.findUnique({
@@ -844,17 +824,17 @@ class NotificationService {
         return;
       }
 
-      console.log(`✅ [TRAINER_NOTIF] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`);
+      console.log(
+        `✅ [TRAINER_NOTIF] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
+      );
 
       // Create notification for trainer
       // Use CERTIFICATION_UPLOAD for PENDING status (manual entry or AI scan failed)
       // Use CERTIFICATION_VERIFIED for VERIFIED status (manually verified by admin)
       // Note: CERTIFICATION_AUTO_VERIFIED is handled separately by notifyCertificationAutoVerified
       const notificationType =
-        verificationStatus === 'VERIFIED'
-          ? 'CERTIFICATION_VERIFIED'
-          : 'CERTIFICATION_UPLOAD'; // Use CERTIFICATION_UPLOAD for PENDING status
-      
+        verificationStatus === 'VERIFIED' ? 'CERTIFICATION_VERIFIED' : 'CERTIFICATION_UPLOAD'; // Use CERTIFICATION_UPLOAD for PENDING status
+
       const notificationData = {
         user_id: trainer.user_id,
         type: notificationType,
@@ -907,10 +887,14 @@ class NotificationService {
         const room = global.io.sockets.adapter.rooms.get(roomName);
         const socketCount = room ? room.size : 0;
 
-        console.log(`📡 [TRAINER_NOTIF] Checking socket room: ${roomName}, socketCount: ${socketCount}`);
+        console.log(
+          `📡 [TRAINER_NOTIF] Checking socket room: ${roomName}, socketCount: ${socketCount}`
+        );
 
         if (socketCount > 0) {
-          console.log(`📡 [TRAINER_NOTIF] Trainer is online - emitting socket events to room: ${roomName}`);
+          console.log(
+            `📡 [TRAINER_NOTIF] Trainer is online - emitting socket events to room: ${roomName}`
+          );
           global.io.to(roomName).emit('certification:pending', socketData);
           global.io.to(roomName).emit('notification:new', {
             notification_id: notification.id,
@@ -923,15 +907,23 @@ class NotificationService {
           });
           console.log(`✅ [TRAINER_NOTIF] Socket events emitted to trainer room: ${roomName}`);
         } else {
-          console.log(`📋 [TRAINER_NOTIF] Trainer is offline - notification saved to database, will see when they log in`);
+          console.log(
+            `📋 [TRAINER_NOTIF] Trainer is offline - notification saved to database, will see when they log in`
+          );
         }
       } else {
-        console.warn(`⚠️ [TRAINER_NOTIF] global.io not available - notification saved to database only`);
+        console.warn(
+          `⚠️ [TRAINER_NOTIF] global.io not available - notification saved to database only`
+        );
       }
 
-      console.log(`✅ [TRAINER_NOTIF] Certification status notification sent to trainer ${trainerId} (user_id: ${trainer.user_id})`);
+      console.log(
+        `✅ [TRAINER_NOTIF] Certification status notification sent to trainer ${trainerId} (user_id: ${trainer.user_id})`
+      );
     } catch (error) {
-      console.error(`\n❌ [TRAINER_NOTIF] ========== ERROR SENDING CERTIFICATION STATUS NOTIFICATION ==========`);
+      console.error(
+        `\n❌ [TRAINER_NOTIF] ========== ERROR SENDING CERTIFICATION STATUS NOTIFICATION ==========`
+      );
       console.error('❌ [TRAINER_NOTIF] Error sending certification status notification:', error);
       console.error('❌ [TRAINER_NOTIF] Error stack:', error.stack);
       console.error('❌ [TRAINER_NOTIF] Error details:', {
@@ -973,7 +965,7 @@ class NotificationService {
       }
 
       // Helper function to get category label
-      const getCategoryLabel = (cat) => {
+      const getCategoryLabel = cat => {
         const categoryMap = {
           CARDIO: 'Tim mạch',
           STRENGTH: 'Sức mạnh',
@@ -1027,10 +1019,10 @@ class NotificationService {
 
         // Emit certification:deleted event
         global.io.to(roomName).emit('certification:deleted', socketPayload);
-        
+
         // Also emit notification:new event for NotificationDropdown
         global.io.to(roomName).emit('notification:new', socketPayload);
-        
+
         console.log(`✅ Emitted certification:deleted and notification:new events to ${roomName}`);
       }
 
@@ -1044,11 +1036,7 @@ class NotificationService {
    * Send notification to trainer about certifications expiring soon
    * @param {Object} params - Expiry warning parameters
    */
-  async sendCertificationExpiringWarning({
-    trainerId,
-    trainerName,
-    certifications,
-  }) {
+  async sendCertificationExpiringWarning({ trainerId, trainerName, certifications }) {
     try {
       console.log(
         `📢 Sending expiry warning to trainer ${trainerName} for ${certifications.length} certification(s)`
@@ -1068,7 +1056,7 @@ class NotificationService {
       }
 
       // Helper function to get category label
-      const getCategoryLabel = (cat) => {
+      const getCategoryLabel = cat => {
         const categoryMap = {
           CARDIO: 'Tim mạch',
           STRENGTH: 'Sức mạnh',
@@ -1085,7 +1073,7 @@ class NotificationService {
       };
 
       // Format expiration dates
-      const formatDate = (date) => {
+      const formatDate = date => {
         return new Date(date).toLocaleDateString('vi-VN', {
           year: 'numeric',
           month: 'long',
@@ -1100,12 +1088,18 @@ class NotificationService {
         const categoryLabel = getCategoryLabel(cert.category);
         const daysUntilExpiry = cert.daysUntilExpiry;
         title = 'Chứng chỉ sắp hết hạn';
-        message = `Chứng chỉ "${cert.certification_name}" (${categoryLabel}) của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày (${formatDate(cert.expiration_date)}). Vui lòng gia hạn sớm.`;
+        message = `Chứng chỉ "${
+          cert.certification_name
+        }" (${categoryLabel}) của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày (${formatDate(
+          cert.expiration_date
+        )}). Vui lòng gia hạn sớm.`;
       } else {
         const certsList = certifications
           .map(cert => {
             const categoryLabel = getCategoryLabel(cert.category);
-            return `- "${cert.certification_name}" (${categoryLabel}): ${cert.daysUntilExpiry} ngày (${formatDate(cert.expiration_date)})`;
+            return `- "${cert.certification_name}" (${categoryLabel}): ${
+              cert.daysUntilExpiry
+            } ngày (${formatDate(cert.expiration_date)})`;
           })
           .join('\n');
         title = 'Nhiều chứng chỉ sắp hết hạn';
@@ -1180,7 +1174,7 @@ class NotificationService {
       }
 
       // Helper function to get category label
-      const getCategoryLabel = (cat) => {
+      const getCategoryLabel = cat => {
         const categoryMap = {
           CARDIO: 'Tim mạch',
           STRENGTH: 'Sức mạnh',
@@ -1197,7 +1191,7 @@ class NotificationService {
       };
 
       // Format expiration dates
-      const formatDate = (date) => {
+      const formatDate = date => {
         return new Date(date).toLocaleDateString('vi-VN', {
           year: 'numeric',
           month: 'long',
@@ -1300,12 +1294,7 @@ class NotificationService {
    * Send notification to trainer about expired certifications
    * @param {Object} params - Expired certification parameters
    */
-  async sendCertificationExpiredNotification({
-    trainerId,
-    trainerName,
-    category,
-    certifications,
-  }) {
+  async sendCertificationExpiredNotification({ trainerId, trainerName, category, certifications }) {
     try {
       console.log(
         `📢 Sending expired certification notification to trainer ${trainerName} for category ${category}`
@@ -1325,7 +1314,7 @@ class NotificationService {
       }
 
       // Helper function to get category label
-      const getCategoryLabel = (cat) => {
+      const getCategoryLabel = cat => {
         const categoryMap = {
           CARDIO: 'Tim mạch',
           STRENGTH: 'Sức mạnh',
@@ -1342,7 +1331,7 @@ class NotificationService {
       };
 
       const categoryLabel = getCategoryLabel(category);
-      const formatDate = (date) => {
+      const formatDate = date => {
         return new Date(date).toLocaleDateString('vi-VN', {
           year: 'numeric',
           month: 'long',
@@ -1355,7 +1344,11 @@ class NotificationService {
       let message;
       if (certifications.length === 1) {
         const cert = certifications[0];
-        message = `Chứng chỉ "${cert.certification_name}" (${categoryLabel}) của bạn đã hết hạn vào ${formatDate(cert.expiration_date)}. Vui lòng gia hạn ngay để tiếp tục hoạt động.`;
+        message = `Chứng chỉ "${
+          cert.certification_name
+        }" (${categoryLabel}) của bạn đã hết hạn vào ${formatDate(
+          cert.expiration_date
+        )}. Vui lòng gia hạn ngay để tiếp tục hoạt động.`;
       } else {
         const certsList = certifications
           .map(cert => `- "${cert.certification_name}": ${formatDate(cert.expiration_date)}`)
@@ -1520,7 +1513,10 @@ class NotificationService {
             targetUserId = member_id;
           }
         } catch (memberError) {
-          console.error(`❌ Error getting user_id for member_id ${member_id}:`, memberError.message);
+          console.error(
+            `❌ Error getting user_id for member_id ${member_id}:`,
+            memberError.message
+          );
           // Fallback to member_id if lookup fails
           targetUserId = member_id;
         }
@@ -1602,7 +1598,9 @@ class NotificationService {
         },
       });
 
-      console.log(`✅ Notification created: ${type} to user ${targetUserId} (notification_id: ${createdNotification.id})`);
+      console.log(
+        `✅ Notification created: ${type} to user ${targetUserId} (notification_id: ${createdNotification.id})`
+      );
 
       // Emit socket event based on notification type
       if (global.io) {
@@ -1631,7 +1629,7 @@ class NotificationService {
         if (socketEvent) {
           console.log(`📡 Emitting socket event ${socketEvent} to ${roomName}`);
           global.io.to(roomName).emit(socketEvent, socketPayload);
-          
+
           // Also emit general notification:new event for compatibility
           global.io.to(roomName).emit('notification:new', socketPayload);
           console.log(`✅ Socket events emitted successfully to ${roomName}`);
@@ -1659,7 +1657,14 @@ class NotificationService {
    * @param {string} scheduleId - Schedule ID (optional)
    * @param {string} memberId - Member ID (optional)
    */
-  async notifyTrainerCheckIn(trainerId, memberName, className, checkInTime, scheduleId = null, memberId = null) {
+  async notifyTrainerCheckIn(
+    trainerId,
+    memberName,
+    className,
+    checkInTime,
+    scheduleId = null,
+    memberId = null
+  ) {
     try {
       console.log(`📢 Sending check-in notification to trainer: ${trainerId}`);
 
@@ -1690,7 +1695,9 @@ class NotificationService {
         },
       });
 
-      console.log(`✅ Check-in notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`);
+      console.log(
+        `✅ Check-in notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`
+      );
 
       // Emit socket event to trainer
       if (global.io) {
@@ -1707,7 +1714,7 @@ class NotificationService {
 
         console.log(`📡 Emitting socket event member:checked_in to ${roomName}`);
         global.io.to(roomName).emit('member:checked_in', socketPayload);
-        
+
         // Also emit general notification:new event for compatibility
         global.io.to(roomName).emit('notification:new', socketPayload);
         console.log(`✅ Socket events emitted successfully to ${roomName}`);

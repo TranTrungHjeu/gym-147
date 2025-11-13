@@ -1,12 +1,14 @@
 import cors from 'cors';
+import { NextFunction, Request, Response } from 'express';
+import rateLimit from 'express-rate-limit';
 import helmet from 'helmet';
 import morgan from 'morgan';
-import rateLimit from 'express-rate-limit';
-import { Request, Response, NextFunction } from 'express';
 
 // CORS configuration
 export const corsMiddleware = cors({
-  origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
+  origin:
+    process.env.CORS_ORIGIN ||
+    (process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:5173'),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -18,9 +20,7 @@ export const helmetMiddleware = helmet({
 });
 
 // Request logging
-export const loggingMiddleware = morgan(
-  process.env.NODE_ENV === 'production' ? 'combined' : 'dev'
-);
+export const loggingMiddleware = morgan(process.env.NODE_ENV === 'production' ? 'combined' : 'dev');
 
 // Rate limiting
 export const createRateLimit = (windowMs: number = 15 * 60 * 1000, max: number = 100) => {
@@ -41,7 +41,7 @@ export const createRateLimit = (windowMs: number = 15 * 60 * 1000, max: number =
 export const validateRequest = (schema: any) => {
   return (req: Request, res: Response, next: NextFunction) => {
     const { error } = schema.validate(req.body);
-    
+
     if (error) {
       return res.status(400).json({
         success: false,
@@ -53,7 +53,7 @@ export const validateRequest = (schema: any) => {
         })),
       });
     }
-    
+
     next();
   };
 };
@@ -82,7 +82,7 @@ export const timeoutMiddleware = (timeout: number = 30000) => {
 // Health check endpoint
 export const healthCheck = (req: Request, res: Response) => {
   const uptime = process.uptime();
-  
+
   res.status(200).json({
     success: true,
     message: 'Service is healthy',
