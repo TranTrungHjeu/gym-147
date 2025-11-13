@@ -16,6 +16,10 @@ const prisma = new PrismaClient();
 // Create Express app
 const app = express();
 
+// Trust proxy - Required when behind reverse proxy (Nginx gateway)
+// This allows Express to correctly handle X-Forwarded-* headers
+app.set('trust proxy', true);
+
 // Create HTTP server for Socket.IO
 const server = http.createServer(app);
 
@@ -73,16 +77,22 @@ const allowedOrigins = process.env.ALLOWED_ORIGINS
   ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
   : process.env.NODE_ENV === 'production'
     ? [] // Production: must specify allowed origins
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'];
+    : [
+        'http://localhost:3000',
+        'http://localhost:5173',
+        'http://localhost:8080',
+        'http://localhost:8081',
+      ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      
+
       if (allowedOrigins.includes(origin)) {
-        callback(null, true);
+        // Return the specific origin (not true) to avoid duplication
+        callback(null, origin);
       } else {
         callback(new Error('Not allowed by CORS'));
       }
@@ -90,10 +100,13 @@ app.use(
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+    preflightContinue: false,
+    optionsSuccessStatus: 204,
   })
 );
 
 // Rate limiting
+// Note: trust proxy must be set before rate limiter to handle X-Forwarded-For headers
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 1000, // limit each IP to 1000 requests per windowMs
@@ -104,6 +117,11 @@ const limiter = rateLimit({
   },
   standardHeaders: true,
   legacyHeaders: false,
+  // Trust proxy is set above, so rate limiter will use X-Forwarded-For header
+  skip: req => {
+    // Skip rate limiting for health checks
+    return req.path === '/health';
+  },
 });
 app.use(limiter);
 
@@ -169,7 +187,10 @@ app.use((err, req, res, next) => {
 app.use('/', routes);
 
 // Error handling middleware (must be after routes)
-const { errorHandler, notFoundHandler } = require('../../../packages/shared-middleware/src/error.middleware.js');
+const {
+  errorHandler,
+  notFoundHandler,
+} = require('../../../packages/shared-middleware/src/error.middleware.js');
 app.use(notFoundHandler);
 app.use(errorHandler);
 
