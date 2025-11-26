@@ -24,12 +24,13 @@ services:
       - DOCKER_ENV=true
       - MEMBER_SERVICE_URL=http://member:3002
       - SCHEDULE_SERVICE_URL=http://schedule:3003
+      - REDIS_URL=redis://redis:6379
     ports: ["3001:3001"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
@@ -40,12 +41,14 @@ services:
     environment:
       - DOCKER_ENV=true
       - IDENTITY_SERVICE_URL=http://identity:3001
+      - IDENTITY_DATABASE_URL=postgresql://gym:secret@postgres:5432/identity_db
+      - REDIS_URL=redis://redis:6379
     ports: ["3002:3002"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
@@ -55,12 +58,13 @@ services:
     env_file: ../../services/schedule-service/.env
     environment:
       - DOCKER_ENV=true
+      - REDIS_URL=redis://redis:6379
     ports: ["3003:3003"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
@@ -70,18 +74,22 @@ services:
     env_file: ../../services/billing-service/.env
     environment:
       - DOCKER_ENV=true
+      - MEMBER_SERVICE_URL=http://member:3002
+      - IDENTITY_SERVICE_URL=http://identity:3001
+      - SCHEDULE_SERVICE_URL=http://schedule:3003
+      - REDIS_URL=redis://redis:6379
     ports: ["3004:3004"]
     depends_on:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
   # Single PostgreSQL Server with Multiple Databases
   postgres:
-    image: postgres:16
+    image: pgvector/pgvector:pg16
     container_name: gym-database
     environment:
       POSTGRES_USER: gym
