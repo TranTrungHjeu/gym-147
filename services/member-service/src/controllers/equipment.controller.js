@@ -1,6 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const s3UploadService = require('../services/s3-upload.service');
+const challengeService = require('../services/challenge.service.js');
+const notificationService = require('../services/notification.service');
+let distributedLock = null;
+try {
+  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+} catch (e) {
+  try {
+    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+  } catch (e2) {
+    console.warn('⚠️ Distributed lock utility not available, equipment usage will use database transactions only');
+  }
+}
 
 class EquipmentController {
   // ==================== EQUIPMENT MANAGEMENT ====================
@@ -205,6 +217,12 @@ class EquipmentController {
         validUpdateData.next_maintenance = new Date(validUpdateData.next_maintenance);
       }
 
+      // Get old equipment data to check if status changed
+      const oldEquipment = await prisma.equipment.findUnique({
+        where: { id },
+        select: { status: true, name: true },
+      });
+
       const equipment = await prisma.equipment.update({
         where: { id },
         data: {
@@ -212,6 +230,26 @@ class EquipmentController {
           updated_at: new Date(),
         },
       });
+
+      // If status changed, create notification for admin
+      if (validUpdateData.status && oldEquipment && oldEquipment.status !== validUpdateData.status) {
+        await notificationService.createEquipmentNotificationForAdmin({
+          equipmentId: id,
+          equipmentName: equipment.name || oldEquipment.name,
+          status: validUpdateData.status,
+          action: 'status_changed',
+        });
+
+        // Emit socket event
+        if (global.io) {
+          global.io.emit('equipment:status:changed', {
+            equipment_id: id,
+            equipment_name: equipment.name || oldEquipment.name,
+            old_status: oldEquipment.status,
+            new_status: validUpdateData.status,
+          });
+        }
+      }
 
       res.json({
         success: true,
@@ -404,34 +442,83 @@ class EquipmentController {
         reps_completed: usageData.reps_completed,
       });
 
-      const usage = await prisma.equipmentUsage.create({
-        data: usageData,
-        include: {
-          equipment: {
-            select: {
-              id: true,
-              name: true,
-              category: true,
-              location: true,
+        const usage = await prisma.equipmentUsage.create({
+          data: usageData,
+          include: {
+            equipment: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                location: true,
+              },
             },
           },
+        });
+
+        console.log('✅ Equipment usage created:', {
+          usageId: usage.id,
+          session_id: usage.session_id,
+          member_id: usage.member_id,
+          equipment: usage.equipment.name,
+          start_time: usage.start_time,
+          VERIFIED: usage.session_id === sessionToLink?.id,
+        });
+
+        // Update equipment status to IN_USE
+        await prisma.equipment.update({
+          where: { id: equipment_id },
+          data: { status: 'IN_USE' },
+        });
+
+      // Remove user from queue if they were in queue (they claimed the equipment)
+      const queueEntry = await prisma.equipmentQueue.findFirst({
+        where: {
+          member_id: memberId,
+          equipment_id: equipment_id,
+          status: { in: ['WAITING', 'NOTIFIED'] },
         },
       });
 
-      console.log('✅ Equipment usage created:', {
-        usageId: usage.id,
-        session_id: usage.session_id,
-        member_id: usage.member_id,
-        equipment: usage.equipment.name,
-        start_time: usage.start_time,
-        VERIFIED: usage.session_id === sessionToLink?.id,
-      });
+      if (queueEntry) {
+        const removedPosition = queueEntry.position;
+        
+        // Delete queue entry
+        await prisma.equipmentQueue.delete({
+          where: { id: queueEntry.id },
+        });
 
-      // Update equipment status to IN_USE
-      await prisma.equipment.update({
-        where: { id: equipment_id },
-        data: { status: 'IN_USE' },
-      });
+        console.log(`✅ Removed queue entry for member ${memberId} (position ${removedPosition})`);
+
+        // Reorder remaining queue entries
+        await prisma.equipmentQueue.updateMany({
+          where: {
+            equipment_id: equipment_id,
+            status: { in: ['WAITING', 'NOTIFIED'] },
+            position: { gt: removedPosition },
+          },
+          data: {
+            position: { decrement: 1 },
+          },
+        });
+
+        // Emit WebSocket event for queue update
+        if (global.io) {
+          const newQueueLength = await prisma.equipmentQueue.count({
+            where: {
+              equipment_id: equipment_id,
+              status: { in: ['WAITING', 'NOTIFIED'] },
+            },
+          });
+
+          global.io.to(`equipment:${equipment_id}`).emit('queue:updated', {
+            equipment_id: equipment_id,
+            queue_length: newQueueLength,
+            action: 'claimed',
+            member_id: memberId,
+          });
+        }
+      }
 
       // Emit WebSocket event for equipment status change
       if (global.io) {
@@ -441,6 +528,13 @@ class EquipmentController {
           member_id: memberId,
         });
       }
+
+      // ✅ Fix: Auto-update EQUIPMENT challenges when starting equipment usage (async, don't wait)
+      challengeService
+        .autoUpdateEquipmentChallenges(memberId, 1, 0)
+        .catch((err) => {
+          console.error('Auto-update equipment challenges error:', err);
+        });
 
       res.status(201).json({
         success: true,
@@ -479,6 +573,75 @@ class EquipmentController {
         });
       }
 
+      if (!usage_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Usage ID is required',
+          data: null,
+        });
+      }
+
+      // Verify authentication - get userId from token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Missing token',
+          data: null,
+        });
+      }
+
+      let userId = null;
+      try {
+        const token = authHeader.split(' ')[1];
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          let payloadBase64 = tokenParts[1];
+          while (payloadBase64.length % 4) {
+            payloadBase64 += '=';
+          }
+          const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+          userId = payload.userId || payload.id;
+        }
+      } catch (error) {
+        console.error('Error decoding JWT token:', error);
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Invalid token',
+          data: null,
+        });
+      }
+
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Could not extract user ID from token',
+          data: null,
+        });
+      }
+
+      // Verify that memberId belongs to the authenticated user
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { id: true, user_id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      if (member.user_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: You can only end your own equipment usage',
+          data: null,
+        });
+      }
+
       // memberId must be Member.id (not user_id)
       // Schema: EquipmentUsage.member_id references Member.id
 
@@ -495,6 +658,11 @@ class EquipmentController {
       });
 
       if (!activeUsage) {
+        console.error('❌ Active usage not found:', {
+          usage_id,
+          member_id: memberId,
+          user_id: userId,
+        });
         return res.status(404).json({
           success: false,
           message: 'Active equipment usage not found',
@@ -502,7 +670,33 @@ class EquipmentController {
         });
       }
 
-      const endTime = new Date();
+      const equipment_id = activeUsage.equipment_id;
+
+      // Acquire distributed lock for equipment usage stop
+      let lockAcquired = false;
+      let lockId = null;
+
+      if (distributedLock) {
+        const lockResult = await distributedLock.acquire('equipment', equipment_id, {
+          ttl: 30, // 30 seconds
+          retryAttempts: 3,
+          retryDelay: 100,
+        });
+
+        if (!lockResult.acquired) {
+          return res.status(409).json({
+            success: false,
+            message: 'Equipment đang được xử lý, vui lòng thử lại sau',
+            data: null,
+          });
+        }
+
+        lockAcquired = true;
+        lockId = lockResult.lockId;
+      }
+
+      try {
+        const endTime = new Date();
 
       // Calculate duration in seconds for accurate calorie calculation
       const durationInSeconds = Math.floor((endTime - activeUsage.start_time) / 1000);
@@ -592,6 +786,22 @@ class EquipmentController {
         },
       });
 
+      // ✅ Fix: Auto-update FITNESS challenges (calories) - async, don't wait
+      if (calories_burned > 0) {
+        challengeService
+          .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
+          .catch((err) => {
+            console.error('Auto-update fitness challenges error:', err);
+          });
+      }
+
+      // ✅ Fix: Auto-update EQUIPMENT challenges (count) - async, don't wait
+      challengeService
+        .autoUpdateEquipmentChallenges(memberId, 1, durationInMinutes)
+        .catch((err) => {
+          console.error('Auto-update equipment challenges error:', err);
+        });
+
       // Check queue and notify next person
       const nextInQueue = await prisma.equipmentQueue.findFirst({
         where: {
@@ -649,21 +859,34 @@ class EquipmentController {
 
         // Send Push Notification (for offline users)
         if (nextInQueue.member.user_id) {
-          const { sendPushNotification } = require('../utils/push-notification');
-          await sendPushNotification(
-            nextInQueue.member.user_id,
-            "🎉 It's Your Turn!",
-            `${activeUsage.equipment.name} is now available. You have 5 minutes to claim it.`,
-            {
-              type: 'QUEUE_YOUR_TURN',
-              equipment_id: activeUsage.equipment_id,
-              equipment_name: activeUsage.equipment.name,
-              queue_id: nextInQueue.id,
-              expires_at: expiresAt.toISOString(),
-            }
-          );
+          try {
+            const { sendPushNotification } = require('../utils/push-notification');
+            await sendPushNotification(
+              nextInQueue.member.user_id,
+              "🎉 It's Your Turn!",
+              `${activeUsage.equipment.name} is now available. You have 5 minutes to claim it.`,
+              {
+                type: 'QUEUE_YOUR_TURN',
+                equipment_id: activeUsage.equipment_id,
+                equipment_name: activeUsage.equipment.name,
+                queue_id: nextInQueue.id,
+                expires_at: expiresAt.toISOString(),
+              }
+            );
+          } catch (pushError) {
+            console.warn('⚠️ Push notification utility not available:', pushError.message);
+            // Continue without push notification
+          }
         }
       }
+
+      // Create notification for admin when equipment becomes available
+      await notificationService.createEquipmentNotificationForAdmin({
+        equipmentId: activeUsage.equipment_id,
+        equipmentName: activeUsage.equipment.name,
+        status: 'AVAILABLE',
+        action: 'available',
+      });
 
       // Emit WebSocket event for equipment status change
       if (global.io) {
@@ -673,13 +896,30 @@ class EquipmentController {
         });
       }
 
-      res.json({
-        success: true,
-        message: 'Equipment usage stopped successfully',
-        data: { usage },
-      });
+        res.json({
+          success: true,
+          message: 'Equipment usage stopped successfully',
+          data: { usage },
+        });
+      } catch (error) {
+        console.error('Stop equipment usage error:', error);
+        res.status(500).json({
+          success: false,
+          message: 'Internal server error',
+          data: null,
+        });
+      } finally {
+        // Release distributed lock
+        if (lockAcquired && lockId && distributedLock) {
+          try {
+            await distributedLock.release('equipment', equipment_id, lockId);
+          } catch (releaseError) {
+            console.error('Error releasing equipment lock:', releaseError);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Stop equipment usage error:', error);
+      console.error('Stop equipment usage outer error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -1348,6 +1588,21 @@ class EquipmentController {
           where: { id },
           data: { status: 'OUT_OF_ORDER' },
         });
+
+        // Create notification for admin when equipment status changes to OUT_OF_ORDER
+        const equipment = await prisma.equipment.findUnique({
+          where: { id },
+          select: { id: true, name: true },
+        });
+
+        if (equipment) {
+          await notificationService.createEquipmentNotificationForAdmin({
+            equipmentId: id,
+            equipmentName: equipment.name,
+            status: 'OUT_OF_ORDER',
+            action: 'status_changed',
+          });
+        }
 
         if (global.io) {
           global.io.emit('equipment:status:changed', {

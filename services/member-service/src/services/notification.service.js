@@ -172,24 +172,113 @@ class NotificationService {
 
   /**
    * Create in-app notification
+   * Now enqueues notification to Redis queue (processed by worker)
    */
   async createInAppNotification({ memberId, type, title, message, data }) {
     try {
-      const notification = await prisma.notification.create({
-        data: {
-          member_id: memberId,
-          type,
-          title,
-          message,
-          data: data || {},
-          is_read: false,
-        },
+      // Get member's user_id to create notification in identity service
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { user_id: true },
       });
 
+      if (!member?.user_id) {
+        throw new Error(`Member ${memberId} not found or has no user_id`);
+      }
+
+      // Enqueue notification to Redis queue
+      const { notificationWorker } = require('../workers/notification.worker.js');
+      const priority = data?.priority || 'normal';
+      
+      const enqueued = await notificationWorker.enqueueNotification({
+        userId: member.user_id,
+        memberId,
+        type,
+        title,
+        message,
+        data: data || {},
+        channels: ['IN_APP', 'PUSH'],
+      }, priority);
+
+      if (!enqueued) {
+        // Fallback: create notification directly via identity service if Redis is down
+        console.warn('⚠️ Redis queue unavailable, creating notification via identity service');
+        const axios = require('axios');
+        const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+        const response = await axios.post(
+          `${IDENTITY_SERVICE_URL}/notifications`,
+          {
+            user_id: member.user_id,
+            type,
+            title,
+            message,
+          data: {
+            ...(data || {}),
+            member_id: memberId,
+            role: 'MEMBER',
+          },
+        },
+        {
+          timeout: 5000,
+        }
+      );
+
+      if (!response.data.success) {
+        throw new Error(response.data.message || 'Failed to create notification');
+      }
+
+      const notification = response.data.data.notification;
+
+      // Emit socket event if socket.io is available
+      if (global.io) {
+        try {
+          const roomName = `user:${member.user_id}`;
+          const socketPayload = {
+            notification_id: notification.id,
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            data: notification.data,
+            created_at: notification.created_at,
+            is_read: notification.is_read,
+          };
+
+          // Map notification types to specific socket events
+          const socketEventMap = {
+            REWARD: 'reward:notification',
+            CHALLENGE: 'challenge:notification',
+            ACHIEVEMENT: 'achievement:notification',
+            STREAK: 'streak:notification',
+            BOOKING: 'booking:notification',
+            QUEUE: 'queue:notification',
+          };
+
+          const specificEvent = socketEventMap[type];
+          if (specificEvent) {
+            global.io.to(roomName).emit(specificEvent, socketPayload);
+          }
+
+          // Always emit general notification:new event for compatibility
+          global.io.to(roomName).emit('notification:new', socketPayload);
+        } catch (socketError) {
+          console.error('❌ Socket emit error:', socketError);
+          // Don't fail notification creation if socket fails
+        }
+      }
+
+        return {
+          success: true,
+          notificationId: notification.id,
+          message: 'In-app notification created',
+        };
+      }
+
+      // If enqueued successfully, return success
       return {
         success: true,
-        notificationId: notification.id,
-        message: 'In-app notification created',
+        message: 'Notification enqueued successfully',
+        enqueued: true,
       };
     } catch (error) {
       console.error('❌ Create in-app notification error:', error);
@@ -373,6 +462,452 @@ class NotificationService {
       };
     } catch (error) {
       console.error('❌ Update notification preferences error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create queue notification for member
+   */
+  async createQueueNotification({ memberId, type, title, message, data }) {
+    try {
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { user_id: true },
+      });
+
+      if (!member?.user_id) {
+        throw new Error(`Member ${memberId} not found or has no user_id`);
+      }
+
+      return await this.createInAppNotification({
+        memberId,
+        type,
+        title,
+        message,
+        data,
+      });
+    } catch (error) {
+      console.error('❌ Create queue notification error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create equipment notification for admin
+   * @param {Object} params - { equipmentId, equipmentName, status, action }
+   */
+  async createEquipmentNotificationForAdmin({ equipmentId, equipmentName, status, action = 'status_changed' }) {
+    try {
+      // Get all admin users
+      const admins = await identityPrisma.user.findMany({
+        where: {
+          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          is_active: true,
+        },
+        select: { id: true },
+      });
+
+      if (admins.length === 0) {
+        console.log('ℹ️ No active admins found for equipment notification');
+        return { success: true, sent: 0 };
+      }
+
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      const title = action === 'available'
+        ? 'Thiết bị có sẵn'
+        : action === 'status_changed'
+        ? 'Thay đổi trạng thái thiết bị'
+        : 'Cập nhật thiết bị';
+
+      const message = action === 'available'
+        ? `Thiết bị ${equipmentName} đã có sẵn`
+        : `Thiết bị ${equipmentName} đã thay đổi trạng thái thành ${status}`;
+
+      const notificationType = action === 'available'
+        ? 'EQUIPMENT_AVAILABLE'
+        : 'EQUIPMENT_MAINTENANCE_SCHEDULED';
+
+      const results = await Promise.allSettled(
+        admins.map(admin =>
+          axios.post(
+            `${IDENTITY_SERVICE_URL}/notifications`,
+            {
+              user_id: admin.id,
+              type: notificationType,
+              title,
+              message,
+              data: {
+                equipment_id: equipmentId,
+                equipment_name: equipmentName,
+                status,
+                action,
+                role: 'ADMIN',
+              },
+            },
+            { timeout: 5000 }
+          )
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+      // Emit socket events to admin room
+      if (global.io) {
+        admins.forEach(admin => {
+          global.io.to(`user:${admin.id}`).emit('equipment:status:changed', {
+            equipment_id: equipmentId,
+            equipment_name: equipmentName,
+            status,
+            action,
+          });
+        });
+      }
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error('❌ Create equipment notification for admin error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create queue notification for admin
+   * @param {Object} params - { equipmentId, equipmentName, memberName, position, action }
+   */
+  async createQueueNotificationForAdmin({ equipmentId, equipmentName, memberName, position, action = 'joined' }) {
+    try {
+      // Get all admin users
+      const admins = await identityPrisma.user.findMany({
+        where: {
+          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
+          is_active: true,
+        },
+        select: { id: true },
+      });
+
+      if (admins.length === 0) {
+        console.log('ℹ️ No active admins found for queue notification');
+        return { success: true, sent: 0 };
+      }
+
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      const title = action === 'joined' 
+        ? 'Thành viên tham gia hàng chờ'
+        : action === 'left'
+        ? 'Thành viên rời hàng chờ'
+        : 'Cập nhật hàng chờ';
+
+      const message = action === 'joined'
+        ? `${memberName} đã tham gia hàng chờ thiết bị ${equipmentName} ở vị trí ${position}`
+        : action === 'left'
+        ? `${memberName} đã rời hàng chờ thiết bị ${equipmentName}`
+        : `Hàng chờ thiết bị ${equipmentName} đã được cập nhật`;
+
+      const results = await Promise.allSettled(
+        admins.map(admin =>
+          axios.post(
+            `${IDENTITY_SERVICE_URL}/notifications`,
+            {
+              user_id: admin.id,
+              type: 'QUEUE_JOINED',
+              title,
+              message,
+              data: {
+                equipment_id: equipmentId,
+                equipment_name: equipmentName,
+                member_name: memberName,
+                position,
+                action,
+                role: 'ADMIN',
+              },
+            },
+            { timeout: 5000 }
+          )
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+      // Emit socket events to admin room
+      if (global.io) {
+        admins.forEach(admin => {
+          global.io.to(`user:${admin.id}`).emit('queue:updated', {
+            equipment_id: equipmentId,
+            equipment_name: equipmentName,
+            member_name: memberName,
+            position,
+            action,
+          });
+        });
+      }
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error('❌ Create queue notification for admin error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Send system announcement to all members
+   * @param {Object} params - { title, message, data }
+   */
+  async sendSystemAnnouncement({ title, message, data = {} }) {
+    try {
+      // Get all active members
+      const members = await prisma.member.findMany({
+        where: {
+          membership_status: 'ACTIVE',
+        },
+        select: { id: true, user_id: true },
+      });
+
+      if (members.length === 0) {
+        console.log('ℹ️ No active members found for system announcement');
+        return { success: true, sent: 0 };
+      }
+
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      const results = await Promise.allSettled(
+        members
+          .filter(m => m.user_id) // Only members with user_id
+          .map(member =>
+            axios.post(
+              `${IDENTITY_SERVICE_URL}/notifications`,
+              {
+                user_id: member.user_id,
+                type: 'SYSTEM_ANNOUNCEMENT',
+                title,
+                message,
+                data: {
+                  ...data,
+                  role: 'MEMBER',
+                },
+              },
+              { timeout: 5000 }
+            )
+          )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+      // Emit socket events
+      if (global.io) {
+        members.forEach(member => {
+          if (member.user_id) {
+            global.io.to(`user:${member.user_id}`).emit('system:announcement', {
+              title,
+              message,
+              data,
+            });
+          }
+        });
+      }
+
+      return {
+        success: true,
+        sent: successCount,
+        total: members.length,
+      };
+    } catch (error) {
+      console.error('❌ Send system announcement error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Send membership expiry warning
+   * @param {Object} params - { memberId, daysUntilExpiry, membershipType }
+   */
+  async sendMembershipExpiryWarning({ memberId, daysUntilExpiry, membershipType }) {
+    try {
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { id: true, user_id: true, full_name: true },
+      });
+
+      if (!member?.user_id) {
+        throw new Error(`Member ${memberId} not found or has no user_id`);
+      }
+
+      const title = daysUntilExpiry <= 3 
+        ? '⚠️ Gói thành viên sắp hết hạn'
+        : 'Gói thành viên sắp hết hạn';
+      
+      const message = daysUntilExpiry <= 3
+        ? `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn sớm để tiếp tục sử dụng dịch vụ.`
+        : `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ.`;
+
+      return await this.createInAppNotification({
+        memberId,
+        type: 'MEMBERSHIP_EXPIRING',
+        title,
+        message,
+        data: {
+          days_until_expiry: daysUntilExpiry,
+          membership_type: membershipType,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Send membership expiry warning error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Send payment reminder
+   * @param {Object} params - { memberId, invoiceNumber, amount, dueDate }
+   */
+  async sendPaymentReminder({ memberId, invoiceNumber, amount, dueDate }) {
+    try {
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+        select: { id: true, user_id: true },
+      });
+
+      if (!member?.user_id) {
+        throw new Error(`Member ${memberId} not found or has no user_id`);
+      }
+
+      const title = 'Nhắc nhở thanh toán';
+      const message = `Hóa đơn ${invoiceNumber} với số tiền ${amount.toLocaleString('vi-VN')} VND sẽ đến hạn thanh toán vào ${new Date(dueDate).toLocaleDateString('vi-VN')}. Vui lòng thanh toán sớm.`;
+
+      return await this.createInAppNotification({
+        memberId,
+        type: 'PAYMENT_REMINDER',
+        title,
+        message,
+        data: {
+          invoice_number: invoiceNumber,
+          amount,
+          due_date: dueDate,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Send payment reminder error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Send equipment maintenance notification to affected members
+   * @param {Object} params - { equipmentId, equipmentName, maintenanceType, scheduledDate, affectedMemberIds? }
+   */
+  async sendEquipmentMaintenanceNotification({ equipmentId, equipmentName, maintenanceType, scheduledDate, affectedMemberIds = null }) {
+    try {
+      let members = [];
+
+      if (affectedMemberIds && affectedMemberIds.length > 0) {
+        // Get specific members
+        members = await prisma.member.findMany({
+          where: {
+            id: { in: affectedMemberIds },
+          },
+          select: { id: true, user_id: true },
+        });
+      } else {
+        // Get all active members (broadcast)
+        members = await prisma.member.findMany({
+          where: {
+            membership_status: 'ACTIVE',
+          },
+          select: { id: true, user_id: true },
+        });
+      }
+
+      if (members.length === 0) {
+        console.log('ℹ️ No members found for equipment maintenance notification');
+        return { success: true, sent: 0 };
+      }
+
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      const title = 'Bảo trì thiết bị';
+      const message = `Thiết bị ${equipmentName} sẽ được bảo trì vào ${new Date(scheduledDate).toLocaleDateString('vi-VN')}. Vui lòng lưu ý khi sử dụng.`;
+
+      const results = await Promise.allSettled(
+        members
+          .filter(m => m.user_id)
+          .map(member =>
+            axios.post(
+              `${IDENTITY_SERVICE_URL}/notifications`,
+              {
+                user_id: member.user_id,
+                type: 'EQUIPMENT_MAINTENANCE_SCHEDULED',
+                title,
+                message,
+                data: {
+                  equipment_id: equipmentId,
+                  equipment_name: equipmentName,
+                  maintenance_type: maintenanceType,
+                  scheduled_date: scheduledDate,
+                },
+              },
+              { timeout: 5000 }
+            )
+          )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+
+      // Emit socket events
+      if (global.io) {
+        members.forEach(member => {
+          if (member.user_id) {
+            global.io.to(`user:${member.user_id}`).emit('equipment:maintenance:scheduled', {
+              equipment_id: equipmentId,
+              equipment_name: equipmentName,
+              maintenance_type: maintenanceType,
+              scheduled_date: scheduledDate,
+            });
+          }
+        });
+      }
+
+      return {
+        success: true,
+        sent: successCount,
+        total: members.length,
+      };
+    } catch (error) {
+      console.error('❌ Send equipment maintenance notification error:', error);
       return {
         success: false,
         error: error.message,
