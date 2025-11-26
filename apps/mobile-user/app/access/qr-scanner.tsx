@@ -16,13 +16,14 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function QRScannerScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const { user, member } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
@@ -364,6 +365,7 @@ export default function QRScannerScreen() {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['top', 'bottom']}
       >
         <View style={styles.permissionContainer}>
           <Text style={[styles.permissionText, { color: theme.colors.text }]}>
@@ -378,6 +380,7 @@ export default function QRScannerScreen() {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
+        edges={['top', 'bottom']}
       >
         <View style={styles.permissionContainer}>
           <Text style={[styles.permissionText, { color: theme.colors.text }]}>
@@ -407,9 +410,10 @@ export default function QRScannerScreen() {
   return (
     <SafeAreaView
       style={[styles.container, { backgroundColor: theme.colors.background }]}
+      edges={['top']}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
@@ -579,7 +583,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingTop: 12,
+    paddingBottom: 12,
     position: 'absolute',
     top: 0,
     left: 0,

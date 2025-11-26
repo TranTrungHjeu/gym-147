@@ -51,6 +51,9 @@ export interface MembershipPlan {
   advanced_analytics: boolean;
   equipment_priority: boolean;
   is_featured: boolean;
+  billing_interval?: 'MONTHLY' | 'YEARLY' | 'QUARTERLY' | 'WEEKLY';
+  access_hours?: any;
+  access_areas?: string[];
 }
 
 export interface Subscription {
@@ -58,14 +61,21 @@ export interface Subscription {
   member_id: string;
   plan_id: string;
   status: SubscriptionStatus;
-  start_date: Date;
-  end_date: Date;
+  start_date: Date | string;
+  end_date?: Date | string;
+  current_period_start?: Date | string;
+  current_period_end?: Date | string;
+  next_billing_date?: Date | string;
   base_amount: number;
   discount_amount?: number;
   total_amount: number;
   classes_remaining?: number;
   auto_renew: boolean;
   plan?: MembershipPlan;
+  addons?: any[];
+  amount?: number;
+  currency?: string;
+  nextBillingDate?: Date | string;
 }
 
 export interface Payment {

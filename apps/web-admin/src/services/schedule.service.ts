@@ -337,6 +337,18 @@ class ScheduleService {
       room?: string;
     }
   ): Promise<ApiResponse<CalendarEvent[]>> {
+    // Get current trainer user_id from localStorage
+    const user = localStorage.getItem('user');
+    if (!user) {
+      throw new Error('User not found. Please login again.');
+    }
+    const userData = JSON.parse(user);
+    const userId = userData.id;
+
+    if (!userId) {
+      throw new Error('User ID not found. Please login again.');
+    }
+
     // Calculate date range based on view mode
     let startDate: Date;
     let endDate: Date;
@@ -365,28 +377,28 @@ class ScheduleService {
     }
 
     const params = new URLSearchParams({
-      from_date: startDate.toISOString().split('T')[0],
-      to_date: endDate.toISOString().split('T')[0],
-      view: viewMode,
+      date: startDate.toISOString().split('T')[0],
+      end_date: endDate.toISOString().split('T')[0],
+      viewMode: viewMode,
     });
 
-    // Add filter parameters
+    // Add filter parameters (if backend supports them)
     if (filters?.status) params.append('status', filters.status);
-    if (filters?.classType) params.append('class_type', filters.classType);
-    if (filters?.room) params.append('room', filters.room);
 
     // Debug logging
-    console.log('Schedule Service - Date range:', {
+    console.log('Schedule Service - Fetching trainer calendar:', {
+      userId,
       viewMode,
       startDate: startDate.toISOString().split('T')[0],
       endDate: endDate.toISOString().split('T')[0],
       params: params.toString(),
     });
 
-    const response = await this.request<{ schedules: any[] }>(`/schedules?${params}`);
+    // Use trainer-specific endpoint that automatically filters by trainer_id
+    const response = await this.request<{ schedules: any[] }>(`/trainers/user/${userId}/schedule?${params}`);
 
     // Transform schedule data to calendar event format
-    if (response.success && response.data.schedules) {
+    if (response.success && response.data?.schedules) {
       let calendarEvents: CalendarEvent[] = response.data.schedules.map((schedule: any) => ({
         id: schedule.id,
         title: schedule.gym_class?.name || 'Unknown Class',
@@ -421,6 +433,8 @@ class ScheduleService {
         return eventDate >= startDate && eventDate <= endDate;
       });
 
+      console.log('Schedule Service - Transformed calendar events:', calendarEvents.length);
+
       return {
         success: true,
         data: calendarEvents,
@@ -428,7 +442,12 @@ class ScheduleService {
       };
     }
 
-    return response as unknown as ApiResponse<CalendarEvent[]>;
+    // If response doesn't have schedules array, return empty array
+    return {
+      success: true,
+      data: [],
+      message: response.message || 'No schedules found',
+    };
   }
 
   private getStatusColor(status: string): string {

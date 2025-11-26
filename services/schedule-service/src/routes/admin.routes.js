@@ -16,7 +16,9 @@ router.put('/admin/room-change-requests/:id/reject', (req, res) =>
 router.get('/admin/dashboard-stats', (req, res) => adminController.getDashboardStats(req, res));
 
 // Analytics endpoints
-router.get('/analytics/class-attendance', (req, res) => adminController.getClassAttendanceData(req, res));
+router.get('/analytics/class-attendance', (req, res) =>
+  adminController.getClassAttendanceData(req, res)
+);
 
 // Rate limit management endpoints
 router.post('/admin/rate-limits/reset/:user_id', (req, res) =>
@@ -27,6 +29,11 @@ router.post('/admin/rate-limits/reset-user/:user_id', (req, res) =>
 );
 router.post('/admin/rate-limits/reset-all', (req, res) =>
   adminController.resetAllRateLimits(req, res)
+);
+
+// Notification endpoints (called by other services)
+router.post('/notifications/subscription-payment-success', (req, res) =>
+  adminController.handleSubscriptionPaymentSuccess(req, res)
 );
 
 module.exports = router;

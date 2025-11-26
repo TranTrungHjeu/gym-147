@@ -1,3 +1,4 @@
+import { motion } from 'framer-motion';
 import {
   Clock,
   Download,
@@ -29,9 +30,9 @@ import CustomSelect from '../components/common/CustomSelect';
 import Pagination from '../components/common/Pagination';
 import RoleBadge from '../components/common/RoleBadge';
 import StatusBadge from '../components/common/StatusBadge';
+import { TableLoading } from '../components/ui/AppLoading';
 import { memberApi, scheduleApi } from '../services/api';
 import { User, userService } from '../services/user.service';
-import { TableLoading } from '../components/ui/AppLoading';
 
 interface UserManagementFilters {
   search: string;
@@ -72,9 +73,13 @@ export default function UserManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
-  // Ref to track if we're updating from URL to prevent infinite loops
+  // Refs to prevent infinite loops and track changes
   const isUpdatingFromURL = useRef(false);
+  const prevFiltersRef = useRef<{ page: number; role: string; limit: number } | null>(null);
+  const isInitialLoadRef = useRef(true);
+  const fetchUsersRef = useRef<((isPageChange?: boolean) => Promise<void>) | null>(null);
 
   // Initialize filters from URL params (only once on mount)
   const [filters, setFilters] = useState<UserManagementFilters>(() => {
@@ -85,7 +90,7 @@ export default function UserManagement() {
       (searchParams.get('sortBy') as 'name' | 'role' | 'status' | 'date' | 'email') || 'name';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
 
     return {
       search,
@@ -101,11 +106,13 @@ export default function UserManagement() {
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
 
-  // Update filters when URL params change from external sources (e.g., browser back/forward, navigation from other pages)
+  // Update filters when URL params change from external sources (e.g., browser back/forward)
   useEffect(() => {
-    // Skip if we're currently updating URL from filters (set by sync effect)
     if (isUpdatingFromURL.current) {
-      isUpdatingFromURL.current = false; // Reset flag after skipping
+      // Reset flag after a delay to allow fetchUsers effect to skip
+      setTimeout(() => {
+        isUpdatingFromURL.current = false;
+      }, 100);
       return;
     }
 
@@ -116,10 +123,9 @@ export default function UserManagement() {
       (searchParams.get('sortBy') as 'name' | 'role' | 'status' | 'date' | 'email') || 'name';
     const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '20', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
 
     setFilters(prev => {
-      // Only update if something actually changed
       if (
         prev.search !== search ||
         prev.role !== role ||
@@ -129,7 +135,6 @@ export default function UserManagement() {
         prev.page !== page ||
         prev.limit !== limit
       ) {
-        // Mark that we're updating from URL to prevent sync effect from triggering
         isUpdatingFromURL.current = true;
         return {
           search,
@@ -145,36 +150,53 @@ export default function UserManagement() {
     });
   }, [searchParams]);
 
-  // Sync URL params when filters change (only from user interactions, not from URL updates)
+  // Sync URL params when filters change (only from user interactions)
+  // Note: Page and limit are NOT synced to URL to avoid loading state
   useEffect(() => {
-    // Skip if we just updated filters from URL (prevents infinite loop)
     if (isUpdatingFromURL.current) {
-      // Flag will be reset by the URL update effect
       return;
     }
 
-    // Build URL params from current filters
+    // Skip URL update if only page or limit changed (pagination)
+    const prev = prevFiltersRef.current;
+    const onlyPageOrLimitChanged =
+      prev &&
+      prev.page !== filters.page &&
+      prev.role === filters.role &&
+      prev.limit === filters.limit &&
+      filters.search === (searchParams.get('search') || '') &&
+      filters.status === (searchParams.get('status') || '') &&
+      filters.sortBy === ((searchParams.get('sortBy') as any) || 'name') &&
+      filters.sortOrder === ((searchParams.get('sortOrder') as any) || 'asc');
+
+    if (onlyPageOrLimitChanged) {
+      // Don't update URL for pagination, just update the ref
+      prevFiltersRef.current = {
+        page: filters.page,
+        role: filters.role,
+        limit: filters.limit,
+      };
+      return;
+    }
+
     const params = new URLSearchParams();
     if (filters.search) params.set('search', filters.search);
     if (filters.role) params.set('role', filters.role);
     if (filters.status) params.set('status', filters.status);
     if (filters.sortBy !== 'name') params.set('sortBy', filters.sortBy);
     if (filters.sortOrder !== 'asc') params.set('sortOrder', filters.sortOrder);
-    if (filters.page > 1) params.set('page', filters.page.toString());
-    if (filters.limit !== 20) params.set('limit', filters.limit.toString());
+    // Note: page and limit are NOT added to URL to avoid loading state
 
     const newParams = params.toString();
     const currentParams = searchParams.toString();
 
-    // Only update URL if params actually changed
     if (currentParams !== newParams) {
-      // Set flag to prevent URL update effect from updating filters
       isUpdatingFromURL.current = true;
       setSearchParams(params, { replace: true });
-      // Reset flag after a short delay to allow URL update to complete
+      // Reset flag after URL update completes
       setTimeout(() => {
         isUpdatingFromURL.current = false;
-      }, 0);
+      }, 50);
     }
   }, [filters, setSearchParams, searchParams]);
 
@@ -185,7 +207,6 @@ export default function UserManagement() {
       const response = await userService.getUserStats();
 
       if (response.success && response.data) {
-        // Transform API response to UserStats format
         const statsData: UserStats = {
           total: 0,
           active: 0,
@@ -220,12 +241,10 @@ export default function UserManagement() {
           }
         });
 
-        // Active/inactive will be calculated from users list
         setStats(statsData);
       }
     } catch (error: any) {
       console.error('Error fetching user stats:', error);
-      // Calculate stats from users as fallback
     } finally {
       setStatsLoading(false);
     }
@@ -257,100 +276,88 @@ export default function UserManagement() {
     });
   }, []);
 
-  // Fetch users
-  const fetchUsers = useCallback(async () => {
-    try {
-      setLoading(true);
-      const response = await userService.getAllUsers({
-        role: filters.role || undefined,
-        page: filters.page,
-        limit: filters.limit,
-      });
-
-      if (response.success) {
-        const mappedUsers = (response.data.users || []).map((user: any) => ({
-          ...user,
-          isActive: user.is_active !== undefined ? user.is_active : user.isActive ?? true,
-          firstName: user.first_name || user.firstName,
-          lastName: user.last_name || user.lastName,
-          face_photo_url: user.face_photo_url || user.facePhoto || user.photo || null,
-          createdAt: user.created_at || user.createdAt || null,
-          updatedAt: user.updated_at || user.updatedAt || null,
-        }));
-        setUsers(mappedUsers);
-        setTotalPages(response.data.pagination?.pages || 1);
-        setTotalUsers(response.data.pagination?.total || 0);
-
-        // Update active/inactive stats from current page users
-        calculateStatsFromUsers(mappedUsers);
-
-        // Fetch avatars separately to avoid blocking
-        fetchUserAvatars(mappedUsers).catch(() => {
-          // Silently fail - avatars are optional
+  // Fetch users - simplified logic
+  const fetchUsers = useCallback(
+    async (isPageChange = false) => {
+      try {
+        // Only show loading if not a page change AND not currently transitioning
+        if (!isPageChange && !isPageTransitioning) {
+          setLoading(true);
+        }
+        const response = await userService.getAllUsers({
+          role: filters.role || undefined,
+          page: filters.page,
+          limit: filters.limit,
         });
-      }
-    } catch (error: any) {
-      console.error('Error fetching users:', error);
 
-      // Check for CORS error
-      if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
-        console.error('CORS or Network Error detected. Please check:');
-        console.error('1. API Gateway is running');
-        console.error('2. CORS is configured in services');
-        console.error('3. VITE_API_BASE_URL is set correctly in .env file');
-
-        if (window.showToast) {
-          window.showToast({
-            type: 'error',
-            message: 'Network error: Cannot connect to API. Please check if services are running.',
-            duration: 5000,
-          });
+        if (response.success) {
+          const mappedUsers = (response.data.users || []).map((user: any) => ({
+            ...user,
+            isActive: user.is_active !== undefined ? user.is_active : user.isActive ?? true,
+            firstName: user.first_name || user.firstName,
+            lastName: user.last_name || user.lastName,
+            face_photo_url: user.face_photo_url || user.facePhoto || user.photo || null,
+            createdAt: user.created_at || user.createdAt || null,
+            updatedAt: user.updated_at || user.updatedAt || null,
+          }));
+          setUsers(mappedUsers);
+          setTotalPages(response.data.pagination?.pages || 1);
+          setTotalUsers(response.data.pagination?.total || 0);
+          calculateStatsFromUsers(mappedUsers);
+          fetchUserAvatars(mappedUsers).catch(() => {});
         }
-      } else if (error.response?.status === 401) {
-        // Handled by interceptor
-      } else {
-        if (window.showToast) {
-          window.showToast({
-            type: 'error',
-            message: error.response?.data?.message || 'Không thể tải danh sách người dùng',
-            duration: 3000,
-          });
+      } catch (error: any) {
+        console.error('Error fetching users:', error);
+        if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+          if (window.showToast) {
+            window.showToast({
+              type: 'error',
+              message:
+                'Network error: Cannot connect to API. Please check if services are running.',
+              duration: 5000,
+            });
+          }
+        } else if (error.response?.status !== 401) {
+          if (window.showToast) {
+            window.showToast({
+              type: 'error',
+              message: error.response?.data?.message || 'Không thể tải danh sách người dùng',
+              duration: 3000,
+            });
+          }
         }
+      } finally {
+        setLoading(false);
       }
-    } finally {
-      setLoading(false);
-    }
-  }, [filters.role, filters.page, filters.limit, calculateStatsFromUsers]);
+    },
+    [filters.role, filters.page, filters.limit, calculateStatsFromUsers]
+  );
 
-  // Fetch user avatars - Silent failure, use fallback
+  // Update ref whenever fetchUsers changes
+  useEffect(() => {
+    fetchUsersRef.current = fetchUsers;
+  }, [fetchUsers]);
+
+  // Fetch user avatars
   const fetchUserAvatars = async (usersList: User[]) => {
     const avatarMap: Record<string, string | null> = {};
 
-    // Use Promise.allSettled to continue even if some requests fail
     const results = await Promise.allSettled(
       usersList.map(async user => {
         try {
           let avatarUrl = null;
 
           if (user.role === 'MEMBER') {
-            try {
-              const response = await memberApi.get(`/user/${user.id}`).catch(() => null);
-              if (response?.data?.success && response?.data?.data) {
-                const memberData = response.data.data?.member || response.data.data;
-                avatarUrl = memberData?.profile_photo || null;
-              }
-            } catch (error: any) {
-              // Silently fail - will use fallback
+            const response = await memberApi.get(`/user/${user.id}`).catch(() => null);
+            if (response?.data?.success && response?.data?.data) {
+              const memberData = response.data.data?.member || response.data.data;
+              avatarUrl = memberData?.profile_photo || null;
             }
           } else if (user.role === 'TRAINER') {
-            try {
-              const response = await scheduleApi.get(`/trainers/user/${user.id}`).catch(() => null);
-              if (response?.data?.success && response?.data?.data) {
-                const trainerData = response.data.data?.trainer || response.data.data;
-                avatarUrl = trainerData?.profile_photo || null;
-              }
-            } catch (error: any) {
-              // Silently fail - will use fallback
+            const response = await scheduleApi.get(`/trainers/user/${user.id}`).catch(() => null);
+            if (response?.data?.success && response?.data?.data) {
+              const trainerData = response.data.data?.trainer || response.data.data;
+              avatarUrl = trainerData?.profile_photo || null;
             }
           }
 
@@ -378,21 +385,72 @@ export default function UserManagement() {
     setUserAvatars(prev => ({ ...prev, ...avatarMap }));
   };
 
-  // Initial data fetch
+  // Initial stats fetch
   useEffect(() => {
     fetchUserStats();
   }, [fetchUserStats]);
 
-  // Fetch users when relevant filters change
+  // Fetch users when filters change - simplified and optimized
   useEffect(() => {
-    fetchUsers();
-  }, [filters.role, filters.page, filters.limit, fetchUsers]);
+    // Skip if updating from URL (external source)
+    if (isUpdatingFromURL.current) {
+      // Update prevFiltersRef to keep in sync
+      if (prevFiltersRef.current) {
+        prevFiltersRef.current = {
+          page: filters.page,
+          role: filters.role,
+          limit: filters.limit,
+        };
+      }
+      return;
+    }
+
+    // Initialize prevFiltersRef on first run
+    if (!prevFiltersRef.current) {
+      prevFiltersRef.current = {
+        page: filters.page,
+        role: filters.role,
+        limit: filters.limit,
+      };
+      isInitialLoadRef.current = true;
+    }
+
+    // Check what changed BEFORE updating refs
+    const prev = prevFiltersRef.current;
+    const pageChanged = prev.page !== filters.page;
+    const roleChanged = prev.role !== filters.role;
+    const limitChanged = prev.limit !== filters.limit;
+
+    // Skip if nothing changed (prevents unnecessary fetches when fetchUsers is recreated)
+    if (!pageChanged && !roleChanged && !limitChanged && !isInitialLoadRef.current) {
+      return;
+    }
+
+    // Determine if this is only a page change
+    const onlyPageChanged =
+      pageChanged && !roleChanged && !limitChanged && !isInitialLoadRef.current;
+
+    // Update refs AFTER checking but BEFORE fetching
+    prevFiltersRef.current = {
+      page: filters.page,
+      role: filters.role,
+      limit: filters.limit,
+    };
+
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+
+    // Fetch users using ref to avoid dependency on fetchUsers function
+    if (fetchUsersRef.current) {
+      fetchUsersRef.current(onlyPageChanged);
+    }
+  }, [filters.page, filters.role, filters.limit]);
 
   // Filter and sort users
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = [...users];
 
-    // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(user => {
@@ -409,7 +467,6 @@ export default function UserManagement() {
       });
     }
 
-    // Status filter
     if (filters.status) {
       if (filters.status === 'active') {
         filtered = filtered.filter(user => user.isActive);
@@ -418,7 +475,6 @@ export default function UserManagement() {
       }
     }
 
-    // Sort
     filtered.sort((a, b) => {
       let aValue: string | number = '';
       let bValue: string | number = '';
@@ -470,7 +526,6 @@ export default function UserManagement() {
           delete newAvatars[deletedUserId];
           return newAvatars;
         });
-        // Refresh stats after deletion
         fetchUsers();
         fetchUserStats();
       }
@@ -481,7 +536,6 @@ export default function UserManagement() {
     if (selectedUser?.id === updatedUser.id) {
       setSelectedUser(updatedUser);
     }
-    // Refresh stats after update
     fetchUserStats();
   };
 
@@ -493,7 +547,6 @@ export default function UserManagement() {
       setIsDeleting(true);
       await userService.deleteUser(userToDelete.id);
 
-      // Remove user from list
       setUsers(users.filter(u => u.id !== userToDelete.id));
       setUserAvatars(prev => {
         const newAvatars = { ...prev };
@@ -501,13 +554,11 @@ export default function UserManagement() {
         return newAvatars;
       });
 
-      // Close dialogs
       setIsDeleteDialogOpen(false);
       setUserToDelete(null);
       setActionMenuOpen(false);
       setSelectedUserForAction(null);
 
-      // Refresh stats
       fetchUsers();
       fetchUserStats();
 
@@ -551,18 +602,17 @@ export default function UserManagement() {
       let createdDate = '';
       if (user.createdAt) {
         try {
-          // Database stores dates in UTC, convert to Vietnam timezone for export
           const date = new Date(user.createdAt);
           if (!isNaN(date.getTime())) {
             createdDate = date.toLocaleDateString('vi-VN', {
-              timeZone: 'Asia/Ho_Chi_Minh', // Convert from UTC to Vietnam timezone
+              timeZone: 'Asia/Ho_Chi_Minh',
               year: 'numeric',
               month: '2-digit',
               day: '2-digit',
             });
           }
         } catch {
-          // Invalid date, leave empty
+          // Invalid date
         }
       }
 
@@ -604,11 +654,10 @@ export default function UserManagement() {
     }
   };
 
-  // For server-side pagination, we use the users directly (already paginated from API)
-  // Filtered and sorted users are only for client-side filtering/sorting within current page
+  // Display users (already paginated from API, just slice to match limit)
   const displayUsers = useMemo(() => {
-    return filteredAndSortedUsers;
-  }, [filteredAndSortedUsers]);
+    return filteredAndSortedUsers.slice(0, filters.limit);
+  }, [filteredAndSortedUsers, filters.limit]);
 
   return (
     <div className='p-6 space-y-6'>
@@ -647,12 +696,13 @@ export default function UserManagement() {
       {/* Stats Cards */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -669,12 +719,13 @@ export default function UserManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                <UserCheck className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <UserCheck className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -691,12 +742,13 @@ export default function UserManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-gray-100 dark:bg-gray-800 opacity-5 rounded-bl-3xl'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-gray-100 dark:bg-gray-800 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0'>
-                <UserX className='relative w-[18px] h-[18px] text-gray-600 dark:text-gray-400' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <UserX className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -715,12 +767,13 @@ export default function UserManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                <TrendingUp className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -787,7 +840,7 @@ export default function UserManagement() {
       </div>
 
       {/* Users List */}
-      {loading ? (
+      {loading && !isPageTransitioning ? (
         <TableLoading text='Đang tải danh sách người dùng...' />
       ) : filteredAndSortedUsers.length === 0 ? (
         <AdminCard padding='md' className='text-center'>
@@ -805,153 +858,161 @@ export default function UserManagement() {
         </AdminCard>
       ) : (
         <>
-          <AdminCard padding='sm' className='p-0'>
-            <AdminTable>
-              <AdminTableHeader>
-                <AdminTableRow>
-                  <AdminTableCell header className='w-[15%]'>
-                    <span className='whitespace-nowrap'>Người dùng</span>
-                  </AdminTableCell>
-                  <AdminTableCell header className='w-[20%]'>
-                    <span className='whitespace-nowrap'>Email</span>
-                  </AdminTableCell>
-                  <AdminTableCell header className='w-[15%] hidden md:table-cell'>
-                    <span className='whitespace-nowrap'>Số điện thoại</span>
-                  </AdminTableCell>
-                  <AdminTableCell header className='w-[12%]'>
-                    <span className='whitespace-nowrap'>Vai trò</span>
-                  </AdminTableCell>
-                  <AdminTableCell header className='w-[12%]'>
-                    <span className='whitespace-nowrap'>Trạng thái</span>
-                  </AdminTableCell>
-                  <AdminTableCell header className='w-[15%] hidden lg:table-cell'>
-                    <span className='whitespace-nowrap'>Ngày tạo</span>
-                  </AdminTableCell>
-                </AdminTableRow>
-              </AdminTableHeader>
-              <AdminTableBody>
-                {displayUsers.map((user, index) => {
-                  const firstName = user.firstName || user.first_name || '';
-                  const lastName = user.lastName || user.last_name || '';
-                  const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
-                  const isActive = user.isActive ?? true;
-                  const avatar = userAvatars[user.id];
+          <motion.div
+            key={filters.page}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
+            className={isPageTransitioning ? 'opacity-0' : 'opacity-100'}
+          >
+            <AdminCard padding='sm' className='p-0 admin-table-container'>
+              <AdminTable>
+                <AdminTableHeader>
+                  <AdminTableRow>
+                    <AdminTableCell header className='w-[15%]'>
+                      <span className='whitespace-nowrap'>Người dùng</span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[20%]'>
+                      <span className='whitespace-nowrap'>Email</span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[15%] hidden md:table-cell'>
+                      <span className='whitespace-nowrap'>Số điện thoại</span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[12%]'>
+                      <span className='whitespace-nowrap'>Vai trò</span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[12%]'>
+                      <span className='whitespace-nowrap'>Trạng thái</span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[15%] hidden lg:table-cell'>
+                      <span className='whitespace-nowrap'>Ngày tạo</span>
+                    </AdminTableCell>
+                  </AdminTableRow>
+                </AdminTableHeader>
+                <AdminTableBody>
+                  {displayUsers.map((user, index) => {
+                    const firstName = user.firstName || user.first_name || '';
+                    const lastName = user.lastName || user.last_name || '';
+                    const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
+                    const isActive = user.isActive ?? true;
+                    const avatar = userAvatars[user.id];
 
-                  return (
-                    <AdminTableRow
-                      key={user.id}
-                      className={`group relative border-l-4 cursor-pointer border-l-transparent hover:border-l-orange-500 ${
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-gray-900'
-                          : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
-                      onClick={(e?: React.MouseEvent) => {
-                        if (e) {
-                          e.stopPropagation();
-                          setSelectedUserForAction(user);
-                          setMenuPosition({ x: e.clientX, y: e.clientY });
-                          setActionMenuOpen(true);
-                        }
-                      }}
-                    >
-                      <AdminTableCell className='overflow-hidden'>
-                        <div className='flex items-center gap-1.5 sm:gap-2'>
-                          <div className='relative flex-shrink-0'>
-                            {avatar ? (
-                              <>
-                                <img
-                                  src={avatar}
-                                  alt={fullName}
-                                  className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
-                                  onError={e => {
-                                    e.currentTarget.style.display = 'none';
-                                    const fallback = e.currentTarget
-                                      .nextElementSibling as HTMLElement;
-                                    if (fallback) {
-                                      fallback.classList.remove('hidden');
-                                      fallback.classList.add('flex');
-                                    }
-                                  }}
-                                />
-                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                    return (
+                      <AdminTableRow
+                        key={user.id}
+                        className={`group relative border-l-4 cursor-pointer border-l-transparent hover:border-l-orange-500 ${
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-gray-900'
+                            : 'bg-gray-50/50 dark:bg-gray-800/50'
+                        } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                        onClick={(e?: React.MouseEvent) => {
+                          if (e) {
+                            e.stopPropagation();
+                            setSelectedUserForAction(user);
+                            setMenuPosition({ x: e.clientX, y: e.clientY });
+                            setActionMenuOpen(true);
+                          }
+                        }}
+                      >
+                        <AdminTableCell className='overflow-hidden'>
+                          <div className='flex items-center gap-1.5 sm:gap-2'>
+                            <div className='relative flex-shrink-0'>
+                              {avatar ? (
+                                <>
+                                  <img
+                                    src={avatar}
+                                    alt={fullName}
+                                    className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
+                                    onError={e => {
+                                      e.currentTarget.style.display = 'none';
+                                      const fallback = e.currentTarget
+                                        .nextElementSibling as HTMLElement;
+                                      if (fallback) {
+                                        fallback.classList.remove('hidden');
+                                        fallback.classList.add('flex');
+                                      }
+                                    }}
+                                  />
+                                  <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                                    <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                                  </div>
+                                </>
+                              ) : (
+                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
                                   <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
                                 </div>
-                              </>
-                            ) : (
-                              <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
-                                <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                              </div>
-                            )}
-                          </div>
-                          <div className='min-w-0 flex-1 overflow-hidden'>
-                            <div className='flex items-center gap-1.5'>
-                              <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
-                                {fullName}
+                              )}
+                            </div>
+                            <div className='min-w-0 flex-1 overflow-hidden'>
+                              <div className='flex items-center gap-1.5'>
+                                <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
+                                  {fullName}
+                                </div>
                               </div>
                             </div>
                           </div>
-                        </div>
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden'>
-                        {user.email ? (
-                          <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
-                            <Mail className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
-                            <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
-                              {user.email}
-                            </span>
-                          </div>
-                        ) : null}
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden hidden md:table-cell'>
-                        {user.phone ? (
-                          <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
-                            <Phone className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
-                            <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
-                              {user.phone}
-                            </span>
-                          </div>
-                        ) : null}
-                      </AdminTableCell>
-                      <AdminTableCell>
-                        <RoleBadge role={user.role} size='sm' />
-                      </AdminTableCell>
-                      <AdminTableCell>
-                        <StatusBadge status={isActive} size='sm' />
-                      </AdminTableCell>
-                      <AdminTableCell className='hidden lg:table-cell'>
-                        {(() => {
-                          const dateValue = user.createdAt || (user as any).created_at;
-                          if (!dateValue) return null;
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden'>
+                          {user.email ? (
+                            <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                              <Mail className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                              <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                                {user.email}
+                              </span>
+                            </div>
+                          ) : null}
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden hidden md:table-cell'>
+                          {user.phone ? (
+                            <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                              <Phone className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                              <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                                {user.phone}
+                              </span>
+                            </div>
+                          ) : null}
+                        </AdminTableCell>
+                        <AdminTableCell>
+                          <RoleBadge role={user.role} size='sm' />
+                        </AdminTableCell>
+                        <AdminTableCell>
+                          <StatusBadge status={isActive} size='sm' />
+                        </AdminTableCell>
+                        <AdminTableCell className='hidden lg:table-cell'>
+                          {(() => {
+                            const dateValue = user.createdAt || (user as any).created_at;
+                            if (!dateValue) return null;
 
-                          try {
-                            // Database stores dates in UTC, convert to Vietnam timezone for display
-                            const date = new Date(dateValue);
-                            if (isNaN(date.getTime())) return null;
+                            try {
+                              const date = new Date(dateValue);
+                              if (isNaN(date.getTime())) return null;
 
-                            return (
-                              <div className='flex items-center gap-1 sm:gap-1.5'>
-                                <Clock className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
-                                <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
-                                  {date.toLocaleDateString('vi-VN', {
-                                    timeZone: 'Asia/Ho_Chi_Minh', // Convert from UTC to Vietnam timezone
-                                    year: 'numeric',
-                                    month: '2-digit',
-                                    day: '2-digit',
-                                  })}
-                                </span>
-                              </div>
-                            );
-                          } catch {
-                            return null;
-                          }
-                        })()}
-                      </AdminTableCell>
-                    </AdminTableRow>
-                  );
-                })}
-              </AdminTableBody>
-            </AdminTable>
-          </AdminCard>
+                              return (
+                                <div className='flex items-center gap-1 sm:gap-1.5'>
+                                  <Clock className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                                  <span className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
+                                    {date.toLocaleDateString('vi-VN', {
+                                      timeZone: 'Asia/Ho_Chi_Minh',
+                                      year: 'numeric',
+                                      month: '2-digit',
+                                      day: '2-digit',
+                                    })}
+                                  </span>
+                                </div>
+                              );
+                            } catch {
+                              return null;
+                            }
+                          })()}
+                        </AdminTableCell>
+                      </AdminTableRow>
+                    );
+                  })}
+                </AdminTableBody>
+              </AdminTable>
+            </AdminCard>
+          </motion.div>
 
           {totalPages > 1 && (
             <Pagination
@@ -959,10 +1020,20 @@ export default function UserManagement() {
               totalPages={totalPages}
               totalItems={totalUsers}
               itemsPerPage={filters.limit}
-              onPageChange={page => setFilters(prev => ({ ...prev, page }))}
-              onItemsPerPageChange={newLimit =>
-                setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }))
-              }
+              onPageChange={page => {
+                setIsPageTransitioning(true);
+                setFilters(prev => ({ ...prev, page }));
+                setTimeout(() => {
+                  setIsPageTransitioning(false);
+                }, 150);
+              }}
+              onItemsPerPageChange={newLimit => {
+                setIsPageTransitioning(true);
+                setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }));
+                setTimeout(() => {
+                  setIsPageTransitioning(false);
+                }, 150);
+              }}
             />
           )}
         </>
@@ -971,7 +1042,6 @@ export default function UserManagement() {
       {/* Action Menu Popup */}
       {actionMenuOpen && selectedUserForAction && (
         <>
-          {/* Backdrop */}
           <div
             className='fixed inset-0 z-40'
             onClick={() => {
@@ -979,7 +1049,6 @@ export default function UserManagement() {
               setSelectedUserForAction(null);
             }}
           />
-          {/* Popup */}
           <div
             className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 min-w-[180px]'
             style={{

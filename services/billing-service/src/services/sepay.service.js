@@ -8,16 +8,31 @@ const QRCode = require('qrcode');
 
 class SepayService {
   constructor() {
-    this.apiKey = process.env.SEPAY_API_KEY || process.env.SEPAY_SECRET_KEY;
+    // API Key - only use SEPAY_API_KEY, no fallback to avoid confusion
+    this.apiKey = process.env.SEPAY_API_KEY;
+    if (!this.apiKey) {
+      throw new Error(
+        'SEPAY_API_KEY environment variable is required. Please set it in your .env file.'
+      );
+    }
+
     this.merchantId = process.env.SEPAY_MERCHANT_ID;
-    this.baseURL = 'https://my.sepay.vn/userapi';
+
+    // Base URL from env var with default
+    this.baseURL = process.env.SEPAY_API_BASE_URL || 'https://my.sepay.vn/userapi';
+    this.qrBaseURL = process.env.SEPAY_QR_BASE_URL || 'https://qr.sepay.vn';
+
     this.accountNumber = process.env.SEPAY_ACCOUNT_NUMBER;
     this.accountName = process.env.SEPAY_ACCOUNT_NAME;
     if (!process.env.SEPAY_BANK_CODE) {
-      throw new Error('SEPAY_BANK_CODE environment variable is required. Please set it in your .env file.');
+      throw new Error(
+        'SEPAY_BANK_CODE environment variable is required. Please set it in your .env file.'
+      );
     }
     if (!process.env.SEPAY_BANK_NAME) {
-      throw new Error('SEPAY_BANK_NAME environment variable is required. Please set it in your .env file.');
+      throw new Error(
+        'SEPAY_BANK_NAME environment variable is required. Please set it in your .env file.'
+      );
     }
     this.bankCode = process.env.SEPAY_BANK_CODE;
     this.bankName = process.env.SEPAY_BANK_NAME;
@@ -46,12 +61,10 @@ class SepayService {
    */
   async generateQRCode(amount, transferContent, orderId) {
     try {
-      // Sepay QR URL format: https://qr.sepay.vn/img?acc=SO_TAI_KHOAN&bank=NGAN_HANG&amount=SO_TIEN&des=NOI_DUNG
-      const sepayQRUrl = `https://qr.sepay.vn/img?acc=${
-        this.accountNumber
-      }&bank=${encodeURIComponent(this.bankName)}&amount=${amount}&des=${encodeURIComponent(
-        transferContent
-      )}`;
+      // Sepay QR URL format: {QR_BASE_URL}/img?acc=SO_TAI_KHOAN&bank=NGAN_HANG&amount=SO_TIEN&des=NOI_DUNG
+      const sepayQRUrl = `${this.qrBaseURL}/img?acc=${this.accountNumber}&bank=${encodeURIComponent(
+        this.bankName
+      )}&amount=${amount}&des=${encodeURIComponent(transferContent)}`;
 
       console.log('🏦 Sepay QR URL:', sepayQRUrl);
 
@@ -294,6 +307,55 @@ class SepayService {
         message: 'Verification error',
         error: error.message,
       };
+    }
+  }
+
+  /**
+   * Verify webhook signature from Sepay
+   * @param {Object} webhookData - Webhook payload
+   * @param {string} signature - Signature from X-Sepay-Signature header
+   * @returns {boolean} - True if signature is valid
+   */
+  verifyWebhookSignature(webhookData, signature) {
+    try {
+      if (!signature) {
+        console.warn('⚠️ No signature provided in webhook');
+        // In development, allow without signature; in production, require it
+        if (process.env.NODE_ENV === 'production') {
+          return false;
+        }
+        return true; // Allow in development
+      }
+
+      if (!this.apiKey) {
+        console.error('❌ SEPAY_API_KEY not configured');
+        return false;
+      }
+
+      // Sepay signature verification (HMAC SHA256)
+      const crypto = require('crypto');
+      const payload = JSON.stringify(webhookData);
+      const expectedSignature = crypto
+        .createHmac('sha256', this.apiKey)
+        .update(payload)
+        .digest('hex');
+
+      // Compare signatures (constant-time comparison to prevent timing attacks)
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(signature),
+        Buffer.from(expectedSignature)
+      );
+
+      if (!isValid) {
+        console.error('❌ Invalid webhook signature');
+        console.log('Expected:', expectedSignature.substring(0, 20) + '...');
+        console.log('Received:', signature.substring(0, 20) + '...');
+      }
+
+      return isValid;
+    } catch (error) {
+      console.error('❌ Error verifying webhook signature:', error);
+      return false;
     }
   }
 

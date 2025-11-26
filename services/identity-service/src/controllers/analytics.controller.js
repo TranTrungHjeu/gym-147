@@ -253,31 +253,39 @@ class AnalyticsController {
 
       const skip = (page - 1) * limit;
 
-      // TODO: Implement audit logs retrieval
-      // This would typically involve:
-      // 1. Get audit logs for user
-      // 2. Filter by action, date range
-      // 3. Include pagination
+      const where = {
+        user_id: userId,
+      };
+
+      if (action) {
+        where.action = action;
+      }
+
+      if (startDate || endDate) {
+        where.timestamp = {};
+        if (startDate) where.timestamp.gte = new Date(startDate);
+        if (endDate) where.timestamp.lte = new Date(endDate);
+      }
+
+      const auditLogs = await prisma.auditLog.findMany({
+        where,
+        orderBy: { timestamp: 'desc' },
+        skip: parseInt(skip),
+        take: parseInt(limit),
+      });
+
+      const total = await prisma.auditLog.count({ where });
 
       res.json({
         success: true,
         message: 'Audit logs retrieved successfully',
         data: {
-          auditLogs: [
-            {
-              id: 'audit1',
-              action: 'LOGIN',
-              timestamp: '2024-01-01T10:00:00Z',
-              ipAddress: '192.168.1.1',
-              userAgent: 'Chrome/91.0',
-              details: 'Successful login',
-            },
-          ],
+          auditLogs,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
-            total: 100,
-            pages: 5,
+            total,
+            pages: Math.ceil(total / limit),
           },
         },
       });
@@ -301,25 +309,33 @@ class AnalyticsController {
 
       const skip = (page - 1) * limit;
 
-      // TODO: Implement user actions retrieval
+      // Define what constitutes "user actions" vs general audit logs
+      // For now, we'll fetch all logs for the user
+      const userActions = await prisma.auditLog.findMany({
+        where: {
+          user_id: userId,
+        },
+        orderBy: { timestamp: 'desc' },
+        skip: parseInt(skip),
+        take: parseInt(limit),
+      });
+
+      const total = await prisma.auditLog.count({
+        where: {
+          user_id: userId,
+        },
+      });
 
       res.json({
         success: true,
         message: 'User actions retrieved successfully',
         data: {
-          userActions: [
-            {
-              id: 'action1',
-              action: 'PROFILE_UPDATE',
-              timestamp: '2024-01-01T10:00:00Z',
-              details: 'Updated profile information',
-            },
-          ],
+          userActions,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
-            total: 50,
-            pages: 3,
+            total,
+            pages: Math.ceil(total / limit),
           },
         },
       });
@@ -342,27 +358,45 @@ class AnalyticsController {
 
       const skip = (page - 1) * limit;
 
-      // TODO: Implement admin actions retrieval
+      const where = {};
+      if (adminId) {
+        where.user_id = adminId;
+      }
+
+      // Filter for users with ADMIN or SUPER_ADMIN role
+      // This requires a join or a separate query if we want to be strict
+      // For now, assuming the caller passes an adminId or we filter by known admin actions
+
+      const adminActions = await prisma.auditLog.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              role: true,
+              first_name: true,
+              last_name: true,
+            },
+          },
+        },
+        orderBy: { timestamp: 'desc' },
+        skip: parseInt(skip),
+        take: parseInt(limit),
+      });
+
+      const total = await prisma.auditLog.count({ where });
 
       res.json({
         success: true,
         message: 'Admin actions retrieved successfully',
         data: {
-          adminActions: [
-            {
-              id: 'admin_action1',
-              adminId: 'admin1',
-              action: 'USER_DEACTIVATED',
-              timestamp: '2024-01-01T10:00:00Z',
-              targetUserId: 'user1',
-              details: 'Deactivated user account',
-            },
-          ],
+          adminActions,
           pagination: {
             page: parseInt(page),
             limit: parseInt(limit),
-            total: 25,
-            pages: 2,
+            total,
+            pages: Math.ceil(total / limit),
           },
         },
       });

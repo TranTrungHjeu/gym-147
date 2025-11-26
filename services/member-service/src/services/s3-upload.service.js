@@ -125,7 +125,7 @@ class S3UploadService {
       if (options.optimize !== false) {
         console.log('🖼️ Optimizing image...');
         optimizationResult = await imageOptimization.optimizeAvatar(fileBuffer);
-        
+
         if (optimizationResult.success) {
           optimizedBuffer = optimizationResult.buffer;
           finalMimeType = 'image/jpeg'; // Avatar is always converted to JPEG
@@ -176,9 +176,19 @@ class S3UploadService {
       };
     } catch (error) {
       console.error('❌ Error uploading avatar to S3:', error);
+      console.error('❌ Error details:', {
+        message: error.message,
+        code: error.code,
+        name: error.name,
+        stack: error.stack,
+        bucket: this.bucketName,
+        region: process.env.AWS_REGION,
+        hasCredentials: !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY),
+      });
       return {
         success: false,
-        error: error.message,
+        error: error.message || 'Unknown error during S3 upload',
+        code: error.code,
       };
     }
   }
@@ -222,17 +232,13 @@ class S3UploadService {
   extractKeyFromUrl(url) {
     try {
       if (!url) return null;
-      
-      // Handle both formats:
-      // 1. https://bucket.s3.region.amazonaws.com/avatars/file.jpg
-      // 2. https://s3.region.amazonaws.com/bucket/avatars/file.jpg
-      
+
       const urlObj = new URL(url);
       const pathname = urlObj.pathname;
-      
+
       // Remove leading slash
       const key = pathname.substring(1);
-      
+
       return key;
     } catch (error) {
       console.error('❌ Error extracting key from URL:', error);
@@ -266,4 +272,3 @@ class S3UploadService {
 }
 
 module.exports = new S3UploadService();
-

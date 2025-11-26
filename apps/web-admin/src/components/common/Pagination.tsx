@@ -60,6 +60,20 @@ const Pagination: React.FC<PaginationProps> = ({
     return pages;
   };
 
+  const handlePageChange = (page: number) => {
+    onPageChange(page);
+    // Smooth scroll to top of table with a small delay to allow state update
+    setTimeout(() => {
+      const tableElement = document.querySelector('.admin-table-container, .admin-card, table');
+      if (tableElement) {
+        tableElement.scrollIntoView({ behavior: 'smooth', block: 'start', inline: 'nearest' });
+      } else {
+        // Fallback: scroll to top of page
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 50);
+  };
+
   return (
     <div className='flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'>
       {/* Items info */}
@@ -94,7 +108,7 @@ const Pagination: React.FC<PaginationProps> = ({
         <div className='flex items-center gap-2'>
           {/* Previous Button */}
           <button
-            onClick={() => onPageChange(currentPage - 1)}
+            onClick={() => handlePageChange(currentPage - 1)}
             disabled={currentPage === 1}
             className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold font-heading rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 ${
               currentPage === 1
@@ -124,7 +138,7 @@ const Pagination: React.FC<PaginationProps> = ({
               return (
                 <button
                   key={pageNum}
-                  onClick={() => onPageChange(pageNum)}
+                  onClick={() => handlePageChange(pageNum)}
                   className={`px-3.5 py-2 text-sm font-semibold font-heading rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:ring-offset-1 ${
                     currentPage === pageNum
                       ? 'bg-orange-600 text-white shadow-md hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600'
@@ -139,7 +153,7 @@ const Pagination: React.FC<PaginationProps> = ({
 
           {/* Next Button */}
           <button
-            onClick={() => onPageChange(currentPage + 1)}
+            onClick={() => handlePageChange(currentPage + 1)}
             disabled={currentPage === totalPages}
             className={`inline-flex items-center justify-center gap-2 px-3.5 py-2 text-sm font-semibold font-heading rounded-lg border transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-transparent disabled:hover:border-gray-300 ${
               currentPage === totalPages

@@ -304,9 +304,17 @@ class SessionController {
         0
       );
 
-      // ONLY use equipment calories - no fallback estimation
-      // If no equipment was used, calories = 0
-      const calories_burned = totalCaloriesFromEquipment;
+      // 🔥 Fix: Preserve workout calories that were added to session
+      // Session may already have calories from workout plans completed during this session
+      // Sum equipment calories with existing session calories (which includes workout calories)
+      const currentSessionCalories = activeSession.calories_burned || 0;
+      
+      // Total calories = equipment calories + existing session calories (workout + previous equipment)
+      // But we don't want to double count equipment, so we check:
+      // - If session already has calories > equipment calories, keep session calories (includes workout)
+      // - Otherwise, use equipment calories (or sum if session has some but less than equipment)
+      // Best approach: Sum both to account for workout + equipment
+      const calories_burned = currentSessionCalories + totalCaloriesFromEquipment;
 
       console.log('🔥 Calories calculation:', {
         sessionId: activeSession.id,
@@ -316,8 +324,9 @@ class SessionController {
           category: u.equipment.category,
           calories: u.calories_burned,
         })),
-        totalCaloriesFromEquipment,
-        finalCalories: calories_burned,
+        currentSessionCalories, // Calories from workout plans
+        totalCaloriesFromEquipment, // Calories from equipment usage
+        finalCalories: calories_burned, // Total = workout + equipment
         noEquipmentUsed: equipmentUsages.length === 0,
       });
 
@@ -350,6 +359,15 @@ class SessionController {
           notes: finalNotes,
         },
       });
+
+      // ✅ Fix: Auto-update FITNESS challenges with total calories from session (async, don't wait)
+      if (calories_burned > 0) {
+        challengeService
+          .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
+          .catch((err) => {
+            console.error('Auto-update fitness challenges error:', err);
+          });
+      }
 
       res.json({
         success: true,

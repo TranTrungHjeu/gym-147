@@ -97,34 +97,69 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     const setupSocketListeners = () => {
       console.log(`🔌 [NOTIFICATION_DROPDOWN] Setting up socket listeners for userId: ${userId}`);
 
-      // Ensure socket is connected (but don't create new connection if already exists)
-      const currentSocket = socketService.getSocket() || socketService.connect(userId);
+      // Get schedule, member, and identity sockets
+      let scheduleSocket = socketService.getSocket('schedule');
+      let memberSocket = socketService.getSocket('member');
+      let identitySocket = socketService.getSocket('identity');
 
-      if (!currentSocket) {
-        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Socket not available, retrying in 1s...`);
+      if (!scheduleSocket) {
+        // Connect if not already connected
+        const { schedule, member, identity } = socketService.connect(userId);
+        scheduleSocket = schedule;
+        memberSocket = member;
+        identitySocket = identity;
+      } else {
+        // Get identity socket if not already retrieved
+        if (!identitySocket) {
+          identitySocket = socketService.getSocket('identity');
+        }
+      }
+
+      if (!scheduleSocket) {
+        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Schedule socket not available, retrying in 1s...`);
         setTimeout(setupSocketListeners, 1000);
         return null;
       }
 
-      if (!currentSocket.connected) {
+      // Wait for schedule socket to connect
+      if (!scheduleSocket.connected) {
         console.log(
-          `⏳ [NOTIFICATION_DROPDOWN] Socket not connected yet, waiting for connect event...`
+          `⏳ [NOTIFICATION_DROPDOWN] Schedule socket not connected yet, waiting for connect event...`
         );
-        currentSocket.once('connect', () => {
-          console.log(`✅ [NOTIFICATION_DROPDOWN] Socket connected, setting up listeners...`);
-          setupSocketListeners();
-        });
+        if (scheduleSocket.once) {
+          scheduleSocket.once('connect', () => {
+            console.log(`✅ [NOTIFICATION_DROPDOWN] Schedule socket connected, setting up listeners...`);
+            setupSocketListeners();
+          });
+        } else {
+          // Fallback: retry after delay
+          setTimeout(setupSocketListeners, 1000);
+        }
         return null;
       }
 
       console.log(
-        `✅ [NOTIFICATION_DROPDOWN] Socket is connected: ${currentSocket.id}, User ID: ${userId}`
+        `✅ [NOTIFICATION_DROPDOWN] Schedule socket is connected: ${scheduleSocket.id}, User ID: ${userId}`
       );
 
       // Ensure we're subscribed to the user room FIRST, before setting up listeners
       if (userId) {
         console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribing to user room: user:${userId}`);
-        currentSocket.emit('subscribe:user', userId);
+        scheduleSocket.emit('subscribe:user', userId);
+        
+        // Also subscribe member socket if available
+        if (memberSocket && memberSocket.connected) {
+          memberSocket.emit('subscribe:user', userId);
+          // Subscribe to admin room for admin notifications
+          memberSocket.emit('subscribe:admin');
+          console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribed member socket to user and admin rooms`);
+        }
+
+        // Subscribe identity socket if available (for bulk notifications)
+        if (identitySocket && identitySocket.connected) {
+          identitySocket.emit('subscribe:user', userId);
+          console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribed identity socket to user room`);
+        }
       }
 
       // Helper function to add notification optimistically (without fetching from server)
@@ -133,6 +168,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           `🔍 [NOTIFICATION_DROPDOWN] addNotificationOptimistically called with:`,
           JSON.stringify(notificationData, null, 2)
         );
+        console.log(`🔍 [NOTIFICATION_DROPDOWN] Current isOpen state: ${isOpen}`);
 
         // Extract notification_id from various possible locations
         const notificationId =
@@ -154,6 +190,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
         // Check if notification already exists and add to state
         setNotifications(prev => {
+          console.log(`📊 [NOTIFICATION_DROPDOWN] Current notifications count: ${prev.length}`);
           const exists = prev.some(n => n.id === notificationId);
           if (exists) {
             console.log(
@@ -164,13 +201,14 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
           // Create new notification object from socket data
           // Handle different data structures from backend
+          // Backend emits: { notification_id, type, title, message, data: {...}, created_at }
           const newNotification: Notification = {
             id: notificationId,
             user_id: userId,
             type: notificationData.type || notificationData.data?.type || 'GENERAL',
             title: notificationData.title || notificationData.data?.title || 'Thông báo mới',
             message: notificationData.message || notificationData.data?.message || '',
-            data: notificationData.data || notificationData || {},
+            data: notificationData.data || (notificationData.data === undefined ? notificationData : {}),
             is_read: notificationData.is_read || false,
             created_at:
               notificationData.created_at ||
@@ -183,6 +221,15 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
               new Date().toISOString(),
           };
 
+          console.log(`🔍 [NOTIFICATION_DROPDOWN] Created notification object:`, {
+            id: newNotification.id,
+            title: newNotification.title,
+            message: newNotification.message,
+            type: newNotification.type,
+            is_read: newNotification.is_read,
+            created_at: newNotification.created_at,
+          });
+
           console.log(
             `✅ [NOTIFICATION_DROPDOWN] Created notification object:`,
             JSON.stringify(newNotification, null, 2)
@@ -191,8 +238,13 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           // Add to beginning of list (newest first) - NO RELOAD, just state update
           const updated = [newNotification, ...prev].slice(0, 50); // Keep only latest 50
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} to state. Total notifications: ${updated.length}`
+            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} to state. Total notifications: ${prev.length} → ${updated.length}`
           );
+          console.log(`✅ [NOTIFICATION_DROPDOWN] New notification will appear at index 0:`, {
+            id: newNotification.id,
+            title: newNotification.title,
+            type: newNotification.type,
+          });
           return updated;
         });
 
@@ -210,6 +262,24 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           console.log(`🎬 [NOTIFICATION_DROPDOWN] Added ${notificationId} to animation set`);
           return newSet;
         });
+
+        // Auto scroll to top if dropdown is open and user is scrolled down
+        // Use setTimeout to ensure DOM is updated first
+        setTimeout(() => {
+          if (dropdownRef.current && isOpen) {
+            const scrollContainer = dropdownRef.current.querySelector('[data-scroll-container]') as HTMLElement;
+            if (scrollContainer) {
+              // Only scroll if user is not at the top (scrolled down)
+              if (scrollContainer.scrollTop > 50) {
+                scrollContainer.scrollTo({
+                  top: 0,
+                  behavior: 'smooth',
+                });
+                console.log(`📜 [NOTIFICATION_DROPDOWN] Auto-scrolled to top for new notification`);
+              }
+            }
+          }
+        }, 100);
 
         setTimeout(() => {
           setNewNotificationIds(prev => {
@@ -263,26 +333,42 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
         // For notification:new event, data structure is already correct
         if (eventName === 'notification:new' && data) {
-          if (notificationId) {
-            console.log(
-              `📝 [NOTIFICATION_DROPDOWN] Adding notification from notification:new event (ID: ${notificationId}):`,
-              data
-            );
-            // Add notification immediately to UI (optimistic update)
-            addNotificationOptimistically(data);
-
-            // Sync unread count in background after delay (no UI impact)
-            setTimeout(() => {
-              fetchUnreadCount().catch(error => {
-                console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
-              });
-            }, 2000);
-          } else {
+          console.log(
+            `📝 [NOTIFICATION_DROPDOWN] Processing notification:new event. notificationId: ${notificationId}, data:`,
+            JSON.stringify(data, null, 2)
+          );
+          
+          // If notification_id is missing, generate a temporary one from timestamp and title
+          // This allows the notification to still be displayed even if backend didn't provide ID
+          let finalNotificationId = notificationId;
+          if (!finalNotificationId) {
+            // Generate a temporary ID from timestamp and title hash
+            const titleHash = data.title ? data.title.substring(0, 10).replace(/\s/g, '_') : 'notif';
+            finalNotificationId = `temp_${Date.now()}_${titleHash}`;
             console.warn(
-              `⚠️ [NOTIFICATION_DROPDOWN] notification:new event missing notification_id:`,
-              data
+              `⚠️ [NOTIFICATION_DROPDOWN] notification:new event missing notification_id. Generated temporary ID: ${finalNotificationId}`
             );
+            // Add notification_id to data for addNotificationOptimistically
+            data.notification_id = finalNotificationId;
           }
+          
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Calling addNotificationOptimistically for notification:new event (ID: ${finalNotificationId})`
+          );
+          // Add notification immediately to UI (optimistic update)
+          try {
+            addNotificationOptimistically(data);
+            console.log(`✅ [NOTIFICATION_DROPDOWN] addNotificationOptimistically completed for ${finalNotificationId}`);
+          } catch (error) {
+            console.error(`❌ [NOTIFICATION_DROPDOWN] Error in addNotificationOptimistically:`, error);
+          }
+
+          // Sync unread count in background after delay (no UI impact)
+          setTimeout(() => {
+            fetchUnreadCount().catch(error => {
+              console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+            });
+          }, 2000);
           return;
         }
 
@@ -346,86 +432,383 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         }, 1000);
       };
 
-      // Remove existing listeners first to avoid duplicates
-      currentSocket.off('booking:new');
-      currentSocket.off('booking:pending_payment');
-      currentSocket.off('booking:confirmed');
-      currentSocket.off('schedule:new');
-      currentSocket.off('certification:upload');
-      currentSocket.off('certification:pending');
-      currentSocket.off('certification:status');
-      currentSocket.off('certification:verified');
-      currentSocket.off('certification:rejected');
-      currentSocket.off('notification:new');
+      // Remove existing listeners first to avoid duplicates (Schedule Socket)
+      scheduleSocket.off('booking:new');
+      scheduleSocket.off('booking:pending_payment');
+      scheduleSocket.off('booking:confirmed');
+      scheduleSocket.off('booking:cancelled');
+      scheduleSocket.off('booking:payment:success');
+      scheduleSocket.off('booking:status_changed');
+      scheduleSocket.off('schedule:new');
+      scheduleSocket.off('schedule:updated');
+      scheduleSocket.off('schedule:deleted');
+      scheduleSocket.off('schedule:cancelled');
+      scheduleSocket.off('certification:upload');
+      scheduleSocket.off('certification:pending');
+      scheduleSocket.off('certification:status');
+      scheduleSocket.off('certification:verified');
+      scheduleSocket.off('certification:rejected');
+      scheduleSocket.off('certification:deleted');
+      scheduleSocket.off('certification:expiring_soon');
+      scheduleSocket.off('certification:expired');
+      scheduleSocket.off('waitlist:added');
+      scheduleSocket.off('waitlist:promoted');
+      scheduleSocket.off('room:changed');
+      scheduleSocket.off('room:change:rejected');
+      scheduleSocket.off('member:checked_in');
+      scheduleSocket.off('trainer:deleted');
+      scheduleSocket.off('notification:new');
 
-      // Register all event listeners
-      currentSocket.on('booking:new', data => {
+      // Remove member socket listeners
+      if (memberSocket) {
+        memberSocket.off('member:created');
+        memberSocket.off('member:updated');
+        memberSocket.off('member:deleted');
+        memberSocket.off('member:status_changed');
+        memberSocket.off('reward:redemption:new');
+        memberSocket.off('equipment:queue:updated');
+        memberSocket.off('equipment:status:changed');
+        memberSocket.off('equipment:issue:reported');
+        memberSocket.off('notification:new');
+        memberSocket.off('queue:joined');
+        memberSocket.off('queue:position_updated');
+        memberSocket.off('queue:expired');
+        memberSocket.off('equipment:available');
+      }
+
+      // Register Schedule Service event listeners
+      scheduleSocket.on('booking:new', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] booking:new event received`);
         handleBookingNew('booking:new', data);
       });
-      currentSocket.on('booking:pending_payment', data => {
+      scheduleSocket.on('booking:pending_payment', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] booking:pending_payment event received`);
         handleBookingNew('booking:pending_payment', data);
       });
-      currentSocket.on('booking:confirmed', data => {
+      scheduleSocket.on('booking:confirmed', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] booking:confirmed event received`);
         handleBookingNew('booking:confirmed', data);
       });
-      currentSocket.on('schedule:new', data => {
+      scheduleSocket.on('booking:cancelled', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:cancelled event received`);
+        handleBookingNew('booking:cancelled', data);
+      });
+      scheduleSocket.on('booking:payment:success', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:payment:success event received`);
+        handleBookingNew('booking:payment:success', data);
+      });
+      scheduleSocket.on('booking:status_changed', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:status_changed event received`);
+        handleBookingNew('booking:status_changed', data);
+      });
+      scheduleSocket.on('schedule:new', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:new event received`);
         handleBookingNew('schedule:new', data);
       });
+      scheduleSocket.on('schedule:updated', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:updated event received`);
+        handleBookingNew('schedule:updated', data);
+      });
+      scheduleSocket.on('schedule:deleted', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:deleted event received`);
+        handleBookingNew('schedule:deleted', data);
+      });
+      scheduleSocket.on('schedule:cancelled', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:cancelled event received`);
+        handleBookingNew('schedule:cancelled', data);
+      });
 
-      // Listen for certification:upload (new certification uploaded, needs review)
-      // Note: Backend may emit multiple events (certification:upload, certification:pending, notification:new)
-      // Our debounce logic will handle duplicate events
-      currentSocket.on('certification:upload', data => {
+      // Certification events
+      scheduleSocket.on('certification:upload', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] certification:upload event received:`, data);
         handleBookingNew('certification:upload', data);
       });
-
-      // Also listen for certification:pending for backward compatibility
-      currentSocket.on('certification:pending', data => {
+      scheduleSocket.on('certification:pending', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] certification:pending event received:`, data);
         handleBookingNew('certification:pending', data);
       });
-
-      currentSocket.on('certification:status', data => {
+      scheduleSocket.on('certification:status', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] certification:status event received`);
         handleBookingNew('certification:status', data);
       });
-
-      currentSocket.on('certification:verified', data => {
+      scheduleSocket.on('certification:verified', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] certification:verified event received`);
         handleBookingNew('certification:verified', data);
       });
-
-      currentSocket.on('certification:rejected', data => {
+      scheduleSocket.on('certification:rejected', data => {
         console.log(`📢 [NOTIFICATION_DROPDOWN] certification:rejected event received`);
         handleBookingNew('certification:rejected', data);
       });
+      scheduleSocket.on('certification:deleted', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:deleted event received`);
+        handleBookingNew('certification:deleted', data);
+      });
+      scheduleSocket.on('certification:expiring_soon', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:expiring_soon event received`);
+        handleBookingNew('certification:expiring_soon', data);
+      });
+      scheduleSocket.on('certification:expired', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:expired event received`);
+        handleBookingNew('certification:expired', data);
+      });
 
-      // Listen for notification:new event (general notification event)
-      // This is the PRIMARY event - other events are for backward compatibility
+      // Waitlist and room events
+      scheduleSocket.on('waitlist:added', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] waitlist:added event received`);
+        handleBookingNew('waitlist:added', data);
+      });
+      scheduleSocket.on('waitlist:promoted', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] waitlist:promoted event received`);
+        handleBookingNew('waitlist:promoted', data);
+      });
+      scheduleSocket.on('room:changed', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] room:changed event received`);
+        handleBookingNew('room:changed', data);
+      });
+      scheduleSocket.on('room:change:rejected', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] room:change:rejected event received`);
+        handleBookingNew('room:change:rejected', data);
+      });
+      scheduleSocket.on('member:checked_in', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] member:checked_in event received`);
+        handleBookingNew('member:checked_in', data);
+      });
+      scheduleSocket.on('trainer:deleted', data => {
+        console.log(`📢 [NOTIFICATION_DROPDOWN] trainer:deleted event received`);
+        handleBookingNew('trainer:deleted', data);
+      });
+
+      // Primary notification event from schedule service
       console.log(
-        `👂 [NOTIFICATION_DROPDOWN] Registering notification:new listener on socket: ${currentSocket.id}`
+        `👂 [NOTIFICATION_DROPDOWN] Registering notification:new listener on schedule socket: ${scheduleSocket.id}`
       );
-      currentSocket.on('notification:new', data => {
+      scheduleSocket.on('notification:new', data => {
         console.log(
-          '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received directly from socket:',
+          '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from schedule socket:',
           JSON.stringify(data, null, 2)
         );
         handleBookingNew('notification:new', data);
       });
 
+      // Setup Member Service socket listeners if available
+      if (memberSocket) {
+        // Wait for member socket to connect
+        const setupMemberListeners = () => {
+          if (!memberSocket || !memberSocket.connected) {
+            console.log(`⏳ [NOTIFICATION_DROPDOWN] Member socket not connected yet, waiting...`);
+            if (memberSocket?.once) {
+              memberSocket.once('connect', () => {
+                console.log(`✅ [NOTIFICATION_DROPDOWN] Member socket connected, setting up listeners...`);
+                setupMemberListeners();
+              });
+            } else {
+              setTimeout(setupMemberListeners, 1000);
+            }
+            return;
+          }
+
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Member socket is connected: ${memberSocket.id}`
+          );
+
+          // Subscribe to user and admin rooms
+          if (userId) {
+            memberSocket.emit('subscribe:user', userId);
+            memberSocket.emit('subscribe:admin');
+          }
+
+          // Remove existing listeners first
+          memberSocket.off('member:created');
+          memberSocket.off('member:updated');
+          memberSocket.off('member:deleted');
+          memberSocket.off('member:status_changed');
+          memberSocket.off('reward:redemption:new');
+          memberSocket.off('equipment:queue:updated');
+          memberSocket.off('equipment:status:changed');
+          memberSocket.off('equipment:issue:reported');
+          memberSocket.off('notification:new');
+
+          // Register Member Service event listeners
+          memberSocket.on('member:created', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] member:created event received`);
+            // Create notification for admin
+            const notificationData = {
+              notification_id: `member_created_${data.member_id || data.id}_${Date.now()}`,
+              type: 'MEMBER_REGISTERED',
+              title: 'Thành viên mới đăng ký',
+              message: `${data.data?.full_name || 'Thành viên mới'} đã đăng ký thành công`,
+              data: data.data || data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('member:created', notificationData);
+          });
+
+          memberSocket.on('member:updated', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] member:updated event received`);
+            const notificationData = {
+              notification_id: `member_updated_${data.member_id || data.id}_${Date.now()}`,
+              type: 'MEMBER_UPDATED',
+              title: 'Cập nhật thông tin thành viên',
+              message: `Thông tin của ${data.data?.full_name || 'thành viên'} đã được cập nhật`,
+              data: data.data || data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('member:updated', notificationData);
+          });
+
+          memberSocket.on('member:deleted', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] member:deleted event received`);
+            const notificationData = {
+              notification_id: `member_deleted_${data.member_id || data.id}_${Date.now()}`,
+              type: 'MEMBER_DELETED',
+              title: 'Xóa thành viên',
+              message: `Thành viên đã bị xóa khỏi hệ thống`,
+              data: data.data || data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('member:deleted', notificationData);
+          });
+
+          memberSocket.on('member:status_changed', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] member:status_changed event received`);
+            const statusText = data.data?.newStatus === 'ACTIVE' ? 'kích hoạt' : 'vô hiệu hóa';
+            const notificationData = {
+              notification_id: `member_status_${data.member_id || data.id}_${Date.now()}`,
+              type: 'MEMBER_UPDATED',
+              title: 'Thay đổi trạng thái thành viên',
+              message: `Trạng thái thành viên đã được ${statusText}`,
+              data: data.data || data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('member:status_changed', notificationData);
+          });
+
+          memberSocket.on('reward:redemption:new', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] reward:redemption:new event received`);
+            const notificationData = {
+              notification_id: `reward_redemption_${data.redemption_id}_${Date.now()}`,
+              type: 'REWARD_REDEMPTION',
+              title: 'Đổi thưởng mới',
+              message: `${data.member_name} đã đổi ${data.reward_title} với ${data.points_spent} điểm`,
+              data: data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('reward:redemption:new', notificationData);
+          });
+
+          memberSocket.on('equipment:queue:updated', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:queue:updated event received`);
+            // Only notify if significant change (e.g., queue position changed significantly)
+            const notificationData = {
+              notification_id: `equipment_queue_${data.equipment_id}_${Date.now()}`,
+              type: 'GENERAL',
+              title: 'Cập nhật hàng chờ thiết bị',
+              message: `Hàng chờ thiết bị ${data.equipment_name || ''} đã được cập nhật`,
+              data: data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('equipment:queue:updated', notificationData);
+          });
+
+          memberSocket.on('equipment:status:changed', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:status:changed event received`);
+            const notificationData = {
+              notification_id: `equipment_status_${data.equipment_id}_${Date.now()}`,
+              type: 'GENERAL',
+              title: 'Thay đổi trạng thái thiết bị',
+              message: `Thiết bị ${data.equipment_name || ''} đã thay đổi trạng thái`,
+              data: data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('equipment:status:changed', notificationData);
+          });
+
+          memberSocket.on('equipment:issue:reported', data => {
+            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:issue:reported event received`);
+            const notificationData = {
+              notification_id: `equipment_issue_${data.equipment_id}_${Date.now()}`,
+              type: 'GENERAL',
+              title: 'Báo cáo sự cố thiết bị',
+              message: `Có báo cáo sự cố về thiết bị ${data.equipment_name || ''}`,
+              data: data,
+              created_at: new Date().toISOString(),
+              is_read: false,
+            };
+            handleBookingNew('equipment:issue:reported', notificationData);
+          });
+
+          // Primary notification event from member service
+          memberSocket.on('notification:new', data => {
+            console.log(
+              '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from member socket:',
+              JSON.stringify(data, null, 2)
+            );
+            handleBookingNew('notification:new', data);
+          });
+        };
+
+        setupMemberListeners();
+      } else {
+        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Member socket not available`);
+      }
+
+      // Setup Identity Service socket listeners for bulk notifications
+      if (identitySocket) {
+        const setupIdentityListeners = () => {
+          if (!identitySocket || !identitySocket.connected) {
+            console.log(`⏳ [NOTIFICATION_DROPDOWN] Identity socket not connected yet, waiting...`);
+            if (identitySocket?.once) {
+              identitySocket.once('connect', () => {
+                console.log(`✅ [NOTIFICATION_DROPDOWN] Identity socket connected, setting up listeners...`);
+                setupIdentityListeners();
+              });
+            } else {
+              // Fallback: retry after delay
+              setTimeout(setupIdentityListeners, 1000);
+            }
+            return;
+          }
+
+          console.log(
+            `✅ [NOTIFICATION_DROPDOWN] Identity socket is connected: ${identitySocket.id}, User ID: ${userId}`
+          );
+
+          // Remove existing listeners first to avoid duplicates
+          identitySocket.off('notification:new');
+
+          // Primary notification event from identity service (for bulk notifications)
+          console.log(
+            `👂 [NOTIFICATION_DROPDOWN] Registering notification:new listener on identity socket: ${identitySocket.id}`
+          );
+          identitySocket.on('notification:new', data => {
+            console.log(
+              '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from identity socket:',
+              JSON.stringify(data, null, 2)
+            );
+            handleBookingNew('notification:new', data);
+          });
+        };
+
+        setupIdentityListeners();
+      } else {
+        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Identity socket not available`);
+      }
+
       console.log(
-        `✅ [NOTIFICATION_DROPDOWN] All socket listeners registered successfully on socket: ${currentSocket.id}`
+        `✅ [NOTIFICATION_DROPDOWN] All socket listeners registered successfully`
       );
 
       // Verify subscription after a short delay
       setTimeout(() => {
         console.log(
-          `🔍 [NOTIFICATION_DROPDOWN] Socket subscription verification - Socket ID: ${currentSocket.id}, User ID: ${userId}, Connected: ${currentSocket.connected}`
+          `🔍 [NOTIFICATION_DROPDOWN] Socket subscription verification - Schedule Socket ID: ${scheduleSocket.id}, Member Socket ID: ${memberSocket?.id || 'N/A'}, User ID: ${userId}`
         );
       }, 500);
 
@@ -438,16 +821,51 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       }, 30000);
 
       return () => {
-        currentSocket.off('booking:new');
-        currentSocket.off('booking:pending_payment');
-        currentSocket.off('booking:confirmed');
-        currentSocket.off('schedule:new');
-        currentSocket.off('certification:upload');
-        currentSocket.off('certification:pending');
-        currentSocket.off('certification:status');
-        currentSocket.off('certification:verified');
-        currentSocket.off('certification:rejected');
-        currentSocket.off('notification:new');
+        // Cleanup schedule socket listeners
+        scheduleSocket.off('booking:new');
+        scheduleSocket.off('booking:pending_payment');
+        scheduleSocket.off('booking:confirmed');
+        scheduleSocket.off('booking:cancelled');
+        scheduleSocket.off('booking:payment:success');
+        scheduleSocket.off('booking:status_changed');
+        scheduleSocket.off('schedule:new');
+        scheduleSocket.off('schedule:updated');
+        scheduleSocket.off('schedule:deleted');
+        scheduleSocket.off('schedule:cancelled');
+        scheduleSocket.off('certification:upload');
+        scheduleSocket.off('certification:pending');
+        scheduleSocket.off('certification:status');
+        scheduleSocket.off('certification:verified');
+        scheduleSocket.off('certification:rejected');
+        scheduleSocket.off('certification:deleted');
+        scheduleSocket.off('certification:expiring_soon');
+        scheduleSocket.off('certification:expired');
+        scheduleSocket.off('waitlist:added');
+        scheduleSocket.off('waitlist:promoted');
+        scheduleSocket.off('room:changed');
+        scheduleSocket.off('room:change:rejected');
+        scheduleSocket.off('member:checked_in');
+        scheduleSocket.off('trainer:deleted');
+        scheduleSocket.off('notification:new');
+
+        // Cleanup member socket listeners
+        if (memberSocket) {
+          memberSocket.off('member:created');
+          memberSocket.off('member:updated');
+          memberSocket.off('member:deleted');
+          memberSocket.off('member:status_changed');
+          memberSocket.off('reward:redemption:new');
+          memberSocket.off('equipment:queue:updated');
+          memberSocket.off('equipment:status:changed');
+          memberSocket.off('equipment:issue:reported');
+          memberSocket.off('notification:new');
+        }
+
+        // Cleanup identity socket listeners
+        if (identitySocket) {
+          identitySocket.off('notification:new');
+        }
+
         clearInterval(interval);
       };
     };
@@ -700,16 +1118,21 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
   const handleDeleteNotification = async (notificationId: string) => {
     try {
-      const response = await notificationService.deleteNotification(notificationId, userId);
-      if (response.success) {
-        // Remove notification from state immediately - AnimatePresence will handle exit animation
-        const deletedNotification = notifications.find(notif => notif.id === notificationId);
-        setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-        // Check if the deleted notification was unread
-        if (deletedNotification && !deletedNotification.is_read) {
-          setUnreadCount(prev => Math.max(0, prev - 1));
-        }
+      // Optimistic update: Remove from UI immediately for smooth animation
+      const deletedNotification = notifications.find(notif => notif.id === notificationId);
+      setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
+      
+      // Update unread count if needed
+      if (deletedNotification && !deletedNotification.is_read) {
+        setUnreadCount(prev => Math.max(0, prev - 1));
       }
+
+      // Call API in background (don't wait for response for better UX)
+      notificationService.deleteNotification(notificationId, userId).catch(error => {
+        console.error('Error deleting notification:', error);
+        // Optionally: Re-add notification if delete failed
+        // But for better UX, we'll keep it deleted optimistically
+      });
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
@@ -725,15 +1148,36 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       case 'CERTIFICATION_AUTO_VERIFIED':
         return <Sparkles className={iconClass} />;
       case 'CERTIFICATION_PENDING':
+      case 'CERTIFICATION_UPLOAD':
         return <AlertCircle className={iconClass} />;
+      case 'CERTIFICATION_EXPIRED':
+      case 'CERTIFICATION_EXPIRING_SOON':
+        return <Clock className={iconClass} />;
+      case 'CERTIFICATION_DELETED':
+        return <XCircle className={iconClass} />;
       case 'CLASS_BOOKING':
         return <Calendar className={iconClass} />;
       case 'CLASS_CANCELLED':
+      case 'SCHEDULE_CANCELLED':
         return <AlertCircle className={iconClass} />;
       case 'MEMBERSHIP_EXPIRING':
         return <Clock className={iconClass} />;
       case 'ACHIEVEMENT_UNLOCKED':
         return <Trophy className={iconClass} />;
+      case 'MEMBER_REGISTERED':
+      case 'MEMBER_UPDATED':
+      case 'MEMBER_DELETED':
+        return <Bell className={iconClass} />;
+      case 'REWARD_REDEMPTION':
+        return <Trophy className={iconClass} />;
+      case 'WAITLIST_ADDED':
+      case 'WAITLIST_PROMOTED':
+        return <Clock className={iconClass} />;
+      case 'ROOM_CHANGED':
+      case 'ROOM_CHANGE_REJECTED':
+        return <AlertCircle className={iconClass} />;
+      case 'MEMBER_CHECKED_IN':
+        return <CheckCheck className={iconClass} />;
       default:
         return <Bell className={iconClass} />;
     }
@@ -743,24 +1187,44 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     switch (type) {
       case 'CERTIFICATION_VERIFIED':
       case 'CERTIFICATION_AUTO_VERIFIED':
+      case 'MEMBER_CHECKED_IN':
         return {
           text: 'text-success-600 dark:text-success-400',
           bg: 'bg-success-50 dark:bg-success-500/10',
           border: 'border-success-200 dark:border-success-500/20',
         };
       case 'CERTIFICATION_REJECTED':
+      case 'CERTIFICATION_DELETED':
+      case 'MEMBER_DELETED':
         return {
           text: 'text-error-600 dark:text-error-400',
           bg: 'bg-error-50 dark:bg-error-500/10',
           border: 'border-error-200 dark:border-error-500/20',
         };
+      case 'CERTIFICATION_PENDING':
+      case 'CERTIFICATION_UPLOAD':
+        return {
+          text: 'text-warning-600 dark:text-warning-400',
+          bg: 'bg-warning-50 dark:bg-warning-500/10',
+          border: 'border-warning-200 dark:border-warning-500/20',
+        };
+      case 'CERTIFICATION_EXPIRED':
+      case 'CERTIFICATION_EXPIRING_SOON':
+        return {
+          text: 'text-warning-600 dark:text-warning-400',
+          bg: 'bg-warning-50 dark:bg-warning-500/10',
+          border: 'border-warning-200 dark:border-warning-500/20',
+        };
       case 'CLASS_BOOKING':
+      case 'WAITLIST_PROMOTED':
         return {
           text: 'text-blue-light-600 dark:text-blue-light-400',
           bg: 'bg-blue-light-50 dark:bg-blue-light-500/10',
           border: 'border-blue-light-200 dark:border-blue-light-500/20',
         };
       case 'CLASS_CANCELLED':
+      case 'SCHEDULE_CANCELLED':
+      case 'ROOM_CHANGE_REJECTED':
         return {
           text: 'text-warning-600 dark:text-warning-400',
           bg: 'bg-warning-50 dark:bg-warning-500/10',
@@ -773,10 +1237,25 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           border: 'border-warning-200 dark:border-warning-500/20',
         };
       case 'ACHIEVEMENT_UNLOCKED':
+      case 'REWARD_REDEMPTION':
         return {
           text: 'text-primary-600 dark:text-primary-400',
           bg: 'bg-primary-50 dark:bg-primary-500/10',
           border: 'border-primary-200 dark:border-primary-500/20',
+        };
+      case 'MEMBER_REGISTERED':
+      case 'MEMBER_UPDATED':
+        return {
+          text: 'text-blue-light-600 dark:text-blue-light-400',
+          bg: 'bg-blue-light-50 dark:bg-blue-light-500/10',
+          border: 'border-blue-light-200 dark:border-blue-light-500/20',
+        };
+      case 'WAITLIST_ADDED':
+      case 'ROOM_CHANGED':
+        return {
+          text: 'text-blue-light-600 dark:text-blue-light-400',
+          bg: 'bg-blue-light-50 dark:bg-blue-light-500/10',
+          border: 'border-blue-light-200 dark:border-blue-light-500/20',
         };
       default:
         return {
@@ -1087,12 +1566,11 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
             {/* Notifications List */}
             <motion.div
-              className='notification-scroll-container max-h-[480px] overflow-y-auto overflow-x-hidden'
+              data-scroll-container
+              className='notification-scroll-container max-h-[480px] overflow-y-auto overflow-x-hidden no-scrollbar'
               style={{
                 scrollBehavior: 'smooth',
                 overscrollBehavior: 'contain',
-                scrollbarWidth: 'thin',
-                scrollbarColor: '#d1d5db transparent',
               }}
               variants={{
                 hidden: { opacity: 0 },
@@ -1108,24 +1586,13 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
               animate='visible'
             >
               <style>{`
+              /* Hide scrollbar but allow scrolling with mouse */
+              .notification-scroll-container {
+                -ms-overflow-style: none; /* IE and Edge */
+                scrollbar-width: none; /* Firefox */
+              }
               .notification-scroll-container::-webkit-scrollbar {
-                width: 4px;
-              }
-              .notification-scroll-container::-webkit-scrollbar-track {
-                background: transparent;
-              }
-              .notification-scroll-container::-webkit-scrollbar-thumb {
-                background-color: #d1d5db;
-                border-radius: 2px;
-              }
-              .notification-scroll-container::-webkit-scrollbar-thumb:hover {
-                background-color: #9ca3af;
-              }
-              .dark .notification-scroll-container::-webkit-scrollbar-thumb {
-                background-color: #4b5563;
-              }
-              .dark .notification-scroll-container::-webkit-scrollbar-thumb:hover {
-                background-color: #6b7280;
+                display: none; /* Chrome, Safari and Opera */
               }
               
               /* Enhanced pulse animation for notification badge - faster and more noticeable */
@@ -1362,8 +1829,16 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                         exit: {
                           opacity: 0,
                           x: 100,
-                          scale: 0.8,
+                          scale: 0.85,
                           height: 0,
+                          marginTop: 0,
+                          marginBottom: 0,
+                          paddingTop: 0,
+                          paddingBottom: 0,
+                          transition: {
+                            duration: 0.35,
+                            ease: [0.4, 0, 0.2, 1] as const, // ease-in-out cubic-bezier
+                          },
                           marginBottom: 0,
                           paddingTop: 0,
                           paddingBottom: 0,
@@ -1388,16 +1863,16 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                             exit={{
                               opacity: 0,
                               x: 100,
-                              scale: 0.8,
+                              scale: 0.85,
                               height: 0,
+                              marginTop: 0,
                               marginBottom: 0,
                               paddingTop: 0,
                               paddingBottom: 0,
-                            }}
-                            transition={{
-                              type: 'spring',
-                              stiffness: 300,
-                              damping: 25,
+                              transition: {
+                                duration: 0.35,
+                                ease: [0.4, 0, 0.2, 1] as const, // ease-in-out cubic-bezier
+                              },
                             }}
                             onClick={handleNotificationClick}
                             className={`group relative pl-16 pr-5 py-4 cursor-pointer notification-item-transition ${

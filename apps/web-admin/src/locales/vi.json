@@ -284,7 +284,7 @@
       "model": "Model",
       "serialNumber": "Số Serial",
       "usageHours": "Giờ sử dụng",
-      "hours": "giờ",
+      "hoursUnit": "giờ",
       "maxWeight": "Trọng lượng tối đa",
       "lastMaintenance": "Bảo trì lúc",
       "nextMaintenance": "Bảo trì tiếp theo",
@@ -331,6 +331,302 @@
       "updateSuccess": "Cập nhật thiết bị thành công",
       "loadError": "Không thể tải danh sách thiết bị",
       "saveError": "Không thể lưu thiết bị"
+    }
+  },
+  "homepage": {
+    "hero": {
+      "title": "HỆ THỐNG GYM 147",
+      "subtitlePart1": "CẢI THIỆN",
+      "subtitlePart2": "SỨC MẠNH",
+      "button": "Trải nghiệm ngay",
+      "equipment": "Thiết bị chuyên nghiệp",
+      "training": "TẬP LUYỆN LIÊN TỤC",
+      "explore": "Khám phá ngay"
+    },
+    "features": {
+      "title": "CÔNG NGHỆ TIÊN TIẾN CHO PHÒNG GYM",
+      "subtitle": "Why chose us?",
+      "iot": "Thiết bị IoT thông minh",
+      "iotDescription": "Hệ thống theo dõi thiết bị tự động, cảnh báo bảo trì và tối ưu hóa hiệu suất máy tập.",
+      "ai": "AI Coaching cá nhân",
+      "aiDescription": "Hướng dẫn tập luyện thông minh dựa trên dữ liệu cá nhân và mục tiêu của từng thành viên.",
+      "management": "Quản lý thông minh",
+      "managementDescription": "Hệ thống quản lý toàn diện từ thành viên, lịch tập đến thanh toán và báo cáo.",
+      "security": "Bảo mật cao",
+      "securityDescription": "Kiểm soát ra vào bằng RFID, QR Code và nhận diện khuôn mặt đảm bảo an toàn tuyệt đối."
+    },
+    "pricing": {
+      "title": "Chọn gói của bạn",
+      "subtitle": "Gói của chúng tôi",
+      "enroll": "Đăng ký ngay",
+      "loading": "Đang tải gói...",
+      "error": "Không thể tải gói",
+      "noPlans": "Chưa có gói nào",
+      "duration": {
+        "year": "năm",
+        "years": "năm",
+        "month": "tháng",
+        "months": "tháng",
+        "day": "ngày",
+        "days": "ngày",
+        "unknown": "không xác định"
+      }
+    },
+    "registration": {
+      "success": "Đăng ký thành công!",
+      "qrTitle": "Tải ứng dụng để hoàn tất đăng ký",
+      "qrDescription": "Quét mã QR để tải ứng dụng GYM 147 Mobile",
+      "downloadApp": "Tải ứng dụng",
+      "continue": "Tiếp tục",
+      "scanQR": "Quét mã QR bằng điện thoại để tải ứng dụng",
+      "or": "hoặc",
+      "downloadLinks": "Tải trực tiếp từ cửa hàng ứng dụng"
+    },
+    "header": {
+      "login": "Đăng nhập"
+    },
+    "banner": {
+      "title": "Đăng ký ngay để nhận nhiều ưu đãi",
+      "subtitle": "Nơi sức khỏe, sắc đẹp và thể hình gặp gỡ.",
+      "button": "Đặt lịch"
+    },
+    "navigation": {
+      "home": "Trang chủ",
+      "aboutUs": "Về chúng tôi",
+      "classes": "Lớp học",
+      "services": "Dịch vụ",
+      "ourTeam": "Đội ngũ",
+      "contact": "Liên hệ"
+    },
+    "notification": {
+      "title": "Thông báo hệ thống",
+      "maintenance": "Hệ thống đang bảo trì từ 02:00 - 04:00 ngày 15/12/2024",
+      "newFeature": "Cập nhật tính năng mới: AI Coaching cá nhân",
+      "systemNormal": "Hệ thống hoạt động bình thường"
+    },
+    "classes": {
+      "title": "Lớp học của chúng tôi",
+      "subtitle": "NHỮNG GÌ CHÚNG TÔI CÓ THỂ CUNG CẤP",
+      "strength": "SỨC MẠNH",
+      "cardio": "Cardio",
+      "training": "Luyện tập",
+      "weightlifting": "Tạ tay",
+      "indoorCycling": "Đạp xe trong nhà",
+      "kettlebellPower": "Tạ chuông",
+      "boxing": "Quyền anh"
+    },
+    "team": {
+      "title": "Đội ngũ của chúng tôi",
+      "subtitle": "TẬP LUYỆN VỚI CHUYÊN GIA",
+      "appointment": "Đặt lịch",
+      "trainer": "Huấn luyện viên"
+    },
+    "contact": {
+      "address": "Quận 7, TP. Hồ Chí Minh, Việt Nam",
+      "phone1": "0123-456-789",
+      "phone2": "0987-654-321",
+      "email": "support@gym147.vn"
+    },
+    "footer": {
+      "description": "GYM 147 - Hệ thống quản lý phòng gym thông minh với công nghệ IoT tiên tiến, mang đến trải nghiệm tập luyện hiện đại và hiệu quả nhất.",
+      "usefulLinks": "Liên kết hữu ích",
+      "about": "Giới thiệu",
+      "classes": "Lớp học",
+      "services": "Dịch vụ",
+      "contact": "Liên hệ",
+      "support": "Hỗ trợ",
+      "login": "Đăng nhập",
+      "account": "Tài khoản",
+      "signup": "Đăng ký",
+      "technology": "Công nghệ & Hướng dẫn",
+      "iotArticle": "Hệ thống IoT giúp tối ưu hóa việc tập luyện",
+      "aiArticle": "AI Coaching: Tương lai của việc tập gym",
+      "readTime": "{{count}} phút đọc",
+      "comments": "{{count}} Bình luận",
+      "copyright": "Copyright © {{year}} GYM 147. All rights reserved."
+    }
+  },
+  "aboutPage": {
+    "hero": {
+      "span": "Về chúng tôi",
+      "title": "GYM 147",
+      "subtitle": "Hệ thống quản lý phòng gym thông minh với công nghệ IoT tiên tiến",
+      "button": "Liên hệ ngay"
+    },
+    "about": {
+      "span": "Giới thiệu",
+      "title": "VỀ GYM 147",
+      "description1": "GYM 147 là hệ thống quản lý phòng gym thông minh được xây dựng với mục tiêu mang đến trải nghiệm tập luyện hiện đại và hiệu quả nhất cho các thành viên. Chúng tôi kết hợp công nghệ IoT tiên tiến với các giải pháp quản lý thông minh để tối ưu hóa mọi khía cạnh của việc tập luyện.",
+      "description2": "Với đội ngũ chuyên nghiệp và giàu kinh nghiệm, GYM 147 cam kết cung cấp dịch vụ chất lượng cao, đảm bảo an toàn và hiệu quả cho mọi thành viên. Chúng tôi không chỉ là một phòng gym thông thường, mà là một hệ sinh thái tập luyện toàn diện.",
+      "description3": "Từ việc theo dõi hiệu suất tập luyện đến quản lý lịch trình và thanh toán, mọi thứ đều được tự động hóa và tối ưu hóa để mang lại trải nghiệm tốt nhất cho bạn.",
+      "missionTitle": "Sứ mệnh của chúng tôi",
+      "mission": "Mang đến giải pháp tập luyện thông minh, hiện đại và hiệu quả nhất, giúp mọi người đạt được mục tiêu sức khỏe và thể hình của mình."
+    },
+    "technology": {
+      "span": "Công nghệ",
+      "title": "CÔNG NGHỆ TIÊN TIẾN",
+      "iot": "Thiết bị IoT",
+      "iotDesc": "Kết nối và giám sát thiết bị tập luyện thông minh",
+      "ai": "AI Coaching",
+      "aiDesc": "Hướng dẫn tập luyện cá nhân hóa bằng trí tuệ nhân tạo",
+      "data": "Phân tích dữ liệu",
+      "dataDesc": "Theo dõi và phân tích hiệu suất tập luyện chi tiết",
+      "security": "Bảo mật cao",
+      "securityDesc": "Hệ thống bảo mật đa lớp với RFID và nhận diện khuôn mặt"
+    },
+    "values": {
+      "span": "Giá trị",
+      "title": "GIÁ TRỊ CỐT LÕI",
+      "value1Title": "Chất lượng",
+      "value1Desc": "Cam kết mang đến dịch vụ và thiết bị chất lượng cao nhất",
+      "value2Title": "Chuyên nghiệp",
+      "value2Desc": "Đội ngũ chuyên nghiệp với nhiều năm kinh nghiệm",
+      "value3Title": "Đổi mới",
+      "value3Desc": "Luôn cập nhật và áp dụng công nghệ mới nhất"
+    },
+    "cta": {
+      "title": "Sẵn sàng bắt đầu hành trình của bạn?",
+      "subtitle": "Liên hệ với chúng tôi ngay hôm nay để được tư vấn miễn phí",
+      "button": "Liên hệ ngay"
+    }
+  },
+  "classesPage": {
+    "hero": {
+      "span": "Lớp học",
+      "title": "CỦA CHÚNG TÔI",
+      "subtitle": "Khám phá các lớp học đa dạng phù hợp với mọi nhu cầu tập luyện",
+      "button": "Đăng ký ngay"
+    },
+    "classes": {
+      "title": "Lớp học của chúng tôi",
+      "subtitle": "TẤT CẢ CÁC LỚP HỌC",
+      "weightliftingDesc": "Lớp học tạ tay chuyên sâu",
+      "indoorCyclingDesc": "Lớp đạp xe trong nhà với nhạc sôi động",
+      "kettlebellPowerDesc": "Luyện tập với tạ chuông để tăng sức mạnh toàn thân",
+      "boxingDesc": "Lớp quyền anh giúp rèn luyện sức bền và kỹ thuật",
+      "register": "Đăng ký"
+    },
+    "schedule": {
+      "span": "Lịch học",
+      "title": "LỊCH HỌC HÀNG TUẦN",
+      "description": "Tất cả các lớp học đều có lịch trình cố định hàng tuần",
+      "monday": "Thứ 2",
+      "tuesday": "Thứ 3",
+      "wednesday": "Thứ 4",
+      "thursday": "Thứ 5",
+      "friday": "Thứ 6",
+      "time": "6:00 - 22:00"
+    },
+    "cta": {
+      "title": "Sẵn sàng tham gia lớp học?",
+      "subtitle": "Đăng ký ngay để nhận ưu đãi đặc biệt",
+      "button": "Đăng ký ngay"
+    }
+  },
+  "servicesPage": {
+    "hero": {
+      "span": "Dịch vụ",
+      "title": "CỦA CHÚNG TÔI",
+      "subtitle": "Khám phá các dịch vụ công nghệ cao của GYM 147",
+      "button": "Tìm hiểu thêm"
+    },
+    "services": {
+      "span": "Dịch vụ",
+      "title": "DỊCH VỤ CỦA CHÚNG TÔI",
+      "iotDetails": "Hệ thống giám sát thiết bị tự động, cảnh báo bảo trì và tối ưu hóa hiệu suất máy tập trong thời gian thực.",
+      "aiDetails": "Phân tích dữ liệu tập luyện cá nhân và đưa ra chương trình tập luyện tối ưu dựa trên mục tiêu và thể trạng của bạn.",
+      "managementDetails": "Quản lý toàn diện từ đăng ký thành viên, lịch tập, thanh toán đến báo cáo thống kê chi tiết.",
+      "securityDetails": "Hệ thống kiểm soát ra vào bằng RFID, QR Code và nhận diện khuôn mặt đảm bảo an toàn tuyệt đối."
+    },
+    "pricing": {
+      "span": "Gói dịch vụ",
+      "title": "CHỌN GÓI PHÙ HỢP",
+      "description": "Chúng tôi cung cấp nhiều gói dịch vụ linh hoạt phù hợp với mọi nhu cầu và ngân sách",
+      "button": "Xem gói"
+    },
+    "cta": {
+      "title": "Cần tư vấn về dịch vụ?",
+      "subtitle": "Liên hệ với chúng tôi để được tư vấn miễn phí",
+      "button": "Liên hệ ngay"
+    }
+  },
+  "teamPage": {
+    "hero": {
+      "span": "Đội ngũ",
+      "title": "CHUYÊN GIA",
+      "subtitle": "Gặp gỡ đội ngũ huấn luyện viên chuyên nghiệp của chúng tôi",
+      "button": "Đặt lịch"
+    },
+    "team": {
+      "title": "Đội ngũ của chúng tôi",
+      "subtitle": "TẬP LUYỆN VỚI CHUYÊN GIA",
+      "appointment": "Đặt lịch"
+    },
+    "trainers": {
+      "name1": "Athart Rachel",
+      "name2": "Nguyễn Văn A",
+      "name3": "Trần Thị B",
+      "name4": "Lê Văn C",
+      "name5": "Phạm Thị D",
+      "name6": "Hoàng Văn E",
+      "specialization1": "Chuyên về tạ tay và sức mạnh",
+      "specialization2": "Chuyên về cardio và giảm cân",
+      "specialization3": "Chuyên về yoga và pilates",
+      "specialization4": "Chuyên về boxing và MMA",
+      "specialization5": "Chuyên về dinh dưỡng thể thao",
+      "specialization6": "Chuyên về phục hồi chức năng"
+    },
+    "testimonials": {
+      "span": "Đánh giá",
+      "title": "PHẢN HỒI TỪ THÀNH VIÊN",
+      "testimonial1": "Huấn luyện viên rất chuyên nghiệp và tận tâm. Tôi đã đạt được mục tiêu giảm cân nhờ sự hướng dẫn của họ.",
+      "testimonial2": "Chương trình tập luyện được cá nhân hóa rất phù hợp với tôi. Kết quả vượt ngoài mong đợi!",
+      "testimonial3": "Đội ngũ huấn luyện viên tại GYM 147 là tốt nhất mà tôi từng gặp. Rất khuyến khích!",
+      "client1": "Nguyễn Văn A",
+      "client2": "Trần Thị B",
+      "client3": "Lê Văn C",
+      "member": "Thành viên"
+    },
+    "cta": {
+      "title": "Sẵn sàng bắt đầu với huấn luyện viên?",
+      "subtitle": "Đặt lịch tư vấn miễn phí ngay hôm nay",
+      "button": "Đặt lịch ngay"
+    }
+  },
+  "contactPage": {
+    "hero": {
+      "span": "Liên hệ",
+      "title": "VỚI CHÚNG TÔI",
+      "subtitle": "Chúng tôi luôn sẵn sàng hỗ trợ bạn"
+    },
+    "info": {
+      "span": "Thông tin",
+      "title": "THÔNG TIN LIÊN HỆ",
+      "addressTitle": "Địa chỉ",
+      "phoneTitle": "Điện thoại",
+      "emailTitle": "Email",
+      "hoursTitle": "Giờ làm việc",
+      "weekdays": "Thứ 2 - Thứ 6",
+      "weekdaysTime": "6:00 - 22:00",
+      "weekend": "Thứ 7 - Chủ nhật",
+      "weekendTime": "8:00 - 20:00"
+    },
+    "form": {
+      "span": "Gửi tin nhắn",
+      "title": "GỬI TIN NHẮN CHO CHÚNG TÔI",
+      "name": "Họ và tên",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "message": "Tin nhắn",
+      "submit": "Gửi tin nhắn",
+      "submitting": "Đang gửi...",
+      "success": "Cảm ơn bạn! Tin nhắn của bạn đã được gửi thành công.",
+      "error": "Có lỗi xảy ra. Vui lòng thử lại sau."
+    },
+    "map": {
+      "span": "Bản đồ",
+      "title": "VỊ TRÍ CỦA CHÚNG TÔI",
+      "placeholder": "Bản đồ sẽ được hiển thị tại đây"
     }
   }
 }

@@ -284,7 +284,7 @@
       "model": "Model",
       "serialNumber": "Serial Number",
       "usageHours": "Usage Hours",
-      "hours": "hours",
+      "hoursUnit": "hours",
       "maxWeight": "Max Weight",
       "lastMaintenance": "Maintenance At",
       "nextMaintenance": "Next Maintenance",
@@ -331,6 +331,302 @@
       "updateSuccess": "Equipment updated successfully",
       "loadError": "Failed to load equipment list",
       "saveError": "Failed to save equipment"
+    }
+  },
+  "homepage": {
+    "hero": {
+      "title": "GYM 147 SYSTEM",
+      "subtitlePart1": "IMPROVE",
+      "subtitlePart2": "STRENGTH",
+      "button": "Experience now",
+      "equipment": "Professional equipment",
+      "training": "CONTINUOUS TRAINING",
+      "explore": "Explore now"
+    },
+    "features": {
+      "title": "ADVANCED TECHNOLOGY FOR GYM",
+      "subtitle": "Why chose us?",
+      "iot": "Smart IoT Equipment",
+      "iotDescription": "Automatic equipment monitoring system, maintenance alerts and machine performance optimization.",
+      "ai": "Personal AI Coaching",
+      "aiDescription": "Smart training guidance based on personal data and each member's goals.",
+      "management": "Smart Management",
+      "managementDescription": "Comprehensive management system from members, training schedules to payments and reports.",
+      "security": "High Security",
+      "securityDescription": "Access control with RFID, QR Code and facial recognition for absolute security."
+    },
+    "pricing": {
+      "title": "Choose your pricing plan",
+      "subtitle": "Our Plan",
+      "enroll": "Enroll now",
+      "loading": "Loading plans...",
+      "error": "Failed to load plans",
+      "noPlans": "No plans available",
+      "duration": {
+        "year": "year",
+        "years": "years",
+        "month": "month",
+        "months": "months",
+        "day": "day",
+        "days": "days",
+        "unknown": "unknown"
+      }
+    },
+    "registration": {
+      "success": "Registration successful!",
+      "qrTitle": "Download app to complete registration",
+      "qrDescription": "Scan QR code to download GYM 147 Mobile app",
+      "downloadApp": "Download app",
+      "continue": "Continue",
+      "scanQR": "Scan QR code with your phone to download the app",
+      "or": "or",
+      "downloadLinks": "Download directly from app store"
+    },
+    "header": {
+      "login": "Login"
+    },
+    "banner": {
+      "title": "registration now to get more deals",
+      "subtitle": "Where health, beauty and fitness meet.",
+      "button": "Appointment"
+    },
+    "navigation": {
+      "home": "Home",
+      "aboutUs": "About Us",
+      "classes": "Classes",
+      "services": "Services",
+      "ourTeam": "Our Team",
+      "contact": "Contact"
+    },
+    "notification": {
+      "title": "System Notification",
+      "maintenance": "System maintenance from 02:00 - 04:00 on 15/12/2024",
+      "newFeature": "New feature update: Personal AI Coaching",
+      "systemNormal": "System operating normally"
+    },
+    "classes": {
+      "title": "Our Classes",
+      "subtitle": "WHAT WE CAN OFFER",
+      "strength": "STRENGTH",
+      "cardio": "Cardio",
+      "training": "Training",
+      "weightlifting": "Weightlifting",
+      "indoorCycling": "Indoor cycling",
+      "kettlebellPower": "Kettlebell power",
+      "boxing": "Boxing"
+    },
+    "team": {
+      "title": "Our Team",
+      "subtitle": "TRAIN WITH EXPERTS",
+      "appointment": "appointment",
+      "trainer": "Gym Trainer"
+    },
+    "contact": {
+      "address": "Seven District, Ho Chi Minh City, Vietnam",
+      "phone1": "0123-456-789",
+      "phone2": "0987-654-321",
+      "email": "support@gym147.vn"
+    },
+    "footer": {
+      "description": "GYM 147 - Smart gym management system with advanced IoT technology, bringing the most modern and effective training experience.",
+      "usefulLinks": "Useful Links",
+      "about": "About",
+      "classes": "Classes",
+      "services": "Services",
+      "contact": "Contact",
+      "support": "Support",
+      "login": "Login",
+      "account": "Account",
+      "signup": "Sign up",
+      "technology": "Technology & Guides",
+      "iotArticle": "IoT system helps optimize training",
+      "aiArticle": "AI Coaching: The future of gym training",
+      "readTime": "{{count}} min read",
+      "comments": "{{count}} Comments",
+      "copyright": "Copyright © {{year}} GYM 147. All rights reserved."
+    }
+  },
+  "aboutPage": {
+    "hero": {
+      "span": "About Us",
+      "title": "GYM 147",
+      "subtitle": "Smart gym management system with advanced IoT technology",
+      "button": "Contact Us"
+    },
+    "about": {
+      "span": "Introduction",
+      "title": "ABOUT GYM 147",
+      "description1": "GYM 147 is a smart gym management system built with the goal of bringing the most modern and effective training experience to members. We combine advanced IoT technology with smart management solutions to optimize every aspect of training.",
+      "description2": "With a professional and experienced team, GYM 147 is committed to providing high-quality services, ensuring safety and effectiveness for all members. We are not just an ordinary gym, but a comprehensive training ecosystem.",
+      "description3": "From tracking training performance to managing schedules and payments, everything is automated and optimized to bring you the best experience.",
+      "missionTitle": "Our Mission",
+      "mission": "To bring the smartest, most modern and effective training solutions, helping everyone achieve their health and fitness goals."
+    },
+    "technology": {
+      "span": "Technology",
+      "title": "ADVANCED TECHNOLOGY",
+      "iot": "IoT Equipment",
+      "iotDesc": "Connect and monitor smart training equipment",
+      "ai": "AI Coaching",
+      "aiDesc": "Personalized training guidance with artificial intelligence",
+      "data": "Data Analytics",
+      "dataDesc": "Track and analyze detailed training performance",
+      "security": "High Security",
+      "securityDesc": "Multi-layer security system with RFID and facial recognition"
+    },
+    "values": {
+      "span": "Values",
+      "title": "CORE VALUES",
+      "value1Title": "Quality",
+      "value1Desc": "Committed to providing the highest quality services and equipment",
+      "value2Title": "Professionalism",
+      "value2Desc": "Professional team with years of experience",
+      "value3Title": "Innovation",
+      "value3Desc": "Always updating and applying the latest technology"
+    },
+    "cta": {
+      "title": "Ready to start your journey?",
+      "subtitle": "Contact us today for a free consultation",
+      "button": "Contact Us"
+    }
+  },
+  "classesPage": {
+    "hero": {
+      "span": "Classes",
+      "title": "OUR CLASSES",
+      "subtitle": "Discover diverse classes suitable for all training needs",
+      "button": "Register Now"
+    },
+    "classes": {
+      "title": "Our Classes",
+      "subtitle": "ALL CLASSES",
+      "weightliftingDesc": "Intensive weightlifting class to build strength and muscle",
+      "indoorCyclingDesc": "Indoor cycling class with energetic music, effective calorie burning",
+      "kettlebellPowerDesc": "Training with kettlebells to increase full-body strength",
+      "boxingDesc": "Boxing class to improve endurance and technique",
+      "register": "Register"
+    },
+    "schedule": {
+      "span": "Schedule",
+      "title": "WEEKLY SCHEDULE",
+      "description": "All classes have fixed weekly schedules",
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "time": "6:00 - 22:00"
+    },
+    "cta": {
+      "title": "Ready to join a class?",
+      "subtitle": "Register now to receive special offers",
+      "button": "Register Now"
+    }
+  },
+  "servicesPage": {
+    "hero": {
+      "span": "Services",
+      "title": "OUR SERVICES",
+      "subtitle": "Discover GYM 147's high-tech services",
+      "button": "Learn More"
+    },
+    "services": {
+      "span": "Services",
+      "title": "OUR SERVICES",
+      "iotDetails": "Automatic equipment monitoring system, maintenance alerts and real-time machine performance optimization.",
+      "aiDetails": "Analyze personal training data and provide optimal training programs based on your goals and physical condition.",
+      "managementDetails": "Comprehensive management from member registration, training schedules, payments to detailed statistical reports.",
+      "securityDetails": "Access control system with RFID, QR Code and facial recognition ensuring absolute security."
+    },
+    "pricing": {
+      "span": "Service Plans",
+      "title": "CHOOSE THE RIGHT PLAN",
+      "description": "We offer flexible service plans suitable for all needs and budgets",
+      "button": "View Plans"
+    },
+    "cta": {
+      "title": "Need service consultation?",
+      "subtitle": "Contact us for a free consultation",
+      "button": "Contact Us"
+    }
+  },
+  "teamPage": {
+    "hero": {
+      "span": "Team",
+      "title": "EXPERTS",
+      "subtitle": "Meet our team of professional trainers",
+      "button": "Book Appointment"
+    },
+    "team": {
+      "title": "Our Team",
+      "subtitle": "TRAIN WITH EXPERTS",
+      "appointment": "Book Appointment"
+    },
+    "trainers": {
+      "name1": "Athart Rachel",
+      "name2": "John Smith",
+      "name3": "Sarah Johnson",
+      "name4": "Mike Wilson",
+      "name5": "Emily Davis",
+      "name6": "David Brown",
+      "specialization1": "Specialized in weightlifting and strength",
+      "specialization2": "Specialized in cardio and weight loss",
+      "specialization3": "Specialized in yoga and pilates",
+      "specialization4": "Specialized in boxing and MMA",
+      "specialization5": "Specialized in sports nutrition",
+      "specialization6": "Specialized in functional recovery"
+    },
+    "testimonials": {
+      "span": "Testimonials",
+      "title": "MEMBER FEEDBACK",
+      "testimonial1": "The trainers are very professional and dedicated. I achieved my weight loss goals thanks to their guidance.",
+      "testimonial2": "The personalized training program is very suitable for me. Results exceeded expectations!",
+      "testimonial3": "The trainer team at GYM 147 is the best I've ever met. Highly recommended!",
+      "client1": "John Doe",
+      "client2": "Jane Smith",
+      "client3": "Mike Johnson",
+      "member": "Member"
+    },
+    "cta": {
+      "title": "Ready to start with a trainer?",
+      "subtitle": "Book a free consultation today",
+      "button": "Book Now"
+    }
+  },
+  "contactPage": {
+    "hero": {
+      "span": "Contact",
+      "title": "US",
+      "subtitle": "We are always ready to support you"
+    },
+    "info": {
+      "span": "Information",
+      "title": "CONTACT INFORMATION",
+      "addressTitle": "Address",
+      "phoneTitle": "Phone",
+      "emailTitle": "Email",
+      "hoursTitle": "Business Hours",
+      "weekdays": "Monday - Friday",
+      "weekdaysTime": "6:00 - 22:00",
+      "weekend": "Saturday - Sunday",
+      "weekendTime": "8:00 - 20:00"
+    },
+    "form": {
+      "span": "Send Message",
+      "title": "SEND US A MESSAGE",
+      "name": "Full Name",
+      "email": "Email",
+      "phone": "Phone Number",
+      "message": "Message",
+      "submit": "Send Message",
+      "submitting": "Sending...",
+      "success": "Thank you! Your message has been sent successfully.",
+      "error": "An error occurred. Please try again later."
+    },
+    "map": {
+      "span": "Map",
+      "title": "OUR LOCATION",
+      "placeholder": "Map will be displayed here"
     }
   }
 }

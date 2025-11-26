@@ -1022,10 +1022,84 @@ export default function TrainerSchedule() {
       });
     };
 
+    const handleScheduleCreated = (data: any) => {
+      console.log('📡 Received schedule:created event:', data);
+      
+      // Add new schedule to the list optimistically
+      setSchedules(prevSchedules => {
+        // Check if schedule already exists
+        const exists = prevSchedules.some(s => s.id === data.schedule_id);
+        if (exists) {
+          // Update existing schedule
+          return prevSchedules.map(schedule => {
+            if (schedule.id === data.schedule_id) {
+              return {
+                ...schedule,
+                class_name: data.class_name || schedule.class_name,
+                category: data.category || schedule.category,
+                difficulty: data.difficulty || schedule.difficulty,
+                room_name: data.room_name || schedule.room_name,
+                date: data.date || schedule.date,
+                start_time: data.start_time 
+                  ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
+                  : schedule.start_time,
+                end_time: data.end_time
+                  ? new Date(data.end_time).toISOString().split('T')[1].slice(0, 5)
+                  : schedule.end_time,
+                max_capacity: data.max_capacity ?? schedule.max_capacity,
+                current_bookings: data.current_bookings ?? schedule.current_bookings ?? 0,
+                status: data.status || schedule.status,
+                _updated: true,
+              };
+            }
+            return schedule;
+          });
+        }
+        
+        // Add new schedule at the beginning
+        const newSchedule: ScheduleItem = {
+          id: data.schedule_id,
+          class_id: data.class_id,
+          trainer_id: userId,
+          class_name: data.class_name || 'Unknown Class',
+          category: data.category || 'CARDIO',
+          difficulty: data.difficulty || 'BEGINNER',
+          room_id: data.room_id,
+          room_name: data.room_name || 'Unknown Room',
+          date: data.date,
+          start_time: data.start_time 
+            ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
+            : '',
+          end_time: data.end_time
+            ? new Date(data.end_time).toISOString().split('T')[1].slice(0, 5)
+            : '',
+          max_capacity: data.max_capacity ?? 1,
+          current_bookings: data.current_bookings ?? 0,
+          status: data.status || 'SCHEDULED',
+          bookings: [],
+          attendance: [],
+          _updated: true,
+        };
+        
+        return [newSchedule, ...prevSchedules];
+      });
+      
+      // Show success toast
+      if (window.showToast) {
+        window.showToast({
+          type: 'success',
+          message: `Lớp ${data.class_name || 'mới'} đã được tạo thành công`,
+          duration: 3000,
+        });
+      }
+    };
+
     socket.on('schedule:updated', handleScheduleUpdate);
+    socket.on('schedule:created', handleScheduleCreated);
 
     return () => {
       socket.off('schedule:updated', handleScheduleUpdate);
+      socket.off('schedule:created', handleScheduleCreated);
     };
   }, [userId]);
 

@@ -85,6 +85,7 @@ Dự án đã hoàn thiện việc tích hợp **Redis** vào hệ thống micro
 ### Mô Tả
 
 Lưu trữ thông tin phiên đăng nhập trong Redis thay vì chỉ trong database, giúp:
+
 - Tăng tốc độ xác thực
 - Hỗ trợ đăng nhập đa thiết bị
 - Quản lý phiên tập trung
@@ -108,6 +109,7 @@ Lưu trữ thông tin phiên đăng nhập trong Redis thay vì chỉ trong data
 **Chi Tiết Flow:**
 
 1. **Login Request**:
+
    - User gửi thông tin đăng nhập
    - Service xác thực credentials
    - Tạo session trong database
@@ -116,6 +118,7 @@ Lưu trữ thông tin phiên đăng nhập trong Redis thay vì chỉ trong data
    - Mapping: `user:{userId}:sessions` → Set chứa các session IDs
 
 2. **Authentication Check**:
+
    - Middleware kiểm tra session trong Redis trước
    - Nếu không tìm thấy → fallback về database
    - Nếu tìm thấy → validate và tiếp tục
@@ -155,12 +158,14 @@ Giới hạn số lượng requests từ một user/endpoint trong một khoản
 **Chi Tiết Flow:**
 
 1. **Request đến**:
+
    - Middleware intercept request
    - Tạo key: `ratelimit:{userId}:{operation}:{window}`
    - Gọi `INCR` trong Redis
    - Kiểm tra giá trị với limit
 
 2. **Nếu vượt quá limit**:
+
    - Trả về HTTP 429 (Too Many Requests)
    - Thông báo thời gian chờ
 
@@ -176,6 +181,7 @@ Giới hạn số lượng requests từ một user/endpoint trong một khoản
 - ✅ **Flexible**: Có thể config limit khác nhau cho từng operation
 
 **Ví dụ Sử Dụng:**
+
 - OTP requests: 3 lần/phút
 - Schedule creation: 10 lần/giờ
 - Booking creation: 5 lần/phút
@@ -210,6 +216,7 @@ Lưu trữ mã OTP trong Redis với TTL và tracking số lần thử, đảm b
 **Chi Tiết Flow:**
 
 1. **Generate OTP**:
+
    - Tạo mã OTP ngẫu nhiên
    - Lưu vào Redis: `otp:{identifier}:{type}` (login, register, reset_password)
    - TTL: 5-10 phút
@@ -217,6 +224,7 @@ Lưu trữ mã OTP trong Redis với TTL và tracking số lần thử, đảm b
    - Gửi OTP qua SMS/Email
 
 2. **Verify OTP**:
+
    - Client gửi OTP
    - Kiểm tra trong Redis
    - Kiểm tra số lần thử (max 3 lần)
@@ -264,6 +272,7 @@ Lưu trữ mã OTP trong Redis với TTL và tracking số lần thử, đảm b
 **Chi Tiết Flow:**
 
 1. **Acquire Lock**:
+
    - Process muốn thực hiện critical operation
    - Gọi `SET lock:{resource}:{resourceId} {lockId} NX EX {ttl}`
    - NX = chỉ set nếu key chưa tồn tại
@@ -272,6 +281,7 @@ Lưu trữ mã OTP trong Redis với TTL và tracking số lần thử, đảm b
    - Nếu thất bại → retry với exponential backoff
 
 2. **Execute Operation**:
+
    - Thực hiện critical operation
    - Ví dụ: tạo booking, join queue, redeem reward
 
@@ -287,6 +297,7 @@ Lưu trữ mã OTP trong Redis với TTL và tracking số lần thử, đảm b
 - ✅ **Consistency**: Đảm bảo tính nhất quán dữ liệu
 
 **Ví dụ Sử Dụng:**
+
 - Booking creation: Tránh double booking
 - Queue operations: Tránh duplicate join
 - Points transactions: Tránh double spending
@@ -316,6 +327,7 @@ Lưu trữ các token đã bị revoke trong Redis để ngăn chặn sử dụn
 **Chi Tiết Flow:**
 
 1. **Logout/Revoke**:
+
    - User logout hoặc admin revoke token
    - Hash token: `tokenHash = hash(token)`
    - Lưu vào Redis: `blacklist:token:{tokenHash}`
@@ -364,6 +376,7 @@ Sử dụng Redis List làm message queue để xử lý notifications bất đ�
 **Chi Tiết Flow:**
 
 1. **Enqueue Notification**:
+
    - Service tạo notification
    - Thay vì gửi trực tiếp → enqueue vào Redis
    - Key: `notifications:queue:{priority}` (high, normal, low)
@@ -371,6 +384,7 @@ Sử dụng Redis List làm message queue để xử lý notifications bất đ�
    - Return ngay lập tức (không chờ xử lý)
 
 2. **Worker Processing**:
+
    - Worker chạy background
    - Sử dụng `BLPOP` để lấy notification từ queue (blocking)
    - Process notification:
@@ -420,6 +434,7 @@ Cache trạng thái hàng đợi thiết bị trong Redis để giảm tải dat
 **Chi Tiết Flow:**
 
 1. **Get Queue Status**:
+
    - Client request queue status
    - Kiểm tra cache: `queue:{equipmentId}:state`
    - Nếu có → return ngay
@@ -466,6 +481,7 @@ Preload dữ liệu thường dùng vào Redis cache khi service khởi động 
 **Chi Tiết Flow:**
 
 1. **Service Startup**:
+
    - Service khởi động
    - Chạy cache warming job ngay lập tức
    - Preload:
@@ -509,6 +525,7 @@ Sử dụng Redis Pub/Sub để broadcast events giữa các services, thay th�
 **Chi Tiết Flow:**
 
 1. **Publish Event**:
+
    - Service A thực hiện action (ví dụ: user login)
    - Publish event: `redisPubSub.publish('user:login', eventData)`
    - Event được broadcast đến tất cả subscribers
@@ -519,6 +536,7 @@ Sử dụng Redis Pub/Sub để broadcast events giữa các services, thay th�
    - Xử lý event (ví dụ: update analytics, send notification)
 
 **Channels:**
+
 - `user:login` - Khi user đăng nhập
 - `booking:created` - Khi có booking mới
 - `equipment:available` - Khi thiết bị có sẵn
@@ -560,12 +578,14 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 **Chi Tiết Flow:**
 
 1. **Get Leaderboard**:
+
    - Client request leaderboard (weekly, monthly, alltime)
    - Key: `leaderboard:challenge:{period}`
    - Sử dụng `ZREVRANGE` để lấy top N members
    - Nếu cache miss → query database, populate cache
 
 2. **Update Leaderboard**:
+
    - Khi challenge completed
    - Update score trong Sorted Set: `ZADD leaderboard:challenge:{period} {score} {memberId}`
    - Leaderboard tự động được sắp xếp
@@ -587,7 +607,8 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 
 ### 1. Hiệu Suất (Performance)
 
-- **Giảm Database Load**: 
+- **Giảm Database Load**:
+
   - Cache hit rate: ~70-80%
   - Giảm database queries: ~60-70%
   - Response time: Giảm từ 100-200ms xuống 10-20ms
@@ -599,6 +620,7 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 ### 2. Scalability (Khả Năng Mở Rộng)
 
 - **Horizontal Scaling**:
+
   - Các service instances chia sẻ state qua Redis
   - Dễ dàng thêm instances mới
 
@@ -609,6 +631,7 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 ### 3. Reliability (Độ Tin Cậy)
 
 - **Graceful Degradation**:
+
   - Services vẫn hoạt động khi Redis down
   - Fallback về database hoặc in-memory
 
@@ -619,6 +642,7 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 ### 4. User Experience (Trải Nghiệm Người Dùng)
 
 - **Faster Response**:
+
   - Cache hit: < 20ms
   - Real-time notifications
   - Instant leaderboard updates
@@ -630,6 +654,7 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 ### 5. Cost Efficiency (Hiệu Quả Chi Phí)
 
 - **Reduced Database Costs**:
+
   - Ít database queries hơn
   - Có thể sử dụng database nhỏ hơn
 
@@ -648,12 +673,12 @@ Sử dụng Redis Sorted Sets để cache và quản lý leaderboard, tăng tố
 redis:
   image: redis:7-alpine
   container_name: gym-redis
-  ports: ["6380:6379"]
+  ports: ['6380:6379']
   command: redis-server --appendonly yes
   volumes:
     - redis_data:/data
   healthcheck:
-    test: ["CMD", "redis-cli", "ping"]
+    test: ['CMD', 'redis-cli', 'ping']
     interval: 10s
     timeout: 3s
     retries: 5
@@ -696,15 +721,15 @@ Examples:
 
 ### TTL Strategy
 
-| Feature | TTL | Reason |
-|---------|-----|--------|
-| Sessions | Token expiry time | Match token lifetime |
-| OTP | 5-10 minutes | Security |
-| Rate Limits | Window time | Reset after window |
-| Cache | 1 hour (configurable) | Balance freshness vs performance |
-| Locks | 30 seconds | Auto-release safety |
-| Blacklist | Remaining token time | Match token lifetime |
-| Leaderboard | 1-24 hours | Based on period |
+| Feature     | TTL                   | Reason                           |
+| ----------- | --------------------- | -------------------------------- |
+| Sessions    | Token expiry time     | Match token lifetime             |
+| OTP         | 5-10 minutes          | Security                         |
+| Rate Limits | Window time           | Reset after window               |
+| Cache       | 1 hour (configurable) | Balance freshness vs performance |
+| Locks       | 30 seconds            | Auto-release safety              |
+| Blacklist   | Remaining token time  | Match token lifetime             |
+| Leaderboard | 1-24 hours            | Based on period                  |
 
 ### Error Handling Strategy
 
@@ -716,6 +741,7 @@ Examples:
 ### Monitoring
 
 **Metrics to Track:**
+
 - Redis connection status
 - Memory usage
 - Cache hit/miss ratio
@@ -724,6 +750,7 @@ Examples:
 - Queue length
 
 **Alerts:**
+
 - Redis down
 - High memory usage (> 80%)
 - High error rate
@@ -760,7 +787,7 @@ Examples:
 
 1. **Redis Cluster**: Cho high availability
 2. **Redis Sentinel**: Cho automatic failover
-3. **More Cache Strategies**: 
+3. **More Cache Strategies**:
    - Write-through cache
    - Write-behind cache
 4. **Advanced Analytics**:
@@ -789,4 +816,3 @@ Hệ thống hiện tại đã sẵn sàng cho production với đầy đủ cá
 **Tài liệu được tạo bởi**: AI Assistant  
 **Ngày tạo**: 2025-11-26  
 **Phiên bản**: 1.0
-

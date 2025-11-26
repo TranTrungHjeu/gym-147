@@ -19,6 +19,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface EquipmentQueueModalProps {
   visible: boolean;
@@ -151,35 +152,41 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
       animationType="slide"
       transparent={true}
       onRequestClose={onClose}
+      statusBarTranslucent={true}
     >
       <View style={styles.overlay}>
-        <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
-          {/* Header */}
-          <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
-            <View style={styles.headerLeft}>
-              <Ionicons name="people" size={24} color={theme.colors.primary} />
-              <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-                {t('queue.title')}
+        <SafeAreaView edges={['bottom']} style={styles.safeArea}>
+          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+            {/* Header */}
+            <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+              <View style={styles.headerLeft}>
+                <Ionicons name="people" size={24} color={theme.colors.primary} />
+                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+                  {t('queue.title')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                <Ionicons name="close" size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Equipment Name */}
+            <View style={styles.equipmentInfo}>
+              <Text style={[styles.equipmentName, { color: theme.colors.textSecondary }]}>
+                {equipmentName}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-              <Ionicons name="close" size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
 
-          {/* Equipment Name */}
-          <View style={styles.equipmentInfo}>
-            <Text style={[styles.equipmentName, { color: theme.colors.textSecondary }]}>
-              {equipmentName}
-            </Text>
-          </View>
-
-          {loading && !refreshing ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.colors.primary} />
-            </View>
-          ) : (
-            <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+            {loading && !refreshing ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" color={theme.colors.primary} />
+              </View>
+            ) : (
+              <ScrollView 
+                style={styles.content} 
+                contentContainerStyle={styles.contentContainer}
+                showsVerticalScrollIndicator={false}
+              >
               {/* My Position Card */}
               {myPosition?.in_queue && (
                 <View
@@ -337,9 +344,10 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
                   </View>
                 )}
               </View>
-            </ScrollView>
-          )}
-        </View>
+              </ScrollView>
+            )}
+          </View>
+        </SafeAreaView>
       </View>
     </Modal>
   );
@@ -351,11 +359,15 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'flex-end',
   },
+  safeArea: {
+    flex: 1,
+    justifyContent: 'flex-end',
+  },
   container: {
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     maxHeight: '90%',
-    paddingBottom: 20,
+    minHeight: '50%',
   },
   header: {
     flexDirection: 'row',
@@ -383,14 +395,18 @@ const styles = StyleSheet.create({
     ...Typography.bodyLarge,
   },
   loadingContainer: {
-    flex: 1,
+    minHeight: 200,
     justifyContent: 'center',
     alignItems: 'center',
     paddingVertical: 60,
   },
   content: {
-    flex: 1,
+    flexGrow: 1,
+  },
+  contentContainer: {
     paddingHorizontal: 20,
+    paddingBottom: 20,
+    flexGrow: 1,
   },
   myPositionCard: {
     borderRadius: 12,

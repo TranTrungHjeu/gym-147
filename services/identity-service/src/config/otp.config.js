@@ -1,17 +1,18 @@
 const config = {
   // SMS Configuration
   sms: {
-    provider: process.env.SMS_PROVIDER || 'mock', // 'speedsms', 'esms', 'mock'
+    // In production, SMS_PROVIDER must be set (no 'mock' fallback)
+    provider: process.env.SMS_PROVIDER || (process.env.NODE_ENV === 'production' ? null : 'mock'),
     speedsms: {
       accessToken: process.env.SPEEDSMS_ACCESS_TOKEN,
-      apiUrl: 'https://api.speedsms.vn/index.php/sms/send',
+      apiUrl: process.env.SPEEDSMS_API_URL || 'https://api.speedsms.vn/index.php/sms/send',
       brandname: process.env.SPEEDSMS_BRANDNAME || null, // Không set brandname mặc định, để SpeedSMS tự chọn
     },
     esms: {
       apiKey: process.env.ESMS_API_KEY,
       secretKey: process.env.ESMS_SECRET_KEY,
       brandname: process.env.ESMS_BRANDNAME,
-      apiUrl: 'https://rest.esms.vn/MainService.svc/json/SendMultipleMessage_V4_post/',
+      apiUrl: process.env.ESMS_API_URL || 'https://rest.esms.vn/MainService.svc/json/SendMultipleMessage_V4_post/',
     },
     // Comment out other SMS providers
     // twilio: {
@@ -23,10 +24,12 @@ const config = {
 
   // Email Configuration
   email: {
-    provider: process.env.EMAIL_PROVIDER || 'mock', // 'resend', 'mock'
+    // In production, EMAIL_PROVIDER must be set (no 'mock' fallback)
+    provider: process.env.EMAIL_PROVIDER || (process.env.NODE_ENV === 'production' ? null : 'mock'),
     resend: {
       apiKey: process.env.RESEND_API_KEY,
       fromEmail: process.env.RESEND_FROM_EMAIL,
+      apiUrl: process.env.RESEND_API_URL || 'https://api.resend.com',
     },
     // Comment out other email providers
     // sendgrid: {

@@ -272,6 +272,129 @@ class AuthService {
   }
 
   /**
+   * Enable 2FA
+   */
+  async enable2FA(): Promise<
+    ApiResponse<{ secret: string; qrCodeUrl: string }>
+  > {
+    try {
+      console.log('🔐 AuthService: Enabling 2FA...');
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.post(
+        '/security/2fa/enable',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || 'Failed to enable 2FA',
+      };
+    } catch (error: any) {
+      console.error('🔐 AuthService enable2FA error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to enable 2FA',
+      };
+    }
+  }
+
+  /**
+   * Verify 2FA code
+   */
+  async verify2FA(token: string): Promise<ApiResponse<void>> {
+    try {
+      console.log('🔐 AuthService: Verifying 2FA...');
+
+      const authToken = await this.getStoredToken();
+      if (!authToken) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.post(
+        '/security/2fa/verify',
+        { token },
+        {
+          headers: {
+            Authorization: `Bearer ${authToken}`,
+          },
+        }
+      );
+
+      return {
+        success: response.success,
+        message: response.message || '2FA verified successfully',
+      };
+    } catch (error: any) {
+      console.error('🔐 AuthService verify2FA error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to verify 2FA',
+      };
+    }
+  }
+
+  /**
+   * Disable 2FA
+   */
+  async disable2FA(): Promise<ApiResponse<void>> {
+    try {
+      console.log('🔐 AuthService: Disabling 2FA...');
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.post(
+        '/security/2fa/disable',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return {
+        success: response.success,
+        message: response.message || '2FA disabled successfully',
+      };
+    } catch (error: any) {
+      console.error('🔐 AuthService disable2FA error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to disable 2FA',
+      };
+    }
+  }
+
+  /**
    * Forgot password
    */
   async forgotPassword(data: ForgotPasswordData): Promise<ApiResponse<void>> {

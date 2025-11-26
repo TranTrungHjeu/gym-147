@@ -160,13 +160,67 @@ export default function TrainerCertifications() {
       console.log('📢 certification:created event received in TrainerCertifications:', event.detail);
       const data = event.detail;
 
-      // Note: This event is dispatched from AddCertificationModal after successful creation
-      // However, socket events should handle the actual updates
-      // Just do a background sync to get the latest certification data
-      setTimeout(() => {
-        fetchCertifications(false);
-        fetchAvailableCategories();
-      }, 2000);
+      // Optimistically add certification to the list
+      if (data?.certification_id || data?.id) {
+        const certId = data.certification_id || data.id;
+        
+        // Check if certification already exists
+        setCertifications(prev => {
+          const exists = prev.some(cert => cert.id === certId);
+          if (exists) {
+            // Update existing certification
+            return prev.map(cert => {
+              if (cert.id === certId) {
+                return {
+                  ...cert,
+                  category: data.category || cert.category,
+                  certification_name: data.certification_name || cert.certification_name,
+                  certification_issuer: data.certification_issuer || cert.certification_issuer,
+                  certification_level: data.certification_level || cert.certification_level,
+                  verification_status: data.verification_status || cert.verification_status,
+                  certificate_file_url: data.certificate_file_url || cert.certificate_file_url,
+                  issued_date: data.issued_date || cert.issued_date,
+                  expiration_date: data.expiration_date || cert.expiration_date,
+                  updated_at: data.updated_at || new Date().toISOString(),
+                };
+              }
+              return cert;
+            });
+          }
+          
+          // Add new certification at the beginning
+          const newCert: Certification = {
+            id: certId,
+            trainer_id: data.trainer_id || '',
+            category: data.category || '',
+            certification_name: data.certification_name || 'New Certification',
+            certification_issuer: data.certification_issuer || '',
+            certification_level: (data.certification_level as any) || 'BASIC',
+            issued_date: data.issued_date || new Date().toISOString(),
+            expiration_date: data.expiration_date,
+            verification_status: data.verification_status || 'PENDING',
+            certificate_file_url: data.certificate_file_url,
+            is_active: data.is_active !== undefined ? data.is_active : true,
+            created_at: data.created_at || new Date().toISOString(),
+            updated_at: data.updated_at || new Date().toISOString(),
+          };
+          
+          console.log(`✅ [TRAINER_CERTS] Added certification ${certId} optimistically`);
+          return [newCert, ...prev];
+        });
+        
+        // Background sync after delay to ensure data consistency
+        setTimeout(() => {
+          fetchCertifications(false);
+          fetchAvailableCategories();
+        }, 1500);
+      } else {
+        // No certification data, do full refresh
+        setTimeout(() => {
+          fetchCertifications(false);
+          fetchAvailableCategories();
+        }, 1000);
+      }
     };
 
     const handleCertificationDeleted = (event: CustomEvent) => {
@@ -176,7 +230,15 @@ export default function TrainerCertifications() {
       // Remove certification optimistically (no reload)
       if (data?.certification_id || data?.id) {
         const certId = data.certification_id || data.id;
+        
+        // Check if certification exists before removing
         setCertifications(prev => {
+          const exists = prev.some(cert => cert.id === certId);
+          if (!exists) {
+            console.log(`ℹ️ [TRAINER_CERTS] Certification ${certId} not found in list, skipping removal`);
+            return prev;
+          }
+          
           const filtered = prev.filter(cert => cert.id !== certId);
           console.log(`✅ [TRAINER_CERTS] Removed certification ${certId} optimistically. Remaining: ${filtered.length}`);
           return filtered;
@@ -707,8 +769,11 @@ export default function TrainerCertifications() {
         onClose={() => setShowAddModal(false)}
         trainerId={getCurrentTrainerId() || ''}
         onSuccess={() => {
-          fetchCertifications();
-          fetchAvailableCategories();
+          // Don't reload - optimistic update from event listener will handle UI update
+          // Only sync available categories in background (no UI impact)
+          setTimeout(() => {
+            fetchAvailableCategories();
+          }, 1000);
         }}
       />
 

@@ -865,12 +865,18 @@ export default function ClassDetailScreen() {
     }
   };
 
-  const isFullyBooked = schedule
-    ? schedule.current_bookings >= schedule.max_capacity
-    : false;
-  const spotsAvailable = schedule
-    ? schedule.max_capacity - schedule.current_bookings
-    : 0;
+  const isFullyBooked =
+    schedule &&
+    schedule.current_bookings !== undefined &&
+    schedule.max_capacity !== undefined
+      ? schedule.current_bookings >= schedule.max_capacity
+      : false;
+  const spotsAvailable =
+    schedule &&
+    schedule.max_capacity !== undefined &&
+    schedule.current_bookings !== undefined
+      ? schedule.max_capacity - schedule.current_bookings
+      : undefined;
 
   const themedStyles = styles(theme);
 
@@ -1014,11 +1020,13 @@ export default function ClassDetailScreen() {
         {/* Class Info */}
         <View style={themedStyles.classInfo}>
           <View style={themedStyles.classHeader}>
-            <Text
-              style={[themedStyles.className, { color: theme.colors.text }]}
-            >
-              {schedule.gym_class?.name}
-            </Text>
+            {schedule.gym_class?.name ? (
+              <Text
+                style={[themedStyles.className, { color: theme.colors.text }]}
+              >
+                {schedule.gym_class.name}
+              </Text>
+            ) : null}
             {/* Badges Row */}
             <View style={themedStyles.badgesRow}>
               <View
@@ -1027,14 +1035,16 @@ export default function ClassDetailScreen() {
                   { backgroundColor: theme.colors.primary + '15' },
                 ]}
               >
-                <Text
-                  style={[
-                    themedStyles.categoryBadgeText,
-                    { color: theme.colors.primary },
-                  ]}
-                >
-                  {getCategoryTranslation(schedule.gym_class?.category || '')}
-                </Text>
+                {getCategoryTranslation(schedule.gym_class?.category || '') ? (
+                  <Text
+                    style={[
+                      themedStyles.categoryBadgeText,
+                      { color: theme.colors.primary },
+                    ]}
+                  >
+                    {getCategoryTranslation(schedule.gym_class?.category || '')}
+                  </Text>
+                ) : null}
               </View>
               {schedule.gym_class?.difficulty && (
                 <View
@@ -1066,24 +1076,31 @@ export default function ClassDetailScreen() {
 
           {/* Duration and Price Row */}
           <View style={themedStyles.metaRow}>
-            {schedule.start_time && schedule.end_time && (
-              <View style={themedStyles.metaItem}>
-                <Timer size={16} color={theme.colors.textSecondary} />
-                <Text
-                  style={[
-                    themedStyles.metaText,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {formatDuration(
-                    calculateScheduleDuration(
-                      schedule.start_time,
-                      schedule.end_time
-                    )
-                  )}
-                </Text>
-              </View>
-            )}
+            {schedule.start_time &&
+              schedule.end_time &&
+              formatDuration(
+                calculateScheduleDuration(
+                  schedule.start_time,
+                  schedule.end_time
+                )
+              ) && (
+                <View style={themedStyles.metaItem}>
+                  <Timer size={16} color={theme.colors.textSecondary} />
+                  <Text
+                    style={[
+                      themedStyles.metaText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {formatDuration(
+                      calculateScheduleDuration(
+                        schedule.start_time,
+                        schedule.end_time
+                      )
+                    )}
+                  </Text>
+                </View>
+              )}
             {(schedule.price_override || schedule.gym_class?.price) && (
               <View style={themedStyles.metaItem}>
                 <DollarSign size={16} color={theme.colors.textSecondary} />
@@ -1101,7 +1118,7 @@ export default function ClassDetailScreen() {
             )}
           </View>
 
-          {schedule.gym_class?.description && (
+          {schedule.gym_class?.description ? (
             <Text
               style={[
                 themedStyles.classDescription,
@@ -1110,7 +1127,7 @@ export default function ClassDetailScreen() {
             >
               {schedule.gym_class.description}
             </Text>
-          )}
+          ) : null}
         </View>
 
         {/* Schedule Details */}
@@ -1173,12 +1190,18 @@ export default function ClassDetailScreen() {
               <MapPin size={18} color={theme.colors.primary} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text
-                style={[themedStyles.detailText, { color: theme.colors.text }]}
-              >
-                {schedule.room?.name}
-              </Text>
-              {schedule.room?.area_sqm && (
+              {schedule.room?.name ? (
+                <Text
+                  style={[
+                    themedStyles.detailText,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {schedule.room.name}
+                </Text>
+              ) : null}
+              {schedule.room?.area_sqm !== undefined &&
+              schedule.room?.area_sqm !== null ? (
                 <Text
                   style={[
                     themedStyles.detailSubtext,
@@ -1187,7 +1210,7 @@ export default function ClassDetailScreen() {
                 >
                   {schedule.room.area_sqm} m²
                 </Text>
-              )}
+              ) : null}
             </View>
           </View>
 
@@ -1210,37 +1233,47 @@ export default function ClassDetailScreen() {
               />
             </View>
             <View style={{ flex: 1 }}>
-              <Text
-                style={[themedStyles.detailText, { color: theme.colors.text }]}
-              >
-                {schedule.current_bookings}/{schedule.max_capacity}{' '}
-                {t('classes.booked')}
-              </Text>
-              {!isFullyBooked && spotsAvailable > 0 && (
+              {schedule.current_bookings !== undefined &&
+              schedule.max_capacity !== undefined ? (
                 <Text
                   style={[
-                    themedStyles.detailSubtext,
-                    {
-                      color:
-                        spotsAvailable <= 5
-                          ? theme.colors.error
-                          : theme.colors.textSecondary,
-                    },
+                    themedStyles.detailText,
+                    { color: theme.colors.text },
                   ]}
                 >
-                  {spotsAvailable} {t('classes.spotsAvailable')}
+                  {schedule.current_bookings}/{schedule.max_capacity}{' '}
+                  {t('classes.booked')}
                 </Text>
-              )}
-              {isFullyBooked && schedule.waitlist_count > 0 && (
-                <Text
-                  style={[
-                    themedStyles.detailSubtext,
-                    { color: theme.colors.warning },
-                  ]}
-                >
-                  {schedule.waitlist_count} {t('classes.onWaitlist')}
-                </Text>
-              )}
+              ) : null}
+              {!isFullyBooked &&
+                spotsAvailable !== undefined &&
+                spotsAvailable > 0 && (
+                  <Text
+                    style={[
+                      themedStyles.detailSubtext,
+                      {
+                        color:
+                          spotsAvailable <= 5
+                            ? theme.colors.error
+                            : theme.colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {spotsAvailable} {t('classes.spotsAvailable')}
+                  </Text>
+                )}
+              {isFullyBooked &&
+                schedule.waitlist_count !== undefined &&
+                schedule.waitlist_count > 0 && (
+                  <Text
+                    style={[
+                      themedStyles.detailSubtext,
+                      { color: theme.colors.warning },
+                    ]}
+                  >
+                    {schedule.waitlist_count} {t('classes.onWaitlist')}
+                  </Text>
+                )}
             </View>
           </View>
         </View>
@@ -1285,26 +1318,32 @@ export default function ClassDetailScreen() {
                 )}
               </View>
               <View style={themedStyles.trainerDetails}>
-                <Text
-                  style={[
-                    themedStyles.trainerName,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {schedule.trainer.full_name}
-                </Text>
-                <Text
-                  style={[
-                    themedStyles.trainerExperience,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {schedule.trainer.experience_years}{' '}
-                  {schedule.trainer.experience_years === 1
-                    ? t('classes.yearExperience')
-                    : t('classes.yearsExperience')}
-                </Text>
-                {schedule.trainer.rating_average && (
+                {schedule.trainer.full_name ? (
+                  <Text
+                    style={[
+                      themedStyles.trainerName,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    {schedule.trainer.full_name}
+                  </Text>
+                ) : null}
+                {schedule.trainer.experience_years !== undefined &&
+                schedule.trainer.experience_years !== null ? (
+                  <Text
+                    style={[
+                      themedStyles.trainerExperience,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {schedule.trainer.experience_years}{' '}
+                    {schedule.trainer.experience_years === 1
+                      ? t('classes.yearExperience')
+                      : t('classes.yearsExperience')}
+                  </Text>
+                ) : null}
+                {schedule.trainer.rating_average !== undefined &&
+                schedule.trainer.rating_average !== null ? (
                   <View style={themedStyles.ratingContainer}>
                     <Star
                       size={16}
@@ -1319,17 +1358,21 @@ export default function ClassDetailScreen() {
                     >
                       {schedule.trainer.rating_average.toFixed(1)}
                     </Text>
-                    <Text
-                      style={[
-                        themedStyles.ratingSubtext,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      ({schedule.trainer.total_classes} {t('classes.classes')})
-                    </Text>
+                    {schedule.trainer.total_classes !== undefined &&
+                    schedule.trainer.total_classes !== null ? (
+                      <Text
+                        style={[
+                          themedStyles.ratingSubtext,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        ({schedule.trainer.total_classes} {t('classes.classes')}
+                        )
+                      </Text>
+                    ) : null}
                   </View>
-                )}
-                {schedule.trainer.bio && (
+                ) : null}
+                {schedule.trainer.bio ? (
                   <Text
                     style={[
                       themedStyles.trainerBio,
@@ -1338,7 +1381,7 @@ export default function ClassDetailScreen() {
                   >
                     {schedule.trainer.bio}
                   </Text>
-                )}
+                ) : null}
                 {schedule.trainer.specializations &&
                   schedule.trainer.specializations.length > 0 && (
                     <View style={themedStyles.specializationsList}>
@@ -1350,14 +1393,16 @@ export default function ClassDetailScreen() {
                             { backgroundColor: theme.colors.background },
                           ]}
                         >
-                          <Text
-                            style={[
-                              themedStyles.specializationText,
-                              { color: theme.colors.textSecondary },
-                            ]}
-                          >
-                            {getCategoryTranslation(spec)}
-                          </Text>
+                          {getCategoryTranslation(spec) ? (
+                            <Text
+                              style={[
+                                themedStyles.specializationText,
+                                { color: theme.colors.textSecondary },
+                              ]}
+                            >
+                              {getCategoryTranslation(spec)}
+                            </Text>
+                          ) : null}
                         </View>
                       ))}
                     </View>
@@ -1400,14 +1445,16 @@ export default function ClassDetailScreen() {
                       },
                     ]}
                   >
-                    <Text
-                      style={[
-                        themedStyles.equipmentText,
-                        { color: theme.colors.text },
-                      ]}
-                    >
-                      {equipment}
-                    </Text>
+                    {equipment ? (
+                      <Text
+                        style={[
+                          themedStyles.equipmentText,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {equipment}
+                      </Text>
+                    ) : null}
                   </View>
                 ))}
               </View>
@@ -1431,11 +1478,13 @@ export default function ClassDetailScreen() {
             >
               {t('classes.specialNotes')}
             </Text>
-            <Text
-              style={[themedStyles.notesText, { color: theme.colors.text }]}
-            >
-              {schedule.special_notes}
-            </Text>
+            {schedule.special_notes ? (
+              <Text
+                style={[themedStyles.notesText, { color: theme.colors.text }]}
+              >
+                {schedule.special_notes}
+              </Text>
+            ) : null}
           </View>
         )}
       </ScrollView>

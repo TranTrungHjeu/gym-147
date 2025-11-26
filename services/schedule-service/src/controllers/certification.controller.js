@@ -629,9 +629,21 @@ const createCertification = async (req, res) => {
     
     // Send notification to admins (for PENDING or VERIFIED certifications)
     // This should ALWAYS be called for PENDING certifications (including manual entry)
+    console.log(`\n📢 [CREATE_CERT] ========== STEP 1: SENDING NOTIFICATION TO ADMINS ==========`);
+    console.log(`📢 [CREATE_CERT] Step 1: Sending notification to admins...`);
+    console.log(`📢 [CREATE_CERT] Step 1: Parameters:`, {
+      trainerId: actualTrainerId,
+      trainerName: trainer.full_name,
+      certificationId: certification.id,
+      category,
+      certificationLevel: certification_level,
+      verificationStatus,
+      isManualEntry,
+      hasAiScanResult: !!finalAiScanResult,
+    });
+    
     try {
-      console.log(`📢 [CREATE_CERT] Step 1: Sending notification to admins...`);
-      await notificationService.sendCertificationUploadNotification({
+      const notificationResult = await notificationService.sendCertificationUploadNotification({
         trainerId: actualTrainerId,
         trainerName: trainer.full_name,
         certificationId: certification.id,
@@ -642,22 +654,59 @@ const createCertification = async (req, res) => {
         isManualEntry, // Flag to indicate manual entry
       });
       console.log(`✅ [CREATE_CERT] Step 1: Admin notification sent successfully`);
+      console.log(`✅ [CREATE_CERT] Step 1: Result:`, notificationResult || 'No return value');
+      console.log(`📢 [CREATE_CERT] ========== END STEP 1 ==========\n`);
     } catch (adminNotifError) {
+      console.error('\n❌ [CREATE_CERT] ========== STEP 1: CRITICAL ERROR ==========');
       console.error('❌ [CREATE_CERT] Step 1: Error sending admin notification:', adminNotifError);
       console.error('❌ [CREATE_CERT] Step 1: Error stack:', adminNotifError.stack);
       console.error('❌ [CREATE_CERT] Step 1: Error details:', {
         message: adminNotifError.message,
         code: adminNotifError.code,
+        name: adminNotifError.name,
         trainerId: actualTrainerId,
         certificationId: certification.id,
         verificationStatus,
         isManualEntry,
+        response: adminNotifError.response?.data,
+        status: adminNotifError.response?.status,
       });
-      // Don't fail the request if notification fails
+      console.error('❌ [CREATE_CERT] ========== END CRITICAL ERROR ==========\n');
+      // Don't fail the request if notification fails, but log it clearly
     }
     
     // Send notification to trainer
     try {
+      // Emit certification:created event to trainer for optimistic UI update
+      if (global.io && trainer.user_id) {
+        const trainerRoomName = `user:${trainer.user_id}`;
+        const trainerSocketData = {
+          id: certification.id,
+          certification_id: certification.id,
+          trainer_id: actualTrainerId,
+          category,
+          certification_name: certification_name,
+          certification_issuer: certification_issuer,
+          certification_level: certification_level,
+          issued_date: certification.issued_date,
+          expiration_date: certification.expiration_date,
+          verification_status: verificationStatus,
+          certificate_file_url: certification.certificate_file_url,
+          is_active: certification.is_active,
+          created_at: certification.created_at,
+          updated_at: certification.updated_at,
+        };
+
+        const trainerRoom = global.io.sockets.adapter.rooms.get(trainerRoomName);
+        const trainerSocketCount = trainerRoom ? trainerRoom.size : 0;
+
+        console.log(
+          `📡 [CREATE_CERT] Emitting certification:created to trainer room ${trainerRoomName} (${trainerSocketCount} socket(s) connected)`
+        );
+        global.io.to(trainerRoomName).emit('certification:created', trainerSocketData);
+        console.log(`✅ [CREATE_CERT] Emitted certification:created event to trainer`);
+      }
+
       if (verificationStatus === 'VERIFIED' && finalAiScanResult) {
         // AI auto-verified: send "AI duyệt" notification to trainer (role: AI)
         console.log(`📢 [CREATE_CERT] Step 2: Sending AI verification notification to trainer...`);
@@ -1000,15 +1049,15 @@ const updateCertification = async (req, res) => {
 };
 
 /**
- * Delete certification (soft delete)
- * Updates is_active to false, syncs specialization, and sends notification to trainer
+ * Delete certification (hard delete - permanently remove from database)
+ * Syncs specialization, sends notification to trainer, then deletes the record
  */
 const deleteCertification = async (req, res) => {
   try {
     const { certId } = req.params;
     const { reason } = req.body;
 
-    // Get certification with trainer info
+    // Get certification with trainer info BEFORE deletion
     const certification = await prisma.trainerCertification.findUnique({
       where: { id: certId },
       include: {
@@ -1030,36 +1079,40 @@ const deleteCertification = async (req, res) => {
       });
     }
 
-    // Soft delete by setting is_active to false
-    const deletedCertification = await prisma.trainerCertification.update({
-      where: { id: certId },
-      data: { is_active: false },
-    });
+    // Store certification data for notification before deletion
+    const certificationData = {
+      id: certification.id,
+      trainer_id: certification.trainer_id,
+      category: certification.category,
+      certification_name: certification.certification_name,
+      trainer: certification.trainer,
+    };
 
     // Remove only the specific specialization related to this certification
     // Only remove if there are no other valid certifications for that category
     try {
       console.log(
-        `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after certification deletion`
+        `🔄 Removing specialization ${certificationData.category} from trainer ${certificationData.trainer_id} after certification deletion`
       );
       const removeResult = await specializationSyncService.removeSpecialization(
-        certification.trainer_id,
-        certification.category
+        certificationData.trainer_id,
+        certificationData.category,
+        certId // Exclude the certification being deleted from the check
       );
       if (removeResult && removeResult.success) {
         if (removeResult.removed) {
           console.log(
-            `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after certification deletion`
+            `✅ Removed specialization ${certificationData.category} from trainer ${certificationData.trainer_id} after certification deletion`
           );
           console.log(`📋 Updated specializations:`, removeResult.specializations);
         } else {
           console.log(
-            `ℹ️  Specialization ${certification.category} kept for trainer ${certification.trainer_id} - still has other valid certifications`
+            `ℹ️  Specialization ${certificationData.category} kept for trainer ${certificationData.trainer_id} - still has other valid certifications`
           );
         }
       } else {
         console.error(
-          `❌ Failed to remove specialization for trainer ${certification.trainer_id}:`,
+          `❌ Failed to remove specialization for trainer ${certificationData.trainer_id}:`,
           removeResult?.error || 'Unknown error'
         );
       }
@@ -1069,14 +1122,14 @@ const deleteCertification = async (req, res) => {
       // Don't fail the request if removal fails
     }
 
-    // Send notification to trainer with reason
+    // Send notification to trainer with reason (before deletion)
     try {
       await notificationService.sendCertificationDeletedNotification({
-        trainerId: certification.trainer_id,
-        trainerName: certification.trainer.full_name,
+        trainerId: certificationData.trainer_id,
+        trainerName: certificationData.trainer.full_name,
         certificationId: certId,
-        category: certification.category,
-        certificationName: certification.certification_name,
+        category: certificationData.category,
+        certificationName: certificationData.certification_name,
         reason: reason || 'Không có lý do được cung cấp',
         deletedBy: req.user?.id || 'ADMIN',
       });
@@ -1085,9 +1138,19 @@ const deleteCertification = async (req, res) => {
       // Don't fail the request if notification fails
     }
 
+    // Hard delete - permanently remove from database
+    await prisma.trainerCertification.delete({
+      where: { id: certId },
+    });
+
+    console.log(`✅ Certification ${certId} permanently deleted from database`);
+
     res.json({
       success: true,
-      data: deletedCertification,
+      data: {
+        id: certificationData.id,
+        deleted: true,
+      },
       message: 'Certification deleted successfully',
     });
   } catch (error) {

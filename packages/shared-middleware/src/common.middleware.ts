@@ -5,10 +5,31 @@ import helmet from 'helmet';
 import morgan from 'morgan';
 
 // CORS configuration
+// In production, CORS_ORIGIN or ALLOWED_ORIGINS must be set
+// In development, use safe defaults with warning
+const getCorsOrigin = () => {
+  if (process.env.CORS_ORIGIN) {
+    return process.env.CORS_ORIGIN;
+  }
+  if (process.env.ALLOWED_ORIGINS) {
+    // Use first origin from ALLOWED_ORIGINS if CORS_ORIGIN not set
+    return process.env.ALLOWED_ORIGINS.split(',')[0].trim();
+  }
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      'CORS_ORIGIN or ALLOWED_ORIGINS environment variable is required in production. ' +
+        'Please set it in your .env file.'
+    );
+  }
+  // Development fallback with warning
+  console.warn(
+    '⚠️  CORS_ORIGIN not set, using development default. Set CORS_ORIGIN in .env for production.'
+  );
+  return 'http://localhost:5173';
+};
+
 export const corsMiddleware = cors({
-  origin:
-    process.env.CORS_ORIGIN ||
-    (process.env.NODE_ENV === 'production' ? undefined : 'http://localhost:5173'),
+  origin: getCorsOrigin(),
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],

@@ -268,64 +268,35 @@ export default function LeaderboardScreen() {
         </View>
       </View>
 
-      {/* Tabs */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={themedStyles.tabsContainer}
-        contentContainerStyle={themedStyles.tabsContent}
-      >
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <TouchableOpacity
-              key={tab.id}
-              style={[themedStyles.tab, isActive && themedStyles.activeTab]}
-              onPress={() => setActiveTab(tab.id)}
-            >
-              <Icon
-                size={18}
-                color={
-                  isActive ? theme.colors.primary : theme.colors.textSecondary
-                }
-              />
-              <Text
-                style={[
-                  Typography.bodySmall,
-                  {
-                    color: isActive
-                      ? theme.colors.primary
-                      : theme.colors.textSecondary,
-                    marginLeft: theme.spacing.xs,
-                  },
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
-
-      {/* Period Filter */}
-      <View style={themedStyles.filterContainer}>
+      {/* Tabs & Period Filter - Combined Section */}
+      <View style={themedStyles.filterSection}>
+        {/* Tabs */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={themedStyles.periodContainer}
+          style={themedStyles.tabsContainer}
+          contentContainerStyle={themedStyles.tabsContent}
         >
-          {periods.map((period) => {
-            const isActive = selectedPeriod === period.value;
+          {tabs.map((tab) => {
+            const Icon = tab.icon;
+            const isActive = activeTab === tab.id;
             return (
               <TouchableOpacity
-                key={period.value}
-                style={[
-                  themedStyles.periodButton,
-                  isActive && themedStyles.activePeriodButton,
-                ]}
-                onPress={() => setSelectedPeriod(period.value)}
+                key={tab.id}
+                style={[themedStyles.tab, isActive && themedStyles.activeTab]}
+                onPress={() => {
+                  if (activeTab !== tab.id) {
+                    setActiveTab(tab.id);
+                  }
+                }}
+                activeOpacity={0.7}
               >
+                <Icon
+                  size={18}
+                  color={
+                    isActive ? theme.colors.primary : theme.colors.textSecondary
+                  }
+                />
                 <Text
                   style={[
                     Typography.bodySmall,
@@ -333,15 +304,57 @@ export default function LeaderboardScreen() {
                       color: isActive
                         ? theme.colors.primary
                         : theme.colors.textSecondary,
+                      marginLeft: theme.spacing.xs,
+                      fontWeight: isActive ? '600' : '400',
                     },
                   ]}
                 >
-                  {period.label}
+                  {tab.label}
                 </Text>
               </TouchableOpacity>
             );
           })}
         </ScrollView>
+
+        {/* Period Filter - Hide for streaks tab */}
+        {activeTab !== 'streaks' && (
+          <View style={themedStyles.filterContainer}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={themedStyles.periodContainer}
+            >
+              {periods.map((period) => {
+                const isActive = selectedPeriod === period.value;
+                return (
+                  <TouchableOpacity
+                    key={period.value}
+                    style={[
+                      themedStyles.periodButton,
+                      isActive && themedStyles.activePeriodButton,
+                    ]}
+                    onPress={() => setSelectedPeriod(period.value)}
+                    activeOpacity={0.7}
+                  >
+                    <Text
+                      style={[
+                        Typography.bodySmall,
+                        {
+                          color: isActive
+                            ? theme.colors.primary
+                            : theme.colors.textSecondary,
+                          fontWeight: isActive ? '600' : '400',
+                        },
+                      ]}
+                    >
+                      {period.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
       </View>
 
       {/* Content */}
@@ -550,106 +563,139 @@ const styles = (theme: any) =>
       flex: 1,
       backgroundColor: theme.colors.background,
     },
+    // Header Styles
     header: {
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     backButton: {
       padding: theme.spacing.xs,
       marginRight: theme.spacing.sm,
+      borderRadius: theme.radius.md,
     },
     titleContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
     },
-    tabsContainer: {
+    // Tabs & Period Filter - Combined section
+    filterSection: {
+      backgroundColor: theme.colors.surface,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
     },
+    tabsContainer: {
+      backgroundColor: 'transparent',
+    },
     tabsContent: {
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.xs,
     },
     tab: {
       flexDirection: 'row',
       alignItems: 'center',
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
-      marginRight: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surface,
+      paddingVertical: theme.spacing.sm,
+      marginRight: theme.spacing.xs,
+      borderRadius: theme.radius.lg,
+      backgroundColor: 'transparent',
     },
     activeTab: {
       backgroundColor: theme.colors.primaryLight,
     },
     filterContainer: {
-      paddingVertical: theme.spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
+      backgroundColor: 'transparent',
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
     },
     periodContainer: {
       paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.xs,
+      paddingBottom: theme.spacing.sm,
     },
     periodButton: {
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
-      marginRight: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.surface,
+      paddingVertical: theme.spacing.sm,
+      marginRight: theme.spacing.xs,
+      borderRadius: theme.radius.lg,
+      backgroundColor: 'transparent',
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     activePeriodButton: {
       backgroundColor: theme.colors.primaryLight,
+      borderColor: theme.colors.primary,
     },
     loadingContainer: {
       flex: 1,
       justifyContent: 'center',
       alignItems: 'center',
+      backgroundColor: theme.colors.background,
     },
     scrollView: {
       flex: 1,
+      backgroundColor: theme.colors.background,
     },
+    // User Rank Card
     userRankCard: {
       backgroundColor: theme.colors.surface,
-      margin: theme.spacing.md,
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.lg,
+      marginHorizontal: theme.spacing.md,
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.md,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.xl,
       borderWidth: 2,
       borderColor: theme.colors.primary,
+      elevation: 4,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.15,
+      shadowRadius: 8,
     },
     userRankHeader: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
-      marginBottom: theme.spacing.sm,
+      marginBottom: theme.spacing.lg,
     },
     userRankBadge: {
-      backgroundColor: theme.colors.primaryLight,
-      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.primary + '15',
+      paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radius.md,
+      borderRadius: theme.radius.full,
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
     },
     userRankInfo: {
       flexDirection: 'row',
       alignItems: 'center',
     },
     userRankAvatar: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
       backgroundColor: theme.colors.primaryLight,
       justifyContent: 'center',
       alignItems: 'center',
       marginRight: theme.spacing.md,
+      borderWidth: 2,
+      borderColor: theme.colors.primary + '30',
     },
     avatarImage: {
-      width: 50,
-      height: 50,
-      borderRadius: 25,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
     },
     userRankDetails: {
       flex: 1,
@@ -657,54 +703,80 @@ const styles = (theme: any) =>
     userRankValue: {
       alignItems: 'flex-end',
     },
+    // Leaderboard List
     leaderboardContainer: {
-      padding: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.lg,
     },
     leaderboardItem: {
       flexDirection: 'row',
       alignItems: 'center',
       backgroundColor: theme.colors.surface,
       padding: theme.spacing.md,
-      marginBottom: theme.spacing.sm,
-      borderRadius: theme.radius.md,
+      marginBottom: theme.spacing.xs,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      elevation: 1,
+      shadowColor: '#000',
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 2,
     },
     topThreeItem: {
       borderWidth: 2,
       borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primaryLight + '15',
+      elevation: 3,
+      shadowOpacity: 0.1,
+      shadowRadius: 4,
     },
     currentUserItem: {
       backgroundColor: theme.colors.primaryLight,
+      borderColor: theme.colors.primary,
+      borderWidth: 2,
     },
     rankContainer: {
       flexDirection: 'row',
       alignItems: 'center',
-      width: 60,
+      width: 70,
+      justifyContent: 'flex-start',
     },
     rankIconContainer: {
+      width: 24,
+      height: 24,
+      justifyContent: 'center',
+      alignItems: 'center',
       marginRight: theme.spacing.xs,
     },
     memberInfo: {
       flexDirection: 'row',
       alignItems: 'center',
       flex: 1,
+      marginHorizontal: theme.spacing.sm,
     },
     memberAvatar: {
-      width: 40,
-      height: 40,
-      borderRadius: 20,
+      width: 48,
+      height: 48,
+      borderRadius: 24,
       backgroundColor: theme.colors.primaryLight,
       justifyContent: 'center',
       alignItems: 'center',
-      marginRight: theme.spacing.sm,
+      marginRight: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     memberDetails: {
       flex: 1,
     },
     valueContainer: {
       alignItems: 'flex-end',
+      minWidth: 80,
     },
     emptyContainer: {
-      padding: theme.spacing.xl,
+      paddingVertical: theme.spacing.xxxl,
+      paddingHorizontal: theme.spacing.xl,
       alignItems: 'center',
+      justifyContent: 'center',
     },
   });

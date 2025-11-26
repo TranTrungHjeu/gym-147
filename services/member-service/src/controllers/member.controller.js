@@ -152,7 +152,7 @@ class MemberController {
       const member = await cacheService.getOrSet(
         cacheKey,
         async () => {
-          return await prisma.member.findUnique({
+          const memberData = await prisma.member.findUnique({
             where: { id },
             include: {
               memberships: {
@@ -186,6 +186,44 @@ class MemberController {
               },
             },
           });
+
+          // Get profile_embedding using raw query (Prisma doesn't support vector type directly)
+          // Must cast to text to avoid deserialization error
+          if (memberData) {
+            const embeddingResult = await prisma.$queryRaw`
+              SELECT profile_embedding::text as profile_embedding
+              FROM members
+              WHERE id = ${id}
+            `;
+            if (embeddingResult && embeddingResult[0]?.profile_embedding) {
+              // Convert PostgreSQL vector string format to array
+              // Vector is returned as string like "[0.1,0.2,0.3,...]"
+              const embeddingString = embeddingResult[0].profile_embedding;
+              try {
+                // Parse the vector string to array
+                memberData.profile_embedding = JSON.parse(embeddingString);
+                console.log(`✅ [getMemberById] Added profile_embedding to member ${id}`, {
+                  embeddingLength: memberData.profile_embedding?.length || 0,
+                  embeddingType: typeof memberData.profile_embedding,
+                  isArray: Array.isArray(memberData.profile_embedding),
+                });
+              } catch (e) {
+                console.warn(`⚠️ [getMemberById] Could not parse embedding string for member ${id}:`, e.message);
+                // If parsing fails, try to extract numbers from string
+                const numbers = embeddingString.match(/[\d.]+/g);
+                if (numbers && numbers.length > 0) {
+                  memberData.profile_embedding = numbers.map(Number);
+                  console.log(`✅ [getMemberById] Parsed embedding from string (${memberData.profile_embedding.length} dimensions)`);
+                } else {
+                  console.warn(`⚠️ [getMemberById] Could not extract embedding values from string`);
+                }
+              }
+            } else {
+              console.log(`⚠️ [getMemberById] No profile_embedding found for member ${id}`);
+            }
+          }
+
+          return memberData;
         },
         300 // 5 minutes TTL for detailed member data
       );
@@ -329,20 +367,48 @@ class MemberController {
       });
 
       if (existingMember) {
-        // Update existing member
+        // Update existing member membership
+        const startDate = membership_start_date ? new Date(membership_start_date) : new Date();
+        const endDate = membership_end_date ? new Date(membership_end_date) : null;
+
         const updatedMember = await prisma.member.update({
           where: { user_id },
           data: {
             membership_type,
             membership_status: 'ACTIVE',
-            expires_at: membership_end_date ? new Date(membership_end_date) : null,
+            expires_at: endDate,
             updated_at: new Date(),
           },
         });
 
+        // Create membership history record
+        try {
+          await prisma.membership.create({
+            data: {
+              member_id: existingMember.id,
+              type: membership_type,
+              start_date: startDate,
+              end_date: endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year default if no end date
+              status: 'ACTIVE',
+              price: 0, // Price is managed by billing service
+              benefits: [],
+            },
+          });
+          console.log(`✅ Membership record created for member ${existingMember.id}`);
+        } catch (membershipError) {
+          console.error('⚠️ Failed to create membership record (non-critical):', membershipError.message);
+          // Don't fail the update if membership record creation fails
+        }
+
+        // Invalidate cache
+        const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
+        await cacheService.delete(cacheKey);
+
+        console.log(`✅ Member membership updated: ${existingMember.id} -> ${membership_type} (${startDate} to ${endDate})`);
+
         return res.json({
           success: true,
-          message: 'Cập nhật thành viên thành công',
+          message: 'Cập nhật membership thành công',
           data: updatedMember,
         });
       }
@@ -370,6 +436,9 @@ class MemberController {
       const membership_number = `GYM147-${String(memberCount + 1).padStart(6, '0')}`;
 
       // Create new member
+      const startDate = membership_start_date ? new Date(membership_start_date) : new Date();
+      const endDate = membership_end_date ? new Date(membership_end_date) : null;
+
       const newMember = await prisma.member.create({
         data: {
           user_id,
@@ -379,9 +448,28 @@ class MemberController {
           phone: userData.phone || null,
           membership_type,
           membership_status: 'ACTIVE',
-          expires_at: membership_end_date ? new Date(membership_end_date) : null,
+          expires_at: endDate,
         },
       });
+
+      // Create membership history record for new member
+      try {
+        await prisma.membership.create({
+          data: {
+            member_id: newMember.id,
+            type: membership_type,
+            start_date: startDate,
+            end_date: endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000), // 1 year default if no end date
+            status: 'ACTIVE',
+            price: 0, // Price is managed by billing service
+            benefits: [],
+          },
+        });
+        console.log(`✅ Membership record created for new member ${newMember.id}`);
+      } catch (membershipError) {
+        console.error('⚠️ Failed to create membership record (non-critical):', membershipError.message);
+        // Don't fail member creation if membership record creation fails
+      }
 
       // Cache the new member
       const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
@@ -596,6 +684,16 @@ class MemberController {
           console.log('✅ Member record created:', existingMember.id);
         } catch (createError) {
           console.error('❌ Failed to create member:', createError);
+          
+          // Check if it's an authentication error from Identity Service
+          if (createError.response && createError.response.status === 401) {
+            return res.status(401).json({
+              success: false,
+              message: createError.response.data?.message || 'Token expired or invalid',
+              data: null,
+            });
+          }
+          
           return res.status(500).json({
             success: false,
             message: 'Failed to create member profile',
@@ -679,7 +777,17 @@ class MemberController {
           }
         } catch (identityError) {
           console.error('⚠️ Failed to update user in Identity Service:', identityError.message);
-          // Don't fail the whole request if Identity Service update fails
+          
+          // If it's an authentication error, return 401 instead of continuing
+          if (identityError.response && identityError.response.status === 401) {
+            return res.status(401).json({
+              success: false,
+              message: identityError.response.data?.message || 'Token expired or invalid',
+              data: null,
+            });
+          }
+          
+          // For other errors, don't fail the whole request
           // Just log the error and continue with member update
         }
       }
@@ -911,6 +1019,35 @@ class MemberController {
         });
       }
 
+      // Emit socket event for member creation
+      if (global.io && member.user_id) {
+        const socketPayload = {
+          member_id: member.id,
+          id: member.id,
+          action: 'created',
+          data: {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            phone: member.phone,
+            full_name: member.full_name,
+            membership_status: member.membership_status,
+            membership_type: member.membership_type,
+            isActive: member.membership_status === 'ACTIVE',
+            createdAt: member.created_at?.toISOString(),
+            updatedAt: member.updated_at?.toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to user room for admin/trainer notifications
+        global.io.to(`user:${member.user_id}`).emit('member:created', socketPayload);
+        // Also emit to all admins (broadcast) - this is important for admin pages
+        global.io.emit('member:created', socketPayload);
+        console.log(`📡 [MEMBER_SERVICE] Emitted member:created event for member ${member.id}, user_id: ${member.user_id}`);
+        console.log(`📡 [MEMBER_SERVICE] Socket payload:`, JSON.stringify(socketPayload, null, 2));
+      }
+
       res.status(201).json({
         success: true,
         message: 'Member created successfully',
@@ -938,6 +1075,12 @@ class MemberController {
       delete updateData.membership_number;
       delete updateData.created_at;
 
+      // Get old member data to detect status changes
+      const oldMember = await prisma.member.findUnique({
+        where: { id },
+        select: { membership_status: true, user_id: true },
+      });
+
       // Convert date strings to Date objects
       if (updateData.date_of_birth) {
         updateData.date_of_birth = new Date(updateData.date_of_birth);
@@ -960,10 +1103,65 @@ class MemberController {
         },
       });
 
+      // Check if membership_status changed
+      const statusChanged = 
+        updateData.membership_status && 
+        oldMember?.membership_status !== updateData.membership_status;
+
       // Invalidate cache for this member
       await cacheService.delete(cacheService.generateKey('member', id, { full: true }));
       if (member.user_id) {
         await cacheService.delete(cacheService.generateKey('member', `user:${member.user_id}`));
+      }
+
+      // Emit socket event for member update
+      if (global.io && member.user_id) {
+        const socketPayload = {
+          member_id: member.id,
+          id: member.id,
+          action: 'updated',
+          data: {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            phone: member.phone,
+            full_name: member.full_name,
+            membership_status: member.membership_status,
+            membership_type: member.membership_type,
+            isActive: member.membership_status === 'ACTIVE',
+            updatedAt: member.updated_at?.toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to user room
+        global.io.to(`user:${member.user_id}`).emit('member:updated', socketPayload);
+        // Also emit to all admins (broadcast)
+        global.io.emit('member:updated', socketPayload);
+        console.log(`📡 Emitted member:updated event for member ${member.id}`);
+
+        // If status changed, also emit status_changed event
+        if (statusChanged) {
+          const statusPayload = {
+            member_id: member.id,
+            id: member.id,
+            action: 'status_changed',
+            data: {
+              id: member.id,
+              user_id: member.user_id,
+              isActive: member.membership_status === 'ACTIVE',
+              membership_status: member.membership_status,
+              oldStatus: oldMember?.membership_status,
+              newStatus: member.membership_status,
+              updatedAt: member.updated_at?.toISOString(),
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          global.io.to(`user:${member.user_id}`).emit('member:status_changed', statusPayload);
+          global.io.emit('member:status_changed', statusPayload);
+          console.log(`📡 Emitted member:status_changed event for member ${member.id}`);
+        }
       }
 
       res.json({
@@ -1055,7 +1253,7 @@ class MemberController {
       // Get member before deletion to invalidate cache
       const member = await prisma.member.findUnique({
         where: { id },
-        select: { user_id: true },
+        select: { user_id: true, membership_status: true },
       });
 
       await prisma.member.delete({
@@ -1066,6 +1264,39 @@ class MemberController {
       await cacheService.delete(cacheService.generateKey('member', id, { full: true }));
       if (member?.user_id) {
         await cacheService.delete(cacheService.generateKey('member', `user:${member.user_id}`));
+      }
+
+      // Emit socket event for member deletion
+      if (global.io && member?.user_id) {
+        const socketPayload = {
+          member_id: id,
+          id: id,
+          action: 'deleted',
+          data: {
+            id: id,
+            user_id: member.user_id,
+            isActive: member.membership_status === 'ACTIVE',
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to user room
+        global.io.to(`user:${member.user_id}`).emit('member:deleted', socketPayload);
+        // Also emit user:deleted event (for account deletion notification)
+        global.io.to(`user:${member.user_id}`).emit('user:deleted', {
+          user_id: member.user_id,
+          id: member.user_id,
+          action: 'deleted',
+          role: 'MEMBER',
+          data: {
+            id: member.user_id,
+            member_id: id,
+          },
+          timestamp: new Date().toISOString(),
+        });
+        // Also emit to all admins (broadcast)
+        global.io.emit('member:deleted', socketPayload);
+        console.log(`📡 Emitted member:deleted and user:deleted events for member ${id}`);
       }
 
       res.json({
@@ -1332,6 +1563,68 @@ class MemberController {
       });
     } catch (error) {
       console.error('Get members by IDs error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get members for notification (public endpoint, no auth required)
+   * Supports both GET (with query params) and POST (with member_ids in body)
+   * GET /api/members/for-notification?membership_type=PREMIUM&status=ACTIVE&search=keyword
+   * POST /api/members/for-notification { member_ids: ["id1", "id2"] }
+   */
+  async getMembersForNotification(req, res) {
+    try {
+      // Support both GET (query params) and POST (body with member_ids)
+      const member_ids = req.body?.member_ids || req.query?.member_ids;
+      const { membership_type, status, search, limit = 10000 } = req.query;
+
+      let where = {};
+
+      // If specific member_ids provided (POST or query param)
+      if (member_ids) {
+        const idsArray = Array.isArray(member_ids) ? member_ids : member_ids.split(',');
+        where.id = { in: idsArray };
+      } else {
+        // Otherwise use filters
+        if (membership_type) where.membership_type = membership_type;
+        if (status) where.membership_status = status;
+        if (search) {
+          where.OR = [
+            { full_name: { contains: search, mode: 'insensitive' } },
+            { email: { contains: search, mode: 'insensitive' } },
+            { phone: { contains: search, mode: 'insensitive' } },
+            { membership_number: { contains: search, mode: 'insensitive' } },
+          ];
+        }
+      }
+
+      const members = await prisma.member.findMany({
+        where,
+        select: {
+          id: true,
+          user_id: true,
+          full_name: true,
+          email: true,
+          phone: true,
+          membership_status: true,
+          membership_type: true,
+        },
+        take: parseInt(limit),
+        orderBy: { created_at: 'desc' },
+      });
+
+      res.json({
+        success: true,
+        message: 'Members retrieved successfully for notification',
+        data: { members },
+      });
+    } catch (error) {
+      console.error('Get members for notification error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -2074,14 +2367,31 @@ class MemberController {
       console.log(`📄 MIME type: ${mimeType}`);
 
       // Upload to S3
-      const uploadResult = await s3UploadService.uploadFile(
-        imageBuffer,
-        filename,
-        mimeType,
-        userId
-      );
+      console.log('🚀 Starting S3 upload...');
+      let uploadResult;
+      try {
+        uploadResult = await s3UploadService.uploadFile(
+          imageBuffer,
+          filename,
+          mimeType,
+          userId
+        );
+        console.log('📦 S3 upload result:', {
+          success: uploadResult.success,
+          error: uploadResult.error,
+          url: uploadResult.url,
+        });
+      } catch (uploadError) {
+        console.error('❌ S3 upload exception:', uploadError);
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to upload avatar',
+          error: uploadError.message || 'Unknown error during upload',
+        });
+      }
 
       if (!uploadResult.success) {
+        console.error('❌ S3 upload failed:', uploadResult.error);
         return res.status(500).json({
           success: false,
           message: 'Failed to upload avatar',
@@ -2091,28 +2401,54 @@ class MemberController {
 
       // Delete old avatar if exists
       if (member.profile_photo) {
-        const oldKey = s3UploadService.extractKeyFromUrl(member.profile_photo);
-        if (oldKey) {
-          console.log(`🗑️ Deleting old avatar: ${oldKey}`);
-          await s3UploadService.deleteFile(oldKey);
+        try {
+          const oldKey = s3UploadService.extractKeyFromUrl(member.profile_photo);
+          if (oldKey) {
+            console.log(`🗑️ Deleting old avatar: ${oldKey}`);
+            const deleteResult = await s3UploadService.deleteFile(oldKey);
+            if (!deleteResult.success) {
+              console.warn('⚠️ Failed to delete old avatar (non-critical):', deleteResult.error);
+            }
+          }
+        } catch (deleteError) {
+          console.warn('⚠️ Error deleting old avatar (non-critical):', deleteError.message);
+          // Don't fail the request if old avatar deletion fails
         }
       }
 
       // Update member with new avatar URL
-      const updatedMember = await prisma.member.update({
-        where: { user_id: userId },
-        data: {
-          profile_photo: uploadResult.url,
-          updated_at: new Date(),
-        },
-      });
+      console.log('💾 Updating member record with new avatar URL...');
+      let updatedMember;
+      try {
+        updatedMember = await prisma.member.update({
+          where: { user_id: userId },
+          data: {
+            profile_photo: uploadResult.url,
+            updated_at: new Date(),
+          },
+        });
+        console.log('✅ Member record updated successfully');
+      } catch (updateError) {
+        console.error('❌ Failed to update member record:', updateError);
+        return res.status(500).json({
+          success: false,
+          message: 'Avatar uploaded but failed to update member record',
+          error: updateError.message,
+        });
+      }
 
       // Invalidate cache for this member
-      await cacheService.delete(cacheService.generateKey('member', `user:${userId}`));
-      if (updatedMember.id) {
-        await cacheService.delete(
-          cacheService.generateKey('member', updatedMember.id, { full: true })
-        );
+      try {
+        await cacheService.delete(cacheService.generateKey('member', `user:${userId}`));
+        if (updatedMember.id) {
+          await cacheService.delete(
+            cacheService.generateKey('member', updatedMember.id, { full: true })
+          );
+        }
+        console.log('✅ Cache invalidated');
+      } catch (cacheError) {
+        console.warn('⚠️ Failed to invalidate cache (non-critical):', cacheError.message);
+        // Don't fail the request if cache invalidation fails
       }
 
       console.log(`✅ Avatar uploaded successfully: ${uploadResult.url}`);
@@ -2523,6 +2859,43 @@ class MemberController {
         });
       }
 
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Send system announcement (Admin only)
+  async sendSystemAnnouncement(req, res) {
+    try {
+      const { title, message, data } = req.body;
+
+      if (!title || !message) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title and message are required',
+          data: null,
+        });
+      }
+
+      const notificationService = require('../services/notification.service');
+      const result = await notificationService.sendSystemAnnouncement({
+        title,
+        message,
+        data: data || {},
+      });
+
+      res.json({
+        success: result.success,
+        message: result.success 
+          ? `System announcement sent to ${result.sent} members`
+          : 'Failed to send system announcement',
+        data: result,
+      });
+    } catch (error) {
+      console.error('Send system announcement error:', error);
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',

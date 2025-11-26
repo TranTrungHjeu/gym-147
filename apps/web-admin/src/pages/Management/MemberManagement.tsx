@@ -1,32 +1,41 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
-  Search,
-  Download,
-  Users,
-  UserCheck,
-  UserX,
-  TrendingUp,
-  RefreshCw,
+  Clock,
   Eye,
-  Trash2,
   Mail,
   Phone,
-  Clock,
+  RefreshCw,
+  Search,
+  Trash2,
+  TrendingUp,
+  UserCheck,
+  UserX,
+  Users,
 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
+import UserInfoCard from '../../components/UserProfile/UserInfoCard';
 import AdminCard from '../../components/common/AdminCard';
-import { AdminTable, AdminTableBody, AdminTableCell, AdminTableHeader, AdminTableRow } from '../../components/common/AdminTable';
+import AdminModal from '../../components/common/AdminModal';
+import { useOptimisticMemberUpdates } from '../../hooks/useOptimisticMemberUpdates';
+import { socketService } from '../../services/socket.service';
+import { eventManager } from '../../services/event-manager.service';
+import {
+  AdminTable,
+  AdminTableBody,
+  AdminTableCell,
+  AdminTableHeader,
+  AdminTableRow,
+} from '../../components/common/AdminTable';
+import BulkOperations from '../../components/common/BulkOperations';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
+import ExportButton from '../../components/common/ExportButton';
 import Pagination from '../../components/common/Pagination';
 import StatusBadge from '../../components/common/StatusBadge';
-import AdminModal from '../../components/common/AdminModal';
-import UserInfoCard from '../../components/UserProfile/UserInfoCard';
-import { userService, User } from '../../services/user.service';
-import { memberApi } from '../../services/api';
 import { TableLoading } from '../../components/ui/AppLoading';
-import ExportButton, { ExportUtils } from '../../components/common/ExportButton';
-import { formatVietnamDateTime } from '../../utils/dateTime';
 import { useToast } from '../../hooks/useToast';
+import { memberApi } from '../../services/api';
+import { User, userService } from '../../services/user.service';
+import { formatVietnamDateTime } from '../../utils/dateTime';
 
 interface MemberManagementFilters {
   search: string;
@@ -53,7 +62,7 @@ export default function MemberManagement() {
   const [statsLoading, setStatsLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [userAvatars, setUserAvatars] = useState<Record<string, string | null>>({});
-  
+
   // Action menu state
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [selectedUserForAction, setSelectedUserForAction] = useState<User | null>(null);
@@ -61,7 +70,7 @@ export default function MemberManagement() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  
+
   // Filters state - Default role filter is MEMBER for member management
   const [filters, setFilters] = useState<MemberManagementFilters>({
     search: '',
@@ -69,26 +78,28 @@ export default function MemberManagement() {
     sortBy: 'name',
     sortOrder: 'asc',
     page: 1,
-    limit: 20,
+    limit: 10,
   });
-  
+
   const [totalPages, setTotalPages] = useState(1);
   const [totalUsers, setTotalUsers] = useState(0);
+  const [selectedUserIds, setSelectedUserIds] = useState<string[]>([]);
+  const [isBulkDeleting, setIsBulkDeleting] = useState(false);
+  const [isBulkMessaging, setIsBulkMessaging] = useState(false);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
   // Calculate member statistics from users list
   const calculateMemberStats = useCallback((usersList: User[], total: number) => {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-    
+
     const stats: MemberStats = {
       total: total || usersList.length,
       active: usersList.filter(u => u.isActive).length,
       inactive: usersList.filter(u => !u.isActive).length,
-      newThisMonth: usersList.filter(u => 
-        new Date(u.createdAt || 0) >= startOfMonth
-      ).length,
+      newThisMonth: usersList.filter(u => new Date(u.createdAt || 0) >= startOfMonth).length,
     };
-    
+
     return stats;
   }, []);
 
@@ -105,9 +116,12 @@ export default function MemberManagement() {
   }, []);
 
   // Fetch users - Default role filter is MEMBER for member management
-  const fetchUsers = useCallback(async () => {
+  const fetchUsers = useCallback(async (isPageChange = false) => {
     try {
-      setLoading(true);
+      // Only show full loading on initial load, not on page changes
+      if (!isPageChange) {
+        setLoading(true);
+      }
       const response = await userService.getAllUsers({
         role: 'MEMBER', // Always filter by MEMBER role
         page: filters.page,
@@ -127,23 +141,26 @@ export default function MemberManagement() {
         setUsers(mappedUsers);
         setTotalPages(response.data.pagination?.pages || 1);
         setTotalUsers(response.data.pagination?.total || 0);
-        
+
         // Calculate stats from users
-        const calculatedStats = calculateMemberStats(mappedUsers, response.data.pagination?.total || 0);
+        const calculatedStats = calculateMemberStats(
+          mappedUsers,
+          response.data.pagination?.total || 0
+        );
         setStats(calculatedStats);
-        
+
         await fetchUserAvatars(mappedUsers);
       }
     } catch (error: any) {
       console.error('Error fetching users:', error);
-      
+
       // Check for CORS error
       if (error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
         console.error('CORS or Network Error detected. Please check:');
         console.error('1. API Gateway is running');
         console.error('2. CORS is configured in services');
         console.error('3. VITE_API_BASE_URL is set correctly in .env file');
-        
+
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -167,6 +184,10 @@ export default function MemberManagement() {
     }
   }, [filters.page, filters.limit, calculateMemberStats]);
 
+  // Track previous page to detect page changes
+  const prevPageRef = useRef(filters.page);
+  const isInitialLoadRef = useRef(true);
+
   // Fetch member avatars - Silent failure, use fallback
   const fetchUserAvatars = async (usersList: User[]) => {
     const avatarMap: Record<string, string | null> = {};
@@ -189,7 +210,8 @@ export default function MemberManagement() {
           }
 
           if (!avatarUrl) {
-            const facePhotoUrl = (user as any)?.face_photo_url || (user as any)?.facePhoto || (user as any)?.photo;
+            const facePhotoUrl =
+              (user as any)?.face_photo_url || (user as any)?.facePhoto || (user as any)?.photo;
             if (facePhotoUrl) {
               avatarUrl = facePhotoUrl;
             }
@@ -213,13 +235,78 @@ export default function MemberManagement() {
 
   // Initial data fetch - Fetch users first, stats will be calculated from users if endpoint fails
   useEffect(() => {
-    fetchUsers();
-  }, [fetchUsers]);
+    const isPageChange = prevPageRef.current !== filters.page && !isInitialLoadRef.current;
+    if (isInitialLoadRef.current) {
+      isInitialLoadRef.current = false;
+    }
+    prevPageRef.current = filters.page;
+    fetchUsers(isPageChange);
+  }, [fetchUsers, filters.page]);
 
   // Try to fetch stats from analytics endpoint
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
+
+  // Use optimistic member updates hook
+  useOptimisticMemberUpdates(users, setUsers, setStats);
+
+  // Setup socket listeners for member events
+  useEffect(() => {
+    // Get user ID for socket connection
+    const userDataStr = localStorage.getItem('userData') || localStorage.getItem('user');
+    if (!userDataStr) return;
+
+    try {
+      const userData = JSON.parse(userDataStr);
+      const userId = userData.id || userData.userId;
+      if (!userId) return;
+
+      // Connect to member service socket
+      const { member: memberSocket } = socketService.connect(userId);
+      if (!memberSocket) {
+        console.warn('⚠️ [MEMBER_MGMT] Member service socket not available (member service may not be configured)');
+        return;
+      }
+
+      console.log('✅ [MEMBER_MGMT] Member socket connected, setting up listeners');
+
+      // Listen for member events and dispatch via event manager
+      const handleMemberCreated = (data: any) => {
+        console.log('📢 [MEMBER_MGMT] member:created socket event received:', JSON.stringify(data, null, 2));
+        eventManager.dispatch('member:created', data);
+      };
+
+      const handleMemberUpdated = (data: any) => {
+        console.log('📢 member:updated socket event received:', data);
+        eventManager.dispatch('member:updated', data);
+      };
+
+      const handleMemberDeleted = (data: any) => {
+        console.log('📢 member:deleted socket event received:', data);
+        eventManager.dispatch('member:deleted', data);
+      };
+
+      const handleMemberStatusChanged = (data: any) => {
+        console.log('📢 member:status_changed socket event received:', data);
+        eventManager.dispatch('member:status_changed', data);
+      };
+
+      memberSocket.on('member:created', handleMemberCreated);
+      memberSocket.on('member:updated', handleMemberUpdated);
+      memberSocket.on('member:deleted', handleMemberDeleted);
+      memberSocket.on('member:status_changed', handleMemberStatusChanged);
+
+      return () => {
+        memberSocket.off('member:created', handleMemberCreated);
+        memberSocket.off('member:updated', handleMemberUpdated);
+        memberSocket.off('member:deleted', handleMemberDeleted);
+        memberSocket.off('member:status_changed', handleMemberStatusChanged);
+      };
+    } catch (err) {
+      console.error('Error setting up member socket listeners:', err);
+    }
+  }, []);
 
   // Filter and sort members
   const filteredAndSortedUsers = useMemo(() => {
@@ -258,8 +345,12 @@ export default function MemberManagement() {
 
       switch (filters.sortBy) {
         case 'name':
-          aValue = `${a.firstName || a.first_name || ''} ${a.lastName || a.last_name || ''}`.trim().toLowerCase();
-          bValue = `${b.firstName || b.first_name || ''} ${b.lastName || b.last_name || ''}`.trim().toLowerCase();
+          aValue = `${a.firstName || a.first_name || ''} ${a.lastName || a.last_name || ''}`
+            .trim()
+            .toLowerCase();
+          bValue = `${b.firstName || b.first_name || ''} ${b.lastName || b.last_name || ''}`
+            .trim()
+            .toLowerCase();
           break;
         case 'email':
           aValue = (a.email || '').toLowerCase();
@@ -318,7 +409,7 @@ export default function MemberManagement() {
     try {
       setIsDeleting(true);
       await userService.deleteUser(userToDelete.id);
-      
+
       // Remove user from list
       setUsers(users.filter(u => u.id !== userToDelete.id));
       setUserAvatars(prev => {
@@ -358,18 +449,92 @@ export default function MemberManagement() {
     }
   };
 
+  // Bulk operations
+  const handleSelectAll = () => {
+    setSelectedUserIds(filteredAndSortedUsers.map(u => u.id));
+  };
+
+  const handleDeselectAll = () => {
+    setSelectedUserIds([]);
+  };
+
+  const handleToggleSelect = (userId: string) => {
+    setSelectedUserIds(prev =>
+      prev.includes(userId) ? prev.filter(id => id !== userId) : [...prev, userId]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedUserIds.length === 0) return;
+    if (!confirm(`Bạn có chắc chắn muốn xóa ${selectedUserIds.length} khách hàng?`)) return;
+
+    try {
+      setIsBulkDeleting(true);
+      await Promise.all(selectedUserIds.map(id => userService.deleteUser(id)));
+      setUsers(users.filter(u => !selectedUserIds.includes(u.id)));
+      setSelectedUserIds([]);
+      fetchUsers();
+      fetchStats();
+      showToast(`Đã xóa ${selectedUserIds.length} khách hàng thành công`, 'success');
+    } catch (error: any) {
+      showToast('Không thể xóa một số khách hàng', 'error');
+    } finally {
+      setIsBulkDeleting(false);
+    }
+  };
+
+  const handleBulkActivate = async () => {
+    if (selectedUserIds.length === 0) return;
+    try {
+      await Promise.all(selectedUserIds.map(id => userService.updateUser(id, { isActive: true })));
+      setUsers(users.map(u => (selectedUserIds.includes(u.id) ? { ...u, isActive: true } : u)));
+      setSelectedUserIds([]);
+      showToast(`Đã kích hoạt ${selectedUserIds.length} khách hàng`, 'success');
+    } catch (error: any) {
+      showToast('Không thể kích hoạt một số khách hàng', 'error');
+    }
+  };
+
+  const handleBulkDeactivate = async () => {
+    if (selectedUserIds.length === 0) return;
+    try {
+      await Promise.all(selectedUserIds.map(id => userService.updateUser(id, { isActive: false })));
+      setUsers(users.map(u => (selectedUserIds.includes(u.id) ? { ...u, isActive: false } : u)));
+      setSelectedUserIds([]);
+      showToast(`Đã vô hiệu hóa ${selectedUserIds.length} khách hàng`, 'success');
+    } catch (error: any) {
+      showToast('Không thể vô hiệu hóa một số khách hàng', 'error');
+    }
+  };
+
+  const handleBulkMessage = () => {
+    if (selectedUserIds.length === 0) return;
+    const emails = users
+      .filter(u => selectedUserIds.includes(u.id))
+      .map(u => u.email)
+      .filter(Boolean)
+      .join(', ');
+    if (emails) {
+      window.location.href = `mailto:${emails}`;
+      showToast(`Đã mở email client với ${selectedUserIds.length} người nhận`, 'success');
+    } else {
+      showToast('Không có email nào để gửi', 'error');
+    }
+  };
+
   // Prepare export data
   const getExportData = useCallback(() => {
     const exportUsers = filteredAndSortedUsers.length > 0 ? filteredAndSortedUsers : users;
-    
+
     return exportUsers.map(user => ({
-      'Họ và tên': `${user.firstName || user.first_name || ''} ${user.lastName || user.last_name || ''}`.trim() || 'N/A',
-      'Email': user.email || 'N/A',
+      'Họ và tên':
+        `${user.firstName || user.first_name || ''} ${
+          user.lastName || user.last_name || ''
+        }`.trim() || 'N/A',
+      Email: user.email || 'N/A',
       'Số điện thoại': user.phone || 'N/A',
       'Trạng thái': user.isActive ? 'Hoạt động' : 'Không hoạt động',
-      'Ngày tạo': user.createdAt 
-        ? formatVietnamDateTime(user.createdAt, 'datetime')
-        : 'N/A',
+      'Ngày tạo': user.createdAt ? formatVietnamDateTime(user.createdAt, 'datetime') : 'N/A',
     }));
   }, [filteredAndSortedUsers, users]);
 
@@ -444,13 +609,13 @@ export default function MemberManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-success-500/20'>
-                <div className='absolute inset-0 bg-success-100 dark:bg-success-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <UserCheck className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <UserCheck className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -467,18 +632,20 @@ export default function MemberManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-gray-100 dark:bg-gray-800 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-gray-100 dark:bg-gray-800 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-gray-500/20'>
-                <div className='absolute inset-0 bg-gray-100 dark:bg-gray-800 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <UserX className='relative w-[18px] h-[18px] text-gray-600 dark:text-gray-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <UserX className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
                   <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                    {statsLoading ? '...' : stats?.inactive || users.filter(u => !u.isActive).length}
+                    {statsLoading
+                      ? '...'
+                      : stats?.inactive || users.filter(u => !u.isActive).length}
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
@@ -490,13 +657,13 @@ export default function MemberManagement() {
         </AdminCard>
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
-          <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-blue-500/20'>
-                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <TrendingUp className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -564,10 +731,58 @@ export default function MemberManagement() {
         </AdminCard>
       ) : (
         <>
-          <AdminCard padding='sm' className='p-0'>
-            <AdminTable>
-              <AdminTableHeader>
+          {/* Bulk Operations Bar */}
+          <BulkOperations
+            selectedItems={selectedUserIds}
+            totalItems={filteredAndSortedUsers.length}
+            onSelectAll={handleSelectAll}
+            onDeselectAll={handleDeselectAll}
+            onBulkDelete={handleBulkDelete}
+            bulkActions={[
+              {
+                label: 'Kích hoạt',
+                icon: UserCheck,
+                onClick: handleBulkActivate,
+                variant: 'secondary' as const,
+              },
+              {
+                label: 'Vô hiệu hóa',
+                icon: UserX,
+                onClick: handleBulkDeactivate,
+                variant: 'secondary' as const,
+              },
+              {
+                label: 'Gửi email',
+                icon: Mail,
+                onClick: handleBulkMessage,
+                variant: 'outline' as const,
+              },
+            ]}
+          />
+          <AdminCard padding='sm' className='p-0 admin-table-container'>
+            <div
+              className={`transition-opacity duration-300 ${
+                isPageTransitioning ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              <AdminTable>
+                <AdminTableHeader>
                 <AdminTableRow>
+                  <AdminTableCell header className='w-[5%]'>
+                    <input
+                      type='checkbox'
+                      checked={
+                        selectedUserIds.length === filteredAndSortedUsers.length &&
+                        filteredAndSortedUsers.length > 0
+                      }
+                      onChange={
+                        selectedUserIds.length === filteredAndSortedUsers.length
+                          ? handleDeselectAll
+                          : handleSelectAll
+                      }
+                      className='w-4 h-4'
+                    />
+                  </AdminTableCell>
                   <AdminTableCell header className='w-[15%]'>
                     <span className='whitespace-nowrap'>Khách hàng</span>
                   </AdminTableCell>
@@ -597,19 +812,21 @@ export default function MemberManagement() {
                     <AdminTableRow
                       key={user.id}
                       className={`group relative border-l-4 transition-all duration-200 cursor-pointer border-l-transparent hover:border-l-orange-500 ${
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-gray-900'
-                          : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
-                      onClick={(e?: React.MouseEvent) => {
-                        if (e) {
-                          e.stopPropagation();
-                          setSelectedUserForAction(user);
-                          setMenuPosition({ x: e.clientX, y: e.clientY });
-                          setActionMenuOpen(true);
-                        }
-                      }}
+                        selectedUserIds.includes(user.id)
+                          ? 'bg-orange-50 dark:bg-orange-900/10'
+                          : ''
+                      }`}
+                      onClick={() => handleToggleSelect(user.id)}
                     >
+                      <AdminTableCell>
+                        <input
+                          type='checkbox'
+                          checked={selectedUserIds.includes(user.id)}
+                          onChange={() => handleToggleSelect(user.id)}
+                          onClick={e => e.stopPropagation()}
+                          className='w-4 h-4'
+                        />
+                      </AdminTableCell>
                       <AdminTableCell className='overflow-hidden'>
                         <div className='flex items-center gap-1.5 sm:gap-2'>
                           <div className='relative flex-shrink-0'>
@@ -621,7 +838,8 @@ export default function MemberManagement() {
                                   className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
                                   onError={e => {
                                     e.currentTarget.style.display = 'none';
-                                    const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                    const fallback = e.currentTarget
+                                      .nextElementSibling as HTMLElement;
                                     if (fallback) {
                                       fallback.classList.remove('hidden');
                                       fallback.classList.add('flex');
@@ -674,12 +892,12 @@ export default function MemberManagement() {
                         {(() => {
                           const dateValue = user.createdAt || (user as any).created_at;
                           if (!dateValue) return null;
-                          
+
                           try {
                             // Database stores dates in UTC, convert to Vietnam timezone for display
                             const date = new Date(dateValue);
                             if (isNaN(date.getTime())) return null;
-                            
+
                             return (
                               <div className='flex items-center gap-1 sm:gap-1.5'>
                                 <Clock className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
@@ -701,8 +919,9 @@ export default function MemberManagement() {
                     </AdminTableRow>
                   );
                 })}
-              </AdminTableBody>
-            </AdminTable>
+                </AdminTableBody>
+              </AdminTable>
+            </div>
           </AdminCard>
 
           {totalPages > 1 && (
@@ -711,8 +930,24 @@ export default function MemberManagement() {
               totalPages={totalPages}
               totalItems={totalUsers}
               itemsPerPage={filters.limit}
-              onPageChange={page => setFilters(prev => ({ ...prev, page }))}
-              onItemsPerPageChange={newLimit => setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }))}
+              onPageChange={page => {
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setFilters(prev => ({ ...prev, page }));
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
+              }}
+              onItemsPerPageChange={newLimit => {
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setFilters(prev => ({ ...prev, limit: newLimit, page: 1 }));
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
+              }}
             />
           )}
         </>
@@ -741,9 +976,15 @@ export default function MemberManagement() {
             <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800'>
               <p className='text-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
                 {(() => {
-                  const firstName = selectedUserForAction.firstName || selectedUserForAction.first_name || '';
-                  const lastName = selectedUserForAction.lastName || selectedUserForAction.last_name || '';
-                  return `${firstName} ${lastName}`.trim() || selectedUserForAction.email || 'Unknown User';
+                  const firstName =
+                    selectedUserForAction.firstName || selectedUserForAction.first_name || '';
+                  const lastName =
+                    selectedUserForAction.lastName || selectedUserForAction.last_name || '';
+                  return (
+                    `${firstName} ${lastName}`.trim() ||
+                    selectedUserForAction.email ||
+                    'Unknown User'
+                  );
                 })()}
               </p>
             </div>
@@ -789,7 +1030,9 @@ export default function MemberManagement() {
           userToDelete
             ? `${userToDelete.firstName || userToDelete.first_name || ''} ${
                 userToDelete.lastName || userToDelete.last_name || ''
-              }`.trim() || userToDelete.email || 'Unknown'
+              }`.trim() ||
+              userToDelete.email ||
+              'Unknown'
             : ''
         }"? Hành động này không thể hoàn tác.`}
         confirmText='Xóa'

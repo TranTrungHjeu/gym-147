@@ -8,6 +8,7 @@ import Label from '../form/Label';
 import Checkbox from '../form/input/Checkbox';
 import Input from '../form/input/InputField';
 import { ButtonLoading } from '../ui/AppLoading/Loading';
+import ErrorModal from './ErrorModal';
 
 interface SignInFormProps {
   onSwitchToSignUp?: () => void;
@@ -35,6 +36,15 @@ export default function SignInForm({
   const navigate = useNavigate();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [errorModal, setErrorModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+  }>({
+    isOpen: false,
+    title: 'Đăng nhập thất bại',
+    message: '',
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => setIsFormLoaded(true), 200);
@@ -171,8 +181,10 @@ export default function SignInForm({
   };
 
   // Real login function
-  const handleLogin = async (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    e.stopPropagation(); // Prevent event bubbling
+    
     setIsLoading(true);
 
     // Mark all fields as touched for validation
@@ -245,29 +257,34 @@ export default function SignInForm({
     } catch (error: any) {
       console.error('Login error:', error);
 
-      // Handle different error types
+      // Determine error message based on error type
+      let errorTitle = 'Đăng nhập thất bại';
+      let errorMessage = 'Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.';
+
       if (error.response?.status === 401) {
-        setFieldErrors(prev => ({
-          ...prev,
-          password: 'Email hoặc mật khẩu không đúng',
-        }));
+        errorTitle = 'Thông tin đăng nhập không đúng';
+        errorMessage = 'Email hoặc mật khẩu bạn nhập không chính xác. Vui lòng kiểm tra lại và thử lại.';
       } else if (error.response?.status === 423) {
-        setFieldErrors(prev => ({
-          ...prev,
-          password: 'Tài khoản đã bị khóa. Vui lòng liên hệ quản trị viên',
-        }));
+        errorTitle = 'Tài khoản đã bị khóa';
+        errorMessage = 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.';
       } else if (error.response?.status === 200 && error.response?.data?.requires2FA) {
-        // Handle 2FA requirement
-        setFieldErrors(prev => ({
-          ...prev,
-          password: 'Cần xác thực 2FA. Vui lòng nhập mã từ ứng dụng xác thực',
-        }));
-      } else {
-        setFieldErrors(prev => ({
-          ...prev,
-          password: error.message || 'Có lỗi xảy ra khi đăng nhập',
-        }));
+        errorTitle = 'Yêu cầu xác thực 2FA';
+        errorMessage = 'Tài khoản của bạn yêu cầu xác thực 2 yếu tố. Vui lòng nhập mã từ ứng dụng xác thực.';
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
+
+      // Show error modal instead of inline error or reload
+      setErrorModal({
+        isOpen: true,
+        title: errorTitle,
+        message: errorMessage,
+      });
+
+      // Clear password field for security
+      setPassword('');
     }
 
     setIsLoading(false);
@@ -339,7 +356,7 @@ export default function SignInForm({
           {/* Social Login Buttons */}
           <div className='mb-3'>
             <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3'>
-              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-white transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
                 <svg
                   width='20'
                   height='20'
@@ -366,7 +383,7 @@ export default function SignInForm({
                 </svg>
                 GOOGLE
               </button>
-              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-white transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
                 <svg
                   width='20'
                   height='20'
@@ -393,7 +410,11 @@ export default function SignInForm({
               </div>
             </div>
             {/* Login Form */}
-            <form onSubmit={handleLogin} className='space-y-3'>
+            <form 
+              onSubmit={handleLogin} 
+              className='space-y-3'
+              noValidate
+            >
               {/* Email/Phone Field */}
               <div className='space-y-2'>
                 <Label className='text-gray-700 dark:text-white/90 font-medium '>
@@ -557,6 +578,14 @@ export default function SignInForm({
           </div>
         </div>
       </div>
+
+      {/* Error Modal */}
+      <ErrorModal
+        isOpen={errorModal.isOpen}
+        onClose={() => setErrorModal(prev => ({ ...prev, isOpen: false }))}
+        title={errorModal.title}
+        message={errorModal.message}
+      />
     </div>
   );
 }

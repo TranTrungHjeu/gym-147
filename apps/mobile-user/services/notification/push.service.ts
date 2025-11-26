@@ -206,19 +206,13 @@ class PushNotificationService {
         console.log('   Data:', notification.request.content.data);
       });
 
-    // Listen for user interaction with notifications
+    // Note: Navigation handling is done in _layout.tsx
+    // This listener is kept for logging purposes
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('🔔 Notification tapped:', response);
+        console.log('🔔 Notification tapped (push service):', response);
         console.log('   Action:', response.actionIdentifier);
         console.log('   Data:', response.notification.request.content.data);
-
-        // Handle navigation based on notification data
-        const data = response.notification.request.content.data as any;
-        if (data?.type === 'QUEUE_YOUR_TURN') {
-          console.log('   → Navigate to equipment:', data.equipment_id);
-          // TODO: Implement navigation
-        }
       });
 
     return () => {

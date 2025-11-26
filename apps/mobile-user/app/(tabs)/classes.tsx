@@ -1,5 +1,7 @@
 import BookingModal from '@/components/BookingModal';
 import ClassCard from '@/components/ClassCard';
+import ClassRecommendationCard from '@/components/ClassRecommendationCard';
+import { ClassCardSkeleton, EmptyState } from '@/components/ui';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   bookingService,
@@ -11,7 +13,6 @@ import {
   type CreateBookingRequest,
   type Schedule,
   type ScheduleFilters,
-  type SchedulingSuggestion,
 } from '@/services';
 import { ClassCategory } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
@@ -19,37 +20,31 @@ import { Typography } from '@/utils/typography';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter } from 'expo-router';
 import {
-  Activity,
   Calendar,
-  CalendarClock,
   ChevronLeft,
   ChevronRight,
-  Clock,
   Filter,
-  Lightbulb,
   Search,
   Sparkles,
-  Target,
-  TrendingUp,
   Users,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   FlatList,
   Platform,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
-  Switch,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 const CATEGORIES: ClassCategory[] = [
   ClassCategory.CARDIO,
@@ -63,6 +58,55 @@ const CATEGORIES: ClassCategory[] = [
   ClassCategory.RECOVERY,
   ClassCategory.SPECIALIZED,
 ];
+
+// Animated Category Chip Component
+const CategoryChip: React.FC<{
+  label: string;
+  isSelected: boolean;
+  onPress: () => void;
+  theme: any;
+  themedStyles: any;
+}> = ({ label, isSelected, onPress, theme, themedStyles }) => {
+  const scaleAnim = useRef(new Animated.Value(isSelected ? 1 : 0.95)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: isSelected ? 1 : 0.95,
+      tension: 300,
+      friction: 20,
+      useNativeDriver: true,
+    }).start();
+  }, [isSelected]);
+
+  return (
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
+        style={[
+          themedStyles.categoryChip,
+          isSelected && {
+            backgroundColor: theme.colors.primary,
+            borderColor: theme.colors.primary,
+          },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+        <Text
+          style={[
+            themedStyles.categoryText,
+            {
+              color: isSelected
+                ? theme.colors.textInverse
+                : theme.colors.text,
+            },
+          ]}
+        >
+          {label}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
 
 export default function ClassesScreen() {
   const { theme } = useTheme();
@@ -107,21 +151,13 @@ export default function ClassesScreen() {
   // Data states
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
-  const [recommendations, setRecommendations] = useState<ClassRecommendation[]>(
-    []
-  );
-  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
-  const [schedulingSuggestions, setSchedulingSuggestions] = useState<
-    SchedulingSuggestion[]
-  >([]);
-  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
-
-  // AI Recommendations toggle state (Premium feature)
-  const [aiRecommendationsEnabled, setAiRecommendationsEnabled] = useState<
-    boolean | null
-  >(null);
-  const [togglingAI, setTogglingAI] = useState(false);
   const [memberProfile, setMemberProfile] = useState<any>(null); // Full member profile with membership_type
+  
+  // Class recommendations state
+  const [classRecommendations, setClassRecommendations] = useState<
+    ClassRecommendation[]
+  >([]);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,6 +200,13 @@ export default function ClassesScreen() {
       }
     }
   }, [selectedDate, user?.id]); // Removed selectedCategory from dependencies
+
+  // Load class recommendations when member is available
+  useEffect(() => {
+    if (member?.id) {
+      loadClassRecommendations(member.id);
+    }
+  }, [member?.id]);
 
   const loadData = async (showFullLoading = true) => {
     try {
@@ -228,14 +271,6 @@ export default function ClassesScreen() {
       } else {
         setMyBookings([]);
       }
-
-      // Load class recommendations and scheduling suggestions
-      if (member?.id) {
-        await Promise.all([
-          loadRecommendations(member.id),
-          loadSchedulingSuggestions(member.id),
-        ]);
-      }
     } catch (err: any) {
       console.error('Error loading classes data:', err);
       setError(err.message || 'Failed to load classes data');
@@ -257,18 +292,6 @@ export default function ClassesScreen() {
       if (response.success && response.data) {
         const profile = response.data;
         setMemberProfile(profile);
-
-        // Set AI recommendations enabled state
-        const isPremium = ['PREMIUM', 'VIP'].includes(
-          profile.membership_type || ''
-        );
-        if (isPremium) {
-          setAiRecommendationsEnabled(
-            profile.ai_class_recommendations_enabled === true
-          );
-        } else {
-          setAiRecommendationsEnabled(null);
-        }
       }
     } catch (err: any) {
       console.error('❌ Error loading member profile:', err);
@@ -280,93 +303,58 @@ export default function ClassesScreen() {
     await Promise.all([
       loadMemberProfile(),
       loadData(true), // Show full loading on manual refresh
+      member?.id ? loadClassRecommendations(member.id) : Promise.resolve(),
     ]);
     setRefreshing(false);
   };
 
   // Load class recommendations
-  const loadRecommendations = async (memberId: string) => {
+  const loadClassRecommendations = async (memberId: string) => {
     try {
+      console.log('🔄 [loadClassRecommendations] Starting...', { memberId });
       setLoadingRecommendations(true);
-      // Only use AI if member has premium membership and AI enabled
-      const useAI = aiRecommendationsEnabled === true;
-      const response = await classService.getClassRecommendations(
-        memberId,
-        useAI
-      );
+      // Use vector-based recommendations (new feature) with AI fallback
+      const response = await classService.getClassRecommendations(memberId, true, true);
 
-      if (response.success && response.data?.recommendations) {
-        setRecommendations(response.data.recommendations);
-      } else {
-        setRecommendations([]);
-      }
-    } catch (err: any) {
-      console.error('❌ Error loading class recommendations:', err);
-      setRecommendations([]);
-    } finally {
-      setLoadingRecommendations(false);
-    }
-  };
-
-  // Load smart scheduling suggestions
-  const loadSchedulingSuggestions = async (memberId: string) => {
-    try {
-      setLoadingSuggestions(true);
-      const response = await classService.getSchedulingSuggestions(memberId, {
-        dateRange: 30,
-        useAI: true,
+      console.log('📦 [loadClassRecommendations] Response received:', {
+        success: response.success,
+        hasData: !!response.data,
+        hasRecommendations: !!response.data?.recommendations,
+        recommendationsCount: response.data?.recommendations?.length || 0,
+        method: response.data?.method,
+        error: response.error,
       });
 
-      if (response.success && response.data?.suggestions) {
-        setSchedulingSuggestions(response.data.suggestions);
+      if (response.success && response.data?.recommendations) {
+        const recommendations = response.data.recommendations;
+        setClassRecommendations(recommendations);
+        console.log('✅ [loadClassRecommendations] Loaded recommendations:', {
+          count: recommendations.length,
+          method: response.data.method || 'unknown',
+          firstRec: recommendations[0] ? {
+            type: recommendations[0].type,
+            title: recommendations[0].title,
+            priority: recommendations[0].priority,
+          } : null,
+        });
       } else {
-        setSchedulingSuggestions([]);
+        console.warn('⚠️ [loadClassRecommendations] No recommendations found:', {
+          success: response.success,
+          hasData: !!response.data,
+          error: response.error,
+        });
+        setClassRecommendations([]);
       }
     } catch (err: any) {
-      console.error('❌ Error loading scheduling suggestions:', err);
-      setSchedulingSuggestions([]);
+      console.error('❌ [loadClassRecommendations] Error loading class recommendations:', {
+        message: err.message,
+        stack: err.stack,
+        memberId,
+      });
+      setClassRecommendations([]);
     } finally {
-      setLoadingSuggestions(false);
-    }
-  };
-
-  // Toggle AI Class Recommendations (Premium feature)
-  const handleToggleAIRecommendations = async (value: boolean) => {
-    if (!member?.id) {
-      Alert.alert(t('common.error'), t('classes.memberNotFound'));
-      return;
-    }
-
-    try {
-      setTogglingAI(true);
-      const response = await memberService.toggleAIClassRecommendations();
-
-      if (response.success && response.data) {
-        // Reload member profile to get updated state
-        await loadMemberProfile();
-        // Reload recommendations with new setting
-        await loadRecommendations(member.id);
-        Alert.alert(
-          t('common.success'),
-          response.data.ai_class_recommendations_enabled
-            ? t('classes.aiRecommendationsEnabled')
-            : t('classes.aiRecommendationsDisabled')
-        );
-      } else {
-        Alert.alert(
-          t('common.error'),
-          response.error || t('classes.toggleFailed')
-        );
-        // Revert toggle state
-        setAiRecommendationsEnabled(!value);
-      }
-    } catch (err: any) {
-      console.error('❌ Error toggling AI recommendations:', err);
-      Alert.alert(t('common.error'), err.message || t('classes.toggleFailed'));
-      // Revert toggle state
-      setAiRecommendationsEnabled(!value);
-    } finally {
-      setTogglingAI(false);
+      setLoadingRecommendations(false);
+      console.log('🏁 [loadClassRecommendations] Finished, loadingRecommendations:', false);
     }
   };
 
@@ -578,8 +566,8 @@ export default function ClassesScreen() {
 
   const themedStyles = styles(theme);
 
-  // Show loading state
-  if (loading) {
+  // Show loading state with skeleton
+  if (loading && schedules.length === 0) {
     return (
       <SafeAreaView
         style={[
@@ -587,14 +575,19 @@ export default function ClassesScreen() {
           { backgroundColor: theme.colors.background },
         ]}
       >
-        <View style={themedStyles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text
-            style={[themedStyles.loadingText, { color: theme.colors.text }]}
-          >
-            {t('classes.loadingClasses')}
+        <View style={themedStyles.header}>
+          <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
+            {t('classes.title')}
           </Text>
         </View>
+        <ScrollView
+          style={themedStyles.content}
+          contentContainerStyle={themedStyles.listContent}
+        >
+          {[1, 2, 3].map((i) => (
+            <ClassCardSkeleton key={i} />
+          ))}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -641,28 +634,25 @@ export default function ClassesScreen() {
       ]}
     >
       {/* Header */}
-      <View
-        style={[
-          themedStyles.header,
-          { borderBottomColor: theme.colors.border },
-        ]}
-      >
+      <View style={themedStyles.header}>
         <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('classes.title')}
         </Text>
-        <TouchableOpacity
-          style={themedStyles.headerButton}
-          onPress={handleMyBookingsPress}
-        >
-          <Text
-            style={[
-              themedStyles.headerButtonText,
-              { color: theme.colors.primary },
-            ]}
+        <View style={themedStyles.headerRight}>
+          <TouchableOpacity
+            style={themedStyles.headerButton}
+            onPress={handleMyBookingsPress}
           >
-            {t('classes.myBookings')} ({upcomingBookings.length})
-          </Text>
-        </TouchableOpacity>
+            <Text
+              style={[
+                themedStyles.headerButtonText,
+                { color: theme.colors.primary },
+              ]}
+            >
+              {t('classes.myBookings')} ({upcomingBookings.length})
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search and Filters */}
@@ -709,62 +699,27 @@ export default function ClassesScreen() {
           style={themedStyles.categoryContainer}
           contentContainerStyle={themedStyles.categoryContent}
         >
-          <TouchableOpacity
-            style={[
-              themedStyles.categoryChip,
-              selectedCategory === 'ALL' && {
-                backgroundColor: theme.colors.primary,
-                borderColor: theme.colors.primary,
-              },
-            ]}
+          <CategoryChip
+            label={t('classes.all')}
+            isSelected={selectedCategory === 'ALL'}
             onPress={() => handleCategorySelect('ALL')}
-            activeOpacity={0.7}
-          >
-            <Text
-              style={[
-                themedStyles.categoryText,
-                {
-                  color:
-                    selectedCategory === 'ALL'
-                      ? theme.colors.textInverse
-                      : theme.colors.text,
-                },
-              ]}
-            >
-              {t('classes.all')}
-            </Text>
-          </TouchableOpacity>
+            theme={theme}
+            themedStyles={themedStyles}
+          />
           {CATEGORIES.map((category) => {
             const isSelected = selectedCategory === category;
             return (
-              <TouchableOpacity
+              <CategoryChip
                 key={category}
-                style={[
-                  themedStyles.categoryChip,
-                  isSelected && {
-                    backgroundColor: theme.colors.primary,
-                    borderColor: theme.colors.primary,
-                  },
-                ]}
+                label={getCategoryTranslation(category)}
+                isSelected={isSelected}
                 onPress={() => {
                   console.log('📂 Category chip pressed:', category);
                   handleCategorySelect(category);
                 }}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    themedStyles.categoryText,
-                    {
-                      color: isSelected
-                        ? theme.colors.textInverse
-                        : theme.colors.text,
-                    },
-                  ]}
-                >
-                  {getCategoryTranslation(category)}
-                </Text>
-              </TouchableOpacity>
+                theme={theme}
+                themedStyles={themedStyles}
+              />
             );
           })}
         </ScrollView>
@@ -883,390 +838,96 @@ export default function ClassesScreen() {
         )}
       </View>
 
-      {/* Smart Scheduling Suggestions Section */}
-      {schedulingSuggestions.length > 0 && (
-        <View style={themedStyles.suggestionsSection}>
-          <View style={themedStyles.suggestionsHeader}>
-            <View style={themedStyles.suggestionsHeaderLeft}>
-              <CalendarClock size={20} color={theme.colors.primary} />
-              <Text
-                style={[
-                  themedStyles.suggestionsTitle,
-                  { color: theme.colors.text, marginLeft: 8 },
-                ]}
-              >
-                {t('classes.schedulingSuggestions.title')}
-              </Text>
-            </View>
-          </View>
-          <Text
-            style={[
-              themedStyles.suggestionsDescription,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            {t('classes.schedulingSuggestions.description')}
-          </Text>
-          {loadingSuggestions ? (
-            <View style={themedStyles.suggestionsLoading}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text
-                style={[
-                  themedStyles.suggestionsLoadingText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {t('classes.schedulingSuggestions.loading')}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={themedStyles.suggestionsContainer}
-            >
-              {schedulingSuggestions.map((suggestion, index) => {
-                const getPriorityColor = () => {
-                  switch (suggestion.priority) {
-                    case 'HIGH':
-                      return theme.colors.error;
-                    case 'MEDIUM':
-                      return theme.colors.warning || '#FFA500';
-                    case 'LOW':
-                      return theme.colors.primary;
-                    default:
-                      return theme.colors.primary;
-                  }
-                };
-
-                const priorityColor = getPriorityColor();
-                const startTime = new Date(suggestion.startTime);
-                const timeString = startTime.toLocaleTimeString('vi-VN', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                });
-                const dateString = startTime.toLocaleDateString('vi-VN', {
-                  weekday: 'short',
-                  day: 'numeric',
-                  month: 'short',
-                });
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      themedStyles.suggestionCard,
-                      {
-                        backgroundColor: theme.colors.surface,
-                        borderLeftColor: priorityColor,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      router.push(`/classes/${suggestion.scheduleId}`);
-                    }}
-                  >
-                    <View style={themedStyles.suggestionHeader}>
-                      <View
-                        style={[
-                          themedStyles.suggestionIconContainer,
-                          { backgroundColor: priorityColor + '15' },
-                        ]}
-                      >
-                        <Sparkles size={18} color={priorityColor} />
-                      </View>
-                      <View style={themedStyles.suggestionContent}>
-                        <Text
-                          style={[
-                            themedStyles.suggestionTitle,
-                            { color: theme.colors.text },
-                          ]}
-                        >
-                          {suggestion.className}
-                        </Text>
-                        <Text
-                          style={[
-                            themedStyles.suggestionPriority,
-                            { color: priorityColor },
-                          ]}
-                        >
-                          {suggestion.priority === 'HIGH'
-                            ? t('classes.schedulingSuggestions.priorityHigh')
-                            : suggestion.priority === 'MEDIUM'
-                            ? t('classes.schedulingSuggestions.priorityMedium')
-                            : t('classes.schedulingSuggestions.priorityLow')}
-                        </Text>
-                      </View>
-                    </View>
-                    <View style={themedStyles.suggestionTime}>
-                      <Calendar size={14} color={theme.colors.textSecondary} />
-                      <Text
-                        style={[
-                          themedStyles.suggestionTimeText,
-                          { color: theme.colors.textSecondary },
-                        ]}
-                      >
-                        {dateString} • {timeString}
-                      </Text>
-                    </View>
-                    {suggestion.trainer && (
-                      <View style={themedStyles.suggestionTrainer}>
-                        <Users size={14} color={theme.colors.textSecondary} />
-                        <Text
-                          style={[
-                            themedStyles.suggestionTrainerText,
-                            { color: theme.colors.textSecondary },
-                          ]}
-                        >
-                          {suggestion.trainer.name}
-                        </Text>
-                      </View>
-                    )}
-                    <View style={themedStyles.suggestionInfo}>
-                      <Text
-                        style={[
-                          themedStyles.suggestionSpots,
-                          {
-                            color:
-                              suggestion.spotsLeft > 0
-                                ? theme.colors.success || '#10B981'
-                                : theme.colors.error,
-                          },
-                        ]}
-                      >
-                        {suggestion.spotsLeft > 0
-                          ? t('classes.schedulingSuggestions.spotsAvailable', {
-                              count: suggestion.spotsLeft,
-                            })
-                          : t('classes.schedulingSuggestions.waitlist')}
-                      </Text>
-                      <Text
-                        style={[
-                          themedStyles.suggestionScore,
-                          { color: theme.colors.textSecondary },
-                        ]}
-                      >
-                        {t('classes.schedulingSuggestions.score')}:{' '}
-                        {suggestion.score}
-                      </Text>
-                    </View>
-                    <Text
-                      style={[
-                        themedStyles.suggestionReason,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {suggestion.reason}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      {/* AI Recommendations Section */}
-      {(recommendations.length > 0 ||
-        (memberProfile &&
-          ['PREMIUM', 'VIP'].includes(
-            memberProfile.membership_type || ''
-          ))) && (
-        <View style={themedStyles.recommendationsSection}>
-          <View style={themedStyles.recommendationsHeader}>
-            <View style={themedStyles.recommendationsHeaderLeft}>
-              <Lightbulb size={20} color={theme.colors.primary} />
-              <Text
-                style={[
-                  themedStyles.recommendationsTitle,
-                  { color: theme.colors.text, marginLeft: 8 },
-                ]}
-              >
-                {t('classes.recommendationsTitle')}
-              </Text>
-            </View>
-            {/* Toggle button for Premium/VIP members */}
-            {memberProfile &&
-              ['PREMIUM', 'VIP'].includes(
-                memberProfile.membership_type || ''
-              ) && (
-                <View style={themedStyles.aiToggleContainer}>
-                  <Text
-                    style={[
-                      themedStyles.aiToggleLabel,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {t('classes.aiRecommendations')}
-                  </Text>
-                  <Switch
-                    value={aiRecommendationsEnabled === true}
-                    onValueChange={handleToggleAIRecommendations}
-                    disabled={togglingAI}
-                    trackColor={{
-                      false: theme.colors.border,
-                      true: theme.colors.primary,
-                    }}
-                    thumbColor={theme.isDark ? '#fff' : '#fff'}
-                  />
-                </View>
-              )}
-          </View>
-          <Text
-            style={[
-              themedStyles.recommendationsDescription,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
-            {t('classes.recommendationsDescription')}
-          </Text>
-          {loadingRecommendations ? (
-            <View style={themedStyles.recommendationsLoading}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text
-                style={[
-                  themedStyles.recommendationsLoadingText,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {t('classes.loadingRecommendations')}
-              </Text>
-            </View>
-          ) : (
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={themedStyles.recommendationsContainer}
-            >
-              {recommendations.map((rec, index) => {
-                const getPriorityColor = () => {
-                  switch (rec.priority) {
-                    case 'HIGH':
-                      return theme.colors.error;
-                    case 'MEDIUM':
-                      return theme.colors.warning || '#FFA500';
-                    case 'LOW':
-                      return theme.colors.primary;
-                    default:
-                      return theme.colors.primary;
-                  }
-                };
-
-                const getIcon = () => {
-                  switch (rec.type) {
-                    case 'NEW_CLASS':
-                      return Activity;
-                    case 'REPEAT_CLASS':
-                      return Target;
-                    case 'TIME_SUGGESTION':
-                      return Clock;
-                    case 'CATEGORY_EXPLORATION':
-                      return TrendingUp;
-                    case 'TRAINER_RECOMMENDATION':
-                      return Users;
-                    default:
-                      return Lightbulb;
-                  }
-                };
-
-                const Icon = getIcon();
-                const priorityColor = getPriorityColor();
-
-                return (
-                  <TouchableOpacity
-                    key={index}
-                    style={[
-                      themedStyles.recommendationCard,
-                      {
-                        backgroundColor: theme.colors.surface,
-                        borderLeftColor: priorityColor,
-                      },
-                    ]}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      // Handle recommendation action
-                      if (rec.action === 'VIEW_SCHEDULE') {
-                        // Navigate to schedules with filter
-                        if (rec.data?.classCategory) {
-                          setSelectedCategory(
-                            rec.data.classCategory as ClassCategory
-                          );
-                        }
-                      } else if (rec.action === 'EXPLORE_CATEGORY') {
-                        // Navigate to category filter
-                        if (
-                          rec.data?.categories &&
-                          rec.data.categories.length > 0
-                        ) {
-                          setSelectedCategory(
-                            rec.data.categories[0] as ClassCategory
-                          );
-                        }
-                      }
-                    }}
-                  >
-                    <View style={themedStyles.recommendationHeader}>
-                      <View
-                        style={[
-                          themedStyles.recommendationIconContainer,
-                          { backgroundColor: priorityColor + '15' },
-                        ]}
-                      >
-                        <Icon size={18} color={priorityColor} />
-                      </View>
-                      <View style={themedStyles.recommendationContent}>
-                        <Text
-                          style={[
-                            themedStyles.recommendationTitle,
-                            { color: theme.colors.text },
-                          ]}
-                        >
-                          {rec.title}
-                        </Text>
-                        <Text
-                          style={[
-                            themedStyles.recommendationPriority,
-                            { color: priorityColor },
-                          ]}
-                        >
-                          {rec.priority === 'HIGH'
-                            ? t('classes.recommendationPriorityHigh')
-                            : rec.priority === 'MEDIUM'
-                            ? t('classes.recommendationPriorityMedium')
-                            : t('classes.recommendationPriorityLow')}
-                        </Text>
-                      </View>
-                    </View>
-                    <Text
-                      style={[
-                        themedStyles.recommendationMessage,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {rec.message}
-                    </Text>
-                    {rec.reasoning && (
-                      <Text
-                        style={[
-                          themedStyles.recommendationReasoning,
-                          { color: theme.colors.textSecondary },
-                        ]}
-                      >
-                        {rec.reasoning}
-                      </Text>
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-          )}
-        </View>
-      )}
-
-      {/* Classes List */}
+      {/* Classes List with Recommendations and Suggestions as Header */}
       <FlatList
         data={filteredSchedules}
         keyExtractor={(item) => item.id}
+        ListHeaderComponent={() => (
+          <>
+            {/* Class Recommendations Section */}
+            {classRecommendations.length > 0 || loadingRecommendations ? (
+              <View style={themedStyles.recommendationsSection}>
+                <View style={themedStyles.recommendationsHeader}>
+                  <View style={themedStyles.recommendationsHeaderLeft}>
+                    <Sparkles size={20} color={theme.colors.primary} />
+                    <Text
+                      style={[
+                        themedStyles.recommendationsTitle,
+                        { color: theme.colors.text, marginLeft: 8 },
+                      ]}
+                    >
+                      {t('classes.recommendationsTitle')}
+                    </Text>
+                  </View>
+                </View>
+                <Text
+                  style={[
+                    themedStyles.recommendationsDescription,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('classes.recommendationsDescription')}
+                </Text>
+                {loadingRecommendations ? (
+                  <View style={themedStyles.recommendationsLoading}>
+                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                    <Text
+                      style={[
+                        themedStyles.recommendationsLoadingText,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('classes.loadingRecommendations')}
+                    </Text>
+                  </View>
+                ) : classRecommendations.length > 0 ? (
+                  <View style={themedStyles.recommendationsContainer}>
+                    {classRecommendations.map((rec, index) => (
+                      <ClassRecommendationCard
+                        key={index}
+                        recommendation={rec}
+                        onPress={() => {
+                          if (rec.action === 'VIEW_CLASS' && rec.data?.classId) {
+                            router.push(`/classes/${rec.data.classId}`);
+                          } else if (rec.action === 'VIEW_SCHEDULE') {
+                            if (rec.data?.scheduleId) {
+                              router.push(
+                                `/classes?scheduleId=${rec.data.scheduleId}`
+                              );
+                            } else if (rec.data?.classId) {
+                              // If only classId, filter by class category or navigate to class
+                              if (rec.data?.classCategory) {
+                                setSelectedCategory(
+                                  rec.data.classCategory as ClassCategory
+                                );
+                              } else {
+                                router.push(`/classes/${rec.data.classId}`);
+                              }
+                            }
+                          } else if (
+                            rec.action === 'BOOK_CLASS' &&
+                            rec.data?.scheduleId
+                          ) {
+                            router.push(
+                              `/classes?scheduleId=${rec.data.scheduleId}&book=true`
+                            );
+                          } else if (
+                            rec.action === 'BROWSE_CATEGORY' &&
+                            rec.data?.classCategory
+                          ) {
+                            setSelectedCategory(
+                              rec.data.classCategory as ClassCategory
+                            );
+                          }
+                        }}
+                      />
+                    ))}
+                  </View>
+                ) : null}
+              </View>
+            ) : null}
+          </>
+        )}
         renderItem={({ item }) => {
           // Find user's booking for this schedule
           // Check both schedule_id directly and nested schedule.id
@@ -1303,24 +964,21 @@ export default function ClassesScreen() {
           />
         }
         ListEmptyComponent={
-          <View style={themedStyles.emptyContainer}>
-            <Text
-              style={[
-                themedStyles.emptyText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {t('classes.noClassesFound')}
-            </Text>
-            <Text
-              style={[
-                themedStyles.emptySubtext,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {t('common.tryAgain')}
-            </Text>
-          </View>
+          <EmptyState
+            title={t('classes.noClassesFound') || 'No classes found'}
+            description={
+              searchQuery || selectedCategory !== 'ALL'
+                ? t('classes.tryDifferentFilters') ||
+                  'Try adjusting your filters or search'
+                : t('classes.noClassesForDate') ||
+                  'No classes scheduled for this date'
+            }
+            actionLabel={t('classes.viewAll') || 'View All Classes'}
+            onAction={() => {
+              setSearchQuery('');
+              setSelectedCategory('ALL');
+            }}
+          />
         }
       />
 
@@ -1573,6 +1231,7 @@ const styles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
+      width: '100%',
     },
     loadingContainer: {
       flex: 1,
@@ -1608,19 +1267,32 @@ const styles = (theme: any) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
+      paddingTop: theme.spacing.xl,
+      paddingBottom: theme.spacing.lg,
       borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      width: '100%',
+      alignSelf: 'stretch',
     },
     headerTitle: {
       ...Typography.h2,
+      flex: 1,
+      flexShrink: 1,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      minWidth: 0,
+      flexShrink: 0,
+      maxWidth: '100%',
     },
     headerButton: {
       paddingHorizontal: theme.spacing.sm + 2,
       paddingVertical: theme.spacing.xs + 2,
-      borderRadius: theme.radius.xl,
-      backgroundColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(59, 130, 246, 0.1)',
+      borderRadius: theme.radius.lg, // 12px - square
+      backgroundColor: theme.colors.primary + '15',
     },
     headerButtonText: {
       ...Typography.bodySmallMedium,
@@ -1639,13 +1311,11 @@ const styles = (theme: any) =>
       alignItems: 'center',
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.lg,
+      borderRadius: theme.radius.lg, // 12px - square with slight rounding
       gap: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(0, 0, 0, 0.05)',
+      borderColor: theme.colors.border,
     },
     searchInput: {
       ...Typography.bodyMedium,
@@ -1654,13 +1324,11 @@ const styles = (theme: any) =>
     filterButton: {
       width: 48,
       height: 48,
-      borderRadius: theme.radius.lg,
+      borderRadius: theme.radius.lg, // 12px - square
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
-      borderColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(0, 0, 0, 0.05)',
+      borderColor: theme.colors.border,
     },
     categorySectionWrapper: {
       backgroundColor: theme.colors.background,
@@ -1677,15 +1345,13 @@ const styles = (theme: any) =>
       gap: theme.spacing.sm,
     },
     categoryChip: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.round,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg, // 12px - square with slight rounding
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(0, 0, 0, 0.08)',
-      minHeight: 40,
+      borderColor: theme.colors.border,
+      minHeight: 36,
       justifyContent: 'center',
       alignItems: 'center',
     },
@@ -1697,25 +1363,22 @@ const styles = (theme: any) =>
       alignItems: 'center',
       justifyContent: 'space-between',
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm + 4,
+      paddingVertical: theme.spacing.sm + 2,
       marginHorizontal: theme.spacing.lg,
       marginVertical: theme.spacing.md,
-      borderRadius: theme.radius.xl,
+      borderRadius: theme.radius.lg, // 12px - square
       borderWidth: 1,
-      borderColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.1)'
-        : 'rgba(0, 0, 0, 0.08)',
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
       ...theme.shadows.sm,
     },
     dateNavButton: {
       width: 36,
       height: 36,
-      borderRadius: theme.radius.round,
+      borderRadius: theme.radius.md, // 8px - square
       alignItems: 'center',
       justifyContent: 'center',
-      backgroundColor: theme.isDark
-        ? 'rgba(255, 255, 255, 0.05)'
-        : 'rgba(59, 130, 246, 0.1)',
+      backgroundColor: theme.colors.primary + '15',
     },
     dateContent: {
       flex: 1,
@@ -1728,7 +1391,7 @@ const styles = (theme: any) =>
     dateIconContainer: {
       width: 32,
       height: 32,
-      borderRadius: theme.radius.round,
+      borderRadius: theme.radius.md, // 8px - square
       backgroundColor: theme.colors.primary + '15',
       alignItems: 'center',
       justifyContent: 'center',
@@ -1745,113 +1408,6 @@ const styles = (theme: any) =>
       ...Typography.h6,
       marginTop: 2,
     },
-    suggestionsSection: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.sm,
-      backgroundColor: theme.colors.background,
-    },
-    suggestionsHeader: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: theme.spacing.xs,
-    },
-    suggestionsHeaderLeft: {
-      flexDirection: 'row',
-      alignItems: 'center',
-    },
-    suggestionsTitle: {
-      ...Typography.h5,
-      fontWeight: '700',
-    },
-    suggestionsDescription: {
-      ...Typography.bodySmall,
-      marginBottom: theme.spacing.md,
-    },
-    suggestionsLoading: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'center',
-      paddingVertical: theme.spacing.lg,
-      gap: theme.spacing.sm,
-    },
-    suggestionsLoadingText: {
-      ...Typography.bodyMedium,
-    },
-    suggestionsContainer: {
-      paddingVertical: theme.spacing.sm,
-      gap: theme.spacing.md,
-    },
-    suggestionCard: {
-      width: 320,
-      padding: theme.spacing.md,
-      borderRadius: theme.radius.xl,
-      borderLeftWidth: 4,
-      marginRight: theme.spacing.md,
-      ...theme.shadows.md,
-    },
-    suggestionHeader: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      marginBottom: theme.spacing.sm,
-    },
-    suggestionIconContainer: {
-      width: 36,
-      height: 36,
-      borderRadius: theme.radius.lg,
-      alignItems: 'center',
-      justifyContent: 'center',
-      marginRight: theme.spacing.sm,
-    },
-    suggestionContent: {
-      flex: 1,
-    },
-    suggestionTitle: {
-      ...Typography.bodyBold,
-      marginBottom: theme.spacing.xs / 2,
-    },
-    suggestionPriority: {
-      ...Typography.labelSmall,
-      fontWeight: '600',
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    suggestionTime: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs,
-      marginBottom: theme.spacing.xs,
-    },
-    suggestionTimeText: {
-      ...Typography.bodySmall,
-    },
-    suggestionTrainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs,
-      marginBottom: theme.spacing.sm,
-    },
-    suggestionTrainerText: {
-      ...Typography.bodySmall,
-    },
-    suggestionInfo: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      marginBottom: theme.spacing.sm,
-    },
-    suggestionSpots: {
-      ...Typography.bodySmall,
-      fontWeight: '600',
-    },
-    suggestionScore: {
-      ...Typography.labelSmall,
-    },
-    suggestionReason: {
-      ...Typography.bodySmall,
-      fontStyle: 'italic',
-    },
     recommendationsSection: {
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.md,
@@ -1867,38 +1423,29 @@ const styles = (theme: any) =>
     recommendationsHeaderLeft: {
       flexDirection: 'row',
       alignItems: 'center',
-      flex: 1,
-    },
-    aiToggleContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.sm,
-    },
-    aiToggleLabel: {
-      ...Typography.bodySmall,
-      fontSize: 12,
     },
     recommendationsTitle: {
       ...Typography.h5,
+      fontWeight: '700',
     },
     recommendationsDescription: {
       ...Typography.bodySmall,
       marginBottom: theme.spacing.md,
-      opacity: 0.8,
     },
     recommendationsLoading: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: theme.spacing.lg,
+      paddingVertical: theme.spacing.lg,
       gap: theme.spacing.sm,
     },
     recommendationsLoadingText: {
-      ...Typography.bodySmall,
+      ...Typography.bodyMedium,
     },
     recommendationsContainer: {
+      paddingVertical: theme.spacing.sm,
       gap: theme.spacing.md,
-      paddingRight: theme.spacing.lg,
+      width: '100%',
     },
     recommendationCard: {
       width: 280,
@@ -1981,8 +1528,8 @@ const styles = (theme: any) =>
     },
     filterContent: {
       backgroundColor: theme.colors.background,
-      borderTopLeftRadius: theme.radius.xl,
-      borderTopRightRadius: theme.radius.xl,
+      borderTopLeftRadius: theme.radius.lg, // 12px - square
+      borderTopRightRadius: theme.radius.lg, // 12px - square
       maxHeight: '85%',
     },
     filterHeader: {
@@ -2021,9 +1568,9 @@ const styles = (theme: any) =>
       gap: theme.spacing.sm,
     },
     filterOption: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.round,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg, // 12px - square
       borderWidth: 1,
     },
     filterOptionText: {
@@ -2048,6 +1595,9 @@ const styles = (theme: any) =>
       padding: 4,
       justifyContent: 'center',
     },
+    content: {
+      flex: 1,
+    },
     toggleThumb: {
       width: 20,
       height: 20,
@@ -2061,9 +1611,9 @@ const styles = (theme: any) =>
     },
     applyButton: {
       paddingVertical: theme.spacing.md,
-      borderRadius: theme.radius.lg,
+      borderRadius: theme.radius.lg, // 12px - square
       alignItems: 'center',
-      ...theme.shadows.md,
+      ...theme.shadows.sm,
     },
     applyButtonText: {
       ...Typography.h5,

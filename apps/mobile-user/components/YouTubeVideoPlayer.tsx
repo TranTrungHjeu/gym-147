@@ -4,6 +4,7 @@ import { Clock, Play, User, X, Youtube } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
   Dimensions,
   Image,
@@ -32,6 +33,7 @@ interface ExerciseVideo {
 interface YouTubeVideoPlayerProps {
   exerciseName: string;
   video?: ExerciseVideo | null;
+  loading?: boolean;
   onLoadVideo?: () => void;
   style?: any;
 }
@@ -41,6 +43,7 @@ const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
 function YouTubeVideoPlayer({
   exerciseName,
   video,
+  loading = false,
   onLoadVideo,
   style,
 }: YouTubeVideoPlayerProps) {
@@ -77,34 +80,52 @@ function YouTubeVideoPlayer({
 
   // Create HTML for YouTube embed
   const createYouTubeHTML = (embedUrl: string) => {
+    // Extract video ID from embed URL
+    const videoIdMatch = embedUrl.match(/(?:embed\/|v=)([a-zA-Z0-9_-]{11})/);
+    const videoId = videoIdMatch ? videoIdMatch[1] : '';
+
+    // Use youtube-nocookie.com to avoid cookie issues and error 153
+    const nocookieEmbedUrl = `https://www.youtube-nocookie.com/embed/${videoId}`;
+
     return `
       <!DOCTYPE html>
       <html>
         <head>
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+          <meta name="apple-mobile-web-app-capable" content="yes">
+          <meta name="apple-mobile-web-app-status-bar-style" content="black">
+          <meta http-equiv="X-UA-Compatible" content="IE=edge">
+          <meta name="referrer" content="no-referrer-when-downgrade">
           <style>
-            body {
+            * {
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            html, body {
               margin: 0;
               padding: 0;
               background: #000;
-              display: flex;
-              justify-content: center;
-              align-items: center;
-              height: 100vh;
+              width: 100%;
+              height: 100%;
+              overflow: hidden;
+              -webkit-overflow-scrolling: touch;
             }
             .video-container {
               position: relative;
               width: 100%;
-              height: 0;
-              padding-bottom: 56.25%; /* 16:9 aspect ratio */
+              height: 100%;
+              background: #000;
+              display: flex;
+              justify-content: center;
+              align-items: center;
             }
             iframe {
-              position: absolute;
-              top: 0;
-              left: 0;
               width: 100%;
               height: 100%;
               border: none;
+              pointer-events: auto;
             }
             .controls {
               position: absolute;
@@ -117,16 +138,27 @@ function YouTubeVideoPlayer({
               border-radius: 5px;
               text-align: center;
               z-index: 10;
+              font-size: 12px;
             }
           </style>
         </head>
         <body>
           <div class="video-container">
             <iframe
-              src="${embedUrl}?autoplay=1&rel=0&modestbranding=1"
+              id="youtube-player"
+              src="${nocookieEmbedUrl}?rel=0&modestbranding=1&playsinline=1&enablejsapi=1&origin=${encodeURIComponent(
+      'https://www.youtube.com'
+    )}&widget_referrer=${encodeURIComponent(
+      '*'
+    )}&iv_load_policy=3&cc_load_policy=0"
               frameborder="0"
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowfullscreen>
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              allowfullscreen
+              webkitallowfullscreen
+              mozallowfullscreen
+              referrerpolicy="no-referrer-when-downgrade"
+              loading="lazy"
+              title="YouTube video player">
             </iframe>
           </div>
           <div class="controls">
@@ -237,41 +269,19 @@ function YouTubeVideoPlayer({
     videoButtonTextDisabled: {
       color: theme.colors.textSecondary,
     },
-    setupCard: {
+    loadingCard: {
       backgroundColor: theme.colors.surface,
       borderRadius: theme.radius.lg,
       padding: theme.spacing.xl,
-      borderWidth: 2,
-      borderColor: theme.colors.border,
-      borderStyle: 'dashed',
       alignItems: 'center',
+      justifyContent: 'center',
+      minHeight: 120,
+      ...theme.shadows.md,
     },
-    setupIcon: {
-      marginBottom: theme.spacing.md,
-    },
-    setupTitle: {
-      ...Typography.h5,
-      color: theme.colors.text,
-      textAlign: 'center',
-      marginBottom: theme.spacing.sm,
-    },
-    setupDescription: {
+    loadingText: {
       ...Typography.bodyMedium,
-      color: theme.colors.textSecondary,
+      marginTop: theme.spacing.md,
       textAlign: 'center',
-      marginBottom: theme.spacing.lg,
-      lineHeight: 20,
-    },
-    setupButton: {
-      backgroundColor: theme.colors.primary,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.md,
-      ...theme.shadows.sm,
-    },
-    setupButtonText: {
-      ...Typography.buttonMedium,
-      color: theme.colors.textInverse,
     },
     modalOverlay: {
       flex: 1,
@@ -357,38 +367,26 @@ function YouTubeVideoPlayer({
       backgroundColor: '#000',
       padding: theme.spacing.xxl,
     },
-    errorIcon: {
-      marginBottom: theme.spacing.lg,
-    },
     errorText: {
-      ...Typography.h4,
+      ...Typography.bodyMedium,
       color: '#fff',
       textAlign: 'center',
-      marginBottom: theme.spacing.sm,
-    },
-    errorSubtext: {
-      ...Typography.bodyMedium,
-      color: '#ccc',
-      textAlign: 'center',
-      marginBottom: theme.spacing.xl,
-      lineHeight: 20,
-    },
-    retryButton: {
-      backgroundColor: theme.colors.primary,
-      paddingHorizontal: theme.spacing.xl,
-      paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.md,
-      ...theme.shadows.sm,
-    },
-    retryButtonText: {
-      ...Typography.buttonMedium,
-      color: theme.colors.textInverse,
+      marginTop: theme.spacing.md,
     },
   });
 
   return (
     <View style={[styles.container, style]}>
-      {video ? (
+      {loading ? (
+        <View style={styles.loadingCard}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text
+            style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+          >
+            {t('workouts.loadingVideo', { default: 'Loading video...' })}
+          </Text>
+        </View>
+      ) : video ? (
         <View style={styles.videoCard}>
           <View style={styles.thumbnailContainer}>
             <Image
@@ -454,24 +452,7 @@ function YouTubeVideoPlayer({
             </TouchableOpacity>
           </View>
         </View>
-      ) : (
-        <View style={styles.setupCard}>
-          <Youtube
-            size={48}
-            color={theme.colors.textSecondary}
-            style={styles.setupIcon}
-          />
-          <Text style={styles.setupTitle}>
-            {t('workouts.videoNotAvailable')}
-          </Text>
-          <Text style={styles.setupDescription}>
-            {t('workouts.videoSetupInstructions')}
-          </Text>
-          <TouchableOpacity style={styles.setupButton} onPress={onLoadVideo}>
-            <Text style={styles.setupButtonText}>{t('common.tryAgain')}</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      ) : null}
 
       <Modal
         visible={showModal}
@@ -500,27 +481,40 @@ function YouTubeVideoPlayer({
                   source={{ html: createYouTubeHTML(video.embedUrl) }}
                   allowsInlineMediaPlayback={true}
                   mediaPlaybackRequiresUserAction={false}
+                  allowsFullscreenVideo={true}
+                  javaScriptEnabled={true}
+                  domStorageEnabled={true}
+                  startInLoadingState={true}
+                  scalesPageToFit={true}
+                  mixedContentMode="always"
+                  setSupportMultipleWindows={false}
+                  allowsProtectedMedia={true}
+                  sharedCookiesEnabled={false}
+                  thirdPartyCookiesEnabled={false}
+                  cacheEnabled={true}
+                  incognito={false}
+                  userAgent="Mozilla/5.0 (iPhone; CPU iPhone OS 14_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0 Mobile/15E148 Safari/604.1"
                   onError={(error) => {
                     console.error('WebView error:', error);
+                    Alert.alert(
+                      'Error',
+                      'Failed to load video. Please try again or open in YouTube app.'
+                    );
                   }}
                   onHttpError={(error) => {
                     console.error('WebView HTTP error:', error);
                   }}
+                  onLoadEnd={() => {
+                    console.log('✅ YouTube video loaded successfully');
+                  }}
+                  onMessage={(event) => {
+                    console.log('WebView message:', event.nativeEvent.data);
+                  }}
                 />
               ) : (
                 <View style={styles.errorContainer}>
-                  <Youtube size={64} color="#FF0000" style={styles.errorIcon} />
-                  <Text style={styles.errorText}>Video Not Available</Text>
-                  <Text style={styles.errorSubtext}>
-                    Unable to load the video tutorial. Please check your
-                    internet connection.
-                  </Text>
-                  <TouchableOpacity
-                    style={styles.retryButton}
-                    onPress={onLoadVideo}
-                  >
-                    <Text style={styles.retryButtonText}>Retry</Text>
-                  </TouchableOpacity>
+                  <ActivityIndicator size="large" color="#fff" />
+                  <Text style={styles.errorText}>Loading video...</Text>
                 </View>
               )}
             </View>

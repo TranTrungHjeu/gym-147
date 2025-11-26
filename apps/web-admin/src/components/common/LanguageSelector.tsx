@@ -19,9 +19,8 @@ const languages: LanguageOption[] = [
  */
 const LanguageSelector: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
+  const [currentLang, setCurrentLang] = useState<'en' | 'vi'>(getCurrentLanguage());
   const dropdownRef = useRef<HTMLDivElement>(null);
-
-  const currentLang = getCurrentLanguage();
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -38,6 +37,18 @@ const LanguageSelector: React.FC = () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [isOpen]);
+
+  // Listen for language changes
+  useEffect(() => {
+    const handleLanguageChange = () => {
+      setCurrentLang(getCurrentLanguage());
+    };
+
+    window.addEventListener('languageChanged', handleLanguageChange);
+    return () => {
+      window.removeEventListener('languageChanged', handleLanguageChange);
+    };
+  }, []);
 
   const handleLanguageChange = (langCode: 'en' | 'vi') => {
     changeLanguage(langCode);
@@ -61,19 +72,16 @@ const LanguageSelector: React.FC = () => {
 
       {isOpen && (
         <>
-          {/* Backdrop */}
-          <div className='fixed inset-0 z-10' onClick={() => setIsOpen(false)} />
-
           {/* Dropdown Menu */}
-          <div className='absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg shadow-lg z-20 overflow-hidden'>
+          <div className='absolute right-0 mt-2 w-56 bg-white/95 dark:bg-gray-800/95 backdrop-blur-md border border-gray-200/50 dark:border-gray-700/50 rounded-lg shadow-lg z-50 overflow-hidden'>
             <div className='py-1'>
               {languages.map(language => (
                 <button
                   key={language.code}
                   onClick={() => handleLanguageChange(language.code)}
-                  className={`w-full flex items-center justify-between px-4 py-2 text-sm transition-colors ${
+                  className={`w-full flex items-center justify-between px-4 py-2.5 text-sm transition-all duration-300 ${
                     currentLang === language.code
-                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
+                      ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 font-semibold'
                       : 'text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
                   }`}
                 >

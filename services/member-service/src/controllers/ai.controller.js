@@ -1,6 +1,44 @@
 const aiService = require('../services/ai.service');
+const embeddingService = require('../services/embedding.service.js');
 
 class AIController {
+  /**
+   * Generate embedding từ text
+   * POST /ai/embeddings
+   * Body: { text: "Tôi muốn tăng cơ bắp" }
+   */
+  async generateEmbedding(req, res) {
+    try {
+      const { text } = req.body;
+
+      if (!text || text.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Text is required',
+          data: null,
+        });
+      }
+
+      const embedding = await embeddingService.generateEmbedding(text);
+
+      res.json({
+        success: true,
+        message: 'Embedding generated successfully',
+        data: {
+          embedding,
+          dimension: embedding.length,
+        },
+      });
+    } catch (error) {
+      console.error('❌ Error generating embedding:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate embedding',
+        data: { error: error.message },
+      });
+    }
+  }
+
   // Generate class recommendations using AI
   async generateClassRecommendations(req, res) {
     try {

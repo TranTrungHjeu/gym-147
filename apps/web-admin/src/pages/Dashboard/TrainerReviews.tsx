@@ -239,7 +239,7 @@ export default function TrainerReviews() {
                     </div>
                     <div className='flex items-center gap-2'>
                       <div className='flex'>{renderStars(review.rating)}</div>
-                      <span className='text-sm text-gray-500'>({review.rating}/5)</span>
+                      <span className='text-sm text-gray-500 dark:text-gray-400'>({review.rating}/5)</span>
                     </div>
                   </div>
 

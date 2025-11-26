@@ -7,10 +7,16 @@ import ProtectedRoute from './components/auth/ProtectedRoute';
 import ToastContainer from './components/common/ToastContainer';
 import { NavigationProvider } from './context/NavigationContext';
 import { ToastProvider } from './context/ToastContext';
+import AboutPage from './features/homepage/pages/AboutPage';
+import ClassesPage from './features/homepage/pages/ClassesPage';
+import ContactPage from './features/homepage/pages/ContactPage';
 import Homepage from './features/homepage/pages/Homepage';
+import ServicesPage from './features/homepage/pages/ServicesPage';
+import TeamPage from './features/homepage/pages/TeamPage';
 import './index.css';
 import AppLayout from './layout/AppLayout';
 import TrainerLayout from './layout/TrainerLayout';
+import RewardAnalytics from './pages/Analytics/RewardAnalytics';
 import Auth from './pages/AuthPages/Auth';
 import ResetPassword from './pages/AuthPages/ResetPassword';
 import Blank from './pages/Blank';
@@ -34,15 +40,30 @@ import TrainerReviews from './pages/Dashboard/TrainerReviews';
 import TrainerSchedule from './pages/Dashboard/TrainerSchedule';
 import TrainerStats from './pages/Dashboard/TrainerStats';
 import FormElements from './pages/Forms/FormElements';
+import APIKeysManagement from './pages/Management/APIKeysManagement';
+import AuditLogsManagement from './pages/Management/AuditLogsManagement';
+import BackupRestoreManagement from './pages/Management/BackupRestoreManagement';
 import BillingManagement from './pages/Management/BillingManagement';
+import ChallengeManagement from './pages/Management/ChallengeManagement';
 import ClassManagement from './pages/Management/ClassManagement';
+import EmailTemplatesManagement from './pages/Management/EmailTemplatesManagement';
 import EquipmentManagement from './pages/Management/EquipmentManagement';
+import GuestManagement from './pages/Management/GuestManagement';
 import MemberManagement from './pages/Management/MemberManagement';
+import PersonalTrainingManagement from './pages/Management/PersonalTrainingManagement';
+import RedemptionManagement from './pages/Management/RedemptionManagement';
 import ReportsManagement from './pages/Management/ReportsManagement';
+import RewardManagement from './pages/Management/RewardManagement';
 import RoomManagement from './pages/Management/RoomManagement';
+import SMSTemplatesManagement from './pages/Management/SMSTemplatesManagement';
 import ScheduleManagement from './pages/Management/ScheduleManagement';
+import ScheduledReportsManagement from './pages/Management/ScheduledReportsManagement';
 import SettingsManagement from './pages/Management/SettingsManagement';
 import TrainerManagement from './pages/Management/TrainerManagement';
+import NotificationManagement from './pages/Management/NotificationManagement';
+import VerifyCode from './pages/Management/VerifyCode';
+import WebhooksManagement from './pages/Management/WebhooksManagement';
+import NotificationsPage from './pages/Notifications';
 import NotFound from './pages/OtherPage/NotFound';
 import ClassesReport from './pages/Reports/ClassesReport';
 import EquipmentReport from './pages/Reports/EquipmentReport';
@@ -68,6 +89,11 @@ export default function App() {
         <Routes>
           <Route path='/' element={<Homepage />} />
           <Route path='/homepage' element={<Homepage />} />
+          <Route path='/about' element={<AboutPage />} />
+          <Route path='/classes' element={<ClassesPage />} />
+          <Route path='/services' element={<ServicesPage />} />
+          <Route path='/team' element={<TeamPage />} />
+          <Route path='/contact' element={<ContactPage />} />
           <Route
             path='/auth'
             element={
@@ -154,6 +180,18 @@ export default function App() {
             element={
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <CreateTrainer />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Notifications Route */}
+          <Route
+            path='/notifications'
+            element={
+              <ProtectedRoute>
+                <AppLayout>
+                  <NotificationsPage />
+                </AppLayout>
               </ProtectedRoute>
             }
           />
@@ -314,6 +352,156 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <SettingsManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/email-templates'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <EmailTemplatesManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/sms-templates'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <SMSTemplatesManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/api-keys'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <APIKeysManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/webhooks'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <WebhooksManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/audit-logs'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <AuditLogsManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/backup-restore'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <BackupRestoreManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/scheduled-reports'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ScheduledReportsManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/personal-training'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <PersonalTrainingManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/guests'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <GuestManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/challenges'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ChallengeManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/rewards'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RewardManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/redemptions'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RedemptionManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/analytics/rewards'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RewardAnalytics />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/notifications'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN', 'TRAINER']}>
+                <AppLayout>
+                  <NotificationManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/verify-code'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN', 'STAFF']}>
+                <AppLayout>
+                  <VerifyCode />
                 </AppLayout>
               </ProtectedRoute>
             }

@@ -16,9 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.gym147.mobile",
       "infoPlist": {
-        "UIBackgroundModes": [
-          "remote-notification"
-        ],
+        "UIBackgroundModes": ["remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
         }
@@ -42,9 +40,7 @@
     "experiments": {
       "typedRoutes": true
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "extra": {
       "API_BASE_URL": "",
       "APP_NAME": "Gym147",

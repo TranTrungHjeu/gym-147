@@ -1,9 +1,10 @@
-import React from 'react';
-import { Download, FileText, FileSpreadsheet } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import AdminButton from './AdminButton';
+import { FileSpreadsheet, FileText } from 'lucide-react';
+import React from 'react';
 import { formatVietnamDateTime } from '../../utils/dateTime';
+import { addNotoSansFont } from '../../utils/fonts/noto-sans-vietnamese';
+import AdminButton from './AdminButton';
 
 interface ExportOptions {
   format: 'pdf' | 'excel' | 'csv';
@@ -28,29 +29,47 @@ const ExportUtils = {
     try {
       // Create new PDF document
       const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation
-      
-      // Set font for Vietnamese characters
-      doc.setFont('helvetica');
-      
+
+      // Try to add Noto Sans font for Vietnamese support
+      // If font is not configured, will fallback to 'times'
+      try {
+        addNotoSansFont(doc);
+        doc.setFont('NotoSans', 'normal');
+      } catch (e) {
+        // Fallback to times font if Noto Sans is not available
+        console.warn('Noto Sans font not available, using times font:', e);
+        doc.setFont('times', 'normal');
+      }
+
       // Add title
       if (title) {
         doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
+        try {
+          doc.setFont('NotoSans', 'bold');
+        } catch (e) {
+          doc.setFont('times', 'bold');
+        }
         doc.text(title, 14, 15);
         doc.setFontSize(10);
-        doc.setFont('helvetica', 'normal');
-        
+        try {
+          doc.setFont('NotoSans', 'normal');
+        } catch (e) {
+          doc.setFont('times', 'normal');
+        }
+
         // Add export date
         const exportDate = formatVietnamDateTime(new Date(), 'datetime');
         doc.setFontSize(8);
         doc.text(`Xuất ngày: ${exportDate}`, 14, 22);
       }
-      
+
       // Prepare table data
-      const tableColumns = columns 
+      const tableColumns = columns
         ? columns.map(col => col.label)
-        : (data.length > 0 ? Object.keys(data[0]) : []);
-      
+        : data.length > 0
+        ? Object.keys(data[0])
+        : [];
+
       const tableRows = data.map(row => {
         if (columns) {
           return columns.map(col => {
@@ -90,8 +109,8 @@ const ExportUtils = {
           });
         }
       });
-      
-      // Add table using autoTable
+
+      // Add table using autoTable with Vietnamese font support
       autoTable(doc, {
         head: [tableColumns],
         body: tableRows,
@@ -100,12 +119,42 @@ const ExportUtils = {
           fontSize: 8,
           cellPadding: 2,
           overflow: 'linebreak',
+          // Try to use Noto Sans, fallback to times
+          font: (() => {
+            try {
+              const fontList = (doc as any).getFontList();
+              return fontList && fontList['NotoSans'] ? 'NotoSans' : 'times';
+            } catch {
+              return 'times';
+            }
+          })(),
+          fontStyle: 'normal',
         },
         headStyles: {
           fillColor: [249, 115, 22], // Orange color
           textColor: [255, 255, 255],
           fontStyle: 'bold',
           fontSize: 9,
+          // Try to use Noto Sans, fallback to times
+          font: (() => {
+            try {
+              const fontList = (doc as any).getFontList();
+              return fontList && fontList['NotoSans'] ? 'NotoSans' : 'times';
+            } catch {
+              return 'times';
+            }
+          })(),
+        },
+        bodyStyles: {
+          // Try to use Noto Sans, fallback to times
+          font: (() => {
+            try {
+              const fontList = (doc as any).getFontList();
+              return fontList && fontList['NotoSans'] ? 'NotoSans' : 'times';
+            } catch {
+              return 'times';
+            }
+          })(),
         },
         alternateRowStyles: {
           fillColor: [249, 250, 251],
@@ -114,13 +163,25 @@ const ExportUtils = {
         tableWidth: 'wrap',
         showHead: 'everyPage',
         theme: 'striped',
+        // Ensure proper encoding for Vietnamese characters
+        didParseCell: (data: any) => {
+          // Ensure cell content is properly encoded as string
+          if (data.cell && data.cell.text !== undefined) {
+            data.cell.text = String(data.cell.text);
+          }
+        },
       });
-      
+
       // Add page numbers
       const pageCount = doc.getNumberOfPages();
       for (let i = 1; i <= pageCount; i++) {
         doc.setPage(i);
         doc.setFontSize(8);
+        try {
+          doc.setFont('NotoSans', 'normal');
+        } catch (e) {
+          doc.setFont('times', 'normal');
+        }
         doc.text(
           `Trang ${i} / ${pageCount}`,
           doc.internal.pageSize.getWidth() / 2,
@@ -128,7 +189,7 @@ const ExportUtils = {
           { align: 'center' }
         );
       }
-      
+
       // Save PDF
       doc.save(`${filename}_${formatVietnamDateTime(new Date(), 'date').replace(/\//g, '-')}.pdf`);
     } catch (error) {
@@ -138,13 +199,13 @@ const ExportUtils = {
   },
 
   exportToExcel: (options: ExportOptions) => {
-    const { data, columns, filename = 'export', title } = options;
+    const { data, columns, filename = 'export' } = options;
 
     // Excel-compatible CSV export with semicolon delimiter
     // Many Excel versions (especially European) use semicolon as default delimiter
     // This ensures Excel will parse columns correctly
     const delimiter = ';';
-    
+
     let csvContent = '';
 
     // Add headers first (no title to avoid Excel parsing issues)
@@ -155,7 +216,13 @@ const ExportUtils = {
           const label = col.label || '';
           const labelStr = String(label);
           // Wrap in quotes if contains delimiter, quote, or newline
-          if (labelStr.includes(';') || labelStr.includes(',') || labelStr.includes('"') || labelStr.includes('\n') || labelStr.includes('\r')) {
+          if (
+            labelStr.includes(';') ||
+            labelStr.includes(',') ||
+            labelStr.includes('"') ||
+            labelStr.includes('\n') ||
+            labelStr.includes('\r')
+          ) {
             return `"${labelStr.replace(/"/g, '""')}"`;
           }
           return labelStr;
@@ -166,7 +233,13 @@ const ExportUtils = {
       const headers = Object.keys(data[0])
         .map(key => {
           const keyStr = String(key);
-          if (keyStr.includes(';') || keyStr.includes(',') || keyStr.includes('"') || keyStr.includes('\n') || keyStr.includes('\r')) {
+          if (
+            keyStr.includes(';') ||
+            keyStr.includes(',') ||
+            keyStr.includes('"') ||
+            keyStr.includes('\n') ||
+            keyStr.includes('\r')
+          ) {
             return `"${keyStr.replace(/"/g, '""')}"`;
           }
           return keyStr;
@@ -188,7 +261,13 @@ const ExportUtils = {
             // Convert to string
             const stringValue = String(value);
             // Wrap in quotes if contains delimiter, quote, or newline
-            if (stringValue.includes(';') || stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
+            if (
+              stringValue.includes(';') ||
+              stringValue.includes(',') ||
+              stringValue.includes('"') ||
+              stringValue.includes('\n') ||
+              stringValue.includes('\r')
+            ) {
               return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
@@ -202,7 +281,13 @@ const ExportUtils = {
               return '';
             }
             const stringValue = String(value);
-            if (stringValue.includes(';') || stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n') || stringValue.includes('\r')) {
+            if (
+              stringValue.includes(';') ||
+              stringValue.includes(',') ||
+              stringValue.includes('"') ||
+              stringValue.includes('\n') ||
+              stringValue.includes('\r')
+            ) {
               return `"${stringValue.replace(/"/g, '""')}"`;
             }
             return stringValue;
@@ -214,8 +299,8 @@ const ExportUtils = {
 
     // Create blob with UTF-8 BOM for Excel compatibility (especially for Vietnamese characters)
     // Use semicolon-separated values which Excel parses better
-    const blob = new Blob(['\uFEFF' + csvContent], { 
-      type: 'text/csv;charset=utf-8;' 
+    const blob = new Blob(['\uFEFF' + csvContent], {
+      type: 'text/csv;charset=utf-8;',
     });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -298,4 +383,3 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 
 export default ExportButton;
 export { ExportUtils };
-

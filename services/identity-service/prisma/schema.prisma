@@ -53,6 +53,11 @@ model User {
   sessions          Session[]
   password_resets   PasswordReset[]
   access_logs       AccessLog[]
+  ip_whitelists     IPWhitelist[]
+  trusted_locations TrustedLocation[]
+  blocked_locations BlockedLocation[]
+  audit_logs        AuditLog[]
+  notifications     Notification[]
   member_profile    Member?   // One-to-one with member service
   staff_profile     Staff?    // One-to-one for staff members
 
@@ -150,6 +155,69 @@ model OTPVerification {
   @@map("otp_verifications")
 }
 
+model IPWhitelist {
+  id          String   @id @default(cuid())
+  user_id     String
+  ip_address  String
+  description String?
+  added_at    DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([ip_address])
+  @@map("ip_whitelists")
+}
+
+model TrustedLocation {
+  id          String   @id @default(cuid())
+  user_id     String
+  latitude    Float
+  longitude   Float
+  address     String
+  name        String?
+  added_at    DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("trusted_locations")
+}
+
+model BlockedLocation {
+  id          String   @id @default(cuid())
+  user_id     String
+  latitude    Float
+  longitude   Float
+  address     String
+  reason      String?
+  blocked_at  DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@map("blocked_locations")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  user_id     String
+  action      String
+  entity_type String?
+  entity_id   String?
+  details     Json?
+  ip_address  String?
+  user_agent  String?
+  timestamp   DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([action])
+  @@index([timestamp])
+  @@map("audit_logs")
+}
+
 // EmailVerification model removed - using OTPVerification for all verification
 
 // Cross-service references
@@ -203,4 +271,130 @@ enum AccessMethod {
 enum OTPType {
   PHONE
   EMAIL
+}
+
+// Notifications - Centralized notification storage for all services
+model Notification {
+  id          String            @id @default(cuid())
+  user_id     String            // Reference to User
+  type        NotificationType
+  title       String
+  message     String
+  data        Json?             // Additional data (booking_id, certification_id, trainer_id, member_id, etc.)
+  is_read     Boolean           @default(false)
+  read_at     DateTime?
+  created_at  DateTime          @default(now())
+  updated_at  DateTime          @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@index([user_id])
+  @@index([user_id, is_read])
+  @@index([user_id, created_at])
+  @@index([type])
+  @@index([is_read])
+  @@index([created_at])
+  @@index([is_read, created_at])
+  @@map("notifications")
+}
+
+// Notification History - Track bulk notification sends
+model NotificationHistory {
+  id                String            @id @default(cuid())
+  sender_id         String            // User who sent the notification
+  sender_role       Role              // Role of sender
+  target_type       NotificationTargetType // MEMBER or TRAINER
+  target_ids        Json?             // Array of target IDs (member_ids or trainer_ids)
+  filters           Json?             // Filters used (membership_type, status, etc.)
+  title             String
+  message           String
+  notification_type NotificationType  @default(GENERAL)
+  sent_count        Int               @default(0)
+  failed_count      Int               @default(0)
+  total_targets     Int               // Total number of targets
+  created_at        DateTime          @default(now())
+
+  // Indexes for performance
+  @@index([sender_id])
+  @@index([sender_role])
+  @@index([target_type])
+  @@index([created_at])
+  @@index([sender_id, created_at])
+  @@map("notification_historys")
+}
+
+enum NotificationTargetType {
+  MEMBER
+  TRAINER
+}
+
+enum NotificationType {
+  // Certification related (for TRAINER, ADMIN, SUPER_ADMIN)
+  CERTIFICATION_UPLOAD
+  CERTIFICATION_VERIFIED
+  CERTIFICATION_REJECTED
+  CERTIFICATION_AUTO_VERIFIED
+  CERTIFICATION_EXPIRED
+  CERTIFICATION_PENDING
+  CERTIFICATION_DELETED
+  
+  // Class/Booking related (for MEMBER, TRAINER, ADMIN)
+  CLASS_BOOKING
+  CLASS_CANCELLED
+  CLASS_REMINDER
+  WAITLIST_ADDED
+  WAITLIST_PROMOTED
+  SCHEDULE_CANCELLED
+  SCHEDULE_CREATED
+  SCHEDULE_UPDATED
+  ROOM_CHANGED
+  MEMBER_CHECKED_IN
+  BOOKING_UPDATED
+  
+  // Membership related (for MEMBER, ADMIN)
+  MEMBERSHIP_EXPIRING
+  MEMBERSHIP_EXPIRED
+  MEMBERSHIP_RENEWED
+  
+  // Member related (for ADMIN, SUPER_ADMIN)
+  MEMBER_REGISTERED
+  MEMBER_UPDATED
+  MEMBER_DELETED
+  
+  // Achievement/Reward related (for MEMBER)
+  ACHIEVEMENT_UNLOCKED
+  REWARD_REDEMPTION
+  
+  // Payment related (for MEMBER, ADMIN)
+  PAYMENT_SUCCESS
+  PAYMENT_FAILED
+  PAYMENT_REMINDER
+  
+  // Subscription related (for MEMBER, ADMIN)
+  SUBSCRIPTION_CREATED
+  SUBSCRIPTION_RENEWED
+  SUBSCRIPTION_EXPIRED
+  SUBSCRIPTION_UPGRADED
+  
+  // Invoice related (for MEMBER, ADMIN)
+  INVOICE_GENERATED
+  INVOICE_OVERDUE
+  
+  // Queue related (for MEMBER, ADMIN)
+  QUEUE_JOINED
+  QUEUE_POSITION_UPDATED
+  QUEUE_EXPIRED
+  QUEUE_YOUR_TURN
+  
+  // Equipment related (for MEMBER, ADMIN)
+  EQUIPMENT_AVAILABLE
+  EQUIPMENT_MAINTENANCE_SCHEDULED
+  EQUIPMENT_MAINTENANCE_COMPLETED
+  
+  // Trainer related (for ADMIN, MEMBER)
+  TRAINER_DELETED
+  
+  // System
+  SYSTEM_ANNOUNCEMENT
+  GENERAL
 }

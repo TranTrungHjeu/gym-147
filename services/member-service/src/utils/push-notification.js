@@ -1,15 +1,49 @@
-const { PrismaClient } = require('@prisma/client');
+const { Client } = require('pg');
 
 // Connect to Identity Service database to get push tokens
-const identityPrisma = new PrismaClient({
-  datasources: {
-    db: {
-      url:
-        process.env.IDENTITY_DATABASE_URL ||
-        'postgresql://postgres:postgres@localhost:5432/identity_db',
-    },
-  },
-});
+// Note: Prisma doesn't support multiple databases in the same client
+// We use raw PostgreSQL connection for identity database queries
+let identityClient = null;
+let connectionPromise = null;
+
+async function getIdentityClient() {
+  if (identityClient && !identityClient._ending) {
+    return identityClient;
+  }
+
+  if (connectionPromise) {
+    return connectionPromise;
+  }
+
+  const identityDbUrl = process.env.IDENTITY_DATABASE_URL;
+  
+  if (!identityDbUrl) {
+    console.warn('⚠️ IDENTITY_DATABASE_URL not set, push notifications may not work');
+    return null;
+  }
+
+  connectionPromise = (async () => {
+    try {
+      // Create a PostgreSQL client for identity database
+      identityClient = new Client({
+        connectionString: identityDbUrl,
+      });
+      
+      // Test connection
+      await identityClient.connect();
+      console.log('✅ Connected to Identity database for push notifications');
+      connectionPromise = null;
+      return identityClient;
+    } catch (error) {
+      console.error('❌ Failed to connect to Identity database:', error);
+      identityClient = null;
+      connectionPromise = null;
+      return null;
+    }
+  })();
+
+  return connectionPromise;
+}
 
 /**
  * Send push notification to a specific user
@@ -21,15 +55,30 @@ const identityPrisma = new PrismaClient({
  */
 async function sendPushNotification(userId, title, body, data = {}) {
   try {
-    // Get user's push token from identity service
-    const user = await identityPrisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        push_token: true,
-        push_enabled: true,
-        push_platform: true,
-      },
-    });
+    const client = await getIdentityClient();
+    
+    if (!client) {
+      console.log(`⚠️ Identity database client not available, skipping push notification for user ${userId}`);
+      return { success: false, error: 'Identity database not configured' };
+    }
+
+    // Get user's push token from identity service using raw SQL
+    // Note: Prisma maps User model to "users" table (lowercase, plural)
+    let user;
+    try {
+      const dbResult = await client.query(
+        'SELECT push_token, push_enabled, push_platform FROM users WHERE id = $1',
+        [userId]
+      );
+      user = dbResult.rows[0];
+    } catch (dbError) {
+      console.error('❌ Database query error:', dbError);
+      // Try to reconnect if connection was lost
+      if (dbError.code === '57P01' || dbError.code === 'ECONNREFUSED') {
+        identityClient = null;
+      }
+      return { success: false, error: 'Database query failed' };
+    }
 
     if (!user) {
       console.log(`❌ User not found: ${userId}`);
@@ -93,18 +142,22 @@ async function sendPushNotification(userId, title, body, data = {}) {
  */
 async function sendBulkPushNotifications(userIds, title, body, data = {}) {
   try {
-    // Get all users' push tokens
-    const users = await identityPrisma.user.findMany({
-      where: {
-        id: { in: userIds },
-        push_enabled: true,
-        push_token: { not: null },
-      },
-      select: {
-        id: true,
-        push_token: true,
-      },
-    });
+    const client = await getIdentityClient();
+    
+    if (!client) {
+      console.log(`⚠️ Identity database client not available, skipping bulk push notifications`);
+      return { success: false, sent: 0, total: userIds.length, error: 'Identity database not configured' };
+    }
+
+    // Get all users' push tokens using raw SQL
+    // Note: Prisma maps User model to "users" table (lowercase, plural)
+    const placeholders = userIds.map((_, index) => `$${index + 1}`).join(', ');
+    const dbResult = await client.query(
+      `SELECT id, push_token FROM users WHERE id IN (${placeholders}) AND push_enabled = true AND push_token IS NOT NULL`,
+      userIds
+    );
+    
+    const users = dbResult.rows;
 
     if (users.length === 0) {
       console.log(`❌ No users with push tokens found`);

@@ -6,7 +6,7 @@ const scheduleRoutes = require('./schedule.routes.js');
 const bookingRoutes = require('./booking.routes.js');
 const attendanceRoutes = require('./attendance.routes.js');
 const certificationRoutes = require('./certification.routes.js');
-const notificationRoutes = require('./notification.routes.js');
+// const notificationRoutes = require('./notification.routes.js'); // Removed - notifications now in identity service
 const utilityRoutes = require('./utility.routes.js');
 const autoUpdateRoutes = require('./auto-update.routes.js');
 const favoriteRoutes = require('./favorite.routes.js');
@@ -31,7 +31,7 @@ router.get('/', (req, res) => {
         bookings: '/bookings',
         attendance: '/attendance',
         certifications: '/certifications',
-        notifications: '/notifications',
+        // notifications: '/notifications', // Removed - notifications now in identity service
         autoUpdate: '/auto-update',
         stats: '/stats',
         sampleData: '/sample-data',
@@ -52,7 +52,7 @@ router.use('/schedules', scheduleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/auto-update', autoUpdateRoutes);
-router.use('/', notificationRoutes); // Notification routes
+// router.use('/', notificationRoutes); // Removed - notifications now in identity service
 router.use('/', utilityRoutes); // Health, stats, sample-data
 router.use('/', favoriteRoutes); // Favorite routes
 router.use('/', adminRoutes); // Admin routes

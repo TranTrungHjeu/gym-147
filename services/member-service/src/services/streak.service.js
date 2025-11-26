@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 const notificationService = require('./notification.service.js');
+const pointsService = require('./points.service.js');
 
 /**
  * Daily Streak Service
@@ -307,29 +308,20 @@ class StreakService {
       const totalPoints = basePoints + bonusPoints;
 
       if (totalPoints > 0) {
-        // Get current balance
-        const lastTransaction = await prisma.pointsTransaction.findFirst({
-          where: { member_id: memberId },
-          orderBy: { created_at: 'desc' },
-        });
+        // ✅ Fix: Use pointsService.awardPoints to prevent race condition
+        const result = await pointsService.awardPoints(
+          memberId,
+          totalPoints,
+          'STREAK',
+          null,
+          bonusPoints > 0
+            ? `Streak ${streak} days + milestone bonus`
+            : `Daily streak day ${streak}`
+        );
 
-        const currentBalance = lastTransaction ? lastTransaction.balance_after : 0;
-        const newBalance = currentBalance + totalPoints;
-
-        // Create transaction
-        await prisma.pointsTransaction.create({
-          data: {
-            member_id: memberId,
-            points: totalPoints,
-            type: 'EARNED',
-            source: 'STREAK',
-            description:
-              bonusPoints > 0
-                ? `Streak ${streak} days + milestone bonus`
-                : `Daily streak day ${streak}`,
-            balance_after: newBalance,
-          },
-        });
+        if (!result.success) {
+          console.error('Failed to award streak points:', result.error);
+        }
       }
     } catch (error) {
       console.error('Award streak points error:', error);

@@ -1,5 +1,4 @@
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { Picker } from '@/components/ui/Picker';
 import { TextArea } from '@/components/ui/TextArea';
 import { useAuth } from '@/contexts/AuthContext';
@@ -8,7 +7,6 @@ import { MetricType, type AddMetricRequest } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -18,9 +16,11 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddMetricScreen() {
@@ -64,6 +64,7 @@ export default function AddMetricScreen() {
   };
 
   const [loading, setLoading] = useState(false);
+  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [formData, setFormData] = useState<AddMetricRequest>({
     type: MetricType.WEIGHT,
     value: 0,
@@ -152,11 +153,12 @@ export default function AddMetricScreen() {
     }));
   };
 
-  const handleDateChange = (date: string) => {
+  const handleDateConfirm = (date: Date) => {
     setFormData((prev) => ({
       ...prev,
-      recordedAt: date,
+      recordedAt: date.toISOString(),
     }));
+    setDatePickerVisible(false);
   };
 
   const handleNotesChange = (notes: string) => {
@@ -173,6 +175,39 @@ export default function AddMetricScreen() {
     }));
   };
 
+  // Validation rules per metric type
+  const getValidationRules = (type: MetricType) => {
+    switch (type) {
+      case MetricType.WEIGHT:
+        return { min: 20, max: 300, unit: 'kg' };
+      case MetricType.HEIGHT:
+        return { min: 100, max: 250, unit: 'cm' };
+      case MetricType.BODY_FAT:
+        return { min: 0, max: 100, unit: '%' };
+      case MetricType.MUSCLE_MASS:
+        return { min: 0, max: 200, unit: 'kg' };
+      case MetricType.BMI:
+        return { min: 10, max: 50, unit: '' };
+      case MetricType.HEART_RATE:
+        return { min: 30, max: 220, unit: 'bpm' };
+      case MetricType.BLOOD_PRESSURE:
+        return { min: 50, max: 250, unit: 'mmHg' };
+      case MetricType.BODY_TEMPERATURE:
+        return { min: 30, max: 45, unit: '°C' };
+      case MetricType.SLEEP_HOURS:
+        return { min: 0, max: 24, unit: 'h' };
+      case MetricType.WATER_INTAKE:
+        return { min: 0, max: 20, unit: 'L' };
+      case MetricType.STEPS:
+        return { min: 0, max: 100000, unit: 'steps' };
+      case MetricType.CALORIES_BURNED:
+      case MetricType.CALORIES_CONSUMED:
+        return { min: 0, max: 10000, unit: 'cal' };
+      default:
+        return { min: 0, max: 1000, unit: '' };
+    }
+  };
+
   const handleSubmit = async () => {
     if (!user?.id) {
       Alert.alert(t('common.error'), t('health.userNotFound'));
@@ -184,15 +219,44 @@ export default function AddMetricScreen() {
       return;
     }
 
+    // Validate against min/max for metric type
+    const rules = getValidationRules(formData.type);
+    if (formData.value < rules.min || formData.value > rules.max) {
+      Alert.alert(
+        t('common.error'),
+        t('health.valueOutOfRange', {
+          min: rules.min,
+          max: rules.max,
+          unit: rules.unit,
+        })
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       await healthService.addHealthMetric(user.id, formData);
-      Alert.alert(t('health.addMetricSuccess'), t('health.addMetricSuccess'), [
-        { text: t('common.ok'), onPress: () => router.back() },
-      ]);
-    } catch (error) {
+      // Success feedback with navigation
+      Alert.alert(
+        t('common.success'),
+        t('health.addMetricSuccess'),
+        [
+          {
+            text: t('common.ok'),
+            onPress: () => {
+              router.back();
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    } catch (error: any) {
       console.error('Error adding health metric:', error);
-      Alert.alert(t('common.error'), t('health.addMetricError'));
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        t('health.addMetricError');
+      Alert.alert(t('common.error'), errorMessage);
     } finally {
       setLoading(false);
     }
@@ -215,126 +279,140 @@ export default function AddMetricScreen() {
           style={styles.scrollView}
           showsVerticalScrollIndicator={false}
         >
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <TouchableOpacity
-              style={styles.backButton}
-              onPress={() => router.back()}
-            >
-              <ArrowLeft size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-            <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
-              {t('health.addMetric')}
-            </Text>
-          </View>
-          <Text
-            style={[Typography.body, { color: theme.colors.textSecondary }]}
-          >
-            {t('health.form.description')}
-          </Text>
-        </View>
-
-        <View style={styles.form}>
-          <View style={styles.inputGroup}>
-            <Text style={[Typography.label, { color: theme.colors.text }]}>
-              {t('health.form.type')}
-            </Text>
-            <Picker
-              selectedValue={formData.type}
-              onValueChange={handleTypeChange}
-              items={metricTypes.map((type) => ({
-                label: type.label,
-                value: type.value,
-              }))}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[Typography.label, { color: theme.colors.text }]}>
-              {t('health.form.value')}
-            </Text>
-            <View style={styles.valueInputContainer}>
-              <Input
-                value={formData.value.toString()}
-                onChangeText={handleValueChange}
-                placeholder={t('health.form.enterValue')}
-                keyboardType="numeric"
-                style={styles.valueInput}
-              />
-              <Text
-                style={[
-                  Typography.body,
-                  { color: theme.colors.textSecondary, marginLeft: 8 },
-                ]}
+          <View style={styles.header}>
+            <View style={styles.headerTop}>
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={styles.backButton}
               >
-                {formData.unit}
+                <Text style={{ color: theme.colors.primary, fontSize: 24 }}>
+                  ←
+                </Text>
+              </TouchableOpacity>
+              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+                {t('health.addMetric')}
               </Text>
+            </View>
+            <Text
+              style={[
+                Typography.bodyMedium,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {t('health.addMetricDescription')}
+            </Text>
+          </View>
+
+          <View style={styles.form}>
+            <View style={styles.inputGroup}>
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
+                {t('health.form.metricType')}
+              </Text>
+              <Picker
+                selectedValue={formData.type}
+                onValueChange={handleTypeChange}
+                items={metricTypes}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
+                {t('health.form.value')}
+              </Text>
+              <View style={styles.valueInputContainer}>
+                <TextInput
+                  style={[
+                    styles.valueInput,
+                    Typography.h2,
+                    { color: theme.colors.text },
+                  ]}
+                  value={formData.value.toString()}
+                  onChangeText={handleValueChange}
+                  keyboardType="numeric"
+                  placeholder="0"
+                  placeholderTextColor={theme.colors.textSecondary}
+                />
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    { color: theme.colors.textSecondary, marginLeft: 8 },
+                  ]}
+                >
+                  {formData.unit}
+                </Text>
+              </View>
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
+                {t('health.form.date')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setDatePickerVisible(true)}
+                style={{
+                  padding: 12,
+                  backgroundColor: theme.colors.surface,
+                  borderRadius: 8,
+                  borderWidth: 1,
+                  borderColor: theme.colors.border,
+                }}
+              >
+                <Text style={{ color: theme.colors.text }}>
+                  {new Date(formData.recordedAt).toLocaleDateString()}{' '}
+                  {new Date(formData.recordedAt).toLocaleTimeString()}
+                </Text>
+              </TouchableOpacity>
+              <DateTimePickerModal
+                isVisible={isDatePickerVisible}
+                mode="datetime"
+                onConfirm={handleDateConfirm}
+                onCancel={() => setDatePickerVisible(false)}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
+                {t('health.form.source')}
+              </Text>
+              <Picker
+                selectedValue={formData.source}
+                onValueChange={handleSourceChange}
+                items={[
+                  { label: 'Manual Entry', value: 'manual' },
+                  { label: 'Device Sync', value: 'device' },
+                  { label: 'App Import', value: 'app' },
+                ]}
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
+                {t('health.form.notesOptional')}
+              </Text>
+              <TextArea
+                value={formData.notes}
+                onChangeText={handleNotesChange}
+                placeholder={t('health.form.notesPlaceholder')}
+                numberOfLines={3}
+              />
             </View>
           </View>
 
-          <View style={styles.inputGroup}>
-            <Text style={[Typography.label, { color: theme.colors.text }]}>
-              {t('health.form.dateTime')}
-            </Text>
-            <Input
-              value={new Date(formData.recordedAt).toLocaleString(
-                i18n.language
-              )}
-              placeholder={t('health.form.selectDateTime')}
-              editable={false}
-              onPress={() => {
-                // TODO: Implement date picker
-                Alert.alert(
-                  t('health.form.datePicker'),
-                  t('health.form.datePickerNotImplemented')
-                );
-              }}
+          <View style={styles.buttonContainer}>
+            <Button
+              title={t('common.cancel')}
+              onPress={handleCancel}
+              variant="outline"
+              style={styles.button}
+            />
+            <Button
+              title={t('health.addMetric')}
+              onPress={handleSubmit}
+              loading={loading}
+              style={styles.button}
             />
           </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[Typography.label, { color: theme.colors.text }]}>
-              {t('health.form.source')}
-            </Text>
-            <Picker
-              selectedValue={formData.source}
-              onValueChange={handleSourceChange}
-              items={[
-                { label: 'Manual Entry', value: 'manual' },
-                { label: 'Device Sync', value: 'device' },
-                { label: 'App Import', value: 'app' },
-              ]}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={[Typography.label, { color: theme.colors.text }]}>
-              {t('health.form.notesOptional')}
-            </Text>
-            <TextArea
-              value={formData.notes}
-              onChangeText={handleNotesChange}
-              placeholder={t('health.form.notesPlaceholder')}
-              numberOfLines={3}
-            />
-          </View>
-        </View>
-
-        <View style={styles.buttonContainer}>
-          <Button
-            title={t('common.cancel')}
-            onPress={handleCancel}
-            variant="outline"
-            style={styles.button}
-          />
-          <Button
-            title={t('health.addMetric')}
-            onPress={handleSubmit}
-            loading={loading}
-            style={styles.button}
-          />
-        </View>
-      </ScrollView>
+        </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );

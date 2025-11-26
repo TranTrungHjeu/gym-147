@@ -1,5 +1,6 @@
 import {
   BarChart3,
+  Bell,
   BookOpen,
   Building2,
   ChevronDown,
@@ -7,13 +8,15 @@ import {
   CreditCard,
   Dumbbell,
   FolderOpen,
-  GraduationCap,
   Grid3X3,
   LayoutDashboard,
   PieChart,
+  Send,
   Settings,
   Shield,
-  Users,
+  Ticket,
+  Trophy,
+  UserCheck,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -108,12 +111,34 @@ const AppSidebar: React.FC = () => {
         path: dashboardPath,
       },
       {
+        icon: <Bell className='w-5 h-5' />,
+        name: 'Thông báo',
+        path: '/notifications',
+      },
+      {
+        icon: <Trophy className='w-5 h-5' />,
+        name: 'Gamification',
+        subItems: [
+          { name: 'Thử thách', path: '/management/challenges' },
+          { name: 'Phần thưởng', path: '/management/rewards' },
+          { name: 'Đổi thưởng', path: '/management/redemptions' },
+          { name: 'Phân tích', path: '/analytics/rewards' },
+        ],
+      },
+      {
         icon: <FolderOpen className='w-5 h-5' />,
         name: 'Quản lý',
         subItems: [
           { name: 'Thành viên', path: '/management/users' },
           { name: 'Huấn luyện viên', path: '/management/trainers' },
           { name: 'Khách hàng', path: '/management/members' },
+          {
+            name: 'Huấn luyện cá nhân',
+            path: '/management/personal-training',
+            icon: <UserCheck className='w-5 h-5' />,
+          },
+          { name: 'Thẻ Khách', path: '/management/guests', icon: <Ticket className='w-5 h-5' /> },
+          { name: 'Thông báo hàng loạt', path: '/management/notifications', icon: <Send className='w-5 h-5' /> },
         ],
       },
       {
@@ -157,7 +182,16 @@ const AppSidebar: React.FC = () => {
       {
         icon: <Settings className='w-5 h-5' />,
         name: 'Cài đặt',
-        path: '/management/settings',
+        subItems: [
+          { name: 'Cài đặt hệ thống', path: '/management/settings' },
+          { name: 'Mẫu Email', path: '/management/email-templates' },
+          { name: 'Mẫu SMS', path: '/management/sms-templates' },
+          { name: 'API Keys', path: '/management/api-keys' },
+          { name: 'Webhooks', path: '/management/webhooks' },
+          { name: 'Audit Logs', path: '/management/audit-logs' },
+          { name: 'Backup & Restore', path: '/management/backup-restore' },
+          { name: 'Báo cáo đã lên lịch', path: '/management/scheduled-reports' },
+        ],
       },
     ];
   }, [getDashboardPathForCurrentUser]);
@@ -259,9 +293,11 @@ const AppSidebar: React.FC = () => {
   };
 
   const renderMenuItems = (items: NavItem[], menuType: 'main' | 'others') => (
-    <ul className={`flex flex-col gap-2 w-full ${
-      !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-    }`}>
+    <ul
+      className={`flex flex-col gap-2 w-full ${
+        !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+      }`}
+    >
       {items.map((nav, index) => (
         <li
           key={nav.name}
@@ -478,15 +514,21 @@ const AppSidebar: React.FC = () => {
           !isExpanded && !isHovered && !isMobileOpen ? 'items-center px-2' : 'items-start px-6'
         }`}
       >
-        <nav className={`mb-6 w-full flex flex-col ${
-          !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-        }`}>
-          <div className={`flex flex-col gap-2 w-full ${
+        <nav
+          className={`mb-6 w-full flex flex-col ${
             !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-          }`}>
-            <div className={`w-full flex flex-col ${
+          }`}
+        >
+          <div
+            className={`flex flex-col gap-2 w-full ${
               !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-            }`}>
+            }`}
+          >
+            <div
+              className={`w-full flex flex-col ${
+                !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+              }`}
+            >
               <h2
                 className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
                   !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
@@ -502,9 +544,11 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, 'main')}
             </div>
-            <div className={`w-full flex flex-col ${
-              !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-            }`}>
+            <div
+              className={`w-full flex flex-col ${
+                !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+              }`}
+            >
               <h2
                 className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
                   !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'

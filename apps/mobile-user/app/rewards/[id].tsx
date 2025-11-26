@@ -1,3 +1,5 @@
+import RewardRedemptionModal from '@/components/RewardRedemptionModal';
+import RewardSuccessModal from '@/components/RewardSuccessModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { pointsService, rewardService, type Reward } from '@/services';
 import { useTheme } from '@/utils/theme';
@@ -6,7 +8,6 @@ import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
   Calendar,
-  CheckCircle,
   Coins,
   Gift,
   Info,
@@ -18,7 +19,6 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   SafeAreaView,
   ScrollView,
@@ -39,6 +39,13 @@ export default function RewardDetailScreen() {
   const [redeeming, setRedeeming] = useState(false);
   const [reward, setReward] = useState<Reward | null>(null);
   const [pointsBalance, setPointsBalance] = useState<number>(0);
+  const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [redemptionData, setRedemptionData] = useState<{
+    code: string;
+    pointsSpent: number;
+    newBalance: number;
+  } | null>(null);
 
   const themedStyles = styles(theme);
 
@@ -47,6 +54,44 @@ export default function RewardDetailScreen() {
       loadReward();
     }
   }, [params.id, member?.id]);
+
+  // Listen for socket events for real-time updates
+  useEffect(() => {
+    if (typeof window === 'undefined' || !member?.id) return;
+
+    const handleRewardRedeemed = (event: any) => {
+      console.log('🎁 Reward redeemed event received:', event.detail);
+      // Refresh reward and points balance
+      if (params.id && member?.id) {
+        loadReward();
+      }
+    };
+
+    const handlePointsUpdated = (event: any) => {
+      console.log('💎 Points updated event received:', event.detail);
+      // Update points balance immediately
+      if (event.detail?.new_balance !== undefined) {
+        setPointsBalance(event.detail.new_balance);
+      } else {
+        // Refresh balance
+        if (member?.id) {
+          pointsService.getBalance(member.id).then((response) => {
+            if (response.success && response.data) {
+              setPointsBalance(response.data.current);
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('reward:redeemed', handleRewardRedeemed);
+    window.addEventListener('points:updated', handlePointsUpdated);
+
+    return () => {
+      window.removeEventListener('reward:redeemed', handleRewardRedeemed);
+      window.removeEventListener('points:updated', handlePointsUpdated);
+    };
+  }, [member?.id, params.id]);
 
   const loadReward = async () => {
     if (!params.id || !member?.id) return;
@@ -73,77 +118,57 @@ export default function RewardDetailScreen() {
     }
   };
 
-  const handleRedeem = async () => {
+  const handleRedeem = () => {
+    if (!reward || !member?.id) return;
+    setShowConfirmModal(true);
+  };
+
+  const handleConfirmRedeem = async () => {
     if (!reward || !member?.id) return;
 
-    if (pointsBalance < reward.points_cost) {
-      Alert.alert(
-        'Không đủ điểm',
-        `Bạn cần ${reward.points_cost} điểm để đổi phần thưởng này. Hiện tại bạn có ${pointsBalance} điểm.`
-      );
-      return;
+    try {
+      setRedeeming(true);
+      setShowConfirmModal(false);
+      const response = await rewardService.redeemReward(reward.id, member.id);
+
+      if (response.success && response.data) {
+        // Update points balance
+        if (response.data.new_balance !== undefined) {
+          setPointsBalance(response.data.new_balance);
+        }
+
+        // Set redemption data for success modal
+        setRedemptionData({
+          code: response.data.code || '',
+          pointsSpent: reward.points_cost,
+          newBalance: response.data.new_balance || pointsBalance - reward.points_cost,
+        });
+
+        // Show success modal
+        setShowSuccessModal(true);
+      } else {
+        // Handle error - could show error modal here
+        console.error('Redeem error:', response.error);
+      }
+    } catch (error: any) {
+      console.error('Redeem error:', error);
+      // Handle error - could show error modal here
+    } finally {
+      setRedeeming(false);
     }
+  };
 
-    Alert.alert(
-      'Xác nhận đổi thưởng',
-      `Bạn có chắc chắn muốn đổi phần thưởng này với ${reward.points_cost} điểm?`,
-      [
-        { text: 'Hủy', style: 'cancel' },
-        {
-          text: 'Đổi thưởng',
-          onPress: async () => {
-            try {
-              setRedeeming(true);
-              const response = await rewardService.redeemReward(reward.id, member.id);
-
-              if (response.success && response.data) {
-                Alert.alert(
-                  'Thành công',
-                  'Bạn đã đổi thưởng thành công!',
-                  [
-                    {
-                      text: 'Xem lịch sử',
-                      onPress: () => router.push('/rewards/history'),
-                    },
-                    {
-                      text: 'OK',
-                      onPress: () => router.back(),
-                    },
-                  ]
-                );
-                // Refresh points balance
-                if (response.data.new_balance !== undefined) {
-                  setPointsBalance(response.data.new_balance);
-                }
-              } else {
-                Alert.alert('Lỗi', response.error || 'Không thể đổi thưởng');
-              }
-            } catch (error: any) {
-              console.error('Redeem error:', error);
-              Alert.alert('Lỗi', error.message || 'Không thể đổi thưởng');
-            } finally {
-              setRedeeming(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleViewHistory = () => {
+    setShowSuccessModal(false);
+    router.push('/rewards/history');
   };
 
   const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      DISCOUNT: 'Giảm giá',
-      FREE_CLASS: 'Lớp học miễn phí',
-      MERCHANDISE: 'Sản phẩm',
-      MEMBERSHIP_EXTENSION: 'Gia hạn',
-      PREMIUM_FEATURE: 'Tính năng Premium',
-      OTHER: 'Khác',
-    };
-    return labels[category] || category;
+    return t(`rewards.category.${category}` as any) || category;
   };
 
   const formatDate = (dateString: string | null) => {
-    if (!dateString) return 'Không giới hạn';
+    if (!dateString) return t('rewards.noExpiry');
     return new Date(dateString).toLocaleDateString('vi-VN', {
       year: 'numeric',
       month: 'long',
@@ -181,12 +206,14 @@ export default function RewardDetailScreen() {
           <TouchableOpacity onPress={() => router.back()} style={themedStyles.backButton}>
             <ArrowLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          <Text style={[Typography.h3, { color: theme.colors.text }]}>Chi tiết phần thưởng</Text>
+          <Text style={[Typography.h3, { color: theme.colors.text }]}>
+            {t('rewards.rewardDetails')}
+          </Text>
         </View>
         <View style={themedStyles.centerContent}>
           <XCircle size={64} color={theme.colors.textSecondary} />
           <Text style={[Typography.body, { color: theme.colors.textSecondary, marginTop: 16 }]}>
-            Không tìm thấy phần thưởng
+            {t('rewards.noRewards')}
           </Text>
         </View>
       </SafeAreaView>
@@ -204,7 +231,7 @@ export default function RewardDetailScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
-          Chi tiết phần thưởng
+          {t('rewards.rewardDetails')}
         </Text>
       </View>
 
@@ -237,7 +264,9 @@ export default function RewardDetailScreen() {
               <Coins size={20} color="#FFD700" />
               <Sparkles size={12} color="#FFD700" style={themedStyles.sparkleIcon} />
             </View>
-            <Text style={themedStyles.pointsText}>{reward.points_cost.toLocaleString()} điểm</Text>
+            <Text style={themedStyles.pointsText}>
+              {reward.points_cost.toLocaleString()} {t('rewards.points')}
+            </Text>
           </View>
 
           {/* Description */}
@@ -268,14 +297,14 @@ export default function RewardDetailScreen() {
             <View style={themedStyles.infoRow}>
               <Calendar size={18} color={theme.colors.textSecondary} />
               <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
-                Có hiệu lực từ: {formatDate(reward.valid_from)}
+                {t('rewards.validFrom')}: {formatDate(reward.valid_from)}
               </Text>
             </View>
             {reward.valid_until && (
               <View style={[themedStyles.infoRow, { marginTop: 8 }]}>
                 <Calendar size={18} color={theme.colors.textSecondary} />
                 <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
-                  Hết hạn: {formatDate(reward.valid_until)}
+                  {t('rewards.validUntil')}: {formatDate(reward.valid_until)}
                 </Text>
               </View>
             )}
@@ -287,7 +316,7 @@ export default function RewardDetailScreen() {
               <View style={themedStyles.infoRow}>
                 <Info size={18} color={theme.colors.textSecondary} />
                 <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
-                  Còn lại: {reward.stock_quantity - (reward._count?.redemptions || 0)} / {reward.stock_quantity}
+                  {t('rewards.stockAvailable')}: {reward.stock_quantity - (reward._count?.redemptions || 0)} / {reward.stock_quantity}
                 </Text>
               </View>
             </View>
@@ -297,7 +326,7 @@ export default function RewardDetailScreen() {
           {reward.terms_conditions && (
             <View style={themedStyles.section}>
               <Text style={[Typography.h4, { color: theme.colors.text, marginBottom: 8 }]}>
-                Điều khoản & Điều kiện
+                {t('rewards.termsConditions')}
               </Text>
               <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
                 {reward.terms_conditions}
@@ -310,7 +339,7 @@ export default function RewardDetailScreen() {
             <View style={[themedStyles.statusCard, { backgroundColor: theme.colors.error + '15' }]}>
               <XCircle size={20} color={theme.colors.error} />
               <Text style={[Typography.bodySmall, { color: theme.colors.error, marginLeft: 8 }]}>
-                Phần thưởng này hiện không khả dụng
+                {t('rewards.notAvailable')}
               </Text>
             </View>
           )}
@@ -319,7 +348,7 @@ export default function RewardDetailScreen() {
             <View style={[themedStyles.statusCard, { backgroundColor: theme.colors.warning + '15' }]}>
               <Info size={20} color={theme.colors.warning} />
               <Text style={[Typography.bodySmall, { color: theme.colors.warning, marginLeft: 8 }]}>
-                Bạn cần {reward.points_cost - pointsBalance} điểm nữa để đổi phần thưởng này
+                {t('rewards.pointsNeeded', { points: reward.points_cost - pointsBalance })}
               </Text>
             </View>
           )}
@@ -345,12 +374,39 @@ export default function RewardDetailScreen() {
               <>
                 <Gift size={20} color={theme.colors.textInverse} />
                 <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
-                  Đổi thưởng ({reward.points_cost.toLocaleString()} điểm)
+                  {t('rewards.redeem')} ({reward.points_cost.toLocaleString()} {t('rewards.points')})
                 </Text>
               </>
             )}
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* Confirmation Modal */}
+      <RewardRedemptionModal
+        visible={showConfirmModal}
+        reward={reward}
+        pointsBalance={pointsBalance}
+        onClose={() => setShowConfirmModal(false)}
+        onConfirm={handleConfirmRedeem}
+        loading={redeeming}
+      />
+
+      {/* Success Modal */}
+      {redemptionData && (
+        <RewardSuccessModal
+          visible={showSuccessModal}
+          rewardTitle={reward?.title || ''}
+          rewardImageUrl={reward?.image_url}
+          redemptionCode={redemptionData.code}
+          pointsSpent={redemptionData.pointsSpent}
+          newBalance={redemptionData.newBalance}
+          onClose={() => {
+            setShowSuccessModal(false);
+            router.back();
+          }}
+          onViewHistory={handleViewHistory}
+        />
       )}
     </SafeAreaView>
   );

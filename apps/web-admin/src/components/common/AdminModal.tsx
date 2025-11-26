@@ -92,14 +92,14 @@ const AdminModal: React.FC<AdminModalProps> = ({
             aria-modal='true'
             aria-labelledby={title ? 'modal-title' : undefined}
           >
-            <AdminCard className='overflow-hidden' padding='none'>
+            <AdminCard className='overflow-hidden max-h-[90vh] flex flex-col' padding='none'>
               {/* Header */}
               {(title || showCloseButton) && (
                 <motion.div
                   initial={{ opacity: 0, y: -15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15, duration: 0.3, ease: 'easeOut' }}
-                  className='flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800'
+                  className='flex items-center justify-between px-6 py-4 border-b border-gray-200 dark:border-gray-800 flex-shrink-0'
                 >
                   {title && (
                     <h2
@@ -126,7 +126,7 @@ const AdminModal: React.FC<AdminModalProps> = ({
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2, duration: 0.3, ease: 'easeOut' }}
-                className='px-6 py-4 overflow-y-auto max-h-[calc(100vh-200px)]'
+                className='px-6 py-4 overflow-y-auto flex-1 min-h-0 modal-scrollbar'
               >
                 {children}
               </motion.div>
@@ -137,7 +137,7 @@ const AdminModal: React.FC<AdminModalProps> = ({
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.25, duration: 0.3, ease: 'easeOut' }}
-                  className='px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'
+                  className='px-6 py-4 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 flex-shrink-0'
                 >
                   {footer}
                 </motion.div>

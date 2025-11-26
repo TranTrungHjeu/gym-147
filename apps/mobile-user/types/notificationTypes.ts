@@ -1,300 +1,120 @@
+/**
+ * Notification types matching backend NotificationType enum
+ */
 export enum NotificationType {
-  WORKOUT_REMINDER = 'WORKOUT_REMINDER',
-  MEMBERSHIP_EXPIRY = 'MEMBERSHIP_EXPIRY',
-  PAYMENT_DUE = 'PAYMENT_DUE',
+  // Certification related
+  CERTIFICATION_UPLOAD = 'CERTIFICATION_UPLOAD',
+  CERTIFICATION_VERIFIED = 'CERTIFICATION_VERIFIED',
+  CERTIFICATION_REJECTED = 'CERTIFICATION_REJECTED',
+  CERTIFICATION_AUTO_VERIFIED = 'CERTIFICATION_AUTO_VERIFIED',
+  CERTIFICATION_EXPIRED = 'CERTIFICATION_EXPIRED',
+  CERTIFICATION_PENDING = 'CERTIFICATION_PENDING',
+  CERTIFICATION_DELETED = 'CERTIFICATION_DELETED',
+
+  // Class/Booking related
   CLASS_BOOKING = 'CLASS_BOOKING',
-  ACHIEVEMENT = 'ACHIEVEMENT',
-  MAINTENANCE = 'MAINTENANCE',
-  PROMOTION = 'PROMOTION',
-  SYSTEM = 'SYSTEM',
+  CLASS_CANCELLED = 'CLASS_CANCELLED',
+  CLASS_REMINDER = 'CLASS_REMINDER',
+  WAITLIST_ADDED = 'WAITLIST_ADDED',
+  WAITLIST_PROMOTED = 'WAITLIST_PROMOTED',
+  SCHEDULE_CANCELLED = 'SCHEDULE_CANCELLED',
+  SCHEDULE_CREATED = 'SCHEDULE_CREATED',
+  SCHEDULE_UPDATED = 'SCHEDULE_UPDATED',
+  ROOM_CHANGED = 'ROOM_CHANGED',
+  MEMBER_CHECKED_IN = 'MEMBER_CHECKED_IN',
+  BOOKING_UPDATED = 'BOOKING_UPDATED',
+
+  // Membership related
+  MEMBERSHIP_EXPIRING = 'MEMBERSHIP_EXPIRING',
+  MEMBERSHIP_EXPIRED = 'MEMBERSHIP_EXPIRED',
+  MEMBERSHIP_RENEWED = 'MEMBERSHIP_RENEWED',
+
+  // Member related
+  MEMBER_REGISTERED = 'MEMBER_REGISTERED',
+  MEMBER_UPDATED = 'MEMBER_UPDATED',
+  MEMBER_DELETED = 'MEMBER_DELETED',
+
+  // Achievement/Reward related
+  ACHIEVEMENT_UNLOCKED = 'ACHIEVEMENT_UNLOCKED',
+  REWARD_REDEMPTION = 'REWARD_REDEMPTION',
+
+  // Payment related
+  PAYMENT_SUCCESS = 'PAYMENT_SUCCESS',
+  PAYMENT_FAILED = 'PAYMENT_FAILED',
+  PAYMENT_REMINDER = 'PAYMENT_REMINDER',
+
+  // Subscription related
+  SUBSCRIPTION_CREATED = 'SUBSCRIPTION_CREATED',
+  SUBSCRIPTION_RENEWED = 'SUBSCRIPTION_RENEWED',
+  SUBSCRIPTION_EXPIRED = 'SUBSCRIPTION_EXPIRED',
+  SUBSCRIPTION_UPGRADED = 'SUBSCRIPTION_UPGRADED',
+
+  // Invoice related
+  INVOICE_GENERATED = 'INVOICE_GENERATED',
+  INVOICE_OVERDUE = 'INVOICE_OVERDUE',
+
+  // Queue related
+  QUEUE_JOINED = 'QUEUE_JOINED',
+  QUEUE_POSITION_UPDATED = 'QUEUE_POSITION_UPDATED',
+  QUEUE_EXPIRED = 'QUEUE_EXPIRED',
+  QUEUE_YOUR_TURN = 'QUEUE_YOUR_TURN',
+
+  // Equipment related
   EQUIPMENT_AVAILABLE = 'EQUIPMENT_AVAILABLE',
-  HEALTH_MILESTONE = 'HEALTH_MILESTONE',
-  SOCIAL = 'SOCIAL',
-  SECURITY = 'SECURITY',
+  EQUIPMENT_MAINTENANCE_SCHEDULED = 'EQUIPMENT_MAINTENANCE_SCHEDULED',
+  EQUIPMENT_MAINTENANCE_COMPLETED = 'EQUIPMENT_MAINTENANCE_COMPLETED',
+
+  // Trainer related
+  TRAINER_DELETED = 'TRAINER_DELETED',
+
+  // System
+  SYSTEM_ANNOUNCEMENT = 'SYSTEM_ANNOUNCEMENT',
+  GENERAL = 'GENERAL',
 }
 
-export enum NotificationStatus {
-  UNREAD = 'UNREAD',
-  READ = 'READ',
-  ARCHIVED = 'ARCHIVED',
-  DELETED = 'DELETED',
+/**
+ * Notification data payload structure
+ */
+export interface NotificationData {
+  type: NotificationType | string;
+  notificationType?: NotificationType | string; // Alias for type
+
+  // Equipment/Queue related
+  equipment_id?: string;
+  equipment_name?: string;
+  queue_id?: string;
+
+  // Class/Booking related
+  class_id?: string;
+  schedule_id?: string;
+  booking_id?: string;
+
+  // Payment/Subscription related
+  payment_id?: string;
+  subscription_id?: string;
+  invoice_id?: string;
+
+  // Achievement/Reward related
+  achievement_id?: string;
+  reward_id?: string;
+  redemption_id?: string;
+
+  // Additional metadata
+  [key: string]: any;
 }
 
-export enum NotificationPriority {
-  LOW = 'LOW',
-  MEDIUM = 'MEDIUM',
-  HIGH = 'HIGH',
-  URGENT = 'URGENT',
-}
+/**
+ * Validate notification data before navigation
+ */
+export function validateNotificationData(data: any): data is NotificationData {
+  if (!data || typeof data !== 'object') {
+    return false;
+  }
 
-export enum NotificationChannel {
-  IN_APP = 'IN_APP',
-  PUSH = 'PUSH',
-  EMAIL = 'EMAIL',
-  SMS = 'SMS',
-}
+  const type = data.type || data.notificationType;
+  if (!type) {
+    return false;
+  }
 
-export interface Notification {
-  id: string;
-  memberId: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  status: NotificationStatus;
-  priority: NotificationPriority;
-  channels: NotificationChannel[];
-  metadata?: {
-    [key: string]: any;
-  };
-  scheduledAt?: string;
-  sentAt?: string;
-  readAt?: string;
-  archivedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface NotificationFilters {
-  type?: NotificationType;
-  status?: NotificationStatus;
-  priority?: NotificationPriority;
-  startDate?: string;
-  endDate?: string;
-  limit?: number;
-  offset?: number;
-}
-
-export interface CreateNotificationRequest {
-  memberId: string;
-  type: NotificationType;
-  title: string;
-  message: string;
-  priority?: NotificationPriority;
-  channels?: NotificationChannel[];
-  metadata?: {
-    [key: string]: any;
-  };
-  scheduledAt?: string;
-}
-
-export interface UpdateNotificationRequest {
-  title?: string;
-  message?: string;
-  status?: NotificationStatus;
-  priority?: NotificationPriority;
-  channels?: NotificationChannel[];
-  metadata?: {
-    [key: string]: any;
-  };
-}
-
-export interface NotificationPreferences {
-  id: string;
-  memberId: string;
-  workoutReminders: {
-    enabled: boolean;
-    time: string; // HH:MM format
-    days: number[]; // 0-6 (Sunday-Saturday)
-    types: string[];
-  };
-  membershipAlerts: {
-    enabled: boolean;
-    expiryReminder: boolean;
-    renewalReminder: boolean;
-    daysBeforeExpiry: number;
-  };
-  paymentAlerts: {
-    enabled: boolean;
-    dueReminder: boolean;
-    failedPayment: boolean;
-    successfulPayment: boolean;
-  };
-  classNotifications: {
-    enabled: boolean;
-    bookingConfirmation: boolean;
-    cancellation: boolean;
-    waitlist: boolean;
-    reminder: boolean;
-    hoursBeforeClass: number;
-  };
-  achievementAlerts: {
-    enabled: boolean;
-    newAchievement: boolean;
-    progressUpdate: boolean;
-    milestone: boolean;
-  };
-  equipmentAlerts: {
-    enabled: boolean;
-    maintenance: boolean;
-    availability: boolean;
-    usageReminder: boolean;
-  };
-  healthAlerts: {
-    enabled: boolean;
-    milestone: boolean;
-    goalReminder: boolean;
-    trendAlert: boolean;
-  };
-  promotionalAlerts: {
-    enabled: boolean;
-    offers: boolean;
-    events: boolean;
-    news: boolean;
-  };
-  systemAlerts: {
-    enabled: boolean;
-    maintenance: boolean;
-    security: boolean;
-    updates: boolean;
-  };
-  channels: {
-    inApp: boolean;
-    push: boolean;
-    email: boolean;
-    sms: boolean;
-  };
-  quietHours: {
-    enabled: boolean;
-    start: string; // HH:MM format
-    end: string; // HH:MM format
-    days: number[]; // 0-6 (Sunday-Saturday)
-  };
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface NotificationStats {
-  total: number;
-  unread: number;
-  read: number;
-  archived: number;
-  byType: {
-    [key in NotificationType]: number;
-  };
-  byPriority: {
-    [key in NotificationPriority]: number;
-  };
-  recentActivity: {
-    date: string;
-    count: number;
-  }[];
-}
-
-export interface NotificationTemplate {
-  id: string;
-  type: NotificationType;
-  name: string;
-  title: string;
-  message: string;
-  variables: string[];
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface PushToken {
-  id: string;
-  memberId: string;
-  token: string;
-  platform: 'ios' | 'android';
-  isActive: boolean;
-  lastUsedAt: string;
-  createdAt: string;
-  updatedAt: string;
-}
-
-// UI Component Props
-export interface NotificationItemProps {
-  notification: Notification;
-  onPress?: (notification: Notification) => void;
-  onMarkAsRead?: (notification: Notification) => void;
-  onDelete?: (notification: Notification) => void;
-  onArchive?: (notification: Notification) => void;
-}
-
-export interface NotificationListProps {
-  memberId: string;
-  onNotificationPress?: (notification: Notification) => void;
-  onRefresh?: () => void;
-  filters?: NotificationFilters;
-}
-
-export interface NotificationCenterProps {
-  memberId: string;
-  onNotificationSelect?: (notification: Notification) => void;
-  onMarkAllAsRead?: () => void;
-  onDeleteAllRead?: () => void;
-}
-
-export interface NotificationPreferencesProps {
-  memberId: string;
-  onPreferencesUpdate?: (preferences: NotificationPreferences) => void;
-}
-
-export interface NotificationBadgeProps {
-  count: number;
-  onPress?: () => void;
-}
-
-export interface NotificationFilterProps {
-  filters: NotificationFilters;
-  onFiltersChange: (filters: NotificationFilters) => void;
-  onClearFilters: () => void;
-}
-
-export interface NotificationSearchProps {
-  onSearch: (query: string) => void;
-  placeholder?: string;
-}
-
-export interface NotificationBulkActionsProps {
-  selectedNotifications: string[];
-  onBulkMarkAsRead: () => void;
-  onBulkDelete: () => void;
-  onBulkArchive: () => void;
-  onClearSelection: () => void;
-}
-
-export interface NotificationSettingsProps {
-  memberId: string;
-  onSettingsUpdate?: (settings: NotificationPreferences) => void;
-}
-
-export interface NotificationAnalyticsProps {
-  memberId: string;
-  period: string;
-  onPeriodChange: (period: string) => void;
-}
-
-export interface NotificationTemplateProps {
-  template: NotificationTemplate;
-  onEdit?: (template: NotificationTemplate) => void;
-  onDelete?: (template: NotificationTemplate) => void;
-  onToggleActive?: (template: NotificationTemplate) => void;
-}
-
-export interface NotificationCreateProps {
-  memberId: string;
-  onNotificationCreate?: (notification: CreateNotificationRequest) => void;
-  onCancel?: () => void;
-}
-
-export interface NotificationEditProps {
-  notification: Notification;
-  onNotificationUpdate?: (notification: UpdateNotificationRequest) => void;
-  onCancel?: () => void;
-}
-
-export interface NotificationDetailProps {
-  notification: Notification;
-  onNotificationUpdate?: (notification: UpdateNotificationRequest) => void;
-  onNotificationDelete?: (notification: Notification) => void;
-  onBack?: () => void;
-}
-
-export interface NotificationPreviewProps {
-  notification: Notification;
-  onSend?: (notification: Notification) => void;
-  onSchedule?: (notification: Notification, scheduledAt: string) => void;
-  onCancel?: () => void;
+  return true;
 }

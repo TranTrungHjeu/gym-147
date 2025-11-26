@@ -115,6 +115,82 @@ class RewardService {
   /**
    * Redeem a reward
    */
+  async getRecommendedRewards(
+    memberId: string
+  ): Promise<{
+    success: boolean;
+    data?: Reward[];
+    error?: string;
+    preferences?: string[];
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/rewards/recommendations/${memberId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getAuthToken()}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          error: result.message || 'Failed to get recommended rewards',
+        };
+      }
+
+      return {
+        success: true,
+        data: result.data || [],
+        preferences: result.preferences || [],
+      };
+    } catch (error: any) {
+      console.error('Get recommended rewards error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to get recommended rewards',
+      };
+    }
+  }
+
+  async generateQRCode(code: string): Promise<{
+    success: boolean;
+    data?: { qr_code_data_url: string; qr_code_svg: string };
+    error?: string;
+  }> {
+    try {
+      const response = await fetch(`${this.baseUrl}/rewards/qr-code/${code}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${this.getAuthToken()}`,
+        },
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        return {
+          success: false,
+          error: result.message || 'Failed to generate QR code',
+        };
+      }
+
+      return {
+        success: true,
+        data: result.data,
+      };
+    } catch (error: any) {
+      console.error('Generate QR code error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to generate QR code',
+      };
+    }
+  }
+
   async redeemReward(
     rewardId: string,
     memberId: string

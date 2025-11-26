@@ -260,6 +260,24 @@ export default function SettingsScreen() {
               { color: theme.colors.text, marginBottom: 16 },
             ]}
           >
+            {t('settings.security')}
+          </Text>
+
+          <SettingItem
+            icon={Shield}
+            title="Password & Security"
+            subtitle="Manage password, 2FA, and sessions"
+            onPress={() => router.push('/settings/security')}
+          />
+        </View>
+
+        <View style={styles.section}>
+          <Text
+            style={[
+              Typography.h5,
+              { color: theme.colors.text, marginBottom: 16 },
+            ]}
+          >
             {t('settings.privacy')}
           </Text>
 

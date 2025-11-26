@@ -157,7 +157,10 @@ class UserService {
 
     if (params?.role) queryParams.append('role', params.role);
     if (params?.page) queryParams.append('page', params.page.toString());
-    if (params?.limit) queryParams.append('limit', params.limit.toString());
+    // Always send limit parameter to ensure backend uses the correct value
+    if (params?.limit !== undefined) {
+      queryParams.append('limit', params.limit.toString());
+    }
 
     const queryString = queryParams.toString();
     const endpoint = queryString ? `/auth/users?${queryString}` : '/auth/users';

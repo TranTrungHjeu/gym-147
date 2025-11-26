@@ -9,7 +9,7 @@ import vi from './vi.json';
 const LANGUAGE_STORAGE_KEY = '@gym147_language';
 
 // Language detection function
-const detectLanguage = async (): Promise<string> => {
+const detectLanguage = async () => {
   try {
     // First, try to get saved language preference
     const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
@@ -30,7 +30,7 @@ const detectLanguage = async (): Promise<string> => {
 };
 
 // Detect system language
-const detectSystemLanguage = (): string => {
+const detectSystemLanguage = () => {
   const systemLocale = Localization.getLocales()[0]?.languageCode || 'en';
 
   // Check if system language is Vietnamese
@@ -43,9 +43,7 @@ const detectSystemLanguage = (): string => {
 };
 
 // Save language preference
-export const saveLanguagePreference = async (
-  language: string
-): Promise<void> => {
+export const saveLanguagePreference = async (language) => {
   try {
     await AsyncStorage.setItem(LANGUAGE_STORAGE_KEY, language);
   } catch (error) {
@@ -54,7 +52,7 @@ export const saveLanguagePreference = async (
 };
 
 // Get current language preference
-export const getLanguagePreference = async (): Promise<string> => {
+export const getLanguagePreference = async () => {
   try {
     const savedLanguage = await AsyncStorage.getItem(LANGUAGE_STORAGE_KEY);
     return savedLanguage || 'auto';

@@ -24,6 +24,12 @@ export const API_CONFIG = {
   // WebSocket URL for Schedule Service (Socket.io)
   WS_SCHEDULE_URL: getEnvVar('VITE_WS_SCHEDULE_URL'),
 
+  // WebSocket URL for Member Service (Socket.io) - optional
+  WS_MEMBER_URL: import.meta.env.VITE_WS_MEMBER_URL || '',
+
+  // WebSocket URL for Identity Service (Socket.io) - optional
+  WS_IDENTITY_URL: import.meta.env.VITE_WS_IDENTITY_URL || '',
+
   SERVICES: buildServiceUrls(BASE_URL),
 } as const;
 

@@ -1,5 +1,5 @@
-import { billingApi } from './api';
 import type { AxiosResponse } from 'axios';
+import { billingApi } from './api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -12,11 +12,13 @@ export interface MembershipPlan {
   name: string;
   description?: string;
   price: number;
-  duration_days: number;
+  duration_days?: number;
+  duration_months?: number;
   features: string[];
   is_active: boolean;
   created_at: string;
   updated_at: string;
+  type?: string;
 }
 
 export interface Subscription {
@@ -105,6 +107,92 @@ class BillingService {
 
       return response.data;
     } catch (error: any) {
+      // Log error for debugging (only in development)
+      if (import.meta.env.DEV) {
+        console.log('Billing Service Error:', {
+          code: error.code,
+          message: error.message,
+          hasResponse: !!error.response,
+          hasRequest: !!error.request,
+          error: error,
+        });
+      }
+
+      const errorMessage = (error.message || '').toLowerCase();
+      const errorCode = error.code || '';
+      
+      // Check if it's actually blocked by client FIRST (before other checks)
+      // This is the most common issue and should be detected early
+      const isBlockedByClient =
+        errorCode === 'ERR_BLOCKED_BY_CLIENT' ||
+        error.isBlocked === true ||
+        errorMessage.includes('err_blocked_by_client') ||
+        errorMessage.includes('blocked by client') ||
+        errorMessage.includes('net::err_blocked_by_client');
+      
+      if (isBlockedByClient) {
+        const blockedError: any = new Error(
+          'Request bị chặn bởi trình chặn quảng cáo hoặc extension trình duyệt. Vui lòng tắt ad blocker cho localhost:8080 hoặc thử lại.'
+        );
+        blockedError.code = 'ERR_BLOCKED_BY_CLIENT';
+        blockedError.isBlocked = true;
+        throw blockedError;
+      }
+
+      // Check for connection refused (server not running or port not accessible)
+      if (
+        errorCode === 'ERR_CONNECTION_REFUSED' ||
+        error.isConnectionRefused === true ||
+        errorMessage.includes('connection refused') ||
+        errorMessage.includes('econnrefused')
+      ) {
+        const connectionError: any = new Error(
+          'Không thể kết nối đến server. Vui lòng kiểm tra xem server có đang chạy không hoặc thử lại sau.'
+        );
+        connectionError.code = 'ERR_CONNECTION_REFUSED';
+        connectionError.isConnectionRefused = true;
+        throw connectionError;
+      }
+
+      // Check for CORS errors (403 with CORS-related message)
+      if (
+        error.response?.status === 403 &&
+        (errorMessage.includes('cors') ||
+         errorMessage.includes('origin not allowed') ||
+         errorMessage.includes('not allowed by cors'))
+      ) {
+        const corsError: any = new Error(
+          'Request bị chặn bởi CORS policy. Vui lòng kiểm tra cấu hình CORS trên server hoặc liên hệ quản trị viên.'
+        );
+        corsError.code = 'ERR_CORS';
+        corsError.status = 403;
+        corsError.isCorsError = true;
+        throw corsError;
+      }
+
+      // Check for 403 Forbidden (could be auth or CORS)
+      if (error.response?.status === 403) {
+        const forbiddenError: any = new Error(
+          'Truy cập bị từ chối. Vui lòng kiểm tra quyền truy cập hoặc đăng nhập lại.'
+        );
+        forbiddenError.code = 'ERR_FORBIDDEN';
+        forbiddenError.status = 403;
+        throw forbiddenError;
+      }
+
+      // Check for real network errors
+      if (
+        errorCode === 'ERR_NETWORK' ||
+        errorMessage.includes('network error')
+      ) {
+        const networkError: any = new Error(
+          'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.'
+        );
+        networkError.code = 'ERR_NETWORK';
+        networkError.isNetworkError = true;
+        throw networkError;
+      }
+
       const errorData = error.response?.data || { message: error.message || 'Unknown error' };
       const apiError: any = new Error(
         errorData?.message || `HTTP error! status: ${error.response?.status}`
@@ -120,8 +208,28 @@ class BillingService {
     return this.request<MembershipPlan[]>('/plans');
   }
 
-  async getActivePlans(): Promise<ApiResponse<MembershipPlan[]>> {
-    return this.request<MembershipPlan[]>('/plans/active');
+  async getActivePlans(retryCount = 0): Promise<ApiResponse<MembershipPlan[]>> {
+    try {
+      return await this.request<MembershipPlan[]>('/plans/active');
+    } catch (error: any) {
+      // Don't retry if blocked by client - it will always fail
+      if (error.code === 'ERR_BLOCKED_BY_CLIENT' || error.isBlocked) {
+        throw error;
+      }
+      
+      // Retry on network errors only (max 2 retries)
+      if (
+        (error.code === 'ERR_NETWORK' || error.isNetworkError) &&
+        retryCount < 2
+      ) {
+        // Wait 1 second before retry
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        return this.getActivePlans(retryCount + 1);
+      }
+      
+      // Re-throw for other errors or max retries reached
+      throw error;
+    }
   }
 
   async createPlan(plan: Omit<MembershipPlan, 'id' | 'created_at' | 'updated_at'>): Promise<ApiResponse<MembershipPlan>> {

@@ -490,9 +490,15 @@ class SpecializationSyncService {
    * @param {string} category - Category to remove
    * @returns {Object} - Update result
    */
-  async removeSpecialization(trainerId, category) {
+  /**
+   * Remove specialization from trainer
+   * @param {string} trainerId - Trainer ID
+   * @param {string} category - Category to remove
+   * @param {string} excludeCertificationId - Optional: Certification ID to exclude from check (when deleting a certification)
+   */
+  async removeSpecialization(trainerId, category, excludeCertificationId = null) {
     try {
-      console.log(`🗑️  Removing specialization ${category} from trainer: ${trainerId}`);
+      console.log(`🗑️  Removing specialization ${category} from trainer: ${trainerId}${excludeCertificationId ? ` (excluding cert ${excludeCertificationId})` : ''}`);
 
       // Verify trainer exists
       const trainer = await prisma.trainer.findUnique({
@@ -525,14 +531,20 @@ class SpecializationSyncService {
       }
 
       // Check if there are other valid certifications for this category
+      // Exclude the certification being deleted if provided
+      const whereClause = {
+        trainer_id: trainerId,
+        category: category,
+        verification_status: 'VERIFIED',
+        OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
+      };
+      
+      if (excludeCertificationId) {
+        whereClause.id = { not: excludeCertificationId };
+      }
+
       const otherCerts = await prisma.trainerCertification.findMany({
-        where: {
-          trainer_id: trainerId,
-          category: category,
-          verification_status: 'VERIFIED',
-          is_active: true,
-          OR: [{ expiration_date: null }, { expiration_date: { gt: new Date() } }],
-        },
+        where: whereClause,
         select: {
           id: true,
           category: true,

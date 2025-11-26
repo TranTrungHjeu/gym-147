@@ -19,20 +19,21 @@ class SmartSchedulingService {
     } = options;
 
     try {
-      // Get member data
+      // Get member data (graceful fallback if unavailable)
       let member;
       try {
         member = await memberService.getMemberById(memberId);
+        if (!member) {
+          console.warn(`⚠️ Member not found: ${memberId}, using default scheduling suggestions`);
+          member = null;
+        }
       } catch (memberError) {
-        console.error('Smart scheduling: Failed to fetch member:', {
+        console.warn('⚠️ Smart scheduling: Failed to fetch member (non-critical), using default suggestions:', {
           memberId,
           error: memberError.message,
         });
-        throw new Error(`Failed to fetch member information: ${memberError.message}`);
-      }
-      
-      if (!member) {
-        throw new Error(`Member not found: ${memberId}`);
+        // Continue without member data - will use rule-based suggestions
+        member = null;
       }
 
       // Get attendance history
@@ -496,18 +497,22 @@ class SmartSchedulingService {
    */
   async generateAISuggestions({ member, patterns, availableSchedules, attendanceHistory, bookingsHistory }) {
     try {
-      if (!process.env.MEMBER_SERVICE_URL) {
-        throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+      // Check if member is available
+      if (!member) {
+        console.warn('⚠️ Cannot generate AI suggestions: member is null');
+        return null;
       }
-      const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL;
-      const aiClient = createHttpClient(MEMBER_SERVICE_URL, { timeout: 60000 }); // Increase timeout to 60s for AI calls
 
+      const { MEMBER_SERVICE_URL } = require('../config/serviceUrls.js');
+      const aiClient = createHttpClient(MEMBER_SERVICE_URL, { timeout: 90000 }); // Increase timeout to 90s for AI calls
+
+      // Optimize data sent to AI - reduce payload size
       const analysis = {
         member: {
           id: member.id,
           fullName: member.full_name || member.fullName || 'Unknown',
-          fitnessGoals: Array.isArray(member.fitness_goals) ? member.fitness_goals : (member.fitnessGoals || []),
-          medicalConditions: Array.isArray(member.medical_conditions) ? member.medical_conditions : (member.medicalConditions || []),
+          fitnessGoals: Array.isArray(member.fitness_goals) ? member.fitness_goals.slice(0, 5) : (member.fitnessGoals || []).slice(0, 5),
+          medicalConditions: Array.isArray(member.medical_conditions) ? member.medical_conditions.slice(0, 3) : (member.medicalConditions || []).slice(0, 3),
         },
         patterns: {
           preferredHours: Object.entries(patterns.preferredHours)
@@ -525,7 +530,7 @@ class SmartSchedulingService {
           averageAttendanceRate: patterns.averageAttendanceRate,
           cancellationRate: patterns.cancellationRate,
         },
-        availableSchedules: availableSchedules.slice(0, 20).map((s) => {
+        availableSchedules: availableSchedules.slice(0, 15).map((s) => {
           // Calculate spotsLeft from schedule data
           const confirmedBookings = s.bookings?.length || 0;
           const currentBookings = s.current_bookings ?? confirmedBookings;
@@ -543,12 +548,33 @@ class SmartSchedulingService {
         }),
       };
 
-      const response = await aiClient.post('/ai/scheduling-suggestions', {
-        member,
+      // Reduce payload size - only send essential data
+      const requestPayload = {
+        member: {
+          id: member.id,
+          fullName: member.full_name || member.fullName || 'Unknown',
+          fitnessGoals: Array.isArray(member.fitness_goals) ? member.fitness_goals.slice(0, 5) : [],
+          medicalConditions: Array.isArray(member.medical_conditions) ? member.medical_conditions.slice(0, 3) : [],
+        },
         analysis,
-        attendanceHistory: attendanceHistory.slice(0, 20),
-        bookingsHistory: bookingsHistory.slice(0, 20),
-      });
+        attendanceHistory: attendanceHistory.slice(0, 10).map(a => ({
+          schedule_id: a.schedule_id,
+          checked_in_at: a.checked_in_at,
+          class_name: a.schedule?.gym_class?.name,
+          category: a.schedule?.gym_class?.category,
+        })),
+        bookingsHistory: bookingsHistory.slice(0, 10).map(b => ({
+          schedule_id: b.schedule_id,
+          booked_at: b.booked_at,
+          status: b.status,
+        })),
+      };
+
+      console.log('🤖 Calling AI scheduling suggestions API...');
+      const startTime = Date.now();
+      const response = await aiClient.post('/ai/scheduling-suggestions', requestPayload);
+      const duration = Date.now() - startTime;
+      console.log(`✅ AI scheduling suggestions received in ${duration}ms`);
 
       if (response.data?.success && response.data?.data?.suggestions) {
         return response.data.data.suggestions;
@@ -564,9 +590,13 @@ class SmartSchedulingService {
     } catch (error) {
       const isRateLimit = error.response?.status === 429 || 
                          error.response?.data?.errorCode === 'RATE_LIMIT_EXCEEDED';
+      const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       
       if (isRateLimit) {
         console.log('⚠️ AI service rate limit exceeded for scheduling suggestions');
+      } else if (isTimeout) {
+        console.warn('⏱️ AI scheduling suggestions timeout (90s exceeded), falling back to rule-based suggestions');
+        console.warn('   → Consider reducing payload size or increasing timeout if needed');
       } else {
         console.error('AI scheduling suggestions error:', {
           message: error.message,

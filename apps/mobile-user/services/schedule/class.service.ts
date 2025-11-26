@@ -273,29 +273,54 @@ class ClassService {
 
   /**
    * Get AI-powered class recommendations
+   * Supports vector-based recommendations (new) and AI-based recommendations
    */
   async getClassRecommendations(
     memberId: string,
-    useAI: boolean = true
+    useAI: boolean = true,
+    useVector: boolean = true
   ): Promise<{
     success: boolean;
     data?: {
       recommendations: ClassRecommendation[];
       analysis?: any;
       generatedAt?: string;
+      method?: string;
     };
     error?: string;
   }> {
     try {
-      const params = useAI ? { useAI: 'true' } : { useAI: 'false' };
+      const params: any = {
+        useAI: useAI ? 'true' : 'false',
+        useVector: useVector ? 'true' : 'false',
+      };
+      console.log('🌐 [getClassRecommendations] Calling API:', {
+        memberId,
+        params,
+        endpoint: `/classes/members/${memberId}/recommendations`,
+      });
+      
       const response = await scheduleApiService.get(
         `/classes/members/${memberId}/recommendations`,
         { params }
       );
 
+      console.log('📥 [getClassRecommendations] API Response:', {
+        hasResponse: !!response,
+        hasData: !!response.data,
+        responseData: response.data,
+      });
+
       // Extract recommendations from response
       const data = response.data?.data || response.data || {};
       const recommendations = data.recommendations || [];
+
+      console.log('📊 [getClassRecommendations] Extracted data:', {
+        hasData: !!data,
+        recommendationsCount: recommendations.length,
+        method: data.method,
+        recommendations: recommendations.slice(0, 2), // Log first 2 for debugging
+      });
 
       return {
         success: true,
@@ -303,10 +328,16 @@ class ClassService {
           recommendations,
           analysis: data.analysis,
           generatedAt: data.generatedAt,
+          method: data.method, // 'vector_embedding', 'ai_based', or 'rule_based'
         },
       };
     } catch (error: any) {
-      console.error('❌ Error fetching class recommendations:', error);
+      console.error('❌ [getClassRecommendations] Error fetching class recommendations:', {
+        message: error.message,
+        status: error.status,
+        response: error.response?.data,
+        memberId,
+      });
       return {
         success: false,
         error: error.message || 'Failed to fetch recommendations',

@@ -8,6 +8,7 @@ import type {
   MetricGoal,
   UpdateMetricRequest,
 } from '@/types/healthTypes';
+import { ApiResponse } from '../api';
 import { memberApiService } from './api.service';
 
 export class HealthService {
@@ -53,12 +54,11 @@ export class HealthService {
   async getHealthMetricById(
     memberId: string,
     metricId: string
-  ): Promise<HealthMetric> {
+  ): Promise<ApiResponse<HealthMetric>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<HealthMetric>(
         `/members/${memberId}/health-metrics/${metricId}`
       );
-      return response.data as HealthMetric;
     } catch (error) {
       console.error('Error fetching health metric:', error);
       throw error;
@@ -68,13 +68,12 @@ export class HealthService {
   async addHealthMetric(
     memberId: string,
     metric: AddMetricRequest
-  ): Promise<HealthMetric> {
+  ): Promise<ApiResponse<HealthMetric>> {
     try {
-      const response = await memberApiService.post(
+      return await memberApiService.post<HealthMetric>(
         `/members/${memberId}/health-metrics`,
         metric
       );
-      return response.data as HealthMetric;
     } catch (error) {
       console.error('Error adding health metric:', error);
       throw error;
@@ -85,22 +84,24 @@ export class HealthService {
     memberId: string,
     metricId: string,
     updates: UpdateMetricRequest
-  ): Promise<HealthMetric> {
+  ): Promise<ApiResponse<HealthMetric>> {
     try {
-      const response = await memberApiService.put(
+      return await memberApiService.put<HealthMetric>(
         `/members/${memberId}/health-metrics/${metricId}`,
         updates
       );
-      return response.data as HealthMetric;
     } catch (error) {
       console.error('Error updating health metric:', error);
       throw error;
     }
   }
 
-  async deleteHealthMetric(memberId: string, metricId: string): Promise<void> {
+  async deleteHealthMetric(
+    memberId: string,
+    metricId: string
+  ): Promise<ApiResponse<void>> {
     try {
-      await memberApiService.delete(
+      return await memberApiService.delete<void>(
         `/members/${memberId}/health-metrics/${metricId}`
       );
     } catch (error) {
@@ -212,12 +213,13 @@ export class HealthService {
   }
 
   // Health Summary
-  async getHealthSummary(memberId: string): Promise<HealthSummary> {
+  async getHealthSummary(
+    memberId: string
+  ): Promise<ApiResponse<HealthSummary>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<HealthSummary>(
         `/members/${memberId}/health-summary`
       );
-      return response.data as HealthSummary;
     } catch (error) {
       console.error('Error fetching health summary:', error);
       throw error;
@@ -225,12 +227,11 @@ export class HealthService {
   }
 
   // Metric Goals
-  async getMetricGoals(memberId: string): Promise<MetricGoal[]> {
+  async getMetricGoals(memberId: string): Promise<ApiResponse<MetricGoal[]>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<MetricGoal[]>(
         `/members/${memberId}/metric-goals`
       );
-      return response.data as MetricGoal[];
     } catch (error) {
       console.error('Error fetching metric goals:', error);
       throw error;
@@ -240,12 +241,11 @@ export class HealthService {
   async getMetricGoalById(
     memberId: string,
     goalId: string
-  ): Promise<MetricGoal> {
+  ): Promise<ApiResponse<MetricGoal>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<MetricGoal>(
         `/members/${memberId}/metric-goals/${goalId}`
       );
-      return response.data as MetricGoal;
     } catch (error) {
       console.error('Error fetching metric goal:', error);
       throw error;
@@ -255,13 +255,12 @@ export class HealthService {
   async createMetricGoal(
     memberId: string,
     goal: Omit<MetricGoal, 'id' | 'memberId' | 'createdAt' | 'updatedAt'>
-  ): Promise<MetricGoal> {
+  ): Promise<ApiResponse<MetricGoal>> {
     try {
-      const response = await memberApiService.post(
+      return await memberApiService.post<MetricGoal>(
         `/members/${memberId}/metric-goals`,
         goal
       );
-      return response.data as MetricGoal;
     } catch (error) {
       console.error('Error creating metric goal:', error);
       throw error;
@@ -272,22 +271,24 @@ export class HealthService {
     memberId: string,
     goalId: string,
     updates: Partial<MetricGoal>
-  ): Promise<MetricGoal> {
+  ): Promise<ApiResponse<MetricGoal>> {
     try {
-      const response = await memberApiService.put(
+      return await memberApiService.put<MetricGoal>(
         `/members/${memberId}/metric-goals/${goalId}`,
         updates
       );
-      return response.data as MetricGoal;
     } catch (error) {
       console.error('Error updating metric goal:', error);
       throw error;
     }
   }
 
-  async deleteMetricGoal(memberId: string, goalId: string): Promise<void> {
+  async deleteMetricGoal(
+    memberId: string,
+    goalId: string
+  ): Promise<ApiResponse<void>> {
     try {
-      await memberApiService.delete(
+      return await memberApiService.delete<void>(
         `/members/${memberId}/metric-goals/${goalId}`
       );
     } catch (error) {
@@ -300,12 +301,11 @@ export class HealthService {
   async getHealthAnalytics(
     memberId: string,
     period: string = 'monthly'
-  ): Promise<HealthAnalytics> {
+  ): Promise<ApiResponse<HealthAnalytics>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<HealthAnalytics>(
         `/members/${memberId}/health-analytics?period=${period}`
       );
-      return response.data as HealthAnalytics;
     } catch (error) {
       console.error('Error fetching health analytics:', error);
       throw error;
@@ -316,12 +316,11 @@ export class HealthService {
   async getHealthInsights(
     memberId: string,
     period: string = 'monthly'
-  ): Promise<string[]> {
+  ): Promise<ApiResponse<string[]>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<string[]>(
         `/members/${memberId}/health-insights?period=${period}`
       );
-      return response.data as string[];
     } catch (error) {
       console.error('Error fetching health insights:', error);
       throw error;
@@ -329,12 +328,13 @@ export class HealthService {
   }
 
   // Health Recommendations
-  async getHealthRecommendations(memberId: string): Promise<string[]> {
+  async getHealthRecommendations(
+    memberId: string
+  ): Promise<ApiResponse<string[]>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<string[]>(
         `/members/${memberId}/health-recommendations`
       );
-      return response.data as string[];
     } catch (error) {
       console.error('Error fetching health recommendations:', error);
       throw error;
@@ -347,15 +347,14 @@ export class HealthService {
     startDate: string,
     endDate: string,
     format: 'csv' | 'pdf' | 'excel'
-  ): Promise<Blob> {
+  ): Promise<ApiResponse<Blob>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<Blob>(
         `/members/${memberId}/health-export?startDate=${startDate}&endDate=${endDate}&format=${format}`,
         {
           responseType: 'blob',
         }
       );
-      return response.data as Blob;
     } catch (error) {
       console.error('Error exporting health data:', error);
       throw error;
@@ -363,11 +362,17 @@ export class HealthService {
   }
 
   // Health Sync
-  async syncHealthData(memberId: string, deviceType: string): Promise<void> {
+  async syncHealthData(
+    memberId: string,
+    deviceType: string
+  ): Promise<ApiResponse<void>> {
     try {
-      await memberApiService.post(`/members/${memberId}/health-sync`, {
-        deviceType,
-      });
+      return await memberApiService.post<void>(
+        `/members/${memberId}/health-sync`,
+        {
+          deviceType,
+        }
+      );
     } catch (error) {
       console.error('Error syncing health data:', error);
       throw error;
@@ -375,25 +380,26 @@ export class HealthService {
   }
 
   // Health Reminders
-  async getHealthReminders(memberId: string): Promise<any[]> {
+  async getHealthReminders(memberId: string): Promise<ApiResponse<any[]>> {
     try {
-      const response = await memberApiService.get(
+      return await memberApiService.get<any[]>(
         `/members/${memberId}/health-reminders`
       );
-      return response.data as any[];
     } catch (error) {
       console.error('Error fetching health reminders:', error);
       throw error;
     }
   }
 
-  async createHealthReminder(memberId: string, reminder: any): Promise<any> {
+  async createHealthReminder(
+    memberId: string,
+    reminder: any
+  ): Promise<ApiResponse<any>> {
     try {
-      const response = await memberApiService.post(
+      return await memberApiService.post<any>(
         `/members/${memberId}/health-reminders`,
         reminder
       );
-      return response.data as any;
     } catch (error) {
       console.error('Error creating health reminder:', error);
       throw error;
@@ -404,13 +410,12 @@ export class HealthService {
     memberId: string,
     reminderId: string,
     updates: any
-  ): Promise<any> {
+  ): Promise<ApiResponse<any>> {
     try {
-      const response = await memberApiService.put(
+      return await memberApiService.put<any>(
         `/members/${memberId}/health-reminders/${reminderId}`,
         updates
       );
-      return response.data as any;
     } catch (error) {
       console.error('Error updating health reminder:', error);
       throw error;
@@ -420,9 +425,9 @@ export class HealthService {
   async deleteHealthReminder(
     memberId: string,
     reminderId: string
-  ): Promise<void> {
+  ): Promise<ApiResponse<void>> {
     try {
-      await memberApiService.delete(
+      return await memberApiService.delete<void>(
         `/members/${memberId}/health-reminders/${reminderId}`
       );
     } catch (error) {

@@ -1,5 +1,6 @@
 const { PrismaClient } = require('@prisma/client');
 const aiService = require('../services/ai.service');
+const challengeService = require('../services/challenge.service.js');
 const prisma = new PrismaClient();
 
 class WorkoutController {
@@ -99,6 +100,49 @@ class WorkoutController {
           success: false,
           message: 'Invalid difficulty level',
           data: null,
+        });
+      }
+
+      // Get member to check membership type and validate workout plan limits
+      const member = await prisma.member.findUnique({
+        where: { id },
+        select: { 
+          id: true,
+          membership_type: true,
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Check workout plan limits based on membership type
+      const existingPlansCount = await prisma.workoutPlan.count({
+        where: { member_id: id },
+      });
+
+      const membershipLimits = {
+        BASIC: 0,
+        STUDENT: 0,
+        PREMIUM: 1,
+        VIP: 3,
+      };
+
+      const maxPlans = membershipLimits[member.membership_type] || 0;
+
+      if (existingPlansCount >= maxPlans) {
+        return res.status(403).json({
+          success: false,
+          message: `You have reached the maximum number of workout plans (${maxPlans}) for your membership type (${member.membership_type}). ${member.membership_type === 'PREMIUM' ? 'Upgrade to VIP to create up to 3 plans.' : 'Upgrade your membership to create more plans.'}`,
+          data: {
+            current_count: existingPlansCount,
+            max_allowed: maxPlans,
+            membership_type: member.membership_type,
+          },
         });
       }
 
@@ -259,12 +303,14 @@ class WorkoutController {
   async generateAIWorkoutPlan(req, res) {
     try {
       const { id } = req.params;
-      const { goal, difficulty, duration_weeks, preferences } = req.body;
+      const { goal, difficulty, duration_weeks, preferences, custom_prompt } = req.body;
 
-      // Get member's profile and recent activity
+      // Get member's profile, membership type, and recent activity
       const member = await prisma.member.findUnique({
         where: { id },
         select: {
+          id: true,
+          membership_type: true,
           fitness_goals: true,
           medical_conditions: true,
           allergies: true,
@@ -278,6 +324,32 @@ class WorkoutController {
           success: false,
           message: 'Member not found',
           data: null,
+        });
+      }
+
+      // Check workout plan limits based on membership type
+      const existingPlansCount = await prisma.workoutPlan.count({
+        where: { member_id: id },
+      });
+
+      const membershipLimits = {
+        BASIC: 0,
+        STUDENT: 0,
+        PREMIUM: 1,
+        VIP: 3,
+      };
+
+      const maxPlans = membershipLimits[member.membership_type] || 0;
+
+      if (existingPlansCount >= maxPlans) {
+        return res.status(403).json({
+          success: false,
+          message: `You have reached the maximum number of workout plans (${maxPlans}) for your membership type (${member.membership_type}). ${member.membership_type === 'PREMIUM' ? 'Upgrade to VIP to create up to 3 plans.' : 'Upgrade your membership to create more plans.'}`,
+          data: {
+            current_count: existingPlansCount,
+            max_allowed: maxPlans,
+            membership_type: member.membership_type,
+          },
         });
       }
 
@@ -305,6 +377,7 @@ class WorkoutController {
         member,
         recentEquipment,
         preferences,
+        custom_prompt, // Pass custom prompt from user
       });
 
       // Nếu AI fail thì throw error, không dùng fallback
@@ -970,6 +1043,294 @@ class WorkoutController {
     }
 
     return recommendations;
+  }
+
+  // ==================== WORKOUT SESSION COMPLETION ====================
+
+  /**
+   * Complete a workout plan session and calculate calories
+   * This endpoint is called when user completes a workout from a workout plan
+   */
+  async completeWorkoutSession(req, res) {
+    try {
+      const { id: memberId } = req.params; // Member ID
+      const { workout_plan_id, completed_exercises, duration_minutes } = req.body;
+
+      if (!workout_plan_id || !completed_exercises || !Array.isArray(completed_exercises)) {
+        return res.status(400).json({
+          success: false,
+          message: 'workout_plan_id and completed_exercises array are required',
+          data: null,
+        });
+      }
+
+      // Get workout plan
+      const workoutPlan = await prisma.workoutPlan.findUnique({
+        where: { id: workout_plan_id },
+        select: {
+          id: true,
+          member_id: true,
+          name: true,
+          exercises: true,
+        },
+      });
+
+      if (!workoutPlan) {
+        return res.status(404).json({
+          success: false,
+          message: 'Workout plan not found',
+          data: null,
+        });
+      }
+
+      // Verify member owns the workout plan
+      if (workoutPlan.member_id !== memberId) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have access to this workout plan',
+          data: null,
+        });
+      }
+
+      // Parse exercises from JSON if needed
+      const exercises = Array.isArray(workoutPlan.exercises)
+        ? workoutPlan.exercises
+        : typeof workoutPlan.exercises === 'string'
+        ? JSON.parse(workoutPlan.exercises)
+        : [];
+
+      // Calculate calories from completed exercises
+      const totalCalories = this.calculateCaloriesFromWorkoutExercises(
+        exercises,
+        completed_exercises
+      );
+
+      console.log('🔥 Workout session calories calculation:', {
+        workoutPlanId: workout_plan_id,
+        workoutPlanName: workoutPlan.name,
+        totalExercises: exercises.length,
+        completedExercises: completed_exercises.length,
+        totalCalories,
+        duration_minutes,
+      });
+
+      // Get or create active gym session
+      let activeSession = await prisma.gymSession.findFirst({
+        where: {
+          member_id: memberId,
+          exit_time: null,
+        },
+        orderBy: { entry_time: 'desc' },
+      });
+
+      if (!activeSession) {
+        // Create a new gym session for this workout
+        console.log('📝 Creating new gym session for workout plan completion');
+        activeSession = await prisma.gymSession.create({
+          data: {
+            member_id: memberId,
+            entry_method: 'MOBILE_APP',
+            entry_gate: 'Workout Plan',
+            entry_time: new Date(Date.now() - (duration_minutes || 60) * 60 * 1000), // Start time based on duration
+          },
+        });
+        console.log('✅ Created gym session:', activeSession.id);
+      }
+
+      // Get current calories from session
+      const currentCalories = activeSession.calories_burned || 0;
+      const newTotalCalories = currentCalories + totalCalories;
+
+      // Update gym session with calories from workout plan
+      const updatedSession = await prisma.gymSession.update({
+        where: { id: activeSession.id },
+        data: {
+          calories_burned: newTotalCalories,
+          notes: activeSession.notes
+            ? `${activeSession.notes}\n\nCompleted workout plan: ${workoutPlan.name}. Burned ${totalCalories} kcal from ${completed_exercises.length} exercises.`
+            : `Completed workout plan: ${workoutPlan.name}. Burned ${totalCalories} kcal from ${completed_exercises.length} exercises.`,
+        },
+      });
+
+      console.log('✅ Updated gym session with workout calories:', {
+        sessionId: updatedSession.id,
+        previousCalories: currentCalories,
+        workoutCalories: totalCalories,
+        newTotalCalories,
+      });
+
+      // ✅ Fix: Auto-update FITNESS challenges (async, don't wait)
+      challengeService
+        .autoUpdateFitnessChallenges(memberId, totalCalories, 1)
+        .catch((err) => {
+          console.error('Auto-update fitness challenges error:', err);
+        });
+
+      res.json({
+        success: true,
+        message: 'Workout session completed successfully',
+        data: {
+          session: updatedSession,
+          workoutPlan: {
+            id: workoutPlan.id,
+            name: workoutPlan.name,
+          },
+          calories: {
+            from_workout: totalCalories,
+            total_in_session: newTotalCalories,
+          },
+          completed_exercises: completed_exercises.length,
+          total_exercises: exercises.length,
+        },
+      });
+    } catch (error) {
+      console.error('Complete workout session error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Calculate calories from workout plan exercises
+   * @param {Array} exercises - All exercises in the workout plan
+   * @param {Array} completedExercises - Exercises that were actually completed
+   * @returns {number} Total calories burned
+   */
+  calculateCaloriesFromWorkoutExercises(exercises, completedExercises) {
+    // Calorie rates per minute based on exercise category/intensity
+    const calorieRates = {
+      CARDIO: {
+        LOW: 8,
+        MODERATE: 12,
+        HIGH: 16,
+      },
+      STRENGTH: {
+        LOW: 4,
+        MODERATE: 6,
+        HIGH: 8,
+      },
+      FUNCTIONAL: {
+        LOW: 6,
+        MODERATE: 8,
+        HIGH: 12,
+      },
+      // Default rates
+      default: {
+        LOW: 5,
+        MODERATE: 7,
+        HIGH: 10,
+      },
+    };
+
+    let totalCalories = 0;
+
+    // Process each completed exercise
+    completedExercises.forEach((completed) => {
+      // Find matching exercise in workout plan
+      const exercise = exercises.find(
+        (ex) => ex.id === completed.id || ex.name === completed.name
+      );
+
+      if (!exercise) {
+        console.warn(`⚠️ Exercise not found in workout plan: ${completed.id || completed.name}`);
+        return;
+      }
+
+      // Determine exercise category
+      const category = exercise.category || completed.category || 'STRENGTH';
+      const intensity = exercise.intensity || completed.intensity || 'MODERATE';
+
+      // Get calorie rate for this category/intensity
+      const rates = calorieRates[category] || calorieRates.default;
+      const caloriesPerMinute = rates[intensity] || rates.MODERATE;
+
+      // Calculate duration for this exercise
+      let durationMinutes = 0;
+
+      // If exercise has duration (cardio exercises like running)
+      if (exercise.duration || completed.duration) {
+        const durationSeconds =
+          completed.duration || exercise.duration || 0;
+        durationMinutes = durationSeconds / 60;
+      } else if (exercise.rest || completed.rest) {
+        // Calculate duration from sets, reps, and rest time
+        const sets = completed.sets || exercise.sets || 1;
+        const reps = completed.reps || exercise.reps || 10;
+
+        // Parse rest time (e.g., "1 phút" -> 60 seconds, "45 giây" -> 45 seconds, or number in seconds)
+        let restSeconds = 60; // default 1 minute
+        const restTime = exercise.rest || completed.rest || '1 phút';
+
+        if (typeof restTime === 'number') {
+          restSeconds = restTime;
+        } else if (typeof restTime === 'string') {
+          const minutesMatch = restTime.match(/(\d+)\s*phút/i);
+          const secondsMatch = restTime.match(/(\d+)\s*giây/i);
+          if (minutesMatch) {
+            restSeconds = parseInt(minutesMatch[1]) * 60;
+          } else if (secondsMatch) {
+            restSeconds = parseInt(secondsMatch[1]);
+          } else {
+            // Try to extract number
+            const numMatch = restTime.match(/(\d+)/);
+            if (numMatch) {
+              restSeconds = parseInt(numMatch[1]);
+            }
+          }
+        }
+
+        // Estimate exercise time per set based on reps
+        // Assume 2 seconds per rep for strength, 1 second per rep for cardio
+        const timePerRep = category === 'CARDIO' ? 1 : 2;
+        const repsNumber =
+          typeof reps === 'number' ? reps : parseInt(String(reps).match(/\d+/)?.[0] || '10');
+        const secondsPerSet = repsNumber * timePerRep;
+
+        // Total duration: (sets * time_per_set) + (sets - 1) * rest_time
+        const totalSeconds =
+          sets * secondsPerSet + Math.max(0, sets - 1) * restSeconds;
+        durationMinutes = totalSeconds / 60;
+      } else {
+        // Fallback: estimate based on sets and reps
+        const sets = completed.sets || exercise.sets || 1;
+        const repsNumber =
+          typeof (completed.reps || exercise.reps) === 'number'
+            ? completed.reps || exercise.reps
+            : 10;
+
+        // Estimate 3 minutes per set for strength, 5 minutes per set for cardio
+        const minutesPerSet = category === 'CARDIO' ? 5 : 3;
+        durationMinutes = sets * minutesPerSet;
+      }
+
+      // Calculate calories for this exercise
+      const exerciseCalories = Math.round(durationMinutes * caloriesPerMinute);
+
+      console.log(`  📊 Exercise: ${exercise.name}`, {
+        category,
+        intensity,
+        sets: completed.sets || exercise.sets,
+        reps: completed.reps || exercise.reps,
+        duration_minutes: durationMinutes.toFixed(2),
+        calories_per_minute: caloriesPerMinute,
+        calories: exerciseCalories,
+      });
+
+      totalCalories += exerciseCalories;
+    });
+
+    // Ensure at least some calories if exercises were completed
+    if (totalCalories === 0 && completedExercises.length > 0) {
+      // Fallback: estimate 50 calories per exercise
+      totalCalories = completedExercises.length * 50;
+      console.log(`⚠️ Using fallback calorie estimation: ${totalCalories} kcal`);
+    }
+
+    return totalCalories;
   }
 }
 

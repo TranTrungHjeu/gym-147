@@ -1,5 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+const pointsService = require('../services/points.service.js');
+const notificationService = require('../services/notification.service.js');
 
 class AchievementController {
   /**
@@ -545,6 +547,38 @@ class AchievementController {
               badge_icon: 'Award',
             },
           });
+
+          // ✅ Fix: Award points for achievement
+          if (achievement.points > 0) {
+            pointsService
+              .awardPoints(
+                id,
+                achievement.points,
+                'ACHIEVEMENT',
+                achievement.id,
+                `Achievement unlocked: ${achievement.title}`
+              )
+              .catch((err) => {
+                console.error('Failed to award achievement points:', err);
+              });
+          }
+
+          // Send notification
+          notificationService
+            .sendNotification({
+              memberId: id,
+              type: 'ACHIEVEMENT',
+              title: 'Achievement Unlocked!',
+              message: `Congratulations! You unlocked: ${achievement.title}`,
+              data: {
+                achievement_id: achievement.id,
+                points: achievement.points,
+              },
+            })
+            .catch((err) => {
+              console.error('Failed to send achievement notification:', err);
+            });
+
           newAchievements.push(achievement);
         }
       }
@@ -569,6 +603,38 @@ class AchievementController {
               badge_icon: 'Dumbbell',
             },
           });
+
+          // ✅ Fix: Award points for achievement
+          if (achievement.points > 0) {
+            pointsService
+              .awardPoints(
+                id,
+                achievement.points,
+                'ACHIEVEMENT',
+                achievement.id,
+                `Achievement unlocked: ${achievement.title}`
+              )
+              .catch((err) => {
+                console.error('Failed to award achievement points:', err);
+              });
+          }
+
+          // Send notification
+          notificationService
+            .sendNotification({
+              memberId: id,
+              type: 'ACHIEVEMENT',
+              title: 'Achievement Unlocked!',
+              message: `Congratulations! You unlocked: ${achievement.title}`,
+              data: {
+                achievement_id: achievement.id,
+                points: achievement.points,
+              },
+            })
+            .catch((err) => {
+              console.error('Failed to send achievement notification:', err);
+            });
+
           newAchievements.push(achievement);
         }
       }
@@ -593,6 +659,38 @@ class AchievementController {
               badge_icon: 'Flame',
             },
           });
+
+          // ✅ Fix: Award points for achievement
+          if (achievement.points > 0) {
+            pointsService
+              .awardPoints(
+                id,
+                achievement.points,
+                'ACHIEVEMENT',
+                achievement.id,
+                `Achievement unlocked: ${achievement.title}`
+              )
+              .catch((err) => {
+                console.error('Failed to award achievement points:', err);
+              });
+          }
+
+          // Send notification
+          notificationService
+            .sendNotification({
+              memberId: id,
+              type: 'ACHIEVEMENT',
+              title: 'Achievement Unlocked!',
+              message: `Congratulations! You unlocked: ${achievement.title}`,
+              data: {
+                achievement_id: achievement.id,
+                points: achievement.points,
+              },
+            })
+            .catch((err) => {
+              console.error('Failed to send achievement notification:', err);
+            });
+
           newAchievements.push(achievement);
         }
       }
@@ -624,6 +722,38 @@ class AchievementController {
               badge_icon: 'Activity',
             },
           });
+
+          // ✅ Fix: Award points for achievement
+          if (achievement.points > 0) {
+            pointsService
+              .awardPoints(
+                id,
+                achievement.points,
+                'ACHIEVEMENT',
+                achievement.id,
+                `Achievement unlocked: ${achievement.title}`
+              )
+              .catch((err) => {
+                console.error('Failed to award achievement points:', err);
+              });
+          }
+
+          // Send notification
+          notificationService
+            .sendNotification({
+              memberId: id,
+              type: 'ACHIEVEMENT',
+              title: 'Achievement Unlocked!',
+              message: `Congratulations! You unlocked: ${achievement.title}`,
+              data: {
+                achievement_id: achievement.id,
+                points: achievement.points,
+              },
+            })
+            .catch((err) => {
+              console.error('Failed to send achievement notification:', err);
+            });
+
           newAchievements.push(achievement);
         }
       }

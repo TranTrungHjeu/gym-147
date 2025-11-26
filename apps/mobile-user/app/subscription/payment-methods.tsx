@@ -5,7 +5,13 @@ import type { MemberPaymentMethod, PaymentMethod } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Check, CreditCard, Edit, Plus, Trash2 } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Check,
+  CreditCard,
+  Edit,
+  Trash2,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -48,19 +54,11 @@ export default function PaymentMethodsScreen() {
   };
 
   const handleAddPaymentMethod = () => {
-    // TODO: Navigate to add payment method screen
-    Alert.alert(
-      t('subscription.payment.addCard'),
-      'Add payment method screen not implemented yet'
-    );
+    router.push('/subscription/add-payment-method');
   };
 
   const handleEditPaymentMethod = (method: MemberPaymentMethod) => {
-    // TODO: Navigate to edit payment method screen
-    Alert.alert(
-      t('common.edit'),
-      'Edit payment method screen not implemented yet'
-    );
+    router.push(`/subscription/edit-payment-method/${method.id}`);
   };
 
   const handleDeletePaymentMethod = (method: MemberPaymentMethod) => {
@@ -197,7 +195,6 @@ export default function PaymentMethodsScreen() {
           title="Add Method"
           onPress={handleAddPaymentMethod}
           size="small"
-          icon={<Plus size={16} color={theme.colors.surface} />}
         />
       </View>
 
@@ -254,7 +251,10 @@ export default function PaymentMethodsScreen() {
                   method.type === 'DEBIT_CARD' ? (
                     <View style={styles.cardDetails}>
                       <Text
-                        style={[Typography.body, { color: theme.colors.text }]}
+                        style={[
+                          Typography.bodyMedium,
+                          { color: theme.colors.text },
+                        ]}
                       >
                         {formatCardNumber(method.details.last4)}
                       </Text>
@@ -274,7 +274,7 @@ export default function PaymentMethodsScreen() {
                   ) : (
                     <Text
                       style={[
-                        Typography.body,
+                        Typography.bodyMedium,
                         { color: theme.colors.textSecondary },
                       ]}
                     >
@@ -342,7 +342,10 @@ export default function PaymentMethodsScreen() {
               No Payment Methods
             </Text>
             <Text
-              style={[Typography.body, { color: theme.colors.textSecondary }]}
+              style={[
+                Typography.bodyMedium,
+                { color: theme.colors.textSecondary },
+              ]}
             >
               Add a payment method to manage your subscriptions
             </Text>

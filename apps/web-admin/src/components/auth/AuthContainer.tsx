@@ -1,14 +1,24 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import ForgotPasswordForm from './ForgotPasswordForm';
 import SignInForm from './SignInForm';
 import SignUpForm from './SignUpForm';
 
 export default function AuthContainer() {
+  const [searchParams] = useSearchParams();
+  const planId = searchParams.get('planId') || undefined;
   const [currentForm, setCurrentForm] = useState<'signin' | 'signup' | 'forgot-password'>('signin');
   const [clearErrors, setClearErrors] = useState(false);
   const [autoFillCredentials, setAutoFillCredentials] = useState<
     { email?: string; phone?: string; password?: string } | undefined
   >();
+
+  // Auto switch to signup if planId is present
+  useEffect(() => {
+    if (planId && currentForm === 'signin') {
+      setCurrentForm('signup');
+    }
+  }, [planId, currentForm]);
 
   const switchForm = (
     formType: 'signin' | 'signup' | 'forgot-password',
@@ -70,6 +80,7 @@ export default function AuthContainer() {
         <SignUpForm
           onSwitchToSignIn={credentials => switchForm('signin', credentials)}
           clearErrors={clearErrors}
+          planId={planId}
         />
       </div>
 

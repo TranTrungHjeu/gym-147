@@ -1,5 +1,7 @@
 import { EquipmentQueueModal } from '@/components/EquipmentQueueModal';
 import EquipmentReportModal from '@/components/EquipmentReportModal';
+import { AlertModal } from '@/components/ui/AlertModal';
+import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { equipmentService } from '@/services/member/equipment.service';
 import {
@@ -11,6 +13,7 @@ import {
 } from '@/types/equipmentTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import * as Notifications from 'expo-notifications';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Activity,
@@ -30,7 +33,6 @@ import React, { Fragment, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   Animated,
   AppState,
   Easing,
@@ -70,6 +72,38 @@ export default function EquipmentDetailScreen() {
   const [usageDuration, setUsageDuration] = useState(0); // in seconds
   const [caloriesBurned, setCaloriesBurned] = useState(0);
   const [showTimeoutWarning, setShowTimeoutWarning] = useState(false);
+  const [endingUsage, setEndingUsage] = useState(false); // Track if ending usage
+
+  // Modal states
+  const [confirmModal, setConfirmModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    confirmText?: string;
+    cancelText?: string;
+    confirmButtonStyle?: 'default' | 'destructive';
+    onConfirm: () => void;
+    loading?: boolean;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    onConfirm: () => {},
+  });
+
+  const [alertModal, setAlertModal] = useState<{
+    visible: boolean;
+    title: string;
+    message: string;
+    type?: 'success' | 'error' | 'warning' | 'info';
+    buttonText?: string;
+    onCloseAction?: () => void;
+  }>({
+    visible: false,
+    title: '',
+    message: '',
+    type: 'info',
+  });
 
   // Animation values
   const flameScale = useState(new Animated.Value(1))[0];
@@ -84,18 +118,10 @@ export default function EquipmentDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const promises = [
+      const [equipmentResponse, queueResponse] = await Promise.all([
         equipmentService.getEquipmentById(id),
         equipmentService.getEquipmentQueue(id),
-      ];
-
-      // Check for active usage if member is available
-      if (member?.id) {
-        promises.push(equipmentService.getActiveUsage(id, member.id));
-      }
-
-      const [equipmentResponse, queueResponse, activeUsageResponse] =
-        await Promise.all(promises);
+      ]);
 
       if (equipmentResponse.success && equipmentResponse.data) {
         setEquipment(equipmentResponse.data.equipment);
@@ -109,24 +135,31 @@ export default function EquipmentDetailScreen() {
         if (member?.id) {
           const memberEntry = queueResponse.data.queue.find(
             (entry) => entry.member_id === member.id
-        );
+          );
           setUserQueueEntry(memberEntry || null);
         }
       }
 
-      // Restore active usage if exists
-      if (
-        activeUsageResponse &&
-        activeUsageResponse.success &&
-        activeUsageResponse.data?.activeUsage
-      ) {
-        const usage = activeUsageResponse.data.activeUsage;
-        setActiveUsage({
-          id: usage.id,
-          start_time: usage.start_time,
+      // Check for active usage if member is available
+      if (member?.id) {
+        const activeUsageResponse = await equipmentService.getActiveUsage(
+          id,
+          member.id
+        );
+        // Restore active usage if exists
+        if (
+          activeUsageResponse &&
+          activeUsageResponse.success &&
+          activeUsageResponse.data?.activeUsage
+        ) {
+          const usage = activeUsageResponse.data.activeUsage;
+          setActiveUsage({
+            id: usage.id,
+            start_time: usage.start_time,
             equipment_id: id,
-        });
-        console.log('✅ Restored active usage session:', usage.id);
+          });
+          console.log('✅ Restored active usage session:', usage.id);
+        }
       }
     } catch (err: any) {
       console.error('Error loading equipment:', err);
@@ -147,28 +180,52 @@ export default function EquipmentDetailScreen() {
     if (!user?.id) return;
 
     equipmentService.subscribeToUserQueue(user.id, {
-      onYourTurn: (data) => {
+      onYourTurn: async (data) => {
         console.log('🔔 Queue: Your turn!', data);
-        Alert.alert(
-          t('equipment.queue.yourTurn', "It's Your Turn!"),
-          t(
+
+        // Show local notification
+        try {
+          await Notifications.scheduleNotificationAsync({
+            content: {
+              title: t('equipment.queue.yourTurn', "It's Your Turn!"),
+              body: t(
+                'equipment.queue.yourTurnMessage',
+                `${data.equipment_name} is now available. You have ${data.expires_in_minutes} minutes to claim it.`
+              ),
+              data: {
+                type: 'QUEUE_YOUR_TURN',
+                equipment_id: data.equipment_id,
+                equipment_name: data.equipment_name,
+                queue_id: data.queue_id,
+              },
+              sound: true,
+              priority: Notifications.AndroidNotificationPriority.HIGH,
+            },
+            trigger: null, // Show immediately
+          });
+        } catch (error) {
+          console.error('Error showing local notification:', error);
+        }
+
+        // Show alert modal
+        setAlertModal({
+          visible: true,
+          title: t('equipment.queue.yourTurn', "It's Your Turn!"),
+          message: t(
             'equipment.queue.yourTurnMessage',
             `${data.equipment_name} is now available. You have ${data.expires_in_minutes} minutes to claim it.`
           ),
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                // Navigate to equipment detail if not already there
-                if (data.equipment_id !== id) {
-                  router.push(`/equipment/${data.equipment_id}`);
-                } else {
-                  loadEquipmentDetails();
-                }
-              },
-            },
-          ]
-        );
+          type: 'info',
+          buttonText: t('common.ok'),
+          onCloseAction: () => {
+            // Navigate to equipment detail if not already there
+            if (data.equipment_id !== id) {
+              router.push(`/equipment/${data.equipment_id}`);
+            } else {
+              loadEquipmentDetails();
+            }
+          },
+        });
       },
       onEquipmentAvailable: (data) => {
         console.log('🔔 Equipment available:', data);
@@ -230,13 +287,22 @@ export default function EquipmentDetailScreen() {
       return;
     }
 
+    let isMounted = true;
     const startTime = new Date(activeUsage.start_time).getTime();
     const MAX_DURATION = 3 * 60 * 60; // 3 hours in seconds
     const WARNING_DURATION = 2.5 * 60 * 60; // 2.5 hours - show warning
 
     const timer = setInterval(() => {
+      // Check if component is still mounted
+      if (!isMounted) {
+        clearInterval(timer);
+        return;
+      }
+
       const now = Date.now();
       const duration = Math.max(0, Math.floor((now - startTime) / 1000)); // seconds, ensure non-negative
+
+      if (!isMounted) return;
       setUsageDuration(duration);
 
       // Calculate calories based on equipment category
@@ -251,41 +317,41 @@ export default function EquipmentDetailScreen() {
       const calculatedCalories =
         duration > 0 ? Math.max(1, Math.round(exactCalories)) : 0;
 
+      if (!isMounted) return;
       setCaloriesBurned(calculatedCalories);
 
       // Show warning when approaching timeout (2.5 hours)
       if (duration >= WARNING_DURATION && duration < MAX_DURATION) {
-        if (!showTimeoutWarning) {
+        if (!showTimeoutWarning && isMounted) {
           setShowTimeoutWarning(true);
           const remainingMinutes = Math.floor((MAX_DURATION - duration) / 60);
-          Alert.alert(
-            '⏰ ' +
-              t('equipment.timeoutWarning', {
-                default: 'Session Timeout Warning',
-              }),
-            t('equipment.timeoutMessage', {
+          setAlertModal({
+            visible: true,
+            title: t('equipment.timeoutWarning', {
+              default: 'Session Timeout Warning',
+            }),
+            message: t('equipment.timeoutMessage', {
               default: `Your workout session will automatically end in ${remainingMinutes} minutes. Please end your session manually to avoid auto-stop.`,
               minutes: remainingMinutes,
             }),
-            [
-              {
-                text: t('common.ok'),
-                onPress: () => console.log('Timeout warning acknowledged'),
-              },
-            ]
-          );
+            type: 'warning',
+            buttonText: t('common.ok'),
+          });
         }
       }
 
       // Auto-reload when timeout is reached to reflect auto-stop
-      if (duration >= MAX_DURATION) {
+      if (duration >= MAX_DURATION && isMounted) {
         console.log('⏱️ Session timeout reached - reloading...');
         loadEquipmentDetails();
       }
     }, 1000);
 
-    return () => clearInterval(timer);
-  }, [activeUsage, equipment, showTimeoutWarning]);
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [activeUsage?.start_time, equipment?.category, showTimeoutWarning]);
 
   // Flame animation effect
   useEffect(() => {
@@ -393,21 +459,31 @@ export default function EquipmentDetailScreen() {
           equipment_id: id,
         });
 
-        Alert.alert(
-          t('common.success'),
-          t('equipment.actions.startUsage') +
+        setAlertModal({
+          visible: true,
+          title: t('common.success'),
+          message:
+            t('equipment.actions.startUsage') +
             ' ' +
-            t('common.success').toLowerCase()
-        );
+            t('common.success').toLowerCase(),
+          type: 'success',
+        });
         loadEquipmentDetails();
       } else {
-        Alert.alert(
-          t('common.error'),
-          response.message || 'Failed to start usage'
-        );
+        setAlertModal({
+          visible: true,
+          title: t('common.error'),
+          message: response.message || 'Failed to start usage',
+          type: 'error',
+        });
       }
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.message || 'Failed to start usage');
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: err.message || 'Failed to start usage',
+        type: 'error',
+      });
     }
   };
 
@@ -427,49 +503,118 @@ export default function EquipmentDetailScreen() {
 
   // Handle end using
   const handleEndUsage = async () => {
-    if (!member?.id || !activeUsage) return;
+    // Prevent multiple calls
+    if (endingUsage) {
+      console.log('⏳ Already ending usage, ignoring duplicate call');
+      return;
+    }
 
-    Alert.alert(
-      t('equipment.actions.endUsage'),
-      t('equipment.confirmEndUsage', {
+    if (!member?.id || !activeUsage) {
+      console.error('❌ Cannot end usage:', {
+        hasMember: !!member,
+        memberId: member?.id,
+        hasActiveUsage: !!activeUsage,
+        activeUsageId: activeUsage?.id,
+      });
+      return;
+    }
+
+    console.log('🛑 Ending usage:', {
+      memberId: member.id,
+      usageId: activeUsage.id,
+      equipmentId: id,
+    });
+
+    setEndingUsage(true);
+
+    setConfirmModal({
+      visible: true,
+      title: t('equipment.actions.endUsage'),
+      message: t('equipment.confirmEndUsage', {
         default: 'Are you sure you want to end this workout session?',
       }),
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: t('common.confirm'),
-          onPress: async () => {
-            try {
-      const response = await equipmentService.stopEquipmentUsage(
-                member.id,
-                activeUsage.id
-      );
-      if (response.success) {
-                setActiveUsage(null);
-                setUsageDuration(0);
-                Alert.alert(
-                  t('common.success'),
-                  t('equipment.usageEnded', {
-                    default: 'Workout session ended successfully',
-                  })
-                );
-                loadEquipmentDetails();
-      } else {
-                Alert.alert(
-                  t('common.error'),
-                  response.message || 'Failed to end usage'
-                );
-              }
-            } catch (err: any) {
-              Alert.alert(
-                t('common.error'),
-                err.message || 'Failed to end usage'
-              );
-            }
-          },
-        },
-      ]
-    );
+      confirmText: t('common.confirm'),
+      cancelText: t('common.cancel'),
+      confirmButtonStyle: 'destructive',
+      loading: false,
+      onConfirm: async () => {
+        setConfirmModal((prev) => ({ ...prev, loading: true }));
+        try {
+          console.log('📤 Calling stopEquipmentUsage:', {
+            memberId: member.id,
+            usageId: activeUsage.id,
+            equipmentId: id,
+          });
+
+          const response = await equipmentService.stopEquipmentUsage(
+            member.id,
+            activeUsage.id
+          );
+
+          console.log('📥 Stop usage response:', {
+            success: response.success,
+            message: response.message,
+            data: response.data,
+            fullResponse: response,
+          });
+
+          // apiService.post always returns { success: true, data, message } on success
+          // or throws error on failure
+          if (response && response.success !== false) {
+            setActiveUsage(null);
+            setUsageDuration(0);
+            setConfirmModal((prev) => ({ ...prev, visible: false }));
+            setAlertModal({
+              visible: true,
+              title: t('common.success'),
+              message: t('equipment.usageEnded', {
+                default: 'Workout session ended successfully',
+              }),
+              type: 'success',
+            });
+            loadEquipmentDetails();
+          } else {
+            console.error('❌ Stop usage failed:', response);
+            setConfirmModal((prev) => ({ ...prev, visible: false }));
+            setAlertModal({
+              visible: true,
+              title: t('common.error'),
+              message: response?.message || 'Failed to end usage',
+              type: 'error',
+            });
+          }
+        } catch (err: any) {
+          console.error('❌ Stop usage error:', {
+            message: err.message,
+            status: err.status,
+            errors: err.errors,
+            error: err,
+            response: err.response?.data,
+            stack: err.stack,
+          });
+
+          const errorMessage =
+            err.message ||
+            err.response?.data?.message ||
+            (err.status === 401 ? 'Unauthorized. Please login again.' : '') ||
+            (err.status === 403
+              ? 'You can only end your own equipment usage.'
+              : '') ||
+            (err.status === 404 ? 'Active equipment usage not found.' : '') ||
+            'Failed to end usage';
+
+          setConfirmModal((prev) => ({ ...prev, visible: false }));
+          setAlertModal({
+            visible: true,
+            title: t('common.error'),
+            message: errorMessage,
+            type: 'error',
+          });
+        } finally {
+          setEndingUsage(false);
+        }
+      },
+    });
   };
 
   // Handle join queue
@@ -485,16 +630,28 @@ export default function EquipmentDetailScreen() {
     try {
       const response = await equipmentService.leaveQueue(userQueueEntry.id);
       if (response.success) {
-        Alert.alert(t('common.success'), t('equipment.queue.leftQueue'));
+        setAlertModal({
+          visible: true,
+          title: t('common.success'),
+          message: t('equipment.queue.leftQueue'),
+          type: 'success',
+        });
         loadEquipmentDetails();
       } else {
-        Alert.alert(
-          t('common.error'),
-          response.message || 'Failed to leave queue'
-        );
+        setAlertModal({
+          visible: true,
+          title: t('common.error'),
+          message: response.message || 'Failed to leave queue',
+          type: 'error',
+        });
       }
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.message || 'Failed to leave queue');
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: err.message || 'Failed to leave queue',
+        type: 'error',
+      });
     }
   };
 
@@ -514,16 +671,29 @@ export default function EquipmentDetailScreen() {
       });
 
       if (response.success) {
-        Alert.alert(t('common.success'), t('equipment.issue.reported'));
+        setAlertModal({
+          visible: true,
+          title: t('common.success'),
+          message: t('equipment.issue.reported'),
+          type: 'success',
+        });
+        setShowReportModal(false);
         loadEquipmentDetails();
       } else {
-        Alert.alert(
-          t('common.error'),
-          response.message || 'Failed to report issue'
-        );
+        setAlertModal({
+          visible: true,
+          title: t('common.error'),
+          message: response.message || 'Failed to report issue',
+          type: 'error',
+        });
       }
     } catch (err: any) {
-      Alert.alert(t('common.error'), err.message || 'Failed to report issue');
+      setAlertModal({
+        visible: true,
+        title: t('common.error'),
+        message: err.message || 'Failed to report issue',
+        type: 'error',
+      });
     }
   };
 
@@ -637,21 +807,21 @@ export default function EquipmentDetailScreen() {
           ]}
         >
           <View style={styles.equipmentHeader}>
-        <View style={styles.equipmentInfo}>
+            <View style={styles.equipmentInfo}>
               <Text
                 style={[styles.equipmentName, { color: theme.colors.text }]}
               >
-            {equipment.name}
-          </Text>
+                {equipment.name}
+              </Text>
               {equipment.brand && (
-          <Text
-            style={[
+                <Text
+                  style={[
                     styles.equipmentBrand,
-              { color: theme.colors.textSecondary },
-            ]}
-          >
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
                   {equipment.brand} {equipment.model}
-          </Text>
+                </Text>
               )}
             </View>
             <View
@@ -661,8 +831,8 @@ export default function EquipmentDetailScreen() {
               ]}
             >
               {getStatusIcon(equipment.status)}
-            <Text
-              style={[
+              <Text
+                style={[
                   styles.statusText,
                   { color: getStatusColor(equipment.status) },
                 ]}
@@ -675,7 +845,7 @@ export default function EquipmentDetailScreen() {
                 )}
               </Text>
             </View>
-        </View>
+          </View>
 
           <View style={styles.divider} />
 
@@ -689,24 +859,24 @@ export default function EquipmentDetailScreen() {
                 ]}
               >
                 {equipment.location}
-          </Text>
+              </Text>
             </View>
 
             {equipment.max_weight && (
               <View style={styles.detailItem}>
                 <Wrench size={16} color={theme.colors.textSecondary} />
                 <Text
-              style={[
+                  style={[
                     styles.detailLabel,
                     { color: theme.colors.textSecondary },
-              ]}
-            >
+                  ]}
+                >
                   Max: {equipment.max_weight}kg
-              </Text>
+                </Text>
               </View>
             )}
-            </View>
           </View>
+        </View>
 
         {/* Queue Section */}
         {queue.length > 0 && (
@@ -722,8 +892,8 @@ export default function EquipmentDetailScreen() {
                   style={[styles.sectionTitle, { color: theme.colors.text }]}
                 >
                   {t('equipment.queue.title')} ({queue.length})
-            </Text>
-          </View>
+                </Text>
+              </View>
               <TouchableOpacity
                 onPress={() => setShowQueueModal(true)}
                 style={{ padding: 4 }}
@@ -736,13 +906,13 @@ export default function EquipmentDetailScreen() {
                   }}
                 >
                   {t('equipment.queue.viewDetails', 'View Details')}
-            </Text>
+                </Text>
               </TouchableOpacity>
-        </View>
+            </View>
 
             {queue.map((entry, index) => (
               <Fragment key={entry.id}>
-          <View
+                <View
                   style={[
                     styles.queueItem,
                     {
@@ -761,19 +931,19 @@ export default function EquipmentDetailScreen() {
                       ]}
                     >
                       #{index + 1}
-            </Text>
+                    </Text>
                   </View>
-              <Text
-                style={[
+                  <Text
+                    style={[
                       styles.queueMemberName,
                       { color: theme.colors.text },
-                ]}
-              >
+                    ]}
+                  >
                     {entry.member_id === member?.id
                       ? t('profile.title')
                       : entry.member?.full_name || 'Member'}
-              </Text>
-            </View>
+                  </Text>
+                </View>
               </Fragment>
             ))}
           </View>
@@ -806,17 +976,17 @@ export default function EquipmentDetailScreen() {
                 >
                   <Zap size={18} color={theme.colors.primary} />
                 </View>
-              <Text
-                style={[
+                <Text
+                  style={[
                     styles.activeUsageTitle,
                     { color: theme.colors.primary },
-                ]}
-              >
+                  ]}
+                >
                   {t('equipment.activeSession', {
                     default: 'Workout Session',
                   })}
-              </Text>
-            </View>
+                </Text>
+              </View>
               <View
                 style={[
                   styles.activeBadge,
@@ -830,13 +1000,13 @@ export default function EquipmentDetailScreen() {
                   ]}
                 />
                 <Text style={styles.activeBadgeText}>LIVE</Text>
-          </View>
+              </View>
             </View>
 
             {/* Stats Grid */}
             <View style={styles.statsGrid}>
               {/* Duration */}
-          <View
+              <View
                 style={[
                   styles.statItem,
                   {
@@ -853,18 +1023,18 @@ export default function EquipmentDetailScreen() {
                 >
                   <Clock size={24} color={theme.colors.primary} />
                 </View>
-                  <Text
-                    style={[
+                <Text
+                  style={[
                     styles.statLabel,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
                   {t('equipment.usage.duration', { default: 'Duration' })}
                 </Text>
                 <Text style={[styles.statValue, { color: theme.colors.text }]}>
                   {formatDuration(usageDuration)}
-                  </Text>
-                </View>
+                </Text>
+              </View>
 
               {/* Calories with Flame Animation */}
               <View
@@ -888,12 +1058,12 @@ export default function EquipmentDetailScreen() {
                 >
                   <Flame size={26} color="#FF6B35" />
                 </Animated.View>
-                    <Text
-                      style={[
+                <Text
+                  style={[
                     styles.statLabel,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
                   {t('equipment.usage.caloriesBurned', { default: 'Calories' })}
                 </Text>
                 <View style={styles.calorieValueContainer}>
@@ -902,23 +1072,35 @@ export default function EquipmentDetailScreen() {
                   </Text>
                   <Text style={[styles.statUnit, styles.calorieUnit]}>
                     kcal
-                    </Text>
-                  </View>
+                  </Text>
+                </View>
               </View>
-          </View>
+            </View>
 
             {/* End Session Button */}
-          <TouchableOpacity
-            style={[
+            <TouchableOpacity
+              style={[
                 styles.endUsageButton,
-                { backgroundColor: theme.colors.error },
+                {
+                  backgroundColor: endingUsage
+                    ? theme.colors.textSecondary
+                    : theme.colors.error,
+                  opacity: endingUsage ? 0.6 : 1,
+                },
               ]}
               onPress={handleEndUsage}
+              disabled={endingUsage}
               activeOpacity={0.8}
             >
-              <StopCircle size={22} color="#FFFFFF" strokeWidth={2.5} />
+              {endingUsage ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <StopCircle size={22} color="#FFFFFF" strokeWidth={2.5} />
+              )}
               <Text style={styles.endUsageButtonText}>
-                {t('equipment.actions.endUsage', { default: 'End Workout' })}
+                {endingUsage
+                  ? t('common.processing', { default: 'Processing...' })
+                  : t('equipment.actions.endUsage', { default: 'End Workout' })}
               </Text>
             </TouchableOpacity>
           </View>
@@ -934,30 +1116,30 @@ export default function EquipmentDetailScreen() {
               <Play size={20} color="#fff" />
               <Text style={styles.buttonText}>
                 {t('equipment.actions.startUsage')}
-            </Text>
-          </TouchableOpacity>
+              </Text>
+            </TouchableOpacity>
           )}
 
           {equipment.status === EquipmentStatus.IN_USE &&
             !userQueueEntry &&
             !activeUsage && (
-          <TouchableOpacity
-            style={[
+              <TouchableOpacity
+                style={[
                   styles.button,
-              { backgroundColor: theme.colors.warning },
-            ]}
+                  { backgroundColor: theme.colors.warning },
+                ]}
                 onPress={handleJoinQueue}
               >
                 <Clock size={20} color="#fff" />
                 <Text style={styles.buttonText}>
                   {t('equipment.queue.joinQueue')}
-            </Text>
-          </TouchableOpacity>
+                </Text>
+              </TouchableOpacity>
             )}
 
           {userQueueEntry && (
-          <TouchableOpacity
-            style={[
+            <TouchableOpacity
+              style={[
                 styles.button,
                 {
                   backgroundColor: theme.colors.error,
@@ -968,8 +1150,8 @@ export default function EquipmentDetailScreen() {
             >
               <Text style={styles.buttonText}>
                 {t('equipment.queue.leaveQueue')}
-            </Text>
-          </TouchableOpacity>
+              </Text>
+            </TouchableOpacity>
           )}
 
           <TouchableOpacity
@@ -987,10 +1169,41 @@ export default function EquipmentDetailScreen() {
               {t('equipment.issue.reportIssue')}
             </Text>
           </TouchableOpacity>
-      </View>
+        </View>
       </ScrollView>
 
       {/* Report Issue Modal */}
+      {/* Confirm Modal */}
+      <ConfirmModal
+        visible={confirmModal.visible}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        cancelText={confirmModal.cancelText}
+        confirmButtonStyle={confirmModal.confirmButtonStyle}
+        loading={confirmModal.loading}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => {
+          setConfirmModal((prev) => ({ ...prev, visible: false }));
+          setEndingUsage(false);
+        }}
+      />
+
+      {/* Alert Modal */}
+      <AlertModal
+        visible={alertModal.visible}
+        title={alertModal.title}
+        message={alertModal.message}
+        type={alertModal.type}
+        buttonText={alertModal.buttonText}
+        onClose={() => {
+          if (alertModal.onCloseAction) {
+            alertModal.onCloseAction();
+          }
+          setAlertModal((prev) => ({ ...prev, visible: false }));
+        }}
+      />
+
       <EquipmentReportModal
         visible={showReportModal}
         onClose={() => setShowReportModal(false)}

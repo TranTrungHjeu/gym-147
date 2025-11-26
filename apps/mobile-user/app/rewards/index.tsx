@@ -8,7 +8,6 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   SafeAreaView,
@@ -28,10 +27,19 @@ export default function RewardsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [recommendedRewards, setRecommendedRewards] = useState<Reward[]>([]);
   const [pointsBalance, setPointsBalance] = useState<number>(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
-  const categories = ['DISCOUNT', 'FREE_CLASS', 'MERCHANDISE', 'MEMBERSHIP_EXTENSION', 'PREMIUM_FEATURE', 'OTHER'];
+  const categories = [
+    'DISCOUNT',
+    'FREE_CLASS',
+    'MERCHANDISE',
+    'MEMBERSHIP_EXTENSION',
+    'PREMIUM_FEATURE',
+    'OTHER',
+  ];
 
   const themedStyles = styles(theme);
 
@@ -39,15 +47,62 @@ export default function RewardsScreen() {
     loadData();
   }, [member?.id, selectedCategory]);
 
+  // Listen for socket events to refresh data
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleRewardRedeemed = (event: any) => {
+      console.log('🎁 Reward redeemed event received:', event.detail);
+      // Refresh rewards and points balance
+      loadData();
+    };
+
+    const handleRewardRefunded = (event: any) => {
+      console.log('💰 Reward refunded event received:', event.detail);
+      loadData();
+    };
+
+    const handlePointsUpdated = (event: any) => {
+      console.log('💎 Points updated event received:', event.detail);
+      // Update points balance immediately
+      if (event.detail?.new_balance !== undefined) {
+        setPointsBalance(event.detail.new_balance);
+      } else {
+        // Refresh balance
+        if (member?.id) {
+          pointsService.getBalance(member.id).then((response) => {
+            if (response.success && response.data) {
+              setPointsBalance(response.data.current);
+            }
+          });
+        }
+      }
+    };
+
+    window.addEventListener('reward:redeemed', handleRewardRedeemed);
+    window.addEventListener('reward:refunded', handleRewardRefunded);
+    window.addEventListener('points:updated', handlePointsUpdated);
+
+    return () => {
+      window.removeEventListener('reward:redeemed', handleRewardRedeemed);
+      window.removeEventListener('reward:refunded', handleRewardRefunded);
+      window.removeEventListener('points:updated', handlePointsUpdated);
+    };
+  }, [member?.id]);
+
   const loadData = async () => {
     if (!member?.id) return;
 
     try {
       setLoading(true);
-      const [rewardsResponse, pointsResponse] = await Promise.all([
-        rewardService.getRewards(selectedCategory ? { category: selectedCategory as any } : {}),
-        pointsService.getBalance(member.id),
-      ]);
+      const [rewardsResponse, pointsResponse, recommendationsResponse] =
+        await Promise.all([
+          rewardService.getRewards(
+            selectedCategory ? { category: selectedCategory as any } : {}
+          ),
+          pointsService.getBalance(member.id),
+          rewardService.getRecommendedRewards(member.id),
+        ]);
 
       if (rewardsResponse.success && rewardsResponse.data) {
         setRewards(rewardsResponse.data);
@@ -55,6 +110,10 @@ export default function RewardsScreen() {
 
       if (pointsResponse.success && pointsResponse.data) {
         setPointsBalance(pointsResponse.data.current);
+      }
+
+      if (recommendationsResponse.success && recommendationsResponse.data) {
+        setRecommendedRewards(recommendationsResponse.data);
       }
     } catch (error) {
       console.error('Error loading rewards:', error);
@@ -74,20 +133,14 @@ export default function RewardsScreen() {
   };
 
   const getCategoryLabel = (category: string) => {
-    const labels: Record<string, string> = {
-      DISCOUNT: 'Giảm giá',
-      FREE_CLASS: 'Lớp học miễn phí',
-      MERCHANDISE: 'Sản phẩm',
-      MEMBERSHIP_EXTENSION: 'Gia hạn',
-      PREMIUM_FEATURE: 'Tính năng Premium',
-      OTHER: 'Khác',
-    };
-    return labels[category] || category;
+    return t(`rewards.category.${category}` as any) || category;
   };
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -100,33 +153,61 @@ export default function RewardsScreen() {
         <View style={themedStyles.pointsHeader}>
           <View style={themedStyles.pointsIconContainer}>
             <Coins size={32} color="#FFD700" />
-            <Sparkles size={18} color="#FFD700" style={themedStyles.sparkleIcon} />
+            <Sparkles
+              size={18}
+              color="#FFD700"
+              style={themedStyles.sparkleIcon}
+            />
           </View>
           <View style={themedStyles.pointsContent}>
-            <Text style={themedStyles.pointsLabel}>Điểm thưởng của bạn</Text>
-            <Text style={themedStyles.pointsValue}>{pointsBalance.toLocaleString()}</Text>
+            <Text style={themedStyles.pointsLabel}>{t('rewards.pointsBalance')}</Text>
+            <Text style={themedStyles.pointsValue}>
+              {pointsBalance.toLocaleString()} {t('rewards.points')}
+            </Text>
           </View>
         </View>
       </View>
 
       {/* Category Filter */}
       <View style={themedStyles.categoryContainer}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={themedStyles.categoryScroll}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={themedStyles.categoryScroll}
+        >
           <TouchableOpacity
-            style={[themedStyles.categoryChip, !selectedCategory && themedStyles.categoryChipActive]}
+            style={[
+              themedStyles.categoryChip,
+              !selectedCategory && themedStyles.categoryChipActive,
+            ]}
             onPress={() => setSelectedCategory(null)}
           >
-            <Text style={[themedStyles.categoryText, !selectedCategory && themedStyles.categoryTextActive]}>
-              Tất cả
+            <Text
+              style={[
+                themedStyles.categoryText,
+                !selectedCategory && themedStyles.categoryTextActive,
+              ]}
+            >
+              {t('rewards.allCategories')}
             </Text>
           </TouchableOpacity>
           {categories.map((category) => (
             <TouchableOpacity
               key={category}
-              style={[themedStyles.categoryChip, selectedCategory === category && themedStyles.categoryChipActive]}
+              style={[
+                themedStyles.categoryChip,
+                selectedCategory === category &&
+                  themedStyles.categoryChipActive,
+              ]}
               onPress={() => setSelectedCategory(category)}
             >
-              <Text style={[themedStyles.categoryText, selectedCategory === category && themedStyles.categoryTextActive]}>
+              <Text
+                style={[
+                  themedStyles.categoryText,
+                  selectedCategory === category &&
+                    themedStyles.categoryTextActive,
+                ]}
+              >
                 {getCategoryLabel(category)}
               </Text>
             </TouchableOpacity>
@@ -136,54 +217,141 @@ export default function RewardsScreen() {
 
       <ScrollView
         style={themedStyles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
-        {/* Rewards Grid */}
-        {rewards.length > 0 ? (
-          <View style={themedStyles.rewardsGrid}>
-            {rewards.map((reward) => (
-              <TouchableOpacity
-                key={reward.id}
-                style={themedStyles.rewardCard}
-                onPress={() => handleViewReward(reward.id)}
+        {/* Recommended Rewards Section */}
+        {recommendedRewards.length > 0 && !selectedCategory && (
+          <View style={themedStyles.section}>
+            <View style={themedStyles.sectionHeader}>
+              <Sparkles size={20} color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.sectionTitle,
+                  { color: theme.colors.primary },
+                ]}
               >
-                {reward.image_url ? (
-                  <Image source={{ uri: reward.image_url }} style={themedStyles.rewardImage} />
-                ) : (
-                  <View style={themedStyles.rewardImagePlaceholder}>
-                    <Gift size={40} color={theme.colors.primary} />
-                  </View>
-                )}
-
-                <View style={themedStyles.rewardContent}>
-                  <View style={themedStyles.rewardHeader}>
+                {t('rewards.recommendedForYou')}
+              </Text>
+            </View>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              style={themedStyles.recommendedList}
+            >
+              {recommendedRewards.map((reward) => (
+                <TouchableOpacity
+                  key={reward.id}
+                  style={themedStyles.recommendedCard}
+                  onPress={() => handleViewReward(reward.id)}
+                >
+                  {reward.image_url ? (
+                    <Image
+                      source={{ uri: reward.image_url }}
+                      style={themedStyles.rewardImage}
+                    />
+                  ) : (
+                    <View style={themedStyles.rewardImagePlaceholder}>
+                      <Gift size={32} color={theme.colors.primary} />
+                    </View>
+                  )}
+                  <View style={themedStyles.rewardContent}>
                     <Text style={themedStyles.rewardTitle} numberOfLines={2}>
                       {reward.title}
                     </Text>
-                    <Tag size={16} color={theme.colors.textSecondary} />
-                  </View>
-
-                  <Text style={themedStyles.rewardDescription} numberOfLines={2}>
-                    {reward.description}
-                  </Text>
-
-                  <View style={themedStyles.rewardFooter}>
-                    <View style={themedStyles.pointsBadge}>
-                      <Coins size={14} color="#FFD700" />
-                      <Text style={themedStyles.pointsCost}>{reward.points_cost}</Text>
+                    <View style={themedStyles.rewardFooter}>
+                      <View style={themedStyles.pointsBadge}>
+                        <Coins size={14} color="#FFD700" />
+                        <Text style={themedStyles.pointsCost}>
+                          {reward.points_cost}
+                        </Text>
+                      </View>
                     </View>
-                    {reward.discount_percent && (
-                      <Text style={themedStyles.discountBadge}>-{reward.discount_percent}%</Text>
-                    )}
                   </View>
-                </View>
-              </TouchableOpacity>
-            ))}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
+
+        {/* All Rewards Section */}
+        {rewards.length > 0 ? (
+          <View style={themedStyles.rewardsList}>
+            {recommendedRewards.length > 0 && !selectedCategory && (
+              <View style={themedStyles.sectionHeader}>
+                <Tag size={20} color={theme.colors.text} />
+                <Text style={themedStyles.sectionTitle}>
+                  {t('rewards.availableRewards')}
+                </Text>
+              </View>
+            )}
+            <View style={themedStyles.rewardsGrid}>
+              {rewards
+                .filter(
+                  (reward) =>
+                    !recommendedRewards.find((r) => r.id === reward.id)
+                )
+                .map((reward) => (
+                  <TouchableOpacity
+                    key={reward.id}
+                    style={themedStyles.rewardCard}
+                    onPress={() => handleViewReward(reward.id)}
+                  >
+                    {reward.image_url ? (
+                      <Image
+                        source={{ uri: reward.image_url }}
+                        style={themedStyles.rewardImage}
+                      />
+                    ) : (
+                      <View style={themedStyles.rewardImagePlaceholder}>
+                        <Gift size={40} color={theme.colors.primary} />
+                      </View>
+                    )}
+
+                    <View style={themedStyles.rewardContent}>
+                      <View style={themedStyles.rewardHeader}>
+                        <Text
+                          style={themedStyles.rewardTitle}
+                          numberOfLines={2}
+                        >
+                          {reward.title}
+                        </Text>
+                        <Tag size={16} color={theme.colors.textSecondary} />
+                      </View>
+
+                      <Text
+                        style={themedStyles.rewardDescription}
+                        numberOfLines={2}
+                      >
+                        {reward.description}
+                      </Text>
+
+                      <View style={themedStyles.rewardFooter}>
+                        <View style={themedStyles.pointsBadge}>
+                          <Coins size={14} color="#FFD700" />
+                          <Text style={themedStyles.pointsCost}>
+                            {reward.points_cost}
+                          </Text>
+                        </View>
+                        {reward.discount_percent && (
+                          <Text style={themedStyles.discountBadge}>
+                            -{reward.discount_percent}%
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+            </View>
           </View>
         ) : (
           <View style={themedStyles.emptyContainer}>
             <Gift size={64} color={theme.colors.textSecondary} />
-            <Text style={themedStyles.emptyText}>Không có phần thưởng nào</Text>
+            <Text style={themedStyles.emptyText}>{t('rewards.noRewards')}</Text>
+            <Text style={[themedStyles.emptySubtext, { color: theme.colors.textSecondary }]}>
+              {t('rewards.noRewardsMessage')}
+            </Text>
           </View>
         )}
 
@@ -192,7 +360,9 @@ export default function RewardsScreen() {
           style={themedStyles.historyButton}
           onPress={() => router.push('/rewards/history')}
         >
-          <Text style={themedStyles.historyButtonText}>Xem lịch sử đổi thưởng</Text>
+          <Text style={themedStyles.historyButtonText}>
+            {t('rewards.history')}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -366,6 +536,11 @@ const styles = (theme: any) =>
       marginTop: 16,
       textAlign: 'center',
     },
+    emptySubtext: {
+      ...Typography.bodySmall,
+      marginTop: 8,
+      textAlign: 'center',
+    },
     historyButton: {
       margin: 16,
       padding: 16,
@@ -379,4 +554,3 @@ const styles = (theme: any) =>
       fontFamily: 'SpaceGrotesk-SemiBold',
     },
   });
-

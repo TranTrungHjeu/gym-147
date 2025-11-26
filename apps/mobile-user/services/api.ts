@@ -225,6 +225,23 @@ class ApiService {
 
     // Handle other errors
     if (!response.ok) {
+      // Special handling for 503 Service Unavailable
+      if (response.status === 503) {
+        const fullUrl = response.url || `${this.baseURL}${endpoint || ''}`;
+        console.error('❌ Service temporarily unavailable (503):', {
+          endpoint: endpoint || 'unknown',
+          fullUrl,
+          baseURL: this.baseURL,
+          status: response.status,
+          statusText: response.statusText,
+          message: data?.message || 'Service temporarily unavailable',
+          errors: data?.errors,
+        });
+        console.error('   → This usually means the backend service is not running or unreachable');
+        console.error('   → Check if the service container is running: docker ps');
+        console.error('   → Check service logs: docker logs <service-name>');
+      }
+
       const error: ApiError = {
         message:
           data?.message || `HTTP ${response.status}: ${response.statusText}`,
@@ -356,10 +373,21 @@ class ApiService {
    */
   async patch<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
-      return await fetch(`${this.baseURL}${endpoint}`, {
+      const url = `${this.baseURL}${endpoint}`;
+      const headers = await this.getHeaders(endpoint);
+      const body = data ? JSON.stringify(data) : undefined;
+      
+      console.log('🔵 PATCH request:', {
+        url,
         method: 'PATCH',
-        headers: await this.getHeaders(endpoint),
-        body: data ? JSON.stringify(data) : undefined,
+        hasBody: !!body,
+        endpoint,
+      });
+      
+      return await fetch(url, {
+        method: 'PATCH',
+        headers,
+        body,
       });
     };
 

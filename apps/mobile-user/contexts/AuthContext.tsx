@@ -48,6 +48,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuthStatus();
   }, []);
 
+  // Listen for user:deleted event (account deletion)
+  // Note: The actual modal display and logout will be handled by AppContent in _layout.tsx
+  // This is just to ensure the event is available
+  useEffect(() => {
+    // Event listener is handled in AppContent component
+    // This effect is kept for potential future use
+  }, []);
+
   const checkAuthStatus = async () => {
     try {
       setIsLoading(true);

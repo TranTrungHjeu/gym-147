@@ -4,6 +4,11 @@ const aiController = require('../controllers/ai.controller');
 
 // ==================== AI ROUTES ====================
 
+// Generate embedding from text
+router.post('/embeddings', (req, res) =>
+  aiController.generateEmbedding(req, res)
+);
+
 // Generate class recommendations
 router.post('/class-recommendations', (req, res) =>
   aiController.generateClassRecommendations(req, res)

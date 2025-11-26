@@ -42,16 +42,37 @@ export default function HealthTrendsScreen() {
   const metricTypes = [
     { value: MetricType.WEIGHT, label: t('health.metricTypes.weight') },
     { value: MetricType.BODY_FAT, label: t('health.metricTypes.bodyFat') },
-    { value: MetricType.MUSCLE_MASS, label: t('health.metricTypes.muscleMass') },
+    {
+      value: MetricType.MUSCLE_MASS,
+      label: t('health.metricTypes.muscleMass'),
+    },
     { value: MetricType.BMI, label: t('health.metricTypes.bmi') },
     { value: MetricType.HEART_RATE, label: t('health.metricTypes.heartRate') },
-    { value: MetricType.BLOOD_PRESSURE, label: t('health.metricTypes.bloodPressure') },
-    { value: MetricType.BODY_TEMPERATURE, label: t('health.metricTypes.bodyTemperature') },
-    { value: MetricType.SLEEP_HOURS, label: t('health.metricTypes.sleepHours') },
-    { value: MetricType.WATER_INTAKE, label: t('health.metricTypes.waterIntake') },
+    {
+      value: MetricType.BLOOD_PRESSURE,
+      label: t('health.metricTypes.bloodPressure'),
+    },
+    {
+      value: MetricType.BODY_TEMPERATURE,
+      label: t('health.metricTypes.bodyTemperature'),
+    },
+    {
+      value: MetricType.SLEEP_HOURS,
+      label: t('health.metricTypes.sleepHours'),
+    },
+    {
+      value: MetricType.WATER_INTAKE,
+      label: t('health.metricTypes.waterIntake'),
+    },
     { value: MetricType.STEPS, label: t('health.metricTypes.steps') },
-    { value: MetricType.CALORIES_BURNED, label: t('health.metricTypes.caloriesBurned') },
-    { value: MetricType.CALORIES_CONSUMED, label: t('health.metricTypes.caloriesConsumed') },
+    {
+      value: MetricType.CALORIES_BURNED,
+      label: t('health.metricTypes.caloriesBurned'),
+    },
+    {
+      value: MetricType.CALORIES_CONSUMED,
+      label: t('health.metricTypes.caloriesConsumed'),
+    },
   ];
 
   const periods = [
@@ -87,11 +108,7 @@ export default function HealthTrendsScreen() {
   };
 
   const handleMetricSelect = (metric: HealthMetric) => {
-    // TODO: Navigate to metric detail
-    Alert.alert(
-      t('health.trends.metricDetail'),
-      t('health.trends.metricDetailNotImplemented')
-    );
+    router.push(`/health/metric/${metric.id}`);
   };
 
   const handleAddMetric = () => {
@@ -150,7 +167,11 @@ export default function HealthTrendsScreen() {
         <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
           {t('health.trends.title')}
         </Text>
-        <Button title={t('health.addMetric')} onPress={handleAddMetric} size="small" />
+        <Button
+          title={t('health.addMetric')}
+          onPress={handleAddMetric}
+          size="small"
+        />
       </View>
 
       <View style={styles.filters}>

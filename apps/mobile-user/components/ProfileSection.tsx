@@ -21,9 +21,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ title, items }) => {
 
   return (
     <View style={themedStyles.container}>
-      <Text style={[Typography.h6, { color: theme.colors.text }]}>
-        {title}
-      </Text>
+      <Text style={[Typography.h6, { color: theme.colors.text }]}>{title}</Text>
       <View style={themedStyles.sectionContent}>
         {items.map((item, index) => (
           <TouchableOpacity
@@ -37,10 +35,7 @@ const ProfileSection: React.FC<ProfileSectionProps> = ({ title, items }) => {
             <View style={themedStyles.itemLeftContent}>
               <View style={themedStyles.iconContainer}>{item.icon}</View>
               <Text
-                style={[
-                  Typography.bodyMedium,
-                  { color: theme.colors.text },
-                ]}
+                style={[Typography.bodyMedium, { color: theme.colors.text }]}
               >
                 {item.label}
               </Text>
