@@ -1,40 +1,136 @@
 require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const helmet = require('helmet');
 const morgan = require('morgan');
 
 const app = express();
+const server = http.createServer(app);
 
 // Trust proxy - Required when behind reverse proxy (Nginx gateway)
 // This allows Express to correctly handle X-Forwarded-* headers
 app.set('trust proxy', true);
 
+// CORS configuration for Socket.IO
+let socketIOOrigins = [];
+if (process.env.ALLOWED_ORIGINS) {
+  socketIOOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+} else if (process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'ALLOWED_ORIGINS environment variable is required in production. ' +
+      'Please set it in your .env file (comma-separated list of allowed origins).'
+  );
+} else {
+  console.warn(
+    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+  );
+  socketIOOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:8081',
+  ];
+}
+
+// Initialize Socket.IO
+const io = new Server(server, {
+  cors: {
+    origin: process.env.NODE_ENV === 'production' ? socketIOOrigins : '*',
+    methods: ['GET', 'POST', 'OPTIONS'],
+    credentials: false,
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  },
+  transports: ['polling', 'websocket'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000,
+});
+
+// Make io accessible globally
+global.io = io;
+
+// Socket.IO connection handling
+io.on('connection', socket => {
+  console.log(`✅ Billing service: Client connected: ${socket.id}`);
+
+  // Subscribe to user-specific notifications
+  socket.on('subscribe:user', user_id => {
+    socket.join(`user:${user_id}`);
+    console.log(`👤 Billing service: Client ${socket.id} subscribed to user:${user_id}`);
+  });
+
+  // Unsubscribe from user notifications
+  socket.on('unsubscribe:user', user_id => {
+    socket.leave(`user:${user_id}`);
+    console.log(`👤 Billing service: Client ${socket.id} unsubscribed from user:${user_id}`);
+  });
+
+  // Subscribe to admin notifications
+  socket.on('subscribe:admin', () => {
+    socket.join('admin');
+    console.log(`👑 Billing service: Client ${socket.id} subscribed to admin room`);
+  });
+
+  // Unsubscribe from admin notifications
+  socket.on('unsubscribe:admin', () => {
+    socket.leave('admin');
+    console.log(`👑 Billing service: Client ${socket.id} unsubscribed from admin room`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log(`❌ Billing service: Client disconnected: ${socket.id}`);
+  });
+});
+
 // Middleware
 app.use(express.json());
 
 // CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : process.env.NODE_ENV === 'production'
-    ? []
-    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080', 'http://localhost:8081'];
+// In production, ALLOWED_ORIGINS must be set
+// In development, use safe defaults with warning
+let allowedOrigins = [];
+if (process.env.ALLOWED_ORIGINS) {
+  allowedOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+} else if (process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'ALLOWED_ORIGINS environment variable is required in production. ' +
+      'Please set it in your .env file (comma-separated list of allowed origins).'
+  );
+} else {
+  // Development fallback with warning
+  console.warn(
+    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+  );
+  allowedOrigins = [
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:8081',
+  ];
+}
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      
+
+      // In development, allow all origins for easier debugging
+      if (process.env.NODE_ENV !== 'production') {
+        // Log the origin for debugging
+        console.log('CORS: Allowing origin in development:', origin);
+        return callback(null, true);
+      }
+
+      // In production, check against allowed origins
       if (allowedOrigins.includes(origin)) {
         // Return the specific origin (not true) to avoid duplication
         callback(null, origin);
       } else {
-        // In development, log the origin for debugging
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('CORS: Origin not allowed:', origin);
-          console.log('CORS: Allowed origins:', allowedOrigins);
-        }
+        console.log('CORS: Origin not allowed:', origin);
+        console.log('CORS: Allowed origins:', allowedOrigins);
         callback(new Error('Not allowed by CORS'));
       }
     },
@@ -63,26 +159,29 @@ app.get('/health', (req, res) => {
 });
 
 // Import routes
-try {
-  const { billingRoutes } = require('./routes/billing.routes.js');
-  const bankTransferRoutes = require('./routes/bankTransfer.routes.js');
-  console.log('✅ Routes imported successfully');
+const { billingRoutes } = require('./routes/billing.routes.js');
+const bankTransferRoutes = require('./routes/bankTransfer.routes.js');
+console.log('✅ Routes imported successfully');
 
-  // Use routes
-  app.use('/', billingRoutes);
-  app.use('/bank-transfers', bankTransferRoutes);
-  console.log('✅ Routes registered successfully');
-} catch (error) {
-  console.error('❌ Error importing routes:', error.message);
-}
+// Use routes (mounted at root - gateway will forward /billing/* here)
+app.use('/', billingRoutes);
+app.use('/bank-transfers', bankTransferRoutes);
+console.log('✅ Routes registered successfully');
 
 // Error handling middleware (must be after routes)
-const { errorHandler, notFoundHandler } = require('../../../packages/shared-middleware/src/error.middleware.js');
+const {
+  errorHandler,
+  notFoundHandler,
+} = require('../../../packages/shared-middleware/src/error.middleware.js');
 app.use(notFoundHandler);
 app.use(errorHandler);
 
 // Scheduled jobs
 const cron = require('node-cron');
+
+// Start cache warming job (runs every hour)
+const cacheWarmingJob = require('./jobs/cache-warming.job');
+cacheWarmingJob.startScheduled();
 const revenueReportService = require('./services/revenue-report.service.js');
 
 // Generate revenue report daily at 2 AM
@@ -104,6 +203,7 @@ console.log('✅ Scheduled jobs initialized');
 
 const port = process.env.PORT || 3004;
 const host = process.env.HOST || '0.0.0.0';
-app.listen(port, host, () => {
+server.listen(port, host, () => {
   console.log(`billing-service listening on port ${port}`);
+  console.log(`WebSocket server initialized`);
 });
