@@ -1,4 +1,5 @@
 const { prisma } = require('../lib/prisma.js');
+const redisService = require('../services/redis.service.js');
 
 class DeviceController {
   /**
@@ -60,6 +61,10 @@ class DeviceController {
         });
       }
 
+      // Delete session from Redis first
+      await redisService.deleteSession(deviceId, userId);
+
+      // Delete session from database
       await prisma.session.delete({
         where: { id: deviceId },
       });
@@ -86,6 +91,13 @@ class DeviceController {
     try {
       const userId = req.user.id;
 
+      // Add all tokens to blacklist
+      await redisService.revokeAllTokens(userId);
+
+      // Revoke all sessions from Redis
+      await redisService.revokeUserSessions(userId);
+
+      // Delete all sessions from database
       await prisma.session.deleteMany({
         where: { user_id: userId },
       });

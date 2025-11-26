@@ -1,4 +1,3 @@
-import { Picker } from '@/components/ui/Picker';
 import { useAuth } from '@/contexts/AuthContext';
 import { achievementService } from '@/services/member/achievement.service';
 import type { LeaderboardEntry } from '@/types/achievementTypes';
@@ -16,6 +15,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -32,13 +32,13 @@ export default function LeaderboardScreen() {
   const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState('monthly');
+  const [selectedPeriod, setSelectedPeriod] = useState<'weekly' | 'monthly' | 'yearly' | 'alltime'>('monthly');
   const [leaderboard, setLeaderboard] = useState<LeaderboardEntry[]>([]);
   const [userRank, setUserRank] = useState<LeaderboardEntry | null>(null);
 
   const themedStyles = styles(theme);
 
-  const periods = [
+  const periods: { label: string; value: 'weekly' | 'monthly' | 'yearly' | 'alltime' }[] = [
     { label: t('achievements.periods.weekly'), value: 'weekly' },
     { label: t('achievements.periods.monthly'), value: 'monthly' },
     { label: t('achievements.periods.yearly'), value: 'yearly' },
@@ -49,6 +49,7 @@ export default function LeaderboardScreen() {
     if (!user?.id) return;
 
     try {
+      setLoading(true);
       const [leaderboardResponse, userRankData] = await Promise.all([
         achievementService.getLeaderboard({ period: selectedPeriod as any }),
         achievementService.getUserRank(user.id, selectedPeriod),
@@ -67,6 +68,8 @@ export default function LeaderboardScreen() {
       console.error('Error loading leaderboard:', error);
       setLeaderboard([]);
       setUserRank(null);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -76,8 +79,10 @@ export default function LeaderboardScreen() {
     setRefreshing(false);
   };
 
-  const handlePeriodChange = (period: string) => {
-    setSelectedPeriod(period);
+  const handlePeriodChange = (period: 'weekly' | 'monthly' | 'yearly' | 'alltime') => {
+    if (selectedPeriod !== period) {
+      setSelectedPeriod(period);
+    }
   };
 
   const getRankIcon = (rank: number) => {
@@ -101,8 +106,9 @@ export default function LeaderboardScreen() {
   };
 
   useEffect(() => {
-    loadLeaderboard();
-    setLoading(false);
+    if (user?.id) {
+      loadLeaderboard();
+    }
   }, [user?.id, selectedPeriod]);
 
   if (loading) {
@@ -144,26 +150,67 @@ export default function LeaderboardScreen() {
         </View>
       </View>
 
+      {/* Period Filter */}
       <View style={themedStyles.filterContainer}>
-        <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
-          {t('common.period')}:
-        </Text>
-        <View style={themedStyles.periodSelector}>
-          <Picker
-            selectedValue={selectedPeriod}
-            onValueChange={handlePeriodChange}
-            items={periods}
-          />
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={themedStyles.periodContainer}
+        >
+          {periods.map((period) => {
+            const isActive = selectedPeriod === period.value;
+            return (
+              <TouchableOpacity
+                key={period.value}
+                style={[
+                  themedStyles.periodButton,
+                  isActive && themedStyles.activePeriodButton,
+                ]}
+                onPress={() => handlePeriodChange(period.value)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    Typography.bodySmall,
+                    {
+                      color: isActive
+                        ? theme.colors.primary
+                        : theme.colors.textSecondary,
+                      fontWeight: isActive ? '600' : '400',
+                    },
+                  ]}
+                >
+                  {period.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
-      <ScrollView
-        style={themedStyles.scrollView}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
+      {loading ? (
+        <View style={themedStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
+          <Text
+            style={[
+              Typography.bodyRegular,
+              {
+                color: theme.colors.textSecondary,
+                marginTop: theme.spacing.md,
+              },
+            ]}
+          >
+            {t('common.loading')}
+          </Text>
+        </View>
+      ) : (
+        <ScrollView
+          style={themedStyles.scrollView}
+          showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+        >
         {userRank && (
           <View style={themedStyles.userRankCard}>
             <View style={themedStyles.userRankHeader}>
@@ -366,6 +413,7 @@ export default function LeaderboardScreen() {
           </Text>
         </View>
       </ScrollView>
+      )}
     </SafeAreaView>
   );
 }
@@ -400,17 +448,25 @@ const styles = (theme: any) =>
       alignItems: 'center',
     },
     filterContainer: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
-      backgroundColor: theme.colors.surface,
+      paddingVertical: theme.spacing.sm,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
-      gap: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
     },
-    periodSelector: {
-      flex: 1,
+    periodContainer: {
+      paddingHorizontal: theme.spacing.md,
+    },
+    periodButton: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      marginRight: theme.spacing.sm,
+      borderRadius: theme.radius.md,
+      backgroundColor: theme.colors.surface,
+      minWidth: undefined,
+      alignSelf: 'flex-start',
+    },
+    activePeriodButton: {
+      backgroundColor: theme.colors.primaryLight,
     },
     scrollView: {
       flex: 1,

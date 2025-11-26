@@ -2,18 +2,21 @@ import { MembershipBadge } from '@/components/MembershipBadge';
 import { DiscountCode, MembershipPlan } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
+import { PartyPopper } from 'lucide-react-native';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { StyleSheet, Text, View } from 'react-native';
 
 interface PaymentSummaryProps {
   plan: MembershipPlan;
+  totalAmount?: number; // Optional: if provided, use this instead of calculating from plan
   discount?: DiscountCode | null;
   bonusDays?: number;
 }
 
 export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   plan,
+  totalAmount,
   discount,
   bonusDays = 0,
 }) => {
@@ -31,13 +34,19 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   const calculateDiscount = () => {
     if (!discount) return 0;
 
-    const setupFeeNum =
-      typeof plan.setup_fee === 'string'
-        ? parseFloat(plan.setup_fee)
-        : plan.setup_fee || 0;
-    const priceNum =
-      typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
-    const basePrice = priceNum + setupFeeNum;
+    // If totalAmount is provided (for upgrade/renew), use it as base
+    // Otherwise calculate from plan price + setup fee
+    const basePrice = totalAmount !== undefined 
+      ? totalAmount
+      : (() => {
+          const setupFeeNum =
+            typeof plan.setup_fee === 'string'
+              ? parseFloat(plan.setup_fee)
+              : plan.setup_fee || 0;
+          const priceNum =
+            typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
+          return priceNum + setupFeeNum;
+        })();
 
     if (discount.type === 'PERCENTAGE') {
       const discountAmount = (basePrice * discount.value) / 100;
@@ -62,7 +71,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
       : plan.setup_fee || 0;
   const priceNum =
     typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
-  const subtotal = priceNum + setupFeeNum;
+  const subtotal = totalAmount !== undefined ? totalAmount : (priceNum + setupFeeNum);
   const discountAmount = calculateDiscount();
   const total = Math.max(0, subtotal - discountAmount);
 
@@ -229,14 +238,13 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
                 : ''}
             </Text>
             {bonusDays > 0 ? (
-              <Text style={themedStyles.bonusText}>
-                {String(
-                  `🎉 ${
-                    t('registration.bonusDaysApplied', { days: bonusDays }) ||
-                    `Đã thêm ${bonusDays} ngày sử dụng`
-                  }`
-                )}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <PartyPopper size={16} color={theme.colors.primary} />
+                <Text style={themedStyles.bonusText}>
+                  {t('registration.bonusDaysApplied', { days: bonusDays }) ||
+                    `Đã thêm ${bonusDays} ngày sử dụng'}
+                </Text>
+              </View>
             ) : null}
           </View>
         </View>

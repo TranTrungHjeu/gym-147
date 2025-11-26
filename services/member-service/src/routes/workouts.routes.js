@@ -40,4 +40,11 @@ router.get('/members/:id/workout-recommendations', (req, res) =>
   workoutController.getWorkoutRecommendations(req, res)
 );
 
+// ==================== WORKOUT SESSION ROUTES ====================
+
+// Complete workout plan session and calculate calories
+router.post('/members/:id/workout-sessions/complete', (req, res) =>
+  workoutController.completeWorkoutSession(req, res)
+);
+
 module.exports = router;

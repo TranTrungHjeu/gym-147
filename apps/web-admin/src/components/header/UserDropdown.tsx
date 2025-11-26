@@ -213,23 +213,17 @@ export default function UserDropdown() {
                 }}
               />
               <div className='hidden w-full h-full'>
-                {user ? (
-                  generateAvatar(
+                {generateAvatar(
                     user?.firstName || user?.first_name || 'U',
                     user?.lastName || user?.last_name || 'S'
-                  )
-                ) : (
-                  <img src='/images/user/owner.jpg' alt='User' className='w-full h-full object-cover' />
                 )}
               </div>
             </>
-          ) : user ? (
+          ) : (
             generateAvatar(
               user?.firstName || user?.first_name || 'U',
               user?.lastName || user?.last_name || 'S'
             )
-          ) : (
-            <img src='/images/user/owner.jpg' alt='User' className='w-full h-full object-cover' />
           )}
         </span>
 
@@ -245,7 +239,10 @@ export default function UserDropdown() {
         </span>
         <motion.svg
           animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
+          transition={{ 
+            duration: 0.3, 
+            ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out for smooth rotation
+          }}
           className='stroke-[var(--color-gray-500)] dark:stroke-[var(--color-gray-400)]'
           width='18'
           height='20'
@@ -268,30 +265,15 @@ export default function UserDropdown() {
         onClose={closeDropdown}
         className='absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] p-3 shadow-lg'
       >
-        <div>
-          <span
-            className='block font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] text-sm'
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-          >
-            {user
-              ? `${user?.firstName || user?.first_name || ''} ${
-                  user?.lastName || user?.last_name || ''
-                }`.trim() || t('common.defaultUserName')
-              : t('common.defaultUserName')}
-          </span>
-          <span
-            className='mt-0.5 block text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'
-            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-          >
-            {user?.email || 'randomuser@pimjo.com'}
-          </span>
-        </div>
-
-        <ul className='flex flex-col gap-1 pt-4 pb-3 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+        <ul className='flex flex-col gap-1 py-2'>
           <motion.li
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.05 }}
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ 
+              duration: 0.25, 
+              delay: 0.06,
+              ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
+            }}
           >
             <DropdownItem
               onItemClick={closeDropdown}
@@ -339,9 +321,13 @@ export default function UserDropdown() {
             </DropdownItem>
           </motion.li>
           <motion.li
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.08 }}
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ 
+              duration: 0.25, 
+              delay: 0.1,
+              ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
+            }}
           >
             <DropdownItem
               onItemClick={closeDropdown}
@@ -389,9 +375,13 @@ export default function UserDropdown() {
             </DropdownItem>
           </motion.li>
           <motion.li
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.11 }}
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ 
+              duration: 0.25, 
+              delay: 0.14,
+              ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
+            }}
           >
             <DropdownItem
               onItemClick={closeDropdown}
@@ -439,9 +429,13 @@ export default function UserDropdown() {
             </DropdownItem>
           </motion.li>
           <motion.li
-            initial={{ opacity: 0, x: -10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.2, delay: 0.14 }}
+            initial={{ opacity: 0, x: -12, scale: 0.95 }}
+            animate={{ opacity: 1, x: 0, scale: 1 }}
+            transition={{ 
+              duration: 0.25, 
+              delay: 0.18,
+              ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
+            }}
           >
             <div className='px-3 py-2'>
               <div className='flex items-center gap-3 mb-2'>
@@ -480,31 +474,37 @@ export default function UserDropdown() {
             </div>
           </motion.li>
         </ul>
-        <motion.button
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.2, delay: 0.17 }}
-          onClick={handleSignOut}
-          className='flex items-center gap-3 px-3 py-2 mt-3 font-medium text-[var(--color-red-600)] dark:text-[var(--color-red-400)] rounded-lg group text-sm hover:bg-[var(--color-red-50)] dark:hover:bg-[var(--color-red-900)]/20 hover:text-[var(--color-red-700)] dark:hover:text-[var(--color-red-200)] transition-colors duration-200 w-full text-left'
-          style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-        >
-          <svg
-            className='fill-[var(--color-red-600)] group-hover:fill-[var(--color-red-700)] dark:fill-[var(--color-red-400)] dark:group-hover:fill-[var(--color-red-200)]'
-            width='24'
-            height='24'
-            viewBox='0 0 24 24'
-            fill='none'
-            xmlns='http://www.w3.org/2000/svg'
+        <div className='border-t border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] mt-1 pt-1'>
+          <motion.button
+            initial={{ opacity: 0, y: 8, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ 
+              duration: 0.25, 
+              delay: 0.22,
+              ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
+            }}
+            onClick={handleSignOut}
+            className='flex items-center gap-3 px-3 py-2 font-medium text-[var(--color-red-600)] dark:text-[var(--color-red-400)] rounded-lg group text-sm hover:bg-[var(--color-red-50)] dark:hover:bg-[var(--color-red-900)]/20 hover:text-[var(--color-red-700)] dark:hover:text-[var(--color-red-200)] transition-colors duration-200 w-full text-left'
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
-            <path
-              fillRule='evenodd'
-              clipRule='evenodd'
-              d='M15.1007 19.247C14.6865 19.247 14.3507 18.9112 14.3507 18.497L14.3507 14.245H12.8507V18.497C12.8507 19.7396 13.8581 20.747 15.1007 20.747H18.5007C19.7434 20.747 20.7507 19.7396 20.7507 18.497L20.7507 5.49609C20.7507 4.25345 19.7433 3.24609 18.5007 3.24609H15.1007C13.8581 3.24609 12.8507 4.25345 12.8507 5.49609V9.74501L14.3507 9.74501V5.49609C14.3507 5.08188 14.6865 4.74609 15.1007 4.74609L18.5007 4.74609C18.9149 4.74609 19.2507 5.08188 19.2507 5.49609L19.2507 18.497C19.2507 18.9112 18.9149 19.247 18.5007 19.247H15.1007ZM3.25073 11.9984C3.25073 12.2144 3.34204 12.4091 3.48817 12.546L8.09483 17.1556C8.38763 17.4485 8.86251 17.4487 9.15549 17.1559C9.44848 16.8631 9.44863 16.3882 9.15583 16.0952L5.81116 12.7484L16.0007 12.7484C16.4149 12.7484 16.7507 12.4127 16.7507 11.9984C16.7507 11.5842 16.4149 11.2484 16.0007 11.2484L5.81528 11.2484L9.15585 7.90554C9.44864 7.61255 9.44847 7.13767 9.15547 6.84488C8.86248 6.55209 8.3876 6.55226 8.09481 6.84525L3.52309 11.4202C3.35673 11.5577 3.25073 11.7657 3.25073 11.9984Z'
-              fill=''
-            />
-          </svg>
-          {t('user.menu.signOut')}
-        </motion.button>
+            <svg
+              className='fill-[var(--color-red-600)] group-hover:fill-[var(--color-red-700)] dark:fill-[var(--color-red-400)] dark:group-hover:fill-[var(--color-red-200)]'
+              width='24'
+              height='24'
+              viewBox='0 0 24 24'
+              fill='none'
+              xmlns='http://www.w3.org/2000/svg'
+            >
+              <path
+                fillRule='evenodd'
+                clipRule='evenodd'
+                d='M15.1007 19.247C14.6865 19.247 14.3507 18.9112 14.3507 18.497L14.3507 14.245H12.8507V18.497C12.8507 19.7396 13.8581 20.747 15.1007 20.747H18.5007C19.7434 20.747 20.7507 19.7396 20.7507 18.497L20.7507 5.49609C20.7507 4.25345 19.7433 3.24609 18.5007 3.24609H15.1007C13.8581 3.24609 12.8507 4.25345 12.8507 5.49609V9.74501L14.3507 9.74501V5.49609C14.3507 5.08188 14.6865 4.74609 15.1007 4.74609L18.5007 4.74609C18.9149 4.74609 19.2507 5.08188 19.2507 5.49609L19.2507 18.497C19.2507 18.9112 18.9149 19.247 18.5007 19.247H15.1007ZM3.25073 11.9984C3.25073 12.2144 3.34204 12.4091 3.48817 12.546L8.09483 17.1556C8.38763 17.4485 8.86251 17.4487 9.15549 17.1559C9.44848 16.8631 9.44863 16.3882 9.15583 16.0952L5.81116 12.7484L16.0007 12.7484C16.4149 12.7484 16.7507 12.4127 16.7507 11.9984C16.7507 11.5842 16.4149 11.2484 16.0007 11.2484L5.81528 11.2484L9.15585 7.90554C9.44864 7.61255 9.44847 7.13767 9.15547 6.84488C8.86248 6.55209 8.3876 6.55226 8.09481 6.84525L3.52309 11.4202C3.35673 11.5577 3.25073 11.7657 3.25073 11.9984Z'
+                fill=''
+              />
+            </svg>
+            {t('user.menu.signOut')}
+          </motion.button>
+        </div>
       </Dropdown>
     </div>
   );

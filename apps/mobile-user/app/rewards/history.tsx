@@ -8,13 +8,18 @@ import {
   Calendar,
   CheckCircle,
   Clock,
+  Copy,
   Gift,
+  QrCode,
+  X,
   XCircle,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Image,
+  Modal,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -23,6 +28,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
+import QRCode from 'react-native-qrcode-svg';
 
 export default function RewardHistoryScreen() {
   const router = useRouter();
@@ -33,6 +40,9 @@ export default function RewardHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedRedemption, setSelectedRedemption] = useState<RewardRedemption | null>(null);
+  const [codeCopied, setCodeCopied] = useState(false);
 
   const themedStyles = styles(theme);
 
@@ -92,15 +102,18 @@ export default function RewardHistoryScreen() {
   };
 
   const getStatusLabel = (status: string) => {
-    const labels: Record<string, string> = {
-      PENDING: 'Đang xử lý',
-      ACTIVE: 'Đang hoạt động',
-      USED: 'Đã sử dụng',
-      EXPIRED: 'Hết hạn',
-      CANCELLED: 'Đã hủy',
-      REFUNDED: 'Đã hoàn tiền',
-    };
-    return labels[status] || status;
+    return t(`rewards.statusLabel.${status}` as any) || status;
+  };
+
+  const handleCopyCode = async (code: string) => {
+    await Clipboard.setStringAsync(code);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
+
+  const handleShowQR = (redemption: RewardRedemption) => {
+    setSelectedRedemption(redemption);
+    setShowQRModal(true);
   };
 
   const getStatusIcon = (status: string) => {
@@ -133,7 +146,7 @@ export default function RewardHistoryScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
-          Lịch sử đổi thưởng
+          {t('rewards.history')}
         </Text>
       </View>
 
@@ -146,17 +159,17 @@ export default function RewardHistoryScreen() {
           <View style={themedStyles.emptyState}>
             <Gift size={64} color={theme.colors.textSecondary} />
             <Text style={[Typography.h4, { color: theme.colors.text, marginTop: 16 }]}>
-              Chưa có lịch sử đổi thưởng
+              {t('rewards.noHistory')}
             </Text>
             <Text style={[Typography.body, { color: theme.colors.textSecondary, marginTop: 8, textAlign: 'center' }]}>
-              Bạn chưa đổi phần thưởng nào. Hãy khám phá các phần thưởng có sẵn!
+              {t('rewards.noHistoryMessage')}
             </Text>
             <TouchableOpacity
               style={[themedStyles.exploreButton, { backgroundColor: theme.colors.primary }]}
               onPress={() => router.push('/rewards')}
             >
               <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse }]}>
-                Khám phá phần thưởng
+                {t('rewards.title')}
               </Text>
             </TouchableOpacity>
           </View>
@@ -180,10 +193,10 @@ export default function RewardHistoryScreen() {
                     )}
                     <View style={themedStyles.rewardDetails}>
                       <Text style={[Typography.bodyMedium, { color: theme.colors.text }]} numberOfLines={2}>
-                        {redemption.reward?.title || 'Phần thưởng'}
+                        {redemption.reward?.title || t('rewards.title')}
                       </Text>
                       <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginTop: 4 }]}>
-                        {redemption.points_spent.toLocaleString()} điểm
+                        {redemption.points_spent.toLocaleString()} {t('rewards.points')}
                       </Text>
                     </View>
                   </View>
@@ -209,9 +222,39 @@ export default function RewardHistoryScreen() {
                 {/* Code (if available) */}
                 {redemption.code && (
                   <View style={themedStyles.codeContainer}>
-                    <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
-                      Mã: <Text style={[Typography.bodyMedium, { color: theme.colors.text, fontFamily: 'JetBrainsMono-Regular' }]}>{redemption.code}</Text>
-                    </Text>
+                    <View style={themedStyles.codeRow}>
+                      <View style={themedStyles.codeInfo}>
+                        <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
+                          {t('rewards.redemptionCode')}:
+                        </Text>
+                        <Text style={[Typography.bodyMedium, { color: theme.colors.text, fontFamily: 'SpaceGrotesk-Bold', marginTop: 4, letterSpacing: 1 }]}>
+                          {redemption.code}
+                        </Text>
+                      </View>
+                      <View style={themedStyles.codeActions}>
+                        <TouchableOpacity
+                          style={themedStyles.codeActionButton}
+                          onPress={() => handleCopyCode(redemption.code!)}
+                        >
+                          {codeCopied ? (
+                            <CheckCircle size={20} color={theme.colors.success} />
+                          ) : (
+                            <Copy size={20} color={theme.colors.primary} />
+                          )}
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={themedStyles.codeActionButton}
+                          onPress={() => handleShowQR(redemption)}
+                        >
+                          <QrCode size={20} color={theme.colors.primary} />
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    {codeCopied && (
+                      <Text style={[Typography.caption, { color: theme.colors.success, marginTop: 8, textAlign: 'center' }]}>
+                        {t('rewards.codeCopied')}
+                      </Text>
+                    )}
                   </View>
                 )}
 
@@ -220,14 +263,14 @@ export default function RewardHistoryScreen() {
                   <View style={themedStyles.dateRow}>
                     <Calendar size={14} color={theme.colors.textSecondary} />
                     <Text style={[Typography.caption, { color: theme.colors.textSecondary, marginLeft: 6 }]}>
-                      Đổi lúc: {formatDate(redemption.redeemed_at)}
+                      {t('rewards.redeemedAt')}: {formatDate(redemption.redeemed_at)}
                     </Text>
                   </View>
                   {redemption.used_at && (
                     <View style={[themedStyles.dateRow, { marginTop: 4 }]}>
                       <CheckCircle size={14} color={theme.colors.success} />
                       <Text style={[Typography.caption, { color: theme.colors.success, marginLeft: 6 }]}>
-                        Sử dụng: {formatDate(redemption.used_at)}
+                        {t('rewards.usedAt')}: {formatDate(redemption.used_at)}
                       </Text>
                     </View>
                   )}
@@ -235,7 +278,7 @@ export default function RewardHistoryScreen() {
                     <View style={[themedStyles.dateRow, { marginTop: 4 }]}>
                       <Clock size={14} color={theme.colors.warning} />
                       <Text style={[Typography.caption, { color: theme.colors.warning, marginLeft: 6 }]}>
-                        Hết hạn: {formatDate(redemption.expires_at)}
+                        {t('rewards.expiresAt')}: {formatDate(redemption.expires_at)}
                       </Text>
                     </View>
                   )}
@@ -254,6 +297,70 @@ export default function RewardHistoryScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* QR Code Modal */}
+      <Modal
+        visible={showQRModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowQRModal(false)}
+      >
+        <View style={themedStyles.qrModalOverlay}>
+          <View style={themedStyles.qrModalContainer}>
+            <View style={themedStyles.qrModalHeader}>
+              <Text style={[Typography.h3, { color: theme.colors.text }]}>
+                {t('rewards.qrCode')}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowQRModal(false)}
+                style={themedStyles.qrModalCloseButton}
+              >
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+            {selectedRedemption?.code && (
+              <>
+                <View style={themedStyles.qrCodeWrapper}>
+                  <QRCode
+                    value={selectedRedemption.code}
+                    size={250}
+                    color={theme.colors.text}
+                    backgroundColor={theme.colors.background}
+                  />
+                </View>
+                <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginTop: 16, textAlign: 'center' }]}>
+                  {t('rewards.qrCodeDescription')}
+                </Text>
+                <View style={themedStyles.qrCodeContainer}>
+                  <Text style={[Typography.bodyMedium, { color: theme.colors.text, fontFamily: 'SpaceGrotesk-Bold', letterSpacing: 2 }]}>
+                    {selectedRedemption.code}
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={[themedStyles.copyCodeButton, { backgroundColor: theme.colors.primary }]}
+                  onPress={() => handleCopyCode(selectedRedemption.code!)}
+                >
+                  {codeCopied ? (
+                    <>
+                      <CheckCircle size={20} color={theme.colors.textInverse} />
+                      <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
+                        {t('rewards.codeCopied')}
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Copy size={20} color={theme.colors.textInverse} />
+                      <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
+                        {t('rewards.copyCode')}
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -345,6 +452,23 @@ const styles = (theme: any) =>
       borderRadius: 8,
       marginBottom: 12,
     },
+    codeRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    codeInfo: {
+      flex: 1,
+    },
+    codeActions: {
+      flexDirection: 'row',
+      gap: 8,
+    },
+    codeActionButton: {
+      padding: 8,
+      borderRadius: 8,
+      backgroundColor: theme.colors.surface,
+    },
     datesContainer: {
       marginTop: 8,
     },
@@ -357,6 +481,55 @@ const styles = (theme: any) =>
       paddingTop: 12,
       borderTopWidth: 1,
       borderTopColor: theme.colors.border,
+    },
+    qrModalOverlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0, 0, 0, 0.7)',
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    qrModalContainer: {
+      width: '90%',
+      maxWidth: 400,
+      backgroundColor: theme.colors.background,
+      borderRadius: 24,
+      padding: 24,
+      alignItems: 'center',
+    },
+    qrModalHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      width: '100%',
+      marginBottom: 20,
+    },
+    qrModalCloseButton: {
+      padding: 4,
+    },
+    qrCodeWrapper: {
+      padding: 20,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 16,
+      borderWidth: 2,
+      borderColor: theme.colors.border,
+    },
+    qrCodeContainer: {
+      marginTop: 16,
+      padding: 12,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    copyCodeButton: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 24,
+      borderRadius: 12,
+      marginTop: 20,
+      width: '100%',
     },
   });
 

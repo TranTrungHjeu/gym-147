@@ -364,21 +364,24 @@
   ::before,
   ::backdrop,
   ::file-selector-button {
-    border-color: var(--color-gray-200, currentColor);
+    border-color: var(--border-color, currentColor);
   }
   button:not(:disabled),
   [role='button']:not(:disabled) {
     cursor: pointer;
   }
   body {
-    @apply relative font-normal font-inter z-1 bg-gray-50;
+    @apply relative font-normal font-inter z-1;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   /* Global scrollbar styling for entire application */
   html,
   body {
     scrollbar-width: thin;
-    scrollbar-color: #d1d5db transparent;
+    scrollbar-color: var(--color-neutral-300) transparent;
   }
 
   html::-webkit-scrollbar,
@@ -395,14 +398,14 @@
 
   html::-webkit-scrollbar-thumb,
   body::-webkit-scrollbar-thumb {
-    background-color: #d1d5db;
+    background-color: var(--color-neutral-300);
     border-radius: 6px;
     transition: background-color 0.2s ease;
   }
 
   html::-webkit-scrollbar-thumb:hover,
   body::-webkit-scrollbar-thumb:hover {
-    background-color: #9ca3af;
+    background-color: var(--color-neutral-400);
   }
 
   html::-webkit-scrollbar-corner,
@@ -418,17 +421,17 @@
 
   .dark html::-webkit-scrollbar-thumb,
   .dark body::-webkit-scrollbar-thumb {
-    background-color: #4b5563;
+    background-color: var(--color-neutral-600);
   }
 
   .dark html::-webkit-scrollbar-thumb:hover,
   .dark body::-webkit-scrollbar-thumb:hover {
-    background-color: #6b7280;
+    background-color: var(--color-neutral-500);
   }
 
   .dark html,
   .dark body {
-    scrollbar-color: #4b5563 transparent;
+    scrollbar-color: var(--color-neutral-600) transparent;
   }
 
   /* Mobile responsive scrollbar */
@@ -997,7 +1000,7 @@ input[type='checkbox']:checked {
 }
 .flatpickr-day.nextMonthDay,
 .flatpickr-day.prevMonthDay {
-  @apply !text-gray-400;
+  @apply !text-gray-400 dark:!text-gray-600;
 }
 
 .flatpickr-months > .flatpickr-month {
@@ -1162,19 +1165,19 @@ span.flatpickr-weekday,
 }
 
 .status-in-progress {
-  @apply bg-green-100 text-green-800 border-green-200;
+  @apply bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800;
 }
 
 .status-completed {
-  @apply bg-gray-100 text-gray-800 border-gray-200;
+  @apply bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700;
 }
 
 .status-cancelled {
-  @apply bg-red-100 text-red-800 border-red-200;
+  @apply bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300 border-red-200 dark:border-red-800;
 }
 
 .status-postponed {
-  @apply bg-yellow-100 text-yellow-800 border-yellow-200;
+  @apply bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800;
 }
 
 /* Dark mode status styling */
@@ -1257,7 +1260,7 @@ span.flatpickr-weekday,
   @apply !border-gray-200 dark:!border-gray-800;
 }
 .fc .fc-col-header-cell-cushion {
-  @apply !px-5 !py-4 text-sm font-medium uppercase text-gray-400;
+  @apply !px-5 !py-4 text-sm font-medium uppercase text-gray-400 dark:text-gray-500;
 }
 .fc .fc-daygrid-day.fc-day-today {
   @apply bg-transparent;
@@ -1284,7 +1287,7 @@ span.flatpickr-weekday,
   @apply rounded-lg py-2.5 pl-4 pr-3;
 }
 .event-fc-color .fc-event-title {
-  @apply p-0 text-sm font-normal text-gray-700;
+  @apply p-0 text-sm font-normal text-gray-700 dark:text-gray-200;
 }
 .fc-daygrid-event-dot {
   @apply w-1 h-5 ml-0 mr-3 border-none rounded-sm;
@@ -1296,16 +1299,16 @@ span.flatpickr-weekday,
   @apply !ml-3;
 }
 .event-fc-color.fc-bg-success {
-  @apply border-success-50 bg-success-50;
+  @apply border-success-50 bg-success-50 dark:border-success-900/30 dark:bg-success-900/20;
 }
 .event-fc-color.fc-bg-danger {
-  @apply border-error-50 bg-error-50;
+  @apply border-error-50 bg-error-50 dark:border-error-900/30 dark:bg-error-900/20;
 }
 .event-fc-color.fc-bg-primary {
-  @apply border-brand-50 bg-brand-50;
+  @apply border-brand-50 bg-brand-50 dark:border-orange-900/30 dark:bg-orange-900/20;
 }
 .event-fc-color.fc-bg-warning {
-  @apply border-orange-50 bg-orange-50;
+  @apply border-orange-50 bg-orange-50 dark:border-orange-900/30 dark:bg-orange-900/20;
 }
 .event-fc-color.fc-bg-success .fc-daygrid-event-dot {
   @apply bg-success-500;
@@ -1330,6 +1333,60 @@ span.flatpickr-weekday,
 .input-date-icon::-webkit-calendar-picker-indicator {
   opacity: 0;
   -webkit-appearance: none;
+}
+
+/* Header search input - prevent CSS override */
+.header-search-input {
+  height: 30px !important;
+  font-size: 11px !important;
+  padding-top: 0 !important;
+  padding-bottom: 0 !important;
+  line-height: 30px !important;
+}
+
+/* Header search input - prevent CSS override with maximum specificity */
+/* Override ALL possible blue/brand colors */
+header .header-search-input,
+header form .header-search-input,
+header form input.header-search-input,
+header form input[type='text'].header-search-input {
+  border-color: rgb(209, 213, 219) !important; /* gray-300 */
+}
+
+header .header-search-input:focus,
+header .header-search-input:focus-visible,
+header .header-search-input:active,
+header form .header-search-input:focus,
+header form .header-search-input:focus-visible,
+header form input.header-search-input:focus,
+header form input.header-search-input:focus-visible,
+header form input[type='text'].header-search-input:focus,
+header form input[type='text'].header-search-input:focus-visible {
+  border-color: #f97316 !important; /* orange-500 - override any blue */
+  outline: none !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3) !important; /* orange-500/30 */
+}
+
+/* Override brand colors specifically - highest priority */
+header .header-search-input:focus[class*='brand'],
+header form .header-search-input:focus[class*='brand'],
+header form input.header-search-input:focus[class*='brand'],
+header form input[type='text'].header-search-input:focus[class*='brand'] {
+  border-color: #f97316 !important;
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3) !important;
+}
+
+.dark header .header-search-input:focus,
+.dark header .header-search-input:focus-visible,
+.dark header .header-search-input:active,
+.dark header form .header-search-input:focus,
+.dark header form .header-search-input:focus-visible,
+.dark header form input.header-search-input:focus,
+.dark header form input.header-search-input:focus-visible,
+.dark header form input[type='text'].header-search-input:focus,
+.dark header form input[type='text'].header-search-input:focus-visible {
+  border-color: #f97316 !important; /* orange-500 */
+  box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.3) !important; /* orange-500/30 */
 }
 
 .swiper-button-prev svg,
@@ -1696,4 +1753,46 @@ span.flatpickr-weekday,
 
 .dark .custom-select-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #6b7280;
+}
+
+/* Modal Scrollbar - Extra small and subtle */
+.modal-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+
+.modal-scrollbar::-webkit-scrollbar {
+  width: 3px;
+  height: 3px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+  border-radius: 3px;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+  transition: background-color 0.2s ease;
+}
+
+.modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+.dark .modal-scrollbar {
+  scrollbar-color: #4b5563 transparent;
+}
+
+.dark .modal-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.dark .modal-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #4b5563;
+}
+
+.dark .modal-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #6b7280;
 }

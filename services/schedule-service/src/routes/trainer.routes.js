@@ -6,6 +6,16 @@ const router = Router();
 
 // ==================== TRAINER ROUTES ====================
 router.get('/', (req, res) => trainerController.getAllTrainers(req, res));
+
+// Get trainers for notification (public endpoint, no auth - for bulk notification system)
+// Support both GET (with filters) and POST (with trainer_ids)
+router.get('/for-notification', (req, res) =>
+  trainerController.getTrainersForNotification(req, res)
+);
+router.post('/for-notification', (req, res) =>
+  trainerController.getTrainersForNotification(req, res)
+);
+
 router.get('/user/:user_id', (req, res) => trainerController.getTrainerByUserId(req, res));
 router.get('/user/:user_id/stats', (req, res) => trainerController.getTrainerStats(req, res));
 router.get('/user/:user_id/classes', (req, res) => trainerController.getTrainerClasses(req, res));

@@ -10,7 +10,22 @@ import type {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Bell, Check, MoreVertical, Search, Trash2 } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Bell,
+  Check,
+  MoreVertical,
+  Search,
+  Trash2,
+  Dumbbell,
+  Clock,
+  CreditCard,
+  Calendar,
+  Trophy,
+  Wrench,
+  PartyPopper,
+  Settings,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -145,7 +160,6 @@ export default function NotificationCenterScreen() {
         console.error('Error marking notification as read:', error);
       }
     }
-    // TODO: Navigate to notification detail
     router.push(`/notifications/${notification.id}`);
   };
 
@@ -291,25 +305,27 @@ export default function NotificationCenterScreen() {
   };
 
   const getNotificationIcon = (type: NotificationType) => {
+    const iconSize = 24;
+    const iconColor = theme.colors.primary;
     switch (type) {
       case 'WORKOUT_REMINDER':
-        return '💪';
+        return <Dumbbell size={iconSize} color={iconColor} />;
       case 'MEMBERSHIP_EXPIRY':
-        return '⏰';
+        return <Clock size={iconSize} color={iconColor} />;
       case 'PAYMENT_DUE':
-        return '💳';
+        return <CreditCard size={iconSize} color={iconColor} />;
       case 'CLASS_BOOKING':
-        return '📅';
+        return <Calendar size={iconSize} color={iconColor} />;
       case 'ACHIEVEMENT':
-        return '🏆';
+        return <Trophy size={iconSize} color={iconColor} />;
       case 'MAINTENANCE':
-        return '🔧';
+        return <Wrench size={iconSize} color={iconColor} />;
       case 'PROMOTION':
-        return '🎉';
+        return <PartyPopper size={iconSize} color={iconColor} />;
       case 'SYSTEM':
-        return '⚙️';
+        return <Settings size={iconSize} color={iconColor} />;
       default:
-        return '🔔';
+        return <Bell size={iconSize} color={iconColor} />;
     }
   };
 
@@ -527,9 +543,9 @@ export default function NotificationCenterScreen() {
 
               <View style={styles.notificationContent}>
                 <View style={styles.notificationHeader}>
-                  <Text style={styles.notificationIcon}>
+                  <View style={styles.notificationIcon}>
                     {getNotificationIcon(notification.type)}
-                  </Text>
+                  </View>
                   <View style={styles.notificationInfo}>
                     <Text style={[Typography.h4, { color: theme.colors.text }]}>
                       {notification.title}
@@ -748,8 +764,11 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   notificationIcon: {
-    fontSize: 24,
+    width: 24,
+    height: 24,
     marginRight: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   notificationInfo: {
     flex: 1,

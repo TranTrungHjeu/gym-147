@@ -96,6 +96,21 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
     }
 
     setIsDeleting(true);
+    
+    // Optimistic update: Dispatch event immediately for instant UI update
+    const deleteEvent = new CustomEvent('certification:deleted', {
+      detail: {
+        certification_id: certification.id,
+        id: certification.id,
+        trainer_id: certification.trainer_id,
+        category: certification.category,
+        certification_name: certification.certification_name,
+        deleted_at: new Date().toISOString(),
+      },
+    });
+    window.dispatchEvent(deleteEvent);
+    console.log(`✅ [DELETE_CERT_MODAL] Dispatched optimistic certification:deleted event for ${certification.id}`);
+    
     try {
       await certificationService.deleteCertification(certification.id, reason.trim());
       
@@ -110,10 +125,16 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
         showToast('Đã xóa chứng chỉ thành công', 'success');
       }
       
-      // Optimistic update will be handled by socket events and onDeleteComplete
+      // Call onDeleteComplete for additional cleanup (e.g., in ViewTrainerCertificationsModal)
       onDeleteComplete();
       onClose();
     } catch (error: any) {
+      // Revert optimistic update on error by dispatching a refresh event
+      const refreshEvent = new CustomEvent('certification:refresh', {
+        detail: { certification_id: certification.id },
+      });
+      window.dispatchEvent(refreshEvent);
+      
       if (window.showToast) {
         window.showToast({
           type: 'error',

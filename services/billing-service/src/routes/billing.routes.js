@@ -6,19 +6,28 @@ const router = Router();
 const billingController = new BillingController();
 
 // Membership Plans Routes
-router.get('/plans', (req, res) => billingController.getAllPlans(req, res));
+// IMPORTANT: More specific routes must be defined BEFORE less specific ones
+// Otherwise Express will match /plans before /plans/active
 router.get('/plans/active', (req, res) => billingController.getActivePlans(req, res));
+router.get('/plans', (req, res) => billingController.getAllPlans(req, res));
+router.get('/membership-plans', (req, res) => billingController.getAllPlans(req, res)); // Alias for mobile app
 router.post('/plans', (req, res) => billingController.createPlan(req, res));
 router.put('/plans/:id', (req, res) => billingController.updatePlan(req, res));
 router.delete('/plans/:id', (req, res) => billingController.deletePlan(req, res));
 
 // Subscriptions Routes
 router.get('/subscriptions', (req, res) => billingController.getAllSubscriptions(req, res));
+router.get('/subscriptions/member/:memberId', (req, res) =>
+  billingController.getMemberSubscription(req, res)
+);
 router.post('/subscriptions', (req, res) => billingController.createSubscription(req, res));
 router.post('/subscriptions/with-discount', (req, res) =>
   billingController.createSubscriptionWithDiscount(req, res)
 );
 router.put('/subscriptions/:id', (req, res) => billingController.updateSubscription(req, res));
+router.patch('/subscriptions/:id/renew', (req, res) =>
+  billingController.renewSubscription(req, res)
+);
 router.patch('/subscriptions/:id/cancel', (req, res) =>
   billingController.cancelSubscription(req, res)
 );
@@ -29,7 +38,9 @@ router.get('/payments/:id', (req, res) => billingController.getPaymentById(req, 
 router.post('/payments', (req, res) => billingController.createPayment(req, res));
 router.put('/payments/:id', (req, res) => billingController.updatePayment(req, res));
 router.post('/payments/initiate', (req, res) => billingController.initiatePayment(req, res));
-router.post('/payments/webhook', (req, res) => billingController.handlePaymentWebhook(req, res));
+// Webhook routes with signature verification
+const { verifyWebhookSignature } = require('../middleware/webhook.middleware.js');
+router.post('/payments/webhook', verifyWebhookSignature, (req, res) => billingController.handlePaymentWebhook(req, res));
 router.patch('/payments/:id/process', (req, res) => billingController.processPayment(req, res));
 router.get('/payments/:id/receipt', (req, res) => billingController.downloadReceipt(req, res));
 

@@ -1,7 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Bell, X, Check, AlertCircle, Info, CheckCircle, AlertTriangle } from 'lucide-react';
-import AdminCard from './AdminCard';
+import { notificationService } from '@/services/notification.service';
+import { AlertCircle, AlertTriangle, Bell, CheckCircle, Info, X, Filter, Trash2 } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import AdminButton from './AdminButton';
+import AdminCard from './AdminCard';
+import CustomSelect from './CustomSelect';
 
 interface Notification {
   id: string;
@@ -29,15 +31,21 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [selectedNotifications, setSelectedNotifications] = useState<Set<string>>(new Set());
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterRead, setFilterRead] = useState<string>('all');
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    loadNotifications();
-    
+    loadNotifications(1, false);
+    setPage(1);
+
     if (realTimeUpdates) {
       // Poll for new notifications every 30 seconds
       intervalRef.current = setInterval(() => {
-        loadNotifications();
+        loadNotifications(1, false);
       }, 30000);
     }
 
@@ -46,52 +54,49 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
         clearInterval(intervalRef.current);
       }
     };
-  }, [userId, realTimeUpdates]);
+  }, [userId, realTimeUpdates, filterType, filterRead]);
 
-  const loadNotifications = async () => {
+  // ... (inside component)
+
+  const loadNotifications = async (pageNum: number = 1, append: boolean = false) => {
     try {
       setIsLoading(true);
-      // TODO: Replace with actual API call
-      // const response = await notificationService.getNotifications(userId);
+      const params: any = {
+        page: pageNum,
+        limit: 20,
+      };
       
-      // Mock data for now
-      const mockNotifications: Notification[] = [
-        {
-          id: '1',
-          type: 'info',
-          title: 'Thông báo hệ thống',
-          message: 'Hệ thống sẽ bảo trì vào ngày mai từ 2h-4h sáng',
-          timestamp: new Date(Date.now() - 1000 * 60 * 30),
-          read: false,
-        },
-        {
-          id: '2',
-          type: 'success',
-          title: 'Đăng ký thành công',
-          message: 'Thành viên mới đã đăng ký gói tập Premium',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60),
-          read: false,
-        },
-        {
-          id: '3',
-          type: 'warning',
-          title: 'Cảnh báo thiết bị',
-          message: 'Thiết bị "Máy chạy bộ 1" đang trong trạng thái bảo trì',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2),
-          read: true,
-        },
-        {
-          id: '4',
-          type: 'error',
-          title: 'Lỗi thanh toán',
-          message: 'Giao dịch thanh toán #12345 thất bại',
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 3),
-          read: false,
-        },
-      ];
+      if (filterRead !== 'all') {
+        params.unreadOnly = filterRead === 'unread';
+      }
       
-      setNotifications(mockNotifications);
-      setUnreadCount(mockNotifications.filter(n => !n.read).length);
+      if (filterType !== 'all') {
+        params.type = filterType;
+      }
+
+      const response = await notificationService.getUserNotifications(userId, params);
+
+      if (response.success && response.data) {
+        const mappedNotifications: Notification[] = response.data.notifications.map((n: any) => ({
+          id: n.id,
+          type: mapNotificationType(n.type),
+          title: n.title,
+          message: n.message,
+          timestamp: new Date(n.created_at),
+          read: n.is_read,
+          actionUrl: n.data?.actionUrl,
+          actionLabel: n.data?.actionLabel,
+        }));
+
+        if (append) {
+          setNotifications(prev => [...prev, ...mappedNotifications]);
+        } else {
+          setNotifications(mappedNotifications);
+        }
+
+        setUnreadCount(response.data.pagination?.total || mappedNotifications.filter(n => !n.read).length);
+        setHasMore(mappedNotifications.length === 20 && (response.data.pagination?.pages || 0) > pageNum);
+      }
     } catch (error) {
       console.error('Error loading notifications:', error);
     } finally {
@@ -99,41 +104,108 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     }
   };
 
+  const mapNotificationType = (type: string): Notification['type'] => {
+    if (type.includes('SUCCESS') || type.includes('VERIFIED')) return 'success';
+    if (type.includes('FAILED') || type.includes('ERROR') || type.includes('REJECTED')) return 'error';
+    if (type.includes('WARNING') || type.includes('EXPIRING') || type.includes('OVERDUE')) return 'warning';
+    return 'info';
+  };
+
+  const loadMore = () => {
+    if (!isLoading && hasMore) {
+      const nextPage = page + 1;
+      setPage(nextPage);
+      loadNotifications(nextPage, true);
+    }
+  };
+
   const markAsRead = async (notificationId: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await notificationService.markAsRead(notificationId);
-      
-      setNotifications(prev =>
-        prev.map(n =>
-          n.id === notificationId ? { ...n, read: true } : n
-        )
-      );
+      // Optimistic update
+      setNotifications(prev => prev.map(n => (n.id === notificationId ? { ...n, read: true } : n)));
       setUnreadCount(prev => Math.max(0, prev - 1));
+
+      await notificationService.markAsRead(notificationId, userId);
     } catch (error) {
       console.error('Error marking notification as read:', error);
+      // Revert on error
+      loadNotifications(page, false);
     }
+  };
+
+  const bulkMarkAsRead = async () => {
+    if (selectedNotifications.size === 0) return;
+
+    try {
+      const notificationIds = Array.from(selectedNotifications);
+      
+      // Optimistic update
+      setNotifications(prev =>
+        prev.map(n => (notificationIds.includes(n.id) ? { ...n, read: true } : n))
+      );
+      setUnreadCount(prev => Math.max(0, prev - notificationIds.filter(id => {
+        const notif = notifications.find(n => n.id === id);
+        return notif && !notif.read;
+      }).length));
+      setSelectedNotifications(new Set());
+
+      await notificationService.bulkMarkAsRead(userId, notificationIds);
+    } catch (error) {
+      console.error('Error bulk marking notifications as read:', error);
+      loadNotifications(page, false);
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (selectedNotifications.size === 0) return;
+
+    try {
+      const notificationIds = Array.from(selectedNotifications);
+      
+      // Optimistic update
+      setNotifications(prev => prev.filter(n => !notificationIds.includes(n.id)));
+      setUnreadCount(prev => {
+        const deletedUnread = notifications.filter(n => notificationIds.includes(n.id) && !n.read).length;
+        return Math.max(0, prev - deletedUnread);
+      });
+      setSelectedNotifications(new Set());
+
+      await notificationService.bulkDelete(userId, notificationIds);
+    } catch (error) {
+      console.error('Error bulk deleting notifications:', error);
+      loadNotifications(page, false);
+    }
+  };
+
+  const toggleSelection = (notificationId: string) => {
+    setSelectedNotifications(prev => {
+      const next = new Set(prev);
+      if (next.has(notificationId)) {
+        next.delete(notificationId);
+      } else {
+        next.add(notificationId);
+      }
+      return next;
+    });
   };
 
   const markAllAsRead = async () => {
     try {
-      // TODO: Replace with actual API call
-      // await notificationService.markAllAsRead(userId);
-      
-      setNotifications(prev =>
-        prev.map(n => ({ ...n, read: true }))
-      );
+      // Optimistic update
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
       setUnreadCount(0);
+
+      await notificationService.markAllAsRead();
     } catch (error) {
       console.error('Error marking all notifications as read:', error);
+      loadNotifications(page, false);
     }
   };
 
   const deleteNotification = async (notificationId: string) => {
     try {
-      // TODO: Replace with actual API call
-      // await notificationService.deleteNotification(notificationId);
-      
+      await notificationService.deleteNotification(notificationId, userId);
+
       setNotifications(prev => prev.filter(n => n.id !== notificationId));
       const deleted = notifications.find(n => n.id === notificationId);
       if (deleted && !deleted.read) {
@@ -217,37 +289,25 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
       {isOpen && (
         <>
           {/* Backdrop */}
-          <div
-            className='fixed inset-0 z-40'
-            onClick={() => setIsOpen(false)}
-          />
-          
+          <div className='fixed inset-0 z-40' onClick={() => setIsOpen(false)} />
+
           {/* Dropdown Panel */}
           <div className='absolute right-0 top-full mt-2 w-96 max-h-[600px] overflow-hidden z-50'>
             <AdminCard padding='none' className='shadow-xl'>
               {/* Header */}
-              <div className='flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-800'>
-                <div className='flex items-center gap-2'>
-                  <Bell className='w-5 h-5 text-gray-600 dark:text-gray-400' />
-                  <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-                    Thông báo
-                  </h3>
-                  {unreadCount > 0 && (
-                    <span className='px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs rounded-full font-inter'>
-                      {unreadCount} mới
-                    </span>
-                  )}
-                </div>
-                <div className='flex items-center gap-2'>
-                  {unreadCount > 0 && (
-                    <AdminButton
-                      variant='outline'
-                      size='sm'
-                      onClick={markAllAsRead}
-                    >
-                      Đánh dấu tất cả
-                    </AdminButton>
-                  )}
+              <div className='p-4 border-b border-gray-200 dark:border-gray-800'>
+                <div className='flex items-center justify-between mb-3'>
+                  <div className='flex items-center gap-2'>
+                    <Bell className='w-5 h-5 text-gray-600 dark:text-gray-400' />
+                    <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
+                      Thông báo
+                    </h3>
+                    {unreadCount > 0 && (
+                      <span className='px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs rounded-full font-inter'>
+                        {unreadCount} mới
+                      </span>
+                    )}
+                  </div>
                   <button
                     onClick={() => setIsOpen(false)}
                     className='p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors'
@@ -255,6 +315,76 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     <X className='w-5 h-5 text-gray-600 dark:text-gray-400' />
                   </button>
                 </div>
+
+                {/* Filters */}
+                <div className='grid grid-cols-2 gap-2 mb-3'>
+                  <CustomSelect
+                    options={[
+                      { value: 'all', label: 'Tất cả' },
+                      { value: 'read', label: 'Đã đọc' },
+                      { value: 'unread', label: 'Chưa đọc' },
+                    ]}
+                    value={filterRead}
+                    onChange={setFilterRead}
+                    placeholder='Trạng thái'
+                    className='text-xs font-inter'
+                  />
+                  <CustomSelect
+                    options={[
+                      { value: 'all', label: 'Tất cả loại' },
+                      { value: 'PAYMENT_SUCCESS', label: 'Thanh toán' },
+                      { value: 'CLASS_BOOKING', label: 'Đặt lịch' },
+                      { value: 'SYSTEM_ANNOUNCEMENT', label: 'Hệ thống' },
+                    ]}
+                    value={filterType}
+                    onChange={setFilterType}
+                    placeholder='Loại'
+                    className='text-xs font-inter'
+                  />
+                </div>
+
+                {/* Bulk Actions */}
+                {selectedNotifications.size > 0 && (
+                  <div className='flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800'>
+                    <span className='text-xs text-gray-600 dark:text-gray-400 font-inter'>
+                      Đã chọn: {selectedNotifications.size}
+                    </span>
+                    <AdminButton
+                      variant='outline'
+                      size='xs'
+                      onClick={bulkMarkAsRead}
+                      className='text-xs'
+                    >
+                      Đánh dấu đã đọc
+                    </AdminButton>
+                    <AdminButton
+                      variant='outline'
+                      size='xs'
+                      onClick={bulkDelete}
+                      className='text-xs text-red-600 dark:text-red-400'
+                    >
+                      <Trash2 className='w-3 h-3 mr-1' />
+                      Xóa
+                    </AdminButton>
+                    <button
+                      onClick={() => setSelectedNotifications(new Set())}
+                      className='text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 font-inter'
+                    >
+                      Hủy
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick Actions */}
+                {selectedNotifications.size === 0 && (
+                  <div className='flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800'>
+                    {unreadCount > 0 && (
+                      <AdminButton variant='outline' size='xs' onClick={markAllAsRead} className='text-xs'>
+                        Đánh dấu tất cả đã đọc
+                      </AdminButton>
+                    )}
+                  </div>
+                )}
               </div>
 
               {/* Notifications List */}
@@ -273,36 +403,50 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                     {notifications.map(notification => (
                       <div
                         key={notification.id}
-                        className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors cursor-pointer ${
+                        className={`p-4 hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors ${
                           !notification.read ? 'bg-orange-50 dark:bg-orange-900/20' : ''
-                        }`}
-                        onClick={() => handleNotificationClick(notification)}
+                        } ${selectedNotifications.has(notification.id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}
                       >
                         <div className='flex items-start gap-3'>
-                          <div className='flex-shrink-0 mt-0.5'>
-                            {getNotificationIcon(notification.type)}
-                          </div>
-                          <div className='flex-1 min-w-0'>
-                            <div className='flex items-start justify-between gap-2'>
-                              <h4 className='text-sm font-semibold font-heading text-gray-900 dark:text-white'>
-                                {notification.title}
-                              </h4>
-                              {!notification.read && (
-                                <div className='w-2 h-2 bg-orange-600 dark:bg-orange-500 rounded-full flex-shrink-0 mt-1.5' />
-                              )}
-                            </div>
-                            <p className='text-sm text-gray-600 dark:text-gray-400 mt-1 font-inter line-clamp-2'>
-                              {notification.message}
-                            </p>
-                            <div className='flex items-center justify-between mt-2'>
-                              <span className='text-xs text-gray-500 dark:text-gray-500 font-inter'>
-                                {formatTimestamp(notification.timestamp)}
-                              </span>
-                              {notification.actionLabel && (
-                                <span className='text-xs text-orange-600 dark:text-orange-400 font-inter font-medium'>
-                                  {notification.actionLabel} →
-                                </span>
-                              )}
+                          {/* Selection Checkbox */}
+                          <input
+                            type='checkbox'
+                            checked={selectedNotifications.has(notification.id)}
+                            onChange={() => toggleSelection(notification.id)}
+                            onClick={e => e.stopPropagation()}
+                            className='mt-1 w-4 h-4 text-orange-600 border-gray-300 rounded focus:ring-orange-500'
+                          />
+                          <div
+                            className='flex-1 min-w-0 cursor-pointer'
+                            onClick={() => handleNotificationClick(notification)}
+                          >
+                            <div className='flex items-start gap-2'>
+                              <div className='flex-shrink-0 mt-0.5'>
+                                {getNotificationIcon(notification.type)}
+                              </div>
+                              <div className='flex-1 min-w-0'>
+                                <div className='flex items-start justify-between gap-2'>
+                                  <h4 className='text-sm font-semibold font-heading text-gray-900 dark:text-white'>
+                                    {notification.title}
+                                  </h4>
+                                  {!notification.read && (
+                                    <div className='w-2 h-2 bg-orange-600 dark:bg-orange-500 rounded-full flex-shrink-0 mt-1.5' />
+                                  )}
+                                </div>
+                                <p className='text-sm text-gray-600 dark:text-gray-400 mt-1 font-inter line-clamp-2'>
+                                  {notification.message}
+                                </p>
+                                <div className='flex items-center justify-between mt-2'>
+                                  <span className='text-xs text-gray-500 dark:text-gray-500 font-inter'>
+                                    {formatTimestamp(notification.timestamp)}
+                                  </span>
+                                  {notification.actionLabel && (
+                                    <span className='text-xs text-orange-600 dark:text-orange-400 font-inter font-medium'>
+                                      {notification.actionLabel} →
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
                             </div>
                           </div>
                           <button
@@ -318,6 +462,21 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       </div>
                     ))}
                   </div>
+                  
+                  {/* Load More */}
+                  {hasMore && (
+                    <div className='p-4 text-center border-t border-gray-200 dark:border-gray-800'>
+                      <AdminButton
+                        variant='outline'
+                        size='sm'
+                        onClick={loadMore}
+                        disabled={isLoading}
+                        className='text-xs font-inter'
+                      >
+                        {isLoading ? 'Đang tải...' : 'Tải thêm'}
+                      </AdminButton>
+                    </div>
+                  )}
                 )}
               </div>
 
@@ -347,4 +506,3 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
 };
 
 export default NotificationCenter;
-

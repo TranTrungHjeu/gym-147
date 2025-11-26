@@ -172,6 +172,7 @@ class WorkoutPlanService {
       goal: string;
       difficulty: Difficulty;
       duration_weeks: number;
+      custom_prompt?: string;
     }
   ): Promise<{ success: boolean; data?: WorkoutPlan; error?: string }> {
     try {
@@ -181,7 +182,32 @@ class WorkoutPlanService {
       );
       return { success: true, data: response.data };
     } catch (error: any) {
-      return { success: false, error: error.message };
+      // Parse error message from backend
+      let errorMessage = error.message || 'Failed to generate AI workout plan';
+      
+      // Check if it's a JSON parsing error from backend
+      if (errorMessage.includes('AI response parsing failed') || 
+          (errorMessage.includes('Expected') && errorMessage.includes('JSON'))) {
+        errorMessage = 'AI generated invalid response format. Please try again with a different prompt.';
+      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
+        errorMessage = 'Server error occurred. The AI service may be experiencing issues. Please try again later.';
+      } else if (error.response?.data?.error) {
+        // Try to extract error from response
+        const backendError = error.response.data.error;
+        if (backendError.includes('parsing failed') || backendError.includes('JSON')) {
+          errorMessage = 'AI generated invalid response format. Please try again with a different prompt.';
+        } else {
+          errorMessage = backendError;
+        }
+      }
+      
+      console.error('❌ AI Workout Plan Generation Error:', {
+        error: errorMessage,
+        originalError: error.message,
+        response: error.response?.data,
+      });
+      
+      return { success: false, error: errorMessage };
     }
   }
 
@@ -252,6 +278,50 @@ class WorkoutPlanService {
       return { success: true, data: response.data };
     } catch (error: any) {
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Complete workout plan session and calculate calories
+   */
+  async completeWorkoutSession(
+    memberId: string,
+    data: {
+      workout_plan_id: string;
+      completed_exercises: Array<{
+        id?: string;
+        name: string;
+        sets?: number;
+        reps?: number | string;
+        duration?: number;
+        category?: string;
+        intensity?: string;
+        rest?: number | string;
+      }>;
+      duration_minutes?: number;
+    }
+  ): Promise<{
+    success: boolean;
+    data?: {
+      session: any;
+      workoutPlan: { id: string; name: string };
+      calories: { from_workout: number; total_in_session: number };
+      completed_exercises: number;
+      total_exercises: number;
+    };
+    error?: string;
+  }> {
+    try {
+      const response = await memberApiService.post(
+        `/members/${memberId}/workout-sessions/complete`,
+        data
+      );
+      return { success: true, data: response.data?.data };
+    } catch (error: any) {
+      return {
+        success: false,
+        error: error.message || 'Failed to complete workout session',
+      };
     }
   }
 }

@@ -1,5 +1,15 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+let distributedLock = null;
+try {
+  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+} catch (e) {
+  try {
+    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+  } catch (e2) {
+    console.warn('⚠️ Distributed lock utility not available, points transactions will use database transactions only');
+  }
+}
 
 /**
  * Points Service
@@ -67,28 +77,42 @@ class PointsService {
         return { success: false, error: 'Points must be positive' };
       }
 
-      // Get current balance
-      const balanceResult = await this.getBalance(memberId);
-      const currentBalance = balanceResult.balance.current;
-      const newBalance = currentBalance + points;
+      // 🔒 Use transaction to prevent race conditions
+      // Lock member record, get balance, and create transaction atomically
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Get current balance (from latest transaction)
+        const lastTransaction = await tx.pointsTransaction.findFirst({
+          where: { member_id: memberId },
+          orderBy: { created_at: 'desc' },
+          select: { balance_after: true },
+        });
 
-      // Create transaction
-      const transaction = await prisma.pointsTransaction.create({
-        data: {
-          member_id: memberId,
-          points: points,
-          type: 'EARNED',
-          source: source,
-          source_id: sourceId,
-          description: description || `Earned ${points} points from ${source}`,
-          balance_after: newBalance,
-        },
+        const currentBalance = lastTransaction ? lastTransaction.balance_after : 0;
+        const newBalance = currentBalance + points;
+
+        // 2. Create transaction
+        const transaction = await tx.pointsTransaction.create({
+          data: {
+            member_id: memberId,
+            points: points,
+            type: 'EARNED',
+            source: source,
+            source_id: sourceId,
+            description: description || `Earned ${points} points from ${source}`,
+            balance_after: newBalance,
+          },
+        });
+
+        return {
+          transaction,
+          newBalance,
+        };
       });
 
       return {
         success: true,
-        transaction,
-        newBalance,
+        transaction: result.transaction,
+        newBalance: result.newBalance,
       };
     } catch (error) {
       console.error('Award points error:', error);
@@ -111,41 +135,97 @@ class PointsService {
         return { success: false, error: 'Points must be positive' };
       }
 
-      // Get current balance
-      const balanceResult = await this.getBalance(memberId);
-      const currentBalance = balanceResult.balance.current;
+      // Acquire distributed lock for points transaction
+      let lockAcquired = false;
+      let lockId = null;
 
-      if (currentBalance < points) {
-        return {
-          success: false,
-          error: 'Insufficient points',
-          currentBalance,
-          required: points,
-        };
+      if (distributedLock) {
+        const lockResult = await distributedLock.acquire('points', memberId, {
+          ttl: 30, // 30 seconds
+          retryAttempts: 3,
+          retryDelay: 100,
+        });
+
+        if (!lockResult.acquired) {
+          return { success: false, error: 'Points transaction đang được xử lý, vui lòng thử lại sau' };
+        }
+
+        lockAcquired = true;
+        lockId = lockResult.lockId;
       }
 
-      const newBalance = currentBalance - points;
+      try {
+        // 🔒 Use transaction to prevent race conditions and negative balance
+        // Lock member record, check balance, and create transaction atomically
+        const result = await prisma.$transaction(async (tx) => {
+          // 1. Get current balance (from latest transaction)
+          const lastTransaction = await tx.pointsTransaction.findFirst({
+            where: { member_id: memberId },
+            orderBy: { created_at: 'desc' },
+            select: { balance_after: true },
+          });
 
-      // Create transaction
-      const transaction = await prisma.pointsTransaction.create({
-        data: {
-          member_id: memberId,
-          points: -points, // Negative for spending
-          type: 'SPENT',
-          source: source,
-          source_id: sourceId,
-          description: description || `Spent ${points} points on ${source}`,
-          balance_after: newBalance,
-        },
-      });
+          const currentBalance = lastTransaction ? lastTransaction.balance_after : 0;
 
-      return {
-        success: true,
-        transaction,
-        newBalance,
-      };
+          // 2. Check sufficient balance
+          if (currentBalance < points) {
+            throw new Error('INSUFFICIENT_POINTS');
+          }
+
+          const newBalance = currentBalance - points;
+
+          // 3. Create transaction
+          const transaction = await tx.pointsTransaction.create({
+            data: {
+              member_id: memberId,
+              points: -points, // Negative for spending
+              type: 'SPENT',
+              source: source,
+              source_id: sourceId,
+              description: description || `Spent ${points} points on ${source}`,
+              balance_after: newBalance,
+            },
+          });
+
+          return {
+            transaction,
+            newBalance,
+            currentBalance,
+          };
+        });
+
+        return {
+          success: true,
+          transaction: result.transaction,
+          newBalance: result.newBalance,
+        };
+      } catch (error) {
+        console.error('Spend points error:', error);
+        
+        // Handle insufficient points error
+        if (error.message === 'INSUFFICIENT_POINTS') {
+          const balanceResult = await this.getBalance(memberId);
+          return {
+            success: false,
+            error: 'Insufficient points',
+            currentBalance: balanceResult.balance.current,
+            required: points,
+          };
+        }
+
+        return { success: false, error: error.message };
+      } finally {
+        // Release distributed lock
+        if (lockAcquired && lockId && distributedLock) {
+          try {
+            await distributedLock.release('points', memberId, lockId);
+          } catch (releaseError) {
+            console.error('Error releasing points lock:', releaseError);
+          }
+        }
+      }
     } catch (error) {
-      console.error('Spend points error:', error);
+      console.error('Spend points outer error:', error);
       return { success: false, error: error.message };
     }
   }

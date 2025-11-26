@@ -6,6 +6,9 @@ const {
 const memberService = require('../services/member.service.js');
 const { createHttpClient } = require('../services/http-client.js');
 const smartSchedulingService = require('../services/smart-scheduling.service.js');
+const vectorSearchService = require('../services/vector-search.service.js');
+const scoringService = require('../services/scoring.service.js');
+const cacheService = require('../services/cache.service.js');
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {
@@ -217,7 +220,11 @@ class ClassController {
               return res.status(400).json({
                 success: false,
                 message: 'Invalid max capacity',
-                data: { errors: [`Sức chứa không được vượt quá sức chứa của phòng (${room.capacity} người)`] },
+                data: {
+                  errors: [
+                    `Sức chứa không được vượt quá sức chứa của phòng (${room.capacity} người)`,
+                  ],
+                },
               });
             }
             // Use provided capacity if it's valid and <= room.capacity
@@ -254,7 +261,10 @@ class ClassController {
             equipmentArray = JSON.parse(equipment_needed);
           } catch {
             // If not JSON, treat as comma-separated string
-            equipmentArray = equipment_needed.split(',').map(item => item.trim()).filter(Boolean);
+            equipmentArray = equipment_needed
+              .split(',')
+              .map(item => item.trim())
+              .filter(Boolean);
           }
         }
       }
@@ -318,7 +328,7 @@ class ClassController {
       });
     } catch (error) {
       console.error('Create class error:', error);
-      
+
       // Handle Prisma validation errors
       if (error.code === 'P2002') {
         return res.status(400).json({
@@ -449,7 +459,7 @@ class ClassController {
   async getClassRecommendations(req, res) {
     try {
       const { memberId } = req.params;
-      const { useAI = 'true' } = req.query;
+      const { useAI = 'true', useVector = 'true', skipCache = 'false' } = req.query;
 
       if (!memberId) {
         return res.status(400).json({
@@ -459,20 +469,73 @@ class ClassController {
         });
       }
 
-      // Get member data from member-service
-      const member = await memberService.getMemberById(memberId);
-      if (!member) {
-        return res.status(404).json({
-          success: false,
-          message: 'Member not found',
-          data: null,
-        });
+      // Generate cache key
+      const cacheParams = {
+        useAI: useAI === 'true' ? '1' : '0',
+        useVector: useVector === 'true' ? '1' : '0',
+      };
+      const cacheKey = cacheService.generateRecommendationKey(memberId, cacheParams);
+
+      // Try to get from cache first (unless skipCache is true)
+      if (skipCache !== 'true') {
+        const cachedResult = await cacheService.get(cacheKey);
+        if (cachedResult) {
+          console.log('✅ Returning cached recommendations for member:', memberId);
+          return res.json({
+            success: true,
+            message: 'Class recommendations retrieved successfully (cached)',
+            data: {
+              ...cachedResult,
+              cached: true,
+            },
+          });
+        }
       }
 
-      // Check if member has AI recommendations enabled (Premium feature)
-      const canUseAI = 
-        ['PREMIUM', 'VIP'].includes(member.membership_type) &&
-        (member.ai_class_recommendations_enabled === true);
+      // Get member data from member-service (graceful fallback if unavailable)
+      let member;
+      let canUseAI = false;
+      try {
+        console.log(`🔍 [getClassRecommendations] Fetching member ${memberId}...`);
+        member = await memberService.getMemberById(memberId);
+        if (!member) {
+          console.warn(`⚠️ [getClassRecommendations] Member ${memberId} not found`);
+          return res.status(404).json({
+            success: false,
+            message: 'Member not found',
+            data: null,
+          });
+        }
+        console.log(
+          `✅ [getClassRecommendations] Member fetched: ${member.full_name || member.id}`,
+          {
+            hasProfileEmbedding: !!member.profile_embedding,
+            profileEmbeddingType: member.profile_embedding
+              ? typeof member.profile_embedding
+              : 'none',
+            profileEmbeddingLength: member.profile_embedding?.length || 0,
+          }
+        );
+        // Check if member has AI recommendations enabled (Premium feature)
+        canUseAI =
+          ['PREMIUM', 'VIP'].includes(member.membership_type) &&
+          member.ai_class_recommendations_enabled === true;
+        console.log(
+          `ℹ️ [getClassRecommendations] AI enabled: ${canUseAI} (membership: ${member.membership_type}, ai_enabled: ${member.ai_class_recommendations_enabled})`
+        );
+      } catch (memberError) {
+        console.error(
+          '❌ [getClassRecommendations] Failed to fetch member data, using rule-based recommendations:',
+          {
+            memberId,
+            error: memberError.message,
+            stack: memberError.stack,
+          }
+        );
+        // Continue with rule-based recommendations without member data
+        member = null;
+        canUseAI = false;
+      }
 
       // Get attendance history
       const attendanceHistory = await prisma.attendance.findMany({
@@ -542,12 +605,77 @@ class ClassController {
       let recommendations = [];
       let analysis = null;
 
+      // Try vector-based recommendations first (if member has embedding)
+      const useVectorParam = useVector === 'true'; // Default: true
+      console.log('🔍 [getClassRecommendations] Vector-based check:', {
+        useVectorParam,
+        hasMember: !!member,
+        hasProfileEmbedding: !!member?.profile_embedding,
+        profileEmbeddingType: member?.profile_embedding ? typeof member.profile_embedding : 'none',
+        profileEmbeddingLength: member?.profile_embedding?.length || 0,
+      });
+
+      if (useVectorParam && member && member.profile_embedding) {
+        try {
+          console.log('🔍 [getClassRecommendations] Using vector-based recommendations');
+          recommendations = await this.generateVectorBasedRecommendations({
+            member,
+            memberId,
+            attendanceHistory,
+            bookingsHistory,
+            favorites,
+            upcomingSchedules,
+          });
+
+          if (recommendations && recommendations.length > 0) {
+            console.log(
+              `✅ [getClassRecommendations] Generated ${recommendations.length} vector-based recommendations`
+            );
+
+            // Cache the result (TTL: 1 hour = 3600 seconds)
+            const resultData = {
+              recommendations,
+              method: 'vector_embedding',
+              generatedAt: new Date().toISOString(),
+            };
+            await cacheService.set(cacheKey, resultData, 3600);
+
+            return res.json({
+              success: true,
+              message: 'Class recommendations retrieved successfully (vector-based)',
+              data: {
+                ...resultData,
+                cached: false,
+              },
+            });
+          }
+        } catch (vectorError) {
+          console.warn(
+            '⚠️ [getClassRecommendations] Vector-based recommendations failed, falling back:',
+            {
+              message: vectorError.message,
+              stack: vectorError.stack,
+              memberId,
+            }
+          );
+          // Continue to AI or rule-based
+        }
+      } else {
+        console.warn('⚠️ [getClassRecommendations] Skipping vector-based recommendations:', {
+          useVectorParam,
+          hasMember: !!member,
+          hasProfileEmbedding: !!member?.profile_embedding,
+          reason: !member
+            ? 'No member data'
+            : !member.profile_embedding
+            ? 'No profile_embedding'
+            : 'useVector=false',
+        });
+      }
+
       if (useAI === 'true' && canUseAI) {
         try {
-          if (!process.env.MEMBER_SERVICE_URL) {
-            throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
-          }
-          const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL;
+          const { MEMBER_SERVICE_URL } = require('../config/serviceUrls.js');
           const aiClient = createHttpClient(MEMBER_SERVICE_URL, { timeout: 60000 }); // Increase timeout to 60s for AI calls
 
           // Send only necessary fields to reduce payload size
@@ -592,12 +720,15 @@ class ClassController {
             });
           }
         } catch (aiError) {
-          const isRateLimit = aiError.response?.status === 429 || 
-                             aiError.response?.data?.errorCode === 'RATE_LIMIT_EXCEEDED';
+          const isRateLimit =
+            aiError.response?.status === 429 ||
+            aiError.response?.data?.errorCode === 'RATE_LIMIT_EXCEEDED';
           const isTimeout = aiError.code === 'ECONNABORTED' || aiError.message.includes('timeout');
-          
+
           if (isRateLimit) {
-            console.log('⚠️ AI service rate limit exceeded, falling back to rule-based recommendations');
+            console.log(
+              '⚠️ AI service rate limit exceeded, falling back to rule-based recommendations'
+            );
           } else {
             console.error('AI recommendations error:', {
               message: aiError.message,
@@ -606,7 +737,7 @@ class ClassController {
               isTimeout: isTimeout,
             });
           }
-          
+
           // Fall back to rule-based recommendations
           recommendations = this.generateRuleBasedRecommendations({
             attendanceHistory,
@@ -616,7 +747,7 @@ class ClassController {
             member,
           });
         }
-      } else if (useAI === 'true' && !canUseAI) {
+      } else if (useAI === 'true' && !canUseAI && member) {
         // Member wants AI but doesn't have access - return message
         console.log('⚠️ Member requested AI but does not have access:', {
           membership_type: member.membership_type,
@@ -637,17 +768,32 @@ class ClassController {
           bookingsHistory,
           favorites,
           upcomingSchedules,
-          member,
+          member: member || null,
         });
       }
+
+      // Prepare response data
+      const resultData = {
+        recommendations,
+        analysis,
+        method:
+          recommendations.length > 0 && recommendations[0].type === 'VECTOR_RECOMMENDATION'
+            ? 'vector_embedding'
+            : analysis
+            ? 'ai_based'
+            : 'rule_based',
+        generatedAt: new Date().toISOString(),
+      };
+
+      // Cache the result (TTL: 1 hour = 3600 seconds)
+      await cacheService.set(cacheKey, resultData, 3600);
 
       res.json({
         success: true,
         message: 'Class recommendations retrieved successfully',
         data: {
-          recommendations,
-          analysis,
-          generatedAt: new Date().toISOString(),
+          ...resultData,
+          cached: false,
         },
       });
     } catch (error) {
@@ -660,7 +806,260 @@ class ClassController {
     }
   }
 
-  generateRuleBasedRecommendations({ attendanceHistory, bookingsHistory, favorites, upcomingSchedules, member }) {
+  /**
+   * Generate recommendations using vector embedding and scoring formula
+   * Implements: Vector Search -> Filtering -> Scoring -> Ranking
+   */
+  async generateVectorBasedRecommendations({
+    member,
+    memberId,
+    attendanceHistory,
+    bookingsHistory,
+    favorites,
+    upcomingSchedules,
+  }) {
+    try {
+      // Step 1: Get member vector embedding
+      let memberVector = null;
+      if (member.profile_embedding) {
+        // profile_embedding is an array from member-service (already parsed from string)
+        memberVector = member.profile_embedding;
+      } else {
+        // Fallback: try to get from member service
+        try {
+          const memberData = await memberService.getMemberById(memberId);
+          if (memberData?.profile_embedding) {
+            memberVector = memberData.profile_embedding;
+          }
+        } catch (e) {
+          console.warn('Could not fetch member embedding:', e.message);
+        }
+      }
+
+      if (!memberVector) {
+        throw new Error('Member vector embedding not available');
+      }
+
+      // Convert array to PostgreSQL vector string format if needed
+      // searchSimilarClasses will handle the conversion, but we log it here
+      console.log('🔍 [generateVectorBasedRecommendations] Using member vector:', {
+        isArray: Array.isArray(memberVector),
+        length: Array.isArray(memberVector) ? memberVector.length : 0,
+        type: typeof memberVector,
+      });
+
+      // Step 2: Vector Search - Get top 50 candidates
+      console.log('🔍 [generateVectorBasedRecommendations] Starting vector search...');
+      const candidates = await vectorSearchService.searchSimilarClasses(memberVector, 50);
+      console.log(
+        `📊 [generateVectorBasedRecommendations] Vector search returned ${candidates.length} candidates`
+      );
+
+      if (candidates.length === 0) {
+        console.warn(
+          '⚠️ [generateVectorBasedRecommendations] No candidates found from vector search'
+        );
+        return [];
+      }
+
+      // Step 3: Apply filtering constraints
+      console.log(
+        `🔍 [generateVectorBasedRecommendations] Filtering ${candidates.length} candidates...`
+      );
+      const filteredCandidates = this.filterCandidates({
+        candidates,
+        member,
+        attendanceHistory,
+        upcomingSchedules,
+      });
+      console.log(
+        `📊 [generateVectorBasedRecommendations] After filtering: ${filteredCandidates.length} candidates remaining`
+      );
+
+      if (filteredCandidates.length === 0) {
+        console.warn('⚠️ [generateVectorBasedRecommendations] All candidates were filtered out');
+        return [];
+      }
+
+      // Step 4: Calculate metrics for scoring
+      console.log(
+        `🔍 [generateVectorBasedRecommendations] Calculating metrics for ${filteredCandidates.length} candidates...`
+      );
+      const classesWithMetrics = await Promise.all(
+        filteredCandidates.map(async candidate => {
+          // Get popularity metrics
+          const attendanceStats = await prisma.attendance.groupBy({
+            by: ['schedule_id'],
+            where: {
+              schedule: {
+                class_id: candidate.id,
+              },
+            },
+            _count: true,
+          });
+
+          const bookingStats = await prisma.booking.groupBy({
+            by: ['schedule_id'],
+            where: {
+              schedule: {
+                class_id: candidate.id,
+              },
+            },
+            _count: true,
+          });
+
+          const ratings = await prisma.attendance.findMany({
+            where: {
+              schedule: {
+                class_id: candidate.id,
+              },
+              class_rating: { not: null },
+            },
+            select: {
+              class_rating: true,
+            },
+          });
+
+          const attendanceCount = attendanceStats.length;
+          const bookingCount = bookingStats.length;
+          const averageRating =
+            ratings.length > 0
+              ? ratings.reduce((sum, r) => sum + (r.class_rating || 0), 0) / ratings.length
+              : 0;
+          const completionRate = bookingCount > 0 ? attendanceCount / bookingCount : 0;
+
+          // Get last schedule date for recency
+          const lastSchedule = await prisma.schedule.findFirst({
+            where: {
+              class_id: candidate.id,
+              status: { in: ['COMPLETED', 'IN_PROGRESS'] },
+            },
+            orderBy: { start_time: 'desc' },
+            select: { start_time: true },
+          });
+
+          return {
+            ...candidate,
+            popularity: scoringService.calculatePopularity({
+              attendanceCount,
+              bookingCount,
+              averageRating,
+              completionRate,
+              maxCapacity: candidate.max_capacity || 20,
+            }),
+            recency: scoringService.calculateRecency(lastSchedule?.start_time || null),
+          };
+        })
+      );
+
+      // Step 5: Calculate final scores and rank
+      console.log(
+        `📊 [generateVectorBasedRecommendations] Calculated metrics for ${classesWithMetrics.length} classes`
+      );
+      const recentCategories = attendanceHistory
+        .slice(0, 10)
+        .map(a => a.schedule?.gym_class?.category)
+        .filter(Boolean);
+
+      console.log(
+        `🔍 [generateVectorBasedRecommendations] Scoring and ranking ${classesWithMetrics.length} classes...`
+      );
+      const rankedClasses = scoringService.scoreAndRankClasses(
+        classesWithMetrics,
+        recentCategories
+      );
+      console.log(`📊 [generateVectorBasedRecommendations] Ranked ${rankedClasses.length} classes`);
+
+      // Step 6: Convert to recommendation format (top 5)
+      const recommendations = rankedClasses.slice(0, 5).map((classItem, index) => ({
+        type: 'VECTOR_RECOMMENDATION',
+        priority: index < 2 ? 'HIGH' : 'MEDIUM',
+        title: classItem.name,
+        message: `Lớp học phù hợp với mục tiêu của bạn (điểm: ${(
+          classItem.finalScore * 100
+        ).toFixed(1)}%)`,
+        action: 'VIEW_SCHEDULE',
+        data: {
+          classId: classItem.id,
+          classCategory: classItem.category,
+          similarity: classItem.similarity,
+          finalScore: classItem.finalScore,
+        },
+        reasoning: `Cosine similarity: ${(classItem.similarity * 100).toFixed(1)}%, Popularity: ${(
+          classItem.popularity * 100
+        ).toFixed(1)}%, Recency: ${(classItem.recency * 100).toFixed(1)}%`,
+      }));
+
+      console.log(
+        `✅ [generateVectorBasedRecommendations] Generated ${recommendations.length} vector-based recommendations:`,
+        recommendations.map(r => ({
+          title: r.title,
+          priority: r.priority,
+          similarity: r.data?.similarity,
+        }))
+      );
+
+      return recommendations;
+    } catch (error) {
+      console.error('❌ Error in vector-based recommendations:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Filter candidates based on constraints
+   */
+  filterCandidates({ candidates, member, attendanceHistory, upcomingSchedules }) {
+    let filteredCount = 0;
+    const filtered = candidates.filter(candidate => {
+      // Filter 1: Difficulty matching (skip if member level unknown)
+      // Filter 2: Medical conditions (skip if no medical data)
+      if (member?.medical_conditions && member.medical_conditions.length > 0) {
+        // Basic check: skip high-intensity classes if member has heart conditions
+        const hasHeartCondition = member.medical_conditions.some(
+          cond => cond.toLowerCase().includes('tim') || cond.toLowerCase().includes('heart')
+        );
+        if (
+          hasHeartCondition &&
+          candidate.difficulty === 'ADVANCED' &&
+          candidate.category === 'CARDIO'
+        ) {
+          filteredCount++;
+          console.log(
+            `🚫 [filterCandidates] Filtered out ${candidate.name} (heart condition + ADVANCED CARDIO)`
+          );
+          return false;
+        }
+      }
+
+      // Filter 3: Active classes only
+      // Note: candidates from vector search don't have is_active field, so this check might filter everything
+      // We should check if the field exists before filtering
+      if (candidate.hasOwnProperty('is_active') && !candidate.is_active) {
+        filteredCount++;
+        console.log(`🚫 [filterCandidates] Filtered out ${candidate.name} (not active)`);
+        return false;
+      }
+
+      return true;
+    });
+
+    if (filteredCount > 0) {
+      console.log(
+        `📊 [filterCandidates] Filtered out ${filteredCount} candidates, ${filtered.length} remaining`
+      );
+    }
+
+    return filtered;
+  }
+
+  generateRuleBasedRecommendations({
+    attendanceHistory,
+    bookingsHistory,
+    favorites,
+    upcomingSchedules,
+    member,
+  }) {
     const recommendations = [];
 
     // Check if member has never attended classes
@@ -669,7 +1068,8 @@ class ClassController {
         type: 'NEW_CLASS',
         priority: 'HIGH',
         title: 'Start Your Class Journey',
-        message: 'You haven\'t attended any classes yet. Try a beginner-friendly class to get started!',
+        message:
+          "You haven't attended any classes yet. Try a beginner-friendly class to get started!",
         action: 'VIEW_SCHEDULE',
         data: {
           classCategory: 'CARDIO',
@@ -719,7 +1119,9 @@ class ClassController {
           type: 'TIME_SUGGESTION',
           priority: 'HIGH',
           title: 'Improve Your Attendance',
-          message: `Your attendance rate is ${attendanceRate.toFixed(1)}%. Consider booking classes at times that work better for your schedule.`,
+          message: `Your attendance rate is ${attendanceRate.toFixed(
+            1
+          )}%. Consider booking classes at times that work better for your schedule.`,
           action: 'VIEW_SCHEDULE',
           data: {},
           reasoning: `Low attendance rate: ${attendanceRate.toFixed(1)}%`,
@@ -732,7 +1134,17 @@ class ClassController {
       const attendedCategories = new Set(
         attendanceHistory.map(a => a.schedule?.gym_class?.category).filter(Boolean)
       );
-      const allCategories = ['CARDIO', 'STRENGTH', 'YOGA', 'PILATES', 'DANCE', 'MARTIAL_ARTS', 'AQUA', 'FUNCTIONAL', 'RECOVERY'];
+      const allCategories = [
+        'CARDIO',
+        'STRENGTH',
+        'YOGA',
+        'PILATES',
+        'DANCE',
+        'MARTIAL_ARTS',
+        'AQUA',
+        'FUNCTIONAL',
+        'RECOVERY',
+      ];
       const unexploredCategories = allCategories.filter(cat => !attendedCategories.has(cat));
 
       if (unexploredCategories.length > 0) {
@@ -748,6 +1160,19 @@ class ClassController {
           reasoning: `Unexplored categories: ${unexploredCategories.join(', ')}`,
         });
       }
+    }
+
+    // If no recommendations and no member data, suggest basic classes
+    if (recommendations.length === 0 && !member) {
+      recommendations.push({
+        type: 'EXPLORE_CLASSES',
+        priority: 'MEDIUM',
+        title: 'Explore Available Classes',
+        message: 'Discover new classes and find what works best for you!',
+        action: 'VIEW_SCHEDULE',
+        data: {},
+        reasoning: 'Member data unavailable, showing general recommendations',
+      });
     }
 
     return recommendations;
@@ -783,11 +1208,21 @@ class ClassController {
         data: result,
       });
     } catch (error) {
+      // Get memberId from req.params directly (safe in catch block)
+      const errorMemberId = req.params?.memberId || 'unknown';
+      // Build options safely for logging (may not exist if error occurred early)
+      const errorOptions = {
+        classId: req.query?.classId || null,
+        category: req.query?.category || null,
+        trainerId: req.query?.trainerId || null,
+        dateRange: req.query?.dateRange ? parseInt(req.query.dateRange) : 30,
+        useAI: req.query?.useAI !== 'false',
+      };
       console.error('Get scheduling suggestions error:', {
-        memberId,
+        memberId: errorMemberId,
         error: error.message,
         stack: error.stack,
-        options,
+        options: errorOptions,
       });
       res.status(500).json({
         success: false,

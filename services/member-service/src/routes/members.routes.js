@@ -87,6 +87,15 @@ router.post('/members/create-with-user', (req, res) =>
 // Get multiple members by user_ids (for cross-service integration)
 router.post('/members/batch', (req, res) => memberController.getMembersByIds(req, res));
 
+// Get members for notification (public endpoint, no auth - for bulk notification system)
+// Support both GET (with filters) and POST (with member_ids)
+router.get('/api/members/for-notification', (req, res) =>
+  memberController.getMembersForNotification(req, res)
+);
+router.post('/api/members/for-notification', (req, res) =>
+  memberController.getMembersForNotification(req, res)
+);
+
 // Update member (dynamic route - must be after static routes like /members/preferences/*)
 router.put('/members/:id', (req, res) => memberController.updateMember(req, res));
 
@@ -121,6 +130,11 @@ router.post('/members/:id/qr-code', (req, res) => memberController.generateQRCod
 
 // Toggle access
 router.put('/members/:id/access', (req, res) => memberController.toggleAccess(req, res));
+
+// ==================== ADMIN NOTIFICATION ROUTES ====================
+
+// Send system announcement (Admin only)
+router.post('/admin/announcements', (req, res) => memberController.sendSystemAnnouncement(req, res));
 
 // ==================== MEMBER-SCOPED ACHIEVEMENT ROUTES ====================
 

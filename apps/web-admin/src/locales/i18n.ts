@@ -7,16 +7,15 @@ import vi from './vi.json';
 
 const LANGUAGE_STORAGE_KEY = 'gym147_language';
 
-// Detect language from localStorage or browser
+// Detect language from localStorage, default to Vietnamese
 const detectLanguage = (): string => {
   try {
     const savedLanguage = localStorage.getItem(LANGUAGE_STORAGE_KEY);
     if (savedLanguage && ['en', 'vi'].includes(savedLanguage)) {
       return savedLanguage;
     }
-    // Auto-detect from browser
-    const browserLang = navigator.language.split('-')[0];
-    return ['en', 'vi'].includes(browserLang) ? browserLang : 'vi';
+    // Default to Vietnamese if no saved language
+    return 'vi';
   } catch (error) {
     console.warn('Failed to detect language:', error);
     return 'vi'; // Default to Vietnamese
@@ -34,11 +33,12 @@ i18n
     },
     lng: detectLanguage(),
     fallbackLng: 'vi',
+    defaultNS: 'translation',
     interpolation: {
       escapeValue: false, // React already escapes values
     },
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'], // Only use localStorage, don't auto-detect from browser
       caches: ['localStorage'],
       lookupLocalStorage: LANGUAGE_STORAGE_KEY,
     },

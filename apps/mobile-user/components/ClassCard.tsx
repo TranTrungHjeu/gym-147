@@ -3,9 +3,10 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Calendar, Clock, MapPin, Star, Users } from 'lucide-react-native';
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  Animated,
   Image,
   ImageSourcePropType,
   StyleSheet,
@@ -122,11 +123,9 @@ export default function ClassCard({
     if (category && classImages[category]) {
       return classImages[category];
     }
-    // Fallback to URL if category not found or thumbnail exists
     if (schedule.gym_class?.thumbnail) {
       return { uri: schedule.gym_class.thumbnail };
     }
-    // Default fallback
     return classImages.CARDIO;
   };
 
@@ -134,49 +133,86 @@ export default function ClassCard({
   const hasWaitlist = schedule.waitlist_count > 0;
   const spotsAvailable = schedule.max_capacity - schedule.current_bookings;
 
-  // Determine button state based on userBooking
   const isBooked = userBooking?.status === 'CONFIRMED';
   const isWaitlisted =
     userBooking?.is_waitlist || userBooking?.status === 'WAITLIST';
 
   const themedStyles = styles(theme);
 
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   return (
-    <TouchableOpacity
+    <Animated.View
       style={[
-        themedStyles.container,
         {
-          backgroundColor: theme.colors.surface,
-          borderColor: theme.colors.border,
+          opacity: fadeAnim,
+          transform: [{ scale: scaleAnim }],
         },
       ]}
-      onPress={onPress}
-      activeOpacity={0.7}
     >
-      {/* Header with class image and status */}
-      <View style={themedStyles.header}>
+      <TouchableOpacity
+        style={[
+          themedStyles.container,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.7}
+      >
+      {/* Image Container - Square, 200px height */}
+      <View style={themedStyles.imageContainer}>
         <Image
           source={getClassImage()}
           style={themedStyles.classImage}
           resizeMode="cover"
         />
-        <View style={themedStyles.statusBadge}>
+        {/* Status Badge - Top right */}
+        <View
+          style={[
+            themedStyles.statusBadge,
+            { backgroundColor: getStatusColor(schedule.status) + 'E6' },
+          ]}
+        >
           <View
             style={[
               themedStyles.statusIndicator,
-              { backgroundColor: getStatusColor(schedule.status) },
+              { backgroundColor: theme.colors.textInverse },
             ]}
           />
-          <Text style={[themedStyles.statusText, { color: theme.colors.text }]}>
+          <Text style={themedStyles.statusText}>
             {getStatusTranslation(schedule.status)}
           </Text>
         </View>
       </View>
 
-      {/* Class Info */}
+      {/* Content Container - padding 16px */}
       <View style={themedStyles.content}>
+        {/* Header Row: Class Name + Difficulty Badge */}
         <View style={themedStyles.classHeader}>
-          <Text style={[themedStyles.className, { color: theme.colors.text }]}>
+          <Text
+            style={[themedStyles.className, { color: theme.colors.text }]}
+            numberOfLines={1}
+          >
             {schedule.gym_class?.name}
           </Text>
           <View
@@ -195,6 +231,7 @@ export default function ClassCard({
           </View>
         </View>
 
+        {/* Description - 2 lines */}
         <Text
           style={[
             themedStyles.classDescription,
@@ -205,107 +242,149 @@ export default function ClassCard({
           {schedule.gym_class?.description}
         </Text>
 
-        {/* Trainer Info */}
-        {schedule.trainer && (
-          <View style={themedStyles.trainerInfo}>
-            <View style={themedStyles.trainerDetails}>
+        {/* Info Grid - 2 columns */}
+        <View style={themedStyles.infoGrid}>
+          {/* Trainer Info */}
+          {schedule.trainer && (
+            <View style={themedStyles.infoItem}>
+              <View style={themedStyles.infoIconContainer}>
+                <Users size={14} color={theme.colors.textSecondary} />
+              </View>
+              <View style={themedStyles.infoTextContainer}>
+                <Text
+                  style={[
+                    themedStyles.infoLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('classes.trainer')}
+                </Text>
+                <Text
+                  style={[themedStyles.infoValue, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                >
+                  {schedule.trainer.full_name}
+                </Text>
+                {schedule.trainer.rating_average && (
+                  <View style={themedStyles.ratingRow}>
+                    <Star
+                      size={12}
+                      color={theme.colors.warning}
+                      fill={theme.colors.warning}
+                    />
+                    <Text
+                      style={[
+                        themedStyles.ratingText,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {schedule.trainer.rating_average.toFixed(1)}
+                    </Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          )}
+
+          {/* Time Info */}
+          <View style={themedStyles.infoItem}>
+            <View style={themedStyles.infoIconContainer}>
+              <Clock size={14} color={theme.colors.textSecondary} />
+            </View>
+            <View style={themedStyles.infoTextContainer}>
               <Text
-                style={[themedStyles.trainerName, { color: theme.colors.text }]}
+                style={[
+                  themedStyles.infoLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
               >
-                {schedule.trainer.full_name}
+                {t('classes.time')}
               </Text>
-              {schedule.trainer.rating_average && (
-                <View style={themedStyles.ratingContainer}>
-                  <Star
-                    size={14}
-                    color={theme.colors.warning}
-                    fill={theme.colors.warning}
-                  />
-                  <Text
-                    style={[
-                      themedStyles.ratingText,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {schedule.trainer.rating_average.toFixed(1)}
-                  </Text>
-                </View>
+              <Text
+                style={[themedStyles.infoValue, { color: theme.colors.text }]}
+                numberOfLines={1}
+              >
+                {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+              </Text>
+              <Text
+                style={[
+                  themedStyles.infoSubtext,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {formatDate(schedule.start_time)}
+              </Text>
+            </View>
+          </View>
+
+          {/* Location Info */}
+          {schedule.room && (
+            <View style={themedStyles.infoItem}>
+              <View style={themedStyles.infoIconContainer}>
+                <MapPin size={14} color={theme.colors.textSecondary} />
+              </View>
+              <View style={themedStyles.infoTextContainer}>
+                <Text
+                  style={[
+                    themedStyles.infoLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('classes.location')}
+                </Text>
+                <Text
+                  style={[themedStyles.infoValue, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                >
+                  {schedule.room.name}
+                </Text>
+              </View>
+            </View>
+          )}
+
+          {/* Capacity Info */}
+          <View style={themedStyles.infoItem}>
+            <View style={themedStyles.infoIconContainer}>
+              <Users size={14} color={theme.colors.textSecondary} />
+            </View>
+            <View style={themedStyles.infoTextContainer}>
+              <Text
+                style={[
+                  themedStyles.infoLabel,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('classes.capacity')}
+              </Text>
+              <Text
+                style={[themedStyles.infoValue, { color: theme.colors.text }]}
+              >
+                {schedule.current_bookings}/{schedule.max_capacity}
+              </Text>
+              {isFullyBooked && (
+                <Text
+                  style={[
+                    themedStyles.infoSubtext,
+                    { color: theme.colors.warning },
+                  ]}
+                >
+                  {hasWaitlist
+                    ? `${schedule.waitlist_count} ${t('classes.onWaitlist')}`
+                    : t('classes.booking.fullyBooked')}
+                </Text>
+              )}
+              {!isFullyBooked && spotsAvailable <= 5 && (
+                <Text
+                  style={[
+                    themedStyles.infoSubtext,
+                    { color: theme.colors.error },
+                  ]}
+                >
+                  {t('classes.onlySpotsLeft', { count: spotsAvailable })}
+                </Text>
               )}
             </View>
           </View>
-        )}
-
-        {/* Schedule Info */}
-        <View style={themedStyles.scheduleInfo}>
-          <View style={themedStyles.scheduleItem}>
-            <Calendar size={16} color={theme.colors.textSecondary} />
-            <Text
-              style={[
-                themedStyles.scheduleText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {formatDate(schedule.start_time)}
-            </Text>
-          </View>
-          <View style={themedStyles.scheduleItem}>
-            <Clock size={16} color={theme.colors.textSecondary} />
-            <Text
-              style={[
-                themedStyles.scheduleText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {formatTime(schedule.start_time)} -{' '}
-              {formatTime(schedule.end_time)}
-            </Text>
-          </View>
-          <View style={themedStyles.scheduleItem}>
-            <MapPin size={16} color={theme.colors.textSecondary} />
-            <Text
-              style={[
-                themedStyles.scheduleText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {schedule.room?.name}
-            </Text>
-          </View>
-        </View>
-
-        {/* Capacity Info */}
-        <View style={themedStyles.capacityInfo}>
-          <View style={themedStyles.capacityItem}>
-            <Users size={16} color={theme.colors.textSecondary} />
-            <Text
-              style={[
-                themedStyles.capacityText,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {schedule.current_bookings}/{schedule.max_capacity}{' '}
-              {t('classes.booked')}
-            </Text>
-          </View>
-          {isFullyBooked && (
-            <Text
-              style={[
-                themedStyles.waitlistText,
-                { color: theme.colors.warning },
-              ]}
-            >
-              {hasWaitlist
-                ? `${schedule.waitlist_count} ${t('classes.onWaitlist')}`
-                : t('classes.booking.fullyBooked')}
-            </Text>
-          )}
-          {!isFullyBooked && spotsAvailable <= 5 && (
-            <Text
-              style={[themedStyles.spotsText, { color: theme.colors.error }]}
-            >
-              {t('classes.onlySpotsLeft', { count: spotsAvailable })}
-            </Text>
-          )}
         </View>
 
         {/* Price */}
@@ -318,170 +397,178 @@ export default function ClassCard({
             </Text>
           </View>
         )}
-      </View>
 
-      {/* Action Buttons */}
-      {showBookingActions && schedule.status === 'SCHEDULED' && (
-        <View style={themedStyles.actions}>
-          {(() => {
-            // If user has a booking, show appropriate button
-            if (userBooking) {
-              const paymentStatus =
-                userBooking.payment_status?.toUpperCase() || '';
+        {/* Action Button - Full width, square */}
+        {showBookingActions && schedule.status === 'SCHEDULED' && (
+          <View style={themedStyles.actions}>
+            {(() => {
+              if (userBooking) {
+                const paymentStatus =
+                  userBooking.payment_status?.toUpperCase() || '';
 
-              // Pending payment
-              if (paymentStatus === 'PENDING') {
+                if (paymentStatus === 'PENDING') {
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        themedStyles.actionButton,
+                        { backgroundColor: theme.colors.warning },
+                      ]}
+                      onPress={onNavigateToPayment || onPress}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.textInverse },
+                        ]}
+                      >
+                        {t('classes.booking.pendingPayment')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                if (
+                  (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED') &&
+                  isBooked
+                ) {
+                  return (
+                    <View
+                      style={[
+                        themedStyles.actionButton,
+                        {
+                          backgroundColor: theme.colors.success + '20',
+                          borderWidth: 1,
+                          borderColor: theme.colors.success,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.success },
+                        ]}
+                      >
+                        {t('classes.booking.alreadyEnrolled')}
+                      </Text>
+                    </View>
+                  );
+                }
+
+                if (isWaitlisted || userBooking.status === 'WAITLIST') {
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        themedStyles.actionButton,
+                        {
+                          backgroundColor: 'transparent',
+                          borderWidth: 1,
+                          borderColor: theme.colors.warning,
+                        },
+                      ]}
+                      onPress={onCancel}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.warning },
+                        ]}
+                      >
+                        {t('classes.booking.removeFromWaitlist')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
                 return (
                   <TouchableOpacity
                     style={[
-                      themedStyles.bookButton,
-                      { backgroundColor: theme.colors.warning },
+                      themedStyles.actionButton,
+                      {
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        borderColor: theme.colors.error,
+                      },
                     ]}
-                    onPress={onNavigateToPayment || onPress}
+                    onPress={onCancel}
+                    activeOpacity={0.8}
                   >
                     <Text
                       style={[
-                        themedStyles.bookButtonText,
+                        themedStyles.actionButtonText,
+                        { color: theme.colors.error },
+                      ]}
+                    >
+                      {t('classes.booking.cancel')}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              }
+
+              if (!isFullyBooked) {
+                return (
+                  <TouchableOpacity
+                    style={[
+                      themedStyles.actionButton,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                    onPress={onBook}
+                    activeOpacity={0.8}
+                  >
+                    <Text
+                      style={[
+                        themedStyles.actionButtonText,
                         { color: theme.colors.textInverse },
                       ]}
                     >
-                      {t('classes.booking.pendingPayment')}
+                      {t('classes.booking.book')}
                     </Text>
                   </TouchableOpacity>
                 );
               }
 
-              // Already enrolled (paid)
-              if (
-                (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED') &&
-                isBooked
-              ) {
-                return (
-                  <View
-                    style={[
-                      themedStyles.bookButton,
-                      {
-                        backgroundColor: theme.colors.success + '30',
-                        borderWidth: 1,
-                        borderColor: theme.colors.success,
-                      },
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        themedStyles.bookButtonText,
-                        { color: theme.colors.success },
-                      ]}
-                    >
-                      {t('classes.booking.alreadyEnrolled')}
-                    </Text>
-                  </View>
-                );
-              }
-
-              // Waitlisted
-              if (isWaitlisted || userBooking.status === 'WAITLIST') {
-                return (
-                  <TouchableOpacity
-                    style={[
-                      themedStyles.cancelButton,
-                      { borderColor: theme.colors.warning },
-                    ]}
-                    onPress={onCancel}
-                  >
-                    <Text
-                      style={[
-                        themedStyles.cancelButtonText,
-                        { color: theme.colors.warning },
-                      ]}
-                    >
-                      {t('classes.booking.removeFromWaitlist')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }
-
-              // Other confirmed booking
               return (
                 <TouchableOpacity
                   style={[
-                    themedStyles.cancelButton,
-                    { borderColor: theme.colors.error },
-                  ]}
-                  onPress={onCancel}
-                >
-                  <Text
-                    style={[
-                      themedStyles.cancelButtonText,
-                      { color: theme.colors.error },
-                    ]}
-                  >
-                    {t('classes.booking.cancel')}
-                  </Text>
-                </TouchableOpacity>
-              );
-            }
-
-            // No booking - show book button or waitlist
-            if (!isFullyBooked) {
-              return (
-                <TouchableOpacity
-                  style={[
-                    themedStyles.bookButton,
-                    { backgroundColor: theme.colors.primary },
+                    themedStyles.actionButton,
+                    { backgroundColor: theme.colors.warning },
                   ]}
                   onPress={onBook}
+                  activeOpacity={0.8}
                 >
                   <Text
                     style={[
-                      themedStyles.bookButtonText,
+                      themedStyles.actionButtonText,
                       { color: theme.colors.textInverse },
                     ]}
                   >
-                    {t('classes.booking.book')}
+                    {t('classes.joinWaitlist')}
                   </Text>
                 </TouchableOpacity>
               );
-            }
-
-            // Fully booked - show waitlist button
-            return (
-              <TouchableOpacity
-                style={[
-                  themedStyles.waitlistButton,
-                  { backgroundColor: theme.colors.warning },
-                ]}
-                onPress={onBook}
-              >
-                <Text
-                  style={[
-                    themedStyles.waitlistButtonText,
-                    { color: theme.colors.textInverse },
-                  ]}
-                >
-                  {t('classes.joinWaitlist')}
-                </Text>
-              </TouchableOpacity>
-            );
-          })()}
-        </View>
-      )}
+            })()}
+          </View>
+        )}
+      </View>
     </TouchableOpacity>
+    </Animated.View>
   );
 }
 
 const styles = (theme: any) =>
   StyleSheet.create({
     container: {
-      borderRadius: theme.radius.xl,
+      borderRadius: theme.radius.lg, // 12px
       borderWidth: 1,
       marginBottom: theme.spacing.lg,
       overflow: 'hidden',
-      ...theme.shadows.lg,
+      ...theme.shadows.sm,
     },
-    header: {
+    imageContainer: {
       position: 'relative',
-      height: 180,
+      width: '100%',
+      height: 200,
     },
     classImage: {
       width: '100%',
@@ -494,24 +581,23 @@ const styles = (theme: any) =>
       flexDirection: 'row',
       alignItems: 'center',
       gap: theme.spacing.xs,
-      backgroundColor: 'rgba(0, 0, 0, 0.75)',
-      paddingHorizontal: theme.spacing.sm + 2,
-      paddingVertical: theme.spacing.xs + 2,
-      borderRadius: theme.radius.round,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.md, // 8px
       ...theme.shadows.sm,
     },
     statusIndicator: {
-      width: 8,
-      height: 8,
+      width: 6,
+      height: 6,
       borderRadius: theme.radius.round,
     },
     statusText: {
       ...Typography.labelSmall,
-      color: '#fff',
+      color: theme.colors.textInverse,
     },
     content: {
-      padding: theme.spacing.lg,
-      gap: theme.spacing.sm,
+      padding: theme.spacing.lg, // 16px
+      gap: theme.spacing.md, // 12px
     },
     classHeader: {
       flexDirection: 'row',
@@ -522,131 +608,92 @@ const styles = (theme: any) =>
     className: {
       ...Typography.h5,
       flex: 1,
+      fontWeight: '700',
     },
     difficultyBadge: {
-      paddingHorizontal: theme.spacing.sm + 2,
-      paddingVertical: theme.spacing.xs + 2,
-      borderRadius: theme.radius.md,
-      ...theme.shadows.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.md, // 8px
     },
     difficultyText: {
       ...Typography.labelSmall,
-      color: '#fff',
+      color: theme.colors.textInverse,
+      fontWeight: '600',
     },
     classDescription: {
       ...Typography.bodySmall,
       lineHeight: 20,
-      opacity: 0.8,
     },
-    trainerInfo: {
-      backgroundColor: theme.isDark
-        ? 'rgba(255,255,255,0.05)'
-        : 'rgba(0,0,0,0.03)',
-      padding: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-      borderLeftWidth: 3,
-      borderLeftColor: theme.colors.primary,
-    },
-    trainerDetails: {
+    infoGrid: {
       flexDirection: 'row',
-      alignItems: 'center',
-      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: theme.spacing.md,
     },
-    trainerName: {
-      ...Typography.bodyMedium,
-    },
-    ratingContainer: {
+    infoItem: {
       flexDirection: 'row',
-      alignItems: 'center',
-      backgroundColor: theme.isDark
-        ? 'rgba(255,255,255,0.08)'
-        : 'rgba(0,0,0,0.05)',
-      paddingHorizontal: theme.spacing.xs + 2,
-      paddingVertical: theme.spacing.xs,
+      gap: theme.spacing.sm,
+      flex: 1,
+      minWidth: '45%',
+    },
+    infoIconContainer: {
+      width: 32,
+      height: 32,
       borderRadius: theme.radius.sm,
-      gap: theme.spacing.xs,
+      backgroundColor: theme.colors.border + '40',
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    infoTextContainer: {
+      flex: 1,
+      gap: 2,
+    },
+    infoLabel: {
+      ...Typography.caption,
+      fontSize: 11,
+    },
+    infoValue: {
+      ...Typography.bodySmallMedium,
+      fontSize: 13,
+    },
+    infoSubtext: {
+      ...Typography.caption,
+      fontSize: 11,
+    },
+    ratingRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      marginTop: 2,
     },
     ratingText: {
-      ...Typography.labelSmall,
-    },
-    scheduleInfo: {
-      gap: theme.spacing.xs + 2,
-    },
-    scheduleItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.sm,
-    },
-    scheduleText: {
-      ...Typography.bodySmall,
-    },
-    capacityInfo: {
-      flexDirection: 'row',
-      justifyContent: 'space-between',
-      alignItems: 'center',
-      backgroundColor: theme.isDark
-        ? 'rgba(255,255,255,0.05)'
-        : 'rgba(0,0,0,0.03)',
-      padding: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-    },
-    capacityItem: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.xs + 2,
-    },
-    capacityText: {
-      ...Typography.bodySmallMedium,
-    },
-    waitlistText: {
-      ...Typography.labelSmall,
-    },
-    spotsText: {
-      ...Typography.labelSmall,
+      ...Typography.caption,
+      fontSize: 11,
     },
     priceContainer: {
-      alignItems: 'flex-end',
+      alignSelf: 'flex-start',
       backgroundColor: theme.colors.primary + '15',
-      padding: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
       borderRadius: theme.radius.md,
     },
     priceText: {
       ...Typography.h6,
+      fontWeight: '700',
     },
     actions: {
-      flexDirection: 'row',
-      padding: theme.spacing.lg,
-      paddingTop: 0,
-      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
     },
-    bookButton: {
-      flex: 1,
-      paddingVertical: theme.spacing.md,
-      borderRadius: theme.radius.lg,
+    actionButton: {
+      width: '100%',
+      paddingVertical: theme.spacing.md, // 14px
+      paddingHorizontal: theme.spacing.lg, // 20px
+      borderRadius: theme.radius.lg, // 12px
       alignItems: 'center',
-      ...theme.shadows.md,
+      justifyContent: 'center',
+      ...theme.shadows.sm,
     },
-    bookButtonText: {
+    actionButtonText: {
       ...Typography.buttonMedium,
-    },
-    waitlistButton: {
-      flex: 1,
-      paddingVertical: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      alignItems: 'center',
-      ...theme.shadows.md,
-    },
-    waitlistButtonText: {
-      ...Typography.buttonMedium,
-    },
-    cancelButton: {
-      flex: 1,
-      paddingVertical: theme.spacing.md,
-      borderRadius: theme.radius.lg,
-      borderWidth: 2,
-      alignItems: 'center',
-    },
-    cancelButtonText: {
-      ...Typography.buttonMedium,
+      fontWeight: '600',
     },
   });

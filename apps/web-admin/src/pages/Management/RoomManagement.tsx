@@ -47,6 +47,7 @@ const RoomManagement: React.FC = () => {
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
   useEffect(() => {
     loadRooms();
@@ -392,15 +393,15 @@ const RoomManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-success-500/20'>
-                <div className='absolute inset-0 bg-success-100 dark:bg-success-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <CheckCircle2 className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -419,15 +420,15 @@ const RoomManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-blue-500/20'>
-                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -446,15 +447,15 @@ const RoomManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-purple-100 dark:bg-purple-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-purple-100 dark:bg-purple-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-purple-500/20'>
-                <div className='absolute inset-0 bg-purple-100 dark:bg-purple-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-purple-600 dark:text-purple-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -557,17 +558,22 @@ const RoomManagement: React.FC = () => {
         </div>
       ) : (
         <>
-          <AdminCard padding='none'>
-            <AdminTable>
-              <AdminTableHeader>
-                <AdminTableRow>
-                  <AdminTableCell header>Tên phòng</AdminTableCell>
-                  <AdminTableCell header>Sức chứa</AdminTableCell>
-                  <AdminTableCell header>Diện tích</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
-                </AdminTableRow>
-              </AdminTableHeader>
-              <AdminTableBody>
+          <AdminCard padding='none' className='admin-table-container'>
+            <div
+              className={`transition-opacity duration-300 ${
+                isPageTransitioning ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              <AdminTable>
+                <AdminTableHeader>
+                  <AdminTableRow>
+                    <AdminTableCell header>Tên phòng</AdminTableCell>
+                    <AdminTableCell header>Sức chứa</AdminTableCell>
+                    <AdminTableCell header>Diện tích</AdminTableCell>
+                    <AdminTableCell header>Trạng thái</AdminTableCell>
+                  </AdminTableRow>
+                </AdminTableHeader>
+                <AdminTableBody>
                 {paginatedRooms.map((room, index) => (
                   <AdminTableRow
                     key={room.id}
@@ -614,8 +620,9 @@ const RoomManagement: React.FC = () => {
                     </AdminTableCell>
                   </AdminTableRow>
                 ))}
-              </AdminTableBody>
-            </AdminTable>
+                </AdminTableBody>
+              </AdminTable>
+            </div>
           </AdminCard>
 
           {totalPages > 1 && (
@@ -624,10 +631,24 @@ const RoomManagement: React.FC = () => {
               totalPages={totalPages}
               totalItems={filteredRooms.length}
               itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
+              onPageChange={(page) => {
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setCurrentPage(page);
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
+              }}
               onItemsPerPageChange={(newItemsPerPage) => {
-                setItemsPerPage(newItemsPerPage);
-                setCurrentPage(1);
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setItemsPerPage(newItemsPerPage);
+                  setCurrentPage(1);
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
               }}
             />
           )}

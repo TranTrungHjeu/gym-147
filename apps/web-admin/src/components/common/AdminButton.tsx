@@ -1,5 +1,5 @@
-import React from 'react';
 import { LucideIcon } from 'lucide-react';
+import React from 'react';
 
 interface AdminButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: 'primary' | 'secondary' | 'danger' | 'outline';
@@ -22,9 +22,11 @@ const AdminButton: React.FC<AdminButtonProps> = ({
 }) => {
   const variantClasses = {
     primary: 'bg-orange-600 hover:bg-orange-700 text-white focus:ring-orange-500',
-    secondary: 'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 focus:ring-gray-500',
+    secondary:
+      'bg-gray-100 hover:bg-gray-200 text-gray-700 dark:bg-gray-800 dark:hover:bg-gray-700 dark:text-gray-300 focus:ring-gray-500',
     danger: 'bg-error-600 hover:bg-error-700 text-white focus:ring-error-500',
-    outline: 'border-2 border-gray-300 dark:border-gray-700 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-gray-500',
+    outline:
+      'border-2 border-gray-300 dark:border-gray-700 bg-transparent hover:bg-gray-50 dark:hover:bg-gray-800 text-gray-700 dark:text-gray-300 focus:ring-gray-500',
   };
 
   const sizeClasses = {
@@ -82,4 +84,3 @@ const AdminButton: React.FC<AdminButtonProps> = ({
 };
 
 export default AdminButton;
-

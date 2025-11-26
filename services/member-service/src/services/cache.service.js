@@ -328,6 +328,279 @@ class CacheService {
   }
 
   /**
+   * Queue State Caching Methods
+   */
+
+  /**
+   * Get queue length from cache
+   * @param {string} equipmentId - Equipment ID
+   * @returns {Promise<number|null>} - Queue length or null if not cached
+   */
+  async getQueueLength(equipmentId) {
+    const key = `queue:length:${equipmentId}`;
+    const cached = await this.get(key);
+    return cached !== null ? cached : null;
+  }
+
+  /**
+   * Set queue length in cache
+   * @param {string} equipmentId - Equipment ID
+   * @param {number} length - Queue length
+   * @param {number} ttl - Time to live in seconds (default: 300 = 5 minutes)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async setQueueLength(equipmentId, length, ttl = 300) {
+    const key = `queue:length:${equipmentId}`;
+    return await this.set(key, length, ttl);
+  }
+
+  /**
+   * Get queue list from cache
+   * @param {string} equipmentId - Equipment ID
+   * @returns {Promise<Array|null>} - Queue list or null if not cached
+   */
+  async getQueueList(equipmentId) {
+    const key = `queue:list:${equipmentId}`;
+    const cached = await this.get(key);
+    return cached !== null ? cached : null;
+  }
+
+  /**
+   * Set queue list in cache
+   * @param {string} equipmentId - Equipment ID
+   * @param {Array} queueList - Queue list
+   * @param {number} ttl - Time to live in seconds (default: 300 = 5 minutes)
+   * @returns {Promise<boolean>} - Success status
+   */
+  async setQueueList(equipmentId, queueList, ttl = 300) {
+    const key = `queue:list:${equipmentId}`;
+    return await this.set(key, queueList, ttl);
+  }
+
+  /**
+   * Invalidate all queue cache for an equipment
+   * @param {string} equipmentId - Equipment ID
+   * @returns {Promise<number>} - Number of keys deleted
+   */
+  async invalidateQueueCache(equipmentId) {
+    const patterns = [
+      `queue:length:${equipmentId}`,
+      `queue:list:${equipmentId}`,
+      `queue:position:${equipmentId}:*`,
+    ];
+    
+    let totalDeleted = 0;
+    for (const pattern of patterns) {
+      if (pattern.includes('*')) {
+        totalDeleted += await this.deleteByPattern(pattern);
+      } else {
+        const deleted = await this.delete(pattern);
+        if (deleted) totalDeleted += 1;
+      }
+    }
+    
+    return totalDeleted;
+  }
+
+  /**
+   * Get or set queue length (cache-aside pattern)
+   * @param {string} equipmentId - Equipment ID
+   * @param {Function} fetchFunction - Function to fetch queue length from DB
+   * @param {number} ttl - Time to live in seconds (default: 300)
+   * @returns {Promise<number>} - Queue length
+   */
+  async getOrSetQueueLength(equipmentId, fetchFunction, ttl = 300) {
+    return await this.getOrSet(
+      `queue:length:${equipmentId}`,
+      fetchFunction,
+      ttl
+    );
+  }
+
+  /**
+   * Get or set queue list (cache-aside pattern)
+   * @param {string} equipmentId - Equipment ID
+   * @param {Function} fetchFunction - Function to fetch queue list from DB
+   * @param {number} ttl - Time to live in seconds (default: 300)
+   * @returns {Promise<Array>} - Queue list
+   */
+  async getOrSetQueueList(equipmentId, fetchFunction, ttl = 300) {
+    return await this.getOrSet(
+      `queue:list:${equipmentId}`,
+      fetchFunction,
+      ttl
+    );
+  }
+
+  /**
+   * Leaderboard Caching Methods (using Redis Sorted Sets)
+   */
+
+  /**
+   * Add or update member score in leaderboard
+   * @param {string} leaderboardKey - Leaderboard key (e.g., 'leaderboard:challenge:weekly')
+   * @param {string} memberId - Member ID
+   * @param {number} score - Score to add/update
+   * @returns {Promise<boolean>} - Success status
+   */
+  async addToLeaderboard(leaderboardKey, memberId, score) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      // Use ZADD to add/update score in sorted set
+      // Score is the number of completed challenges
+      await this.client.zAdd(leaderboardKey, {
+        score: score,
+        value: memberId,
+      });
+      return true;
+    } catch (error) {
+      console.error(`❌ Redis ZADD error for leaderboard ${leaderboardKey}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Get leaderboard from Redis Sorted Set
+   * @param {string} leaderboardKey - Leaderboard key
+   * @param {number} limit - Number of top members to return
+   * @param {boolean} reverse - If true, return in ascending order (default: false = descending)
+   * @returns {Promise<Array>} - Array of { memberId, score, rank }
+   */
+  async getLeaderboard(leaderboardKey, limit = 10, reverse = false) {
+    if (!this.isConnected || !this.client) {
+      return [];
+    }
+
+    try {
+      // Use ZREVRANGE for descending order (highest scores first)
+      // or ZRANGE for ascending order
+      const rangeMethod = reverse ? 'zRange' : 'zRevRange';
+      const results = await this.client[rangeMethod](leaderboardKey, 0, limit - 1, {
+        WITHSCORES: true,
+      });
+
+      // Parse results: [memberId1, score1, memberId2, score2, ...]
+      const leaderboard = [];
+      for (let i = 0; i < results.length; i += 2) {
+        const memberId = results[i];
+        const score = parseFloat(results[i + 1]);
+        const rank = reverse ? Math.floor(i / 2) + 1 : Math.floor(i / 2) + 1;
+        leaderboard.push({ memberId, score, rank });
+      }
+
+      return leaderboard;
+    } catch (error) {
+      console.error(`❌ Redis leaderboard GET error for ${leaderboardKey}:`, error);
+      return [];
+    }
+  }
+
+  /**
+   * Get member's rank in leaderboard
+   * @param {string} leaderboardKey - Leaderboard key
+   * @param {string} memberId - Member ID
+   * @param {boolean} reverse - If true, rank from lowest (default: false = from highest)
+   * @returns {Promise<number|null>} - Rank (1-based) or null if not found
+   */
+  async getMemberRank(leaderboardKey, memberId, reverse = false) {
+    if (!this.isConnected || !this.client) {
+      return null;
+    }
+
+    try {
+      // Use ZREVRANK for descending order or ZRANK for ascending
+      const rankMethod = reverse ? 'zRank' : 'zRevRank';
+      const rank = await this.client[rankMethod](leaderboardKey, memberId);
+      return rank !== null ? rank + 1 : null; // Convert 0-based to 1-based
+    } catch (error) {
+      console.error(`❌ Redis rank GET error for ${leaderboardKey}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Get member's score in leaderboard
+   * @param {string} leaderboardKey - Leaderboard key
+   * @param {string} memberId - Member ID
+   * @returns {Promise<number|null>} - Score or null if not found
+   */
+  async getMemberScore(leaderboardKey, memberId) {
+    if (!this.isConnected || !this.client) {
+      return null;
+    }
+
+    try {
+      const score = await this.client.zScore(leaderboardKey, memberId);
+      return score !== null ? score : null;
+    } catch (error) {
+      console.error(`❌ Redis score GET error for ${leaderboardKey}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Remove member from leaderboard
+   * @param {string} leaderboardKey - Leaderboard key
+   * @param {string} memberId - Member ID
+   * @returns {Promise<boolean>} - Success status
+   */
+  async removeFromLeaderboard(leaderboardKey, memberId) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.zRem(leaderboardKey, memberId);
+      return true;
+    } catch (error) {
+      console.error(`❌ Redis ZREM error for leaderboard ${leaderboardKey}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Clear entire leaderboard
+   * @param {string} leaderboardKey - Leaderboard key
+   * @returns {Promise<boolean>} - Success status
+   */
+  async clearLeaderboard(leaderboardKey) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.del(leaderboardKey);
+      return true;
+    } catch (error) {
+      console.error(`❌ Redis DEL error for leaderboard ${leaderboardKey}:`, error);
+      return false;
+    }
+  }
+
+  /**
+   * Set TTL for leaderboard
+   * @param {string} leaderboardKey - Leaderboard key
+   * @param {number} ttl - Time to live in seconds
+   * @returns {Promise<boolean>} - Success status
+   */
+  async setLeaderboardTTL(leaderboardKey, ttl) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.expire(leaderboardKey, ttl);
+      return true;
+    } catch (error) {
+      console.error(`❌ Redis EXPIRE error for leaderboard ${leaderboardKey}:`, error);
+      return false;
+    }
+  }
+
+  /**
    * Close Redis connection
    */
   async close() {

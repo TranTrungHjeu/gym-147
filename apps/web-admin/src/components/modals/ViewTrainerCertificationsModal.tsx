@@ -28,6 +28,7 @@ interface ViewTrainerCertificationsModalProps {
   onClose: () => void;
   trainer: { id: string; full_name: string } | null;
   onCertificationDeleted?: () => void;
+  highlightCertificationId?: string; // Optional: ID of certification to highlight when modal opens
 }
 
 const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalProps> = ({
@@ -35,6 +36,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   onClose,
   trainer,
   onCertificationDeleted,
+  highlightCertificationId,
 }) => {
   const { showToast } = useToast();
   const [certifications, setCertifications] = useState<Certification[]>([]);
@@ -61,16 +63,196 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
     }
   }, [isOpen, trainer]);
 
-  // Listen for certification:deleted event for optimistic updates
+  // Listen for certification events for optimistic updates
   useEffect(() => {
-    const handleCertificationDeleted = (event: CustomEvent) => {
-      console.log('📢 certification:deleted event received in ViewTrainerCertificationsModal:', event.detail);
+    const handleCertificationCreated = (event: CustomEvent) => {
+      console.log(
+        '📢 certification:created event received in ViewTrainerCertificationsModal:',
+        event.detail
+      );
+      const data = event.detail;
+
+      // Check if this certification belongs to the current trainer
+      if (
+        (data?.trainer_id && data.trainer_id === trainer?.id) ||
+        data?.certification_id ||
+        data?.id
+      ) {
+        const certId = data.certification_id || data.id;
+
+        setCertifications(prev => {
+          // Check if certification already exists
+          const exists = prev.some(cert => cert.id === certId);
+          if (exists) {
+            // Update existing certification
+            return prev.map(cert => {
+              if (cert.id === certId) {
+                return {
+                  ...cert,
+                  category: data.category || cert.category,
+                  certification_name: data.certification_name || cert.certification_name,
+                  certification_issuer: data.certification_issuer || cert.certification_issuer,
+                  certification_level: data.certification_level || cert.certification_level,
+                  verification_status: data.verification_status || cert.verification_status,
+                  certificate_file_url: data.certificate_file_url || cert.certificate_file_url,
+                  issued_date: data.issued_date || cert.issued_date,
+                  expiration_date: data.expiration_date || cert.expiration_date,
+                  updated_at: data.updated_at || new Date().toISOString(),
+                };
+              }
+              return cert;
+            });
+          }
+
+          // Add new certification at the correct position according to backend sort logic:
+          // 1. category: 'asc'
+          // 2. verification_status: 'asc' (VERIFIED first, then PENDING, REJECTED)
+          // 3. certification_level: 'desc' (Higher level first)
+          // 4. expiration_date: 'desc' (Later expiration first, nulls last)
+          // 5. created_at: 'desc' (Newer first)
+          const newCert: Certification = {
+            id: certId,
+            trainer_id: data.trainer_id || trainer?.id || '',
+            category: data.category || '',
+            certification_name: data.certification_name || 'New Certification',
+            certification_issuer: data.certification_issuer || '',
+            certification_level: (data.certification_level as any) || 'BASIC',
+            issued_date: data.issued_date || new Date().toISOString(),
+            expiration_date: data.expiration_date,
+            verification_status: data.verification_status || 'PENDING',
+            certificate_file_url: data.certificate_file_url,
+            is_active: data.is_active !== undefined ? data.is_active : true,
+            created_at: data.created_at || new Date().toISOString(),
+            updated_at: data.updated_at || new Date().toISOString(),
+          };
+
+          // Helper function to compare certifications according to backend sort logic
+          const compareCerts = (a: Certification, b: Certification): number => {
+            const statusOrder: Record<string, number> = {
+              VERIFIED: 0,
+              PENDING: 1,
+              REJECTED: 2,
+              EXPIRED: 3,
+              SUSPENDED: 4,
+            };
+            const levelOrder: Record<string, number> = {
+              EXPERT: 4,
+              ADVANCED: 3,
+              INTERMEDIATE: 2,
+              BASIC: 1,
+            };
+
+            // 1. Sort by category (asc)
+            if (a.category !== b.category) {
+              return a.category.localeCompare(b.category);
+            }
+
+            // 2. Sort by verification_status (asc - VERIFIED first)
+            const statusA = statusOrder[a.verification_status] ?? 99;
+            const statusB = statusOrder[b.verification_status] ?? 99;
+            if (statusA !== statusB) {
+              return statusA - statusB;
+            }
+
+            // 3. Sort by certification_level (desc - higher first)
+            const levelA = levelOrder[a.certification_level] ?? 0;
+            const levelB = levelOrder[b.certification_level] ?? 0;
+            if (levelA !== levelB) {
+              return levelB - levelA;
+            }
+
+            // 4. Sort by expiration_date (desc - later first, nulls last)
+            if (a.expiration_date && b.expiration_date) {
+              const dateA = new Date(a.expiration_date).getTime();
+              const dateB = new Date(b.expiration_date).getTime();
+              if (dateA !== dateB) {
+                return dateB - dateA;
+              }
+            } else if (a.expiration_date && !b.expiration_date) {
+              return -1;
+            } else if (!a.expiration_date && b.expiration_date) {
+              return 1;
+            }
+
+            // 5. Sort by created_at (desc - newer first)
+            const createdA = new Date(a.created_at).getTime();
+            const createdB = new Date(b.created_at).getTime();
+            return createdB - createdA;
+          };
+
+          // Find the correct position to insert the new certification
+          let insertIndex = 0;
+          for (let i = 0; i < prev.length; i++) {
+            if (compareCerts(newCert, prev[i]) < 0) {
+              insertIndex = i;
+              break;
+            }
+            insertIndex = i + 1;
+          }
+
+          // Insert at the correct position
+          const updated = [...prev];
+          updated.splice(insertIndex, 0, newCert);
+
+          console.log(
+            `✅ [VIEW_CERTS_MODAL] Added certification ${certId} optimistically at position ${insertIndex}`
+          );
+          return updated;
+        });
+
+        // No background reload - optimistic update is sufficient
+      }
+    };
+
+    const handleCertificationUpdated = (event: CustomEvent) => {
+      console.log(
+        '📢 certification:updated event received in ViewTrainerCertificationsModal:',
+        event.detail
+      );
       const data = event.detail;
 
       // Check if this certification belongs to the current trainer
       if (data?.certification_id || data?.id) {
         const certId = data.certification_id || data.id;
-        
+
+        setCertifications(prev => {
+          const index = prev.findIndex(cert => cert.id === certId);
+          if (index === -1) {
+            console.log(
+              `ℹ️ [VIEW_CERTS_MODAL] Certification ${certId} not found in list, skipping optimistic update`
+            );
+            return prev;
+          }
+
+          // Update existing certification
+          const updated = [...prev];
+          updated[index] = {
+            ...updated[index],
+            verification_status: data.verification_status || updated[index].verification_status,
+            verified_by: data.verified_by || updated[index].verified_by,
+            verified_at: data.verified_at || updated[index].verified_at,
+            rejection_reason: data.rejection_reason || updated[index].rejection_reason,
+            updated_at: data.updated_at || new Date().toISOString(),
+          };
+          console.log(`✅ [VIEW_CERTS_MODAL] Updated certification ${certId} optimistically`);
+          return updated;
+        });
+
+        // No background reload - optimistic update is sufficient
+      }
+    };
+
+    const handleCertificationDeleted = (event: CustomEvent) => {
+      console.log(
+        '📢 certification:deleted event received in ViewTrainerCertificationsModal:',
+        event.detail
+      );
+      const data = event.detail;
+
+      // Check if this certification belongs to the current trainer
+      if (data?.certification_id || data?.id) {
+        const certId = data.certification_id || data.id;
+
         // Mark as deleting for animation
         setDeletingCertIds(prev => {
           const newSet = new Set(prev);
@@ -82,10 +264,12 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
         setTimeout(() => {
           setCertifications(prev => {
             const filtered = prev.filter(cert => cert.id !== certId);
-            console.log(`✅ [VIEW_CERTS_MODAL] Removed certification ${certId} after animation. Remaining: ${filtered.length}`);
+            console.log(
+              `✅ [VIEW_CERTS_MODAL] Removed certification ${certId} after animation. Remaining: ${filtered.length}`
+            );
             return filtered;
           });
-          
+
           // Remove from deleting set
           setDeletingCertIds(prev => {
             const newSet = new Set(prev);
@@ -94,19 +278,29 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
           });
         }, 400); // Wait for animation to complete
 
-        // Background sync after delay
-        setTimeout(() => {
-          loadCertifications();
-        }, 1500);
+        // No background reload - optimistic update is sufficient
       }
     };
 
+    window.addEventListener('certification:created', handleCertificationCreated as EventListener);
+    window.addEventListener('certification:updated', handleCertificationUpdated as EventListener);
     window.addEventListener('certification:deleted', handleCertificationDeleted as EventListener);
 
     return () => {
-      window.removeEventListener('certification:deleted', handleCertificationDeleted as EventListener);
+      window.removeEventListener(
+        'certification:created',
+        handleCertificationCreated as EventListener
+      );
+      window.removeEventListener(
+        'certification:updated',
+        handleCertificationUpdated as EventListener
+      );
+      window.removeEventListener(
+        'certification:deleted',
+        handleCertificationDeleted as EventListener
+      );
     };
-  }, []);
+  }, [trainer?.id]);
 
   const loadCertifications = async () => {
     if (!trainer?.id) return;
@@ -215,23 +409,26 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   };
 
   const handleDeleteComplete = () => {
-    // Optimistic update: Mark certification as deleting for smooth animation
+    // Optimistic update: Remove certification immediately for instant UI feedback
     if (certToDelete) {
+      // Remove certification immediately (optimistic update)
+      setCertifications(prev => {
+        const filtered = prev.filter(cert => cert.id !== certToDelete.id);
+        console.log(
+          `✅ [VIEW_CERTS_MODAL] Removed certification ${certToDelete.id} optimistically. Remaining: ${filtered.length}`
+        );
+        return filtered;
+      });
+
+      // Mark as deleting for smooth animation (if needed)
       setDeletingCertIds(prev => {
         const newSet = new Set(prev);
         newSet.add(certToDelete.id);
         return newSet;
       });
 
-      // Remove certification after animation completes
+      // Remove from deleting set after animation
       setTimeout(() => {
-        setCertifications(prev => {
-          const filtered = prev.filter(cert => cert.id !== certToDelete.id);
-          console.log(`✅ [VIEW_CERTS_MODAL] Removed certification ${certToDelete.id} after animation. Remaining: ${filtered.length}`);
-          return filtered;
-        });
-        
-        // Remove from deleting set
         setDeletingCertIds(prev => {
           const newSet = new Set(prev);
           newSet.delete(certToDelete.id);
@@ -249,10 +446,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
       onCertificationDeleted();
     }
 
-    // Background sync after delay to ensure data consistency
-    setTimeout(() => {
-      loadCertifications();
-    }, 1500);
+    // No background reload - optimistic update is sufficient
   };
 
   const handleReviewClick = (cert: Certification) => {
@@ -263,7 +457,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   };
 
   const handleReviewComplete = () => {
-    loadCertifications();
+    // No reload needed - optimistic update via socket events is sufficient
     if (onCertificationDeleted) {
       onCertificationDeleted();
     }
@@ -275,9 +469,9 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
 
   return (
     <>
-      <Modal isOpen={isOpen} onClose={onClose} className='max-w-6xl m-4'>
+      <Modal isOpen={isOpen} onClose={onClose} className='max-w-7xl m-4'>
         <div
-          className='relative w-full max-w-6xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[85vh] flex flex-col'
+          className='relative min-w-[350px] w-full max-w-7xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[85vh] flex flex-col'
           style={{ willChange: 'auto' }}
         >
           {/* Header */}
@@ -343,56 +537,64 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
                 <AdminTableBody>
                   {certifications.map((cert, index) => {
                     const isDeleting = deletingCertIds.has(cert.id);
-                    
+                    const isHighlighted = highlightCertificationId === cert.id;
+
                     return (
-                    <AdminTableRow
-                      key={cert.id}
-                      onClick={(e?: React.MouseEvent) => {
-                        if (e && !isDeleting) {
-                          e.stopPropagation();
-                          setSelectedCertForAction(cert);
-                          setMenuPosition({ x: e.clientX, y: e.clientY });
-                          setActionMenuOpen(true);
-                        }
-                      }}
-                      className={`group relative border-l-4 transition-all duration-200 ${
-                        isDeleting ? 'certification-deleting pointer-events-none' : 'cursor-pointer'
-                      } ${
-                        index % 2 === 0
-                          ? 'bg-white dark:bg-gray-900'
-                          : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } border-l-transparent ${
-                        !isDeleting ? 'hover:border-l-orange-500 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10' : ''
-                      }`}
-                    >
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        <span className='font-medium'>{getCategoryLabel(cert.category)}</span>
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        <span className='font-medium'>
-                          {getLevelLabel(cert.certification_level)}
-                        </span>
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        <span className='truncate block' title={cert.certification_name}>
-                          {cert.certification_name}
-                        </span>
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        <span className='truncate block' title={cert.certification_issuer}>
-                          {cert.certification_issuer}
-                        </span>
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        {formatDate(cert.issued_date)}
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        {cert.expiration_date ? formatDate(cert.expiration_date) : '-'}
-                      </AdminTableCell>
-                      <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                        {getStatusBadge(cert.verification_status)}
-                      </AdminTableCell>
-                    </AdminTableRow>
+                      <AdminTableRow
+                        key={cert.id}
+                        data-certification-id={cert.id}
+                        onClick={(e?: React.MouseEvent) => {
+                          if (e && !isDeleting) {
+                            e.stopPropagation();
+                            setSelectedCertForAction(cert);
+                            setMenuPosition({ x: e.clientX, y: e.clientY });
+                            setActionMenuOpen(true);
+                          }
+                        }}
+                        className={`group relative border-l-4 transition-all duration-200 ${
+                          isDeleting
+                            ? 'certification-deleting pointer-events-none'
+                            : 'cursor-pointer'
+                        } ${
+                          index % 2 === 0
+                            ? 'bg-white dark:bg-gray-900'
+                            : 'bg-gray-50/50 dark:bg-gray-800/50'
+                        } border-l-transparent ${
+                          isHighlighted
+                            ? 'ring-4 ring-orange-500 ring-opacity-50 border-l-orange-500 bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-900/20 dark:to-orange-800/10'
+                            : !isDeleting
+                            ? 'hover:border-l-orange-500 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10'
+                            : ''
+                        }`}
+                      >
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          <span className='font-medium'>{getCategoryLabel(cert.category)}</span>
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          <span className='font-medium'>
+                            {getLevelLabel(cert.certification_level)}
+                          </span>
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          <span className='truncate block' title={cert.certification_name}>
+                            {cert.certification_name}
+                          </span>
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          <span className='truncate block' title={cert.certification_issuer}>
+                            {cert.certification_issuer}
+                          </span>
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          {formatDate(cert.issued_date)}
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          {cert.expiration_date ? formatDate(cert.expiration_date) : '-'}
+                        </AdminTableCell>
+                        <AdminTableCell className='overflow-hidden font-space-grotesk'>
+                          {getStatusBadge(cert.verification_status)}
+                        </AdminTableCell>
+                      </AdminTableRow>
                     );
                   })}
                 </AdminTableBody>
@@ -423,9 +625,9 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
             setShowImageModal(false);
             setSelectedCert(null);
           }}
-          className='max-w-6xl m-4'
+          className='max-w-7xl m-4'
         >
-          <div className='relative w-full max-w-6xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
+          <div className='relative w-full max-w-7xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
             <div className='p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-gray-800 dark:to-gray-800/50 pr-16'>
               <div className='flex items-center gap-3'>
                 <div className='p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg'>

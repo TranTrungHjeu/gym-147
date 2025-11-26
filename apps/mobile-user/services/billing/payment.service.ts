@@ -7,28 +7,31 @@ import type {
   PaymentMethod,
   Refund,
 } from '@/types/billingTypes';
+import { ApiResponse } from '../api';
 import { billingApiService } from '../billing/api.service';
 
 export class PaymentService {
   // Payment Methods
-  async getMemberPaymentMethods(memberId: string): Promise<PaymentMethod[]> {
+  async getMemberPaymentMethods(
+    memberId: string
+  ): Promise<ApiResponse<PaymentMethod[]>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<PaymentMethod[]>(
         `/members/${memberId}/payment-methods`
       );
-      return response.data as PaymentMethod[];
     } catch (error) {
       console.error('Error fetching payment methods:', error);
       throw error;
     }
   }
 
-  async getPaymentMethodById(methodId: string): Promise<PaymentMethod> {
+  async getPaymentMethodById(
+    methodId: string
+  ): Promise<ApiResponse<PaymentMethod>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<PaymentMethod>(
         `/payment-methods/${methodId}`
       );
-      return response.data as PaymentMethod;
     } catch (error) {
       console.error('Error fetching payment method:', error);
       throw error;
@@ -38,13 +41,12 @@ export class PaymentService {
   async createPaymentMethod(
     memberId: string,
     method: CreatePaymentMethodRequest
-  ): Promise<PaymentMethod> {
+  ): Promise<ApiResponse<PaymentMethod>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<PaymentMethod>(
         `/members/${memberId}/payment-methods`,
         method
       );
-      return response.data as PaymentMethod;
     } catch (error) {
       console.error('Error creating payment method:', error);
       throw error;
@@ -54,22 +56,23 @@ export class PaymentService {
   async updatePaymentMethod(
     methodId: string,
     updates: Partial<PaymentMethod>
-  ): Promise<PaymentMethod> {
+  ): Promise<ApiResponse<PaymentMethod>> {
     try {
-      const response = await billingApiService.put(
+      return await billingApiService.put<PaymentMethod>(
         `/payment-methods/${methodId}`,
         updates
       );
-      return response.data as PaymentMethod;
     } catch (error) {
       console.error('Error updating payment method:', error);
       throw error;
     }
   }
 
-  async deletePaymentMethod(methodId: string): Promise<void> {
+  async deletePaymentMethod(methodId: string): Promise<ApiResponse<void>> {
     try {
-      await billingApiService.delete(`/payment-methods/${methodId}`);
+      return await billingApiService.delete<void>(
+        `/payment-methods/${methodId}`
+      );
     } catch (error) {
       console.error('Error deleting payment method:', error);
       throw error;
@@ -79,9 +82,9 @@ export class PaymentService {
   async setDefaultPaymentMethod(
     memberId: string,
     methodId: string
-  ): Promise<void> {
+  ): Promise<ApiResponse<void>> {
     try {
-      await billingApiService.put(
+      return await billingApiService.put<void>(
         `/members/${memberId}/payment-methods/${methodId}/default`
       );
     } catch (error) {
@@ -94,7 +97,7 @@ export class PaymentService {
   async getMemberPayments(
     memberId: string,
     filters?: PaymentFilters
-  ): Promise<Payment[]> {
+  ): Promise<ApiResponse<Payment[]>> {
     try {
       const params = new URLSearchParams();
       if (filters?.status) params.append('status', filters.status);
@@ -104,20 +107,18 @@ export class PaymentService {
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 
-      const response = await billingApiService.get(
+      return await billingApiService.get<Payment[]>(
         `/members/${memberId}/payments?${params}`
       );
-      return response.data as Payment[];
     } catch (error) {
       console.error('Error fetching member payments:', error);
       throw error;
     }
   }
 
-  async getPaymentById(paymentId: string): Promise<Payment> {
+  async getPaymentById(paymentId: string): Promise<ApiResponse<Payment>> {
     try {
-      const response = await billingApiService.get(`/payments/${paymentId}`);
-      return response.data as Payment;
+      return await billingApiService.get<Payment>(`/payments/${paymentId}`);
     } catch (error) {
       console.error('Error fetching payment:', error);
       throw error;
@@ -211,34 +212,33 @@ export class PaymentService {
     }
   }
 
-  async createPayment(payment: CreatePaymentRequest): Promise<Payment> {
+  async createPayment(
+    payment: CreatePaymentRequest
+  ): Promise<ApiResponse<Payment>> {
     try {
-      const response = await billingApiService.post('/payments', payment);
-      return response.data as Payment;
+      return await billingApiService.post<Payment>('/payments', payment);
     } catch (error) {
       console.error('Error creating payment:', error);
       throw error;
     }
   }
 
-  async processPayment(paymentId: string): Promise<Payment> {
+  async processPayment(paymentId: string): Promise<ApiResponse<Payment>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<Payment>(
         `/payments/${paymentId}/process`
       );
-      return response.data as Payment;
     } catch (error) {
       console.error('Error processing payment:', error);
       throw error;
     }
   }
 
-  async retryPayment(paymentId: string): Promise<Payment> {
+  async retryPayment(paymentId: string): Promise<ApiResponse<Payment>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<Payment>(
         `/payments/${paymentId}/retry`
       );
-      return response.data as Payment;
     } catch (error) {
       console.error('Error retrying payment:', error);
       throw error;
@@ -246,12 +246,11 @@ export class PaymentService {
   }
 
   // Refunds
-  async getPaymentRefunds(paymentId: string): Promise<Refund[]> {
+  async getPaymentRefunds(paymentId: string): Promise<ApiResponse<Refund[]>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<Refund[]>(
         `/payments/${paymentId}/refunds`
       );
-      return response.data as Refund[];
     } catch (error) {
       console.error('Error fetching payment refunds:', error);
       throw error;
@@ -262,26 +261,24 @@ export class PaymentService {
     paymentId: string,
     amount: number,
     reason: string
-  ): Promise<Refund> {
+  ): Promise<ApiResponse<Refund>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<Refund>(
         `/payments/${paymentId}/refunds`,
         {
           amount,
           reason,
         }
       );
-      return response.data as Refund;
     } catch (error) {
       console.error('Error creating refund:', error);
       throw error;
     }
   }
 
-  async getRefundById(refundId: string): Promise<Refund> {
+  async getRefundById(refundId: string): Promise<ApiResponse<Refund>> {
     try {
-      const response = await billingApiService.get(`/refunds/${refundId}`);
-      return response.data as Refund;
+      return await billingApiService.get<Refund>(`/refunds/${refundId}`);
     } catch (error) {
       console.error('Error fetching refund:', error);
       throw error;
@@ -292,7 +289,7 @@ export class PaymentService {
   async getMemberInvoices(
     memberId: string,
     filters?: PaymentFilters
-  ): Promise<Invoice[]> {
+  ): Promise<ApiResponse<Invoice[]>> {
     try {
       const params = new URLSearchParams();
       if (filters?.status) params.append('status', filters.status);
@@ -301,35 +298,32 @@ export class PaymentService {
       if (filters?.limit) params.append('limit', filters.limit.toString());
       if (filters?.offset) params.append('offset', filters.offset.toString());
 
-      const response = await billingApiService.get(
+      return await billingApiService.get<Invoice[]>(
         `/members/${memberId}/invoices?${params}`
       );
-      return response.data as Invoice[];
     } catch (error) {
       console.error('Error fetching member invoices:', error);
       throw error;
     }
   }
 
-  async getInvoiceById(invoiceId: string): Promise<Invoice> {
+  async getInvoiceById(invoiceId: string): Promise<ApiResponse<Invoice>> {
     try {
-      const response = await billingApiService.get(`/invoices/${invoiceId}`);
-      return response.data as Invoice;
+      return await billingApiService.get<Invoice>(`/invoices/${invoiceId}`);
     } catch (error) {
       console.error('Error fetching invoice:', error);
       throw error;
     }
   }
 
-  async downloadInvoice(invoiceId: string): Promise<Blob> {
+  async downloadInvoice(invoiceId: string): Promise<ApiResponse<Blob>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<Blob>(
         `/invoices/${invoiceId}/download`,
         {
           responseType: 'blob',
         }
       );
-      return response.data as Blob;
     } catch (error) {
       console.error('Error downloading invoice:', error);
       throw error;
@@ -340,12 +334,11 @@ export class PaymentService {
   async getPaymentAnalytics(
     memberId: string,
     period: string = 'monthly'
-  ): Promise<any> {
+  ): Promise<ApiResponse<any>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<any>(
         `/payments/analytics/${memberId}?period=${period}`
       );
-      return response.data;
     } catch (error) {
       console.error('Error fetching payment analytics:', error);
       throw error;
@@ -353,24 +346,26 @@ export class PaymentService {
   }
 
   // Payment Processing
-  async validatePaymentMethod(methodId: string): Promise<boolean> {
+  async validatePaymentMethod(
+    methodId: string
+  ): Promise<ApiResponse<{ valid: boolean }>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<{ valid: boolean }>(
         `/payment-methods/${methodId}/validate`
       );
-      return response.data.valid;
     } catch (error) {
       console.error('Error validating payment method:', error);
       throw error;
     }
   }
 
-  async getPaymentMethodsByType(type: string): Promise<PaymentMethod[]> {
+  async getPaymentMethodsByType(
+    type: string
+  ): Promise<ApiResponse<PaymentMethod[]>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<PaymentMethod[]>(
         `/payment-methods/type/${type}`
       );
-      return response.data as PaymentMethod[];
     } catch (error) {
       console.error('Error fetching payment methods by type:', error);
       throw error;
@@ -382,50 +377,44 @@ export class PaymentService {
     paymentId: string,
     memberId: string,
     amount: number
-  ): Promise<any> {
+  ): Promise<ApiResponse<any>> {
     try {
-      const response = await billingApiService.post('/bank-transfers/create', {
+      return await billingApiService.post<any>('/bank-transfers/create', {
         payment_id: paymentId,
         member_id: memberId,
         amount: amount,
       });
-      return response.data;
     } catch (error) {
       console.error('Error creating bank transfer:', error);
       throw error;
     }
   }
 
-  async getBankTransfer(paymentId: string): Promise<any> {
+  async getBankTransfer(paymentId: string): Promise<ApiResponse<any>> {
     try {
-      const response = await billingApiService.get(
-        `/bank-transfers/${paymentId}`
-      );
-      return response.data;
+      return await billingApiService.get<any>(`/bank-transfers/${paymentId}`);
     } catch (error) {
       console.error('Error fetching bank transfer:', error);
       throw error;
     }
   }
 
-  async verifyBankTransfer(bankTransferId: string): Promise<any> {
+  async verifyBankTransfer(bankTransferId: string): Promise<ApiResponse<any>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<any>(
         `/bank-transfers/${bankTransferId}/verify`
       );
-      return response.data;
     } catch (error) {
       console.error('Error verifying bank transfer:', error);
       throw error;
     }
   }
 
-  async cancelBankTransfer(bankTransferId: string): Promise<any> {
+  async cancelBankTransfer(bankTransferId: string): Promise<ApiResponse<any>> {
     try {
-      const response = await billingApiService.post(
+      return await billingApiService.post<any>(
         `/bank-transfers/${bankTransferId}/cancel`
       );
-      return response.data;
     } catch (error) {
       console.error('Error cancelling bank transfer:', error);
       throw error;
@@ -433,12 +422,13 @@ export class PaymentService {
   }
 
   // Receipt Download
-  async downloadReceipt(paymentId: string): Promise<{ receiptUrl: string }> {
+  async downloadReceipt(
+    paymentId: string
+  ): Promise<ApiResponse<{ receiptUrl: string }>> {
     try {
-      const response = await billingApiService.get(
+      return await billingApiService.get<{ receiptUrl: string }>(
         `/payments/${paymentId}/receipt`
       );
-      return response.data as { receiptUrl: string };
     } catch (error) {
       console.error('Error downloading receipt:', error);
       throw error;

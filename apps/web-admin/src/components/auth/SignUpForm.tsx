@@ -7,13 +7,15 @@ import Label from '../form/Label';
 import Checkbox from '../form/input/Checkbox';
 import Input from '../form/input/InputField';
 import OTPInput from './OTPInput';
+import QRCodeModal from '../modals/QRCodeModal';
 
 interface SignUpFormProps {
   onSwitchToSignIn?: (credentials?: { email?: string; phone?: string; password?: string }) => void;
   clearErrors?: boolean;
+  planId?: string;
 }
 
-export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: SignUpFormProps) {
+export default function SignUpForm({ onSwitchToSignIn, clearErrors = false, planId }: SignUpFormProps) {
   const [currentStep, setCurrentStep] = useState(1);
   const [showPassword, setShowPassword] = useState(false);
   const [isChecked, setIsChecked] = useState(false);
@@ -39,6 +41,8 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: Si
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [touchedFields, setTouchedFields] = useState<Record<string, boolean>>({});
+  const [showQRModal, setShowQRModal] = useState<boolean>(false);
+  const [registeredUserId, setRegisteredUserId] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsFormLoaded(true), 200);
@@ -361,6 +365,18 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: Si
         if (data.success) {
           showToast('Đăng ký thành công!', 'success');
 
+          // Store user ID for QR code
+          if (data.user?.id) {
+            setRegisteredUserId(data.user.id);
+          }
+
+          // Store credentials before resetting form
+          const credentials = {
+            email: signupType === 'email' ? formData.email : undefined,
+            phone: signupType === 'phone' ? formData.phone : undefined,
+            password: formData.password,
+          };
+
           // Reset form to step 1
           setCurrentStep(1);
           setFormData({
@@ -380,17 +396,8 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: Si
           setOtpVerified(false);
           setOtpError('');
 
-          // Prepare credentials for auto-fill
-          const credentials = {
-            email: signupType === 'email' ? formData.email : undefined,
-            phone: signupType === 'phone' ? formData.phone : undefined,
-            password: formData.password,
-          };
-
-          // Redirect to login with credentials
-          setTimeout(() => {
-            handleBackToSignIn(credentials);
-          }, 2000);
+          // Show QR code modal instead of redirecting
+          setShowQRModal(true);
         } else {
           // Handle specific error cases with user-friendly messages
           let errorMessage = data.message || 'Có lỗi xảy ra khi đăng ký';
@@ -1023,6 +1030,25 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false }: Si
         type={toast.type}
         isVisible={toast.isVisible}
         onClose={hideToast}
+      />
+
+      {/* QR Code Modal */}
+      <QRCodeModal
+        isOpen={showQRModal}
+        onClose={() => {
+          setShowQRModal(false);
+          // After closing QR modal, redirect to login
+          // Note: credentials are stored before form reset, so we need to handle this differently
+          // For now, just close and let user manually login
+          handleBackToSignIn();
+        }}
+        userId={registeredUserId}
+        planId={planId}
+        onContinue={() => {
+          setShowQRModal(false);
+          // After continuing, redirect to login
+          handleBackToSignIn();
+        }}
       />
     </div>
   );

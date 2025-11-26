@@ -1,7 +1,19 @@
 const { PrismaClient } = require('@prisma/client');
 const { sendPushNotification } = require('../utils/push-notification');
+const notificationService = require('../services/notification.service');
+const cacheService = require('../services/cache.service');
 
 const prisma = new PrismaClient();
+let distributedLock = null;
+try {
+  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+} catch (e) {
+  try {
+    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+  } catch (e2) {
+    console.warn('⚠️ Distributed lock utility not available, queue operations will use database transactions only');
+  }
+}
 
 // ============================================
 //  CONSTANTS
@@ -11,13 +23,54 @@ const MAX_QUEUE_LENGTH = 10; // Maximum 10 people in queue
 const NOTIFICATION_EXPIRE_MINUTES = 5; // 5 minutes to claim equipment
 
 // ============================================
+//  HELPER FUNCTIONS
+// ============================================
+
+/**
+ * Helper function to get userId from JWT token
+ */
+function getUserIdFromToken(req) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return null;
+  }
+
+  try {
+    const token = authHeader.split(' ')[1];
+    const tokenParts = token.split('.');
+    if (tokenParts.length !== 3) {
+      return null;
+    }
+
+    // Add padding to base64 if needed
+    let payloadBase64 = tokenParts[1];
+    while (payloadBase64.length % 4) {
+      payloadBase64 += '=';
+    }
+
+    const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+    return payload.userId || payload.id;
+  } catch (error) {
+    console.error('Error decoding JWT token:', error);
+    return null;
+  }
+}
+
+// ============================================
 //  JOIN QUEUE
 // ============================================
 
 async function joinQueue(req, res) {
   try {
     const { equipment_id } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = getUserIdFromToken(req);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Invalid or missing token',
+      });
+    }
 
     console.log(`🎫 User ${userId} joining queue for equipment ${equipment_id}`);
 
@@ -80,13 +133,19 @@ async function joinQueue(req, res) {
       });
     }
 
-    // 5. Check queue length
-    const currentQueueCount = await prisma.equipmentQueue.count({
-      where: {
-        equipment_id: equipment_id,
-        status: { in: ['WAITING', 'NOTIFIED'] },
+    // 5. Check queue length (with cache)
+    const currentQueueCount = await cacheService.getOrSetQueueLength(
+      equipment_id,
+      async () => {
+        return await prisma.equipmentQueue.count({
+          where: {
+            equipment_id: equipment_id,
+            status: { in: ['WAITING', 'NOTIFIED'] },
+          },
+        });
       },
-    });
+      300 // 5 minutes TTL
+    );
 
     if (currentQueueCount >= MAX_QUEUE_LENGTH) {
       return res.status(400).json({
@@ -107,8 +166,32 @@ async function joinQueue(req, res) {
 
     const nextPosition = (lastPosition?.position || 0) + 1;
 
-    // 7. Create queue entry
-    const queueEntry = await prisma.equipmentQueue.create({
+    // 7. Acquire distributed lock for queue operations
+    let lockAcquired = false;
+    let lockId = null;
+
+    if (distributedLock) {
+      const lockResult = await distributedLock.acquire('queue', equipment_id, {
+        ttl: 30, // 30 seconds
+        retryAttempts: 3,
+        retryDelay: 100,
+      });
+
+      if (!lockResult.acquired) {
+        return res.status(409).json({
+          success: false,
+          message: 'Queue operation đang được xử lý, vui lòng thử lại sau',
+          data: null,
+        });
+      }
+
+      lockAcquired = true;
+      lockId = lockResult.lockId;
+    }
+
+    try {
+      // 7. Create queue entry (with lock protection)
+      const queueEntry = await prisma.equipmentQueue.create({
       data: {
         member_id: member.id,
         equipment_id: equipment_id,
@@ -122,35 +205,82 @@ async function joinQueue(req, res) {
       },
     });
 
-    console.log(`✅ Member ${member.full_name} joined queue at position ${nextPosition}`);
+      console.log(`✅ Member ${member.full_name} joined queue at position ${nextPosition}`);
 
-    // 8. Emit WebSocket event
-    if (global.io) {
-      global.io.to(`equipment:${equipment_id}`).emit('queue:updated', {
-        equipment_id: equipment_id,
-        queue_length: currentQueueCount + 1,
-        action: 'joined',
-        member_id: member.id,
+      // 7.5. Invalidate queue cache after joining
+      await cacheService.invalidateQueueCache(equipment_id);
+      // Update cache with new length
+      await cacheService.setQueueLength(equipment_id, currentQueueCount + 1, 300);
+
+      // 8. Create notifications
+      // Notification for member
+      await notificationService.createQueueNotification({
+        memberId: member.id,
+        type: 'QUEUE_JOINED',
+        title: 'Đã tham gia hàng chờ',
+        message: `Bạn đã tham gia hàng chờ thiết bị ${equipment.name} ở vị trí ${nextPosition}`,
+        data: {
+          equipment_id: equipment_id,
+          equipment_name: equipment.name,
+          queue_id: queueEntry.id,
+          position: nextPosition,
+          estimated_wait: nextPosition * 30,
+        },
       });
 
-      // Notify the member
-      global.io.to(`user:${userId}`).emit('queue:joined', {
-        queue_id: queueEntry.id,
-        equipment: queueEntry.equipment,
+      // Notification for admin
+      await notificationService.createQueueNotificationForAdmin({
+        equipmentId: equipment_id,
+        equipmentName: equipment.name,
+        memberName: member.full_name,
         position: nextPosition,
+        action: 'joined',
+      });
+
+      // 9. Emit WebSocket event
+      if (global.io) {
+        global.io.to(`equipment:${equipment_id}`).emit('queue:updated', {
+          equipment_id: equipment_id,
+          queue_length: currentQueueCount + 1,
+          action: 'joined',
+          member_id: member.id,
+        });
+
+        // Notify the member
+        global.io.to(`user:${userId}`).emit('queue:joined', {
+          queue_id: queueEntry.id,
+          equipment: queueEntry.equipment,
+          position: nextPosition,
+        });
+      }
+
+      // Release lock after successful creation
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('queue', equipment_id, lockId);
+      }
+
+      return res.status(201).json({
+        success: true,
+        message: `You are in position ${nextPosition} for ${equipment.name}`,
+        data: {
+          queue_id: queueEntry.id,
+          position: nextPosition,
+          equipment: queueEntry.equipment,
+          estimated_wait: nextPosition * 30, // Rough estimate: 30 min per person
+        },
+      });
+    } catch (error) {
+      // Release lock on error
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('queue', equipment_id, lockId);
+      }
+      console.error('❌ Join queue error:', error);
+      return res.status(500).json({
+        success: false,
+        message: 'Failed to join queue',
+        error: error.message,
       });
     }
-
-    return res.status(201).json({
-      success: true,
-      message: `You are in position ${nextPosition} for ${equipment.name}`,
-      data: {
-        queue_id: queueEntry.id,
-        position: nextPosition,
-        equipment: queueEntry.equipment,
-        estimated_wait: nextPosition * 30, // Rough estimate: 30 min per person
-      },
-    });
   } catch (error) {
     console.error('❌ Join queue error:', error);
     return res.status(500).json({
@@ -168,7 +298,14 @@ async function joinQueue(req, res) {
 async function leaveQueue(req, res) {
   try {
     const { equipment_id } = req.body;
-    const userId = req.user.userId || req.user.id;
+    const userId = getUserIdFromToken(req);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Invalid or missing token',
+      });
+    }
 
     console.log(`🚪 User ${userId} leaving queue for equipment ${equipment_id}`);
 
@@ -203,34 +340,138 @@ async function leaveQueue(req, res) {
 
     const removedPosition = queueEntry.position;
 
-    // 3. Update status to CANCELLED
-    await prisma.equipmentQueue.update({
-      where: { id: queueEntry.id },
-      data: { status: 'CANCELLED' },
-    });
+    // 3. Acquire distributed lock for queue operations
+    let lockAcquired = false;
+    let lockId = null;
 
-    // 4. Reorder remaining queue entries
-    await prisma.equipmentQueue.updateMany({
-      where: {
-        equipment_id: equipment_id,
-        status: { in: ['WAITING', 'NOTIFIED'] },
-        position: { gt: removedPosition },
-      },
-      data: {
-        position: { decrement: 1 },
-      },
-    });
+    if (distributedLock) {
+      const lockResult = await distributedLock.acquire('queue', equipment_id, {
+        ttl: 30, // 30 seconds
+        retryAttempts: 3,
+        retryDelay: 100,
+      });
 
-    console.log(`✅ Member left queue at position ${removedPosition}`);
+      if (!lockResult.acquired) {
+        return res.status(409).json({
+          success: false,
+          message: 'Queue operation đang được xử lý, vui lòng thử lại sau',
+          data: null,
+        });
+      }
 
-    // 5. Emit WebSocket event
-    if (global.io) {
-      const newQueueLength = await prisma.equipmentQueue.count({
+      lockAcquired = true;
+      lockId = lockResult.lockId;
+    }
+
+    try {
+      // 3. Delete queue entry (remove completely instead of marking as CANCELLED)
+      await prisma.equipmentQueue.delete({
+        where: { id: queueEntry.id },
+      });
+
+      // 4. Get members whose positions will be updated (before reordering)
+      const affectedMembers = await prisma.equipmentQueue.findMany({
         where: {
           equipment_id: equipment_id,
           status: { in: ['WAITING', 'NOTIFIED'] },
+          position: { gt: removedPosition },
+        },
+        include: {
+          member: {
+            select: { id: true, user_id: true, full_name: true },
+          },
         },
       });
+
+      // 5. Reorder remaining queue entries
+      await prisma.equipmentQueue.updateMany({
+        where: {
+          equipment_id: equipment_id,
+          status: { in: ['WAITING', 'NOTIFIED'] },
+          position: { gt: removedPosition },
+        },
+        data: {
+          position: { decrement: 1 },
+        },
+      });
+
+      // Release lock after successful operation
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('queue', equipment_id, lockId);
+      }
+    } catch (error) {
+      // Release lock on error
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('queue', equipment_id, lockId);
+      }
+      throw error;
+    }
+
+    console.log(`✅ Member left queue at position ${removedPosition}`);
+
+    // 5.5. Invalidate queue cache after leaving
+    await cacheService.invalidateQueueCache(equipment_id);
+
+    // 6. Get equipment info for notification
+    const equipment = await prisma.equipment.findUnique({
+      where: { id: equipment_id },
+      select: { id: true, name: true },
+    });
+
+    // 7. Get member info for notification
+    const memberInfo = await prisma.member.findUnique({
+      where: { id: member.id },
+      select: { id: true, full_name: true },
+    });
+
+    // 8. Create notifications
+    // Notification for admin
+    if (equipment && memberInfo) {
+      await notificationService.createQueueNotificationForAdmin({
+        equipmentId: equipment_id,
+        equipmentName: equipment.name,
+        memberName: memberInfo.full_name,
+        position: removedPosition,
+        action: 'left',
+      });
+    }
+
+    // Notification for affected members (position updated)
+    if (equipment && affectedMembers.length > 0) {
+      await Promise.allSettled(
+        affectedMembers.map(async entry => {
+          const newPosition = entry.position - 1;
+          await notificationService.createQueueNotification({
+            memberId: entry.member.id,
+            type: 'QUEUE_POSITION_UPDATED',
+            title: 'Vị trí hàng chờ đã cập nhật',
+            message: `Vị trí của bạn trong hàng chờ thiết bị ${equipment.name} đã được cập nhật từ ${entry.position} xuống ${newPosition}`,
+            data: {
+              equipment_id: equipment_id,
+              equipment_name: equipment.name,
+              queue_id: entry.id,
+              old_position: entry.position,
+              new_position: newPosition,
+            },
+          });
+        })
+      );
+    }
+
+    // 9. Emit WebSocket event
+    if (global.io) {
+      const newQueueLength = await cacheService.getOrSetQueueLength(
+        equipment_id,
+        async () => {
+          return await prisma.equipmentQueue.count({
+            where: {
+              equipment_id: equipment_id,
+              status: { in: ['WAITING', 'NOTIFIED'] },
+            },
+          });
+        },
+        300
+      );
 
       global.io.to(`equipment:${equipment_id}`).emit('queue:updated', {
         equipment_id: equipment_id,
@@ -242,6 +483,19 @@ async function leaveQueue(req, res) {
       // Notify members that positions have shifted
       global.io.to(`equipment:${equipment_id}`).emit('queue:position_updated', {
         equipment_id: equipment_id,
+      });
+
+      // Emit to affected members
+      affectedMembers.forEach(entry => {
+        if (entry.member.user_id) {
+          global.io.to(`user:${entry.member.user_id}`).emit('queue:position_updated', {
+            equipment_id: equipment_id,
+            equipment_name: equipment?.name,
+            queue_id: entry.id,
+            old_position: entry.position,
+            new_position: entry.position - 1,
+          });
+        }
       });
     }
 
@@ -266,7 +520,14 @@ async function leaveQueue(req, res) {
 async function getQueuePosition(req, res) {
   try {
     const { equipment_id } = req.params;
-    const userId = req.user.userId || req.user.id;
+    const userId = getUserIdFromToken(req);
+    
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: 'Unauthorized: Invalid or missing token',
+      });
+    }
 
     // 1. Get member_id
     const member = await prisma.member.findUnique({
@@ -305,13 +566,19 @@ async function getQueuePosition(req, res) {
       });
     }
 
-    // 3. Get total queue length
-    const totalInQueue = await prisma.equipmentQueue.count({
-      where: {
-        equipment_id: equipment_id,
-        status: { in: ['WAITING', 'NOTIFIED'] },
+    // 3. Get total queue length (with cache)
+    const totalInQueue = await cacheService.getOrSetQueueLength(
+      equipment_id,
+      async () => {
+        return await prisma.equipmentQueue.count({
+          where: {
+            equipment_id: equipment_id,
+            status: { in: ['WAITING', 'NOTIFIED'] },
+          },
+        });
       },
-    });
+      300
+    );
 
     // 4. Calculate estimated wait time
     const estimatedWaitMinutes = queueEntry.position * 30;
@@ -349,22 +616,29 @@ async function getEquipmentQueue(req, res) {
   try {
     const { equipment_id } = req.params;
 
-    const queue = await prisma.equipmentQueue.findMany({
-      where: {
-        equipment_id: equipment_id,
-        status: { in: ['WAITING', 'NOTIFIED'] },
-      },
-      include: {
-        member: {
-          select: {
-            id: true,
-            full_name: true,
-            profile_photo: true,
+    // Get queue from cache or database
+    const queue = await cacheService.getOrSetQueueList(
+      equipment_id,
+      async () => {
+        return await prisma.equipmentQueue.findMany({
+          where: {
+            equipment_id: equipment_id,
+            status: { in: ['WAITING', 'NOTIFIED'] },
           },
-        },
+          include: {
+            member: {
+              select: {
+                id: true,
+                full_name: true,
+                profile_photo: true,
+              },
+            },
+          },
+          orderBy: { position: 'asc' },
+        });
       },
-      orderBy: { position: 'asc' },
-    });
+      300 // 5 minutes TTL
+    );
 
     return res.json({
       success: true,
@@ -426,9 +700,28 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
       },
     });
 
+    // Invalidate queue cache after status change
+    await cacheService.invalidateQueueCache(equipment_id);
+
     console.log(`✅ Notified ${nextInQueue.member.full_name} (position ${nextInQueue.position})`);
 
-    // 3. Send WebSocket notification
+    // 3. Create in-app notification for member
+    await notificationService.createQueueNotification({
+      memberId: nextInQueue.member.id,
+      type: 'QUEUE_YOUR_TURN',
+      title: "🎉 Đến lượt bạn!",
+      message: `${equipment_name} đã có sẵn. Bạn có ${NOTIFICATION_EXPIRE_MINUTES} phút để sử dụng.`,
+      data: {
+        equipment_id: equipment_id,
+        equipment_name: equipment_name,
+        queue_id: nextInQueue.id,
+        position: nextInQueue.position,
+        expires_at: expiresAt.toISOString(),
+        expires_in_minutes: NOTIFICATION_EXPIRE_MINUTES,
+      },
+    });
+
+    // 4. Send WebSocket notification
     if (global.io) {
       global.io.to(`user:${nextInQueue.member.user_id}`).emit('queue:your_turn', {
         equipment_id: equipment_id,
@@ -445,7 +738,7 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
       });
     }
 
-    // 4. Send Push Notification
+    // 5. Send Push Notification
     if (nextInQueue.member.user_id) {
       await sendPushNotification(
         nextInQueue.member.user_id,
@@ -509,7 +802,23 @@ async function cleanupExpiredNotifications() {
         data: { status: 'EXPIRED' },
       });
 
-      // 2. Notify user via WebSocket
+      // Invalidate queue cache after status change
+      await cacheService.invalidateQueueCache(entry.equipment_id);
+
+      // 2. Create notification for member
+      await notificationService.createQueueNotification({
+        memberId: entry.member.id,
+        type: 'QUEUE_EXPIRED',
+        title: 'Hết hạn hàng chờ',
+        message: `Bạn đã bỏ lỡ lượt sử dụng thiết bị ${entry.equipment.name}. Vui lòng tham gia lại hàng chờ nếu muốn sử dụng.`,
+        data: {
+          equipment_id: entry.equipment_id,
+          equipment_name: entry.equipment.name,
+          queue_id: entry.id,
+        },
+      });
+
+      // 3. Notify user via WebSocket
       if (global.io && entry.member.user_id) {
         global.io.to(`user:${entry.member.user_id}`).emit('queue:expired', {
           equipment_id: entry.equipment_id,

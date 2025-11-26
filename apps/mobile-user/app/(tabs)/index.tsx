@@ -1,5 +1,6 @@
 import ActiveGymSessionCard from '@/components/ActiveGymSessionCard';
 import ActivityCard from '@/components/ActivityCard';
+import InfiniteScrollBanner from '@/components/InfiniteScrollBanner';
 import SessionDetailModal from '@/components/SessionDetailModal';
 import WorkoutCard from '@/components/WorkoutCard';
 import { useAuth } from '@/contexts/AuthContext';
@@ -455,6 +456,9 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Infinite Scroll Banner */}
+        <InfiniteScrollBanner />
 
         {/* Active Gym Session Card with animations */}
         {member?.id && <ActiveGymSessionCard memberId={member.id} />}

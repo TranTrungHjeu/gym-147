@@ -20,6 +20,12 @@ router.get('/members/:memberId/recommendations', (req, res) =>
   classController.getClassRecommendations(req, res)
 );
 
+// ==================== SEMANTIC SEARCH ====================
+const searchController = require('../controllers/search.controller.js');
+router.post('/search/semantic', (req, res) =>
+  searchController.semanticSearch(req, res)
+);
+
 // ==================== SMART SCHEDULING SUGGESTIONS ====================
 router.get('/members/:memberId/scheduling-suggestions', (req, res) =>
   classController.getSchedulingSuggestions(req, res)

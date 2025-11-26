@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import bannerBg from '../../../assets/images/banner-bg.jpg';
 import classImg1 from '../../../assets/images/classes/class-1.jpg';
@@ -24,18 +24,27 @@ import teamImg6 from '../../../assets/images/team/team-6.jpg';
 import { ImagePopup } from '../../../components/ImagePopup';
 import { OwlCarousel } from '../../../components/OwlCarousel';
 import { SearchModal } from '../../../components/SearchModal';
+import LanguageSelector from '../../../components/common/LanguageSelector';
 import { ButtonLoading, PageLoading } from '../../../components/ui/AppLoading';
 import { useNavigation } from '../../../context/NavigationContext';
 import { useHomepageReact } from '../../../hooks/useHomepageReact';
+import { useTranslation } from '../../../hooks/useTranslation';
+import type { MembershipPlan } from '../../../services/billing.service';
+import { billingService } from '../../../services/billing.service';
+import { PlanCard } from '../components';
 import { HeroSlider } from '../components/HeroSlider';
 import '../styles/homepage.css';
 
 const Homepage: React.FC = () => {
   const { searchModal, searchIconClicked, handleSearchClick } = useHomepageReact();
   const { setIsNavigating } = useNavigation();
+  const { t } = useTranslation();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [isNotificationOpen, setIsNotificationOpen] = useState<boolean>(false);
   const [isLoginLoading, setIsLoginLoading] = useState<boolean>(false);
+  const [plans, setPlans] = useState<MembershipPlan[]>([]);
+  const [plansLoading, setPlansLoading] = useState<boolean>(false);
+  const [plansError, setPlansError] = useState<string | null>(null);
 
   // Add homepage-active class to body and html when component mounts
   useEffect(() => {
@@ -48,6 +57,70 @@ const Homepage: React.FC = () => {
       document.documentElement.classList.remove('homepage-active');
     };
   }, []);
+
+  // Fetch plans from API
+  useEffect(() => {
+    const loadPlans = async () => {
+      try {
+        setPlansLoading(true);
+        setPlansError(null);
+        const response = await billingService.getActivePlans();
+        if (response.success && response.data) {
+          // Transform plans to ensure compatibility
+          const transformedPlans = response.data.map((plan: any) => {
+            // Convert benefits array to features if needed
+            let features = plan.features || [];
+            if (plan.benefits && Array.isArray(plan.benefits)) {
+              features = plan.benefits;
+            }
+
+            return {
+              ...plan,
+              duration_days:
+                plan.duration_days ||
+                (plan.duration_months ? plan.duration_months * 30 : undefined),
+              features: features,
+            };
+          });
+          setPlans(transformedPlans);
+        } else {
+          setPlansError(t('homepage.pricing.error'));
+        }
+      } catch (error: any) {
+        console.error('Error loading plans:', error);
+        
+        // Handle specific error types
+        if (error.code === 'ERR_CONNECTION_REFUSED' || error.isConnectionRefused) {
+          setPlansError(
+            'Không thể kết nối đến server. Vui lòng kiểm tra xem server có đang chạy không hoặc thử lại sau.'
+          );
+        } else if (error.code === 'ERR_BLOCKED_BY_CLIENT' || error.isBlocked) {
+          setPlansError(
+            'Request bị chặn bởi trình chặn quảng cáo. Vui lòng tắt ad blocker cho localhost:8080 hoặc thử lại.'
+          );
+        } else if (error.code === 'ERR_CORS' || error.isCorsError) {
+          setPlansError(
+            'Request bị chặn bởi CORS policy. Vui lòng kiểm tra cấu hình CORS trên server.'
+          );
+        } else if (error.code === 'ERR_FORBIDDEN' || error.status === 403) {
+          setPlansError(
+            'Truy cập bị từ chối. Vui lòng kiểm tra quyền truy cập hoặc đăng nhập lại.'
+          );
+        } else if (error.code === 'ERR_NETWORK' || error.isNetworkError) {
+          setPlansError(
+            'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.'
+          );
+        } else {
+          setPlansError(t('homepage.pricing.error'));
+        }
+      } finally {
+        setPlansLoading(false);
+      }
+    };
+
+    loadPlans();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run once on mount
 
   const openImagePopup = (imageSrc: string) => {
     setSelectedImage(imageSrc);
@@ -87,7 +160,7 @@ const Homepage: React.FC = () => {
         <div className='error-notification-container'>
           <div className='error-notification-header'>
             <h3>
-              <i className='fa fa-exclamation-triangle'></i> Thông báo hệ thống
+              <i className='fa fa-exclamation-triangle'></i> {t('homepage.notification.title')}
             </h3>
             <button className='error-close' onClick={closeNotification}>
               <i className='fa fa-times'></i>
@@ -96,15 +169,15 @@ const Homepage: React.FC = () => {
           <div className='error-notification-content'>
             <div className='error-item error-warning'>
               <i className='fa fa-warning'></i>
-              <span>Hệ thống đang bảo trì từ 02:00 - 04:00 ngày 15/12/2024</span>
+              <span>{t('homepage.notification.maintenance')}</span>
             </div>
             <div className='error-item error-info'>
               <i className='fa fa-info-circle'></i>
-              <span>Cập nhật tính năng mới: AI Coaching cá nhân</span>
+              <span>{t('homepage.notification.newFeature')}</span>
             </div>
             <div className='error-item error-success'>
               <i className='fa fa-check-circle'></i>
-              <span>Hệ thống hoạt động bình thường</span>
+              <span>{t('homepage.notification.systemNormal')}</span>
             </div>
           </div>
         </div>
@@ -135,28 +208,28 @@ const Homepage: React.FC = () => {
               <nav className='nav-menu'>
                 <ul>
                   <li className='active'>
-                    <Link to='/'>Home</Link>
+                    <Link to='/'>{t('homepage.navigation.home')}</Link>
                   </li>
                   <li>
-                    <Link to='/about'>About Us</Link>
+                    <Link to='/about'>{t('homepage.navigation.aboutUs')}</Link>
                   </li>
                   <li>
-                    <Link to='/classes'>Classes</Link>
+                    <Link to='/classes'>{t('homepage.navigation.classes')}</Link>
                   </li>
                   <li>
-                    <Link to='/services'>Services</Link>
+                    <Link to='/services'>{t('homepage.navigation.services')}</Link>
                   </li>
                   <li>
-                    <Link to='/team'>Our Team</Link>
+                    <Link to='/team'>{t('homepage.navigation.ourTeam')}</Link>
                   </li>
                   <li>
-                    <Link to='/contact'>Contact</Link>
+                    <Link to='/contact'>{t('homepage.navigation.contact')}</Link>
                   </li>
                 </ul>
               </nav>
             </div>
             <div className='w-full lg:w-1/4'>
-              <div className='flex items-center justify-end gap-4'>
+              <div className='flex items-center justify-end gap-4 flex-nowrap'>
                 <div
                   className='to-search search-switch cursor-pointer p-2 rounded-full bg-white/10 border border-white/20 flex items-center justify-center w-10 h-10'
                   onClick={handleSearchClick}
@@ -178,13 +251,16 @@ const Homepage: React.FC = () => {
                   <i className='fa fa-bell text-white text-base'></i>
                   <span className='notification-badge'>3</span>
                 </div>
+                <div className='language-selector-wrapper'>
+                  <LanguageSelector />
+                </div>
                 <div className='to-login'>
                   <Link to='/auth' className='login-btn' onClick={handleLoginClick}>
                     {isLoginLoading ? (
                       <ButtonLoading />
                     ) : (
                       <>
-                        <i className='fa fa-user'></i> Đăng nhập
+                        <i className='fa fa-user'></i> {t('homepage.header.login')}
                       </>
                     )}
                   </Link>
@@ -203,16 +279,18 @@ const Homepage: React.FC = () => {
           slides={[
             {
               backgroundImage: heroImg1,
-              span: 'HỆ THỐNG GYM 147',
-              title: '<span style = "color: #f36100;">CẢI THIỆN</span><br/>SỨC MẠNH',
-              buttonText: 'Trải nghiệm ngay',
+              span: t('homepage.hero.title'),
+              title: `<span style = "color: #f36100;">${t(
+                'homepage.hero.subtitlePart1'
+              )}</span><br/>${t('homepage.hero.subtitlePart2')}`,
+              buttonText: t('homepage.hero.button'),
               buttonLink: '/auth',
             },
             {
               backgroundImage: heroImg2,
-              span: 'Thiết bị chuyên nghiệp',
-              title: '<span style = "color: #f36100;">TẬP LUYỆN</span> LIÊN TỤC',
-              buttonText: 'Khám phá ngay',
+              span: t('homepage.hero.equipment'),
+              title: `<span style = "color: #f36100;">${t('homepage.hero.training')}</span>`,
+              buttonText: t('homepage.hero.explore'),
               buttonLink: '/auth',
             },
           ]}
@@ -225,8 +303,8 @@ const Homepage: React.FC = () => {
           <div className='w-full'>
             <div className='w-full'>
               <div className='section-title'>
-                <span>Why chose us?</span>
-                <h2>CÔNG NGHỆ TIÊN TIẾN CHO PHÒNG GYM</h2>
+                <span>{t('homepage.features.subtitle')}</span>
+                <h2>{t('homepage.features.title')}</h2>
               </div>
             </div>
           </div>
@@ -234,38 +312,29 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='cs-item'>
                 <span className='flaticon-034-stationary-bike'></span>
-                <h4>Thiết bị IoT thông minh</h4>
-                <p>
-                  Hệ thống theo dõi thiết bị tự động, cảnh báo bảo trì và tối ưu hóa hiệu suất máy
-                  tập.
-                </p>
+                <h4>{t('homepage.features.iot')}</h4>
+                <p>{t('homepage.features.iotDescription')}</p>
               </div>
             </div>
             <div className='w-full'>
               <div className='cs-item'>
                 <span className='flaticon-033-juice'></span>
-                <h4>AI Coaching cá nhân</h4>
-                <p>
-                  Hướng dẫn tập luyện thông minh dựa trên dữ liệu cá nhân và mục tiêu của từng thành
-                  viên.
-                </p>
+                <h4>{t('homepage.features.ai')}</h4>
+                <p>{t('homepage.features.aiDescription')}</p>
               </div>
             </div>
             <div className='w-full'>
               <div className='cs-item'>
                 <span className='flaticon-002-dumbell'></span>
-                <h4>Quản lý thông minh</h4>
-                <p>Hệ thống quản lý toàn diện từ thành viên, lịch tập đến thanh toán và báo cáo.</p>
+                <h4>{t('homepage.features.management')}</h4>
+                <p>{t('homepage.features.managementDescription')}</p>
               </div>
             </div>
             <div className='w-full'>
               <div className='cs-item'>
                 <span className='flaticon-014-heart-beat'></span>
-                <h4>Bảo mật cao</h4>
-                <p>
-                  Kiểm soát ra vào bằng RFID, QR Code và nhận diện khuôn mặt đảm bảo an toàn tuyệt
-                  đối.
-                </p>
+                <h4>{t('homepage.features.security')}</h4>
+                <p>{t('homepage.features.securityDescription')}</p>
               </div>
             </div>
           </div>
@@ -278,8 +347,8 @@ const Homepage: React.FC = () => {
           <div className='w-full'>
             <div className='w-full'>
               <div className='section-title'>
-                <span>Our Classes</span>
-                <h2>WHAT WE CAN OFFER</h2>
+                <span>{t('homepage.classes.title')}</span>
+                <h2>{t('homepage.classes.subtitle')}</h2>
               </div>
             </div>
           </div>
@@ -287,11 +356,11 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='class-item'>
                 <div className='ci-pic'>
-                  <img src={classImg1} alt='Weightlifting' />
+                  <img src={classImg1} alt={t('homepage.classes.weightlifting')} />
                 </div>
                 <div className='ci-text'>
-                  <span>STRENGTH</span>
-                  <h5>Weightlifting</h5>
+                  <span>{t('homepage.classes.strength')}</span>
+                  <h5>{t('homepage.classes.weightlifting')}</h5>
                   <Link to='/classes'>
                     <i className='fa fa-angle-right'></i>
                   </Link>
@@ -301,11 +370,11 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='class-item'>
                 <div className='ci-pic'>
-                  <img src={classImg2} alt='Indoor cycling' />
+                  <img src={classImg2} alt={t('homepage.classes.indoorCycling')} />
                 </div>
                 <div className='ci-text'>
-                  <span>Cardio</span>
-                  <h5>Indoor cycling</h5>
+                  <span>{t('homepage.classes.cardio')}</span>
+                  <h5>{t('homepage.classes.indoorCycling')}</h5>
                   <Link to='/classes'>
                     <i className='fa fa-angle-right'></i>
                   </Link>
@@ -315,11 +384,11 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='class-item'>
                 <div className='ci-pic'>
-                  <img src={classImg3} alt='Kettlebell power' />
+                  <img src={classImg3} alt={t('homepage.classes.kettlebellPower')} />
                 </div>
                 <div className='ci-text'>
-                  <span>STRENGTH</span>
-                  <h5>Kettlebell power</h5>
+                  <span>{t('homepage.classes.strength')}</span>
+                  <h5>{t('homepage.classes.kettlebellPower')}</h5>
                   <Link to='/classes'>
                     <i className='fa fa-angle-right'></i>
                   </Link>
@@ -329,11 +398,11 @@ const Homepage: React.FC = () => {
             <div className='w-full md:col-span-2 lg:col-span-1'>
               <div className='class-item'>
                 <div className='ci-pic'>
-                  <img src={classImg4} alt='Indoor cycling' />
+                  <img src={classImg4} alt={t('homepage.classes.indoorCycling')} />
                 </div>
                 <div className='ci-text'>
-                  <span>Cardio</span>
-                  <h4>Indoor cycling</h4>
+                  <span>{t('homepage.classes.cardio')}</span>
+                  <h4>{t('homepage.classes.indoorCycling')}</h4>
                   <Link to='/classes'>
                     <i className='fa fa-angle-right'></i>
                   </Link>
@@ -343,11 +412,11 @@ const Homepage: React.FC = () => {
             <div className='w-full md:col-span-2 lg:col-span-1'>
               <div className='class-item'>
                 <div className='ci-pic'>
-                  <img src={classImg5} alt='Boxing' />
+                  <img src={classImg5} alt={t('homepage.classes.boxing')} />
                 </div>
                 <div className='ci-text'>
-                  <span>Training</span>
-                  <h4>Boxing</h4>
+                  <span>{t('homepage.classes.training')}</span>
+                  <h4>{t('homepage.classes.boxing')}</h4>
                   <Link to='/classes'>
                     <i className='fa fa-angle-right'></i>
                   </Link>
@@ -364,10 +433,10 @@ const Homepage: React.FC = () => {
           <div className='w-full'>
             <div className='w-full text-center'>
               <div className='bs-text'>
-                <h2>registration now to get more deals</h2>
-                <div className='bt-tips'>Where health, beauty and fitness meet.</div>
+                <h2>{t('homepage.banner.title')}</h2>
+                <div className='bt-tips'>{t('homepage.banner.subtitle')}</div>
                 <Link to='/auth' className='primary-btn btn-normal'>
-                  Appointment
+                  {t('homepage.banner.button')}
                 </Link>
               </div>
             </div>
@@ -381,82 +450,86 @@ const Homepage: React.FC = () => {
           <div className='w-full'>
             <div className='w-full'>
               <div className='section-title'>
-                <span>Our Plan</span>
-                <h2>Choose your pricing plan</h2>
+                <span>{t('homepage.pricing.subtitle')}</span>
+                <h2>{t('homepage.pricing.title')}</h2>
               </div>
             </div>
           </div>
-          <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 justify-items-center'>
-            <div className='w-full max-w-sm'>
-              <div className='ps-item'>
-                <h3>Class drop-in</h3>
-                <div className='pi-price'>
-                  <h2>$ 39.0</h2>
-                  <span>SINGLE CLASS</span>
-                </div>
-                <ul>
-                  <li>Free riding</li>
-                  <li>Unlimited equipments</li>
-                  <li>Personal trainer</li>
-                  <li>Weight losing classes</li>
-                  <li>Month to mouth</li>
-                  <li>No time restriction</li>
-                </ul>
-                <Link to='/auth' className='primary-btn pricing-btn'>
-                  Enroll now
-                </Link>
-                <a href='#' className='thumb-icon'>
-                  <i className='fa fa-picture-o'></i>
-                </a>
+          {plansLoading ? (
+            <div className='flex justify-center items-center py-12'>
+              <div className='text-center'>
+                <PageLoading />
+                <p className='mt-4 text-gray-600'>{t('homepage.pricing.loading')}</p>
               </div>
             </div>
-            <div className='w-full max-w-sm'>
-              <div className='ps-item'>
-                <h3>12 Month unlimited</h3>
-                <div className='pi-price'>
-                  <h2>$ 99.0</h2>
-                  <span>SINGLE CLASS</span>
-                </div>
-                <ul>
-                  <li>Free riding</li>
-                  <li>Unlimited equipments</li>
-                  <li>Personal trainer</li>
-                  <li>Weight losing classes</li>
-                  <li>Month to mouth</li>
-                  <li>No time restriction</li>
-                </ul>
-                <Link to='/auth' className='primary-btn pricing-btn'>
-                  Enroll now
-                </Link>
-                <a href='#' className='thumb-icon'>
-                  <i className='fa fa-picture-o'></i>
-                </a>
+          ) : plansError ? (
+            <div className='flex justify-center items-center py-12'>
+              <div className='text-center'>
+                <p className='text-red-600 mb-4'>{plansError}</p>
+                <button
+                  onClick={() => {
+                    setPlansError(null);
+                    setPlansLoading(true);
+                    billingService
+                      .getActivePlans()
+                      .then(response => {
+                        if (response.success && response.data) {
+                          const transformedPlans = response.data.map((plan: any) => {
+                            let features = plan.features || [];
+                            if (plan.benefits && Array.isArray(plan.benefits)) {
+                              features = plan.benefits;
+                            }
+                            return {
+                              ...plan,
+                              duration_days:
+                                plan.duration_days ||
+                                (plan.duration_months ? plan.duration_months * 30 : undefined),
+                              features: features,
+                            };
+                          });
+                          setPlans(transformedPlans);
+                        } else {
+                          setPlansError(t('homepage.pricing.error'));
+                        }
+                      })
+                      .catch((error: any) => {
+                        console.error('Error loading plans:', error);
+                        if (error.code === 'ERR_BLOCKED_BY_CLIENT' || error.isBlocked) {
+                          setPlansError(
+                            'Request bị chặn bởi trình chặn quảng cáo. Vui lòng tắt ad blocker cho localhost:8080 hoặc thử lại.'
+                          );
+                        } else if (error.code === 'ERR_NETWORK' || error.isNetworkError) {
+                          setPlansError(
+                            'Không thể kết nối đến server. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.'
+                          );
+                        } else {
+                          setPlansError(t('homepage.pricing.error'));
+                        }
+                      })
+                      .finally(() => {
+                        setPlansLoading(false);
+                      });
+                  }}
+                  className='px-4 py-2 bg-orange-500 text-white rounded hover:bg-orange-600 transition-colors'
+                >
+                  <i className='fa fa-refresh mr-2'></i>
+                  Thử lại
+                </button>
               </div>
             </div>
-            <div className='w-full max-w-sm'>
-              <div className='ps-item'>
-                <h3>6 Month unlimited</h3>
-                <div className='pi-price'>
-                  <h2>$ 59.0</h2>
-                  <span>SINGLE CLASS</span>
-                </div>
-                <ul>
-                  <li>Free riding</li>
-                  <li>Unlimited equipments</li>
-                  <li>Personal trainer</li>
-                  <li>Weight losing classes</li>
-                  <li>Month to mouth</li>
-                  <li>No time restriction</li>
-                </ul>
-                <Link to='/auth' className='primary-btn pricing-btn'>
-                  Enroll now
-                </Link>
-                <a href='#' className='thumb-icon'>
-                  <i className='fa fa-picture-o'></i>
-                </a>
+          ) : plans.length === 0 ? (
+            <div className='flex justify-center items-center py-12'>
+              <div className='text-center text-gray-600'>
+                <p>{t('homepage.pricing.noPlans')}</p>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className='grid grid-cols-1 md:grid-cols-2 gap-6 justify-items-center'>
+              {plans.map(plan => (
+                <PlanCard key={plan.id} plan={plan} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
@@ -510,11 +583,11 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='team-title flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 relative z-20'>
                 <div className='section-title'>
-                  <span>Our Team</span>
-                  <h2>TRAIN WITH EXPERTS</h2>
+                  <span>{t('homepage.team.title')}</span>
+                  <h2>{t('homepage.team.subtitle')}</h2>
                 </div>
                 <Link to='/team' className='primary-btn btn-normal appoinment-btn'>
-                  appointment
+                  {t('homepage.team.appointment')}
                 </Link>
               </div>
             </div>
@@ -541,7 +614,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg1})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -549,7 +622,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg2})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -557,7 +630,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg3})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -565,7 +638,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg4})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -573,7 +646,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg5})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -581,7 +654,7 @@ const Homepage: React.FC = () => {
                   <div className='ts-item set-bg' style={{ backgroundImage: `url(${teamImg6})` }}>
                     <div className='ts_text'>
                       <h4>Athart Rachel</h4>
-                      <span>Gym Trainer</span>
+                      <span>{t('homepage.team.trainer')}</span>
                     </div>
                   </div>
                 </div>
@@ -598,25 +671,22 @@ const Homepage: React.FC = () => {
             <div className='w-full'>
               <div className='gt-text'>
                 <i className='fa fa-map-marker'></i>
-                <p>
-                  333 Middle Winchendon Rd, Rindge,
-                  <br /> NH 03461
-                </p>
+                <p>{t('homepage.contact.address')}</p>
               </div>
             </div>
             <div className='w-full'>
               <div className='gt-text'>
                 <i className='fa fa-mobile'></i>
                 <ul>
-                  <li>125-711-811</li>
-                  <li>125-668-886</li>
+                  <li>{t('homepage.contact.phone1')}</li>
+                  <li>{t('homepage.contact.phone2')}</li>
                 </ul>
               </div>
             </div>
             <div className='w-full'>
               <div className='gt-text email'>
                 <i className='fa fa-envelope'></i>
-                <p>Support.gymcenter@gmail.com</p>
+                <p>{t('homepage.contact.email')}</p>
               </div>
             </div>
           </div>
@@ -644,10 +714,7 @@ const Homepage: React.FC = () => {
                     />
                   </Link>
                 </div>
-                <p>
-                  GYM 147 - Hệ thống quản lý phòng gym thông minh với công nghệ IoT tiên tiến, mang
-                  đến trải nghiệm tập luyện hiện đại và hiệu quả nhất.
-                </p>
+                <p>{t('homepage.footer.description')}</p>
                 <div className='fa-social'>
                   <a href='#'>
                     <i className='fa fa-facebook'></i>
@@ -669,61 +736,61 @@ const Homepage: React.FC = () => {
             </div>
             <div className='w-full'>
               <div className='fs-widget'>
-                <h4>Liên kết hữu ích</h4>
+                <h4>{t('homepage.footer.usefulLinks')}</h4>
                 <ul>
                   <li>
-                    <Link to='/about'>Giới thiệu</Link>
+                    <Link to='/about'>{t('homepage.footer.about')}</Link>
                   </li>
                   <li>
-                    <Link to='/classes'>Lớp học</Link>
+                    <Link to='/classes'>{t('homepage.footer.classes')}</Link>
                   </li>
                   <li>
-                    <Link to='/services'>Dịch vụ</Link>
+                    <Link to='/services'>{t('homepage.footer.services')}</Link>
                   </li>
                   <li>
-                    <Link to='/contact'>Liên hệ</Link>
+                    <Link to='/contact'>{t('homepage.footer.contact')}</Link>
                   </li>
                 </ul>
               </div>
             </div>
             <div className='w-full'>
               <div className='fs-widget'>
-                <h4>Hỗ trợ</h4>
+                <h4>{t('homepage.footer.support')}</h4>
                 <ul>
                   <li>
-                    <Link to='/auth'>Đăng nhập</Link>
+                    <Link to='/auth'>{t('homepage.footer.login')}</Link>
                   </li>
                   <li>
-                    <a href='#'>Tài khoản</a>
+                    <a href='#'>{t('homepage.footer.account')}</a>
                   </li>
                   <li>
-                    <a href='#'>Đăng ký</a>
+                    <a href='#'>{t('homepage.footer.signup')}</a>
                   </li>
                   <li>
-                    <Link to='/contact'>Liên hệ</Link>
+                    <Link to='/contact'>{t('homepage.footer.contact')}</Link>
                   </li>
                 </ul>
               </div>
             </div>
             <div className='w-full md:col-span-2 lg:col-span-2'>
               <div className='fs-widget'>
-                <h4>Công nghệ & Hướng dẫn</h4>
+                <h4>{t('homepage.footer.technology')}</h4>
                 <div className='fw-recent'>
                   <h6>
-                    <a href='#'>Hệ thống IoT giúp tối ưu hóa việc tập luyện</a>
+                    <a href='#'>{t('homepage.footer.iotArticle')}</a>
                   </h6>
                   <ul>
-                    <li>3 phút đọc</li>
-                    <li>20 Bình luận</li>
+                    <li>{t('homepage.footer.readTime', { count: 3 })}</li>
+                    <li>{t('homepage.footer.comments', { count: 20 })}</li>
                   </ul>
                 </div>
                 <div className='fw-recent'>
                   <h6>
-                    <a href='#'>AI Coaching: Tương lai của việc tập gym</a>
+                    <a href='#'>{t('homepage.footer.aiArticle')}</a>
                   </h6>
                   <ul>
-                    <li>5 phút đọc</li>
-                    <li>15 Bình luận</li>
+                    <li>{t('homepage.footer.readTime', { count: 5 })}</li>
+                    <li>{t('homepage.footer.comments', { count: 15 })}</li>
                   </ul>
                 </div>
               </div>
@@ -732,7 +799,7 @@ const Homepage: React.FC = () => {
           <div className='w-full'>
             <div className='w-full text-center'>
               <div className='copyright-text'>
-                <p>Copyright &copy; {new Date().getFullYear()} GYM 147. All rights reserved.</p>
+                <p>{t('homepage.footer.copyright', { year: new Date().getFullYear() })}</p>
               </div>
             </div>
           </div>

@@ -4,6 +4,7 @@ const config = require('../config/otp.config');
 const { Resend } = require('resend');
 const axios = require('axios');
 const Buffer = require('buffer').Buffer;
+const redisService = require('./redis.service.js');
 
 class OTPService {
   constructor() {
@@ -48,10 +49,26 @@ class OTPService {
     return crypto.randomBytes(32).toString('hex');
   }
 
-  // Store OTP in database
+  // Store OTP in Redis and database
   async storeOTP(identifier, otp, type = 'PHONE') {
     try {
-      // Delete existing UNVERIFIED OTP for this identifier
+      const hashedOTP = await this.hashOTP(otp);
+      const ttlSeconds = Math.floor(this.otpExpiry / 1000); // Convert to seconds
+      const otpKey = `otp:${identifier}:${type}`;
+      const attemptsKey = `otp:attempts:${identifier}:${type}`;
+
+      // Store OTP in Redis with TTL
+      if (redisService.isConnected && redisService.client) {
+        try {
+          await redisService.client.setEx(otpKey, ttlSeconds, hashedOTP);
+          // Reset attempts counter
+          await redisService.client.setEx(attemptsKey, ttlSeconds, '0');
+        } catch (redisError) {
+          console.error('Redis OTP storage error, using database only:', redisError);
+        }
+      }
+
+      // Delete existing UNVERIFIED OTP for this identifier from database
       await prisma.oTPVerification.deleteMany({
         where: {
           identifier,
@@ -59,11 +76,11 @@ class OTPService {
         },
       });
 
-      // Create new OTP record
+      // Create new OTP record in database (for audit trail)
       const otpRecord = await prisma.oTPVerification.create({
         data: {
           identifier,
-          otp: await this.hashOTP(otp),
+          otp: hashedOTP,
           type,
           expires_at: new Date(Date.now() + this.otpExpiry),
           attempts: 0,
@@ -83,11 +100,96 @@ class OTPService {
     return crypto.createHash('sha256').update(otp).digest('hex');
   }
 
-  // Verify OTP
+  // Verify OTP (check Redis first, fallback to database)
   async verifyOTP(identifier, inputOTP, type = 'PHONE') {
     try {
       console.log('Verifying OTP for:', identifier, 'type:', type, 'otp:', inputOTP);
+      const otpKey = `otp:${identifier}:${type}`;
+      const attemptsKey = `otp:attempts:${identifier}:${type}`;
 
+      // Check Redis first
+      if (redisService.isConnected && redisService.client) {
+        try {
+          const storedOTPHash = await redisService.client.get(otpKey);
+          
+          if (storedOTPHash) {
+            // OTP exists in Redis
+            const hashedInputOTP = await this.hashOTP(inputOTP);
+            const isValid = hashedInputOTP === storedOTPHash;
+
+            // Get current attempts
+            const attemptsStr = await redisService.client.get(attemptsKey) || '0';
+            const attempts = parseInt(attemptsStr, 10);
+
+            if (attempts >= this.maxAttempts) {
+              // Max attempts exceeded, delete OTP
+              await redisService.client.del(otpKey);
+              await redisService.client.del(attemptsKey);
+              
+              // Also delete from database
+              await prisma.oTPVerification.deleteMany({
+                where: { identifier, type, verified_at: null },
+              });
+
+              return {
+                success: false,
+                message: 'Đã vượt quá số lần thử tối đa. Vui lòng yêu cầu OTP mới',
+                remainingAttempts: 0,
+              };
+            }
+
+            if (isValid) {
+              // OTP is valid, delete from Redis
+              await redisService.client.del(otpKey);
+              await redisService.client.del(attemptsKey);
+
+              // Mark as verified in database
+              await prisma.oTPVerification.updateMany({
+                where: {
+                  identifier,
+                  type,
+                  verified_at: null,
+                },
+                data: { verified_at: new Date() },
+              });
+
+              console.log('✅ OTP verified successfully for:', identifier);
+              return {
+                success: true,
+                message: 'Xác thực thành công',
+              };
+            } else {
+              // Invalid OTP, increment attempts
+              const newAttempts = attempts + 1;
+              const ttl = await redisService.client.ttl(otpKey);
+              if (ttl > 0) {
+                await redisService.client.setEx(attemptsKey, ttl, newAttempts.toString());
+              }
+
+              // Update database attempts
+              await prisma.oTPVerification.updateMany({
+                where: {
+                  identifier,
+                  type,
+                  verified_at: null,
+                },
+                data: { attempts: newAttempts },
+              });
+
+              console.log('❌ OTP verification failed for:', identifier, '- Attempts:', newAttempts);
+              return {
+                success: false,
+                message: 'Mã OTP không đúng',
+                remainingAttempts: this.maxAttempts - newAttempts,
+              };
+            }
+          }
+        } catch (redisError) {
+          console.error('Redis OTP verification error, falling back to database:', redisError);
+        }
+      }
+
+      // Fallback to database verification
       // First check if there's already a verified OTP for this identifier
       const verifiedOTP = await prisma.oTPVerification.findFirst({
         where: {
@@ -117,38 +219,7 @@ class OTPService {
         },
       });
 
-      console.log('🔍 OTP Lookup:');
-      console.log('  - Identifier:', identifier);
-      console.log('  - Type:', type);
-      console.log('  - Found OTP record:', otpRecord ? 'YES' : 'NO');
-
       if (!otpRecord) {
-        // Check if OTP exists but expired or already verified (for debugging)
-        const anyOTP = await prisma.oTPVerification.findFirst({
-          where: {
-            identifier,
-            type,
-          },
-          orderBy: {
-            created_at: 'desc',
-          },
-          take: 1,
-        });
-
-        if (anyOTP) {
-          const isExpired = anyOTP.expires_at <= new Date();
-          const isVerified = anyOTP.verified_at !== null;
-          console.log('  - Found OTP but:', {
-            expired: isExpired,
-            verified: isVerified,
-            expires_at: anyOTP.expires_at,
-            verified_at: anyOTP.verified_at,
-            created_at: anyOTP.created_at,
-          });
-        } else {
-          console.log('  - No OTP found for identifier:', identifier, 'type:', type);
-        }
-
         return {
           success: false,
           message: 'OTP không tồn tại hoặc đã hết hạn',
@@ -172,23 +243,8 @@ class OTPService {
       const hashedInputOTP = await this.hashOTP(inputOTP);
       const isValid = hashedInputOTP === otpRecord.otp;
 
-      // Debug logging (only in development)
-      if (process.env.NODE_ENV === 'development') {
-        console.log('🔍 OTP Verification Debug:');
-        console.log('  - Input OTP:', inputOTP);
-        console.log('  - Hashed Input OTP:', hashedInputOTP);
-        console.log('  - Stored OTP Hash:', otpRecord.otp);
-        console.log('  - OTP Match:', isValid);
-        console.log('  - Identifier:', identifier);
-        console.log('  - Type:', type);
-        console.log('  - Expires At:', otpRecord.expires_at);
-        console.log('  - Current Time:', new Date());
-        console.log('  - Is Expired:', otpRecord.expires_at <= new Date());
-        console.log('  - Attempts:', otpRecord.attempts, '/', this.maxAttempts);
-      }
-
       if (isValid) {
-        // Mark OTP as verified but don't delete yet (will be deleted after user creation)
+        // Mark OTP as verified
         await prisma.oTPVerification.update({
           where: { id: otpRecord.id },
           data: { verified_at: new Date() },

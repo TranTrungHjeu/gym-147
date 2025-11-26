@@ -56,6 +56,9 @@ model GymClass {
   // Certification requirements
   required_certification_level CertificationLevel @default(BASIC)
   
+  // Vector Embedding for Semantic Search (1536 dimensions - OpenAI text-embedding-ada-002)
+  class_embedding Unsupported("vector(1536)")? // Class description vector embedding
+  
   is_active       Boolean           @default(true)
   created_at      DateTime          @default(now())
   updated_at      DateTime          @updatedAt
@@ -343,45 +346,7 @@ enum VerificationStatus {
   SUSPENDED
 }
 
-model Notification {
-  id          String            @id @default(cuid())
-  user_id     String            // Reference to identity service user
-  type        NotificationType
-  title       String
-  message     String
-  data        Json?             // Additional data as JSON
-  is_read     Boolean           @default(false)
-  read_at     DateTime?
-  created_at  DateTime          @default(now())
-  updated_at  DateTime          @updatedAt
-
-  @@index([user_id])
-  @@index([type])
-  @@index([is_read])
-  @@index([created_at])
-  @@map("notifications")
-}
-
-enum NotificationType {
-  CERTIFICATION_UPLOAD
-  CERTIFICATION_VERIFIED
-  CERTIFICATION_REJECTED
-  CERTIFICATION_AUTO_VERIFIED
-  CERTIFICATION_EXPIRED
-  CLASS_BOOKING
-  CLASS_CANCELLED
-  CLASS_REMINDER
-  MEMBERSHIP_EXPIRING
-  MEMBERSHIP_EXPIRED
-  ACHIEVEMENT_UNLOCKED
-  SYSTEM_ANNOUNCEMENT
-  WAITLIST_ADDED
-  WAITLIST_PROMOTED
-  SCHEDULE_CANCELLED
-  ROOM_CHANGED
-  MEMBER_CHECKED_IN
-  GENERAL
-}
+// Notification model removed - now centralized in Identity Service
 
 enum FavoriteType {
   CLASS

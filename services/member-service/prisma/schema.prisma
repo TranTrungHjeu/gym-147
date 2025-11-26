@@ -55,6 +55,9 @@ model Member {
   // Premium Features (only for PREMIUM and VIP)
   ai_class_recommendations_enabled Boolean @default(false) // AI-powered class recommendations
 
+  // Vector Embedding for Semantic Search (1536 dimensions - OpenAI text-embedding-ada-002)
+  profile_embedding Unsupported("vector(1536)")? // Member profile vector embedding
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
@@ -65,7 +68,6 @@ model Member {
   health_metrics    HealthMetric[]
   workout_plans     WorkoutPlan[]
   achievements      Achievement[]
-  notifications     Notification[]
   equipment_queue   EquipmentQueue[]
   equipment_reports EquipmentIssueReport[]
   daily_streaks     DailyStreak[]
@@ -431,32 +433,7 @@ enum RedemptionStatus {
   REFUNDED
 }
 
-// Smart Notifications
-model Notification {
-  id         String           @id @default(cuid())
-  member_id  String
-  type       NotificationType
-  title      String
-  message    String
-  is_read    Boolean          @default(false)
-  is_sent    Boolean          @default(false)
-  send_at    DateTime? // For scheduled notifications
-  channels   String[] // ["EMAIL", "SMS", "PUSH", "IN_APP"]
-  data       Json? // Additional notification data
-  created_at DateTime         @default(now())
-
-  member Member @relation(fields: [member_id], references: [id])
-
-  // Indexes for performance
-  @@index([member_id])
-  @@index([member_id, is_read])
-  @@index([member_id, type])
-  @@index([is_read])
-  @@index([type])
-  @@index([created_at])
-  @@index([send_at])
-  @@map("notifications")
-}
+// Notification model removed - now centralized in Identity Service
 
 // Equipment Master Data (IoT Devices)
 model Equipment {
@@ -609,16 +586,7 @@ enum Difficulty {
   EXPERT
 }
 
-enum NotificationType {
-  WORKOUT_REMINDER
-  MEMBERSHIP_EXPIRY
-  PAYMENT_DUE
-  CLASS_BOOKING
-  ACHIEVEMENT
-  MAINTENANCE
-  PROMOTION
-  SYSTEM
-}
+// NotificationType enum removed - now centralized in Identity Service
 
 enum EquipmentCategory {
   CARDIO

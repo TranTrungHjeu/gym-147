@@ -1,63 +1,120 @@
 import { MembershipBadge } from '@/components/MembershipBadge';
-import { MembershipPlan } from '@/types/billingTypes';
+import type { MembershipPlan } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
-import { FontFamily } from '@/utils/typography';
-import { Ionicons } from '@expo/vector-icons';
-import React, { useEffect, useRef } from 'react';
+import { Typography } from '@/utils/typography';
+import { Check, Crown, Star, Zap } from 'lucide-react-native';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Animated,
+  Dimensions,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 interface PlanCardProps {
   plan: MembershipPlan;
+  isCurrentPlan: boolean;
+  canUpgrade: boolean;
   isSelected?: boolean;
-  onSelect: () => void;
+  onSelect?: () => void;
+  onUpgrade?: () => void;
+  onRenew?: () => void;
+  upgrading?: boolean;
 }
 
-export const PlanCard: React.FC<PlanCardProps> = ({
+export default function PlanCard({
   plan,
+  isCurrentPlan,
+  canUpgrade,
   isSelected = false,
   onSelect,
-}) => {
+  onUpgrade,
+  onRenew,
+  upgrading = false,
+}: PlanCardProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
 
-  // Animation: chỉ animate scale (transform) với native driver
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const prevSelectedRef = useRef(isSelected);
+  const getPlanIcon = (planType: string) => {
+    switch (planType) {
+      case 'BASIC':
+        return <Zap size={20} color="#ffffff" />;
+      case 'PREMIUM':
+        return <Star size={20} color="#ffffff" />;
+      case 'VIP':
+        return <Crown size={20} color="#ffffff" />;
+      default:
+        return <Zap size={20} color="#ffffff" />;
+    }
+  };
 
-  // Animate khi isSelected thay đổi
-  useEffect(() => {
-    // Chỉ animate nếu isSelected thực sự thay đổi
-    if (prevSelectedRef.current !== isSelected) {
-      prevSelectedRef.current = isSelected;
+  const getPlanColor = (planType: string) => {
+    switch (planType) {
+      case 'BASIC':
+        return theme.colors.primary;
+      case 'PREMIUM':
+        return theme.colors.warning;
+      case 'VIP':
+        return theme.colors.error;
+      default:
+        return theme.colors.primary;
+    }
+  };
 
-      Animated.spring(scaleAnim, {
-        toValue: isSelected ? 1.02 : 1,
-        tension: 100,
-        friction: 8,
-        useNativeDriver: true, // Chỉ dùng native driver cho transform
-      }).start();
+  const primaryColor = getPlanColor(plan.type);
+  const secondaryColor = theme.colors.primary;
+  const accentColor = theme.colors.success;
+
+  // Animation for badge entrance
+  const badgeScale = React.useRef(new Animated.Value(0)).current;
+  const badgeRotation = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    // Badge entrance animation
+    Animated.parallel([
+      Animated.spring(badgeScale, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+      Animated.timing(badgeRotation, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Continuous rotation animation for selected card
+    if (isSelected) {
+      Animated.loop(
+        Animated.timing(badgeRotation, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        })
+      ).start();
     }
   }, [isSelected]);
 
-  const formatPrice = (price: number | string) => {
-    const numPrice = typeof price === 'string' ? parseFloat(price) : price;
-    return new Intl.NumberFormat('vi-VN', {
-      style: 'currency',
-      currency: 'VND',
-    }).format(numPrice);
-  };
+  const badgeRotationInterpolate = badgeRotation.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
 
-  const getPlanTier = (
-    type: string
+  // Get tier for badge
+  const getTier = (
+    planType: string
   ): 'BASIC' | 'PREMIUM' | 'VIP' | 'STUDENT' => {
-    switch (type.toUpperCase()) {
+    // Normalize plan type to uppercase string
+    const normalizedType = String(planType).toUpperCase().trim();
+
+    switch (normalizedType) {
       case 'BASIC':
         return 'BASIC';
       case 'PREMIUM':
@@ -67,484 +124,615 @@ export const PlanCard: React.FC<PlanCardProps> = ({
       case 'STUDENT':
         return 'STUDENT';
       default:
+        // Fallback: try to match any case variation
+        if (normalizedType.includes('VIP')) return 'VIP';
+        if (normalizedType.includes('PREMIUM')) return 'PREMIUM';
+        if (normalizedType.includes('STUDENT')) return 'STUDENT';
+        if (normalizedType.includes('BASIC')) return 'BASIC';
         return 'BASIC';
     }
   };
 
-  // Animated style cho transform (scale)
-  const animatedStyle = {
-    transform: [{ scale: scaleAnim }],
-  };
-
-  const styles = StyleSheet.create({
-    container: {
-      borderRadius: theme.radius.xl,
-      padding: theme.spacing.xl,
-      borderWidth: isSelected ? 3 : 2,
-      borderColor: isSelected ? theme.colors.primary : theme.colors.border,
-      backgroundColor: isSelected
-        ? `${theme.colors.primary}08`
-        : theme.colors.background,
-      marginBottom: theme.spacing.lg,
-      shadowColor: theme.colors.primary,
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: isSelected ? 0.2 : 0.08,
-      shadowRadius: isSelected ? 16 : 8,
-      elevation: isSelected ? 10 : 4,
-    },
-    benefitItem: {
-      flexDirection: 'row',
-      alignItems: 'flex-start',
-      paddingVertical: theme.spacing.xs,
-      paddingLeft: theme.spacing.xs,
-    },
-    benefitsContainer: {
-      marginBottom: theme.spacing.sm,
-    },
-  });
-
-  // Build IoT features
-  const iotFeatures: string[] = [];
-  if (plan.smart_workout_plans) {
-    const feature = t('registration.smartWorkoutPlans');
-    if (feature) iotFeatures.push(feature);
-  }
-  if (plan.wearable_integration) {
-    const feature = t('registration.wearableIntegration');
-    if (feature) iotFeatures.push(feature);
-  }
-  if (plan.advanced_analytics) {
-    const feature = t('registration.advancedAnalytics');
-    if (feature) iotFeatures.push(feature);
-  }
-
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
-      <TouchableOpacity
-        onPress={onSelect}
-        activeOpacity={0.9}
-        style={{ flex: 1 }}
+    <View
+      style={[
+        styles.card,
+        {
+          borderColor: '#050505',
+          backgroundColor: theme.colors.surface,
+          shadowColor: '#000000',
+        },
+        isSelected && {
+          transform: [{ translateX: -4 }, { translateY: -4 }],
+        },
+      ]}
+    >
+      {/* Pattern Grid Background */}
+      <View style={styles.patternGrid} />
+
+      {/* Overlay Dots */}
+      <View style={styles.overlayDots} />
+
+      {/* Bold Pattern Corner */}
+      <View style={[styles.boldPattern, { opacity: 0.15 }]} />
+
+      {/* Membership Badge with Animation */}
+      <Animated.View
+        style={[
+          styles.badgeContainer,
+          {
+            transform: [
+              { scale: badgeScale },
+              { rotate: isSelected ? badgeRotationInterpolate : '0deg' },
+            ],
+          },
+        ]}
       >
-        {/* Header */}
-        <View
-          style={{
-            flexDirection: 'row',
-            justifyContent: 'space-between',
-            alignItems: 'flex-start',
-            marginBottom: theme.spacing.lg,
-          }}
-        >
-          <View
-            style={{
-              width: 64,
-              height: 64,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <MembershipBadge tier={getPlanTier(plan.type)} size="large" />
-          </View>
-          {plan.is_featured ? (
-            <View
-              style={{
-                paddingHorizontal: theme.spacing.md,
-                paddingVertical: theme.spacing.xs,
-                borderRadius: theme.radius.full,
-                backgroundColor: theme.colors.primary,
-                shadowColor: theme.colors.primary,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.3,
-                shadowRadius: 4,
-                elevation: 3,
-              }}
-            >
-              <Text
-                style={{
-                  fontFamily: FontFamily.spaceGroteskSemiBold,
-                  fontSize: 11,
-                  lineHeight: 14,
-                  letterSpacing: 0.5,
-                  color: theme.colors.textInverse,
-                  textTransform: 'uppercase',
-                }}
-              >
-                {String(t('registration.popular') || 'PHỔ BIẾN')}
-              </Text>
-            </View>
-          ) : null}
-        </View>
+        <MembershipBadge tier={getTier(plan.type || 'BASIC')} size="large" />
+      </Animated.View>
 
-        {/* Title */}
+      {/* Card Title Area */}
+      <View
+        style={[
+          styles.cardTitleArea,
+          {
+            backgroundColor: primaryColor,
+            borderBottomColor: '#050505',
+          },
+        ]}
+      >
+        <View style={styles.titlePattern} />
         <Text
-          style={{
-            fontFamily: FontFamily.spaceGroteskBold,
-            fontSize: 26,
-            lineHeight: 32,
-            letterSpacing: -0.5,
-            color: theme.colors.text,
-            marginBottom: theme.spacing.xs,
-          }}
+          style={[
+            Typography.h3,
+            {
+              color: theme.colors.surface,
+              fontWeight: '800',
+              textTransform: 'uppercase',
+              letterSpacing: 1,
+            },
+          ]}
         >
-          {String(plan.name || '')}
+          {plan.name}
         </Text>
+        {isCurrentPlan && (
+          <View
+            style={[
+              styles.cardTag,
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: '#050505',
+                shadowColor: '#000000',
+              },
+            ]}
+          >
+            <Text
+              style={[
+                Typography.caption,
+                {
+                  color: '#050505',
+                  fontWeight: '800',
+                  textTransform: 'uppercase',
+                },
+              ]}
+            >
+              Current
+            </Text>
+          </View>
+        )}
+      </View>
 
+      {/* Card Body */}
+      <View style={styles.cardBody}>
         {/* Description */}
         <Text
-          style={{
-            fontFamily: FontFamily.interRegular,
-            fontSize: 14,
-            lineHeight: 20,
-            color: theme.colors.textSecondary,
-            marginBottom: theme.spacing.lg,
-          }}
-        >
-          {String(plan.description || '')}
-        </Text>
-
-        {/* Price */}
-        <View
-          style={{
-            flexDirection: 'row',
-            alignItems: 'baseline',
-            marginBottom: theme.spacing.md,
-            paddingBottom: theme.spacing.md,
-            borderBottomWidth: 1,
-            borderBottomColor: `${theme.colors.border}50`,
-          }}
-        >
-          <Text
-            style={{
-              fontFamily: FontFamily.spaceGroteskBold,
-              fontSize: 36,
-              lineHeight: 42,
-              letterSpacing: -1,
-              color: theme.colors.primary,
-            }}
-          >
-            {formatPrice(plan.price)}
-          </Text>
-          <Text
-            style={{
-              fontFamily: FontFamily.interMedium,
-              fontSize: 14,
+          style={[
+            Typography.bodyMedium,
+            {
+              color: theme.colors.text,
+              marginBottom: 16,
               lineHeight: 20,
-              color: theme.colors.textSecondary,
-              marginLeft: theme.spacing.sm,
-            }}
-          >
-            {String(
-              `/${plan.duration_months} ${t('common.months') || 'tháng'}`
-            )}
-          </Text>
-        </View>
-
-        {/* Setup Fee */}
-        {plan.setup_fee && Number(plan.setup_fee) > 0 ? (
-          <Text
-            style={{
-              fontFamily: FontFamily.interMedium,
-              fontSize: 12,
-              lineHeight: 16,
-              color: theme.colors.warning,
-              marginBottom: theme.spacing.md,
-              paddingHorizontal: theme.spacing.sm,
-              paddingVertical: theme.spacing.xs,
-              backgroundColor: `${theme.colors.warning}10`,
-              borderRadius: theme.radius.sm,
-              alignSelf: 'flex-start',
-            }}
-          >
-            {String(`+ ${formatPrice(plan.setup_fee)} Phí thiết lập`)}
-          </Text>
-        ) : null}
-
-        {/* Benefits Section Header */}
-        <Text
-          style={{
-            fontFamily: FontFamily.spaceGroteskSemiBold,
-            fontSize: 15,
-            lineHeight: 20,
-            letterSpacing: 0.3,
-            color: theme.colors.text,
-            marginTop: theme.spacing.sm,
-            marginBottom: theme.spacing.md,
-            textTransform: 'uppercase',
-          }}
+            },
+          ]}
         >
-          {String('Quyền lợi cơ bản')}
+          {plan.description}
         </Text>
 
-        {/* Benefits from array */}
-        {Array.isArray(plan.benefits) && plan.benefits.length > 0 ? (
-          <View style={styles.benefitsContainer}>
-            {plan.benefits.map((benefit, index) => (
-              <View key={`benefit-${index}`} style={styles.benefitItem}>
-                <Ionicons
-                  name="checkmark-circle"
-                  size={18}
-                  color={theme.colors.success}
-                  style={{ marginRight: theme.spacing.sm, marginTop: 2 }}
-                />
-                <Text
-                  style={{
-                    fontFamily: FontFamily.interRegular,
-                    fontSize: 14,
-                    lineHeight: 20,
-                    color: theme.colors.text,
-                    flex: 1,
-                  }}
-                >
-                  {String(benefit)}
-                </Text>
-              </View>
-            ))}
-          </View>
-        ) : null}
-
-        {/* Additional Benefits Section */}
-        {plan.class_credits ||
-        plan.guest_passes ||
-        plan.personal_training_sessions ||
-        plan.nutritionist_consultations ? (
-          <View>
-            {/* Divider */}
-            <View
-              style={{
-                height: 1,
-                backgroundColor: `${theme.colors.border}40`,
-                marginVertical: theme.spacing.lg,
-              }}
-            />
-
-            {/* Additional Benefits Header */}
-            <Text
-              style={{
-                fontFamily: FontFamily.spaceGroteskSemiBold,
-                fontSize: 15,
-                lineHeight: 20,
-                letterSpacing: 0.3,
-                color: theme.colors.text,
-                marginBottom: theme.spacing.md,
-                textTransform: 'uppercase',
-              }}
-            >
-              {String('Quyền lợi bổ sung')}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Class Credits */}
-        {plan.class_credits && Number(plan.class_credits) > 0 ? (
-          <View style={styles.benefitItem}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={theme.colors.primary}
-              style={{ marginRight: theme.spacing.sm, marginTop: 2 }}
-            />
-            <Text
-              style={{
-                fontFamily: FontFamily.interMedium,
-                fontSize: 14,
-                lineHeight: 20,
-                color: theme.colors.text,
-                flex: 1,
-              }}
-            >
-              {String(`${plan.class_credits} Lượt lớp học`)}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Guest Passes */}
-        {plan.guest_passes && Number(plan.guest_passes) > 0 ? (
-          <View style={styles.benefitItem}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={theme.colors.primary}
-              style={{ marginRight: theme.spacing.sm, marginTop: 2 }}
-            />
-            <Text
-              style={{
-                fontFamily: FontFamily.interMedium,
-                fontSize: 14,
-                lineHeight: 20,
-                color: theme.colors.text,
-                flex: 1,
-              }}
-            >
-              {String(`${plan.guest_passes} Lượt khách mời`)}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* PT Sessions */}
-        {plan.personal_training_sessions &&
-        Number(plan.personal_training_sessions) > 0 ? (
-          <View style={styles.benefitItem}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={theme.colors.primary}
-              style={{ marginRight: theme.spacing.sm, marginTop: 2 }}
-            />
-            <Text
-              style={{
-                fontFamily: FontFamily.interMedium,
-                fontSize: 14,
-                lineHeight: 20,
-                color: theme.colors.text,
-                flex: 1,
-              }}
-            >
-              {Number(plan.personal_training_sessions) === 999
-                ? String('PT Không giới hạn')
-                : String(`${plan.personal_training_sessions} Buổi PT`)}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* Nutritionist Consultations */}
-        {plan.nutritionist_consultations &&
-        Number(plan.nutritionist_consultations) > 0 ? (
-          <View style={styles.benefitItem}>
-            <Ionicons
-              name="checkmark-circle"
-              size={18}
-              color={theme.colors.primary}
-              style={{ marginRight: theme.spacing.sm, marginTop: 2 }}
-            />
-            <Text
-              style={{
-                fontFamily: FontFamily.interMedium,
-                fontSize: 14,
-                lineHeight: 20,
-                color: theme.colors.text,
-                flex: 1,
-              }}
-            >
-              {String(`${plan.nutritionist_consultations} Tư vấn dinh dưỡng`)}
-            </Text>
-          </View>
-        ) : null}
-
-        {/* IoT Features */}
-        {iotFeatures.length > 0 ? (
-          <View
-            style={{
-              marginTop: theme.spacing.md,
-              padding: theme.spacing.md,
-              borderRadius: theme.radius.lg,
-              backgroundColor: `${theme.colors.info}08`,
-              borderWidth: 1,
-              borderColor: `${theme.colors.info}20`,
-            }}
-          >
-            <View
-              style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginBottom: theme.spacing.sm,
-              }}
-            >
+        {/* Features Grid */}
+        <View style={styles.featureGrid}>
+          {plan.benefits.slice(0, 4).map((benefit, index) => (
+            <View key={index} style={styles.featureItem}>
               <View
-                style={{
-                  width: 28,
-                  height: 28,
-                  borderRadius: theme.radius.md,
-                  backgroundColor: `${theme.colors.info}15`,
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  marginRight: theme.spacing.sm,
-                }}
+                style={[
+                  styles.featureIcon,
+                  {
+                    backgroundColor: secondaryColor,
+                    borderColor: '#050505',
+                    shadowColor: '#000000',
+                  },
+                ]}
               >
-                <Ionicons
-                  name="phone-portrait-outline"
-                  size={16}
-                  color={theme.colors.info}
-                />
+                <Check size={14} color="#ffffff" />
               </View>
               <Text
-                style={{
-                  fontFamily: FontFamily.spaceGroteskSemiBold,
-                  fontSize: 13,
-                  lineHeight: 18,
-                  letterSpacing: 0.3,
-                  color: theme.colors.info,
-                  textTransform: 'uppercase',
-                }}
+                style={[
+                  Typography.caption,
+                  {
+                    color: theme.colors.text,
+                    fontWeight: '600',
+                    flex: 1,
+                  },
+                ]}
+                numberOfLines={1}
               >
-                {String('Tính năng IoT')}
+                {benefit}
               </Text>
             </View>
-            {iotFeatures.map((feature, index) => (
-              <View
-                key={`iot-${index}`}
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  marginTop: index > 0 ? theme.spacing.xs : 0,
-                  paddingLeft: theme.spacing.sm,
-                }}
-              >
-                <Ionicons
-                  name="chevron-forward"
-                  size={14}
-                  color={theme.colors.info}
-                  style={{ marginRight: theme.spacing.xs }}
-                />
+          ))}
+        </View>
+
+        {/* Additional Features */}
+        {(plan.class_credits !== null && plan.class_credits !== undefined) ||
+        plan.guest_passes !== undefined ? (
+          <View style={styles.additionalFeatures}>
+            {plan.class_credits !== null &&
+              plan.class_credits !== undefined && (
+                <View style={styles.featureRow}>
+                  <Text
+                    style={[
+                      Typography.caption,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('subscription.plans.classCredits') || 'Class Credits:'}
+                  </Text>
+                  <Text
+                    style={[
+                      Typography.bodyMedium,
+                      { color: theme.colors.text, fontWeight: '600' },
+                    ]}
+                  >
+                    {plan.class_credits === null
+                      ? 'Unlimited'
+                      : plan.class_credits.toString()}
+                  </Text>
+                </View>
+              )}
+            {plan.guest_passes !== undefined && (
+              <View style={styles.featureRow}>
                 <Text
-                  style={{
-                    fontFamily: FontFamily.interRegular,
-                    fontSize: 13,
-                    lineHeight: 18,
-                    color: theme.colors.text,
-                    flex: 1,
-                  }}
+                  style={[
+                    Typography.caption,
+                    { color: theme.colors.textSecondary },
+                  ]}
                 >
-                  {String(feature)}
+                  {t('subscription.plans.guestPasses') || 'Guest Passes:'}
+                </Text>
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    { color: theme.colors.text, fontWeight: '600' },
+                  ]}
+                >
+                  {plan.guest_passes.toString()}
                 </Text>
               </View>
-            ))}
+            )}
           </View>
         ) : null}
 
-        {/* Select Button */}
-        <TouchableOpacity
-          style={{
-            marginTop: theme.spacing.xl,
-            paddingVertical: theme.spacing.md,
-            paddingHorizontal: theme.spacing.lg,
-            borderRadius: theme.radius.lg,
-            backgroundColor: isSelected ? theme.colors.primary : 'transparent',
-            borderWidth: 2,
-            borderColor: theme.colors.primary,
-            alignItems: 'center',
-            shadowColor: isSelected ? theme.colors.primary : 'transparent',
-            shadowOffset: { width: 0, height: 4 },
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            elevation: isSelected ? 4 : 0,
-          }}
-          onPress={onSelect}
-          activeOpacity={0.8}
-        >
+        {/* Card Actions */}
+        <View style={styles.cardActions}>
+          <View style={styles.priceContainer}>
+            <View style={styles.priceWrapper}>
+              <Text
+                style={[
+                  Typography.h2,
+                  {
+                    color: theme.colors.primary, // Màu cam của hệ thống (#f36100)
+                    fontWeight: '800',
+                  },
+                ]}
+              >
+                {(() => {
+                  // Format price as VND
+                  const priceValue =
+                    typeof plan.price === 'string'
+                      ? parseFloat(plan.price)
+                      : Number(plan.price);
+
+                  if (isNaN(priceValue)) return '0 ₫';
+
+                  // Format number with commas for thousands
+                  const formattedPrice = priceValue
+                    .toFixed(0)
+                    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+
+                  return (
+                    <>
+                      {formattedPrice}
+                      <Text
+                        style={{
+                          fontSize: 18,
+                          marginLeft: 4,
+                          color: theme.colors.primary,
+                        }}
+                      >
+                        ₫
+                      </Text>
+                    </>
+                  );
+                })()}
+              </Text>
+              <Text
+                style={[
+                  Typography.caption,
+                  {
+                    color: theme.colors.textSecondary,
+                    fontWeight: '600',
+                    marginTop: 4,
+                  },
+                ]}
+              >
+                /
+                {(plan.billing_interval || 'MONTHLY')
+                  .toLowerCase()
+                  .replace('ly', '')}
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.priceUnderline,
+                { backgroundColor: accentColor, opacity: 0.5 },
+              ]}
+            />
+          </View>
+
+          {/* Action Buttons */}
+          {isCurrentPlan ? (
+            <TouchableOpacity
+              style={[
+                styles.cardButton,
+                {
+                  backgroundColor: secondaryColor,
+                  borderColor: '#050505',
+                  shadowColor: '#000000',
+                },
+              ]}
+              onPress={() => {
+                console.log('🔄 Renew button pressed');
+                onRenew?.();
+              }}
+              disabled={upgrading}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: theme.colors.surface,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  },
+                ]}
+              >
+                {upgrading
+                  ? t('subscription.plans.processing')
+                  : t('subscription.plans.extend')}
+              </Text>
+            </TouchableOpacity>
+          ) : canUpgrade ? (
+            <TouchableOpacity
+              style={[
+                styles.cardButton,
+                {
+                  backgroundColor: secondaryColor,
+                  borderColor: '#050505',
+                  shadowColor: '#000000',
+                },
+              ]}
+              onPress={() => {
+                console.log('⬆️ Upgrade/Subscribe button pressed', {
+                  hasOnUpgrade: !!onUpgrade,
+                  hasOnSelect: !!onSelect,
+                });
+                if (onUpgrade) {
+                  onUpgrade();
+                } else if (onSelect) {
+                  onSelect();
+                }
+              }}
+              disabled={upgrading}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: theme.colors.surface,
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  },
+                ]}
+              >
+                {upgrading
+                  ? t('subscription.plans.processing')
+                  : t('subscription.plans.subscribe')}
+              </Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[
+                styles.cardButton,
+                {
+                  backgroundColor: 'transparent',
+                  borderColor: '#050505',
+                  shadowColor: '#000000',
+                },
+              ]}
+              onPress={onSelect}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: '#050505',
+                    fontWeight: '700',
+                    textTransform: 'uppercase',
+                  },
+                ]}
+              >
+                {t('subscription.plans.select')}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      </View>
+
+      {/* Dots Pattern */}
+      <View style={styles.dotsPattern} />
+
+      {/* Accent Shape */}
+      <View
+        style={[
+          styles.accentShape,
+          {
+            backgroundColor: secondaryColor,
+            borderColor: '#050505',
+          },
+        ]}
+      />
+
+      {/* Corner Slice */}
+      <View
+        style={[
+          styles.cornerSlice,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: '#050505',
+          },
+        ]}
+      />
+
+      {/* Stamp */}
+      {plan.is_featured && (
+        <View style={styles.stamp}>
           <Text
-            style={{
-              fontFamily: FontFamily.spaceGroteskSemiBold,
-              fontSize: 16,
-              lineHeight: 24,
-              letterSpacing: 0.3,
-              color: isSelected
-                ? theme.colors.textInverse
-                : theme.colors.primary,
-            }}
+            style={[
+              Typography.caption,
+              {
+                color: theme.colors.textSecondary,
+                fontWeight: '800',
+                textTransform: 'uppercase',
+                opacity: 0.3,
+              },
+            ]}
           >
-            {String(isSelected ? 'Đã chọn' : 'Chọn gói này')}
+            Featured
           </Text>
-        </TouchableOpacity>
-      </TouchableOpacity>
-    </Animated.View>
+        </View>
+      )}
+    </View>
   );
-};
+}
+
+const styles = StyleSheet.create({
+  card: {
+    position: 'relative',
+    width: SCREEN_WIDTH - 32,
+    borderWidth: 3.5,
+    borderRadius: 6,
+    marginBottom: 24,
+    overflow: 'hidden',
+    shadowOffset: { width: 7, height: 7 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 5,
+  },
+  patternGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.5,
+    backgroundColor: 'transparent',
+    // Grid pattern would need a custom implementation or image
+  },
+  overlayDots: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0,
+    backgroundColor: 'transparent',
+    // Dots pattern would need a custom implementation
+  },
+  boldPattern: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    width: 60,
+    height: 60,
+    backgroundColor: '#000000',
+  },
+  badgeContainer: {
+    position: 'absolute',
+    top: 30,
+    right: 20,
+    zIndex: 10,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  cardTitleArea: {
+    position: 'relative',
+    padding: 14,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottomWidth: 3.5,
+    overflow: 'hidden',
+  },
+  titlePattern: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    opacity: 0.3,
+    backgroundColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  cardTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  cardBody: {
+    position: 'relative',
+    padding: 15,
+  },
+  featureGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: 16,
+    gap: 12,
+  },
+  featureItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '48%',
+    gap: 6,
+  },
+  featureIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 3,
+    borderWidth: 1.2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowOffset: { width: 2, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 0,
+    elevation: 2,
+  },
+  additionalFeatures: {
+    marginBottom: 16,
+    gap: 8,
+  },
+  featureRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  cardActions: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 15,
+    paddingTop: 12,
+    borderTopWidth: 1.5,
+    borderTopColor: 'rgba(0, 0, 0, 0.15)',
+    borderStyle: 'dashed',
+  },
+  priceContainer: {
+    position: 'relative',
+  },
+  priceWrapper: {
+    backgroundColor: 'transparent',
+  },
+  priceUnderline: {
+    position: 'absolute',
+    bottom: 2,
+    left: 0,
+    right: 0,
+    height: 3,
+    zIndex: -1,
+  },
+  currentPlanActions: {
+    flexDirection: 'row',
+    gap: 8,
+    flex: 1,
+  },
+  cardButton: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 4,
+    borderWidth: 2,
+    shadowOffset: { width: 3, height: 3 },
+    shadowOpacity: 1,
+    shadowRadius: 0,
+    elevation: 3,
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: 40,
+  },
+  dotsPattern: {
+    position: 'absolute',
+    bottom: 20,
+    left: -20,
+    width: 80,
+    height: 40,
+    opacity: 0.3,
+    transform: [{ rotate: '-10deg' }],
+  },
+  accentShape: {
+    position: 'absolute',
+    width: 25,
+    height: 25,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    bottom: -12,
+    right: 20,
+    transform: [{ rotate: '45deg' }],
+  },
+  cornerSlice: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    width: 15,
+    height: 15,
+    borderRightWidth: 2.5,
+    borderTopWidth: 2.5,
+    borderTopRightRadius: 5,
+  },
+  stamp: {
+    position: 'absolute',
+    bottom: 15,
+    left: 15,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 0, 0, 0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    opacity: 0.2,
+    transform: [{ rotate: '-15deg' }],
+  },
+});

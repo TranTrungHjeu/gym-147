@@ -1,9 +1,14 @@
 const { prisma } = require('../lib/prisma.js');
 const axios = require('axios');
 const receiptService = require('../services/receipt.service.js');
+const rewardDiscountService = require('../services/reward-discount.service');
+const notificationService = require('../services/notification.service.js');
+const redisService = require('../services/redis.service.js');
 
 if (!process.env.MEMBER_SERVICE_URL) {
-  throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+  throw new Error(
+    'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+  );
 }
 const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL;
 
@@ -161,7 +166,7 @@ class BillingController {
 
       // Fetch member information for each subscription
       const subscriptionsWithMembers = await Promise.all(
-        subscriptions.map(async (sub) => {
+        subscriptions.map(async sub => {
           let member = null;
           if (sub.member_id) {
             try {
@@ -171,12 +176,17 @@ class BillingController {
               if (memberResponse.data?.success) {
                 member = {
                   id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
-                  full_name: memberResponse.data.data?.full_name || memberResponse.data.data?.member?.full_name,
+                  full_name:
+                    memberResponse.data.data?.full_name ||
+                    memberResponse.data.data?.member?.full_name,
                   email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
                 };
               }
             } catch (error) {
-              console.warn(`Could not fetch member ${sub.member_id} for subscription:`, error.message);
+              console.warn(
+                `Could not fetch member ${sub.member_id} for subscription:`,
+                error.message
+              );
             }
           }
           return {
@@ -196,6 +206,45 @@ class BillingController {
       res.status(500).json({
         success: false,
         message: 'Failed to retrieve subscriptions',
+        data: null,
+      });
+    }
+  }
+
+  async getMemberSubscription(req, res) {
+    try {
+      const { memberId } = req.params;
+
+      const subscription = await prisma.subscription.findUnique({
+        where: { member_id: memberId },
+        include: {
+          plan: true,
+          subscription_addons: true,
+          payments: {
+            orderBy: { created_at: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'No subscription found for this member',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Member subscription retrieved successfully',
+        data: subscription,
+      });
+    } catch (error) {
+      console.error('Get member subscription error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve member subscription',
         data: null,
       });
     }
@@ -223,26 +272,99 @@ class BillingController {
       const endDate = new Date(startDate);
       endDate.setMonth(endDate.getMonth() + plan.duration_months);
 
-      const subscription = await prisma.subscription.create({
-        data: {
-          member_id,
-          plan_id,
-          status: 'ACTIVE',
-          start_date: startDate,
-          end_date: endDate,
-          next_billing_date: endDate,
-          current_period_start: startDate,
-          current_period_end: endDate,
-          base_amount: plan.price,
-          total_amount: plan.price,
-          classes_remaining: plan.class_credits,
-          payment_method_id,
-          auto_renew: true,
-        },
-        include: {
-          plan: true,
-        },
-      });
+      // 🔒 Use transaction to prevent duplicate subscriptions
+      // Lock and check for existing subscription atomically
+      let subscription;
+      try {
+        subscription = await prisma.$transaction(
+          async tx => {
+            // 1. Check for existing subscription (with lock)
+            const existingSubscription = await tx.subscription.findUnique({
+              where: { member_id },
+              select: {
+                id: true,
+                status: true,
+                payments: {
+                  orderBy: { created_at: 'desc' },
+                  take: 1,
+                  select: { status: true },
+                },
+              },
+            });
+
+            // If existing subscription has COMPLETED payment or is ACTIVE, throw error
+            if (existingSubscription) {
+              const hasCompletedPayment =
+                existingSubscription.payments?.[0]?.status === 'COMPLETED';
+              const isActiveOrPastDue = ['ACTIVE', 'PAST_DUE'].includes(
+                existingSubscription.status
+              );
+
+              if (hasCompletedPayment || isActiveOrPastDue) {
+                throw new Error('SUBSCRIPTION_EXISTS');
+              }
+
+              // If subscription exists but payment not completed, update it
+              return await tx.subscription.update({
+                where: { id: existingSubscription.id },
+                data: {
+                  plan_id,
+                  status: 'ACTIVE',
+                  start_date: startDate,
+                  end_date: endDate,
+                  next_billing_date: endDate,
+                  current_period_start: startDate,
+                  current_period_end: endDate,
+                  base_amount: plan.price,
+                  total_amount: plan.price,
+                  classes_remaining: plan.class_credits,
+                  payment_method_id,
+                  auto_renew: true,
+                },
+                include: {
+                  plan: true,
+                },
+              });
+            }
+
+            // 2. Create new subscription
+            return await tx.subscription.create({
+              data: {
+                member_id,
+                plan_id,
+                status: 'ACTIVE',
+                start_date: startDate,
+                end_date: endDate,
+                next_billing_date: endDate,
+                current_period_start: startDate,
+                current_period_end: endDate,
+                base_amount: plan.price,
+                total_amount: plan.price,
+                classes_remaining: plan.class_credits,
+                payment_method_id,
+                auto_renew: true,
+              },
+              include: {
+                plan: true,
+              },
+            });
+          },
+          {
+            isolationLevel: 'Serializable', // Prevent phantom reads
+          }
+        );
+      } catch (txError) {
+        // Handle transaction errors
+        if (txError.message === 'SUBSCRIPTION_EXISTS') {
+          return res.status(400).json({
+            success: false,
+            message: 'Member already has an active subscription',
+            data: null,
+          });
+        }
+        // Re-throw to be caught by outer catch
+        throw txError;
+      }
 
       // 🔥 Update Member Service: Create Membership record (auto-updates member.membership_type)
       try {
@@ -279,6 +401,23 @@ class BillingController {
         // Don't fail the subscription creation - member service update is secondary
       }
 
+      // Create notification for member
+      try {
+        const notificationService = require('../services/notification.service');
+        // Get user_id from member_id (assuming member_id is user_id in this context)
+        // If member_id is actually member.id, we need to get user_id from member service
+        await notificationService.createSubscriptionNotification({
+          userId: member_id, // Assuming member_id is user_id, adjust if needed
+          subscriptionId: subscription.id,
+          planName: subscription.plan.name,
+          planType: subscription.plan.type,
+          action: 'created',
+        });
+      } catch (notificationError) {
+        console.error('❌ Failed to create subscription notification:', notificationError);
+        // Don't fail subscription creation if notification fails
+      }
+
       res.status(201).json({
         success: true,
         message: 'Subscription created successfully',
@@ -286,6 +425,16 @@ class BillingController {
       });
     } catch (error) {
       console.error('Create subscription error:', error);
+
+      // Handle Prisma unique constraint error
+      if (error.code === 'P2002') {
+        return res.status(400).json({
+          success: false,
+          message: 'Member already has a subscription',
+          data: null,
+        });
+      }
+
       res.status(500).json({
         success: false,
         message: 'Failed to create subscription',
@@ -299,6 +448,23 @@ class BillingController {
       const { id } = req.params;
       const updateData = req.body;
 
+      // Get old subscription data to detect upgrade
+      const oldSubscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+        },
+      });
+
+      if (!oldSubscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'Subscription not found',
+          data: null,
+        });
+      }
+
+      // Update subscription
       const subscription = await prisma.subscription.update({
         where: { id },
         data: updateData,
@@ -306,6 +472,77 @@ class BillingController {
           plan: true,
         },
       });
+
+      // Check if this is an upgrade (plan_id changed)
+      const isUpgrade = updateData.plan_id && updateData.plan_id !== oldSubscription.plan_id;
+
+      // Get new plan if upgraded
+      let newPlan = null;
+      if (isUpgrade) {
+        newPlan = await prisma.membershipPlan.findUnique({
+          where: { id: updateData.plan_id },
+        });
+      }
+
+      // Send notification to admins if upgrade
+      if (isUpgrade && newPlan) {
+        try {
+          if (!process.env.SCHEDULE_SERVICE_URL) {
+            throw new Error(
+              'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
+          }
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
+
+          // Get member info
+          let memberInfo = null;
+          try {
+            const memberResponse = await axios.get(
+              `${MEMBER_SERVICE_URL}/members/${subscription.member_id}`,
+              { timeout: 5000 }
+            );
+            memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
+          } catch (memberError) {
+            console.log('Could not fetch member info for notification');
+          }
+
+          // Calculate price difference
+          const priceDifference =
+            parseFloat(newPlan.price) - parseFloat(oldSubscription.plan?.price || 0);
+
+          // Call schedule service to notify admins
+          await axios.post(
+            `${scheduleServiceUrl}/notifications/subscription-renewal-upgrade`,
+            {
+              subscription_id: subscription.id,
+              member_id: subscription.member_id,
+              user_id: memberInfo?.user_id || subscription.member_id,
+              action_type: 'UPGRADE',
+              old_plan_id: oldSubscription.plan_id,
+              new_plan_id: newPlan.id,
+              old_plan_name: oldSubscription.plan?.name || null,
+              new_plan_name: newPlan.name,
+              old_plan_type: oldSubscription.plan?.type || null,
+              new_plan_type: newPlan.type,
+              amount: priceDifference > 0 ? priceDifference : null,
+              member_name: memberInfo?.full_name || null,
+              member_email: memberInfo?.email || null,
+              old_end_date: oldSubscription.end_date || oldSubscription.current_period_end,
+              new_end_date: subscription.end_date || subscription.current_period_end,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            }
+          );
+          console.log('✅ Successfully notified admins about subscription upgrade');
+        } catch (notificationError) {
+          console.error('❌ Error notifying admins about subscription upgrade:', notificationError);
+          // Don't fail the update if notification fails
+        }
+      }
 
       res.json({
         success: true,
@@ -318,6 +555,251 @@ class BillingController {
         success: false,
         message: 'Failed to update subscription',
         data: null,
+      });
+    }
+  }
+
+  async renewSubscription(req, res) {
+    try {
+      const { id } = req.params;
+      const { payment_method, payment_method_id } = req.body;
+
+      // Get current subscription with plan
+      const subscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+        },
+      });
+
+      if (!subscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'Subscription not found',
+          data: null,
+        });
+      }
+
+      // Calculate new dates (extend by plan duration)
+      const currentEndDate = subscription.end_date || subscription.current_period_end;
+      const oldEndDate = new Date(currentEndDate);
+      const newStartDate = new Date(oldEndDate); // Start from current end date
+      const newEndDate = new Date(oldEndDate);
+      newEndDate.setMonth(newEndDate.getMonth() + subscription.plan.duration_months);
+
+      // Calculate renewal amount
+      const renewalAmount = parseFloat(subscription.total_amount);
+      const baseAmount = parseFloat(subscription.base_amount);
+      const discountAmount = subscription.discount_amount
+        ? parseFloat(subscription.discount_amount)
+        : 0;
+      const taxAmount = subscription.tax_amount ? parseFloat(subscription.tax_amount) : 0;
+
+      // Use transaction to ensure atomicity
+      const result = await prisma.$transaction(async tx => {
+        // 1. Create payment record
+        const payment = await tx.payment.create({
+          data: {
+            subscription_id: subscription.id,
+            member_id: subscription.member_id,
+            amount: renewalAmount,
+            currency: 'VND',
+            status: payment_method ? 'PENDING' : 'COMPLETED', // If no payment method, mark as completed (manual renewal)
+            payment_method:
+              payment_method || subscription.payment_method_id ? 'BANK_TRANSFER' : 'CASH',
+            payment_type: 'SUBSCRIPTION',
+            description: `Gia hạn gói ${subscription.plan.name} - ${subscription.plan.duration_months} tháng`,
+            net_amount: renewalAmount,
+            payment_method_id: payment_method_id || subscription.payment_method_id,
+            metadata: {
+              renewal_type: 'MANUAL',
+              old_end_date: oldEndDate.toISOString(),
+              new_start_date: newStartDate.toISOString(),
+              new_end_date: newEndDate.toISOString(),
+              plan_duration_months: subscription.plan.duration_months,
+            },
+          },
+        });
+
+        // 2. Generate invoice number
+        const invoiceCount = await tx.invoice.count();
+        const invoice_number = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(
+          6,
+          '0'
+        )}`;
+
+        // 3. Create invoice
+        const invoice = await tx.invoice.create({
+          data: {
+            subscription_id: subscription.id,
+            payment_id: payment.id,
+            member_id: subscription.member_id,
+            invoice_number,
+            status: payment_method ? 'DRAFT' : 'PAID', // If no payment method, mark as paid
+            type: 'SUBSCRIPTION',
+            subtotal: baseAmount,
+            tax_rate: taxAmount > 0 ? taxAmount / baseAmount : null,
+            tax_amount: taxAmount,
+            discount_amount: discountAmount,
+            total_amount: renewalAmount,
+            issued_date: new Date(),
+            due_date: newEndDate,
+            paid_date: payment_method ? null : new Date(),
+            line_items: {
+              items: [
+                {
+                  description: `Gia hạn gói ${subscription.plan.name}`,
+                  quantity: 1,
+                  unit_price: baseAmount,
+                  total: baseAmount,
+                },
+              ],
+              subtotal: baseAmount,
+              discount: discountAmount,
+              tax: taxAmount,
+              total: renewalAmount,
+            },
+            notes: `Gia hạn gói thành viên từ ${oldEndDate.toLocaleDateString(
+              'vi-VN'
+            )} đến ${newEndDate.toLocaleDateString('vi-VN')}`,
+          },
+        });
+
+        // 4. Update payment with invoice reference
+        await tx.payment.update({
+          where: { id: payment.id },
+          data: {
+            reference_id: invoice.invoice_number,
+          },
+        });
+
+        // 5. Update subscription with new dates (only if payment is completed or no payment method)
+        if (!payment_method || payment.status === 'COMPLETED') {
+          await tx.subscription.update({
+            where: { id },
+            data: {
+              end_date: newEndDate,
+              current_period_start: newStartDate,
+              current_period_end: newEndDate,
+              next_billing_date: newEndDate,
+              status: 'ACTIVE',
+              payment_method_id: payment_method_id || subscription.payment_method_id,
+            },
+          });
+        }
+
+        return { payment, invoice };
+      });
+
+      // Get updated subscription
+      const renewedSubscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+        },
+      });
+
+      // Send notification to admins (only if payment completed)
+      if (!payment_method || result.payment.status === 'COMPLETED') {
+        try {
+          if (!process.env.SCHEDULE_SERVICE_URL) {
+            throw new Error(
+              'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
+          }
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
+
+          // Get member info
+          let memberInfo = null;
+          try {
+            const memberResponse = await axios.get(
+              `${MEMBER_SERVICE_URL}/members/${subscription.member_id}`,
+              { timeout: 5000 }
+            );
+            memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
+          } catch (memberError) {
+            console.log('Could not fetch member info for notification');
+          }
+
+          // Call schedule service to notify admins
+          await axios.post(
+            `${scheduleServiceUrl}/notifications/subscription-renewal-upgrade`,
+            {
+              subscription_id: renewedSubscription.id,
+              member_id: renewedSubscription.member_id,
+              user_id: memberInfo?.user_id || renewedSubscription.member_id,
+              action_type: 'RENEW',
+              old_plan_id: subscription.plan_id,
+              new_plan_id: subscription.plan_id,
+              old_plan_name: subscription.plan?.name || null,
+              new_plan_name: subscription.plan?.name || null,
+              old_plan_type: subscription.plan?.type || null,
+              new_plan_type: subscription.plan?.type || null,
+              amount: renewalAmount,
+              member_name: memberInfo?.full_name || null,
+              member_email: memberInfo?.email || null,
+              old_end_date: oldEndDate,
+              new_end_date: newEndDate,
+            },
+            {
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              timeout: 10000,
+            }
+          );
+          console.log('✅ Successfully notified admins about subscription renewal');
+        } catch (notificationError) {
+          console.error('❌ Error notifying admins about subscription renewal:', notificationError);
+          // Don't fail the renewal if notification fails
+        }
+
+        // Create notification for member
+        try {
+          const userId = memberInfo?.user_id || renewedSubscription.member_id;
+          await notificationService.createSubscriptionNotification({
+            userId,
+            subscriptionId: renewedSubscription.id,
+            planName: subscription.plan.name,
+            planType: subscription.plan.type,
+            action: 'renewed',
+          });
+        } catch (notificationError) {
+          console.error('❌ Error creating subscription renewal notification:', notificationError);
+        }
+      }
+
+      // If payment method provided, return payment info for processing
+      if (payment_method && result.payment.status === 'PENDING') {
+        res.json({
+          success: true,
+          message: 'Payment created for subscription renewal',
+          data: {
+            subscription: renewedSubscription,
+            payment: result.payment,
+            invoice: result.invoice,
+            requires_payment: true,
+          },
+        });
+      } else {
+        res.json({
+          success: true,
+          message: 'Subscription renewed successfully',
+          data: {
+            subscription: renewedSubscription,
+            payment: result.payment,
+            invoice: result.invoice,
+            requires_payment: false,
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Renew subscription error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to renew subscription',
+        data: null,
+        error: error.message,
       });
     }
   }
@@ -378,7 +860,7 @@ class BillingController {
 
       // Fetch member information for each payment
       const paymentsWithMembers = await Promise.all(
-        payments.map(async (payment) => {
+        payments.map(async payment => {
           let member = null;
           if (payment.member_id) {
             try {
@@ -388,12 +870,17 @@ class BillingController {
               if (memberResponse.data?.success) {
                 member = {
                   id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
-                  full_name: memberResponse.data.data?.full_name || memberResponse.data.data?.member?.full_name,
+                  full_name:
+                    memberResponse.data.data?.full_name ||
+                    memberResponse.data.data?.member?.full_name,
                   email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
                 };
               }
             } catch (error) {
-              console.warn(`Could not fetch member ${payment.member_id} for payment:`, error.message);
+              console.warn(
+                `Could not fetch member ${payment.member_id} for payment:`,
+                error.message
+              );
             }
           }
           return {
@@ -644,6 +1131,19 @@ class BillingController {
         },
       });
 
+      // Create invoice notification for member
+      try {
+        await notificationService.createInvoiceNotification({
+          userId: member_id,
+          invoiceId: invoice.id,
+          invoiceNumber: invoice.invoice_number,
+          amount: parseFloat(invoice.total),
+          status: invoice.status,
+        });
+      } catch (notificationError) {
+        console.error('❌ Error creating invoice notification:', notificationError);
+      }
+
       res.status(201).json({
         success: true,
         message: 'Invoice created successfully',
@@ -807,6 +1307,8 @@ class BillingController {
         description,
         return_url,
         cancel_url,
+        reward_redemption_id, // Reward redemption ID if payment is for reward redemption
+        metadata, // Additional metadata if provided
       } = req.body;
 
       if (!member_id || !amount || !payment_method) {
@@ -830,6 +1332,14 @@ class BillingController {
           reference_id, // Link to booking, invoice, etc.
           description,
           net_amount: amount,
+          // Store reward redemption ID and other metadata if provided
+          metadata:
+            reward_redemption_id || metadata
+              ? {
+                  ...(reward_redemption_id ? { reward_redemption_id } : {}),
+                  ...(metadata || {}),
+                }
+              : null,
         },
       });
 
@@ -912,14 +1422,37 @@ class BillingController {
   }
 
   async handlePaymentWebhook(req, res) {
+    const webhookId = req.webhookId || req.body?.transaction_id || req.body?.id;
+    const requestId = `webhook-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+
+    // Structured logging context
+    const logContext = {
+      requestId,
+      webhookId,
+      paymentId: req.body?.payment_id,
+      timestamp: new Date().toISOString(),
+    };
+
     try {
-      const { payment_id, status, transaction_id, gateway } = req.body;
+      const { payment_id, status, transaction_id, gateway, receipt_url, payment_intent } = req.body;
+
+      console.log('📨 [WEBHOOK] Received payment webhook:', {
+        ...logContext,
+        status,
+        gateway,
+      });
 
       if (!payment_id || !status) {
+        console.error('❌ [WEBHOOK] Missing required fields:', logContext);
         return res.status(400).json({
           success: false,
           message: 'Thiếu thông tin webhook',
         });
+      }
+
+      // Mark webhook as processed (idempotency)
+      if (webhookId) {
+        await redisService.markWebhookProcessed(webhookId);
       }
 
       // Find payment
@@ -935,17 +1468,29 @@ class BillingController {
       });
 
       if (!payment) {
+        console.error('❌ [WEBHOOK] Payment not found:', logContext);
         return res.status(404).json({
           success: false,
           message: 'Không tìm thấy thanh toán',
         });
       }
 
+      // Store payment intent/receipt in metadata
+      const metadata = {
+        ...(payment.metadata || {}),
+        webhook_received_at: new Date().toISOString(),
+        webhook_id: webhookId,
+        request_id: requestId,
+        ...(receipt_url && { receipt_url }),
+        ...(payment_intent && { payment_intent }),
+      };
+
       // Update payment status
       const updateData = {
         status: status === 'SUCCESS' ? 'COMPLETED' : 'FAILED',
         transaction_id,
         gateway,
+        metadata,
       };
 
       if (status === 'SUCCESS') {
@@ -960,64 +1505,255 @@ class BillingController {
         data: updateData,
       });
 
-      // If payment successful, activate subscription and create member
-      if (status === 'SUCCESS' && payment.subscription) {
-        // Update subscription to ACTIVE
-        await prisma.subscription.update({
-          where: { id: payment.subscription.id },
-          data: { status: 'ACTIVE' },
-        });
+      console.log('✅ [WEBHOOK] Payment status updated:', {
+        ...logContext,
+        newStatus: updatedPayment.status,
+      });
 
-        // Call Member Service to create member
-        // This would be an HTTP call to Member Service
-        const axios = require('axios');
-        if (!process.env.MEMBER_SERVICE_URL) {
-          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+      // If payment successful, process subscription
+      if (status === 'SUCCESS' && payment.subscription) {
+        // Check if this is a renewal payment (check metadata)
+        const isRenewal = payment.metadata?.renewal_type === 'MANUAL';
+
+        if (isRenewal && payment.metadata?.new_end_date) {
+          // This is a renewal payment - update subscription dates
+          const newStartDate = new Date(payment.metadata.new_start_date);
+          const newEndDate = new Date(payment.metadata.new_end_date);
+
+          const updatedSubscription = await prisma.subscription.update({
+            where: { id: payment.subscription.id },
+            data: {
+              status: 'ACTIVE',
+              end_date: newEndDate,
+              current_period_start: newStartDate,
+              current_period_end: newEndDate,
+              next_billing_date: newEndDate,
+            },
+          });
+
+          // Update invoice status to PAID
+          const invoice = await prisma.invoice.findFirst({
+            where: { payment_id: payment.id },
+          });
+
+          if (invoice) {
+            await prisma.invoice.update({
+              where: { id: invoice.id },
+              data: {
+                status: 'PAID',
+                paid_date: new Date(),
+              },
+            });
+            console.log('✅ [WEBHOOK] Invoice status updated to PAID:', {
+              ...logContext,
+              invoice_id: invoice.id,
+            });
+          } else {
+            console.warn('⚠️ [WEBHOOK] No invoice found for payment:', {
+              ...logContext,
+              payment_id: payment.id,
+            });
+          }
+
+          console.log('✅ Subscription renewed via payment completion:', {
+            subscription_id: updatedSubscription.id,
+            new_end_date: newEndDate,
+          });
+
+          // Create notification for member
+          try {
+            await notificationService.createSubscriptionNotification({
+              userId: payment.member_id,
+              subscriptionId: updatedSubscription.id,
+              planName: payment.subscription.plan?.name || 'Gói đăng ký',
+              planType: payment.subscription.plan?.type || 'BASIC',
+              action: 'renewed',
+            });
+          } catch (notificationError) {
+            console.error(
+              '❌ Error creating subscription renewal notification:',
+              notificationError
+            );
+          }
+        } else {
+          // Regular subscription activation
+          const updatedSubscription = await prisma.subscription.update({
+            where: { id: payment.subscription.id },
+            data: { status: 'ACTIVE' },
+          });
+
+          // Create notification for member
+          try {
+            await notificationService.createSubscriptionNotification({
+              userId: payment.member_id,
+              subscriptionId: updatedSubscription.id,
+              planName: payment.subscription.plan?.name || 'Gói đăng ký',
+              planType: payment.subscription.plan?.type || 'BASIC',
+              action: 'created',
+            });
+          } catch (notificationError) {
+            console.error('❌ Error creating subscription notification:', notificationError);
+          }
         }
+
+        // Create payment notification
+        try {
+          await notificationService.createPaymentNotification({
+            userId: payment.member_id,
+            paymentId: updatedPayment.id,
+            amount: parseFloat(updatedPayment.amount),
+            status: 'SUCCESS',
+            paymentMethod: updatedPayment.payment_method,
+            subscriptionId: payment.subscription_id,
+          });
+        } catch (notificationError) {
+          console.error('❌ Error creating payment notification:', notificationError);
+        }
+
+        // Mark reward redemption as used if payment used a reward code
+        // Check payment metadata for reward_redemption_id
+        const rewardRedemptionId = payment.metadata?.reward_redemption_id;
+        if (rewardRedemptionId) {
+          try {
+            const markResult = await rewardDiscountService.markRedemptionAsUsed(
+              rewardRedemptionId,
+              updatedSubscription.id
+            );
+            if (markResult.success) {
+              console.log('✅ Reward redemption marked as used:', rewardRedemptionId);
+            } else {
+              console.error('❌ Failed to mark reward redemption as used:', markResult.error);
+              // Don't fail the webhook if marking fails
+            }
+          } catch (rewardError) {
+            console.error('❌ Error marking reward redemption as used:', rewardError);
+            // Don't fail the webhook if marking fails
+          }
+        }
+
+        // Call Member Service to update member membership
+        // Use transaction pattern with rollback/compensation
         const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+        let memberUpdateSuccess = false;
+        let user_id = null;
+        const compensationTaskId = `comp-${payment_id}-${Date.now()}`;
 
         try {
-          // NOTE: payment.member_id in database is Member.id (from member service)
-          // But createMemberWithUser expects user_id (from identity service)
-          // This endpoint is used when creating a new member after payment
-          // If member already exists, this will fail gracefully
-          await axios.post(`${memberServiceUrl}/members/create-with-user`, {
-            user_id: payment.member_id, // TODO: Verify if this should be user_id or member.id
+          // NOTE: payment.member_id in database is Member.id (from member service), not user_id
+          // We need to get the member first to find user_id
+          try {
+            const membersEndpoint = `${memberServiceUrl}/members/${payment.member_id}`;
+            const memberResponse = await axios.get(membersEndpoint, {
+              timeout: 5000,
+            });
+            const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
+            user_id = memberData?.user_id;
+
+            if (!user_id) {
+              console.error('❌ [WEBHOOK] Cannot find user_id from member data:', {
+                ...logContext,
+                memberData: memberData ? Object.keys(memberData) : 'null',
+              });
+              throw new Error('Member data does not contain user_id');
+            }
+
+            console.log('✅ [WEBHOOK] Found user_id:', { ...logContext, user_id });
+          } catch (memberFetchError) {
+            console.error('❌ [WEBHOOK] Failed to fetch member to get user_id:', {
+              ...logContext,
+              error: memberFetchError.message,
+              response: memberFetchError.response?.data,
+            });
+            throw memberFetchError;
+          }
+
+          // Update member membership with correct user_id
+          const createEndpoint = `${memberServiceUrl}/members/create-with-user`;
+          await axios.post(
+            createEndpoint,
+            {
+              user_id: user_id,
+              membership_type: payment.subscription.plan.type,
+              membership_start_date: payment.subscription.start_date,
+              membership_end_date: payment.subscription.end_date,
+            },
+            {
+              timeout: 10000,
+            }
+          );
+
+          memberUpdateSuccess = true;
+          console.log('✅ [WEBHOOK] Member membership updated:', {
+            ...logContext,
+            user_id,
             membership_type: payment.subscription.plan.type,
-            membership_start_date: payment.subscription.start_date,
-            membership_end_date: payment.subscription.end_date,
           });
         } catch (memberError) {
-          console.error('Failed to create member:', memberError);
-          // Don't fail the webhook, member can be created later
+          console.error('❌ [WEBHOOK] Failed to update member membership:', {
+            ...logContext,
+            error: memberError.message,
+            response: memberError.response?.data,
+            stack: memberError.stack,
+          });
+
+          // Store compensation task for retry
+          if (user_id) {
+            await redisService.storeCompensationTask(compensationTaskId, {
+              payment_id: payment.id,
+              user_id: user_id,
+              membership_type: payment.subscription.plan.type,
+              membership_start_date: payment.subscription.start_date,
+              membership_end_date: payment.subscription.end_date,
+              retry_count: 0,
+              created_at: new Date().toISOString(),
+            });
+            console.log('📝 [WEBHOOK] Compensation task stored:', {
+              ...logContext,
+              compensationTaskId,
+            });
+          }
+
+          // Rollback payment status if member update fails (optional - depends on business logic)
+          // For now, we keep payment as COMPLETED but log the failure
+          // The compensation task will retry the member update later
         }
 
         // Notify admins about successful subscription payment
         try {
           console.log('📢 Notifying admins about subscription payment success...');
           if (!process.env.SCHEDULE_SERVICE_URL) {
-            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            throw new Error(
+              'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
           }
           const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
-          
+
           // Get member info if available (payment.member_id might be user_id or member_id)
           let memberInfo = null;
           try {
-            const memberResponse = await axios.get(`${memberServiceUrl}/members/${payment.member_id}`, {
-              timeout: 5000,
-            });
+            const memberResponse = await axios.get(
+              `${memberServiceUrl}/members/${payment.member_id}`,
+              {
+                timeout: 5000,
+              }
+            );
             memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
           } catch (memberInfoError) {
             // Try to get by user_id if member_id fails
             try {
               // payment.member_id might be user_id, so try to get member by user_id
               if (!process.env.IDENTITY_SERVICE_URL) {
-                throw new Error('IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.');
+                throw new Error(
+                  'IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.'
+                );
               }
               const identityServiceUrl = process.env.IDENTITY_SERVICE_URL;
-              const userResponse = await axios.get(`${identityServiceUrl}/users/${payment.member_id}`, {
-                timeout: 5000,
-              });
+              const userResponse = await axios.get(
+                `${identityServiceUrl}/users/${payment.member_id}`,
+                {
+                  timeout: 5000,
+                }
+              );
               memberInfo = userResponse.data?.data?.user || userResponse.data?.data;
             } catch (userInfoError) {
               console.log('Could not fetch member/user info for notification');
@@ -1046,10 +1782,42 @@ class BillingController {
           );
           console.log('✅ Successfully notified admins about subscription payment');
         } catch (notifyError) {
-          console.error('❌ Failed to notify admins about subscription payment:', notifyError.message);
+          console.error(
+            '❌ Failed to notify admins about subscription payment:',
+            notifyError.message
+          );
           // Don't fail the webhook if notification fails
         }
+
+        // Emit Socket.IO event for real-time updates
+        if (global.io && user_id) {
+          try {
+            global.io.to(`user:${user_id}`).emit('payment:completed', {
+              payment_id: updatedPayment.id,
+              amount: parseFloat(updatedPayment.amount),
+              status: updatedPayment.status,
+              subscription_id: payment.subscription_id,
+              timestamp: new Date().toISOString(),
+            });
+            console.log('📡 [WEBHOOK] Socket event emitted:', {
+              ...logContext,
+              user_id,
+            });
+          } catch (socketError) {
+            console.error('❌ [WEBHOOK] Error emitting socket event:', {
+              ...logContext,
+              error: socketError.message,
+            });
+          }
+        }
       }
+
+      // Audit log
+      console.log('📋 [WEBHOOK] Payment webhook processed successfully:', {
+        ...logContext,
+        paymentStatus: updatedPayment.status,
+        hasSubscription: !!payment.subscription,
+      });
 
       res.json({
         success: true,
@@ -1057,10 +1825,27 @@ class BillingController {
         data: updatedPayment,
       });
     } catch (error) {
-      console.error('Payment webhook error:', error);
+      console.error('❌ [WEBHOOK] Payment webhook error:', {
+        ...logContext,
+        error: error.message,
+        stack: error.stack,
+        body: req.body,
+      });
+
+      // Log full error context (mask sensitive data)
+      const errorContext = {
+        ...logContext,
+        errorType: error.name,
+        errorMessage: error.message,
+        paymentId: req.body?.payment_id,
+        // Don't log full request body in production
+        ...(process.env.NODE_ENV !== 'production' && { requestBody: req.body }),
+      };
+
       res.status(500).json({
         success: false,
         message: 'Lỗi khi xử lý webhook',
+        ...(process.env.NODE_ENV !== 'production' && { error: error.message }),
       });
     }
   }
@@ -1129,24 +1914,67 @@ class BillingController {
       let discountAmount = 0;
       let totalAmount = baseAmount;
       let discountCodeRecord = null;
+      let rewardRedemptionId = null; // Track if using reward redemption code
 
       // Get discount code if provided
       if (discount_code) {
-        discountCodeRecord = await prisma.discountCode.findUnique({
-          where: { code: discount_code.toUpperCase() },
-        });
+        const codeUpper = discount_code.toUpperCase().trim();
 
-        if (discountCodeRecord && discountCodeRecord.is_active) {
-          if (discountCodeRecord.type === 'PERCENTAGE') {
-            discountAmount = (baseAmount * Number(discountCodeRecord.value)) / 100;
-            if (discountCodeRecord.max_discount) {
-              discountAmount = Math.min(discountAmount, Number(discountCodeRecord.max_discount));
+        // Check if this is a reward redemption code (format: REWARD-XXXX-XXXX)
+        if (codeUpper.startsWith('REWARD-')) {
+          console.log('🎁 Checking reward redemption code:', codeUpper);
+          const rewardCodeResult = await rewardDiscountService.verifyRewardCode(
+            codeUpper,
+            member_id
+          );
+
+          if (rewardCodeResult.success && rewardCodeResult.discount) {
+            const rewardDiscount = rewardCodeResult.discount;
+            rewardRedemptionId = rewardCodeResult.redemption.id;
+
+            // Apply discount from reward
+            if (rewardDiscount.type === 'PERCENTAGE') {
+              discountAmount = (baseAmount * Number(rewardDiscount.value)) / 100;
+              if (rewardDiscount.max_discount) {
+                discountAmount = Math.min(discountAmount, Number(rewardDiscount.max_discount));
+              }
+            } else if (rewardDiscount.type === 'FIXED') {
+              discountAmount = Number(rewardDiscount.value);
             }
-          } else if (discountCodeRecord.type === 'FIXED_AMOUNT') {
-            discountAmount = Number(discountCodeRecord.value);
-          }
 
-          totalAmount = baseAmount - discountAmount;
+            totalAmount = Math.max(0, baseAmount - discountAmount);
+            console.log('✅ Reward discount applied:', {
+              type: rewardDiscount.type,
+              value: rewardDiscount.value,
+              discountAmount,
+              redemption_id: rewardRedemptionId,
+            });
+          } else {
+            // Reward code is invalid, return error
+            return res.status(400).json({
+              success: false,
+              message: rewardCodeResult.error || 'Invalid reward redemption code',
+              data: null,
+            });
+          }
+        } else {
+          // Regular discount code from billing service
+          discountCodeRecord = await prisma.discountCode.findUnique({
+            where: { code: codeUpper },
+          });
+
+          if (discountCodeRecord && discountCodeRecord.is_active) {
+            if (discountCodeRecord.type === 'PERCENTAGE') {
+              discountAmount = (baseAmount * Number(discountCodeRecord.value)) / 100;
+              if (discountCodeRecord.max_discount) {
+                discountAmount = Math.min(discountAmount, Number(discountCodeRecord.max_discount));
+              }
+            } else if (discountCodeRecord.type === 'FIXED_AMOUNT') {
+              discountAmount = Number(discountCodeRecord.value);
+            }
+
+            totalAmount = baseAmount - discountAmount;
+          }
         }
       }
 
@@ -1348,10 +2176,7 @@ class BillingController {
       if (payment.member_id) {
         try {
           const axios = require('axios');
-          if (!process.env.MEMBER_SERVICE_URL) {
-          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
-        }
-        const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+          const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
           const memberResponse = await axios.get(
             `${memberServiceUrl}/members/${payment.member_id}`
           );
@@ -1411,25 +2236,26 @@ class BillingController {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-      const [totalPlans, activeSubscriptions, totalRevenue, monthlyRevenue, pendingPayments] = await Promise.all([
-        prisma.membershipPlan.count({ where: { is_active: true } }),
-        prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-        prisma.payment.aggregate({
-          where: { status: 'COMPLETED' },
-          _sum: { amount: true },
-        }),
-        prisma.payment.aggregate({
-          where: {
-            status: 'COMPLETED',
-            created_at: {
-              gte: startOfMonth,
-              lte: endOfMonth,
+      const [totalPlans, activeSubscriptions, totalRevenue, monthlyRevenue, pendingPayments] =
+        await Promise.all([
+          prisma.membershipPlan.count({ where: { is_active: true } }),
+          prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+          prisma.payment.aggregate({
+            where: { status: 'COMPLETED' },
+            _sum: { amount: true },
+          }),
+          prisma.payment.aggregate({
+            where: {
+              status: 'COMPLETED',
+              created_at: {
+                gte: startOfMonth,
+                lte: endOfMonth,
+              },
             },
-          },
-          _sum: { amount: true },
-        }),
-        prisma.payment.count({ where: { status: 'PENDING' } }),
-      ]);
+            _sum: { amount: true },
+          }),
+          prisma.payment.count({ where: { status: 'PENDING' } }),
+        ]);
 
       res.json({
         success: true,

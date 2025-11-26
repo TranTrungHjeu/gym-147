@@ -357,17 +357,65 @@ export default function TrainerCalendarSplitView() {
     setIsDetailModalOpen(true);
   }, []);
 
-  const handleAttendanceClick = useCallback(() => {
-    if (selectedEvent) {
-      // TODO: Implement attendance functionality
+  const [attendanceLoading, setAttendanceLoading] = useState<string | null>(null);
+
+  const handleAttendanceClick = useCallback(async () => {
+    if (!selectedEvent) {
+      return;
+    }
+
+    // Get current user ID from localStorage
+    const getUserFromStorage = () => {
+      try {
+        const user = localStorage.getItem('user');
+        if (user) {
+          const userData = JSON.parse(user);
+          return userData.id || userData.userId;
+        }
+      } catch (error) {
+        console.error('Error parsing user data:', error);
+      }
+      return null;
+    };
+
+    const trainerId = getUserFromStorage();
+    if (!trainerId) {
       if (window.showToast) {
         window.showToast({
-          type: 'info',
-          message: 'Chức năng điểm danh đang được phát triển',
+          type: 'error',
+          message: 'Không tìm thấy thông tin trainer',
           duration: 3000,
         });
       }
+      return;
     }
+
+    // Check if schedule is locked or already completed
+    if (selectedEvent.status === 'CANCELLED') {
+      if (window.showToast) {
+        window.showToast({
+          type: 'warning',
+          message: 'Không thể điểm danh cho buổi đã hủy',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    if (selectedEvent.status === 'COMPLETED') {
+      if (window.showToast) {
+        window.showToast({
+          type: 'warning',
+          message: 'Buổi học đã hoàn thành',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    // Navigate to TrainerSchedule page with the schedule ID
+    // This page has full attendance functionality
+    window.location.href = `/dashboard/trainer-schedule?scheduleId=${selectedEvent.id}`;
   }, [selectedEvent]);
 
   // Memoized FullCalendar events - chỉ tính lại khi events hoặc filteredEvents thay đổi
@@ -1484,7 +1532,7 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
       {/* Tooltip */}
       <AnimatePresence>
         <motion.div
-          className={`tooltip absolute hidden group-hover:block w-max bg-white border border-gray-200 text-gray-800 text-xs rounded-sm py-1 px-1.5 shadow-sm min-w-[80px] max-w-[150px] ${
+          className={`tooltip absolute hidden group-hover:block w-max bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 text-xs rounded-sm py-1 px-1.5 shadow-sm min-w-[80px] max-w-[150px] ${
             tooltipPosition === 'left'
               ? 'right-full mr-3 top-1/2 -translate-y-1/2'
               : tooltipPosition === 'right'
@@ -1500,7 +1548,7 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
         >
           <div className='flex items-center gap-2 mb-2'>
             <div className={`w-3 h-3 rounded-full ${bg} border ${border}`}></div>
-            <div className='font-medium text-gray-900 text-xs'>
+            <div className='font-medium text-gray-900 dark:text-white text-xs'>
               {extendedProps.class_name || event.title}
             </div>
           </div>

@@ -1,5 +1,7 @@
 import { AIGenerationModal } from '@/components/AIGenerationModal';
+import { AIWorkoutPromptModal } from '@/components/AIWorkoutPromptModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
+import { EmptyState, WorkoutCardSkeleton } from '@/components/ui';
 import WorkoutCard from '@/components/WorkoutCard';
 import { useAuth } from '@/contexts/AuthContext';
 import {
@@ -10,7 +12,7 @@ import {
 import { MembershipType } from '@/types/memberTypes';
 import { Difficulty } from '@/types/workoutTypes';
 import { useTheme } from '@/utils/theme';
-import { Typography } from '@/utils/typography';
+import { FontFamily, Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import {
   Activity,
@@ -24,19 +26,21 @@ import {
   TrendingUp,
   Zap,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 interface WorkoutCategoryProps {
   title: string;
@@ -50,29 +54,65 @@ const WorkoutCategory: React.FC<WorkoutCategoryProps> = ({
   onPress,
 }) => {
   const { theme } = useTheme();
+  const categoryStyles = getCategoryStyles(theme);
+  const scaleAnim = useRef(new Animated.Value(active ? 1 : 0.95)).current;
+
+  useEffect(() => {
+    Animated.spring(scaleAnim, {
+      toValue: active ? 1 : 0.95,
+      tension: 300,
+      friction: 20,
+      useNativeDriver: true,
+    }).start();
+  }, [active]);
+
   return (
-    <TouchableOpacity
-      style={[
-        styles.categoryButton,
-        { backgroundColor: active ? theme.colors.primary : theme.colors.gray },
-      ]}
-      onPress={onPress}
-    >
-      <Text
+    <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
+      <TouchableOpacity
         style={[
-          styles.categoryText,
+          categoryStyles.categoryButton,
+          active && categoryStyles.activeCategoryButton,
           {
-            color: active
-              ? theme.colors.textInverse
-              : theme.colors.textSecondary,
+            backgroundColor: active ? theme.colors.primaryLight : 'transparent',
+            borderColor: active ? theme.colors.primary : theme.colors.border,
           },
         ]}
+        onPress={onPress}
+        activeOpacity={0.7}
       >
-        {title}
-      </Text>
-    </TouchableOpacity>
+        <Text
+          style={[
+            categoryStyles.categoryText,
+            {
+              color: active ? theme.colors.primary : theme.colors.textSecondary,
+              fontWeight: active ? '600' : '400',
+            },
+          ]}
+        >
+          {title}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
   );
 };
+
+const getCategoryStyles = (theme: any) =>
+  StyleSheet.create({
+    categoryButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      marginRight: theme.spacing.xs,
+      borderWidth: 1,
+      backgroundColor: 'transparent',
+    },
+    activeCategoryButton: {
+      borderWidth: 1,
+    },
+    categoryText: {
+      ...Typography.bodySmall,
+    },
+  });
 
 export default function WorkoutsScreen() {
   const { theme } = useTheme();
@@ -98,6 +138,90 @@ export default function WorkoutsScreen() {
       default:
         return category;
     }
+  };
+
+  // Helper function to translate recommendation title
+  const translateRecommendationTitle = (title: string): string => {
+    const titleMap: Record<string, string> = {
+      'Start Your Fitness Journey': t(
+        'workouts.recommendationTitles.startYourFitnessJourney'
+      ),
+      'Get Back on Track': t('workouts.recommendationTitles.getBackOnTrack'),
+      'Weight Gain Detected': t(
+        'workouts.recommendationTitles.weightGainDetected'
+      ),
+      'Weight Loss Progress': t(
+        'workouts.recommendationTitles.weightLossProgress'
+      ),
+      'Try New Equipment': t('workouts.recommendationTitles.tryNewEquipment'),
+      'Increase Activity': t('workouts.recommendationTitles.increaseActivity'),
+      'Create Workout Plan': t(
+        'workouts.recommendationTitles.createWorkoutPlan'
+      ),
+    };
+    return titleMap[title] || title;
+  };
+
+  // Helper function to translate recommendation message
+  const translateRecommendationMessage = (
+    message: string,
+    rec?: any
+  ): string => {
+    // Check for specific patterns and translate
+    if (message.includes("You haven't been active recently")) {
+      return t('workouts.recommendationMessages.startYourFitnessJourney');
+    }
+    if (
+      message.includes("It's been") &&
+      message.includes('days since your last workout')
+    ) {
+      const daysMatch = message.match(/(\d+)\s*days/);
+      const days = daysMatch ? daysMatch[1] : '0';
+      return t('workouts.recommendationMessages.getBackOnTrack', { days });
+    }
+    if (message.includes("You've been using the same equipment")) {
+      return t('workouts.recommendationMessages.tryNewEquipment');
+    }
+    if (message.includes("You've been active but don't have a workout plan")) {
+      return t('workouts.recommendationMessages.increaseActivity');
+    }
+    if (message.includes("You've gained weight")) {
+      return t('workouts.recommendationMessages.weightGainDetected');
+    }
+    if (message.includes('Great progress on weight loss')) {
+      return t('workouts.recommendationMessages.weightLossProgress');
+    }
+
+    // Try to match by title if available
+    if (rec?.title) {
+      const titleMap: Record<string, string> = {
+        'Start Your Fitness Journey': t(
+          'workouts.recommendationMessages.startYourFitnessJourney'
+        ),
+        'Get Back on Track': rec.message?.match(/(\d+)/)?.[1]
+          ? t('workouts.recommendationMessages.getBackOnTrack', {
+              days: rec.message.match(/(\d+)/)?.[1] || '0',
+            })
+          : t('workouts.recommendationMessages.getBackOnTrack', { days: '0' }),
+        'Weight Gain Detected': t(
+          'workouts.recommendationMessages.weightGainDetected'
+        ),
+        'Weight Loss Progress': t(
+          'workouts.recommendationMessages.weightLossProgress'
+        ),
+        'Try New Equipment': t(
+          'workouts.recommendationMessages.tryNewEquipment'
+        ),
+        'Increase Activity': t(
+          'workouts.recommendationMessages.increaseActivity'
+        ),
+      };
+      if (titleMap[rec.title]) {
+        return titleMap[rec.title];
+      }
+    }
+
+    return message;
   };
 
   const [activeCategory, setActiveCategory] = React.useState('All');
@@ -127,10 +251,15 @@ export default function WorkoutsScreen() {
     }>
   >([]);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [aiRecommendationsEnabled, setAiRecommendationsEnabled] =
+    useState<boolean>(false);
+  const [togglingAI, setTogglingAI] = useState(false);
+  const [memberProfile, setMemberProfile] = useState<any>(null);
   const [membershipType, setMembershipType] = useState<MembershipType>(
     MembershipType.BASIC
   );
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showPromptModal, setShowPromptModal] = useState(false);
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiGenerationStatus, setAIGenerationStatus] = useState<
     'preparing' | 'analyzing' | 'generating' | 'completed'
@@ -178,18 +307,34 @@ export default function WorkoutsScreen() {
       const memberId = profileResponse.data?.id || member?.id || user.id;
       await loadRecommendations(memberId);
 
-      // Handle profile (for membership type)
+      // Handle profile (for membership type and AI settings)
       if (profileResponse.success && profileResponse.data) {
         console.log(
           '✅ Profile loaded, membership type:',
           profileResponse.data.membership_type
         );
-        setMembershipType(
-          profileResponse.data.membership_type || MembershipType.BASIC
-        );
+        const membership =
+          profileResponse.data.membership_type || MembershipType.BASIC;
+        setMembershipType(membership);
+        setMemberProfile(profileResponse.data);
+
+        // Set AI recommendations enabled based on member preference
+        // Default to false - user must explicitly enable AI recommendations
+        if (
+          profileResponse.data.ai_workout_recommendations_enabled !== undefined
+        ) {
+          setAiRecommendationsEnabled(
+            profileResponse.data.ai_workout_recommendations_enabled
+          );
+        } else {
+          // Default to false (no AI recommendations by default)
+          setAiRecommendationsEnabled(false);
+        }
       } else {
         console.log('❌ Failed to load profile:', profileResponse.error);
         setMembershipType(MembershipType.BASIC);
+        setMemberProfile(null);
+        setAiRecommendationsEnabled(false);
       }
     } catch (err: any) {
       console.error('❌ Error loading workouts data:', err);
@@ -209,9 +354,10 @@ export default function WorkoutsScreen() {
   const loadRecommendations = async (memberId: string) => {
     try {
       setLoadingRecommendations(true);
+      const useAI = aiRecommendationsEnabled; // Default is false, user must explicitly enable
       const response = await workoutPlanService.getWorkoutRecommendations(
         memberId,
-        true
+        useAI
       );
 
       if (response.success && response.data?.recommendations) {
@@ -227,6 +373,40 @@ export default function WorkoutsScreen() {
     }
   };
 
+  // Toggle AI Recommendations
+  const handleToggleAIRecommendations = async (value: boolean) => {
+    if (!user?.id) {
+      Alert.alert(
+        t('common.error'),
+        t('workouts.memberNotFound') || 'Member not found'
+      );
+      return;
+    }
+
+    try {
+      setTogglingAI(true);
+      // Update local state immediately for better UX
+      setAiRecommendationsEnabled(value);
+
+      // Reload recommendations with new AI setting
+      const memberResponse = await memberService.getMemberByUserId(user.id);
+      const memberId = memberResponse.data?.id || user.id;
+      await loadRecommendations(memberId);
+    } catch (error: any) {
+      console.error('❌ Error toggling AI recommendations:', error);
+      // Revert on error
+      setAiRecommendationsEnabled(!value);
+      Alert.alert(
+        t('common.error'),
+        error.message ||
+          t('workouts.failedToToggleAI') ||
+          'Failed to toggle AI recommendations'
+      );
+    } finally {
+      setTogglingAI(false);
+    }
+  };
+
   // Handle AI Workout Generation
   const handleAIGeneration = async () => {
     // Check membership tier
@@ -238,67 +418,109 @@ export default function WorkoutsScreen() {
       return;
     }
 
-    // Premium/VIP can proceed - show confirmation
-    Alert.alert(t('workouts.generateAIPlan'), t('workouts.aiPlanDescription'), [
-      {
-        text: t('common.cancel'),
-        style: 'cancel',
-      },
-      {
-        text: t('common.ok'),
-        onPress: async () => {
-          try {
-            setGeneratingAI(true);
-            setAIGenerationStatus('preparing');
+    // Premium/VIP can proceed - show prompt modal
+    setShowPromptModal(true);
+  };
 
-            if (!user?.id) return;
+  // Handle AI Generation with custom prompt
+  const handleAIGenerateWithPrompt = async (customPrompt: string) => {
+    try {
+      setShowPromptModal(false);
+      setGeneratingAI(true);
+      setAIGenerationStatus('preparing');
 
-            // Step 1: Preparing - Get member profile
-            const profileResponse = await memberService.getMemberProfile();
-            if (!profileResponse.success || !profileResponse.data?.id) {
-              Alert.alert(t('common.error'), 'Failed to get member profile');
-              setGeneratingAI(false);
-              return;
-            }
+      if (!user?.id) return;
 
-            const memberId = profileResponse.data.id;
+      // Step 1: Preparing - Get member profile
+      const profileResponse = await memberService.getMemberProfile();
+      if (!profileResponse.success || !profileResponse.data?.id) {
+        Alert.alert(t('common.error'), 'Failed to get member profile');
+        setGeneratingAI(false);
+        return;
+      }
 
-            // Step 2: Analyzing
-            await new Promise((resolve) => setTimeout(resolve, 800));
-            setAIGenerationStatus('analyzing');
+      const memberId = profileResponse.data.id;
 
-            // Step 3: Generating
-            await new Promise((resolve) => setTimeout(resolve, 1000));
-            setAIGenerationStatus('generating');
+      // Step 2: Analyzing
+      await new Promise((resolve) => setTimeout(resolve, 800));
+      setAIGenerationStatus('analyzing');
 
-            const response = await workoutPlanService.generateAIWorkoutPlan(
-              memberId,
-              {
-                goal: 'BUILD_MUSCLE',
-                difficulty: Difficulty.INTERMEDIATE,
-                duration_weeks: 4,
-              }
-            );
+      // Step 3: Generating
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      setAIGenerationStatus('generating');
 
-            if (response.success) {
-              // Step 4: Completed
-              setAIGenerationStatus('completed');
-              await new Promise((resolve) => setTimeout(resolve, 1500));
-              await loadData();
-            } else {
-              setGeneratingAI(false);
-              Alert.alert(
-                t('common.error'),
-                response.error || 'Failed to generate AI workout plan'
-              );
-            }
-          } catch (error: any) {
-            setGeneratingAI(false);
-            Alert.alert(t('common.error'), error.message);
-          }
-        },
-      },
-    ]);
+      const response = await workoutPlanService.generateAIWorkoutPlan(
+        memberId,
+        {
+          goal: 'BUILD_MUSCLE',
+          difficulty: Difficulty.INTERMEDIATE,
+          duration_weeks: 4,
+          custom_prompt: customPrompt || undefined,
+        }
+      );
+
+      if (response.success) {
+        // Step 4: Completed
+        setAIGenerationStatus('completed');
+        await new Promise((resolve) => setTimeout(resolve, 1500));
+
+        // Reload data and navigate to home
+        await loadData();
+        await loadRecommendations(memberId);
+
+        // Show success message first
+        Alert.alert(
+          t('workouts.aiSuccess') || 'Workout plan created successfully!',
+          t('workouts.aiPlanCreatedDesc') ||
+            'Your AI workout plan has been created. Check your workout recommendations!',
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                // Navigate to home tab after alert is dismissed
+                router.push('/');
+              },
+            },
+          ]
+        );
+      } else {
+        setGeneratingAI(false);
+        setAIGenerationStatus('preparing');
+
+        // Show user-friendly error message
+        const errorMessage =
+          response.error || 'Failed to generate AI workout plan';
+        Alert.alert(t('common.error'), errorMessage, [
+          {
+            text: t('common.ok'),
+            style: 'default',
+          },
+          {
+            text: 'Try Again',
+            onPress: () => {
+              // Allow user to retry
+              setShowPromptModal(true);
+            },
+          },
+        ]);
+      }
+    } catch (error: any) {
+      setGeneratingAI(false);
+      setAIGenerationStatus('preparing');
+
+      console.error('❌ AI Generation Exception:', error);
+
+        Alert.alert(
+          t('common.error'),
+        error.message || 'An unexpected error occurred. Please try again.',
+        [
+          {
+            text: t('common.ok'),
+            style: 'default',
+          },
+        ]
+      );
+    }
   };
 
   // Handle modal completion
@@ -364,18 +586,30 @@ export default function WorkoutsScreen() {
     return true;
   });
 
-  // Show loading state
-  if (loading) {
+  // Show loading state with skeleton
+  const themedStyles = styles(theme);
+
+  if (loading && workoutPlans.length === 0) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            {t('common.loading')}...
+        <View style={themedStyles.header}>
+          <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
+            {t('workouts.title')}
           </Text>
         </View>
+        <ScrollView
+          style={themedStyles.content}
+          contentContainerStyle={themedStyles.listContent}
+        >
+          {[1, 2, 3].map((i) => (
+            <WorkoutCardSkeleton key={i} />
+          ))}
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -384,22 +618,25 @@ export default function WorkoutsScreen() {
   if (error) {
     return (
       <SafeAreaView
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
       >
-        <View style={styles.errorContainer}>
-          <Text style={[styles.errorText, { color: theme.colors.error }]}>
+        <View style={themedStyles.errorContainer}>
+          <Text style={[themedStyles.errorText, { color: theme.colors.error }]}>
             {error}
           </Text>
           <TouchableOpacity
             style={[
-              styles.retryButton,
+              themedStyles.retryButton,
               { backgroundColor: theme.colors.primary },
             ]}
             onPress={loadData}
           >
             <Text
               style={[
-                styles.retryButtonText,
+                themedStyles.retryButtonText,
                 { color: theme.colors.textInverse },
               ]}
             >
@@ -413,24 +650,24 @@ export default function WorkoutsScreen() {
 
   return (
     <SafeAreaView
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
     >
-      <View style={styles.header}>
-        <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+      <View style={themedStyles.header}>
+        <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('workouts.title')}
         </Text>
-        <View style={styles.headerRight}>
+        <View style={themedStyles.headerRight}>
           <TouchableOpacity
-            style={[styles.iconButton, { backgroundColor: theme.colors.gray }]}
+            style={themedStyles.iconButton}
             onPress={() => router.push('/equipment')}
           >
             <Boxes size={20} color={theme.colors.text} />
           </TouchableOpacity>
           <TouchableOpacity
-            style={[
-              styles.iconButton,
-              { backgroundColor: theme.colors.gray, marginLeft: 8 },
-            ]}
+            style={themedStyles.iconButton}
             onPress={() => setShowFilterModal(true)}
           >
             <Filter size={20} color={theme.colors.text} />
@@ -438,25 +675,27 @@ export default function WorkoutsScreen() {
         </View>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoriesContainer}
-      >
-        {['All', 'Strength', 'Cardio', 'HIIT', 'Yoga', 'Stretching'].map(
-          (category) => (
-            <WorkoutCategory
-              key={category}
-              title={getWorkoutCategoryTranslation(category)}
-              active={activeCategory === category}
-              onPress={() => setActiveCategory(category)}
-            />
-          )
-        )}
-      </ScrollView>
+      <View style={themedStyles.categoriesSection}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={themedStyles.categoriesContainer}
+        >
+          {['All', 'Strength', 'Cardio', 'HIIT', 'Yoga', 'Stretching'].map(
+            (category) => (
+              <WorkoutCategory
+                key={category}
+                title={getWorkoutCategoryTranslation(category)}
+                active={activeCategory === category}
+                onPress={() => setActiveCategory(category)}
+              />
+            )
+          )}
+        </ScrollView>
+      </View>
 
       <ScrollView
-        style={styles.content}
+        style={themedStyles.content}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -470,7 +709,7 @@ export default function WorkoutsScreen() {
         {/* AI Workout Generation CTA */}
         <TouchableOpacity
           style={[
-            styles.aiCtaCard,
+            themedStyles.aiCtaCard,
             {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.primary + '30',
@@ -480,10 +719,10 @@ export default function WorkoutsScreen() {
           activeOpacity={0.8}
           disabled={generatingAI}
         >
-          <View style={styles.aiCtaContent}>
+          <View style={themedStyles.aiCtaContent}>
             <View
               style={[
-                styles.aiIconContainer,
+                themedStyles.aiIconContainer,
                 {
                   backgroundColor: theme.colors.primary + '15',
                 },
@@ -495,13 +734,15 @@ export default function WorkoutsScreen() {
                 strokeWidth={2}
               />
             </View>
-            <View style={styles.aiCtaTextContainer}>
-              <Text style={[styles.aiCtaTitle, { color: theme.colors.text }]}>
+            <View style={themedStyles.aiCtaTextContainer}>
+              <Text
+                style={[themedStyles.aiCtaTitle, { color: theme.colors.text }]}
+              >
                 {t('workouts.generateAIPlan')}
               </Text>
               <Text
                 style={[
-                  styles.aiCtaDescription,
+                  themedStyles.aiCtaDescription,
                   { color: theme.colors.textSecondary },
                 ]}
               >
@@ -509,11 +750,11 @@ export default function WorkoutsScreen() {
               </Text>
               {(membershipType === MembershipType.BASIC ||
                 membershipType === MembershipType.STUDENT) && (
-                <View style={styles.aiCtaBadge}>
+                <View style={themedStyles.aiCtaBadge}>
                   <Zap size={14} color={theme.colors.primary} />
                   <Text
                     style={[
-                      styles.aiCtaBadgeText,
+                      themedStyles.aiCtaBadgeText,
                       { color: theme.colors.primary },
                     ]}
                   >
@@ -524,7 +765,7 @@ export default function WorkoutsScreen() {
             </View>
             <View
               style={[
-                styles.aiCtaButton,
+                themedStyles.aiCtaButton,
                 {
                   backgroundColor: theme.colors.primary,
                 },
@@ -540,43 +781,76 @@ export default function WorkoutsScreen() {
         </TouchableOpacity>
 
         {/* AI Recommendations Section */}
-        {recommendations.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.recommendationsHeader}>
-              <View style={styles.recommendationsHeaderLeft}>
-                <Lightbulb size={20} color={theme.colors.primary} />
+        {(recommendations.length > 0 || memberProfile) && (
+          <View style={themedStyles.section}>
+            <View style={themedStyles.recommendationsHeader}>
+              {/* Left: Icon + Title */}
+              <View style={themedStyles.recommendationsHeaderLeft}>
+                <View style={themedStyles.iconWrapper}>
+                  <Lightbulb size={20} color={theme.colors.primary} />
+                </View>
                 <Text
                   style={[
-                    styles.sectionTitle,
-                    { color: theme.colors.text, marginLeft: 8 },
+                    themedStyles.recommendationsTitle,
+                    {
+                      color: theme.colors.text,
+                      marginLeft: theme.spacing.xs,
+                    },
                   ]}
                 >
                   {t('workouts.recommendationsTitle')}
                 </Text>
               </View>
+              {/* Right: AI Recommendations Toggle */}
+              <View style={themedStyles.aiToggleContainer}>
+                <Text
+                  style={[
+                    themedStyles.aiToggleLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('workouts.aiRecommendations') || 'AI Recs'}
+                </Text>
+                <Switch
+                  value={aiRecommendationsEnabled}
+                  onValueChange={handleToggleAIRecommendations}
+                  disabled={
+                    togglingAI ||
+                    !memberProfile ||
+                    !['PREMIUM', 'VIP'].includes(
+                      memberProfile.membership_type || ''
+                    )
+                  }
+                  trackColor={{
+                    false: theme.colors.border,
+                    true: theme.colors.primary,
+                  }}
+                  thumbColor={theme.isDark ? '#fff' : '#fff'}
+                />
+              </View>
             </View>
             <Text
               style={[
-                styles.recommendationsDescription,
+                themedStyles.recommendationsDescription,
                 { color: theme.colors.textSecondary },
               ]}
             >
               {t('workouts.recommendationsDescription')}
             </Text>
             {loadingRecommendations ? (
-              <View style={styles.recommendationsLoading}>
+              <View style={themedStyles.recommendationsLoading}>
                 <ActivityIndicator size="small" color={theme.colors.primary} />
                 <Text
                   style={[
-                    styles.recommendationsLoadingText,
+                    themedStyles.recommendationsLoadingText,
                     { color: theme.colors.textSecondary },
                   ]}
                 >
                   {t('workouts.loadingRecommendations')}
                 </Text>
               </View>
-            ) : (
-              <View style={styles.recommendationsContainer}>
+            ) : recommendations.length > 0 ? (
+              <View style={themedStyles.recommendationsContainer}>
                 {recommendations.map((rec, index) => {
                   const getPriorityColor = () => {
                     switch (rec.priority) {
@@ -613,7 +887,7 @@ export default function WorkoutsScreen() {
                     <TouchableOpacity
                       key={index}
                       style={[
-                        styles.recommendationCard,
+                        themedStyles.recommendationCard,
                         {
                           backgroundColor: theme.colors.surface,
                           borderLeftColor: priorityColor,
@@ -631,27 +905,27 @@ export default function WorkoutsScreen() {
                         }
                       }}
                     >
-                      <View style={styles.recommendationHeader}>
+                      <View style={themedStyles.recommendationHeader}>
                         <View
                           style={[
-                            styles.recommendationIconContainer,
+                            themedStyles.recommendationIconContainer,
                             { backgroundColor: priorityColor + '15' },
                           ]}
                         >
                           <Icon size={18} color={priorityColor} />
                         </View>
-                        <View style={styles.recommendationContent}>
+                        <View style={themedStyles.recommendationContent}>
                           <Text
                             style={[
-                              styles.recommendationTitle,
+                              themedStyles.recommendationTitle,
                               { color: theme.colors.text },
                             ]}
                           >
-                            {rec.title}
+                            {translateRecommendationTitle(rec.title)}
                           </Text>
                           <Text
                             style={[
-                              styles.recommendationPriority,
+                              themedStyles.recommendationPriority,
                               { color: priorityColor },
                             ]}
                           >
@@ -665,16 +939,16 @@ export default function WorkoutsScreen() {
                       </View>
                       <Text
                         style={[
-                          styles.recommendationMessage,
+                          themedStyles.recommendationMessage,
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {rec.message}
+                        {translateRecommendationMessage(rec.message, rec)}
                       </Text>
                       {rec.reasoning && (
                         <Text
                           style={[
-                            styles.recommendationReasoning,
+                            themedStyles.recommendationReasoning,
                             { color: theme.colors.textSecondary },
                           ]}
                         >
@@ -685,15 +959,47 @@ export default function WorkoutsScreen() {
                   );
                 })}
               </View>
+            ) : (
+              <View style={themedStyles.emptyRecommendations}>
+                <Text
+                  style={[
+                    themedStyles.emptyRecommendationsText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {aiRecommendationsEnabled
+                    ? t('workouts.noRecommendations') ||
+                      'No recommendations available'
+                    : t('workouts.aiRecommendationsDisabled') ||
+                      'AI recommendations are currently disabled'}
+                </Text>
+                <Text
+                  style={[
+                    themedStyles.emptyRecommendationsSubtext,
+                    {
+                      color: theme.colors.textSecondary,
+                      marginTop: theme.spacing.xs,
+                    },
+                  ]}
+                >
+                  {aiRecommendationsEnabled
+                    ? t('workouts.enableAIForRecommendations') ||
+                      'Turn on AI for personalized recommendations'
+                    : t('workouts.enableAIToSeeRecommendations') ||
+                      'Enable AI recommendations above to see personalized workout suggestions based on your activity and goals'}
+                </Text>
+              </View>
             )}
           </View>
         )}
 
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
+        <View style={themedStyles.section}>
+          <Text
+            style={[themedStyles.sectionTitle, { color: theme.colors.text }]}
+          >
             {t('workouts.all')}
           </Text>
-          <View style={styles.workoutsContainer}>
+          <View style={themedStyles.workoutsContainer}>
             {filteredWorkouts.length > 0 ? (
               filteredWorkouts.map((workout) => (
                 <WorkoutCard
@@ -703,19 +1009,25 @@ export default function WorkoutsScreen() {
                   exercises={workout.exercises?.length || 0}
                   image="https://images.pexels.com/photos/1229356/pexels-photo-1229356.jpeg?auto=compress&cs=tinysrgb&w=800"
                   onPress={() => router.push(`/workouts/${workout.id}`)}
+                  goal={workout.goal}
+                  difficulty={workout.difficulty}
+                  isActive={workout.is_active}
+                  durationWeeks={workout.duration_weeks}
                 />
               ))
             ) : (
-              <View style={styles.emptyState}>
-                <Text
-                  style={[
-                    styles.emptyStateText,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {t('workouts.noWorkouts')}
-                </Text>
-              </View>
+              <EmptyState
+                title={t('workouts.noWorkouts') || 'No workouts found'}
+                description={
+                  activeCategory !== 'All'
+                    ? t('workouts.tryDifferentCategory') ||
+                      'Try selecting a different category'
+                    : t('workouts.createYourFirst') ||
+                      'Create your first workout plan to get started'
+                }
+                actionLabel={t('workouts.createWorkout') || 'Create Workout'}
+                onAction={() => router.push('/workouts/create')}
+              />
             )}
           </View>
         </View>
@@ -723,7 +1035,7 @@ export default function WorkoutsScreen() {
 
       <TouchableOpacity
         style={[
-          styles.floatingButton,
+          themedStyles.floatingButton,
           {
             backgroundColor: theme.colors.primary,
             shadowColor: theme.colors.primary,
@@ -743,6 +1055,12 @@ export default function WorkoutsScreen() {
       />
 
       {/* AI Generation Modal */}
+      <AIWorkoutPromptModal
+        visible={showPromptModal}
+        onClose={() => setShowPromptModal(false)}
+        onGenerate={handleAIGenerateWithPrompt}
+        generating={generatingAI}
+      />
       <AIGenerationModal
         visible={generatingAI}
         status={aiGenerationStatus}
@@ -752,30 +1070,37 @@ export default function WorkoutsScreen() {
       {/* Filter Modal */}
       {showFilterModal && (
         <View
-          style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}
+          style={[
+            themedStyles.modalOverlay,
+            { backgroundColor: 'rgba(0,0,0,0.5)' },
+          ]}
         >
           <View
             style={[
-              styles.modalContainer,
+              themedStyles.modalContainer,
               { backgroundColor: theme.colors.surface },
             ]}
           >
-            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+            <Text
+              style={[themedStyles.modalTitle, { color: theme.colors.text }]}
+            >
               {t('common.filter')}
             </Text>
 
             {/* Difficulty Filter */}
-            <View style={styles.filterSection}>
-              <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
+            <View style={themedStyles.filterSection}>
+              <Text
+                style={[themedStyles.filterLabel, { color: theme.colors.text }]}
+              >
                 {t('workouts.difficulty')}
               </Text>
-              <View style={styles.filterOptions}>
+              <View style={themedStyles.filterOptions}>
                 {['all', 'BEGINNER', 'INTERMEDIATE', 'ADVANCED'].map(
                   (difficulty) => (
                     <TouchableOpacity
                       key={difficulty}
                       style={[
-                        styles.filterOption,
+                        themedStyles.filterOption,
                         {
                           backgroundColor:
                             filters.difficulty === difficulty
@@ -790,7 +1115,7 @@ export default function WorkoutsScreen() {
                     >
                       <Text
                         style={[
-                          styles.filterOptionText,
+                          themedStyles.filterOptionText,
                           {
                             color:
                               filters.difficulty === difficulty
@@ -808,16 +1133,18 @@ export default function WorkoutsScreen() {
             </View>
 
             {/* Duration Filter */}
-            <View style={styles.filterSection}>
-              <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
+            <View style={themedStyles.filterSection}>
+              <Text
+                style={[themedStyles.filterLabel, { color: theme.colors.text }]}
+              >
                 {t('workouts.duration')}
               </Text>
-              <View style={styles.filterOptions}>
+              <View style={themedStyles.filterOptions}>
                 {['all', 'short', 'medium', 'long'].map((duration) => (
                   <TouchableOpacity
                     key={duration}
                     style={[
-                      styles.filterOption,
+                      themedStyles.filterOption,
                       {
                         backgroundColor:
                           filters.duration === duration
@@ -832,7 +1159,7 @@ export default function WorkoutsScreen() {
                   >
                     <Text
                       style={[
-                        styles.filterOptionText,
+                        themedStyles.filterOptionText,
                         {
                           color:
                             filters.duration === duration
@@ -855,17 +1182,19 @@ export default function WorkoutsScreen() {
             </View>
 
             {/* Equipment Filter */}
-            <View style={styles.filterSection}>
-              <Text style={[styles.filterLabel, { color: theme.colors.text }]}>
+            <View style={themedStyles.filterSection}>
+              <Text
+                style={[themedStyles.filterLabel, { color: theme.colors.text }]}
+              >
                 {t('workouts.equipment')}
               </Text>
-              <View style={styles.filterOptions}>
+              <View style={themedStyles.filterOptions}>
                 {['all', 'bodyweight', 'dumbbells', 'barbell', 'machine'].map(
                   (equipment) => (
                     <TouchableOpacity
                       key={equipment}
                       style={[
-                        styles.filterOption,
+                        themedStyles.filterOption,
                         {
                           backgroundColor:
                             filters.equipment === equipment
@@ -880,7 +1209,7 @@ export default function WorkoutsScreen() {
                     >
                       <Text
                         style={[
-                          styles.filterOptionText,
+                          themedStyles.filterOptionText,
                           {
                             color:
                               filters.equipment === equipment
@@ -901,10 +1230,10 @@ export default function WorkoutsScreen() {
             </View>
 
             {/* Modal Actions */}
-            <View style={styles.modalActions}>
+            <View style={themedStyles.modalActions}>
               <TouchableOpacity
                 style={[
-                  styles.modalButton,
+                  themedStyles.modalButton,
                   { backgroundColor: theme.colors.border },
                 ]}
                 onPress={() => {
@@ -917,7 +1246,10 @@ export default function WorkoutsScreen() {
                 }}
               >
                 <Text
-                  style={[styles.modalButtonText, { color: theme.colors.text }]}
+                  style={[
+                    themedStyles.modalButtonText,
+                    { color: theme.colors.text },
+                  ]}
                 >
                   {t('common.reset')}
                 </Text>
@@ -925,14 +1257,14 @@ export default function WorkoutsScreen() {
 
               <TouchableOpacity
                 style={[
-                  styles.modalButton,
+                  themedStyles.modalButton,
                   { backgroundColor: theme.colors.primary },
                 ]}
                 onPress={() => setShowFilterModal(false)}
               >
                 <Text
                   style={[
-                    styles.modalButtonText,
+                    themedStyles.modalButtonText,
                     { color: theme.colors.textInverse },
                   ]}
                 >
@@ -947,310 +1279,373 @@ export default function WorkoutsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingTop: 30,
-    paddingBottom: 12,
-  },
-  headerTitle: {
-    ...Typography.h2,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  categoriesContainer: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-  },
-  categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    marginRight: 8,
-  },
-  activeCategoryButton: {},
-  categoryText: {
-    ...Typography.bodySmallMedium,
-  },
-  activeCategoryText: {},
-  content: {
-    flex: 1,
-    paddingHorizontal: 16,
-  },
-  section: {
-    marginTop: 24,
-  },
-  sectionTitle: {
-    ...Typography.h5,
-    marginBottom: 16,
-  },
-  aiCtaCard: {
-    marginTop: 16,
-    marginBottom: 8,
-    padding: 20,
-    borderRadius: 20,
-    borderWidth: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 5,
-  },
-  aiCtaContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  aiIconContainer: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  aiCtaTextContainer: {
-    flex: 1,
-  },
-  aiCtaTitle: {
-    ...Typography.h5,
-    fontWeight: '700',
-    marginBottom: 4,
-    letterSpacing: -0.3,
-  },
-  aiCtaDescription: {
-    ...Typography.bodySmall,
-    lineHeight: 18,
-    opacity: 0.8,
-  },
-  aiCtaBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    marginTop: 8,
-  },
-  aiCtaBadgeText: {
-    ...Typography.caption,
-    fontWeight: '600',
-    fontSize: 11,
-  },
-  aiCtaButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  workoutsContainer: {
-    marginBottom: 24,
-  },
-  floatingButton: {
-    position: 'absolute',
-    bottom: 24,
-    right: 24,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  loadingText: {
-    ...Typography.bodyRegular,
-    marginTop: 12,
-  },
-  errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  errorText: {
-    ...Typography.bodyRegular,
-    textAlign: 'center',
-    marginBottom: 16,
-  },
-  retryButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-  },
-  retryButtonText: {
-    ...Typography.bodyMedium,
-  },
-  emptyState: {
-    padding: 20,
-    alignItems: 'center',
-  },
-  emptyStateText: {
-    ...Typography.bodyRegular,
-    textAlign: 'center',
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContainer: {
-    marginHorizontal: 20,
-    padding: 24,
-    borderRadius: 16,
-    width: '100%',
-    maxWidth: 400,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    ...Typography.h4,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  filterSection: {
-    marginBottom: 20,
-  },
-  filterLabel: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-    marginBottom: 12,
-  },
-  filterOptions: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  filterOption: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
-  filterOptionText: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
-  },
-  modalButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-  },
-  modalButtonText: {
-    ...Typography.bodyMedium,
-    fontWeight: '600',
-  },
-  recommendationsHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  recommendationsHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  recommendationsDescription: {
-    ...Typography.bodySmall,
-    marginBottom: 16,
-    opacity: 0.8,
-  },
-  recommendationsLoading: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 20,
-    gap: 8,
-  },
-  recommendationsLoadingText: {
-    ...Typography.bodySmall,
-  },
-  recommendationsContainer: {
-    gap: 12,
-  },
-  recommendationCard: {
-    padding: 16,
-    borderRadius: 12,
-    borderLeftWidth: 4,
-    borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.05)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  recommendationHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  recommendationIconContainer: {
-    width: 36,
-    height: 36,
-    borderRadius: 8,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginRight: 12,
-  },
-  recommendationContent: {
-    flex: 1,
-  },
-  recommendationTitle: {
-    ...Typography.h6,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  recommendationPriority: {
-    ...Typography.caption,
-    fontWeight: '600',
-    textTransform: 'uppercase',
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  recommendationMessage: {
-    ...Typography.bodySmall,
-    lineHeight: 20,
-    marginTop: 4,
-  },
-  recommendationReasoning: {
-    ...Typography.caption,
-    marginTop: 8,
-    fontStyle: 'italic',
-    opacity: 0.7,
-  },
-});
+const styles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      width: '100%',
+    },
+    header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.xl,
+      paddingBottom: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      width: '100%',
+      alignSelf: 'stretch',
+    },
+    headerTitle: {
+      ...Typography.h2,
+      flex: 1,
+      flexShrink: 1,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      minWidth: 0,
+      flexShrink: 0,
+      maxWidth: '100%',
+    },
+    iconButton: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radius.lg,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      overflow: 'hidden',
+    },
+    categoriesSection: {
+      backgroundColor: theme.colors.surface,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    categoriesContainer: {
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.sm,
+    },
+    categoryButton: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      marginRight: theme.spacing.xs,
+      borderWidth: 1,
+      backgroundColor: 'transparent',
+    },
+    activeCategoryButton: {
+      borderWidth: 1,
+    },
+    categoryText: {
+      ...Typography.bodySmall,
+    },
+    content: {
+      flex: 1,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    section: {
+      marginTop: theme.spacing.lg,
+    },
+    sectionTitle: {
+      ...Typography.h5,
+      marginBottom: theme.spacing.lg,
+      lineHeight: 20,
+      includeFontPadding: false,
+    },
+    aiCtaCard: {
+      marginTop: theme.spacing.md,
+      marginBottom: theme.spacing.sm,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg, // 12px - square
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.sm,
+    },
+    aiCtaContent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.lg,
+    },
+    aiIconContainer: {
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.md, // 8px - square
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    aiCtaTextContainer: {
+      flex: 1,
+    },
+    aiCtaTitle: {
+      ...Typography.h5,
+      fontWeight: '700',
+      marginBottom: theme.spacing.xs,
+      letterSpacing: -0.3,
+    },
+    aiCtaDescription: {
+      ...Typography.bodySmall,
+      lineHeight: 18,
+      opacity: 0.8,
+    },
+    aiCtaBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.sm,
+    },
+    aiCtaBadgeText: {
+      ...Typography.caption,
+      fontWeight: '600',
+      fontSize: 11,
+    },
+    aiCtaButton: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radius.lg, // 12px - square
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...theme.shadows.sm,
+    },
+    workoutsContainer: {
+      marginBottom: 24,
+    },
+    floatingButton: {
+      position: 'absolute',
+      bottom: theme.spacing.lg,
+      right: theme.spacing.lg,
+      width: 56,
+      height: 56,
+      borderRadius: theme.radius.lg, // 12px - square (slightly rounded for FAB)
+      justifyContent: 'center',
+      alignItems: 'center',
+      ...theme.shadows.md,
+    },
+    listContent: {
+      paddingBottom: theme.spacing.xl,
+    },
+    loadingContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    loadingText: {
+      ...Typography.bodyRegular,
+      marginTop: 12,
+    },
+    errorContainer: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    errorText: {
+      ...Typography.bodyRegular,
+      textAlign: 'center',
+      marginBottom: 16,
+    },
+    retryButton: {
+      paddingHorizontal: 20,
+      paddingVertical: 10,
+      borderRadius: 8,
+    },
+    retryButtonText: {
+      ...Typography.bodyMedium,
+    },
+    emptyState: {
+      padding: 20,
+      alignItems: 'center',
+    },
+    emptyStateText: {
+      ...Typography.bodyRegular,
+      textAlign: 'center',
+    },
+    modalOverlay: {
+      position: 'absolute',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContainer: {
+      marginHorizontal: theme.spacing.lg,
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg, // 12px - square
+      width: '100%',
+      maxWidth: 400,
+      maxHeight: '80%',
+    },
+    modalTitle: {
+      ...Typography.h4,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
+    filterSection: {
+      marginBottom: 20,
+    },
+    filterLabel: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+      marginBottom: 12,
+    },
+    filterOptions: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
+    filterOption: {
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg, // 12px - square
+      borderWidth: 1,
+    },
+    filterOptionText: {
+      ...Typography.bodySmall,
+      fontWeight: '500',
+    },
+    modalActions: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      marginTop: theme.spacing.lg,
+    },
+    modalButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg, // 12px - square
+      alignItems: 'center',
+    },
+    modalButtonText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+    },
+    recommendationsHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      marginBottom: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+    },
+    recommendationsHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    iconWrapper: {
+      width: 20,
+      height: 20,
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    recommendationsTitle: {
+      fontFamily: FontFamily.spaceGroteskMedium,
+      fontSize: 18,
+      lineHeight: 20,
+      includeFontPadding: false,
+      textAlignVertical: 'center',
+    },
+    aiToggleContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      paddingLeft: theme.spacing.sm,
+      justifyContent: 'center',
+    },
+    aiToggleLabel: {
+      ...Typography.bodySmall,
+      fontSize: 12,
+    },
+    recommendationsDescription: {
+      ...Typography.bodySmall,
+      marginBottom: 16,
+      opacity: 0.8,
+    },
+    recommendationsLoading: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: 20,
+      gap: 8,
+    },
+    recommendationsLoadingText: {
+      ...Typography.bodySmall,
+    },
+    recommendationsContainer: {
+      gap: 12,
+    },
+    recommendationCard: {
+      padding: theme.spacing.lg,
+      borderRadius: theme.radius.lg, // 12px - square
+      borderLeftWidth: 4,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      ...theme.shadows.sm,
+    },
+    recommendationHeader: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    recommendationIconContainer: {
+      width: 36,
+      height: 36,
+      borderRadius: 8,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 12,
+    },
+    recommendationContent: {
+      flex: 1,
+    },
+    recommendationTitle: {
+      ...Typography.h6,
+      fontWeight: '600',
+      marginBottom: 4,
+    },
+    recommendationPriority: {
+      ...Typography.caption,
+      fontWeight: '600',
+      textTransform: 'uppercase',
+      fontSize: 10,
+      letterSpacing: 0.5,
+    },
+    recommendationMessage: {
+      ...Typography.bodySmall,
+      lineHeight: 20,
+      marginTop: 4,
+    },
+    recommendationReasoning: {
+      ...Typography.caption,
+      marginTop: 8,
+      fontStyle: 'italic',
+      opacity: 0.7,
+    },
+    emptyRecommendations: {
+      padding: theme.spacing.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.surface,
+      borderRadius: theme.radius.lg,
+      marginTop: theme.spacing.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    emptyRecommendationsText: {
+      ...Typography.bodyMedium,
+      textAlign: 'center',
+      fontWeight: '600',
+    },
+    emptyRecommendationsSubtext: {
+      ...Typography.bodySmall,
+      textAlign: 'center',
+      opacity: 0.7,
+    },
+  });

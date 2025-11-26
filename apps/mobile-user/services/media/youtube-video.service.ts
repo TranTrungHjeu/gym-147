@@ -41,12 +41,25 @@ export class YouTubeVideoService {
   private readonly baseUrl = 'https://www.googleapis.com/youtube/v3';
   private readonly apiKey = 
     process.env.EXPO_PUBLIC_YOUTUBE_API_KEY || 
-    Constants.expoConfig?.extra?.YOUTUBE_API_KEY;
+    Constants.expoConfig?.extra?.YOUTUBE_API_KEY || 
+    '';
 
   constructor() {
+    // Don't throw error in constructor - allow service to be created without API key
+    // Methods will check and return null if API key is not configured
     if (!this.apiKey || this.apiKey.trim() === '') {
-      throw new Error('YOUTUBE_API_KEY is required. Please set EXPO_PUBLIC_YOUTUBE_API_KEY in your .env file or in app.json extra section.');
+      console.warn('⚠️ YouTube API key not configured. Video features will be disabled.');
+      console.warn('💡 To enable YouTube videos, set EXPO_PUBLIC_YOUTUBE_API_KEY in your .env file or in app.json extra section.');
     }
+  }
+
+  /**
+   * Check if YouTube API is available
+   */
+  isAvailable(): boolean {
+    return !!(this.apiKey && this.apiKey.trim() !== '' && 
+              this.apiKey !== 'YOUR_YOUTUBE_API_KEY' && 
+              this.apiKey !== 'your-youtube-api-key');
   }
 
   private cache = new Map<string, ExerciseVideo>();
@@ -336,7 +349,7 @@ export class YouTubeVideoService {
       title: youtubeVideo.snippet.title,
       thumbnail: youtubeVideo.snippet.thumbnails.medium.url,
       videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-      embedUrl: `https://www.youtube.com/embed/${videoId}`,
+      embedUrl: `https://www.youtube-nocookie.com/embed/${videoId}`,
       watchUrl: `https://www.youtube.com/watch?v=${videoId}`,
       duration: duration,
       author: youtubeVideo.snippet.channelTitle,

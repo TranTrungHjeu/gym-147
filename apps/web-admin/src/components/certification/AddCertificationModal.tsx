@@ -315,9 +315,10 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   };
 
   // Handler for AI upload (with AI scan)
-  const handleUploadComplete = (upload: UploadResult, scan: AIScanResult) => {
+  const handleUploadComplete = async (upload: UploadResult, scan: AIScanResult) => {
     setUploadResult(upload);
-    setScanResult(scan);
+    // Don't set scanResult to hide the AI verification card
+    // We'll use scan parameter directly for auto-submit
     
     // Clear all errors and reset submitted state - no validation when uploading file
     setErrors({});
@@ -467,7 +468,90 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
       });
     }, 200);
     
-    // Don't validate form here - validation will happen when user submits the form
+    // Auto-submit form after AI scan completes
+    // Wait a bit for form fields to be populated
+    setTimeout(async () => {
+      // Validate form before submitting
+      if (validate()) {
+        setIsSubmitting(true);
+        try {
+          const dataToSubmit = {
+            ...formData,
+            aiScanResult: scan,
+            skipAiScan: false,
+          };
+          
+          const createdCert = await certificationService.createCertification(trainerId, dataToSubmit);
+          showToast({
+            message: 'Tạo chứng chỉ thành công',
+            type: 'success',
+            duration: 3000,
+          });
+          
+          // Optimistic update: Dispatch event immediately for instant UI update
+          const createdEvent = new CustomEvent('certification:created', {
+            detail: {
+              id: createdCert.id,
+              certification_id: createdCert.id,
+              trainer_id: createdCert.trainer_id,
+              category: createdCert.category,
+              certification_name: createdCert.certification_name,
+              certification_issuer: createdCert.certification_issuer,
+              certification_level: createdCert.certification_level,
+              issued_date: createdCert.issued_date,
+              expiration_date: createdCert.expiration_date,
+              verification_status: createdCert.verification_status,
+              certificate_file_url: createdCert.certificate_file_url,
+              is_active: createdCert.is_active,
+              created_at: createdCert.created_at,
+              updated_at: createdCert.updated_at,
+            },
+            bubbles: true,
+            cancelable: true,
+          });
+          
+          // Dispatch on both window and document for better compatibility
+          const dispatchedWindow = window.dispatchEvent(createdEvent);
+          const dispatchedDocument = document.dispatchEvent(new CustomEvent('certification:created', {
+            detail: createdEvent.detail,
+            bubbles: true,
+            cancelable: true,
+          }));
+          
+          console.log(`✅ [ADD_CERT_MODAL] ⭐⭐ Dispatched optimistic certification:created event for ${createdCert.id}`, {
+            trainer_id: createdCert.trainer_id,
+            certification_id: createdCert.id,
+            verification_status: createdCert.verification_status,
+            dispatched_window: dispatchedWindow,
+            dispatched_document: dispatchedDocument,
+            event_detail: createdEvent.detail
+          });
+          
+          // Reset submitting state before closing modal
+          setIsSubmitting(false);
+          
+          onSuccess();
+          setTimeout(() => {
+            onClose();
+          }, 100);
+        } catch (error: any) {
+          console.error('Error creating certification:', error);
+          
+          const errorMessage = 
+            error?.response?.data?.message || 
+            error?.message || 
+            'Có lỗi xảy ra khi tạo chứng chỉ. Vui lòng thử lại.';
+          
+          showToast({
+            message: errorMessage,
+            type: 'error',
+            duration: 5000,
+          });
+          
+          setIsSubmitting(false);
+        }
+      }
+    }, 500); // Wait 500ms for form fields to be populated
   };
 
   const handleUploadError = (error: string) => {
@@ -509,21 +593,57 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         skipAiScan: activeTab === 'manual',
       };
       
-      await certificationService.createCertification(trainerId, dataToSubmit);
-      showToast({
-        message: 'Tạo chứng chỉ thành công',
-        type: 'success',
-        duration: 3000,
-      });
-      
-      // Note: Socket events will handle notification updates automatically
-      // No need to dispatch custom event here - backend will emit socket events
-      // which will be handled by TrainerLayout and NotificationDropdown
-      
-      onSuccess();
-      setTimeout(() => {
-        onClose();
-      }, 100);
+          const createdCert = await certificationService.createCertification(trainerId, dataToSubmit);
+          showToast({
+            message: 'Tạo chứng chỉ thành công',
+            type: 'success',
+            duration: 3000,
+          });
+          
+          // Optimistic update: Dispatch event immediately for instant UI update
+          const createdEvent = new CustomEvent('certification:created', {
+            detail: {
+              id: createdCert.id,
+              certification_id: createdCert.id,
+              trainer_id: createdCert.trainer_id,
+              category: createdCert.category,
+              certification_name: createdCert.certification_name,
+              certification_issuer: createdCert.certification_issuer,
+              certification_level: createdCert.certification_level,
+              issued_date: createdCert.issued_date,
+              expiration_date: createdCert.expiration_date,
+              verification_status: createdCert.verification_status,
+              certificate_file_url: createdCert.certificate_file_url,
+              is_active: createdCert.is_active,
+              created_at: createdCert.created_at,
+              updated_at: createdCert.updated_at,
+            },
+          });
+          
+          // Dispatch on both window and document for better compatibility
+          const dispatchedWindow = window.dispatchEvent(createdEvent);
+          const dispatchedDocument = document.dispatchEvent(new CustomEvent('certification:created', {
+            detail: createdEvent.detail,
+            bubbles: true,
+            cancelable: true,
+          }));
+          
+          console.log(`✅ [ADD_CERT_MODAL] ⭐⭐ Dispatched optimistic certification:created event for ${createdCert.id}`, {
+            trainer_id: createdCert.trainer_id,
+            certification_id: createdCert.id,
+            verification_status: createdCert.verification_status,
+            dispatched_window: dispatchedWindow,
+            dispatched_document: dispatchedDocument,
+            event_detail: createdEvent.detail
+          });
+          
+          // Reset submitting state before closing modal
+          setIsSubmitting(false);
+          
+          onSuccess();
+          setTimeout(() => {
+            onClose();
+          }, 100);
     } catch (error: any) {
       console.error('Error creating certification:', error);
       
@@ -648,37 +768,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
           `}</style>
 
           <div className='space-y-3'>
-            {/* Tab-specific indicators */}
-            {activeTab === 'ai' && scanResult && uploadResult ? (
-              /* AI Scan Badge - Show when file has been scanned by AI */
-              <div className='flex items-center gap-3 p-3.5 bg-gradient-to-r from-purple-50 via-blue-50 to-indigo-50 dark:from-purple-900/30 dark:via-blue-900/30 dark:to-indigo-900/30 border-2 border-purple-300 dark:border-purple-700 rounded-xl shadow-sm'>
-                <div className='flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 via-blue-500 to-indigo-500 shadow-md'>
-                  <Sparkles className='w-5 h-5 text-white' />
-                </div>
-                <div className='flex-1'>
-                  <div className='flex items-center gap-2 mb-1'>
-                    <p className='text-[12px] font-bold text-purple-900 dark:text-purple-100 font-heading'>
-                      Đã quét bằng AI
-                    </p>
-                    <span className='px-2 py-0.5 bg-purple-200 dark:bg-purple-800 text-purple-800 dark:text-purple-200 rounded-full text-[9px] font-semibold font-inter'>
-                      AI Verified
-                    </span>
-                  </div>
-                  <p className='text-[11px] text-purple-700 dark:text-purple-300 font-inter'>
-                    {scanResult.confidence > 0.7
-                      ? '✓ Chứng chỉ sẽ được xác thực tự động (Độ tin cậy: ' + Math.round(scanResult.confidence * 100) + '%)'
-                      : scanResult.confidence > 0.4
-                      ? '⚠ Đang chờ xem xét thủ công (Độ tin cậy: ' + Math.round(scanResult.confidence * 100) + '%)'
-                      : '⚠ Cần xem xét kỹ lưỡng (Độ tin cậy: ' + Math.round(scanResult.confidence * 100) + '%)'}
-                  </p>
-                </div>
-                {scanResult.confidence > 0.7 && (
-                  <div className='flex items-center justify-center w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50'>
-                    <CheckCircle className='w-5 h-5 text-green-600 dark:text-green-400' />
-                  </div>
-                )}
-              </div>
-            ) : null}
+            {/* AI verification card removed - form auto-submits after scan */}
 
             {/* Edit Button - Show when fields are locked in AI tab */}
             {activeTab === 'ai' && areFieldsDisabled && scanResult && (

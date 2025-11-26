@@ -9,7 +9,10 @@ import ClassDetailModal from '../../components/modals/ClassDetailModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import Pagination from '../../components/common/Pagination';
 import CustomSelect from '../../components/common/CustomSelect';
+import AdvancedFilters from '../../components/common/AdvancedFilters';
+import ExportButton, { ExportUtils } from '../../components/common/ExportButton';
 import { TableLoading } from '../../components/ui/AppLoading';
+import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const ClassManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -30,6 +33,7 @@ const ClassManagement: React.FC = () => {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedClassForDetail, setSelectedClassForDetail] = useState<GymClass | null>(null);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
   const loadClasses = useCallback(async () => {
     try {
@@ -158,6 +162,17 @@ const ClassManagement: React.FC = () => {
     currentPage * itemsPerPage
   );
 
+  // Handle smooth page transition
+  const handlePageChange = useCallback((page: number) => {
+    setIsPageTransitioning(true);
+    setTimeout(() => {
+      setCurrentPage(page);
+      setTimeout(() => {
+        setIsPageTransitioning(false);
+      }, 150);
+    }, 150);
+  }, []);
+
   const handleCreate = () => {
     setSelectedClass(null);
     setIsFormModalOpen(true);
@@ -264,15 +279,15 @@ const ClassManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-success-100 dark:bg-success-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-success-100 dark:bg-success-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-success-500/20'>
-                <div className='absolute inset-0 bg-success-100 dark:bg-success-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <TrendingUp className='relative w-[18px] h-[18px] text-success-600 dark:text-success-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -291,15 +306,15 @@ const ClassManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-blue-100 dark:bg-blue-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-blue-500/20'>
-                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -318,15 +333,15 @@ const ClassManagement: React.FC = () => {
 
         <AdminCard padding='sm' className='relative overflow-hidden group'>
           {/* Subtle corner accent */}
-          <div className='absolute -top-px -right-px w-12 h-12 bg-purple-100 dark:bg-purple-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
+          <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
-          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-purple-100 dark:bg-purple-900/30 opacity-20 rounded-r'></div>
+          <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-purple-500/20'>
-                <div className='absolute inset-0 bg-purple-100 dark:bg-purple-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Award className='relative w-[18px] h-[18px] text-purple-600 dark:text-purple-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
+                <Award className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -344,69 +359,94 @@ const ClassManagement: React.FC = () => {
         </AdminCard>
       </div>
 
-      {/* Search and Filters */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow duration-200 p-4'>
-        <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
-          {/* Search Input */}
-          <div className='md:col-span-2 group relative'>
-            <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
-            <input
-              type='text'
-              placeholder='Tìm kiếm lớp học...'
-              value={searchTerm}
-              onChange={e => {
-                setSearchTerm(e.target.value);
-                setCurrentPage(1);
-              }}
-              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-            />
-          </div>
+      {/* Advanced Filters */}
+      <AdvancedFilters
+        filters={{
+          search: searchTerm,
+          category: categoryFilter !== 'all' ? categoryFilter : '',
+          customFilters: {
+            difficulty: difficultyFilter !== 'all' ? difficultyFilter : '',
+            is_active: '',
+          },
+        }}
+        onFiltersChange={(newFilters) => {
+          setSearchTerm(newFilters.search || '');
+          setCategoryFilter(newFilters.category || 'all');
+          setDifficultyFilter(newFilters.customFilters?.difficulty || 'all');
+          setCurrentPage(1);
+        }}
+        availableCategories={[
+          { value: 'CARDIO', label: 'Cardio' },
+          { value: 'STRENGTH', label: 'Sức mạnh' },
+          { value: 'YOGA', label: 'Yoga' },
+          { value: 'PILATES', label: 'Pilates' },
+          { value: 'DANCE', label: 'Khiêu vũ' },
+          { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
+          { value: 'AQUA', label: 'Bơi lội' },
+          { value: 'FUNCTIONAL', label: 'Chức năng' },
+          { value: 'RECOVERY', label: 'Phục hồi' },
+          { value: 'SPECIALIZED', label: 'Chuyên biệt' },
+        ]}
+        showDateRange={false}
+        showCategory={true}
+        customFilterFields={[
+          {
+            key: 'difficulty',
+            label: 'Độ khó',
+            type: 'select',
+            options: [
+              { value: 'BEGINNER', label: 'Cơ bản' },
+              { value: 'INTERMEDIATE', label: 'Trung bình' },
+              { value: 'ADVANCED', label: 'Nâng cao' },
+              { value: 'ALL_LEVELS', label: 'Tất cả cấp độ' },
+            ],
+          },
+          {
+            key: 'is_active',
+            label: 'Trạng thái',
+            type: 'select',
+            options: [
+              { value: 'true', label: 'Đang hoạt động' },
+              { value: 'false', label: 'Không hoạt động' },
+            ],
+          },
+        ]}
+      />
 
-          {/* Category Filter */}
-          <div>
-            <CustomSelect
-              options={[
-                { value: 'all', label: 'Tất cả danh mục' },
-                { value: 'CARDIO', label: 'Cardio' },
-                { value: 'STRENGTH', label: 'Sức mạnh' },
-                { value: 'YOGA', label: 'Yoga' },
-                { value: 'PILATES', label: 'Pilates' },
-                { value: 'DANCE', label: 'Khiêu vũ' },
-                { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
-                { value: 'AQUA', label: 'Bơi lội' },
-                { value: 'FUNCTIONAL', label: 'Chức năng' },
-                { value: 'RECOVERY', label: 'Phục hồi' },
-                { value: 'SPECIALIZED', label: 'Chuyên biệt' },
-              ]}
-              value={categoryFilter}
-              onChange={value => {
-                setCategoryFilter(value);
-                setCurrentPage(1);
-              }}
-              placeholder='Tất cả danh mục'
-              className='font-inter'
-            />
-          </div>
-
-          {/* Difficulty Filter */}
-          <div>
-            <CustomSelect
-              options={[
-                { value: 'all', label: 'Tất cả độ khó' },
-                { value: 'BEGINNER', label: 'Cơ bản' },
-                { value: 'INTERMEDIATE', label: 'Trung bình' },
-                { value: 'ADVANCED', label: 'Nâng cao' },
-              ]}
-              value={difficultyFilter}
-              onChange={value => {
-                setDifficultyFilter(value);
-                setCurrentPage(1);
-              }}
-              placeholder='Tất cả độ khó'
-              className='font-inter'
-            />
-          </div>
+      {/* Export and Actions */}
+      <div className='flex justify-between items-center'>
+        <div className='text-sm text-gray-600 dark:text-gray-400'>
+          Tổng cộng: {filteredClasses.length} lớp học
         </div>
+        {filteredClasses.length > 0 && (
+          <ExportButton
+            data={filteredClasses.map(cls => ({
+              'Tên lớp': cls.name,
+              'Danh mục': getCategoryLabel(cls.category),
+              'Độ khó': getDifficultyLabel(cls.difficulty),
+              'Sức chứa': cls.max_capacity,
+              'Thời lượng (phút)': cls.duration,
+              'Giá': cls.price ? `${cls.price} VND` : 'Miễn phí',
+              'Trạng thái': cls.is_active ? 'Hoạt động' : 'Không hoạt động',
+              'Mô tả': cls.description || '',
+              'Thiết bị cần thiết': cls.equipment_needed?.join(', ') || '',
+              'Ngày tạo': cls.created_at ? formatVietnamDateTime(cls.created_at) : '',
+            }))}
+            columns={[
+              { key: 'Tên lớp', label: 'Tên lớp' },
+              { key: 'Danh mục', label: 'Danh mục' },
+              { key: 'Độ khó', label: 'Độ khó' },
+              { key: 'Sức chứa', label: 'Sức chứa' },
+              { key: 'Thời lượng (phút)', label: 'Thời lượng (phút)' },
+              { key: 'Giá', label: 'Giá' },
+              { key: 'Trạng thái', label: 'Trạng thái' },
+            ]}
+            filename='danh-sach-lop-hoc'
+            title='Danh sách Lớp học'
+            variant='outline'
+            size='sm'
+          />
+        )}
       </div>
 
       {/* Classes List */}
@@ -425,20 +465,25 @@ const ClassManagement: React.FC = () => {
         </div>
       ) : (
         <>
-          <AdminCard padding='none'>
-            <AdminTable>
-              <AdminTableHeader>
-                <AdminTableRow>
-                  <AdminTableCell header>Tên lớp</AdminTableCell>
-                  <AdminTableCell header>Danh mục</AdminTableCell>
-                  <AdminTableCell header>Độ khó</AdminTableCell>
-                  <AdminTableCell header>Sức chứa</AdminTableCell>
-                  <AdminTableCell header>Thời lượng</AdminTableCell>
-                  <AdminTableCell header>Giá</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
-                </AdminTableRow>
-              </AdminTableHeader>
-              <AdminTableBody>
+          <AdminCard padding='none' className='admin-table-container'>
+            <div
+              className={`transition-opacity duration-300 ${
+                isPageTransitioning ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+              <AdminTable>
+                <AdminTableHeader>
+                  <AdminTableRow>
+                    <AdminTableCell header>Tên lớp</AdminTableCell>
+                    <AdminTableCell header>Danh mục</AdminTableCell>
+                    <AdminTableCell header>Độ khó</AdminTableCell>
+                    <AdminTableCell header>Sức chứa</AdminTableCell>
+                    <AdminTableCell header>Thời lượng</AdminTableCell>
+                    <AdminTableCell header>Giá</AdminTableCell>
+                    <AdminTableCell header>Trạng thái</AdminTableCell>
+                  </AdminTableRow>
+                </AdminTableHeader>
+                <AdminTableBody>
                 {paginatedClasses.map((cls, index) => (
                   <AdminTableRow
                     key={cls.id}
@@ -509,8 +554,9 @@ const ClassManagement: React.FC = () => {
                     </AdminTableCell>
                   </AdminTableRow>
                 ))}
-              </AdminTableBody>
-            </AdminTable>
+                </AdminTableBody>
+              </AdminTable>
+            </div>
           </AdminCard>
 
           {totalPages > 1 && (
@@ -519,10 +565,10 @@ const ClassManagement: React.FC = () => {
               totalPages={totalPages}
               totalItems={filteredClasses.length}
               itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
+              onPageChange={handlePageChange}
               onItemsPerPageChange={(newItemsPerPage) => {
                 setItemsPerPage(newItemsPerPage);
-                setCurrentPage(1);
+                handlePageChange(1);
               }}
             />
           )}

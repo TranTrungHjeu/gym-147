@@ -8,7 +8,7 @@ const equipmentRoutes = require('./equipments.routes');
 const healthRoutes = require('./health.routes');
 const workoutsRoutes = require('./workouts.routes');
 const achievementsRoutes = require('./achievements.routes');
-const notificationsRoutes = require('./notifications.routes');
+// const notificationsRoutes = require('./notifications.routes'); // Removed - notifications now in identity service
 const analyticsRoutes = require('./analytics.routes');
 const queueRoutes = require('./queue.routes');
 const streaksRoutes = require('./streaks.routes');
@@ -120,25 +120,6 @@ router.get('/api-docs', (req, res) => {
           'GET /members/:id/achievements/summary - Get summary',
         ],
       },
-      notifications: {
-        base: '/notifications',
-        endpoints: [
-          'GET /members/:id/notifications - Get notifications',
-          'GET /notifications/:id - Get notification by ID',
-          'POST /members/:id/notifications - Create notification',
-          'PUT /notifications/:id/read - Mark as read',
-          'PUT /members/:id/notifications/read-all - Mark all read',
-          'DELETE /notifications/:id - Delete notification',
-          'POST /members/:id/notifications/workout-reminder - Send reminder',
-          'POST /members/:id/notifications/membership-alert - Send alert',
-          'POST /members/:id/notifications/achievement - Send achievement',
-          'POST /members/:id/notifications/promotional - Send promo',
-          'POST /notifications/bulk - Send bulk notifications',
-          'POST /notifications/broadcast - Broadcast to all',
-          'GET /notifications/templates - Get templates',
-          'GET /members/:id/notifications/stats - Get stats',
-        ],
-      },
       analytics: {
         base: '/analytics',
         endpoints: [
@@ -165,14 +146,8 @@ router.get('/api-docs', (req, res) => {
     },
   });
 });
-
-// ==================== ROUTE MOUNTING ====================
-
-// Mount all route modules
-// IMPORTANT: Mount routes with specific paths BEFORE routes with dynamic :id params
-// This ensures /members/:id/points/balance matches before /members/:id
-router.use('/', pointsRoutes); // Mount before membersRoutes to avoid route conflicts
-router.use('/', rewardsRoutes); // Mount before membersRoutes to avoid route conflicts
+router.use('/', pointsRoutes);
+router.use('/', rewardsRoutes);
 router.use('/', streaksRoutes);
 router.use('/', challengesRoutes);
 router.use('/', sessionsRoutes);
@@ -180,15 +155,10 @@ router.use('/', equipmentRoutes);
 router.use('/', healthRoutes);
 router.use('/', workoutsRoutes);
 router.use('/', achievementsRoutes);
-router.use('/', notificationsRoutes);
 router.use('/', analyticsRoutes);
 router.use('/queue', queueRoutes);
 router.use('/ai', aiRoutes);
-router.use('/', membersRoutes); // Mount last to avoid matching /members/:id too early
-
-// ==================== ERROR HANDLING ====================
-
-// 404 handler for undefined routes
+router.use('/', membersRoutes);
 router.use('*', (req, res) => {
   res.status(404).json({
     success: false,

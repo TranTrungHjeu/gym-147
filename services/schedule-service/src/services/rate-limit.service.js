@@ -1,11 +1,18 @@
 /**
  * Rate Limiting Service
- * Manages rate limiting for various operations
+ * Manages rate limiting for various operations using Redis
  */
+
+let redisRateLimiter = null;
+try {
+  redisRateLimiter = require('../../../packages/shared-middleware/src/rate-limit.middleware.js').rateLimiter;
+} catch (e) {
+  console.warn('⚠️ Shared rate limiter not available, using in-memory fallback');
+}
 
 class RateLimitService {
   constructor() {
-    this.limits = new Map();
+    this.limits = new Map(); // Fallback in-memory store
     this.cleanupInterval = setInterval(() => {
       this.cleanup();
     }, 60 * 60 * 1000); // Cleanup every hour
@@ -17,12 +24,24 @@ class RateLimitService {
    * @param {string} operation - Operation type (e.g., 'create_schedule')
    * @param {number} maxRequests - Maximum requests allowed
    * @param {number} windowMs - Time window in milliseconds
-   * @returns {boolean} - true if allowed, false if rate limited
+   * @returns {Promise<boolean>} - true if allowed, false if rate limited
    */
-  canPerformOperation(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
-    const key = `${userId}_${operation}`;
-    const now = Date.now();
+  async canPerformOperation(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
+    const key = `${userId}:${operation}`;
+    const windowSeconds = Math.floor(windowMs / 1000);
 
+    // Use Redis rate limiter if available
+    if (redisRateLimiter) {
+      try {
+        const result = await redisRateLimiter.checkRateLimit(key, maxRequests, windowSeconds);
+        return result.allowed;
+      } catch (error) {
+        console.error('Redis rate limit error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
+    const now = Date.now();
     let userLimit = this.limits.get(key);
 
     if (!userLimit) {
@@ -46,10 +65,22 @@ class RateLimitService {
    * @param {string} operation - Operation type (e.g., 'create_schedule')
    * @param {number} windowMs - Time window in milliseconds
    */
-  incrementRateLimit(userId, operation, windowMs = 24 * 60 * 60 * 1000) {
-    const key = `${userId}_${operation}`;
-    const now = Date.now();
+  async incrementRateLimit(userId, operation, windowMs = 24 * 60 * 60 * 1000) {
+    const key = `${userId}:${operation}`;
+    const windowSeconds = Math.floor(windowMs / 1000);
 
+    // Use Redis rate limiter if available
+    if (redisRateLimiter) {
+      try {
+        await redisRateLimiter.increment(key, 10, windowSeconds); // Default maxRequests = 10
+        return;
+      } catch (error) {
+        console.error('Redis rate limit increment error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
+    const now = Date.now();
     let userLimit = this.limits.get(key);
 
     if (!userLimit) {
@@ -79,15 +110,16 @@ class RateLimitService {
    * @param {string} operation - Operation type (e.g., 'create_schedule')
    * @param {number} maxRequests - Maximum requests allowed
    * @param {number} windowMs - Time window in milliseconds
-   * @returns {boolean} - true if allowed, false if rate limited
+   * @returns {Promise<boolean>} - true if allowed, false if rate limited
    */
-  checkRateLimit(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
+  async checkRateLimit(userId, operation, maxRequests = 10, windowMs = 24 * 60 * 60 * 1000) {
     // For backward compatibility, check first
-    if (!this.canPerformOperation(userId, operation, maxRequests, windowMs)) {
+    const allowed = await this.canPerformOperation(userId, operation, maxRequests, windowMs);
+    if (!allowed) {
       return false;
     }
     // Then increment
-    this.incrementRateLimit(userId, operation, windowMs);
+    await this.incrementRateLimit(userId, operation, windowMs);
     return true;
   }
 

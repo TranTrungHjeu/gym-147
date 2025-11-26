@@ -54,11 +54,54 @@ const addAuthInterceptor = (apiInstance: any) => {
   apiInstance.interceptors.response.use(
     (response: any) => response,
     (error: any) => {
+      // Check for ERR_BLOCKED_BY_CLIENT early in the interceptor
+      // This happens when browser extensions (ad blockers) block the request
+      // When blocked, axios may report ERR_NETWORK but browser console shows ERR_BLOCKED_BY_CLIENT
+      const errorCode = error.code || '';
+      const errorMessage = (error.message || '').toLowerCase();
+      const requestUrl = error.config?.url || '';
+      const isBillingEndpoint = requestUrl.includes('/billing/') || requestUrl.includes('/plans/');
+      
+      // Check if it's blocked by client
+      const isBlockedByClient =
+        errorCode === 'ERR_BLOCKED_BY_CLIENT' ||
+        errorMessage.includes('err_blocked_by_client') ||
+        errorMessage.includes('blocked by client') ||
+        errorMessage.includes('net::err_blocked_by_client') ||
+        // Network error on billing/plans endpoint without response is likely blocked
+        (errorCode === 'ERR_NETWORK' &&
+         !error.response &&
+         isBillingEndpoint &&
+         errorMessage === 'network error');
+      
+      if (isBlockedByClient) {
+        const blockedError: any = new Error(
+          'Request bị chặn bởi trình chặn quảng cáo hoặc extension trình duyệt. Vui lòng tắt ad blocker cho localhost:8080 hoặc thử lại.'
+        );
+        blockedError.code = 'ERR_BLOCKED_BY_CLIENT';
+        blockedError.isBlocked = true;
+        return Promise.reject(blockedError);
+      }
+
       if (error.response?.status === 401) {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        localStorage.removeItem('user');
-        window.location.href = '/auth';
+        // Don't redirect if already on auth/login page or if it's a login request
+        const currentPath = window.location.pathname;
+        const isAuthPage = currentPath.includes('/auth') || currentPath.includes('/login');
+        const isLoginRequest = error.config?.url?.includes('/auth/login') || 
+                               error.config?.url?.includes('/auth/register');
+        
+        // Only redirect if not on auth page and not a login/register request
+        if (!isAuthPage && !isLoginRequest) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+          localStorage.removeItem('user');
+          window.location.href = '/auth';
+        }
+        // For login/register errors, just clear tokens but don't redirect
+        else if (isLoginRequest) {
+          // Don't clear tokens on login failure - let the component handle it
+          // The error will be caught by the component and shown in modal
+        }
       }
       return Promise.reject(error);
     }

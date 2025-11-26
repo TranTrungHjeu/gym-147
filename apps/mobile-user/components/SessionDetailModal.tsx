@@ -55,7 +55,8 @@ export default function SessionDetailModal({
     });
   };
 
-  const formatDuration = (minutes: number) => {
+  const formatDuration = (minutes: number | null | undefined) => {
+    if (!minutes || minutes <= 0) return '0m';
     const hours = Math.floor(minutes / 60);
     const mins = minutes % 60;
     if (hours > 0) {
@@ -379,7 +380,7 @@ export default function SessionDetailModal({
                   <Text
                     style={[styles.sectionTitle, { color: theme.colors.text }]}
                   >
-                    {t('session.equipmentUsed')} ({equipmentUsage.totalSessions}{' '}
+                    {t('session.equipmentUsed')} ({equipmentUsage.totalSessions || 0}{' '}
                     {t('session.device')})
                   </Text>
 
@@ -414,7 +415,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.text },
                         ]}
                       >
-                        {formatDuration(equipmentUsage.totalDuration)}
+                        {equipmentUsage.totalDuration ? formatDuration(equipmentUsage.totalDuration) : '0m'}
                       </Text>
                     </View>
                     <View style={styles.summaryRow}>
@@ -432,7 +433,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.text },
                         ]}
                       >
-                        {equipmentUsage.totalCalories} cal
+                        {equipmentUsage.totalCalories || 0} cal
                       </Text>
                     </View>
                   </View>
@@ -456,8 +457,7 @@ export default function SessionDetailModal({
                               { color: theme.colors.text },
                             ]}
                           >
-                            {equipment.equipment?.name ||
-                              t('common.unknownEquipment')}
+                            {equipment.equipment?.name || t('common.unknownEquipment') || ''}
                           </Text>
                           <Text
                             style={[
@@ -465,8 +465,7 @@ export default function SessionDetailModal({
                               { color: theme.colors.textSecondary },
                             ]}
                           >
-                            {equipment.equipment?.category ||
-                              t('common.unknown')}
+                            {equipment.equipment?.category || t('common.unknown') || ''}
                           </Text>
                           <View style={styles.equipmentLocationRow}>
                             <MapPin
@@ -479,27 +478,28 @@ export default function SessionDetailModal({
                                 { color: theme.colors.textSecondary },
                               ]}
                             >
-                              {equipment.equipment?.location ||
-                                t('common.unknown')}
+                              {equipment.equipment?.location || t('common.unknown') || ''}
                             </Text>
                           </View>
                         </View>
                         <View style={styles.equipmentStats}>
-                          {equipment.duration && (
-                            <View style={styles.equipmentStatRow}>
-                              <Text
-                                style={[
-                                  styles.equipmentStat,
-                                  { color: theme.colors.text },
-                                ]}
-                              >
-                                {formatDuration(equipment.duration)}
-                              </Text>
-                              <View style={styles.statIconContainer}>
-                                <Clock size={14} color={theme.colors.primary} />
+                          {equipment.duration !== undefined &&
+                            equipment.duration !== null &&
+                            equipment.duration > 0 && (
+                              <View style={styles.equipmentStatRow}>
+                                <Text
+                                  style={[
+                                    styles.equipmentStat,
+                                    { color: theme.colors.text },
+                                  ]}
+                                >
+                                  {formatDuration(equipment.duration)}
+                                </Text>
+                                <View style={styles.statIconContainer}>
+                                  <Clock size={14} color={theme.colors.primary} />
+                                </View>
                               </View>
-                            </View>
-                          )}
+                            )}
                           {equipment.calories_burned !== undefined &&
                             equipment.calories_burned !== null && (
                               <View style={styles.equipmentStatRow}>
@@ -516,36 +516,40 @@ export default function SessionDetailModal({
                                 </View>
                               </View>
                             )}
-                          {equipment.sets_completed && (
-                            <View style={styles.equipmentStatRow}>
-                              <Text
-                                style={[
-                                  styles.equipmentStat,
-                                  { color: theme.colors.text },
-                                ]}
-                              >
-                                {equipment.sets_completed} {t('session.sets')}
-                              </Text>
-                              <View style={styles.statIconContainer}>
-                                <Dumbbell size={14} color="#4ECDC4" />
+                          {equipment.sets_completed !== undefined &&
+                            equipment.sets_completed !== null &&
+                            equipment.sets_completed > 0 && (
+                              <View style={styles.equipmentStatRow}>
+                                <Text
+                                  style={[
+                                    styles.equipmentStat,
+                                    { color: theme.colors.text },
+                                  ]}
+                                >
+                                  {equipment.sets_completed} {t('session.sets')}
+                                </Text>
+                                <View style={styles.statIconContainer}>
+                                  <Dumbbell size={14} color="#4ECDC4" />
+                                </View>
                               </View>
-                            </View>
-                          )}
-                          {equipment.weight_used && (
-                            <View style={styles.equipmentStatRow}>
-                              <Text
-                                style={[
-                                  styles.equipmentStat,
-                                  { color: theme.colors.text },
-                                ]}
-                              >
-                                {equipment.weight_used}kg
-                              </Text>
-                              <View style={styles.statIconContainer}>
-                                <Scale size={14} color="#9B59B6" />
+                            )}
+                          {equipment.weight_used !== undefined &&
+                            equipment.weight_used !== null &&
+                            equipment.weight_used > 0 && (
+                              <View style={styles.equipmentStatRow}>
+                                <Text
+                                  style={[
+                                    styles.equipmentStat,
+                                    { color: theme.colors.text },
+                                  ]}
+                                >
+                                  {equipment.weight_used}kg
+                                </Text>
+                                <View style={styles.statIconContainer}>
+                                  <Scale size={14} color="#9B59B6" />
+                                </View>
                               </View>
-                            </View>
-                          )}
+                            )}
                         </View>
                       </View>
                     )

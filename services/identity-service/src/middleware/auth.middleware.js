@@ -1,6 +1,8 @@
 const jwt = require('jsonwebtoken');
+const redisService = require('../services/redis.service.js');
+const { prisma } = require('../lib/prisma.js');
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     // Get token from header
     const authHeader = req.header('Authorization');
@@ -27,6 +29,55 @@ const authMiddleware = (req, res, next) => {
       });
     }
     const decoded = jwt.verify(token, jwtSecret);
+
+    // Check session in Redis first (if sessionId exists)
+    if (decoded.sessionId) {
+      const session = await redisService.getSession(decoded.sessionId);
+      
+      if (session) {
+        // Session exists in Redis, use it
+        req.user = decoded;
+        return next();
+      } else {
+        // Session not in Redis, check database (fallback)
+        try {
+          const dbSession = await prisma.session.findUnique({
+            where: { id: decoded.sessionId },
+          });
+
+          if (dbSession && dbSession.expires_at > new Date()) {
+            // Session exists in DB, restore to Redis
+            const sessionData = {
+              id: dbSession.id,
+              user_id: dbSession.user_id,
+              token: dbSession.token,
+              refresh_token: dbSession.refresh_token,
+              device_info: dbSession.device_info,
+              ip_address: dbSession.ip_address,
+              user_agent: dbSession.user_agent,
+              expires_at: dbSession.expires_at.toISOString(),
+              created_at: dbSession.created_at.toISOString(),
+            };
+            const ttl = Math.floor((dbSession.expires_at - new Date()) / 1000);
+            if (ttl > 0) {
+              await redisService.setSession(dbSession.id, sessionData, ttl);
+            }
+            req.user = decoded;
+            return next();
+          } else {
+            // Session expired or not found
+            return res.status(401).json({
+              success: false,
+              message: 'Session expired or invalid',
+              data: null,
+            });
+          }
+        } catch (dbError) {
+          console.error('Error checking session in database:', dbError);
+          // Continue with decoded token if DB check fails
+        }
+      }
+    }
 
     // Add user info to request object
     req.user = decoded;

@@ -649,6 +649,199 @@ class AdminController {
       });
     }
   }
+
+  /**
+   * Handle subscription payment success notification
+   * Called by billing service when a member successfully pays for a subscription plan
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async handleSubscriptionPaymentSuccess(req, res) {
+    try {
+      const {
+        payment_id,
+        member_id,
+        user_id,
+        amount,
+        plan_type,
+        plan_name,
+        member_name,
+        member_email,
+      } = req.body;
+
+      console.log('📢 [SUBSCRIPTION_PAYMENT] Received subscription payment success notification:', {
+        payment_id,
+        member_id,
+        user_id,
+        amount,
+        plan_type,
+        plan_name,
+        member_name,
+      });
+
+      // Validate required fields
+      if (!payment_id || !member_id || !amount) {
+        return res.status(400).json({
+          success: false,
+          message: 'Missing required fields: payment_id, member_id, amount',
+          data: null,
+        });
+      }
+
+      // Get all admins and super admins
+      const admins = await notificationService.getAdminsAndSuperAdmins();
+
+      if (admins.length === 0) {
+        console.log('⚠️ [SUBSCRIPTION_PAYMENT] No admins found to notify');
+        return res.json({
+          success: true,
+          message: 'No admins found to notify',
+          data: { notified_count: 0 },
+        });
+      }
+
+      console.log(
+        `📋 [SUBSCRIPTION_PAYMENT] Found ${admins.length} admin/super-admin users to notify`
+      );
+
+      // Format amount for display
+      const formattedAmount = new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+      }).format(amount);
+
+      // Create notifications for all admins
+      const adminNotifications = admins.map(admin => ({
+        user_id: admin.user_id,
+        type: 'PAYMENT_SUCCESS',
+        title: 'Thanh toán gói đăng ký thành công',
+        message: `${member_name || 'Thành viên'} đã thanh toán ${formattedAmount} cho gói ${
+          plan_name || plan_type || 'đăng ký'
+        }`,
+        data: {
+          payment_id,
+          member_id,
+          user_id: user_id || member_id,
+          amount: parseFloat(amount),
+          plan_type,
+          plan_name,
+          member_name,
+          member_email,
+          payment_status: 'COMPLETED',
+          role: 'MEMBER', // Role indicates who performed the action
+        },
+        is_read: false,
+        created_at: new Date(),
+      }));
+
+      // Save notifications to database and emit socket events
+      if (adminNotifications.length > 0) {
+        console.log(
+          `💾 [SUBSCRIPTION_PAYMENT] Saving ${adminNotifications.length} notifications to database...`
+        );
+
+        // Create notifications in identity service
+        const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+        const axios = require('axios');
+
+        const createdNotifications = [];
+        for (const notificationData of adminNotifications) {
+          try {
+            const response = await axios.post(
+              `${IDENTITY_SERVICE_URL}/notifications`,
+              {
+                user_id: notificationData.user_id,
+                type: notificationData.type,
+                title: notificationData.title,
+                message: notificationData.message,
+                data: notificationData.data,
+              },
+              { timeout: 5000 }
+            );
+            if (response.data.success) {
+              createdNotifications.push(response.data.data.notification);
+            }
+          } catch (error) {
+            console.error(
+              `❌ [SUBSCRIPTION_PAYMENT] Failed to create notification for user ${notificationData.user_id}:`,
+              error.message
+            );
+          }
+        }
+
+        console.log(
+          `✅ [SUBSCRIPTION_PAYMENT] Created ${createdNotifications.length} notifications in identity service`
+        );
+
+        // Emit socket events to all admins
+        if (global.io) {
+          console.log(
+            `📡 [SUBSCRIPTION_PAYMENT] Emitting socket events to ${createdNotifications.length} admin(s)...`
+          );
+          createdNotifications.forEach(notification => {
+            const roomName = `user:${notification.user_id}`;
+            const socketPayload = {
+              notification_id: notification.id,
+              payment_id,
+              member_id,
+              user_id: user_id || member_id,
+              amount: parseFloat(amount),
+              plan_type,
+              plan_name,
+              member_name,
+              member_email,
+              payment_status: 'COMPLETED',
+              title: notification.title,
+              message: notification.message,
+              type: notification.type,
+              created_at: notification.created_at,
+            };
+
+            global.io.to(roomName).emit('subscription:payment:success', socketPayload);
+            console.log(
+              `✅ [SUBSCRIPTION_PAYMENT] Socket event subscription:payment:success emitted to ${roomName}`
+            );
+
+            // Also emit general notification:new event for compatibility
+            global.io.to(roomName).emit('notification:new', {
+              notification_id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              data: socketPayload,
+              created_at: notification.created_at,
+              is_read: false,
+            });
+          });
+          console.log(`✅ [SUBSCRIPTION_PAYMENT] All socket events emitted successfully to admins`);
+        } else {
+          console.warn(
+            '⚠️ [SUBSCRIPTION_PAYMENT] global.io not available - notifications saved to database only'
+          );
+        }
+      }
+
+      res.json({
+        success: true,
+        message: 'Admins notified about subscription payment success',
+        data: {
+          notified_count: createdNotifications.length,
+          total_admins: admins.length,
+        },
+      });
+    } catch (error) {
+      console.error(
+        '❌ [SUBSCRIPTION_PAYMENT] Error handling subscription payment success notification:',
+        error
+      );
+      res.status(500).json({
+        success: false,
+        message: 'Có lỗi xảy ra khi thông báo cho admin về thanh toán thành công',
+        data: null,
+        error: process.env.NODE_ENV !== 'production' ? error.message : undefined,
+      });
+    }
+  }
 }
 
 module.exports = new AdminController();

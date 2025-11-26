@@ -1,7 +1,18 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
+let distributedLock = null;
+try {
+  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+} catch (e) {
+  try {
+    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+  } catch (e2) {
+    console.warn('⚠️ Distributed lock utility not available, reward redemption will use database transactions only');
+  }
+}
 const pointsService = require('./points.service.js');
 const notificationService = require('./notification.service.js');
+const rewardSocketHelper = require('../utils/reward-socket.helper.js');
 
 /**
  * Reward Service
@@ -32,6 +43,14 @@ class RewardService {
         created_by,
       } = rewardData;
 
+      // Validate: chỉ được có một trong hai (discount_percent hoặc discount_amount)
+      const hasPercent = discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
+      const hasAmount = discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
+      
+      if (hasPercent && hasAmount) {
+        return { success: false, error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai' };
+      }
+
       const reward = await prisma.reward.create({
         data: {
           title,
@@ -39,8 +58,8 @@ class RewardService {
           category,
           points_cost,
           image_url,
-          discount_percent,
-          discount_amount,
+          discount_percent: hasPercent ? discount_percent : null,
+          discount_amount: hasAmount ? parseFloat(discount_amount) : null,
           reward_type,
           stock_quantity,
           redemption_limit,
@@ -54,6 +73,153 @@ class RewardService {
       return { success: true, reward };
     } catch (error) {
       console.error('Create reward error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Update a reward
+   * @param {string} rewardId - Reward ID
+   * @param {Object} updateData - Update data
+   * @returns {Promise<Object>} Updated reward
+   */
+  async updateReward(rewardId, updateData) {
+    try {
+      // Check if reward exists
+      const existingReward = await prisma.reward.findUnique({
+        where: { id: rewardId },
+      });
+
+      if (!existingReward) {
+        return { success: false, error: 'Reward not found' };
+      }
+
+      // Prepare update data
+      const {
+        title,
+        description,
+        category,
+        points_cost,
+        image_url,
+        discount_percent,
+        discount_amount,
+        reward_type,
+        stock_quantity,
+        redemption_limit,
+        valid_from,
+        valid_until,
+        terms_conditions,
+        is_active,
+      } = updateData;
+
+      // Validate: chỉ được có một trong hai (discount_percent hoặc discount_amount)
+      const hasPercent = discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
+      const hasAmount = discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
+      
+      if (hasPercent && hasAmount) {
+        return { success: false, error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai' };
+      }
+
+      const dataToUpdate = {};
+
+      if (title !== undefined) dataToUpdate.title = title;
+      if (description !== undefined) dataToUpdate.description = description;
+      if (category !== undefined) dataToUpdate.category = category;
+      if (points_cost !== undefined) dataToUpdate.points_cost = points_cost;
+      if (image_url !== undefined) dataToUpdate.image_url = image_url;
+      
+      // Handle discount fields: clear one when the other is set
+      if (discount_percent !== undefined) {
+        if (discount_percent !== null && discount_percent !== '') {
+          dataToUpdate.discount_percent = discount_percent;
+          dataToUpdate.discount_amount = null; // Clear amount when percent is set
+        } else {
+          dataToUpdate.discount_percent = null;
+        }
+      }
+      if (discount_amount !== undefined) {
+        if (discount_amount !== null && discount_amount !== '') {
+          // Convert to Decimal if it's a number or string
+          dataToUpdate.discount_amount = parseFloat(discount_amount);
+          dataToUpdate.discount_percent = null; // Clear percent when amount is set
+        } else {
+          dataToUpdate.discount_amount = null;
+        }
+      }
+      if (reward_type !== undefined) dataToUpdate.reward_type = reward_type;
+      if (stock_quantity !== undefined) {
+        dataToUpdate.stock_quantity = stock_quantity !== null && stock_quantity !== '' 
+          ? parseInt(stock_quantity) 
+          : null;
+      }
+      if (redemption_limit !== undefined) {
+        dataToUpdate.redemption_limit = redemption_limit !== null && redemption_limit !== '' 
+          ? parseInt(redemption_limit) 
+          : null;
+      }
+      if (valid_from !== undefined) {
+        dataToUpdate.valid_from = valid_from ? new Date(valid_from) : new Date();
+      }
+      if (valid_until !== undefined) {
+        dataToUpdate.valid_until = valid_until && valid_until !== '' 
+          ? new Date(valid_until) 
+          : null;
+      }
+      if (terms_conditions !== undefined) dataToUpdate.terms_conditions = terms_conditions;
+      if (is_active !== undefined) dataToUpdate.is_active = is_active;
+
+      // Update reward
+      const reward = await prisma.reward.update({
+        where: { id: rewardId },
+        data: dataToUpdate,
+      });
+
+      return { success: true, reward };
+    } catch (error) {
+      console.error('Update reward error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete a reward
+   * @param {string} rewardId - Reward ID
+   * @returns {Promise<Object>} Deletion result
+   */
+  async deleteReward(rewardId) {
+    try {
+      // Check if reward exists
+      const existingReward = await prisma.reward.findUnique({
+        where: { id: rewardId },
+      });
+
+      if (!existingReward) {
+        return { success: false, error: 'Reward not found' };
+      }
+
+      // Check if reward has active redemptions
+      const activeRedemptions = await prisma.rewardRedemption.count({
+        where: {
+          reward_id: rewardId,
+          status: { in: ['PENDING', 'ACTIVE'] },
+        },
+      });
+
+      if (activeRedemptions > 0) {
+        return {
+          success: false,
+          error: `Cannot delete reward with ${activeRedemptions} active redemption(s). Please refund or cancel them first.`,
+        };
+      }
+
+      // Delete reward
+      await prisma.reward.delete({
+        where: { id: rewardId },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Delete reward error:', error);
       return { success: false, error: error.message };
     }
   }
@@ -182,112 +348,215 @@ class RewardService {
    * @returns {Promise<Object>} Redemption result
    */
   async redeemReward(memberId, rewardId) {
+    // Acquire distributed lock for reward redemption
+    let lockAcquired = false;
+    let lockId = null;
+
+    if (distributedLock) {
+      const lockResult = await distributedLock.acquire('reward', rewardId, {
+        ttl: 30, // 30 seconds
+        retryAttempts: 3,
+        retryDelay: 100,
+      });
+
+      if (!lockResult.acquired) {
+        throw new Error('Reward redemption đang được xử lý, vui lòng thử lại sau');
+      }
+
+      lockAcquired = true;
+      lockId = lockResult.lockId;
+    }
+
     try {
-      // Get reward
-      const rewardResult = await this.getRewardById(rewardId);
-      if (!rewardResult.success || !rewardResult.reward) {
-        return { success: false, error: 'Reward not found' };
-      }
-
-      const reward = rewardResult.reward;
-
-      // Check availability
-      if (!reward.is_available) {
-        return { success: false, error: 'Reward is not available' };
-      }
-
-      // Check member points balance
-      const balanceResult = await pointsService.getBalance(memberId);
-      if (!balanceResult.success) {
-        return { success: false, error: 'Failed to check points balance' };
-      }
-
-      if (balanceResult.balance.current < reward.points_cost) {
-        return {
-          success: false,
-          error: 'Insufficient points',
-          required: reward.points_cost,
-          current: balanceResult.balance.current,
-        };
-      }
-
-      // Check redemption limit per member
-      if (reward.redemption_limit) {
-        const memberRedemptions = await prisma.rewardRedemption.count({
-          where: {
-            member_id: memberId,
-            reward_id: rewardId,
-            status: { in: ['PENDING', 'ACTIVE', 'USED'] },
+      // ✅ Use transaction to prevent race condition
+      const result = await prisma.$transaction(async (tx) => {
+        // 1. Get reward with redemption count (lock for update)
+        const reward = await tx.reward.findUnique({
+          where: { id: rewardId },
+          include: {
+            _count: {
+              select: {
+                redemptions: {
+                  where: {
+                    status: { in: ['PENDING', 'ACTIVE', 'USED'] },
+                  },
+                },
+              },
+            },
           },
         });
 
-        if (memberRedemptions >= reward.redemption_limit) {
+        // 2. Validate reward exists and is active
+        if (!reward) {
+          return { success: false, error: 'Reward not found' };
+        }
+
+        const now = new Date();
+        const isAvailable =
+          reward.is_active &&
+          reward.valid_from <= now &&
+          (reward.valid_until === null || reward.valid_until >= now);
+
+        if (!isAvailable) {
+          return { success: false, error: 'Reward is not available' };
+        }
+
+        // 3. Check stock (atomic)
+        if (reward.stock_quantity !== null) {
+          const redeemedCount = reward._count?.redemptions || 0;
+          if (redeemedCount >= reward.stock_quantity) {
+            return { success: false, error: 'Reward out of stock' };
+          }
+        }
+
+        // 4. Check member points balance (atomic)
+        const balanceResult = await pointsService.getBalance(memberId);
+        if (!balanceResult.success) {
+          return { success: false, error: 'Failed to check points balance' };
+        }
+
+        if (balanceResult.balance.current < reward.points_cost) {
           return {
             success: false,
-            error: `You have reached the redemption limit for this reward (${reward.redemption_limit})`,
+            error: 'INSUFFICIENT_POINTS',
+            message: `Bạn cần ${reward.points_cost} points. Hiện tại bạn có ${balanceResult.balance.current} points.`,
+            required: reward.points_cost,
+            current: balanceResult.balance.current,
+            shortfall: reward.points_cost - balanceResult.balance.current,
           };
         }
-      }
 
-      // Generate redemption code if needed
-      const code = this.generateRedemptionCode();
+        // 5. Check redemption limit per member (atomic)
+        if (reward.redemption_limit) {
+          const memberRedemptions = await tx.rewardRedemption.count({
+            where: {
+              member_id: memberId,
+              reward_id: rewardId,
+              status: { in: ['PENDING', 'ACTIVE', 'USED'] },
+            },
+          });
 
-      // Calculate expiration date (default 30 days from now)
-      const expiresAt = new Date();
-      expiresAt.setDate(expiresAt.getDate() + 30);
+          if (memberRedemptions >= reward.redemption_limit) {
+            return {
+              success: false,
+              error: `You have reached the redemption limit for this reward (${reward.redemption_limit})`,
+            };
+          }
+        }
 
-      // Create redemption record
-      const redemption = await prisma.rewardRedemption.create({
-        data: {
-          member_id: memberId,
-          reward_id: rewardId,
-          points_spent: reward.points_cost,
-          status: 'ACTIVE',
-          code,
-          expires_at: expiresAt,
-        },
-        include: {
-          reward: true,
-        },
-      });
+        // 6. Generate unique redemption code
+        let code = this.generateRedemptionCode();
+        let codeExists = true;
+        let attempts = 0;
+        while (codeExists && attempts < 10) {
+          const existing = await tx.rewardRedemption.findUnique({
+            where: { code },
+          });
+          if (!existing) {
+            codeExists = false;
+          } else {
+            code = this.generateRedemptionCode();
+            attempts++;
+          }
+        }
 
-      // Deduct points
-      const spendResult = await pointsService.spendPoints(
-        memberId,
-        reward.points_cost,
-        'REDEMPTION',
-        rewardId,
-        `Redeemed reward: ${reward.title}`
-      );
+        if (codeExists) {
+          return { success: false, error: 'Failed to generate unique code' };
+        }
 
-      if (!spendResult.success) {
-        // Rollback redemption
-        await prisma.rewardRedemption.delete({
-          where: { id: redemption.id },
+        // 7. Calculate expiration date (default 30 days from now)
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 30);
+
+        // 8. Create redemption record (atomic)
+        const redemption = await tx.rewardRedemption.create({
+          data: {
+            member_id: memberId,
+            reward_id: rewardId,
+            points_spent: reward.points_cost,
+            status: 'ACTIVE',
+            code,
+            expires_at: expiresAt,
+          },
+          include: {
+            reward: true,
+          },
         });
-        return { success: false, error: 'Failed to deduct points' };
-      }
 
-      // Send notification
-      await notificationService.sendNotification({
-        memberId,
-        type: 'REWARD',
-        title: 'Reward Redeemed!',
-        message: `You've successfully redeemed: ${reward.title}. Your code: ${code}`,
-        data: {
-          reward_id: rewardId,
-          redemption_id: redemption.id,
-          code,
-        },
+        // 9. Deduct points (atomic - has its own transaction)
+        const spendResult = await pointsService.spendPoints(
+          memberId,
+          reward.points_cost,
+          'REDEMPTION',
+          rewardId,
+          `Redeemed reward: ${reward.title}`
+        );
+
+        if (!spendResult.success) {
+          throw new Error('Failed to deduct points');
+        }
+
+        // 10. Send notification (async, don't wait)
+        notificationService
+          .sendNotification({
+            userId: null, // Will be looked up from member
+            memberId,
+            type: 'REWARD',
+            title: 'Reward Redeemed!',
+            message: `You've successfully redeemed: ${reward.title}. Your code: ${code}`,
+            data: {
+              reward_id: rewardId,
+              redemption_id: redemption.id,
+              code,
+            },
+            channels: ['IN_APP', 'PUSH'],
+          })
+          .catch((err) => console.error('Notification error:', err));
+
+        // 11. Emit socket event for real-time update (async, don't wait)
+        rewardSocketHelper
+          .emitRewardRedeemed(memberId, {
+            id: redemption.id,
+            reward_id: rewardId,
+            reward: {
+              id: reward.id,
+              title: reward.title,
+              category: reward.category,
+            },
+            points_spent: reward.points_cost,
+            new_balance: spendResult.newBalance,
+            code,
+            expires_at: expiresAt,
+            redeemed_at: redemption.redeemed_at,
+          })
+          .catch((err) => console.error('Socket emit error:', err));
+
+        // 12. Emit socket event to admin/super admin (async, don't wait)
+        rewardSocketHelper
+          .emitRewardRedeemedToAdmin(memberId, {
+            id: redemption.id,
+            reward_id: rewardId,
+            reward: {
+              id: reward.id,
+              title: reward.title,
+              category: reward.category,
+            },
+            reward_title: reward.title,
+            reward_category: reward.category,
+            points_spent: reward.points_cost,
+            code,
+            redeemed_at: redemption.redeemed_at,
+          })
+          .catch((err) => console.error('Socket emit to admin error:', err));
+
+        return {
+          success: true,
+          redemption: {
+            ...redemption,
+            new_balance: spendResult.newBalance,
+          },
+        };
       });
-
-      return {
-        success: true,
-        redemption: {
-          ...redemption,
-          new_balance: spendResult.newBalance,
-        },
-      };
     } catch (error) {
       console.error('Redeem reward error:', error);
       return { success: false, error: error.message };
@@ -366,12 +635,18 @@ class RewardService {
 
   /**
    * Generate unique redemption code
+   * Format: REWARD-XXXX-XXXX
    * @returns {string} Redemption code
    */
   generateRedemptionCode() {
-    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let code = '';
-    for (let i = 0; i < 8; i++) {
+    // Remove confusing chars (I, O, 0, 1) to avoid user mistakes
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = 'REWARD-';
+    for (let i = 0; i < 4; i++) {
+      code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    code += '-';
+    for (let i = 0; i < 4; i++) {
       code += chars.charAt(Math.floor(Math.random() * chars.length));
     }
     return code;
@@ -428,6 +703,26 @@ class RewardService {
   async expireOldRedemptions() {
     try {
       const now = new Date();
+      
+      // Get redemptions that will be expired (before updating)
+      const redemptionsToExpire = await prisma.rewardRedemption.findMany({
+        where: {
+          status: 'ACTIVE',
+          expires_at: {
+            lt: now,
+          },
+        },
+        include: {
+          member: {
+            select: { user_id: true },
+          },
+          reward: {
+            select: { id: true, title: true },
+          },
+        },
+      });
+
+      // Update status
       const result = await prisma.rewardRedemption.updateMany({
         where: {
           status: 'ACTIVE',
@@ -440,9 +735,187 @@ class RewardService {
         },
       });
 
+      // Emit socket events for all expired redemptions (async)
+      if (redemptionsToExpire.length > 0) {
+        redemptionsToExpire.forEach((redemption) => {
+          rewardSocketHelper
+            .emitRewardExpired(redemption.member_id, {
+              id: redemption.id,
+              reward_id: redemption.reward_id,
+              reward: {
+                id: redemption.reward.id,
+                title: redemption.reward.title,
+              },
+              code: redemption.code,
+              expires_at: redemption.expires_at,
+            })
+            .catch((err) => console.error(`Socket emit error for redemption ${redemption.id}:`, err));
+        });
+      }
+
       return { success: true, expired: result.count };
     } catch (error) {
       console.error('Expire old redemptions error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get all redemptions (Admin)
+   * @param {Object} filters - Filter options
+   * @returns {Promise<Object>} Redemptions list
+   */
+  async getAllRedemptions(filters = {}) {
+    try {
+      const { memberId, rewardId, status, limit = 50, offset = 0, startDate, endDate } = filters;
+
+      const where = {};
+      if (memberId) where.member_id = memberId;
+      if (rewardId) where.reward_id = rewardId;
+      if (status) where.status = status;
+      if (startDate || endDate) {
+        where.redeemed_at = {};
+        if (startDate) where.redeemed_at.gte = new Date(startDate);
+        if (endDate) where.redeemed_at.lte = new Date(endDate);
+      }
+
+      const [redemptions, total] = await Promise.all([
+        prisma.rewardRedemption.findMany({
+          where,
+          include: {
+            reward: true,
+            member: {
+              select: {
+                id: true,
+                full_name: true,
+                membership_number: true,
+                email: true,
+                phone: true,
+              },
+            },
+          },
+          orderBy: { redeemed_at: 'desc' },
+          take: limit,
+          skip: offset,
+        }),
+        prisma.rewardRedemption.count({ where }),
+      ]);
+
+      return {
+        success: true,
+        redemptions,
+        pagination: {
+          total,
+          limit,
+          offset,
+          hasMore: offset + limit < total,
+        },
+      };
+    } catch (error) {
+      console.error('Get all redemptions error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get reward statistics
+   * @param {string} rewardId - Optional reward ID (if not provided, returns global stats)
+   * @returns {Promise<Object>} Statistics
+   */
+  async getRewardStats(rewardId = null) {
+    try {
+      if (rewardId) {
+        // Stats for specific reward
+        const reward = await prisma.reward.findUnique({
+          where: { id: rewardId },
+          include: {
+            redemptions: {
+              select: {
+                status: true,
+                points_spent: true,
+              },
+            },
+            _count: {
+              select: {
+                redemptions: true,
+              },
+            },
+          },
+        });
+
+        if (!reward) {
+          return { success: false, error: 'Reward not found' };
+        }
+
+        const redemptions = reward.redemptions;
+        const activeCount = redemptions.filter((r) => r.status === 'ACTIVE').length;
+        const usedCount = redemptions.filter((r) => r.status === 'USED').length;
+        const expiredCount = redemptions.filter((r) => r.status === 'EXPIRED').length;
+        const refundedCount = redemptions.filter((r) => r.status === 'REFUNDED').length;
+        const totalPointsSpent = redemptions.reduce((sum, r) => sum + r.points_spent, 0);
+
+        return {
+          success: true,
+          stats: {
+            total_redemptions: reward._count.redemptions,
+            active_redemptions: activeCount,
+            used_redemptions: usedCount,
+            expired_redemptions: expiredCount,
+            refunded_redemptions: refundedCount,
+            total_points_spent: totalPointsSpent,
+            available_stock:
+              reward.stock_quantity !== null
+                ? Math.max(0, reward.stock_quantity - reward._count.redemptions)
+                : null,
+          },
+        };
+      } else {
+        // Global stats
+        const [totalRewards, activeRewards, totalRedemptions, popularRewardsData] = await Promise.all([
+          prisma.reward.count(),
+          prisma.reward.count({ where: { is_active: true } }),
+          prisma.rewardRedemption.count(),
+          prisma.rewardRedemption.groupBy({
+            by: ['reward_id'],
+            _count: { id: true },
+            orderBy: { _count: { id: 'desc' } },
+            take: 10,
+          }),
+        ]);
+
+        // Get reward details for popular rewards
+        const popularRewardIds = popularRewardsData.map((r) => r.reward_id);
+        const popularRewardDetails = await prisma.reward.findMany({
+          where: { id: { in: popularRewardIds } },
+          select: {
+            id: true,
+            title: true,
+            points_cost: true,
+          },
+        });
+
+        const popularRewards = popularRewardsData.map((r) => {
+          const reward = popularRewardDetails.find((rd) => rd.id === r.reward_id);
+          return {
+            reward_id: r.reward_id,
+            title: reward?.title || 'Unknown',
+            points_cost: reward?.points_cost || 0,
+            redemption_count: r._count.id,
+          };
+        });
+
+        return {
+          success: true,
+          stats: {
+            total_rewards: totalRewards,
+            active_rewards: activeRewards,
+            total_redemptions: totalRedemptions,
+            popular_rewards: popularRewards,
+          },
+        };
+      }
+    } catch (error) {
+      console.error('Get reward stats error:', error);
       return { success: false, error: error.message };
     }
   }

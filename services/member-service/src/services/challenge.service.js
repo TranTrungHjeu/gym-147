@@ -234,78 +234,133 @@ class ChallengeService {
    */
   async updateProgress(challengeId, memberId, increment = 1) {
     try {
-      const progress = await prisma.challengeProgress.findUnique({
-        where: {
-          challenge_id_member_id: {
-            challenge_id: challengeId,
-            member_id: memberId,
-          },
-        },
-        include: {
-          challenge: true,
-        },
-      });
+      // ✅ Fix: Use transaction to prevent race condition
+      return await prisma.$transaction(async (tx) => {
+        // 1. Get challenge to validate it's active and in date range
+        const challenge = await tx.challenge.findUnique({
+          where: { id: challengeId },
+        });
 
-      if (!progress) {
-        return { success: false, error: 'Not joined this challenge' };
-      }
-
-      if (progress.completed) {
-        return { success: true, progress, alreadyCompleted: true };
-      }
-
-      const newValue = progress.current_value + increment;
-      const isCompleted = newValue >= progress.target_value;
-
-      const updated = await prisma.challengeProgress.update({
-        where: {
-          challenge_id_member_id: {
-            challenge_id: challengeId,
-            member_id: memberId,
-          },
-        },
-        data: {
-          current_value: newValue,
-          completed: isCompleted,
-          completed_at: isCompleted ? new Date() : null,
-        },
-        include: {
-          challenge: true,
-        },
-      });
-
-      // If completed, award points and send notification
-      if (isCompleted && !progress.completed) {
-        // Award points
-        if (updated.challenge.reward_points > 0) {
-          await pointsService.awardPoints(
-            memberId,
-            updated.challenge.reward_points,
-            'CHALLENGE',
-            challengeId,
-            `Completed challenge: ${updated.challenge.title}`
-          );
+        if (!challenge) {
+          return { success: false, error: 'Challenge not found' };
         }
 
-        // Send notification
-        await notificationService.sendNotification({
-          memberId,
-          type: 'ACHIEVEMENT',
-          title: 'Challenge Completed!',
-          message: `Congratulations! You completed: ${updated.challenge.title}`,
-          data: {
-            challenge_id: challengeId,
-            points: updated.challenge.reward_points,
+        if (!challenge.is_active) {
+          return { success: false, error: 'Challenge is not active' };
+        }
+
+        // Validate challenge date range
+        const now = new Date();
+        if (now < challenge.start_date || now > challenge.end_date) {
+          return { success: false, error: 'Challenge is not in date range' };
+        }
+
+        // 2. Get current progress
+        const progress = await tx.challengeProgress.findUnique({
+          where: {
+            challenge_id_member_id: {
+              challenge_id: challengeId,
+              member_id: memberId,
+            },
+          },
+          include: {
+            challenge: true,
           },
         });
-      }
 
-      return {
-        success: true,
-        progress: updated,
-        completed: isCompleted,
-        wasNewlyCompleted: isCompleted && !progress.completed,
-      };
+        if (!progress) {
+          return { success: false, error: 'Not joined this challenge' };
+        }
+
+        if (progress.completed) {
+          return { success: true, progress, alreadyCompleted: true };
+        }
+
+        // 3. Calculate new value
+        const newValue = progress.current_value + increment;
+        const isCompleted = newValue >= progress.target_value;
+        const wasCompleted = progress.completed;
+
+        // 4. Update progress atomically
+        const updated = await tx.challengeProgress.update({
+          where: {
+            challenge_id_member_id: {
+              challenge_id: challengeId,
+              member_id: memberId,
+            },
+          },
+          data: {
+            current_value: newValue,
+            completed: isCompleted,
+            completed_at: isCompleted ? new Date() : null,
+          },
+          include: {
+            challenge: true,
+          },
+        });
+
+        // 5. If completed, award points and send notification (outside transaction)
+        // Note: pointsService.awardPoints has its own transaction, so we call it after
+        const wasNewlyCompleted = isCompleted && !wasCompleted;
+
+        if (wasNewlyCompleted) {
+          // Update Redis leaderboard for all periods
+          const cacheService = require('./cache.service');
+          const periods = ['weekly', 'monthly', 'yearly', 'alltime'];
+          
+          // Get current completed challenges count for this member
+          const completedCount = await tx.challengeProgress.count({
+            where: {
+              member_id: memberId,
+              completed: true,
+            },
+          });
+
+          // Update leaderboard for all periods
+          for (const period of periods) {
+            const leaderboardKey = `leaderboard:challenge:${period}`;
+            await cacheService.addToLeaderboard(leaderboardKey, memberId, completedCount);
+          }
+
+          // Award points (has its own transaction)
+          if (updated.challenge.reward_points > 0) {
+            pointsService
+              .awardPoints(
+                memberId,
+                updated.challenge.reward_points,
+                'CHALLENGE',
+                challengeId,
+                `Completed challenge: ${updated.challenge.title}`
+              )
+              .catch((err) => {
+                console.error('Failed to award challenge points:', err);
+              });
+          }
+
+          // Send notification (async, don't wait)
+          notificationService
+            .sendNotification({
+              memberId,
+              type: 'ACHIEVEMENT',
+              title: 'Challenge Completed!',
+              message: `Congratulations! You completed: ${updated.challenge.title}`,
+              data: {
+                challenge_id: challengeId,
+                points: updated.challenge.reward_points,
+              },
+            })
+            .catch((err) => {
+              console.error('Failed to send challenge completion notification:', err);
+            });
+        }
+
+        return {
+          success: true,
+          progress: updated,
+          completed: isCompleted,
+          wasNewlyCompleted,
+        };
+      });
     } catch (error) {
       console.error('Update challenge progress error:', error);
       return { success: false, error: error.message };
@@ -351,12 +406,54 @@ class ChallengeService {
 
   /**
    * Get challenge leaderboard (completion rate)
+   * Uses Redis Sorted Sets for caching and fast retrieval
    * @param {number} limit - Number of top members
    * @param {string} period - Period: 'weekly', 'monthly', 'yearly', 'alltime'
    * @returns {Promise<Object>} Challenge leaderboard
    */
   async getChallengeLeaderboard(limit = 10, period = 'alltime') {
     try {
+      const cacheService = require('./cache.service');
+      const leaderboardKey = `leaderboard:challenge:${period}`;
+
+      // Try to get from Redis cache first
+      let cachedLeaderboard = await cacheService.getLeaderboard(leaderboardKey, limit, false);
+      
+      if (cachedLeaderboard && cachedLeaderboard.length > 0) {
+        // Get member details for cached leaderboard
+        const memberIds = cachedLeaderboard.map(item => item.memberId);
+        const members = await prisma.member.findMany({
+          where: { id: { in: memberIds } },
+          select: {
+            id: true,
+            full_name: true,
+            membership_number: true,
+            profile_photo: true,
+            membership_type: true,
+          },
+        });
+
+        const memberMap = {};
+        members.forEach(m => {
+          memberMap[m.id] = m;
+        });
+
+        const result = cachedLeaderboard.map(item => ({
+          rank: item.rank,
+          memberId: item.memberId,
+          memberName: memberMap[item.memberId]?.full_name || 'Unknown',
+          avatarUrl: memberMap[item.memberId]?.profile_photo || null,
+          membershipType: memberMap[item.memberId]?.membership_type || 'BASIC',
+          completedChallenges: Math.floor(item.score) || 0,
+          isCurrentUser: false, // Will be set by frontend
+        }));
+
+        console.log(`✅ Retrieved leaderboard from Redis cache (period: ${period})`);
+        return { success: true, leaderboard: result };
+      }
+
+      // Cache miss - fetch from database
+      console.log(`📊 Cache miss - fetching leaderboard from database (period: ${period})`);
       const { getPeriodFilter } = require('../utils/leaderboard.util.js');
       const dateFilter = getPeriodFilter(period);
 
@@ -375,8 +472,21 @@ class ChallengeService {
             id: 'desc',
           },
         },
-        take: limit,
+        take: limit * 2, // Get more to populate cache
       });
+
+      // Update Redis cache with all results
+      for (const item of completedChallenges) {
+        await cacheService.addToLeaderboard(
+          leaderboardKey,
+          item.member_id,
+          item._count.id || 0
+        );
+      }
+
+      // Set TTL based on period (shorter TTL for more dynamic periods)
+      const ttl = period === 'weekly' ? 3600 : period === 'monthly' ? 7200 : 86400; // 1h, 2h, 24h
+      await cacheService.setLeaderboardTTL(leaderboardKey, ttl);
 
       // Get member details
       const memberIds = completedChallenges.map(item => item.member_id);
@@ -396,7 +506,7 @@ class ChallengeService {
         memberMap[m.id] = m;
       });
 
-      const result = completedChallenges.map((item, index) => ({
+      const result = completedChallenges.slice(0, limit).map((item, index) => ({
         rank: index + 1,
         memberId: item.member_id,
         memberName: memberMap[item.member_id]?.full_name || 'Unknown',
@@ -406,6 +516,7 @@ class ChallengeService {
         isCurrentUser: false, // Will be set by frontend
       }));
 
+      console.log(`✅ Fetched and cached leaderboard (period: ${period})`);
       return { success: true, leaderboard: result };
     } catch (error) {
       console.error('Get challenge leaderboard error:', error);
@@ -449,6 +560,184 @@ class ChallengeService {
       }
     } catch (error) {
       console.error('Auto-update attendance challenges error:', error);
+    }
+  }
+
+  /**
+   * Auto-update progress for FITNESS challenges
+   * Called when member completes workout or burns calories
+   * @param {string} memberId - Member ID
+   * @param {number} calories - Calories burned (for calorie-based challenges)
+   * @param {number} workouts - Number of workouts completed (for workout-based challenges)
+   */
+  async autoUpdateFitnessChallenges(memberId, calories = 0, workouts = 0) {
+    try {
+      // Get active challenges of type FITNESS
+      const challenges = await prisma.challenge.findMany({
+        where: {
+          is_active: true,
+          category: 'FITNESS',
+          start_date: { lte: new Date() },
+          end_date: { gte: new Date() },
+        },
+      });
+
+      // Update progress for each challenge member joined
+      for (const challenge of challenges) {
+        const progress = await prisma.challengeProgress.findUnique({
+          where: {
+            challenge_id_member_id: {
+              challenge_id: challenge.id,
+              member_id: memberId,
+            },
+          },
+        });
+
+        if (progress && !progress.completed) {
+          let increment = 0;
+
+          // Check target_unit to determine how to update
+          if (challenge.target_unit === 'calories' && calories > 0) {
+            // Calorie-based challenge: add calories
+            increment = calories;
+          } else if (
+            (challenge.target_unit === 'sessions' || challenge.target_unit === 'workouts') &&
+            workouts > 0
+          ) {
+            // Workout/session-based challenge: increment by 1 per workout
+            increment = workouts;
+          } else if (
+            !challenge.target_unit &&
+            challenge.target_value > 1000 &&
+            calories > 0
+          ) {
+            // If no target_unit but high target_value, assume it's calories
+            increment = calories;
+          } else if (
+            !challenge.target_unit &&
+            challenge.target_value <= 100 &&
+            workouts > 0
+          ) {
+            // If no target_unit but low target_value, assume it's workout count
+            increment = workouts;
+          }
+
+          if (increment > 0) {
+            await this.updateProgress(challenge.id, memberId, increment);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Auto-update fitness challenges error:', error);
+    }
+  }
+
+  /**
+   * Auto-update progress for EQUIPMENT challenges
+   * Called when member uses equipment
+   * @param {string} memberId - Member ID
+   * @param {number} equipmentCount - Number of equipment used (for count-based challenges)
+   * @param {number} durationMinutes - Duration in minutes (for duration-based challenges)
+   */
+  async autoUpdateEquipmentChallenges(memberId, equipmentCount = 0, durationMinutes = 0) {
+    try {
+      // Get active challenges of type EQUIPMENT
+      const challenges = await prisma.challenge.findMany({
+        where: {
+          is_active: true,
+          category: 'EQUIPMENT',
+          start_date: { lte: new Date() },
+          end_date: { gte: new Date() },
+        },
+      });
+
+      // Update progress for each challenge member joined
+      for (const challenge of challenges) {
+        const progress = await prisma.challengeProgress.findUnique({
+          where: {
+            challenge_id_member_id: {
+              challenge_id: challenge.id,
+              member_id: memberId,
+            },
+          },
+        });
+
+        if (progress && !progress.completed) {
+          let increment = 0;
+
+          // Check target_unit to determine how to update
+          if (challenge.target_unit === 'equipment' || challenge.target_unit === 'count') {
+            // Count-based challenge: increment by 1 per equipment use
+            increment = equipmentCount > 0 ? equipmentCount : 1;
+          } else if (
+            challenge.target_unit === 'minutes' ||
+            challenge.target_unit === 'duration'
+          ) {
+            // Duration-based challenge: add duration
+            increment = durationMinutes > 0 ? durationMinutes : 0;
+          } else if (!challenge.target_unit) {
+            // If no target_unit, default to count
+            increment = equipmentCount > 0 ? equipmentCount : 1;
+          }
+
+          if (increment > 0) {
+            await this.updateProgress(challenge.id, memberId, increment);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Auto-update equipment challenges error:', error);
+    }
+  }
+
+  /**
+   * Update challenge
+   * @param {string} challengeId - Challenge ID
+   * @param {Object} updateData - Update data
+   * @returns {Promise<Object>} Updated challenge
+   */
+  async updateChallenge(challengeId, updateData) {
+    try {
+      const challenge = await prisma.challenge.update({
+        where: { id: challengeId },
+        data: {
+          ...(updateData.title && { title: updateData.title }),
+          ...(updateData.description && { description: updateData.description }),
+          ...(updateData.type && { type: updateData.type }),
+          ...(updateData.category && { category: updateData.category }),
+          ...(updateData.target_value !== undefined && { target_value: updateData.target_value }),
+          ...(updateData.target_unit !== undefined && { target_unit: updateData.target_unit }),
+          ...(updateData.reward_points !== undefined && { reward_points: updateData.reward_points }),
+          ...(updateData.start_date && { start_date: new Date(updateData.start_date) }),
+          ...(updateData.end_date && { end_date: new Date(updateData.end_date) }),
+          ...(updateData.is_active !== undefined && { is_active: updateData.is_active }),
+          ...(updateData.is_public !== undefined && { is_public: updateData.is_public }),
+          ...(updateData.max_participants !== undefined && { max_participants: updateData.max_participants }),
+        },
+      });
+
+      return { success: true, challenge };
+    } catch (error) {
+      console.error('Update challenge error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Delete challenge
+   * @param {string} challengeId - Challenge ID
+   * @returns {Promise<Object>} Delete result
+   */
+  async deleteChallenge(challengeId) {
+    try {
+      await prisma.challenge.delete({
+        where: { id: challengeId },
+      });
+
+      return { success: true };
+    } catch (error) {
+      console.error('Delete challenge error:', error);
+      return { success: false, error: error.message };
     }
   }
 }

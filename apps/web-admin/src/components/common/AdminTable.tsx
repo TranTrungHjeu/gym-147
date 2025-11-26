@@ -15,6 +15,7 @@ interface AdminTableRowProps {
   className?: string;
   hover?: boolean;
   onClick?: (e?: React.MouseEvent) => void;
+  'data-certification-id'?: string;
 }
 
 interface AdminTableCellProps {
@@ -46,6 +47,7 @@ const AdminTableRow: React.FC<AdminTableRowProps> = ({
   className = '',
   hover = true,
   onClick,
+  'data-certification-id': dataCertificationId,
 }) => {
   // Check if className already has hover effects
   const hasCustomHover = className.includes('hover:');
@@ -56,6 +58,7 @@ const AdminTableRow: React.FC<AdminTableRowProps> = ({
         onClick ? 'cursor-pointer' : ''
       } transition-colors duration-150 ${className}`}
       onClick={onClick as any}
+      data-certification-id={dataCertificationId}
     >
       {children}
     </tr>

@@ -1,4 +1,5 @@
 import { accessService } from '@/services/member/access.service';
+import { equipmentService } from '@/services/member/equipment.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
@@ -27,6 +28,7 @@ export default function ActiveGymSessionCard({
   const [session, setSession] = useState<any>(null);
   const [duration, setDuration] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [totalCalories, setTotalCalories] = useState(0);
 
   // Animations
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -38,6 +40,16 @@ export default function ActiveGymSessionCard({
     const interval = setInterval(loadSession, 30000); // Refresh every 30s
     return () => clearInterval(interval);
   }, [memberId]);
+
+  // Refresh calories every 10 seconds when session is active
+  useEffect(() => {
+    if (session) {
+      const caloriesInterval = setInterval(() => {
+        loadEquipmentUsageCalories(session);
+      }, 10000); // Refresh calories every 10s
+      return () => clearInterval(caloriesInterval);
+    }
+  }, [session]);
 
   useEffect(() => {
     if (session) {
@@ -103,15 +115,64 @@ export default function ActiveGymSessionCard({
     try {
       const response = await accessService.getCurrentAccess(memberId);
       if (response.success && response.data?.session) {
-        setSession(response.data.session);
+        const sessionData = response.data.session;
+        setSession(sessionData);
+        
+        // Load equipment usage for this session to calculate total calories
+        await loadEquipmentUsageCalories(sessionData);
       } else {
         setSession(null);
+        setTotalCalories(0);
       }
     } catch (error) {
       console.error('Failed to load gym session:', error);
       setSession(null);
+      setTotalCalories(0);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadEquipmentUsageCalories = async (sessionData: any) => {
+    try {
+      if (!sessionData?.entry_time) {
+        setTotalCalories(0);
+        return;
+      }
+
+      // Get equipment usage from session start time to now
+      const sessionStartTime = new Date(sessionData.entry_time);
+      const now = new Date();
+
+      // Fetch equipment usage for this member during the session
+      const usageResponse = await equipmentService.getMemberEquipmentUsage(
+        memberId,
+        {
+          start_date: sessionStartTime.toISOString(),
+          end_date: now.toISOString(),
+        }
+      );
+
+      if (usageResponse.success && usageResponse.data?.usage) {
+        // Calculate total calories from all equipment usage
+        const total = usageResponse.data.usage.reduce(
+          (sum: number, usage: any) => {
+            // Include both completed usage (with end_time) and active usage (without end_time)
+            if (usage.calories_burned) {
+              return sum + usage.calories_burned;
+            }
+            return sum;
+          },
+          0
+        );
+        setTotalCalories(total);
+        console.log('🔥 Total calories from equipment usage:', total);
+      } else {
+        setTotalCalories(0);
+      }
+    } catch (error) {
+      console.error('Failed to load equipment usage calories:', error);
+      setTotalCalories(0);
     }
   };
 
@@ -222,7 +283,7 @@ export default function ActiveGymSessionCard({
                 {t('session.caloriesBurned', 'Calories')}
               </Text>
               <Text style={[styles.infoValue, { color: theme.colors.text }]}>
-                {session.calories_burned || 0} kcal
+                {totalCalories || 0} kcal
               </Text>
             </View>
           </View>

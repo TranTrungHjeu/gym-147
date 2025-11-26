@@ -1,6 +1,8 @@
 import { MembershipBadge } from '@/components/MembershipBadge';
 import ProfileSection from '@/components/ProfileSection';
-import { authService, memberService, notificationService, pointsService } from '@/services';
+import { useNotifications } from '@/contexts/NotificationContext';
+import { authService, memberService, pointsService } from '@/services';
+import { subscriptionService } from '@/services/billing/subscription.service';
 import { MembershipType, type Member } from '@/types/memberTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
@@ -8,6 +10,8 @@ import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import {
   Bell,
+  Coins,
+  Flame,
   Gift,
   HeartPulse,
   CircleHelp as HelpCircle,
@@ -15,29 +19,27 @@ import {
   Ruler,
   Settings,
   Shield,
+  Sparkles,
   Target,
   Trophy,
   CircleUser as UserCircle,
   Weight,
-  Coins,
-  Sparkles,
-  Flame,
   Zap,
 } from 'lucide-react-native';
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   Image,
   RefreshControl,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 // Import avatar frames for VIP and PREMIUM
 import PremiumFrame from '@/assets/frame/premium.svg';
@@ -45,7 +47,7 @@ import VipFrame from '@/assets/frame/vip.svg';
 
 const getGoalLabelKey = (goal: string): string => {
   const mapping: Record<string, string> = {
-    // Enum values
+    // Enum values (English)
     WEIGHT_LOSS: 'fitnessGoalWeightLoss',
     MUSCLE_GAIN: 'fitnessGoalMuscleGain',
     ENDURANCE: 'fitnessGoalEndurance',
@@ -62,6 +64,17 @@ const getGoalLabelKey = (goal: string): string => {
     increaseEndurance: 'fitnessGoalEndurance',
     improveFlexibility: 'fitnessGoalFlexibility',
     maintain: 'fitnessGoalMaintenance',
+    // Vietnamese values
+    GIẢM_CÂN: 'fitnessGoalWeightLoss',
+    GIẢM_MỠ: 'fitnessGoalFatLoss',
+    TĂNG_CÂN: 'fitnessGoalWeightGain',
+    TĂNG_CƠ: 'fitnessGoalMuscleGain',
+    TĂNG_SỨC_MẠNH: 'fitnessGoalStrength',
+    TĂNG_SỨC_BỀN: 'fitnessGoalEndurance',
+    TĂNG_LINH_HOẠT: 'fitnessGoalFlexibility',
+    DUY_TRÌ: 'fitnessGoalMaintenance',
+    PHỤC_HỒI: 'fitnessGoalRehabilitation',
+    CẢI_THIỆN_SỨC_KHỎE: 'fitnessGoalGeneral',
   };
   return mapping[goal] || goal;
 };
@@ -78,9 +91,11 @@ export default function ProfileScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [userProfile, setUserProfile] = useState<Member | null>(null);
-  const [unreadCount, setUnreadCount] = useState(0);
   const [pointsBalance, setPointsBalance] = useState<number>(0);
+  const [expiresAt, setExpiresAt] = useState<string | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
   const hasLoadedOnce = useRef(false);
+  const { unreadCount } = useNotifications();
 
   const loadProfile = useCallback(async () => {
     try {
@@ -94,24 +109,41 @@ export default function ProfileScreen() {
       if (response.success && response.data) {
         setUserProfile(response.data);
 
-        // Load notification count and points balance
+        // Load points balance
         if (response.data.id) {
           try {
-            const [count, pointsResponse] = await Promise.all([
-              notificationService.getUnreadCount(response.data.id),
-              pointsService.getBalance(response.data.id),
-            ]);
-            setUnreadCount(count);
+            const pointsResponse = await pointsService.getBalance(
+              response.data.id
+            );
             if (pointsResponse.success && pointsResponse.data) {
               setPointsBalance(pointsResponse.data.current);
             }
           } catch (error) {
-            console.error('Error loading notification count or points:', error);
+            console.error('Error loading points:', error);
           }
-        } else {
-          console.warn(
-            'Member ID not available, skipping notification count load'
-          );
+
+          // Load subscription to get expires_at
+          try {
+            const subscriptionData = await subscriptionService.getMemberSubscription(response.data.id);
+            if (subscriptionData) {
+              const expirationDate =
+                subscriptionData.current_period_end ||
+                subscriptionData.end_date ||
+                subscriptionData.next_billing_date;
+              if (expirationDate) {
+                setExpiresAt(typeof expirationDate === 'string' ? expirationDate : expirationDate.toISOString());
+              }
+            } else if (response.data.expires_at) {
+              // Fallback to member expires_at
+              setExpiresAt(response.data.expires_at);
+            }
+          } catch (error) {
+            console.error('Error loading subscription:', error);
+            // Fallback to member expires_at
+            if (response.data.expires_at) {
+              setExpiresAt(response.data.expires_at);
+            }
+          }
         }
       } else {
         const errorMsg = response.error || 'Failed to load profile';
@@ -267,6 +299,12 @@ export default function ProfileScreen() {
       onPress: () => router.push('/achievements'),
     },
     {
+      id: 'my-qr-code',
+      label: 'My QR Code',
+      icon: <Shield size={20} color={theme.colors.success} />,
+      onPress: () => router.push('/access/my-qr-code'),
+    },
+    {
       id: 'streaks',
       label: t('streaks.title'),
       icon: <Flame size={20} color={theme.colors.error} />,
@@ -323,21 +361,29 @@ export default function ProfileScreen() {
   ];
 
   return (
-    <SafeAreaView style={themedStyles.container}>
+    <SafeAreaView
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
+    >
       <View style={themedStyles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+        <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('profile.title')}
         </Text>
-        <TouchableOpacity
-          style={themedStyles.iconButton}
-          onPress={() => router.push('/settings')}
-        >
-          <Settings size={24} color={theme.colors.text} />
-        </TouchableOpacity>
+        <View style={themedStyles.headerRight}>
+          <TouchableOpacity
+            style={themedStyles.iconButton}
+            onPress={() => router.push('/settings')}
+          >
+            <Settings size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         style={themedStyles.content}
+        contentContainerStyle={{ paddingHorizontal: theme.spacing.lg }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
@@ -435,17 +481,25 @@ export default function ProfileScreen() {
           <View style={themedStyles.pointsHeader}>
             <View style={themedStyles.pointsIconContainer}>
               <Coins size={28} color="#FFD700" />
-              <Sparkles size={16} color="#FFD700" style={themedStyles.sparkleIcon} />
+              <Sparkles
+                size={16}
+                color="#FFD700"
+                style={themedStyles.sparkleIcon}
+              />
             </View>
             <View style={themedStyles.pointsContent}>
               <Text style={themedStyles.pointsLabel}>Điểm thưởng</Text>
-              <Text style={themedStyles.pointsValue}>{pointsBalance.toLocaleString()}</Text>
+              <Text style={themedStyles.pointsValue}>
+                {pointsBalance.toLocaleString()}
+              </Text>
             </View>
             <View style={themedStyles.pointsArrow}>
               <Gift size={20} color={theme.colors.primary} />
             </View>
           </View>
-          <Text style={themedStyles.pointsSubtext}>Nhấn để xem phần thưởng</Text>
+          <Text style={themedStyles.pointsSubtext}>
+            Nhấn để xem phần thưởng
+          </Text>
         </TouchableOpacity>
 
         <View style={themedStyles.statsContainer}>
@@ -472,10 +526,49 @@ export default function ProfileScreen() {
                 { color: theme.colors.text, textAlign: 'center' },
               ]}
             >
-              {userProfile?.fitness_goals &&
-              userProfile.fitness_goals.length > 0
-                ? t(`profile.${getGoalLabelKey(userProfile.fitness_goals[0])}`)
-                : t('common.notAvailable')}
+              {(() => {
+                if (
+                  !userProfile?.fitness_goals ||
+                  userProfile.fitness_goals.length === 0
+                ) {
+                  return t('common.notAvailable');
+                }
+
+                let goalStr = userProfile.fitness_goals[0];
+
+                // Remove curly braces if present: {GIẢM_MỠ,TĂNG_CƠ} -> GIẢM_MỠ,TĂNG_CƠ
+                goalStr = goalStr.replace(/^\{/, '').replace(/\}$/, '');
+
+                // Check if it's a custom weight goal format: WEIGHT_GOAL_CUSTOM:4kg:1months
+                if (goalStr.startsWith('WEIGHT_GOAL_CUSTOM:')) {
+                  const parts = goalStr.split(':');
+                  if (parts.length === 3) {
+                    const weight = parts[1]; // e.g., "4kg"
+                    const monthsStr = parts[2]; // e.g., "1months"
+                    const months = monthsStr.replace('months', '').trim();
+                    // Format: "4kg / 1 tháng"
+                    return `${weight} / ${months} ${t('common.months')}`;
+                  }
+                }
+
+                // Split by comma if multiple goals
+                const goals = goalStr
+                  .split(',')
+                  .map((g) => g.trim())
+                  .filter((g) => g);
+
+                // Translate and join goals
+                const translatedGoals = goals.map((goal) => {
+                  const labelKey = getGoalLabelKey(goal);
+                  return t(`profile.${labelKey}`);
+                });
+
+                // Join with comma, max 2 goals for display
+                if (translatedGoals.length > 2) {
+                  return translatedGoals.slice(0, 2).join(', ') + '...';
+                }
+                return translatedGoals.join(', ');
+              })()}
             </Text>
           </View>
 
@@ -587,15 +680,127 @@ export default function ProfileScreen() {
               ))}
             </View>
 
+            {/* Thời gian còn lại */}
+            {expiresAt && (() => {
+              const expirationDate = new Date(expiresAt);
+              if (isNaN(expirationDate.getTime())) return null;
+
+              const now = new Date();
+              const diff = expirationDate.getTime() - now.getTime();
+              const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+              const monthsLeft = Math.floor(daysLeft / 30);
+              const weeksLeft = Math.floor((daysLeft % 30) / 7);
+              const remainingDays = daysLeft % 7;
+
+              let timeRemainingText = '';
+              // Only add 's' for English, not for Vietnamese
+              const isEnglish = i18n.language === 'en' || i18n.language.startsWith('en');
+              const pluralS = isEnglish ? 's' : '';
+              
+              if (daysLeft < 0) {
+                timeRemainingText = t('subscription.expired') || 'Expired';
+              } else if (daysLeft === 0) {
+                timeRemainingText = t('subscription.expiresToday') || 'Expires today';
+              } else if (monthsLeft > 0) {
+                timeRemainingText = `${monthsLeft} ${t('subscription.month') || 'month'}${monthsLeft > 1 ? pluralS : ''}${
+                  weeksLeft > 0 ? ` ${weeksLeft} ${t('subscription.week') || 'week'}${weeksLeft > 1 ? pluralS : ''}` : ''
+                }`;
+              } else if (weeksLeft > 0) {
+                timeRemainingText = `${weeksLeft} ${t('subscription.week') || 'week'}${weeksLeft > 1 ? pluralS : ''}${
+                  remainingDays > 0 ? ` ${remainingDays} ${t('subscription.day') || 'day'}${remainingDays > 1 ? pluralS : ''}` : ''
+                }`;
+              } else {
+                timeRemainingText = `${daysLeft} ${t('subscription.day') || 'day'}${daysLeft > 1 ? pluralS : ''}`;
+              }
+
+              let timeRemainingColor = theme.colors.text;
+              if (daysLeft <= 7 && daysLeft >= 0) {
+                timeRemainingColor = theme.colors.error;
+              } else if (daysLeft <= 30 && daysLeft >= 0) {
+                timeRemainingColor = theme.colors.warning;
+              } else if (daysLeft > 30) {
+                timeRemainingColor = theme.colors.success;
+              }
+
+              return (
+                <View style={themedStyles.timeRemainingContainer}>
+                  <View style={themedStyles.timeRemainingItem}>
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('subscription.timeRemaining') || 'Time Remaining'}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.bodyMedium,
+                        {
+                          color: timeRemainingColor,
+                          fontWeight: '700',
+                        },
+                      ]}
+                    >
+                      {timeRemainingText}
+                    </Text>
+                  </View>
+                  <View style={themedStyles.timeRemainingItem}>
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('subscription.expiresOn') || 'Expires On'}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.bodyMedium,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {expirationDate.toLocaleDateString(
+                        i18n.language === 'vi' ? 'vi-VN' : i18n.language,
+                        {
+                          year: 'numeric',
+                          month: 'long',
+                          day: 'numeric',
+                          timeZone: 'Asia/Ho_Chi_Minh',
+                        }
+                      )}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })()}
+
             {userProfile.membership_type !== MembershipType.VIP && (
               <TouchableOpacity
                 style={[
                   themedStyles.upgradeButton,
-                  { backgroundColor: theme.colors.primary },
+                  { 
+                    backgroundColor: theme.colors.primary,
+                    opacity: upgrading ? 0.7 : 1,
+                  },
                 ]}
-                onPress={() => router.push('/subscription/plans')}
+                onPress={async () => {
+                  setUpgrading(true);
+                  try {
+                    await router.push('/subscription/plans');
+                  } catch (error) {
+                    console.error('Error navigating to plans:', error);
+                  } finally {
+                    setUpgrading(false);
+                  }
+                }}
+                disabled={upgrading}
               >
-                <Gift size={20} color={theme.colors.textInverse} />
+                {upgrading ? (
+                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
+                ) : (
+                  <Gift size={20} color={theme.colors.textInverse} />
+                )}
                 <Text
                   style={[
                     Typography.bodyMedium,
@@ -606,7 +811,9 @@ export default function ProfileScreen() {
                     },
                   ]}
                 >
-                  {userProfile.membership_type === MembershipType.PREMIUM
+                  {upgrading
+                    ? t('profile.upgrading')
+                    : userProfile.membership_type === MembershipType.PREMIUM
                     ? t('profile.upgradeToPremium').replace('Premium', 'VIP')
                     : t('profile.upgradeToPremium')}
                 </Text>
@@ -635,7 +842,7 @@ const styles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      width: '100%',
     },
     header: {
       flexDirection: 'row',
@@ -647,6 +854,22 @@ const styles = (theme: any) =>
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
+      width: '100%',
+      alignSelf: 'stretch',
+    },
+    headerTitle: {
+      ...Typography.h2,
+      flex: 1,
+      flexShrink: 1,
+      marginBottom: theme.spacing.sm,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      minWidth: 0,
+      flexShrink: 0,
+      maxWidth: '100%',
     },
     iconButton: {
       width: 44,
@@ -657,10 +880,10 @@ const styles = (theme: any) =>
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
+      overflow: 'hidden',
     },
     content: {
       flex: 1,
-      paddingHorizontal: theme.spacing.lg,
     },
     profileHeader: {
       alignItems: 'center',
@@ -784,6 +1007,18 @@ const styles = (theme: any) =>
       alignItems: 'flex-start',
       marginBottom: theme.spacing.sm,
     },
+    timeRemainingContainer: {
+      marginTop: theme.spacing.md,
+      paddingTop: theme.spacing.md,
+      borderTopWidth: 1,
+      borderTopColor: theme.colors.border,
+    },
+    timeRemainingItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: theme.spacing.sm,
+    },
     upgradeButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -798,7 +1033,6 @@ const styles = (theme: any) =>
     },
     pointsCard: {
       backgroundColor: theme.colors.card,
-      marginHorizontal: theme.spacing.lg,
       marginBottom: theme.spacing.md,
       padding: theme.spacing.lg,
       borderRadius: theme.radius.lg,

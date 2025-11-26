@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/Button';
 import { useAuth } from '@/contexts/AuthContext';
 import { paymentService } from '@/services/billing/payment.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
+import { memberService } from '@/services/member/member.service';
 import type { Invoice, Payment, Subscription } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
@@ -17,10 +18,12 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Modal,
   RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -28,7 +31,7 @@ import {
 export default function SubscriptionScreen() {
   const router = useRouter();
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const { t, i18n } = useTranslation();
 
   // Helper function to get subscription status translation
@@ -54,16 +57,111 @@ export default function SubscriptionScreen() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [recentPayments, setRecentPayments] = useState<Payment[]>([]);
   const [upcomingInvoices, setUpcomingInvoices] = useState<Invoice[]>([]);
+  const [memberProfile, setMemberProfile] = useState<any>(null);
 
   const loadData = async () => {
-    if (!user?.id) return;
+    if (!member?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
+      setLoading(true);
+
+      // Fetch member profile to get expires_at
+      let memberProfileData = null;
+      try {
+        const profileResponse = await memberService.getMemberProfile();
+        memberProfileData = profileResponse?.data;
+        console.log('📅 Member profile loaded:', memberProfileData);
+        setMemberProfile(memberProfileData);
+      } catch (err) {
+        console.warn('Could not load member profile:', err);
+      }
+
+      // Load plans first to verify plan_id
+      const plansData = await subscriptionService.getMembershipPlans();
+
       const [subscriptionData, paymentsData, invoicesData] = await Promise.all([
-        subscriptionService.getMemberSubscription(user.id),
-        paymentService.getMemberPayments(user.id, { limit: 5 }),
-        paymentService.getMemberInvoices(user.id, { limit: 3 }),
+        subscriptionService.getMemberSubscription(member.id),
+        paymentService.getMemberPayments(member.id, { limit: 5 }),
+        paymentService.getMemberInvoices(member.id, { limit: 3 }),
       ]);
+
+      // Debug: Log subscription data to verify plan_id matches plan object
+      if (subscriptionData) {
+        const actualPlan = plansData.find(
+          (p) => String(p.id) === String(subscriptionData.plan_id)
+        );
+
+        // Check member profile for membership type
+        const memberPlanType = memberProfileData?.membership_type;
+        const memberPlanName = memberProfileData?.membership_type; // Could be BASIC, PREMIUM, VIP, STUDENT
+
+        console.log('📦 Subscription data loaded:', {
+          subscriptionPlanId: subscriptionData.plan_id,
+          subscriptionPlanName: subscriptionData.plan?.name,
+          subscriptionPlanType: subscriptionData.plan?.type,
+          planObjectId: subscriptionData.plan?.id,
+          actualPlanId: actualPlan?.id,
+          actualPlanName: actualPlan?.name,
+          actualPlanType: actualPlan?.type,
+          memberPlanType: memberPlanType,
+          memberExpiresAt: memberProfileData?.expires_at,
+          match: subscriptionData.plan_id === subscriptionData.plan?.id,
+          actualPlanMatch: subscriptionData.plan_id === actualPlan?.id,
+        });
+
+        // If member profile has different plan type, use that instead
+        // This ensures we display the correct plan based on member's actual membership_type
+        if (memberPlanType) {
+          const memberPlan = plansData.find((p) => p.type === memberPlanType);
+
+          if (memberPlan) {
+            // Always use member's actual plan type from member service
+            // This is the source of truth for what plan the member actually has
+            if (memberPlan.id !== subscriptionData.plan_id) {
+              console.warn(
+                '⚠️ Plan mismatch: Subscription plan_id does not match member membership_type',
+                {
+                  subscriptionPlanId: subscriptionData.plan_id,
+                  subscriptionPlanType: subscriptionData.plan?.type,
+                  memberPlanType: memberPlanType,
+                  memberPlanId: memberPlan.id,
+                  memberPlanName: memberPlan.name,
+                }
+              );
+
+              // Use member's actual plan type instead
+              subscriptionData.plan_id = memberPlan.id;
+              subscriptionData.plan = memberPlan;
+              console.log('✅ Corrected subscription plan to match member:', {
+                oldPlanId: subscriptionData.plan_id,
+                oldPlanName: subscriptionData.plan?.name,
+                newPlanId: memberPlan.id,
+                newPlanName: memberPlan.name,
+                newPlanType: memberPlan.type,
+              });
+            } else {
+              // Plan IDs match, but ensure plan object is correct
+              subscriptionData.plan = memberPlan;
+            }
+          } else {
+            console.warn(
+              '⚠️ Could not find plan for membership_type:',
+              memberPlanType
+            );
+          }
+        } else if (
+          actualPlan &&
+          subscriptionData.plan_id !== subscriptionData.plan?.id
+        ) {
+          console.warn(
+            '⚠️ Plan object mismatch detected, replacing with correct plan'
+          );
+          subscriptionData.plan = actualPlan;
+        }
+      }
 
       setSubscription(subscriptionData);
       setRecentPayments(paymentsData);
@@ -71,6 +169,8 @@ export default function SubscriptionScreen() {
     } catch (error) {
       console.error('Error loading subscription data:', error);
       Alert.alert(t('common.error'), t('subscription.failedToLoad'));
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -100,27 +200,62 @@ export default function SubscriptionScreen() {
     router.push('/subscription/plans');
   };
 
+  const [cancelReason, setCancelReason] = useState('');
+  const [showCancelModal, setShowCancelModal] = useState(false);
+
   const handleCancelSubscription = () => {
-    Alert.alert(t('common.cancel'), t('subscription.cancelConfirm'), [
-      { text: t('common.no'), style: 'cancel' },
-      {
-        text: t('common.yes'),
-        style: 'destructive',
-        onPress: () => {
-          // TODO: Implement cancellation
-          Alert.alert(
-            t('common.cancel'),
-            'Subscription cancellation not implemented yet'
-          );
-        },
-      },
-    ]);
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = async () => {
+    if (!subscription) return;
+
+    try {
+      setLoading(true);
+      const reason = cancelReason.trim() || 'User requested cancellation';
+      await subscriptionService.cancelSubscription(subscription.id, reason);
+      
+      // Optimistic UI update
+      setSubscription((prev) => {
+        if (!prev) return prev;
+        return { ...prev, status: 'CANCELLED' };
+      });
+
+      Alert.alert(
+        t('common.success'),
+        t('subscription.cancelSuccess'),
+        [{ text: t('common.ok') }]
+      );
+      
+      setShowCancelModal(false);
+      setCancelReason('');
+      await loadData(); // Reload data to reflect changes
+    } catch (error: any) {
+      console.error('Error cancelling subscription:', error);
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
+        t('subscription.cancelFailed');
+      
+      Alert.alert(
+        t('common.error'),
+        errorMessage,
+        [
+          { text: t('common.cancel'), style: 'cancel' },
+          {
+            text: t('common.retry'),
+            onPress: () => handleConfirmCancel(),
+          },
+        ]
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
     loadData();
-    setLoading(false);
-  }, [user?.id]);
+  }, [member?.id]);
 
   if (loading) {
     return (
@@ -174,7 +309,9 @@ export default function SubscriptionScreen() {
             >
               <View style={styles.subscriptionHeader}>
                 <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                  {subscription.plan.name}
+                  {subscription.plan?.name ||
+                    subscription.plan_id ||
+                    t('subscription.unknownPlan')}
                 </Text>
                 <View
                   style={[
@@ -213,21 +350,217 @@ export default function SubscriptionScreen() {
               </Text>
 
               <View style={styles.subscriptionDetails}>
-                <View style={styles.detailItem}>
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {t('subscription.nextBilling')}
-                  </Text>
-                  <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    {new Date(subscription.nextBillingDate).toLocaleDateString(
-                      i18n.language
-                    )}
-                  </Text>
-                </View>
+                {/* Helper function to get expiration date */}
+                {(() => {
+                  // Debug: Log subscription data
+                  const memberExpiresAt = memberProfile?.expires_at;
+                  console.log('📅 Subscription dates:', {
+                    current_period_end: subscription.current_period_end,
+                    end_date: subscription.end_date,
+                    next_billing_date: subscription.next_billing_date,
+                    nextBillingDate: subscription.nextBillingDate,
+                    member_expires_at: memberExpiresAt,
+                    memberProfile: memberProfile,
+                    subscription: subscription,
+                  });
+
+                  // Priority: current_period_end > end_date > next_billing_date > member.expires_at
+                  const expirationDate =
+                    subscription.current_period_end ||
+                    subscription.end_date ||
+                    subscription.next_billing_date ||
+                    subscription.nextBillingDate ||
+                    (memberExpiresAt ? new Date(memberExpiresAt) : null);
+
+                  console.log('📅 Selected expiration date:', expirationDate);
+
+                  // Always show time remaining, even if date is missing
+                  if (!expirationDate) {
+                    return (
+                      <>
+                        {/* Thời hạn còn lại - No date available */}
+                        <View style={styles.detailItem}>
+                          <Text
+                            style={[
+                              Typography.caption,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {t('subscription.timeRemaining') ||
+                              'Time Remaining'}
+                          </Text>
+                          <Text
+                            style={[
+                              Typography.bodyMedium,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {t('subscription.notAvailable') || 'Not available'}
+                          </Text>
+                        </View>
+                      </>
+                    );
+                  }
+
+                  const endDate = new Date(expirationDate);
+
+                  // Check if date is valid
+                  if (isNaN(endDate.getTime())) {
+                    console.error('❌ Invalid date:', expirationDate);
+                    return (
+                      <View style={styles.detailItem}>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {t('subscription.timeRemaining') || 'Time Remaining'}
+                        </Text>
+                        <Text
+                          style={[
+                            Typography.bodyMedium,
+                            { color: theme.colors.error },
+                          ]}
+                        >
+                          Invalid date
+                        </Text>
+                      </View>
+                    );
+                  }
+
+                  const now = new Date();
+                  const diff = endDate.getTime() - now.getTime();
+                  const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                  const monthsLeft = Math.floor(daysLeft / 30);
+                  const weeksLeft = Math.floor((daysLeft % 30) / 7);
+                  const remainingDays = daysLeft % 7;
+
+                  // Format time remaining text
+                  // Only add 's' for English, not for Vietnamese
+                  const isEnglish =
+                    i18n.language === 'en' || i18n.language.startsWith('en');
+                  const pluralS = isEnglish ? 's' : '';
+
+                  let timeRemainingText = 'N/A';
+                  if (daysLeft < 0) {
+                    timeRemainingText = t('subscription.expired') || 'Expired';
+                  } else if (daysLeft === 0) {
+                    timeRemainingText =
+                      t('subscription.expiresToday') || 'Expires today';
+                  } else if (monthsLeft > 0) {
+                    timeRemainingText = `${monthsLeft} ${
+                      t('subscription.month') || 'month'
+                    }${monthsLeft > 1 ? pluralS : ''}${
+                      weeksLeft > 0
+                        ? ` ${weeksLeft} ${t('subscription.week') || 'week'}${
+                            weeksLeft > 1 ? pluralS : ''
+                          }`
+                        : ''
+                    }`;
+                  } else if (weeksLeft > 0) {
+                    timeRemainingText = `${weeksLeft} ${
+                      t('subscription.week') || 'week'
+                    }${weeksLeft > 1 ? pluralS : ''}${
+                      remainingDays > 0
+                        ? ` ${remainingDays} ${t('subscription.day') || 'day'}${
+                            remainingDays > 1 ? pluralS : ''
+                          }`
+                        : ''
+                    }`;
+                  } else {
+                    timeRemainingText = `${daysLeft} ${
+                      t('subscription.day') || 'day'
+                    }${daysLeft > 1 ? pluralS : ''}`;
+                  }
+
+                  // Determine color based on days left
+                  let timeRemainingColor = theme.colors.text;
+                  if (daysLeft <= 7) {
+                    timeRemainingColor = theme.colors.error;
+                  } else if (daysLeft <= 30) {
+                    timeRemainingColor = theme.colors.warning;
+                  } else {
+                    timeRemainingColor = theme.colors.success;
+                  }
+
+                  return (
+                    <>
+                      {/* Thời hạn còn lại */}
+                      <View style={styles.detailItem}>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {t('subscription.timeRemaining') || 'Time Remaining'}
+                        </Text>
+                        <Text
+                          style={[
+                            Typography.bodyMedium,
+                            { color: timeRemainingColor, fontWeight: '600' },
+                          ]}
+                        >
+                          {timeRemainingText}
+                        </Text>
+                      </View>
+                      {/* Ngày hết hạn */}
+                      <View style={styles.detailItem}>
+                        <Text
+                          style={[
+                            Typography.caption,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {t('subscription.expiresOn') || 'Expires On'}
+                        </Text>
+                        <Text
+                          style={[
+                            Typography.bodyMedium,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {endDate.toLocaleDateString(
+                            i18n.language === 'vi' ? 'vi-VN' : i18n.language,
+                            {
+                              year: 'numeric',
+                              month: 'long',
+                              day: 'numeric',
+                              timeZone: 'Asia/Ho_Chi_Minh',
+                            }
+                          )}
+                        </Text>
+                      </View>
+                    </>
+                  );
+                })()}
+                {(subscription.nextBillingDate ||
+                  subscription.next_billing_date) && (
+                  <View style={styles.detailItem}>
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('subscription.nextBilling')}
+                    </Text>
+                    <Text
+                      style={[Typography.body, { color: theme.colors.text }]}
+                    >
+                      {new Date(
+                        subscription.nextBillingDate ||
+                          subscription.next_billing_date
+                      ).toLocaleDateString(
+                        i18n.language === 'vi' ? 'vi-VN' : i18n.language,
+                        {
+                          timeZone: 'Asia/Ho_Chi_Minh',
+                        }
+                      )}
+                    </Text>
+                  </View>
+                )}
                 <View style={styles.detailItem}>
                   <Text
                     style={[
@@ -238,7 +571,8 @@ export default function SubscriptionScreen() {
                     {t('subscription.amount')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    ${subscription.amount} {subscription.currency}
+                    ${subscription.amount || subscription.total_amount}{' '}
+                    {subscription.currency || 'USD'}
                   </Text>
                 </View>
                 <View style={styles.detailItem}>
@@ -251,7 +585,7 @@ export default function SubscriptionScreen() {
                     {t('subscription.autoRenew')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    {subscription.autoRenew ? t('common.yes') : t('common.no')}
+                    {subscription.auto_renew ? t('common.yes') : t('common.no')}
                   </Text>
                 </View>
               </View>
@@ -436,6 +770,89 @@ export default function SubscriptionScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Cancel Subscription Modal */}
+      <Modal
+        visible={showCancelModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => {
+          setShowCancelModal(false);
+          setCancelReason('');
+        }}
+      >
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: 'rgba(0, 0, 0, 0.5)' },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalContent,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Text style={[Typography.h3, { color: theme.colors.text }]}>
+              {t('subscription.cancelTitle')}
+            </Text>
+            <Text
+              style={[
+                Typography.bodyMedium,
+                { color: theme.colors.textSecondary, marginTop: 8 },
+              ]}
+            >
+              {t('subscription.cancelDescription')}
+            </Text>
+
+            <View style={styles.modalInputContainer}>
+              <Text
+                style={[Typography.label, { color: theme.colors.text }]}
+              >
+                {t('subscription.cancelReason')} ({t('common.optional')})
+              </Text>
+              <TextInput
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: theme.colors.background,
+                    color: theme.colors.text,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+                value={cancelReason}
+                onChangeText={setCancelReason}
+                placeholder={t('subscription.cancelReasonPlaceholder')}
+                placeholderTextColor={theme.colors.textSecondary}
+                multiline
+                numberOfLines={4}
+                textAlignVertical="top"
+              />
+            </View>
+
+            <View style={styles.modalButtons}>
+              <Button
+                title={t('common.cancel')}
+                onPress={() => {
+                  setShowCancelModal(false);
+                  setCancelReason('');
+                }}
+                variant="outline"
+                style={styles.modalButton}
+              />
+              <Button
+                title={t('subscription.confirmCancel')}
+                onPress={handleConfirmCancel}
+                loading={loading}
+                style={[
+                  styles.modalButton,
+                  { backgroundColor: theme.colors.error },
+                ]}
+              />
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -553,5 +970,41 @@ const styles = StyleSheet.create({
   },
   paymentAmount: {
     alignItems: 'flex-end',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    borderRadius: 16,
+    padding: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  modalInputContainer: {
+    marginTop: 20,
+    marginBottom: 24,
+  },
+  modalInput: {
+    marginTop: 8,
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    minHeight: 100,
+    ...Typography.bodyRegular,
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  modalButton: {
+    flex: 1,
   },
 });

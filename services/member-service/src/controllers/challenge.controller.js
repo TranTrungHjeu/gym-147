@@ -2,11 +2,68 @@ const challengeService = require('../services/challenge.service.js');
 
 class ChallengeController {
   /**
+   * Helper function to decode JWT token and get user info
+   */
+  getUserFromToken(req) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return null;
+    }
+
+    try {
+      const token = authHeader.split(' ')[1];
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return null;
+      }
+
+      // Decode JWT payload
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      return {
+        id: payload.userId || payload.id,
+        role: payload.role,
+      };
+    } catch (error) {
+      console.error('Error decoding JWT token:', error);
+      return null;
+    }
+  }
+
+  /**
    * Create a new challenge
+   * Only SUPER_ADMIN and ADMIN can create challenges
    */
   async createChallenge(req, res) {
     try {
-      const challengeData = req.body;
+      // ✅ Check authentication - Decode JWT token
+      const user = this.getUserFromToken(req);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Authentication required',
+          data: null,
+        });
+      }
+
+      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      const userRole = user.role;
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only SUPER_ADMIN and ADMIN can create challenges',
+          data: null,
+        });
+      }
+
+      const challengeData = {
+        ...req.body,
+        created_by: user.id, // Auto-set from JWT token
+      };
       const result = await challengeService.createChallenge(challengeData);
 
       if (!result.success) {
@@ -249,6 +306,111 @@ class ChallengeController {
       });
     } catch (error) {
       console.error('Get challenge leaderboard error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Update challenge
+   * Only SUPER_ADMIN and ADMIN can update challenges
+   */
+  async updateChallenge(req, res) {
+    try {
+      // ✅ Check authentication
+      const user = this.getUserFromToken(req);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Authentication required',
+          data: null,
+        });
+      }
+
+      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      const userRole = user.role;
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only SUPER_ADMIN and ADMIN can update challenges',
+          data: null,
+        });
+      }
+
+      const { id } = req.params;
+      const updateData = req.body;
+      const result = await challengeService.updateChallenge(id, updateData);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Challenge updated successfully',
+        data: result.challenge,
+      });
+    } catch (error) {
+      console.error('Update challenge error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Delete challenge
+   * Only SUPER_ADMIN and ADMIN can delete challenges
+   */
+  async deleteChallenge(req, res) {
+    try {
+      // ✅ Check authentication
+      const user = this.getUserFromToken(req);
+      if (!user) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Authentication required',
+          data: null,
+        });
+      }
+
+      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      const userRole = user.role;
+      if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: Only SUPER_ADMIN and ADMIN can delete challenges',
+          data: null,
+        });
+      }
+
+      const { id } = req.params;
+      const result = await challengeService.deleteChallenge(id);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Challenge deleted successfully',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Delete challenge error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

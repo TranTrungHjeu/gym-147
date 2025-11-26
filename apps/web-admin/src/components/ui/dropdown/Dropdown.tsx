@@ -40,14 +40,15 @@ export const Dropdown: React.FC<DropdownProps> = ({
     };
   }, [isOpen, onClose]);
 
-  // Animation variants
+  // Animation variants - improved smooth animations
   const dropdownVariants = {
     hidden: {
       opacity: 0,
-      y: -10,
-      scale: 0.95,
+      y: -8,
+      scale: 0.96,
+      filter: 'blur(4px)',
       transition: {
-        duration: 0.15,
+        duration: 0.2,
         ease: [0.4, 0, 0.2, 1],
       },
     },
@@ -55,19 +56,21 @@ export const Dropdown: React.FC<DropdownProps> = ({
       opacity: 1,
       y: 0,
       scale: 1,
+      filter: 'blur(0px)',
       transition: {
-        duration: 0.2,
-        ease: [0.4, 0, 0.2, 1],
-        staggerChildren: 0.03,
-        delayChildren: 0.05,
+        duration: 0.25,
+        ease: [0.34, 1.56, 0.64, 1], // Elastic ease-out for smooth bounce
+        staggerChildren: 0.04,
+        delayChildren: 0.06,
       },
     },
     exit: {
       opacity: 0,
-      y: -10,
-      scale: 0.95,
+      y: -8,
+      scale: 0.96,
+      filter: 'blur(4px)',
       transition: {
-        duration: 0.15,
+        duration: 0.18,
         ease: [0.4, 0, 0.2, 1],
       },
     },

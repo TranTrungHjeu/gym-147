@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { AlertTriangle, X } from 'lucide-react';
+import { AlertTriangle } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
 import Modal from '../Modal/Modal';
 import { ButtonSpinner } from '../ui/AppLoading';
 
@@ -8,7 +8,7 @@ interface ConfirmDialogProps {
   onClose: () => void;
   onConfirm: () => void | Promise<void>;
   title: string;
-  message: string;
+  message: React.ReactNode;
   confirmText?: string;
   cancelText?: string;
   variant?: 'danger' | 'warning' | 'info';
@@ -50,7 +50,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
     await onConfirm();
   };
 
-  const isConfirmDisabled = isLoading || (requireType && confirmInput.toLowerCase() !== typeText.toLowerCase());
+  const isConfirmDisabled =
+    isLoading || (requireType && confirmInput.toLowerCase() !== typeText.toLowerCase());
 
   const variantStyles = {
     danger: {
@@ -64,7 +65,8 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
       borderColor: 'border-red-200 dark:border-red-800',
     },
     warning: {
-      headerGradient: 'from-warning-50 to-warning-100 dark:from-warning-900/20 dark:to-warning-800/20',
+      headerGradient:
+        'from-warning-50 to-warning-100 dark:from-warning-900/20 dark:to-warning-800/20',
       headerBorder: 'border-warning-200 dark:border-warning-700',
       iconBg: 'bg-warning-100 dark:bg-warning-900/30',
       iconColor: 'text-warning-600 dark:text-warning-400',
@@ -117,7 +119,9 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 
         {/* Content */}
         <div className='flex-1 p-6 space-y-4'>
-          <div className={`flex gap-4 p-4 rounded-lg border ${styles.contentBg} ${styles.contentBorder}`}>
+          <div
+            className={`flex gap-4 p-4 rounded-lg border ${styles.contentBg} ${styles.contentBorder}`}
+          >
             <div className={`flex-shrink-0 ${styles.iconColor}`}>
               <AlertTriangle className='w-6 h-6' />
             </div>
@@ -194,4 +198,3 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
 };
 
 export default ConfirmDialog;
-

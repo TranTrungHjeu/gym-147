@@ -13,10 +13,10 @@ export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> 
 }
 
 const inputVariants = {
-  default: 'border-neutral-300 bg-white focus:border-primary-500 focus:ring-primary-500',
+  default: 'border-neutral-300 bg-white dark:bg-gray-800 dark:border-gray-700 text-gray-900 dark:text-gray-100 focus:border-primary-500 dark:focus:border-primary-500 focus:ring-primary-500 dark:focus:ring-primary-500',
   filled:
-    'border-transparent bg-neutral-100 focus:border-primary-500 focus:ring-primary-500 focus:bg-white',
-  outlined: 'border-2 border-neutral-300 bg-white focus:border-primary-500 focus:ring-0',
+    'border-transparent bg-neutral-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-primary-500 dark:focus:border-primary-500 focus:ring-primary-500 dark:focus:ring-primary-500 focus:bg-white dark:focus:bg-gray-800',
+  outlined: 'border-2 border-neutral-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:border-primary-500 dark:focus:border-primary-500 focus:ring-0',
 };
 
 const inputSizes = {
@@ -52,7 +52,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className='w-full'>
         {label && (
-          <label htmlFor={inputId} className='block text-sm font-medium text-neutral-700 mb-1'>
+          <label htmlFor={inputId} className='block text-sm font-medium text-neutral-700 dark:text-gray-300 mb-1'>
             {label}
           </label>
         )}
@@ -60,7 +60,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         <div className='relative'>
           {leftIcon && (
             <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
-              <span className='text-neutral-400'>{leftIcon}</span>
+              <span className='text-neutral-400 dark:text-gray-500'>{leftIcon}</span>
             </div>
           )}
 
@@ -71,13 +71,13 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             className={cn(
               // Base styles
               'block w-full rounded-lg border shadow-sm transition-colors duration-200',
-              'placeholder:text-neutral-400',
+              'placeholder:text-neutral-400 dark:placeholder:text-gray-500',
               'focus:outline-none focus:ring-1',
-              'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-neutral-50',
+              'disabled:cursor-not-allowed disabled:opacity-50 disabled:bg-neutral-50 dark:disabled:bg-gray-800',
 
               // Variant styles
               hasError
-                ? 'border-red-300 focus:border-red-500 focus:ring-red-500'
+                ? 'border-red-300 dark:border-red-600 text-gray-900 dark:text-gray-100 focus:border-red-500 dark:focus:border-red-500 focus:ring-red-500 dark:focus:ring-red-500'
                 : inputVariants[variant],
 
               // Size styles
@@ -99,7 +99,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
             {isPassword && (
               <button
                 type='button'
-                className='px-3 text-neutral-400 hover:text-neutral-600 focus:outline-none'
+                className='px-3 text-neutral-400 dark:text-gray-500 hover:text-neutral-600 dark:hover:text-gray-400 focus:outline-none'
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
               >
@@ -109,7 +109,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
             {rightIcon && !isPassword && (
               <div className='px-3 pointer-events-none'>
-                <span className='text-neutral-400'>{rightIcon}</span>
+                <span className='text-neutral-400 dark:text-gray-500'>{rightIcon}</span>
               </div>
             )}
           </div>
@@ -117,7 +117,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
 
         {/* Helper text or error */}
         {(error || helperText) && (
-          <p className={cn('mt-1 text-xs', error ? 'text-red-600' : 'text-neutral-500')}>
+          <p className={cn('mt-1 text-xs', error ? 'text-red-600 dark:text-red-400' : 'text-neutral-500 dark:text-gray-400')}>
             {error || helperText}
           </p>
         )}

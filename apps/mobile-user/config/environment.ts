@@ -71,10 +71,11 @@ const getEnvironmentConfig = (): EnvironmentConfig => {
       process.env.EXPO_PUBLIC_PROVINCES_API_KEY,
       extraConfig.PROVINCES_API_KEY
     ),
-    PROVINCES_API_URL: pickFirstNonEmpty(
-      process.env.EXPO_PUBLIC_PROVINCES_API_URL,
-      extraConfig.PROVINCES_API_URL
-    ) || 'http://tinhthanhpho.com/api/v1', // Default to public API
+    PROVINCES_API_URL:
+      pickFirstNonEmpty(
+        process.env.EXPO_PUBLIC_PROVINCES_API_URL,
+        extraConfig.PROVINCES_API_URL
+      ) || 'http://tinhthanhpho.com/api/v1', // Default to public API (can be overridden)
     DEBUG: __DEV__,
   };
 };

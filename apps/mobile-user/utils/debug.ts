@@ -1,4 +1,5 @@
 import { environment } from '@/config/environment';
+import { Platform } from 'react-native';
 
 /**
  * Debug utility for API connection testing
@@ -6,8 +7,15 @@ import { environment } from '@/config/environment';
 export const debugApi = {
   /**
    * Test API connection
+   * Note: Skips on web platform due to CORS restrictions
    */
   async testConnection(): Promise<boolean> {
+    // Skip connection test on web platform to avoid CORS issues
+    if (Platform.OS === 'web') {
+      console.log('🌐 Skipping API connection test on web platform (CORS restrictions)');
+      return true; // Return true to not block the app
+    }
+
     try {
       console.log('🔍 Testing API connection...');
       console.log('📍 API URL:', environment.API_URL);
@@ -42,6 +50,13 @@ export const debugApi = {
         return false;
       }
     } catch (error: any) {
+      // Handle CORS errors gracefully
+      if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
+        console.log('⚠️ CORS error detected - this is expected on web platform');
+        console.log('💡 To test API on web, configure CORS on your backend server');
+        return true; // Return true to not block the app
+      }
+
       console.log('❌ API connection error:', error.message);
       console.log('🔧 Troubleshooting tips:');
       console.log('1. Make sure your backend services are running');
@@ -158,5 +173,3 @@ export const debugApi = {
   },
 };
 
-// Import Platform for network info
-import { Platform } from 'react-native';

@@ -14,10 +14,38 @@ const autoStatusUpdateService = require('./services/auto-status-update.service.j
 const app = express();
 const server = http.createServer(app);
 
-// Initialize Socket.IO with CORS
+// CORS configuration for Socket.IO and Express
+// In production, ALLOWED_ORIGINS must be set
+// In development, use safe defaults with warning
+let socketIOOrigins = [];
+if (process.env.ALLOWED_ORIGINS) {
+  socketIOOrigins = process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
+} else if (process.env.NODE_ENV === 'production') {
+  throw new Error(
+    'ALLOWED_ORIGINS environment variable is required in production. ' +
+      'Please set it in your .env file (comma-separated list of allowed origins).'
+  );
+} else {
+  // Development fallback with warning
+  console.warn(
+    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+  );
+  socketIOOrigins = [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'http://localhost:8080',
+    'http://localhost:8081',
+    'http://127.0.0.1:5173',
+    'http://127.0.0.1:3000',
+    'http://127.0.0.1:8080',
+    'http://127.0.0.1:8081',
+  ];
+}
+
+// Initialize Socket.IO with CORS from environment
 const io = new Server(server, {
   cors: {
-    origin: ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8080', 'http://127.0.0.1:8081'],
+    origin: socketIOOrigins,
     methods: ['GET', 'POST'],
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization'],
@@ -41,7 +69,9 @@ io.on('connection', socket => {
     socket.join(roomName);
     const room = io.sockets.adapter.rooms.get(roomName);
     const socketCount = room ? room.size : 0;
-    console.log(`📡 Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`);
+    console.log(
+      `📡 Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`
+    );
   });
 
   // Unsubscribe from user notifications
@@ -78,28 +108,31 @@ app.set('trust proxy', true);
 // Middleware
 app.use(express.json());
 
-// CORS configuration
-const allowedOrigins = process.env.ALLOWED_ORIGINS
-  ? process.env.ALLOWED_ORIGINS.split(',').map(origin => origin.trim())
-  : process.env.NODE_ENV === 'production'
-    ? []
-    : ['http://localhost:5173', 'http://localhost:3000', 'http://localhost:8080', 'http://localhost:8081', 'http://127.0.0.1:5173', 'http://127.0.0.1:3000', 'http://127.0.0.1:8081'];
+// CORS configuration for Express (reuse from Socket.IO setup above)
+const allowedOrigins = socketIOOrigins;
 
 app.use(
   cors({
     origin: (origin, callback) => {
-      // Allow requests with no origin (mobile apps, Postman, etc.)
+      // Allow requests with no origin (mobile apps, Postman, inter-service calls, etc.)
       if (!origin) return callback(null, true);
-      
+
+      // In development, allow all origins for easier debugging and inter-service communication
+      if (process.env.NODE_ENV !== 'production') {
+        // Log the origin for debugging if DEBUG_CORS is set
+        if (process.env.DEBUG_CORS) {
+          console.log('CORS: Allowing origin in development:', origin);
+        }
+        return callback(null, true);
+      }
+
+      // In production, check against allowed origins
       if (allowedOrigins.includes(origin)) {
         // Return the specific origin (not true) to avoid duplication
         callback(null, origin);
       } else {
-        // In development, log the origin for debugging
-        if (process.env.NODE_ENV !== 'production') {
-          console.log('CORS: Origin not allowed:', origin);
-          console.log('CORS: Allowed origins:', allowedOrigins);
-        }
+        console.log('CORS: Origin not allowed:', origin);
+        console.log('CORS: Allowed origins:', allowedOrigins);
         callback(new Error('Not allowed by CORS'));
       }
     },
@@ -124,7 +157,10 @@ app.use(morgan('dev'));
 app.use('/', routes);
 
 // Error handling middleware (must be after routes)
-const { errorHandler, notFoundHandler } = require('../../../packages/shared-middleware/src/error.middleware.js');
+const {
+  errorHandler,
+  notFoundHandler,
+} = require('../../../packages/shared-middleware/src/error.middleware.js');
 app.use(notFoundHandler);
 app.use(errorHandler);
 
@@ -146,7 +182,7 @@ async function startServer() {
     console.log(`WebSocket server initialized`);
     console.log(`Auto-update cron job started (every 1 minute)`);
     console.log(`Auto check-out service started (every 1 minute)`);
-    
+
     // Start certification expiry warning cron job
     // Can be configured via environment variables
     const expiryWarningHour = parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_HOUR || '9');
@@ -157,7 +193,7 @@ async function startServer() {
     const expiryWarningIntervalSeconds = process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS
       ? parseInt(process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS)
       : null; // Production mode: null = daily schedule at specified hour
-    
+
     // If interval is set, use test mode (run at interval), otherwise use daily schedule
     cronService.startCertificationExpiryWarningCron(
       expiryWarningHour,
@@ -165,6 +201,10 @@ async function startServer() {
       expiryWarningDays,
       expiryWarningIntervalSeconds
     );
+
+    // Start cache warming job (runs every hour)
+    const cacheWarmingJob = require('./jobs/cache-warming.job');
+    cacheWarmingJob.startScheduled();
   });
 }
 

@@ -166,8 +166,15 @@ export default function BookingModal({
     onClose();
   };
 
-  const isFullyBooked = schedule.current_bookings >= schedule.max_capacity;
-  const spotsAvailable = schedule.max_capacity - schedule.current_bookings;
+  const isFullyBooked =
+    schedule.current_bookings !== undefined &&
+    schedule.max_capacity !== undefined &&
+    schedule.current_bookings >= schedule.max_capacity;
+  const spotsAvailable =
+    schedule.max_capacity !== undefined &&
+    schedule.current_bookings !== undefined
+      ? schedule.max_capacity - schedule.current_bookings
+      : undefined;
 
   return (
     <Modal
@@ -239,32 +246,43 @@ export default function BookingModal({
               resizeMode="cover"
             />
             <View style={themedStyles.classDetails}>
-              <Text
-                style={[themedStyles.className, { color: theme.colors.text }]}
-              >
-                {schedule.gym_class?.name}
-              </Text>
-              <Text
-                style={[
-                  themedStyles.classCategory,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {getCategoryTranslation(schedule.gym_class?.category || '')}
-              </Text>
-              <Text
-                style={[
-                  themedStyles.classDuration,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {formatDuration(
-                  calculateScheduleDuration(
-                    schedule.start_time,
-                    schedule.end_time
-                  )
-                )}
-              </Text>
+              {schedule.gym_class?.name ? (
+                <Text
+                  style={[themedStyles.className, { color: theme.colors.text }]}
+                >
+                  {schedule.gym_class.name}
+                </Text>
+              ) : null}
+              {getCategoryTranslation(schedule.gym_class?.category || '') ? (
+                <Text
+                  style={[
+                    themedStyles.classCategory,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {getCategoryTranslation(schedule.gym_class?.category || '')}
+                </Text>
+              ) : null}
+              {formatDuration(
+                calculateScheduleDuration(
+                  schedule.start_time,
+                  schedule.end_time
+                )
+              ) ? (
+                <Text
+                  style={[
+                    themedStyles.classDuration,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {formatDuration(
+                    calculateScheduleDuration(
+                      schedule.start_time,
+                      schedule.end_time
+                    )
+                  )}
+                </Text>
+              ) : null}
               {(schedule.price_override || schedule.gym_class?.price) && (
                 <Text
                   style={[
@@ -274,7 +292,7 @@ export default function BookingModal({
                 >
                   {formatPrice(
                     schedule.price_override || schedule.gym_class?.price
-                  )}
+                  ) || '0 ₫'}
                 </Text>
               )}
             </View>
@@ -306,11 +324,16 @@ export default function BookingModal({
               >
                 <Calendar size={18} color={theme.colors.primary} />
               </View>
-              <Text
-                style={[themedStyles.detailText, { color: theme.colors.text }]}
-              >
-                {formatDate(schedule.start_time)}
-              </Text>
+              {formatDate(schedule.start_time) ? (
+                <Text
+                  style={[
+                    themedStyles.detailText,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {formatDate(schedule.start_time)}
+                </Text>
+              ) : null}
             </View>
 
             <View style={themedStyles.detailRow}>
@@ -322,12 +345,18 @@ export default function BookingModal({
               >
                 <Clock size={18} color={theme.colors.primary} />
               </View>
-              <Text
-                style={[themedStyles.detailText, { color: theme.colors.text }]}
-              >
-                {formatTime(schedule.start_time)} -{' '}
-                {formatTime(schedule.end_time)}
-              </Text>
+              {formatTime(schedule.start_time) &&
+              formatTime(schedule.end_time) ? (
+                <Text
+                  style={[
+                    themedStyles.detailText,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {formatTime(schedule.start_time)} -{' '}
+                  {formatTime(schedule.end_time)}
+                </Text>
+              ) : null}
             </View>
 
             <View style={themedStyles.detailRow}>
@@ -340,15 +369,18 @@ export default function BookingModal({
                 <MapPin size={18} color={theme.colors.primary} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    themedStyles.detailText,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {schedule.room?.name}
-                </Text>
-                {schedule.room?.area_sqm && (
+                {schedule.room?.name ? (
+                  <Text
+                    style={[
+                      themedStyles.detailText,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    {schedule.room.name}
+                  </Text>
+                ) : null}
+                {schedule.room?.area_sqm !== undefined &&
+                schedule.room?.area_sqm !== null ? (
                   <Text
                     style={[
                       themedStyles.detailSubtext,
@@ -357,7 +389,7 @@ export default function BookingModal({
                   >
                     {schedule.room.area_sqm} m²
                   </Text>
-                )}
+                ) : null}
               </View>
             </View>
 
@@ -380,40 +412,47 @@ export default function BookingModal({
                 />
               </View>
               <View style={{ flex: 1 }}>
-                <Text
-                  style={[
-                    themedStyles.detailText,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {schedule.current_bookings}/{schedule.max_capacity}{' '}
-                  {t('classes.booked')}
-                </Text>
-                {!isFullyBooked && spotsAvailable > 0 && (
+                {schedule.current_bookings !== undefined &&
+                schedule.max_capacity !== undefined ? (
                   <Text
                     style={[
-                      themedStyles.detailSubtext,
-                      {
-                        color:
-                          spotsAvailable <= 5
-                            ? theme.colors.error
-                            : theme.colors.textSecondary,
-                      },
+                      themedStyles.detailText,
+                      { color: theme.colors.text },
                     ]}
                   >
-                    {spotsAvailable} {t('classes.spotsAvailable')}
+                    {schedule.current_bookings}/{schedule.max_capacity}{' '}
+                    {t('classes.booked')}
                   </Text>
-                )}
-                {isFullyBooked && schedule.waitlist_count > 0 && (
-                  <Text
-                    style={[
-                      themedStyles.detailSubtext,
-                      { color: theme.colors.warning },
-                    ]}
-                  >
-                    {schedule.waitlist_count} {t('classes.onWaitlist')}
-                  </Text>
-                )}
+                ) : null}
+                {!isFullyBooked &&
+                  spotsAvailable !== undefined &&
+                  spotsAvailable > 0 && (
+                    <Text
+                      style={[
+                        themedStyles.detailSubtext,
+                        {
+                          color:
+                            spotsAvailable <= 5
+                              ? theme.colors.error
+                              : theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {spotsAvailable} {t('classes.spotsAvailable')}
+                    </Text>
+                  )}
+                {isFullyBooked &&
+                  schedule.waitlist_count !== undefined &&
+                  schedule.waitlist_count > 0 && (
+                    <Text
+                      style={[
+                        themedStyles.detailSubtext,
+                        { color: theme.colors.warning },
+                      ]}
+                    >
+                      {schedule.waitlist_count} {t('classes.onWaitlist')}
+                    </Text>
+                  )}
               </View>
             </View>
           </View>
@@ -440,15 +479,18 @@ export default function BookingModal({
               </Text>
               <View style={themedStyles.trainerDetails}>
                 <View style={themedStyles.trainerContent}>
-                  <Text
-                    style={[
-                      themedStyles.trainerName,
-                      { color: theme.colors.text },
-                    ]}
-                  >
-                    {schedule.trainer.full_name}
-                  </Text>
-                  {schedule.trainer.rating_average && (
+                  {schedule.trainer.full_name ? (
+                    <Text
+                      style={[
+                        themedStyles.trainerName,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {schedule.trainer.full_name}
+                    </Text>
+                  ) : null}
+                  {schedule.trainer.rating_average !== undefined &&
+                  schedule.trainer.rating_average !== null ? (
                     <View style={themedStyles.ratingContainer}>
                       <Star
                         size={16}
@@ -463,18 +505,21 @@ export default function BookingModal({
                       >
                         {schedule.trainer.rating_average.toFixed(1)}
                       </Text>
-                      <Text
-                        style={[
-                          themedStyles.ratingText,
-                          { color: theme.colors.textSecondary },
-                        ]}
-                      >
-                        ({schedule.trainer.total_classes} {t('classes.classes')}
-                        )
-                      </Text>
+                      {schedule.trainer.total_classes !== undefined &&
+                      schedule.trainer.total_classes !== null ? (
+                        <Text
+                          style={[
+                            themedStyles.ratingText,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          ({schedule.trainer.total_classes}{' '}
+                          {t('classes.classes')})
+                        </Text>
+                      ) : null}
                     </View>
-                  )}
-                  {schedule.trainer.bio && (
+                  ) : null}
+                  {schedule.trainer.bio ? (
                     <Text
                       style={[
                         themedStyles.trainerBio,
@@ -483,7 +528,7 @@ export default function BookingModal({
                     >
                       {schedule.trainer.bio}
                     </Text>
-                  )}
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -568,7 +613,7 @@ export default function BookingModal({
               ]}
             >
               {t('classes.bookingTerms')}
-              {isFullyBooked && ` ${t('classes.waitlistNotice')}`}
+              {isFullyBooked ? ` ${t('classes.waitlistNotice')}` : ''}
             </Text>
           </View>
         </ScrollView>

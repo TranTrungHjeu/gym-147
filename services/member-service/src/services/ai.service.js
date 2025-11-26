@@ -12,7 +12,9 @@ class AIService {
       throw new Error('AI_API_KEY environment variable is required');
     }
     if (!process.env.AI_MODEL_URL) {
-      throw new Error('AI_MODEL_URL environment variable is required. Please set it in your .env file.');
+      throw new Error(
+        'AI_MODEL_URL environment variable is required. Please set it in your .env file.'
+      );
     }
     this.apiUrl = process.env.AI_MODEL_URL;
     this.modelName = process.env.AI_MODEL_NAME || 'tngtech/deepseek-r1t2-chimera:free';
@@ -36,6 +38,7 @@ class AIService {
     member,
     recentEquipment,
     preferences,
+    custom_prompt,
   }) {
     try {
       // Calculate BMI and fitness level
@@ -65,6 +68,7 @@ class AIService {
         medical_conditions: member.medical_conditions || [],
         equipmentCategories,
         preferences,
+        custom_prompt,
       });
 
       console.log('Calling AI to generate workout plan...');
@@ -172,6 +176,7 @@ ${prompt}`;
     medical_conditions,
     equipmentCategories,
     preferences,
+    custom_prompt,
   }) {
     const goalDescriptions = {
       WEIGHT_LOSS: 'giảm cân và đốt mỡ',
@@ -214,12 +219,20 @@ ${
     : '- Chưa có dữ liệu thiết bị'
 }
 
-**YÊU CẦU:**
+${
+  custom_prompt
+    ? `**YÊU CẦU ĐẶC BIỆT TỪ NGƯỜI DÙNG:**
+${custom_prompt}
+
+`
+    : ''
+}**YÊU CẦU:**
 1. Tạo danh sách 10-12 bài tập phù hợp
 2. Mỗi bài tập phải có: tên (tiếng Việt), số sets, số reps (có thể là số hoặc thời gian như "60s", "20 phút"), thời gian nghỉ
 3. Bài tập phải an toàn, phù hợp với BMI và tình trạng sức khỏe
 4. Cân bằng giữa cardio và strength training
 5. Tăng dần cường độ phù hợp với trình độ
+${custom_prompt ? '6. Ưu tiên và tích hợp các yêu cầu đặc biệt từ người dùng ở trên' : ''}
 
 **FORMAT RESPONSE (BẮT BUỘC PHẢI LÀ JSON):**
 Trả về ĐÚNG format JSON sau (không thêm markdown, không thêm text khác):
@@ -485,11 +498,15 @@ ${analysis.health.bodyFatTrend ? `- Xu hướng mỡ cơ thể: ${analysis.healt
         cleanedResponse = cleanedResponse.replace(/```\n?/g, '');
       }
 
+      // Use the same cleaning logic
+      cleanedResponse = this.cleanJSONString(cleanedResponse);
+
       const parsed = JSON.parse(cleanedResponse);
       return parsed;
     } catch (error) {
       console.error('AI recommendations response parsing error:', error);
-      console.error('Raw response:', aiResponse);
+      console.error('Raw response (first 500 chars):', aiResponse.substring(0, 500));
+      console.error('Error position:', error.message.match(/position (\d+)/)?.[1] || 'unknown');
       throw new Error('AI response parsing failed: ' + error.message);
     }
   }
@@ -760,17 +777,20 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
       // Remove markdown code blocks if present
       jsonStr = jsonStr.replace(/```json\n?/g, '').replace(/```\n?/g, '');
 
-      // Find JSON object
+      // Find JSON object (match from first { to last })
       const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         jsonStr = jsonMatch[0];
       }
 
+      // Clean common JSON issues
+      jsonStr = this.cleanJSONString(jsonStr);
+
       const parsed = JSON.parse(jsonStr);
 
       // Validate structure
       if (!parsed.exercises || !Array.isArray(parsed.exercises)) {
-        throw new Error('Invalid workout plan structure');
+        throw new Error('Invalid workout plan structure: missing exercises array');
       }
 
       // Ensure all exercises have required fields
@@ -786,7 +806,93 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
       return parsed;
     } catch (error) {
       console.error('Failed to parse AI response:', error);
+      console.error('Raw response (first 500 chars):', aiResponse.substring(0, 500));
+      console.error('Error position:', error.message.match(/position (\d+)/)?.[1] || 'unknown');
       throw new Error('AI response parsing failed: ' + error.message);
+    }
+  }
+
+  /**
+   * Clean JSON string to fix common issues
+   */
+  cleanJSONString(jsonStr) {
+    try {
+      // First, try to parse as-is
+      JSON.parse(jsonStr);
+      return jsonStr;
+    } catch (error) {
+      // If parsing fails, try to fix common issues
+      let cleaned = jsonStr;
+
+      // Fix trailing commas in arrays: [1, 2, 3, ] -> [1, 2, 3]
+      cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+
+      // Fix trailing commas in objects: { "a": 1, } -> { "a": 1 }
+      cleaned = cleaned.replace(/,(\s*[}])/g, '$1');
+
+      // Fix missing commas between array elements (but be careful with nested structures)
+      // Only fix if there's a closing brace/brace followed by opening brace/bracket on same or next line
+      cleaned = cleaned.replace(/}\s*\n\s*{/g, '},\n{');
+      cleaned = cleaned.replace(/]\s*\n\s*\[/g, '],\n[');
+
+      // Remove comments (single line and multi-line)
+      cleaned = cleaned.replace(/\/\/.*$/gm, '');
+      cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
+
+      // Try parsing again
+      try {
+        JSON.parse(cleaned);
+        return cleaned;
+      } catch (e) {
+        // If still fails, try to extract and fix the exercises array specifically
+        // Use a more robust approach to find the exercises array (handles nested objects)
+        const exercisesMatch = cleaned.match(/"exercises"\s*:\s*\[/);
+        if (exercisesMatch) {
+          const startIndex = exercisesMatch.index + exercisesMatch[0].length;
+          let bracketCount = 1;
+          let endIndex = startIndex;
+
+          // Find the matching closing bracket for exercises array
+          for (let i = startIndex; i < cleaned.length && bracketCount > 0; i++) {
+            if (cleaned[i] === '[') bracketCount++;
+            if (cleaned[i] === ']') bracketCount--;
+            if (bracketCount === 0) {
+              endIndex = i;
+              break;
+            }
+          }
+
+          if (endIndex > startIndex) {
+            // Extract and fix exercises array content
+            let exercisesStr = cleaned.substring(startIndex, endIndex);
+
+            // Remove trailing commas in exercises array
+            exercisesStr = exercisesStr.replace(/,(\s*[}\]])/g, '$1');
+
+            // Fix missing commas between exercise objects
+            exercisesStr = exercisesStr.replace(/}\s*\n\s*{/g, '},\n{');
+
+            // Reconstruct JSON with fixed exercises
+            const beforeExercises = cleaned.substring(0, startIndex);
+            const afterExercises = cleaned.substring(endIndex);
+            cleaned = beforeExercises + exercisesStr + afterExercises;
+
+            // Final cleanup
+            cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
+          }
+        }
+
+        // Last attempt to parse
+        try {
+          JSON.parse(cleaned);
+          return cleaned;
+        } catch (finalError) {
+          // If all fixes fail, throw original error with context
+          throw new Error(
+            `JSON parsing failed after cleanup attempts. Original error: ${error.message}. Position: ${error.message.match(/position (\d+)/)?.[1] || 'unknown'}`
+          );
+        }
+      }
     }
   }
 

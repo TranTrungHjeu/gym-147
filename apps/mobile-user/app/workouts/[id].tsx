@@ -530,6 +530,7 @@ export default function WorkoutDetailScreen() {
                   <YouTubeVideoPlayer
                     exerciseName={exercise.name}
                     video={exerciseVideos[exercise.name]}
+                    loading={loadingVideos && !exerciseVideos[exercise.name]}
                     onLoadVideo={() => handleLoadVideo(exercise.name)}
                   />
                 </View>

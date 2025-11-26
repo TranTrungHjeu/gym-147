@@ -3,7 +3,9 @@ const axios = require('axios');
 class MemberService {
   constructor() {
     if (!process.env.MEMBER_SERVICE_URL) {
-      throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+      throw new Error(
+        'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+      );
     }
     this.baseURL = process.env.MEMBER_SERVICE_URL;
     console.log('🔧 MemberService initialized with baseURL:', this.baseURL);
@@ -90,7 +92,128 @@ class MemberService {
       };
     }
   }
+
+  // Notification methods
+  // Note: Notifications are stored in schedule service, not member service
+  // This method calls schedule service to get notifications by user_id
+  async getNotifications(userId, query = {}) {
+    try {
+      const { page = 1, limit = 20, unreadOnly = false } = query;
+      // Notifications are stored in schedule service with user_id
+      // Call schedule service instead of member service
+      const scheduleService = require('./schedule.service');
+      const params = { page, limit };
+      if (unreadOnly) {
+        params.unreadOnly = 'true';
+      }
+      const response = await axios.get(`${scheduleService.baseURL}/notifications/${userId}`, {
+        params,
+        timeout: 5000,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Get notifications error:', error.message);
+      throw error;
+    }
+  }
+
+  async markNotificationRead(userId, notificationId) {
+    try {
+      // Notifications are stored in schedule service with user_id
+      // Call schedule service instead of member service
+      const scheduleService = require('./schedule.service');
+      const response = await axios.put(
+        `${scheduleService.baseURL}/notifications/${notificationId}/read`,
+        {},
+        {
+          timeout: 5000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Mark notification read error:', error.message);
+      throw error;
+    }
+  }
+
+  async markAllNotificationsRead(userId) {
+    try {
+      // Notifications are stored in schedule service with user_id
+      // Call schedule service instead of member service
+      const scheduleService = require('./schedule.service');
+      const response = await axios.put(
+        `${scheduleService.baseURL}/notifications/read-all/${userId}`,
+        {},
+        {
+          timeout: 5000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Mark all notifications read error:', error.message);
+      throw error;
+    }
+  }
+
+  async deleteNotification(userId, notificationId) {
+    try {
+      // Notifications are stored in schedule service with user_id
+      // Call schedule service instead of member service
+      const scheduleService = require('./schedule.service');
+      const response = await axios.delete(`${scheduleService.baseURL}/notifications/${notificationId}`, {
+        timeout: 5000,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Delete notification error:', error.message);
+      throw error;
+    }
+  }
+
+  async getNotificationPreferences(userId) {
+    try {
+      const response = await axios.get(`${this.baseURL}/members/user/${userId}/preferences`, {
+        timeout: 5000,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Get notification preferences error:', error.message);
+      throw error;
+    }
+  }
+
+  async updateNotificationPreferences(userId, preferences) {
+    try {
+      const response = await axios.put(
+        `${this.baseURL}/members/user/${userId}/preferences`,
+        {
+          preferences,
+        },
+        {
+          timeout: 5000,
+        }
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Update notification preferences error:', error.message);
+      throw error;
+    }
+  }
+
+  async getUnreadNotificationCount(userId) {
+    try {
+      // Notifications are stored in schedule service with user_id
+      // Call schedule service instead of member service
+      const scheduleService = require('./schedule.service');
+      const response = await axios.get(`${scheduleService.baseURL}/notifications/unread-count/${userId}`, {
+        timeout: 5000,
+      });
+      return response.data;
+    } catch (error) {
+      console.error('Get unread notification count error:', error.message);
+      throw error;
+    }
+  }
 }
 
 module.exports = new MemberService();
-

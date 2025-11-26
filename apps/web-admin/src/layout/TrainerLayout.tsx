@@ -1,10 +1,13 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { SidebarProvider, useSidebar } from '../context/SidebarContext';
 import { socketService } from '../services/socket.service';
+import { eventManager } from '../services/event-manager.service';
 import AppHeader from './AppHeader';
 import Backdrop from './Backdrop';
 import TrainerSidebar from './TrainerSidebar';
+import AccountDeletedModal from '../components/auth/AccountDeletedModal';
+import { authService } from '../services/auth.service';
 
 interface LayoutContentProps {
   children: React.ReactNode;
@@ -37,6 +40,37 @@ interface TrainerLayoutProps {
 
 const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
+  const [showDeletedModal, setShowDeletedModal] = useState(false);
+
+  // Listen for user:deleted event
+  useEffect(() => {
+    const handleUserDeleted = (data: any) => {
+      console.log('🚨 User account deleted event received in TrainerLayout:', data);
+      setShowDeletedModal(true);
+    };
+
+    const subscriptionId = eventManager.subscribe('user:deleted', handleUserDeleted);
+    return () => {
+      eventManager.unsubscribe(subscriptionId);
+    };
+  }, []);
+
+  const handleLogout = async () => {
+    try {
+      await authService.logout();
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear all auth data
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('user');
+      localStorage.removeItem('userData');
+      localStorage.removeItem('isLoggedIn');
+      setShowDeletedModal(false);
+      navigate('/auth');
+    }
+  };
 
   useEffect(() => {
     // Check if user is logged in
@@ -55,17 +89,14 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
         const userId = userData.id || userData.userId;
 
         if (userId) {
-          // Connect socket and subscribe to user notifications
-          const socket = socketService.connect(userId);
+          // Connect sockets (schedule + member + identity services)
+          const { schedule: scheduleSocket, member: memberSocket, identity: identitySocket } = socketService.connect(userId);
 
           // Setup booking notification listeners with optimistic updates
-          socket.on('booking:new', (data: any) => {
+          scheduleSocket.on('booking:new', (data: any) => {
             console.log('📢 booking:new event received in TrainerLayout:', data);
-            // Dispatch events for optimistic updates (no page reload)
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('booking:new', { detail: data }));
-              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
-            }
+            eventManager.dispatch('booking:new', data);
+            eventManager.dispatch('booking:updated', data);
             // Show subtle toast notification
             if (window.showToast && data.member_name && data.class_name) {
               window.showToast({
@@ -76,17 +107,16 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
-          socket.on('booking:pending_payment', (data: any) => {
+          scheduleSocket.on('booking:pending_payment', (data: any) => {
             // Just refresh notifications, no toast
+            eventManager.dispatch('booking:updated', data);
           });
 
-          socket.on('booking:confirmed', (data: any) => {
+          scheduleSocket.on('booking:confirmed', (data: any) => {
             console.log('📢 booking:confirmed event received in TrainerLayout:', data);
-            // Dispatch events for optimistic updates (no page reload)
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('booking:confirmed', { detail: data }));
-              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
-            }
+            eventManager.dispatch('booking:confirmed', data);
+            eventManager.dispatch('booking:updated', data);
+            eventManager.dispatch('booking:status_changed', data);
             // Show success toast notification
             if (window.showToast && data.member_name && data.class_name) {
               window.showToast({
@@ -97,13 +127,11 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
-          socket.on('booking:cancelled', (data: any) => {
+          scheduleSocket.on('booking:cancelled', (data: any) => {
             console.log('📢 booking:cancelled event received in TrainerLayout:', data);
-            // Dispatch events for optimistic updates (no page reload)
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('booking:cancelled', { detail: data }));
-              window.dispatchEvent(new CustomEvent('booking:updated', { detail: data }));
-            }
+            eventManager.dispatch('booking:cancelled', data);
+            eventManager.dispatch('booking:updated', data);
+            eventManager.dispatch('booking:status_changed', data);
             // Show info toast notification
             if (window.showToast && data.member_name && data.class_name) {
               window.showToast({
@@ -114,12 +142,9 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
-          socket.on('member:checked_in', (data: any) => {
+          scheduleSocket.on('member:checked_in', (data: any) => {
             console.log('📢 member:checked_in event received in TrainerLayout:', data);
-            // Dispatch events for optimistic updates (no page reload)
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('member:checked_in', { detail: data }));
-            }
+            eventManager.dispatch('member:checked_in', data);
             // Show success toast notification
             if (window.showToast && data.data?.member_name && data.data?.class_name) {
               window.showToast({
@@ -131,133 +156,74 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           // Setup certification status notification listener for trainer
-          // Listen for certification:pending (when trainer uploads certification, status is PENDING)
-          socket.on('certification:pending', (data: any) => {
+          scheduleSocket.on('certification:pending', (data: any) => {
             console.log('📢 certification:pending event received in TrainerLayout:', data);
-            // Dispatch certification:updated for page refreshes
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
-            }
-            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
-            if (data?.notification_id && window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            eventManager.dispatch('certification:pending', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data?.notification_id) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          // Listen for certification:upload (when trainer uploads certification)
-          socket.on('certification:upload', (data: any) => {
+          scheduleSocket.on('certification:upload', (data: any) => {
             console.log('📢 certification:upload event received in TrainerLayout:', data);
-            // Dispatch certification:updated for page refreshes
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
-            }
-            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
-            if (data?.notification_id && window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            eventManager.dispatch('certification:upload', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data?.notification_id) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          // Listen for notification:new (general notification event)
-          // This is the PRIMARY event - backend emits this for all notifications
-          socket.on('notification:new', (data: any) => {
-            console.log(
-              '📢 notification:new event received in TrainerLayout:',
-              JSON.stringify(data, null, 2)
-            );
-            // Dispatch notification:new custom event for NotificationDropdown to handle
-            if (window.dispatchEvent && data) {
-              console.log(
-                '📢 [TrainerLayout] Dispatching notification:new custom event (from socket notification:new event)'
-              );
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
-            }
-            // Also dispatch certification:updated for backward compatibility (if it's a certification notification)
-            if (
-              window.dispatchEvent &&
-              data &&
-              (data.type?.includes('CERTIFICATION') || data.data?.certification_id)
-            ) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
+          scheduleSocket.on('certification:created', (data: any) => {
+            console.log('📢 certification:created event received in TrainerLayout:', data);
+            eventManager.dispatch('certification:created', data);
+            eventManager.dispatch('certification:upload', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data?.notification_id) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          socket.on('certification:status', (data: any) => {
+          scheduleSocket.on('notification:new', (data: any) => {
+            console.log('📢 notification:new event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            eventManager.dispatch('notification:new', data);
+            if (data && (data.type?.includes('CERTIFICATION') || data.data?.certification_id)) {
+              eventManager.dispatch('certification:updated', data);
+            }
+          });
+
+          scheduleSocket.on('certification:status', (data: any) => {
             console.log('📢 certification:status event received in TrainerLayout:', data);
-            // Dispatch certification:updated for page refreshes
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
-            }
-            // If data contains notification_id, also dispatch notification:new for NotificationDropdown
-            if (data?.notification_id && window.dispatchEvent) {
-              console.log(
-                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:status'
-              );
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+            eventManager.dispatch('certification:status', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data?.notification_id) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          socket.on('certification:verified', (data: any) => {
-            console.log(
-              '📢 certification:verified event received in TrainerLayout:',
-              JSON.stringify(data, null, 2)
-            );
-            // Dispatch certification:updated for page refreshes
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
-            }
-            // ALWAYS dispatch notification:new if data exists (notification_id might be in data.data or data.certification)
-            // Backend emits notification:new event separately, but we also dispatch custom event as fallback
-            if (data && window.dispatchEvent) {
-              console.log(
-                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:verified'
-              );
-              console.log(
-                '📢 [TrainerLayout] Data contains notification_id:',
-                !!data?.notification_id,
-                'notification_id:',
-                data?.notification_id
-              );
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+          scheduleSocket.on('certification:verified', (data: any) => {
+            console.log('📢 certification:verified event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            eventManager.dispatch('certification:verified', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          socket.on('certification:rejected', (data: any) => {
-            console.log(
-              '📢 certification:rejected event received in TrainerLayout:',
-              JSON.stringify(data, null, 2)
-            );
-            // Dispatch certification:updated for page refreshes
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:updated', { detail: data }));
-            }
-            // ALWAYS dispatch notification:new if data exists (notification_id might be in data.data or data.certification)
-            // Backend emits notification:new event separately, but we also dispatch custom event as fallback
-            if (data && window.dispatchEvent) {
-              console.log(
-                '📢 [TrainerLayout] Dispatching notification:new custom event for certification:rejected'
-              );
-              console.log(
-                '📢 [TrainerLayout] Data contains notification_id:',
-                !!data?.notification_id,
-                'notification_id:',
-                data?.notification_id
-              );
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+          scheduleSocket.on('certification:rejected', (data: any) => {
+            console.log('📢 certification:rejected event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            eventManager.dispatch('certification:rejected', data);
+            eventManager.dispatch('certification:updated', data);
+            if (data) {
+              eventManager.dispatch('notification:new', data);
             }
           });
 
-          socket.on('certification:deleted', (data: any) => {
-            console.log(
-              '📢 certification:deleted event received in TrainerLayout:',
-              JSON.stringify(data, null, 2)
-            );
-            // Dispatch certification:deleted for optimistic updates
-            if (window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('certification:deleted', { detail: data }));
-            }
-            // Also dispatch notification:new for NotificationDropdown
-            if (data && window.dispatchEvent) {
-              window.dispatchEvent(new CustomEvent('notification:new', { detail: data }));
+          scheduleSocket.on('certification:deleted', (data: any) => {
+            console.log('📢 certification:deleted event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            eventManager.dispatch('certification:deleted', data);
+            if (data) {
+              eventManager.dispatch('notification:new', data);
             }
             // Show warning toast notification
             if (window.showToast && data.certification_name) {
@@ -269,21 +235,51 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
             }
           });
 
+          // Listen for user:deleted event (account deletion) from identity service
+          if (identitySocket) {
+            identitySocket.on('user:deleted', (data: any) => {
+              console.log('🚨 user:deleted event received in TrainerLayout:', data);
+              // Check if this is the current user
+              if (data.user_id === userId || data.id === userId) {
+                // Show modal and logout
+                eventManager.dispatch('user:deleted', data);
+              }
+            });
+          }
+
+          // Also listen from member service (member service also emits user:deleted when member is deleted)
+          if (memberSocket) {
+            memberSocket.on('user:deleted', (data: any) => {
+              console.log('🚨 user:deleted event received from member service in TrainerLayout:', data);
+              // Check if this is the current user
+              if (data.user_id === userId || data.id === userId) {
+                // Show modal and logout
+                eventManager.dispatch('user:deleted', data);
+              }
+            });
+          }
+
           // Cleanup on unmount - only remove listeners, don't disconnect socket
           // Socket should stay connected as long as user is logged in
           return () => {
-            socket.off('booking:new');
-            socket.off('booking:pending_payment');
-            socket.off('booking:confirmed');
-            socket.off('booking:cancelled');
-            socket.off('member:checked_in');
-            socket.off('certification:pending');
-            socket.off('certification:upload');
-            socket.off('notification:new');
-            socket.off('certification:status');
-            socket.off('certification:verified');
-            socket.off('certification:rejected');
-            socket.off('certification:deleted');
+            scheduleSocket.off('booking:new');
+            scheduleSocket.off('booking:pending_payment');
+            scheduleSocket.off('booking:confirmed');
+            scheduleSocket.off('booking:cancelled');
+            scheduleSocket.off('member:checked_in');
+            scheduleSocket.off('certification:pending');
+            scheduleSocket.off('certification:upload');
+            scheduleSocket.off('notification:new');
+            scheduleSocket.off('certification:status');
+            scheduleSocket.off('certification:verified');
+            scheduleSocket.off('certification:rejected');
+            scheduleSocket.off('certification:deleted');
+            if (identitySocket) {
+              identitySocket.off('user:deleted');
+            }
+            if (memberSocket) {
+              memberSocket.off('user:deleted');
+            }
             // Don't disconnect here - socket is shared across components
           };
         }
@@ -296,6 +292,11 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
   return (
     <SidebarProvider>
       <LayoutContent>{children}</LayoutContent>
+      <AccountDeletedModal
+        isOpen={showDeletedModal}
+        onClose={handleLogout}
+        onLogout={handleLogout}
+      />
     </SidebarProvider>
   );
 };

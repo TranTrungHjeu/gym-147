@@ -135,9 +135,7 @@ export default function MyUsageScreen() {
   const renderUsageItem = ({ item }: { item: EquipmentUsage }) => (
     <TouchableOpacity
       style={[styles.usageItem, { backgroundColor: theme.colors.surface }]}
-      onPress={() => {
-        // TODO: Navigate to usage detail
-      }}
+      onPress={() => router.push(`/equipment/usage/${item.id}`)}
     >
       <View style={styles.usageHeader}>
         <Text style={[styles.equipmentName, { color: theme.colors.text }]}>
@@ -406,9 +404,7 @@ export default function MyUsageScreen() {
                   styles.usageItem,
                   { backgroundColor: theme.colors.surface },
                 ]}
-                onPress={() => {
-                  // TODO: Navigate to usage detail
-                }}
+                onPress={() => router.push(`/equipment/usage/${usage.id}`)}
               >
                 <View style={styles.usageHeader}>
                   <Text

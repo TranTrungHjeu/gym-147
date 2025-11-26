@@ -104,7 +104,24 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
     setIsLoading(true);
     try {
       const userId = getCurrentUserId();
-      await certificationService.verifyCertification(certData.id, userId);
+      const updatedCert = await certificationService.verifyCertification(certData.id, userId);
+      
+      // Optimistic update: Dispatch event immediately for instant UI update
+      const updatedEvent = new CustomEvent('certification:updated', {
+        detail: {
+          id: updatedCert.id,
+          certification_id: updatedCert.id,
+          trainer_id: updatedCert.trainer_id,
+          category: updatedCert.category,
+          verification_status: updatedCert.verification_status,
+          verified_by: updatedCert.verified_by,
+          verified_at: updatedCert.verified_at,
+          updated_at: updatedCert.updated_at,
+        },
+      });
+      window.dispatchEvent(updatedEvent);
+      console.log(`✅ [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (VERIFIED)`);
+      
       showToast('Đã duyệt chứng chỉ thành công', 'success');
       onReviewComplete();
       onClose();
@@ -124,7 +141,25 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
     setIsLoading(true);
     try {
       const userId = getCurrentUserId();
-      await certificationService.rejectCertification(certData.id, userId, rejectionReason.trim());
+      const updatedCert = await certificationService.rejectCertification(certData.id, userId, rejectionReason.trim());
+      
+      // Optimistic update: Dispatch event immediately for instant UI update
+      const updatedEvent = new CustomEvent('certification:updated', {
+        detail: {
+          id: updatedCert.id,
+          certification_id: updatedCert.id,
+          trainer_id: updatedCert.trainer_id,
+          category: updatedCert.category,
+          verification_status: updatedCert.verification_status,
+          rejection_reason: updatedCert.rejection_reason,
+          verified_by: updatedCert.verified_by,
+          verified_at: updatedCert.verified_at,
+          updated_at: updatedCert.updated_at,
+        },
+      });
+      window.dispatchEvent(updatedEvent);
+      console.log(`✅ [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (REJECTED)`);
+      
       showToast('Đã từ chối chứng chỉ', 'success');
       onReviewComplete();
       onClose();

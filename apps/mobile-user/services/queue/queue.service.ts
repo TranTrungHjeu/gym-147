@@ -1,4 +1,4 @@
-import { memberApiService } from '../api';
+import { memberApiService } from '../member/api.service';
 
 // ============================================
 //  TYPES

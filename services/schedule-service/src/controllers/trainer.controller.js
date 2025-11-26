@@ -86,6 +86,72 @@ class TrainerController {
     }
   }
 
+  /**
+   * Get trainers for notification (public endpoint, no auth required)
+   * Supports both GET (with query params) and POST (with trainer_ids in body)
+   * GET /trainers/for-notification?status=ACTIVE&specialization=YOGA
+   * POST /trainers/for-notification { trainer_ids: ["id1", "id2"] }
+   */
+  async getTrainersForNotification(req, res) {
+    try {
+      // Support both GET (query params) and POST (body with trainer_ids)
+      const trainer_ids = req.body?.trainer_ids || req.query?.trainer_ids;
+      const { status, specialization, search } = req.query;
+
+      let where = {};
+
+      // If specific trainer_ids provided (POST or query param)
+      if (trainer_ids) {
+        const idsArray = Array.isArray(trainer_ids) ? trainer_ids : trainer_ids.split(',');
+        where.id = { in: idsArray };
+      } else {
+        // Otherwise use filters
+        if (status) where.status = status;
+        if (specialization) {
+          // Filter by specialization (array contains)
+          where.specializations = { has: specialization };
+        }
+        
+        // Search by name, email, or phone
+        if (search && search.trim()) {
+          const searchTerm = search.trim();
+          where.OR = [
+            { full_name: { contains: searchTerm, mode: 'insensitive' } },
+            { email: { contains: searchTerm, mode: 'insensitive' } },
+            { phone: { contains: searchTerm, mode: 'insensitive' } },
+          ];
+        }
+      }
+
+      const trainers = await prisma.trainer.findMany({
+        where,
+        select: {
+          id: true,
+          user_id: true,
+          full_name: true,
+          email: true,
+          phone: true,
+          status: true,
+          specializations: true,
+        },
+        orderBy: { created_at: 'desc' },
+      });
+
+      res.json({
+        success: true,
+        message: 'Trainers retrieved successfully for notification',
+        data: { trainers },
+      });
+    } catch (error) {
+      console.error('Get trainers for notification error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
   async getTrainerById(req, res) {
     try {
       const { id } = req.params;
@@ -211,6 +277,25 @@ class TrainerController {
 
       console.log('✅ Trainer created successfully:', trainer.id);
 
+      // Emit trainer:created event for real-time updates
+      if (global.io) {
+        const socketPayload = {
+          trainer_id: trainer.id,
+          id: trainer.id,
+          user_id: trainer.user_id,
+          full_name: trainer.full_name,
+          email: trainer.email,
+          phone: trainer.phone,
+          status: trainer.status,
+          specializations: trainer.specializations,
+          created_at: trainer.created_at,
+        };
+        console.log('📡 Emitting trainer:created event:', socketPayload);
+        global.io.emit('trainer:created', socketPayload);
+        // Also emit to admin room
+        global.io.to('admin').emit('trainer:created', socketPayload);
+      }
+
       res.status(201).json({
         success: true,
         message: 'Trainer created successfully',
@@ -298,6 +383,25 @@ class TrainerController {
           status,
         },
       });
+
+      // Emit trainer:updated event for real-time updates
+      if (global.io) {
+        const socketPayload = {
+          trainer_id: trainer.id,
+          id: trainer.id,
+          user_id: trainer.user_id,
+          full_name: trainer.full_name,
+          email: trainer.email,
+          phone: trainer.phone,
+          status: trainer.status,
+          specializations: trainer.specializations,
+          updated_at: trainer.updated_at,
+        };
+        console.log('📡 Emitting trainer:updated event:', socketPayload);
+        global.io.emit('trainer:updated', socketPayload);
+        // Also emit to admin room
+        global.io.to('admin').emit('trainer:updated', socketPayload);
+      }
 
       res.json({
         success: true,
@@ -461,13 +565,77 @@ class TrainerController {
     try {
       const { id } = req.params;
 
+      // Get trainer to get user_id before deletion
+      const trainer = await prisma.trainer.findUnique({
+        where: { id },
+        select: { user_id: true },
+      });
+
+      if (!trainer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trainer not found',
+          data: null,
+        });
+      }
+
+      // Delete trainer from schedule service
       await prisma.trainer.delete({
         where: { id },
       });
 
+      // Delete user from identity service
+      if (trainer.user_id) {
+        try {
+          const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+          const axios = require('axios');
+
+          console.log(`🗑️ Deleting user ${trainer.user_id} from identity service`);
+          const identityUrl = IDENTITY_SERVICE_URL;
+          
+          // Get auth token from request headers if available
+          const authToken = req.headers.authorization;
+          const headers = authToken ? { Authorization: authToken } : {};
+
+          await axios.delete(`${identityUrl}/auth/users/${trainer.user_id}`, {
+            headers,
+            timeout: 10000,
+          });
+
+          console.log(`✅ User ${trainer.user_id} deleted successfully from identity service`);
+        } catch (identityError) {
+          console.error('❌ Error deleting user from identity service:', identityError.message);
+          // Continue even if identity service deletion fails
+          // The trainer is already deleted from schedule service
+          if (identityError.response?.status === 404) {
+            console.log('⚠️ User not found in identity service (may have been already deleted)');
+          }
+        }
+      }
+
+      // Emit socket event for trainer deletion (user:deleted will be emitted by identity service)
+      // But we also emit trainer:deleted for admin notifications
+      if (global.io && trainer.user_id) {
+        const socketPayload = {
+          trainer_id: trainer.id,
+          id: trainer.id,
+          action: 'deleted',
+          data: {
+            id: trainer.id,
+            user_id: trainer.user_id,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to user room (user:deleted will be emitted by identity service)
+        // This is just for admin notifications
+        global.io.emit('trainer:deleted', socketPayload);
+        console.log(`📡 Emitted trainer:deleted event for trainer ${trainer.id}`);
+      }
+
       res.json({
         success: true,
-        message: 'Trainer deleted successfully',
+        message: 'Trainer and associated user deleted successfully',
         data: null,
       });
     } catch (error) {
@@ -496,13 +664,61 @@ class TrainerController {
         });
       }
 
+      // Delete trainer from schedule service
       await prisma.trainer.delete({
         where: { id: trainer.id },
       });
 
+      // Delete user from identity service
+      if (user_id) {
+        try {
+          const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+          const axios = require('axios');
+
+          console.log(`🗑️ Deleting user ${user_id} from identity service`);
+          const identityUrl = IDENTITY_SERVICE_URL;
+          
+          // Get auth token from request headers if available
+          const authToken = req.headers.authorization;
+          const headers = authToken ? { Authorization: authToken } : {};
+
+          await axios.delete(`${identityUrl}/auth/users/${user_id}`, {
+            headers,
+            timeout: 10000,
+          });
+
+          console.log(`✅ User ${user_id} deleted successfully from identity service`);
+        } catch (identityError) {
+          console.error('❌ Error deleting user from identity service:', identityError.message);
+          // Continue even if identity service deletion fails
+          // The trainer is already deleted from schedule service
+          if (identityError.response?.status === 404) {
+            console.log('⚠️ User not found in identity service (may have been already deleted)');
+          }
+        }
+      }
+
+      // Emit socket event for trainer deletion (user:deleted will be emitted by identity service)
+      if (global.io && user_id) {
+        const socketPayload = {
+          trainer_id: trainer.id,
+          id: trainer.id,
+          action: 'deleted',
+          data: {
+            id: trainer.id,
+            user_id: user_id,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to all admins (broadcast)
+        global.io.emit('trainer:deleted', socketPayload);
+        console.log(`📡 Emitted trainer:deleted event for trainer ${trainer.id}`);
+      }
+
       res.json({
         success: true,
-        message: 'Trainer deleted successfully',
+        message: 'Trainer and associated user deleted successfully',
         data: null,
       });
     } catch (error) {
@@ -1236,7 +1452,7 @@ class TrainerController {
 
       // Check rate limit (only check, don't increment yet)
       if (
-        !rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000)
+        !(await rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000))
       ) {
         const rateLimitInfo = rateLimitService.getRateLimitInfo(user_id, 'create_schedule');
         return res.status(429).json({
@@ -1611,7 +1827,7 @@ class TrainerController {
       });
 
       // Increment rate limit counter ONLY after successful creation
-      rateLimitService.incrementRateLimit(user_id, 'create_schedule', 24 * 60 * 60 * 1000);
+      await rateLimitService.incrementRateLimit(user_id, 'create_schedule', 24 * 60 * 60 * 1000);
 
       // Notify admins and super-admins about new schedule
       console.log('🔔 Checking if global.io exists:', !!global.io);
@@ -1650,19 +1866,40 @@ class TrainerController {
             created_at: new Date(),
           }));
 
-          // Save notifications to database
+          // Create notifications in identity service
           if (adminNotifications.length > 0) {
-            console.log(`💾 Saving ${adminNotifications.length} notifications to database...`);
-            await prisma.notification.createMany({
-              data: adminNotifications,
-            });
-            console.log(`✅ Saved ${adminNotifications.length} notifications to database`);
+            console.log(`💾 Creating ${adminNotifications.length} notifications in identity service...`);
+            const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+            const axios = require('axios');
+            
+            const createdNotifications = [];
+            for (const notificationData of adminNotifications) {
+              try {
+                const response = await axios.post(
+                  `${IDENTITY_SERVICE_URL}/notifications`,
+                  {
+                    user_id: notificationData.user_id,
+                    type: notificationData.type,
+                    title: notificationData.title,
+                    message: notificationData.message,
+                    data: notificationData.data,
+                  },
+                  { timeout: 5000 }
+                );
+                if (response.data.success) {
+                  createdNotifications.push(response.data.data.notification);
+                }
+              } catch (error) {
+                console.error(`❌ Failed to create notification for user ${notificationData.user_id}:`, error.message);
+              }
+            }
+            console.log(`✅ Created ${createdNotifications.length} notifications in identity service`);
 
             // Emit socket events to all admins
             console.log(
-              `📡 Starting to emit socket events to ${adminNotifications.length} admin(s)...`
+              `📡 Starting to emit socket events to ${createdNotifications.length} admin(s)...`
             );
-            adminNotifications.forEach(notification => {
+            createdNotifications.forEach(notification => {
               const roomName = `user:${notification.user_id}`;
               const socketData = {
                 schedule_id: schedule.id,
@@ -1697,6 +1934,38 @@ class TrainerController {
             );
           } else {
             console.warn('⚠️ No admin notifications to send (adminNotifications.length = 0)');
+          }
+
+          // Also emit schedule:created event to trainer for optimistic UI update
+          if (schedule.trainer?.user_id) {
+            const trainerRoomName = `user:${schedule.trainer.user_id}`;
+            const trainerSocketData = {
+              schedule_id: schedule.id,
+              class_id: schedule.gym_class.id,
+              class_name: schedule.gym_class.name,
+              category: schedule.gym_class.category,
+              difficulty: schedule.gym_class.difficulty,
+              room_id: schedule.room.id,
+              room_name: schedule.room.name,
+              date: schedule.date,
+              start_time: schedule.start_time,
+              end_time: schedule.end_time,
+              max_capacity: schedule.max_capacity,
+              current_bookings: schedule.current_bookings,
+              status: schedule.status,
+              special_notes: schedule.special_notes,
+              created_at: schedule.created_at,
+            };
+
+            const trainerRoom = global.io.sockets.adapter.rooms.get(trainerRoomName);
+            const trainerSocketCount = trainerRoom ? trainerRoom.size : 0;
+
+            console.log(
+              `📡 Emitting schedule:created to trainer room ${trainerRoomName} (${trainerSocketCount} socket(s) connected)`,
+              trainerSocketData
+            );
+            global.io.to(trainerRoomName).emit('schedule:created', trainerSocketData);
+            console.log(`✅ Emitted schedule:created event to trainer`);
           }
         } catch (notifError) {
           console.error('❌ Error sending admin notifications for new schedule:', notifError);

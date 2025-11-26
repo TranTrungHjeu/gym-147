@@ -24,6 +24,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function StatsScreen() {
   const router = useRouter();
@@ -353,30 +354,45 @@ export default function StatsScreen() {
           </View>
 
           {weightMetrics.length > 0 && (
-            <HealthMetricChart
-              data={weightMetrics}
-              type={MetricType.WEIGHT}
-              period="weekly"
-              showTrend={true}
-            />
+            <TouchableOpacity
+              onPress={() => router.push(`/health/metric/${MetricType.WEIGHT}`)}
+              activeOpacity={0.7}
+            >
+              <HealthMetricChart
+                data={weightMetrics}
+                type={MetricType.WEIGHT}
+                period="weekly"
+                showTrend={true}
+              />
+            </TouchableOpacity>
           )}
 
           {bodyFatMetrics.length > 0 && (
-            <HealthMetricChart
-              data={bodyFatMetrics}
-              type={MetricType.BODY_FAT}
-              period="weekly"
-              showTrend={true}
-            />
+            <TouchableOpacity
+              onPress={() => router.push(`/health/metric/${MetricType.BODY_FAT}`)}
+              activeOpacity={0.7}
+            >
+              <HealthMetricChart
+                data={bodyFatMetrics}
+                type={MetricType.BODY_FAT}
+                period="weekly"
+                showTrend={true}
+              />
+            </TouchableOpacity>
           )}
 
           {heartRateMetrics.length > 0 && (
-            <HealthMetricChart
-              data={heartRateMetrics}
-              type={MetricType.HEART_RATE}
-              period="weekly"
-              showTrend={true}
-            />
+            <TouchableOpacity
+              onPress={() => router.push(`/health/metric/${MetricType.HEART_RATE}`)}
+              activeOpacity={0.7}
+            >
+              <HealthMetricChart
+                data={heartRateMetrics}
+                type={MetricType.HEART_RATE}
+                period="weekly"
+                showTrend={true}
+              />
+            </TouchableOpacity>
           )}
 
           {healthMetrics.length === 0 && (
@@ -416,12 +432,19 @@ export default function StatsScreen() {
             </View>
 
             {otherTrends.map((trend, index) => (
-              <View
+              <TouchableOpacity
                 key={(trend as any).metric_type || index}
                 style={[
                   themedStyles.trendItem,
                   { borderColor: theme.colors.border },
                 ]}
+                onPress={() => {
+                  const metricType = (trend as any).metric_type;
+                  if (metricType) {
+                    router.push(`/health/metric/${metricType}`);
+                  }
+                }}
+                activeOpacity={0.7}
               >
                 <View style={themedStyles.trendInfo}>
                   <Text
@@ -462,7 +485,7 @@ export default function StatsScreen() {
                       : t('common.notAvailable')}
                   </Text>
                 </View>
-              </View>
+              </TouchableOpacity>
             ))}
           </View>
         )}
@@ -484,44 +507,46 @@ export default function StatsScreen() {
   );
 
   return (
-    <View
+    <SafeAreaView
       style={[
         themedStyles.container,
         { backgroundColor: theme.colors.background },
       ]}
     >
       <View style={themedStyles.header}>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
+        <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('stats.title')}
         </Text>
-        <View style={themedStyles.tabContainer}>
-          {tabs.map((tab) => (
-            <TouchableOpacity
-              key={tab.key}
+        <View style={themedStyles.headerRight} />
+      </View>
+
+      <View style={themedStyles.tabContainer}>
+        {tabs.map((tab) => (
+          <TouchableOpacity
+            key={tab.key}
+            style={[
+              themedStyles.tab,
+              selectedTab === tab.key && {
+                backgroundColor: theme.colors.primary,
+              },
+            ]}
+            onPress={() => setSelectedTab(tab.key as any)}
+          >
+            <Text
               style={[
-                themedStyles.tab,
-                selectedTab === tab.key && {
-                  backgroundColor: theme.colors.primary,
+                Typography.caption,
+                {
+                  color:
+                    selectedTab === tab.key
+                      ? theme.colors.surface
+                      : theme.colors.textSecondary,
                 },
               ]}
-              onPress={() => setSelectedTab(tab.key as any)}
             >
-              <Text
-                style={[
-                  Typography.caption,
-                  {
-                    color:
-                      selectedTab === tab.key
-                        ? theme.colors.surface
-                        : theme.colors.textSecondary,
-                  },
-                ]}
-              >
-                {tab.label}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+              {tab.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
       <ScrollView
@@ -535,7 +560,7 @@ export default function StatsScreen() {
         {selectedTab === 'health' && renderHealth()}
         {selectedTab === 'workouts' && renderWorkouts()}
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
@@ -543,6 +568,7 @@ const styles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
+      width: '100%',
     },
     loadingContainer: {
       flex: 1,
@@ -550,14 +576,36 @@ const styles = (theme: any) =>
       alignItems: 'center',
     },
     header: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
       paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.xxl,
+      paddingTop: theme.spacing.xl,
       paddingBottom: theme.spacing.lg,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
+      width: '100%',
+      alignSelf: 'stretch',
+    },
+    headerTitle: {
+      ...Typography.h2,
+      flex: 1,
+      flexShrink: 1,
+    },
+    headerRight: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.xs,
+      minWidth: 0,
+      flexShrink: 0,
+      maxWidth: '100%',
     },
     tabContainer: {
       flexDirection: 'row',
       marginTop: theme.spacing.lg,
+      marginHorizontal: theme.spacing.lg,
+      marginBottom: theme.spacing.md,
       backgroundColor: theme.isDark
         ? 'rgba(255,255,255,0.05)'
         : 'rgba(0,0,0,0.05)',
