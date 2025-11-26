@@ -5,6 +5,13 @@ const { prisma } = require('../lib/prisma.js');
 const { OTPService } = require('../services/otp.service.js');
 const scheduleService = require('../services/schedule.service.js');
 const memberService = require('../services/member.service.js');
+const redisService = require('../services/redis.service.js');
+let rateLimiter = null;
+try {
+  rateLimiter = require('../../../packages/shared-middleware/src/rate-limit.middleware.js').rateLimiter;
+} catch (e) {
+  console.warn('⚠️ Shared rate limiter not available, using fallback');
+}
 
 // Logger (optional - use if available)
 let logger = null;
@@ -33,6 +40,17 @@ class AuthController {
   // ==================== RATE LIMITING HELPERS ====================
 
   async getRateLimitCount(key) {
+    // Use Redis rate limiter if available
+    if (rateLimiter) {
+      try {
+        const result = await rateLimiter.checkRateLimit(key, 5, 3600); // 5 requests per hour
+        return 5 - result.remaining;
+      } catch (error) {
+        console.error('Redis rate limit error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
     const record = this.rateLimitStore.get(key);
     if (!record) return 0;
 
@@ -48,6 +66,17 @@ class AuthController {
   }
 
   async incrementRateLimit(key) {
+    // Use Redis rate limiter if available
+    if (rateLimiter) {
+      try {
+        await rateLimiter.increment(key, 5, 3600); // 5 requests per hour
+        return;
+      } catch (error) {
+        console.error('Redis rate limit increment error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
     const record = this.rateLimitStore.get(key);
     const now = Date.now();
 
@@ -60,6 +89,22 @@ class AuthController {
   }
 
   async getOTPCooldown(key) {
+    const cooldownKey = `otp:cooldown:${key}`;
+
+    // Check Redis first
+    if (redisService.isConnected && redisService.client) {
+      try {
+        const ttl = await redisService.client.ttl(cooldownKey);
+        if (ttl > 0) {
+          return ttl;
+        }
+        return 0;
+      } catch (error) {
+        console.error('Redis cooldown check error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
     const timestamp = this.otpCooldownStore.get(key);
     if (!timestamp) return 0;
 
@@ -75,6 +120,20 @@ class AuthController {
   }
 
   async setOTPCooldown(key) {
+    const cooldownKey = `otp:cooldown:${key}`;
+    const cooldownSeconds = 60; // 60 seconds
+
+    // Store in Redis first
+    if (redisService.isConnected && redisService.client) {
+      try {
+        await redisService.client.setEx(cooldownKey, cooldownSeconds, '1');
+        return;
+      } catch (error) {
+        console.error('Redis cooldown set error, using fallback:', error);
+      }
+    }
+
+    // Fallback to in-memory
     this.otpCooldownStore.set(key, Date.now());
   }
 
@@ -367,6 +426,38 @@ class AuthController {
         },
       });
 
+      // Store session in Redis with TTL = token expiry (30 minutes for access token)
+      const sessionData = {
+        id: session.id,
+        user_id: user.id,
+        token: accessToken,
+        refresh_token: refreshToken,
+        device_info: session.device_info,
+        ip_address: session.ip_address,
+        user_agent: session.user_agent,
+        expires_at: expiresAt.toISOString(),
+        created_at: session.created_at.toISOString(),
+      };
+      const accessTokenTTL = 30 * 60; // 30 minutes in seconds
+      await redisService.setSession(session.id, sessionData, accessTokenTTL);
+
+      // Publish user:login event via Redis Pub/Sub
+      try {
+        const { redisPubSub } = require('../../../packages/shared-utils/src/redis-pubsub.utils');
+        await redisPubSub.publish('user:login', {
+          user_id: user.id,
+          email: user.email,
+          role: user.role,
+          session_id: session.id,
+          ip_address: session.ip_address,
+          device_info: session.device_info,
+          timestamp: new Date().toISOString(),
+        });
+      } catch (pubSubError) {
+        console.warn('⚠️ Failed to publish user:login event via Pub/Sub:', pubSubError.message);
+        // Don't fail login if Pub/Sub fails
+      }
+
       // Create access log for successful login
       try {
         await prisma.accessLog.create({
@@ -458,7 +549,10 @@ class AuthController {
       const userId = req.user.userId || req.user.id;
 
       if (sessionId) {
-        // Delete the current session
+        // Delete session from Redis first
+        await redisService.deleteSession(sessionId, userId);
+        
+        // Delete the current session from database
         await prisma.session.delete({
           where: { id: sessionId },
         });
@@ -1583,6 +1677,10 @@ class AuthController {
         },
       });
 
+      // Update session in Redis with new TTL (15 minutes for new access token)
+      const accessTokenTTL = 15 * 60; // 15 minutes in seconds
+      await redisService.refreshSessionTTL(session.id, accessTokenTTL);
+
       res.json({
         success: true,
         message: 'Token refreshed successfully',
@@ -2197,10 +2295,68 @@ class AuthController {
         }
       }
 
+      // Delete related records that have RESTRICT constraint before deleting user
+      try {
+        // Delete access_logs (has RESTRICT constraint)
+        await prisma.accessLog.deleteMany({
+          where: { user_id: id },
+        });
+        console.log('✅ Deleted access logs for user:', id);
+      } catch (error) {
+        console.warn('⚠️ Error deleting access logs (may not exist):', error.message);
+      }
+
+      try {
+        // Delete members_ref if exists (has RESTRICT constraint)
+        // Model name is Member but table is members_ref
+        await prisma.member.deleteMany({
+          where: { user_id: id },
+        });
+        console.log('✅ Deleted members_ref for user:', id);
+      } catch (error) {
+        console.warn('⚠️ Error deleting members_ref (may not exist):', error.message);
+      }
+
+      try {
+        // Delete staff_ref if exists (has RESTRICT constraint)
+        // Model name is Staff but table is staff_ref
+        await prisma.staff.deleteMany({
+          where: { user_id: id },
+        });
+        console.log('✅ Deleted staff_ref for user:', id);
+      } catch (error) {
+        console.warn('⚠️ Error deleting staff_ref (may not exist):', error.message);
+      }
+
       // Delete user from identity service
       await prisma.user.delete({
         where: { id },
       });
+
+      // Emit socket event for user deletion (to notify if user is currently logged in)
+      try {
+        if (global.io) {
+          const socketPayload = {
+            user_id: id,
+            id: id,
+            action: 'deleted',
+            role: existingUser.role,
+            data: {
+              id: id,
+              email: existingUser.email,
+              role: existingUser.role,
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // Emit to user room (if user is currently logged in, they will receive this)
+          global.io.to(`user:${id}`).emit('user:deleted', socketPayload);
+          console.log(`📡 Emitted user:deleted event for user ${id} (role: ${existingUser.role})`);
+        }
+      } catch (socketError) {
+        // Log socket error but don't fail the deletion
+        console.error('❌ Error emitting user:deleted socket event:', socketError);
+      }
 
       res.json({
         success: true,
@@ -2211,7 +2367,7 @@ class AuthController {
       console.error('Delete user error:', error);
       res.status(500).json({
         success: false,
-        message: 'Internal server error',
+        message: error.message || 'Internal server error',
         data: null,
       });
     }
@@ -2266,7 +2422,10 @@ class AuthController {
   async getAllUsers(req, res) {
     try {
       const { role, page = 1, limit = 10 } = req.query;
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      const parsedLimit = parseInt(limit);
+      const parsedPage = parseInt(page);
+      console.log('getAllUsers - Received query params:', { role, page, limit, parsedLimit, parsedPage });
+      const skip = (parsedPage - 1) * parsedLimit;
 
       const whereClause = role ? { role: role.toUpperCase() } : {};
 
@@ -2289,10 +2448,17 @@ class AuthController {
           },
           orderBy: { created_at: 'desc' },
           skip,
-          take: parseInt(limit),
+          take: parsedLimit,
         }),
         prisma.user.count({ where: whereClause }),
       ]);
+
+      console.log('getAllUsers - Returning:', { 
+        usersCount: users.length, 
+        requestedLimit: parsedLimit,
+        total,
+        page: parsedPage 
+      });
 
       res.json({
         success: true,
@@ -2300,10 +2466,10 @@ class AuthController {
         data: {
           users,
           pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
+            page: parsedPage,
+            limit: parsedLimit,
             total,
-            pages: Math.ceil(total / parseInt(limit)),
+            pages: Math.ceil(total / parsedLimit),
           },
         },
       });
@@ -2405,6 +2571,44 @@ class AuthController {
       });
 
       console.log(`✅ Found ${admins.length} admin/super-admin users`);
+      
+      if (admins.length === 0) {
+        console.warn(`⚠️ [GET_ADMINS] WARNING: No admins/super-admins found in database!`);
+        console.warn(`⚠️ [GET_ADMINS] Query conditions: role IN ['ADMIN', 'SUPER_ADMIN'], is_active = true`);
+        
+        // Check if there are any admins with is_active = false
+        const inactiveAdmins = await prisma.user.findMany({
+          where: {
+            role: {
+              in: ['ADMIN', 'SUPER_ADMIN'],
+            },
+            is_active: false,
+          },
+          select: {
+            id: true,
+            email: true,
+            role: true,
+            is_active: true,
+          },
+        });
+        
+        if (inactiveAdmins.length > 0) {
+          console.warn(`⚠️ [GET_ADMINS] Found ${inactiveAdmins.length} inactive admin(s)/super-admin(s):`, inactiveAdmins);
+        }
+        
+        // Check total count of admins regardless of is_active
+        const totalAdmins = await prisma.user.count({
+          where: {
+            role: {
+              in: ['ADMIN', 'SUPER_ADMIN'],
+            },
+          },
+        });
+        
+        console.warn(`⚠️ [GET_ADMINS] Total admins/super-admins in database (regardless of is_active): ${totalAdmins}`);
+      } else {
+        console.log(`📋 [GET_ADMINS] Admin list:`, admins.map(a => ({ id: a.id, email: a.email, role: a.role, is_active: a.is_active })));
+      }
 
       res.json({
         success: true,

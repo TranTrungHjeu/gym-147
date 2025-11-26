@@ -125,6 +125,22 @@ class SecurityController {
         },
       });
 
+      // Store session in Redis with TTL = token expiry (15 minutes for access token)
+      const redisService = require('../services/redis.service.js');
+      const sessionData = {
+        id: session.id,
+        user_id: user.id,
+        token: null, // 2FA doesn't use access token initially
+        refresh_token: refreshToken,
+        device_info: session.device_info,
+        ip_address: session.ip_address,
+        user_agent: session.user_agent,
+        expires_at: expiresAt.toISOString(),
+        created_at: session.created_at.toISOString(),
+      };
+      const accessTokenTTL = 15 * 60; // 15 minutes in seconds
+      await redisService.setSession(session.id, sessionData, accessTokenTTL);
+
       // Generate JWT token with sessionId
       const accessToken = jwt.sign(
         {
@@ -136,6 +152,21 @@ class SecurityController {
         process.env.JWT_SECRET || 'dev-secret',
         { expiresIn: '15m' } // Short-lived access token
       );
+
+      // Update session in Redis with access token
+      const updatedSessionData = {
+        id: session.id,
+        user_id: user.id,
+        token: accessToken,
+        refresh_token: refreshToken,
+        device_info: session.device_info,
+        ip_address: session.ip_address,
+        user_agent: session.user_agent,
+        expires_at: expiresAt.toISOString(),
+        created_at: session.created_at.toISOString(),
+      };
+      // Reuse accessTokenTTL from above
+      await redisService.setSession(session.id, updatedSessionData, accessTokenTTL);
 
       // Update last login time
       await prisma.user.update({
@@ -460,20 +491,34 @@ class SecurityController {
         });
       }
 
-      // TODO: Implement IP whitelist logic
-      // This would typically involve:
-      // 1. Validate IP address format
-      // 2. Add IP to user's whitelist
-      // 3. Store with description and timestamp
+      // Check if IP already exists
+      const existingIP = await prisma.iPWhitelist.findFirst({
+        where: {
+          user_id: userId,
+          ip_address: ipAddress,
+        },
+      });
+
+      if (existingIP) {
+        return res.status(400).json({
+          success: false,
+          message: 'IP address này đã có trong whitelist',
+          data: null,
+        });
+      }
+
+      const newIP = await prisma.iPWhitelist.create({
+        data: {
+          user_id: userId,
+          ip_address: ipAddress,
+          description,
+        },
+      });
 
       res.json({
         success: true,
         message: 'IP address đã được thêm vào whitelist',
-        data: {
-          ipAddress,
-          description,
-          addedAt: new Date(),
-        },
+        data: newIP,
       });
     } catch (error) {
       console.error('Add IP whitelist error:', error);
@@ -501,7 +546,22 @@ class SecurityController {
         });
       }
 
-      // TODO: Implement IP whitelist removal logic
+      // Find the IP entry first to get its ID or delete by composite key logic if supported,
+      // but here we delete by user_id and ip_address
+      const deleted = await prisma.iPWhitelist.deleteMany({
+        where: {
+          user_id: userId,
+          ip_address: ipAddress,
+        },
+      });
+
+      if (deleted.count === 0) {
+        return res.status(404).json({
+          success: false,
+          message: 'IP address không tìm thấy trong whitelist',
+          data: null,
+        });
+      }
 
       res.json({
         success: true,
@@ -528,19 +588,20 @@ class SecurityController {
     try {
       const userId = req.user.id;
 
-      // TODO: Implement whitelisted IPs retrieval
+      const ips = await prisma.iPWhitelist.findMany({
+        where: {
+          user_id: userId,
+        },
+        orderBy: {
+          added_at: 'desc',
+        },
+      });
 
       res.json({
         success: true,
         message: 'Whitelisted IPs retrieved successfully',
         data: {
-          whitelistedIPs: [
-            {
-              ipAddress: '192.168.1.1',
-              description: 'Home IP',
-              addedAt: '2024-01-01T00:00:00Z',
-            },
-          ],
+          whitelistedIPs: ips,
         },
       });
     } catch (error) {
@@ -569,22 +630,20 @@ class SecurityController {
         });
       }
 
-      // TODO: Implement trusted location logic
-      // This would typically involve:
-      // 1. Validate coordinates
-      // 2. Add location to user's trusted locations
-      // 3. Store with name and timestamp
-
-      res.json({
-        success: true,
-        message: 'Trusted location đã được thêm thành công',
+      const newLocation = await prisma.trustedLocation.create({
         data: {
+          user_id: userId,
           latitude,
           longitude,
           address,
           name,
-          addedAt: new Date(),
         },
+      });
+
+      res.json({
+        success: true,
+        message: 'Trusted location đã được thêm thành công',
+        data: newLocation,
       });
     } catch (error) {
       console.error('Add trusted location error:', error);
@@ -603,21 +662,20 @@ class SecurityController {
     try {
       const userId = req.user.id;
 
-      // TODO: Implement trusted locations retrieval
+      const locations = await prisma.trustedLocation.findMany({
+        where: {
+          user_id: userId,
+        },
+        orderBy: {
+          added_at: 'desc',
+        },
+      });
 
       res.json({
         success: true,
         message: 'Trusted locations retrieved successfully',
         data: {
-          trustedLocations: [
-            {
-              latitude: 10.762622,
-              longitude: 106.660172,
-              address: 'Ho Chi Minh City, Vietnam',
-              name: 'Home',
-              addedAt: '2024-01-01T00:00:00Z',
-            },
-          ],
+          trustedLocations: locations,
         },
       });
     } catch (error) {
@@ -646,18 +704,20 @@ class SecurityController {
         });
       }
 
-      // TODO: Implement location blocking logic
-
-      res.json({
-        success: true,
-        message: 'Location đã được chặn thành công',
+      const blockedLocation = await prisma.blockedLocation.create({
         data: {
+          user_id: userId,
           latitude,
           longitude,
           address,
           reason,
-          blockedAt: new Date(),
         },
+      });
+
+      res.json({
+        success: true,
+        message: 'Location đã được chặn thành công',
+        data: blockedLocation,
       });
     } catch (error) {
       console.error('Block location error:', error);
