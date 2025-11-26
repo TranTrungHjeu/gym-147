@@ -380,16 +380,176 @@ class BookingController {
         scheduleWithDetails.price_override || scheduleWithDetails.gym_class?.price || 0
       );
 
-      // Create booking (with PENDING payment status if price > 0)
-      const booking = await prisma.booking.create({
-        data: {
-          schedule_id,
-          member_id: actualMemberId, // Use actual member_id from member service
-          special_needs,
-          notes,
-          payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID', // Free bookings are auto-paid
-          amount_paid: bookingPrice > 0 ? null : 0, // Will be set when payment completes
-        },
+      // 🔒 Use transaction to prevent race conditions
+      // Lock schedule, check capacity, and create booking atomically
+      let booking;
+      // Acquire distributed lock for this schedule
+      const lockKey = `booking:${schedule_id}`;
+      let lockAcquired = false;
+      let lockId = null;
+
+      if (distributedLock) {
+        const lockResult = await distributedLock.acquire('booking', schedule_id, {
+          ttl: 30, // 30 seconds
+          retryAttempts: 3,
+          retryDelay: 100,
+        });
+
+        if (!lockResult.acquired) {
+          return res.status(409).json({
+            success: false,
+            message: 'Booking đang được xử lý, vui lòng thử lại sau',
+            data: null,
+          });
+        }
+
+        lockAcquired = true;
+        lockId = lockResult.lockId;
+      }
+
+      try {
+        booking = await prisma.$transaction(async (tx) => {
+        // 1. Lock schedule row (using findUnique with select for row-level lock)
+        const lockedSchedule = await tx.schedule.findUnique({
+          where: { id: schedule_id },
+          select: {
+            id: true,
+            current_bookings: true,
+            max_capacity: true,
+            status: true,
+            end_time: true,
+          },
+        });
+
+        if (!lockedSchedule) {
+          throw new Error('SCHEDULE_NOT_FOUND');
+        }
+
+        // 2. Check capacity again in transaction (with lock)
+        const confirmedBookingsCount = await tx.booking.count({
+          where: {
+            schedule_id,
+            status: 'CONFIRMED',
+            payment_status: { in: ['PAID', 'PENDING'] }, // Count both paid and pending
+          },
+        });
+
+        // Also check waitlist count
+        const waitlistCount = await tx.booking.count({
+          where: {
+            schedule_id,
+            is_waitlist: true,
+            status: 'CONFIRMED',
+          },
+        });
+
+        const totalBookings = confirmedBookingsCount + waitlistCount;
+
+        // Check if full (including waitlist)
+        if (totalBookings >= lockedSchedule.max_capacity) {
+          throw new Error('FULL');
+        }
+
+        // 3. Create booking (with PENDING payment status if price > 0)
+        const newBooking = await tx.booking.create({
+          data: {
+            schedule_id,
+            member_id: actualMemberId,
+            special_needs,
+            notes,
+            payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+            amount_paid: bookingPrice > 0 ? null : 0,
+            is_waitlist: false, // Not waitlist since we checked capacity
+          },
+          include: {
+            schedule: {
+              include: {
+                gym_class: true,
+                trainer: true,
+                room: true,
+              },
+            },
+          },
+        });
+
+        // 4. If booking is free, update schedule capacity immediately
+        if (bookingPrice === 0) {
+          await tx.schedule.update({
+            where: { id: schedule_id },
+            data: {
+              current_bookings: {
+                increment: 1,
+              },
+            },
+          });
+        }
+
+        return newBooking;
+        });
+
+        // Release lock after successful transaction
+        if (lockAcquired && distributedLock && lockId) {
+          await distributedLock.release('booking', schedule_id, lockId);
+        }
+      } catch (txError) {
+        // Release lock on error
+        if (lockAcquired && distributedLock && lockId) {
+          await distributedLock.release('booking', schedule_id, lockId);
+        }
+
+        // Handle transaction errors
+        if (txError.message === 'SCHEDULE_NOT_FOUND') {
+          return res.status(404).json({
+            success: false,
+            message: 'Schedule not found',
+            data: null,
+          });
+        }
+
+        if (txError.message === 'FULL') {
+          // Try waitlist
+          try {
+            const waitlistResult = await waitlistService.addToWaitlist(
+              schedule_id,
+              actualMemberId,
+              special_needs,
+              notes
+            );
+
+            const [bookingWithMember] = await attachMemberDetails([waitlistResult.booking], {
+              strict: false,
+            });
+
+            if (bookingWithMember && member) {
+              bookingWithMember.member = member;
+            }
+
+            return res.status(201).json({
+              success: true,
+              message: `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistResult.waitlist_position}`,
+              data: {
+                booking: bookingWithMember,
+                waitlist_position: waitlistResult.waitlist_position,
+                is_waitlist: true,
+              },
+            });
+          } catch (waitlistError) {
+            console.error('Add to waitlist error:', waitlistError);
+            return res.status(400).json({
+              success: false,
+              message: waitlistError.message || 'Lớp học đã đầy và không thể thêm vào danh sách chờ',
+              data: null,
+            });
+          }
+        }
+
+        // Re-throw to be caught by outer catch
+        throw txError;
+      }
+
+      // Reload booking with full details after transaction
+      booking = await prisma.booking.findUnique({
+        where: { id: booking.id },
         include: {
           schedule: {
             include: {
@@ -401,23 +561,13 @@ class BookingController {
         },
       });
 
-      // If booking is free, confirm immediately and update schedule
+      // If booking is free (price === 0), return immediately
       if (bookingPrice === 0) {
-        await prisma.schedule.update({
-          where: { id: schedule_id },
-          data: {
-            current_bookings: {
-              increment: 1,
-            },
-          },
-        });
-
-        const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
+      const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
 
         if (bookingWithMember && member) {
           bookingWithMember.member = member;
         }
-
         // Notify trainer via socket and create notification if trainer exists
         if (booking.schedule?.trainer?.user_id && global.io) {
           const notificationService = require('../services/notification.service.js');
@@ -544,6 +694,29 @@ class BookingController {
         bookingWithMember.member = member;
       }
 
+      // Publish booking:created event via Redis Pub/Sub
+      try {
+        const { redisPubSub } = require('../../../packages/shared-utils/src/redis-pubsub.utils');
+        await redisPubSub.publish('booking:created', {
+          booking_id: booking.id,
+          schedule_id: schedule_id,
+          member_id: member?.id,
+          member_name: member?.full_name,
+          class_id: booking.schedule?.gym_class?.id,
+          class_name: booking.schedule?.gym_class?.name,
+          trainer_id: booking.schedule?.trainer?.id,
+          trainer_user_id: booking.schedule?.trainer?.user_id,
+          status: booking.status,
+          payment_status: booking.payment_status,
+          amount_paid: booking.amount_paid?.toString(),
+          booked_at: booking.booked_at.toISOString(),
+          timestamp: new Date().toISOString(),
+        });
+      } catch (pubSubError) {
+        console.warn('⚠️ Failed to publish booking:created event via Pub/Sub:', pubSubError.message);
+        // Don't fail booking creation if Pub/Sub fails
+      }
+
       // Notify trainer via socket and create notification when booking is created (pending payment)
       // Trainer will get another notification when payment is confirmed
       if (booking.schedule?.trainer?.user_id && global.io) {
@@ -591,6 +764,13 @@ class BookingController {
 
         console.log(`📡 Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`, socketPayload);
         global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', socketPayload);
+        // Also emit booking:updated for consistency
+        global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:updated', {
+          ...socketPayload,
+          action: 'new',
+          payment_status: 'PENDING',
+          status: 'PENDING',
+        });
         console.log(`✅ Socket event booking:new emitted successfully to trainer (pending payment)`);
       } else {
         if (!booking.schedule?.trainer?.user_id) {
@@ -764,6 +944,20 @@ class BookingController {
 
           console.log(`Emitting booking:confirmed to user:${trainerUserId}`, socketPayload);
           global.io.to(`user:${trainerUserId}`).emit('booking:confirmed', socketPayload);
+          // Also emit booking:updated and booking:status_changed
+          global.io.to(`user:${trainerUserId}`).emit('booking:updated', {
+            ...socketPayload,
+            action: 'confirmed',
+            payment_status: 'PAID',
+            status: 'CONFIRMED',
+          });
+          global.io.to(`user:${trainerUserId}`).emit('booking:status_changed', {
+            ...socketPayload,
+            action: 'status_changed',
+            old_status: 'PENDING',
+            new_status: 'CONFIRMED',
+            payment_status: 'PAID',
+          });
           console.log(`✅ Socket event booking:confirmed emitted successfully to trainer`);
         } else {
           if (!trainerUserId) {
@@ -810,20 +1004,33 @@ class BookingController {
             if (adminNotifications.length > 0) {
               console.log(`💾 Saving ${adminNotifications.length} notifications to database...`);
               
-              // Create notifications one by one to get IDs
+              // Create notifications in identity service
+              const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+              const axios = require('axios');
+              
               const createdNotifications = [];
               for (const notificationData of adminNotifications) {
                 try {
-                  const createdNotification = await prisma.notification.create({
-                    data: notificationData,
-                  });
-                  createdNotifications.push(createdNotification);
+                  const response = await axios.post(
+                    `${IDENTITY_SERVICE_URL}/notifications`,
+                    {
+                      user_id: notificationData.user_id,
+                      type: notificationData.type,
+                      title: notificationData.title,
+                      message: notificationData.message,
+                      data: notificationData.data,
+                    },
+                    { timeout: 5000 }
+                  );
+                  if (response.data.success) {
+                    createdNotifications.push(response.data.data.notification);
+                  }
                 } catch (error) {
-                  console.error(`Failed to create notification for user ${notificationData.user_id}:`, error);
+                  console.error(`❌ Failed to create notification for user ${notificationData.user_id}:`, error.message);
                 }
               }
               
-              console.log(`✅ Saved ${createdNotifications.length} notifications to database`);
+              console.log(`✅ Created ${createdNotifications.length} notifications in identity service`);
 
               // Emit socket events to all admins
               if (global.io) {
@@ -1246,7 +1453,15 @@ class BookingController {
         prisma.booking.count({ where: whereClause }),
       ]);
 
-      const bookingsWithMembers = await attachMemberDetails(bookings);
+      // Attach member details (don't fail if member service is unavailable)
+      let bookingsWithMembers;
+      try {
+        bookingsWithMembers = await attachMemberDetails(bookings, { strict: false });
+      } catch (memberError) {
+        console.warn('⚠️ Failed to attach member details (non-critical):', memberError.message);
+        // Return bookings without member details rather than failing
+        bookingsWithMembers = bookings.map(booking => ({ ...booking, member: null }));
+      }
 
       res.json({
         success: true,
@@ -1263,9 +1478,11 @@ class BookingController {
       });
     } catch (error) {
       console.error('Get member bookings error:', error);
+      console.error('Error stack:', error.stack);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
+        error: error.message,
         data: null,
       });
     }

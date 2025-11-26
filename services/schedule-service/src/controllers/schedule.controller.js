@@ -779,30 +779,45 @@ class ScheduleController {
               },
             }));
 
-          // Create notifications in database
+          // Enqueue notifications to Redis queue
           if (memberNotifications.length > 0) {
             try {
-              const createdNotifications = await prisma.notification.createMany({
-                data: memberNotifications.map(notif => ({
-                  ...notif,
-                  is_read: false,
-                  created_at: new Date(),
-                })),
-                skipDuplicates: true,
-              });
-
-              // Get created notifications with IDs
-              const notificationsWithIds = await prisma.notification.findMany({
-                where: {
-                  user_id: { in: memberNotifications.map(n => n.user_id) },
-                  type: 'SCHEDULE_UPDATE',
-                  created_at: {
-                    gte: new Date(Date.now() - 5000), // Within last 5 seconds
-                  },
-                },
-                orderBy: { created_at: 'desc' },
-                take: memberNotifications.length,
-              });
+              const notificationService = require('../services/notification.service.js');
+              
+              const createdNotifications = [];
+              for (const notificationData of memberNotifications) {
+                try {
+                  const enqueued = await notificationService.enqueueNotification(
+                    {
+                      user_id: notificationData.user_id,
+                      type: notificationData.type,
+                      title: notificationData.title,
+                      message: notificationData.message,
+                      data: notificationData.data,
+                    },
+                    'normal' // Use normal priority for schedule updates
+                  );
+                  if (enqueued) {
+                    // Create mock notification for backward compatibility (socket events)
+                    createdNotifications.push({
+                      id: `queued_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                      user_id: notificationData.user_id,
+                      type: notificationData.type,
+                      title: notificationData.title,
+                      message: notificationData.message,
+                      data: notificationData.data,
+                      created_at: new Date(),
+                      is_read: false,
+                    });
+                  }
+                } catch (error) {
+                  console.error(`❌ Failed to enqueue notification for user ${notificationData.user_id}:`, error.message);
+                }
+              }
+              
+              console.log(`✅ Enqueued ${createdNotifications.length} notifications to Redis queue`);
+              
+              const notificationsWithIds = createdNotifications;
 
               // Emit socket events to all members
               memberNotifications.forEach((notification, index) => {
@@ -886,9 +901,58 @@ class ScheduleController {
     try {
       const { id } = req.params;
 
+      // Get schedule details before deletion for socket event
+      const schedule = await prisma.schedule.findUnique({
+        where: { id },
+        include: {
+          gym_class: true,
+          trainer: {
+            select: { user_id: true },
+          },
+          bookings: {
+            select: { member: { select: { user_id: true } } },
+          },
+        },
+      });
+
       await prisma.schedule.delete({
         where: { id },
       });
+
+      // Emit socket event for schedule deletion
+      if (global.io && schedule) {
+        const socketPayload = {
+          schedule_id: id,
+          id: id,
+          action: 'deleted',
+          data: {
+            id: id,
+            class_name: schedule.gym_class?.name,
+            date: schedule.date,
+            start_time: schedule.start_time,
+            end_time: schedule.end_time,
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to trainer if exists
+        if (schedule.trainer?.user_id) {
+          global.io.to(`user:${schedule.trainer.user_id}`).emit('schedule:deleted', socketPayload);
+        }
+
+        // Emit to all members who had bookings
+        if (schedule.bookings && schedule.bookings.length > 0) {
+          schedule.bookings.forEach(booking => {
+            if (booking.member?.user_id) {
+              global.io.to(`user:${booking.member.user_id}`).emit('schedule:deleted', socketPayload);
+            }
+          });
+        }
+
+        // Broadcast to all admins
+        global.io.emit('schedule:deleted', socketPayload);
+        console.log(`📡 Emitted schedule:deleted event for schedule ${id}`);
+      }
 
       res.json({
         success: true,
