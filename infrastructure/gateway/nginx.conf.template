@@ -77,6 +77,7 @@ http {
         location /identity/ {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -88,6 +89,7 @@ http {
                 return 204;
             }
             
+            # Proxy to backend service
             proxy_pass http://identity_service/;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -98,25 +100,29 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
 
-        # Member Service
+        # Member Service (singular)
         location /member/ {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -128,6 +134,7 @@ http {
                 return 204;
             }
             
+            # Proxy to backend service
             proxy_pass http://member_service/;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -138,25 +145,29 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
 
-        # Members Service (plural)
+        # Member Service (plural) - for /members/equipment endpoint
         location /members/ {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -168,6 +179,7 @@ http {
                 return 204;
             }
             
+            # Proxy to backend service - remove /members prefix
             rewrite ^/members/(.*)$ /$1 break;
             proxy_pass http://member_service;
             proxy_set_header Host $host;
@@ -179,17 +191,20 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
@@ -198,6 +213,7 @@ http {
         location /schedule/ {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -209,6 +225,7 @@ http {
                 return 204;
             }
             
+            # Proxy to backend service
             proxy_pass http://schedule_service/;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -219,17 +236,20 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
@@ -238,6 +258,7 @@ http {
         location /billing/ {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -249,7 +270,9 @@ http {
                 return 204;
             }
             
+            # Proxy to backend service
             proxy_pass http://billing_service/;
+            proxy_redirect off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -259,25 +282,30 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
 
-        # Handle /plans/active (redirected from /billing/plans/active)
+        # Handle /plans/active - proxy directly to billing service
+        # This endpoint is accessible without /billing/ prefix for backward compatibility
         location = /plans/active {
             limit_req zone=api burst=500 nodelay;
             
+            # Handle CORS preflight requests
             if ($request_method = 'OPTIONS') {
                 add_header 'Access-Control-Allow-Origin' $cors_origin always;
                 add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
@@ -289,7 +317,9 @@ http {
                 return 204;
             }
             
+            # Proxy directly to billing service /plans/active endpoint
             proxy_pass http://billing_service/plans/active;
+            proxy_redirect off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -299,17 +329,67 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
             proxy_hide_header 'Access-Control-Allow-Methods';
             proxy_hide_header 'Access-Control-Allow-Headers';
             proxy_hide_header 'Access-Control-Max-Age';
 
+            # Add CORS headers to all responses (including errors)
             add_header 'Access-Control-Allow-Origin' $cors_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
             
+            # Handle proxy errors with CORS
+            proxy_intercept_errors on;
+            error_page 502 503 504 = @cors_error;
+        }
+
+        # Handle /auth/* - proxy to identity service /auth/* 
+        # This handles redirects from identity service (e.g., /identity/auth/login -> /auth/login)
+        location /auth/ {
+            limit_req zone=api burst=500 nodelay;
+            
+            # Handle CORS preflight requests
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' $cors_origin always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 1728000 always;
+                add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+                add_header 'Content-Length' 0 always;
+                return 204;
+            }
+            
+            # Proxy to identity service /auth/* endpoint
+            proxy_pass http://identity_service/auth/;
+            proxy_redirect off;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header Origin $http_origin;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
+
+            # Add CORS headers to all responses (including errors)
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            
+            # Handle proxy errors with CORS
             proxy_intercept_errors on;
             error_page 502 503 504 = @cors_error;
         }
