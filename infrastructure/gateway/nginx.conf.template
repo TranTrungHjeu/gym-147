@@ -35,19 +35,24 @@ http {
 
     # Upstream services - using environment variables (hostname:port format)
     # Using variables to allow runtime DNS resolution
+    # Zone directive is REQUIRED when using 'resolve' for dynamic DNS
     upstream identity_service {
+        zone identity_service 64k;
         server ${IDENTITY_SERVICE_HOST} resolve;
     }
 
     upstream member_service {
+        zone member_service 64k;
         server ${MEMBER_SERVICE_HOST} resolve;
     }
 
     upstream schedule_service {
+        zone schedule_service 64k;
         server ${SCHEDULE_SERVICE_HOST} resolve;
     }
 
     upstream billing_service {
+        zone billing_service 64k;
         server ${BILLING_SERVICE_HOST} resolve;
     }
 
