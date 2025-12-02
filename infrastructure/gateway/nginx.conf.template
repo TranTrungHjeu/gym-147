@@ -78,7 +78,8 @@ http {
                 return 204;
             }
             
-            proxy_pass http://identity_service/;
+            set $identity_backend "${IDENTITY_SERVICE_FULL}";
+            proxy_pass $identity_backend/;
             proxy_redirect off;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
@@ -161,7 +162,8 @@ http {
             }
             
             rewrite ^/members/(.*)$ /$1 break;
-            proxy_pass http://member_service;
+            set $member_backend "${MEMBER_SERVICE_FULL}";
+            proxy_pass $member_backend;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
