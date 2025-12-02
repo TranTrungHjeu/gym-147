@@ -46,6 +46,18 @@ echo "[00-process-template.sh] MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL}"
 echo "[00-process-template.sh] SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL}"
 echo "[00-process-template.sh] BILLING_SERVICE_URL=${BILLING_SERVICE_URL}"
 
+# Check if nginx.conf already exists (script may run multiple times)
+if [ -f /etc/nginx/nginx.conf ]; then
+    echo "[00-process-template.sh] nginx.conf already exists, skipping template processing..."
+    exit 0
+fi
+
+# Check if template exists
+if [ ! -f /etc/nginx/templates/nginx.conf.template ]; then
+    echo "[00-process-template.sh] ERROR: Template file not found!"
+    exit 1
+fi
+
 # Substitute environment variables in nginx.conf.template
 # This script runs as part of nginx default entrypoint (in /docker-entrypoint.d/)
 # It processes the template BEFORE nginx default template processor runs
@@ -53,6 +65,18 @@ echo "[00-process-template.sh] Processing nginx.conf.template..."
 envsubst '${NGINX_PORT} ${IDENTITY_SERVICE_URL} ${MEMBER_SERVICE_URL} ${SCHEDULE_SERVICE_URL} ${BILLING_SERVICE_URL}' \
   < /etc/nginx/templates/nginx.conf.template \
   > /etc/nginx/nginx.conf
+
+# Verify nginx.conf was created successfully
+if [ ! -f /etc/nginx/nginx.conf ]; then
+    echo "[00-process-template.sh] ERROR: Failed to create nginx.conf!"
+    exit 1
+fi
+
+# Verify NGINX_PORT was substituted (check for ${NGINX_PORT} pattern)
+if grep -q '\${NGINX_PORT}' /etc/nginx/nginx.conf; then
+    echo "[00-process-template.sh] WARNING: NGINX_PORT variable not substituted!"
+    echo "[00-process-template.sh] Current NGINX_PORT value: ${NGINX_PORT}"
+fi
 
 # Remove template file to prevent nginx default entrypoint from processing it again
 # (nginx default entrypoint will run envsubst on all .template files, but we've already done it)
