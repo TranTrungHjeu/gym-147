@@ -34,5 +34,18 @@ envsubst '${IDENTITY_SERVICE_HOST} ${MEMBER_SERVICE_HOST} ${SCHEDULE_SERVICE_HOS
   < /etc/nginx/templates/nginx.conf.template \
   > /etc/nginx/nginx.conf
 
+# Validate nginx configuration before starting
+echo "Validating nginx configuration..."
+nginx -t
+
+if [ $? -ne 0 ]; then
+    echo "ERROR: Nginx configuration validation failed!"
+    echo "Generated config file:"
+    cat /etc/nginx/nginx.conf
+    exit 1
+fi
+
+echo "✅ Nginx configuration is valid. Starting nginx..."
+
 # Start nginx
 exec nginx -g 'daemon off;'
