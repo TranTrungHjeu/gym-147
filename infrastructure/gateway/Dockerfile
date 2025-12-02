@@ -1,4 +1,5 @@
 # Gateway Dockerfile - Nginx Reverse Proxy
+# Build context: infrastructure/gateway (set Root Directory in Railway)
 FROM nginx:alpine
 
 # Install gettext for envsubst
