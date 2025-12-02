@@ -6,15 +6,44 @@
     # Debug: Log that this script is running
     echo "[00-process-template.sh] Starting template processing..."
 
-    # Function to extract hostname:port from URL (nginx upstream needs hostname:port, not full URL)
+    # Function to extract hostname:port and protocol from URL
+    # Returns: protocol:hostname:port (for nginx variable usage)
     extract_host_port() {
         local url="$1"
-        # Remove protocol prefix
-        url="${url#http://}"
-        url="${url#https://}"
+        local protocol="http"
+        
+        # Detect protocol
+        if [[ "$url" == https://* ]]; then
+            protocol="https"
+            url="${url#https://}"
+        elif [[ "$url" == http://* ]]; then
+            protocol="http"
+            url="${url#http://}"
+        fi
+        
         # Remove trailing slash if present
         url="${url%/}"
-        echo "$url"
+        
+        # Check if port is already present
+        if [[ "$url" == *:* ]]; then
+            # Port already present, return protocol:hostname:port
+            echo "${protocol}:${url}"
+        else
+            # No port present, add default port based on protocol
+            if [ "$protocol" = "https" ]; then
+                echo "${protocol}:${url}:443"
+            else
+                # Default to port 80 for HTTP or if no protocol specified
+                echo "${protocol}:${url}:80"
+            fi
+        fi
+    }
+    
+    # Function to extract just hostname:port (for upstream server directive)
+    extract_host_port_only() {
+        local url_with_protocol="$1"
+        # Remove protocol prefix
+        echo "${url_with_protocol#*:}"
     }
 
     # Railway provides PORT environment variable - default to 80 if not set
@@ -38,13 +67,17 @@
     export MEMBER_SERVICE_URL
     export SCHEDULE_SERVICE_URL
     export BILLING_SERVICE_URL
+    export IDENTITY_SERVICE_PROTOCOL
+    export MEMBER_SERVICE_PROTOCOL
+    export SCHEDULE_SERVICE_PROTOCOL
+    export BILLING_SERVICE_PROTOCOL
 
     # Debug: Show environment variables
     echo "[00-process-template.sh] NGINX_PORT=${NGINX_PORT}"
-    echo "[00-process-template.sh] IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL}"
-    echo "[00-process-template.sh] MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL}"
-    echo "[00-process-template.sh] SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL}"
-    echo "[00-process-template.sh] BILLING_SERVICE_URL=${BILLING_SERVICE_URL}"
+    echo "[00-process-template.sh] IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL} (protocol: ${IDENTITY_SERVICE_PROTOCOL})"
+    echo "[00-process-template.sh] MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL} (protocol: ${MEMBER_SERVICE_PROTOCOL})"
+    echo "[00-process-template.sh] SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL} (protocol: ${SCHEDULE_SERVICE_PROTOCOL})"
+    echo "[00-process-template.sh] BILLING_SERVICE_URL=${BILLING_SERVICE_URL} (protocol: ${BILLING_SERVICE_PROTOCOL})"
 
     # Check if nginx.conf already exists (script may run multiple times)
     if [ -f /etc/nginx/nginx.conf ]; then
@@ -63,7 +96,7 @@
     # It processes the template BEFORE nginx default template processor runs
     # Using .tmpl extension so nginx default entrypoint (20-envsubst-on-templates.sh) won't process it
     echo "[00-process-template.sh] Processing nginx.conf.tmpl..."
-    envsubst '${NGINX_PORT} ${IDENTITY_SERVICE_URL} ${MEMBER_SERVICE_URL} ${SCHEDULE_SERVICE_URL} ${BILLING_SERVICE_URL}' \
+    envsubst '${NGINX_PORT} ${IDENTITY_SERVICE_URL} ${MEMBER_SERVICE_URL} ${SCHEDULE_SERVICE_URL} ${BILLING_SERVICE_URL} ${IDENTITY_SERVICE_PROTOCOL} ${MEMBER_SERVICE_PROTOCOL} ${SCHEDULE_SERVICE_PROTOCOL} ${BILLING_SERVICE_PROTOCOL}' \
     < /etc/nginx/templates/nginx.conf.tmpl \
     > /etc/nginx/nginx.conf
 

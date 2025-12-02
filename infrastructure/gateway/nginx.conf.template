@@ -36,7 +36,12 @@ http {
         "null" "https://gym147.dev";
     }
 
+    # Resolver for dynamic upstream (needed for HTTPS upstreams)
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
     # Upstream services - using environment variables
+    # Note: For HTTPS services, we'll use variables in proxy_pass instead of upstream
     upstream identity_service {
         server ${IDENTITY_SERVICE_URL};
     }
@@ -52,6 +57,9 @@ http {
     upstream billing_service {
         server ${BILLING_SERVICE_URL};
     }
+    
+    # Variables for service protocols (set by entrypoint script)
+    # These will be used in proxy_pass to support both HTTP and HTTPS upstreams
 
     server {
         listen ${NGINX_PORT};
@@ -300,11 +308,18 @@ http {
             }
             
             # Proxy directly to billing service /plans/active endpoint
-            proxy_pass http://billing_service/plans/active;
+            # Use protocol variable to support both HTTP and HTTPS
+            set $billing_proto ${BILLING_SERVICE_PROTOCOL};
+            set $billing_upstream "${billing_proto}://${BILLING_SERVICE_URL}";
+            proxy_pass $billing_upstream/plans/active;
             proxy_redirect off;
+            
+            # SSL settings for HTTPS upstreams
+            proxy_ssl_verify off;
+            proxy_ssl_server_name on;
 
             # Use upstream host for redirects to avoid loops when upstream enforces HTTPS
-            proxy_set_header Host $proxy_host;
+            proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -353,8 +368,16 @@ http {
             }
             
             # Proxy to backend service
-            proxy_pass http://billing_service/;
+            # Use protocol variable to support both HTTP and HTTPS
+            set $billing_proto ${BILLING_SERVICE_PROTOCOL};
+            set $billing_upstream "${billing_proto}://${BILLING_SERVICE_URL}";
+            proxy_pass $billing_upstream/;
             proxy_redirect off;
+            
+            # SSL settings for HTTPS upstreams
+            proxy_ssl_verify off;
+            proxy_ssl_server_name on;
+            
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
