@@ -14,8 +14,10 @@ COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
 # Copy initialization script to docker-entrypoint.d so it runs before nginx starts
 # Using 00- prefix to ensure it runs FIRST before all other scripts
+# Note: Ensure Railway Root Directory is set to: infrastructure/gateway
 COPY entrypoint.railway.sh /docker-entrypoint.d/00-process-template.sh
-RUN chmod +x /docker-entrypoint.d/00-process-template.sh
+RUN chmod +x /docker-entrypoint.d/00-process-template.sh && \
+    ls -la /docker-entrypoint.d/00-process-template.sh || (echo "ERROR: entrypoint.railway.sh not found!" && exit 1)
 
 # Railway will assign PORT dynamically, but we expose 80 as default
 # Railway will map PORT to the exposed port
