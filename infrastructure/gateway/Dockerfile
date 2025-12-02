@@ -1,15 +1,15 @@
 # Gateway Dockerfile - Nginx Reverse Proxy
-# Build context: root of project (if Root Directory is not set)
+# Build context: infrastructure/gateway (Railway Root Directory should be set to this)
 FROM nginx:alpine
 
 # Install gettext for envsubst
 RUN apk add --no-cache gettext
 
-# Copy nginx configuration template
-COPY infrastructure/gateway/nginx.conf.template /etc/nginx/templates/nginx.conf.template
+# Copy nginx configuration template (relative path - assuming Root Directory is infrastructure/gateway)
+COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
-# Copy entrypoint script
-COPY infrastructure/gateway/entrypoint.sh /entrypoint.sh
+# Copy entrypoint script (relative path)
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 # Expose port 80
