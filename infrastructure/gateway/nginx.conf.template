@@ -54,7 +54,7 @@ http {
     }
 
     server {
-        listen ${NGINX_PORT:-80};
+        listen ${NGINX_PORT};
         server_name _;
         
         # Disable automatic redirects that might cause loops
