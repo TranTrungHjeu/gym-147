@@ -3,6 +3,9 @@
 
 set -e
 
+# Debug: Log that this script is running
+echo "[00-process-template.sh] Starting template processing..."
+
 # Function to extract hostname:port from URL (nginx upstream needs hostname:port, not full URL)
 extract_host_port() {
     local url="$1"
@@ -36,10 +39,24 @@ export MEMBER_SERVICE_URL
 export SCHEDULE_SERVICE_URL
 export BILLING_SERVICE_URL
 
+# Debug: Show environment variables
+echo "[00-process-template.sh] NGINX_PORT=${NGINX_PORT}"
+echo "[00-process-template.sh] IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL}"
+echo "[00-process-template.sh] MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL}"
+echo "[00-process-template.sh] SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL}"
+echo "[00-process-template.sh] BILLING_SERVICE_URL=${BILLING_SERVICE_URL}"
+
 # Substitute environment variables in nginx.conf.template
+# This script runs as part of nginx default entrypoint (in /docker-entrypoint.d/)
+# It processes the template BEFORE nginx default template processor runs
+echo "[00-process-template.sh] Processing nginx.conf.template..."
 envsubst '${NGINX_PORT} ${IDENTITY_SERVICE_URL} ${MEMBER_SERVICE_URL} ${SCHEDULE_SERVICE_URL} ${BILLING_SERVICE_URL}' \
   < /etc/nginx/templates/nginx.conf.template \
   > /etc/nginx/nginx.conf
 
-# Start nginx
-exec nginx -g 'daemon off;'
+# Remove template file to prevent nginx default entrypoint from processing it again
+# (nginx default entrypoint will run envsubst on all .template files, but we've already done it)
+echo "[00-process-template.sh] Removing template file to prevent duplicate processing..."
+rm -f /etc/nginx/templates/nginx.conf.template
+
+echo "[00-process-template.sh] Template processing complete!"
