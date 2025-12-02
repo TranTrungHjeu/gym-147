@@ -4,18 +4,30 @@ import { useModal } from '../../hooks/useModal';
 import { User, userService } from '../../services/user.service';
 import RoleBadge from '../common/RoleBadge';
 import Button from '../ui/Button/Button';
+import ChangeEmailPhoneModal from '../modals/ChangeEmailPhoneModal';
+import { memberApi, scheduleApi } from '@/services/api';
 interface UserInfoCardProps {
   userId: string;
   onUpdate?: (user: User) => void;
 }
 
 export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
-  console.log('🔄 UserInfoCard render:', { userId });
+  console.log('[SYNC] UserInfoCard render:', { userId });
   const { isOpen, openModal, closeModal } = useModal();
   const {
     isOpen: isDeleteOpen,
     openModal: openDeleteModal,
     closeModal: closeDeleteModal,
+  } = useModal();
+  const {
+    isOpen: isChangeEmailOpen,
+    openModal: openChangeEmailModal,
+    closeModal: closeChangeEmailModal,
+  } = useModal();
+  const {
+    isOpen: isChangePhoneOpen,
+    openModal: openChangePhoneModal,
+    closeModal: closeChangePhoneModal,
   } = useModal();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
@@ -45,9 +57,24 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     });
   }, [user]);
 
+  // Listen for avatar update events (optimistic update)
+  useEffect(() => {
+    const handleAvatarUpdate = (e: CustomEvent) => {
+      if (e.detail && e.detail.userId && user && user.id === e.detail.userId) {
+        // Optimistically update avatar if it matches current user
+        setUserAvatar(e.detail.avatarUrl);
+      }
+    };
+
+    window.addEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
+    return () => {
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
+    };
+  }, [user]);
+
   // Only fetch when userId actually changes (not when modal opens/closes or during editing)
   useEffect(() => {
-    console.log('🔍 useEffect triggered:', {
+    console.log('[SEARCH] useEffect triggered:', {
       userId,
       lastFetchedUserId,
       isEditing: isEditingRef.current,
@@ -61,11 +88,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     // 3. Currently editing
     // 4. Modal is open (we already have the data)
     if (userId && userId !== lastFetchedUserId && !isEditingRef.current && !isOpen) {
-      console.log('✅ Fetching user data...');
+      console.log('[SUCCESS] Fetching user data...');
       fetchUser();
       setLastFetchedUserId(userId);
     } else {
-      console.log('❌ Skipping fetch:', {
+      console.log('[ERROR] Skipping fetch:', {
         reason: !userId
           ? 'No userId'
           : userId === lastFetchedUserId
@@ -80,7 +107,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
   }, [userId, isOpen]); // Include isOpen to track modal state changes
 
   const fetchUser = async () => {
-    console.log('📥 fetchUser called for userId:', userId);
+    console.log('[DATA] fetchUser called for userId:', userId);
     try {
       setLoading(true);
       // Use profile API for current user, getUserById for other users
@@ -99,7 +126,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           firstName: userData.first_name || userData.firstName || '',
           lastName: userData.last_name || userData.lastName || '',
         };
-        console.log('📥 Fetched user data:', {
+        console.log('[DATA] Fetched user data:', {
           userId: mappedUser.id,
           firstName: mappedUser.firstName,
           lastName: mappedUser.lastName,
@@ -107,7 +134,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
         // CRITICAL: Don't reset user state if currently editing
         if (!isEditingRef.current) {
-          console.log('✅ Setting user state (not editing)');
+          console.log('[SUCCESS] Setting user state (not editing)');
           setUser(mappedUser);
           setIsActiveToggle(mappedUser.isActive ?? true);
           // Also update formData when not editing
@@ -119,11 +146,18 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
             isActive: mappedUser.isActive ?? true,
           });
         } else {
-          console.log('⚠️ SKIPPING setUser - currently editing!');
+          console.log('[WARNING] SKIPPING setUser - currently editing!');
         }
 
-        // Fetch avatar based on role
-        await fetchUserAvatar(mappedUser.id, mappedUser.role);
+        // Priority 1: Check if profile_photo exists in user data (from member/trainer service)
+        // Priority 2: Fetch avatar from member/trainer service based on role
+        // Priority 3: Fallback to face_photo_url from identity-service
+        const existingProfilePhoto = (mappedUser as any)?.profile_photo;
+        if (existingProfilePhoto) {
+          setUserAvatar(existingProfilePhoto);
+        } else {
+          await fetchUserAvatar(mappedUser.id, mappedUser.role);
+        }
       }
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -275,10 +309,10 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         // This prevents race condition where onUpdate triggers parent re-render
         // and parent might cause useEffect to run again
         setLastFetchedUserId(userId);
-        console.log('✅ Updated lastFetchedUserId to:', userId);
+        console.log('[SUCCESS] Updated lastFetchedUserId to:', userId);
         setUser(normalizedUser);
         isEditingRef.current = false; // Reset editing flag after save
-        console.log('✅ Reset isEditingRef to false');
+        console.log('[SUCCESS] Reset isEditingRef to false');
 
         // Call onUpdate AFTER updating lastFetchedUserId
         // This ensures that any parent re-render won't trigger fetch
@@ -412,7 +446,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 className='w-24 h-24 rounded-full object-cover border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg'
               />
             ) : (
-              <div className='w-24 h-24 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg'>
+              <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg ${
+                ['bg-[var(--color-orange-500)]', 'bg-[var(--color-orange-600)]', 'bg-[var(--color-orange-700)]', 'bg-[var(--color-orange-800)]'][
+                  ((user?.firstName || user?.first_name || '').length + (user?.lastName || user?.last_name || '').length) % 4
+                ]
+              }`}>
                 <span className='text-2xl font-bold text-white font-heading'>
                   {getUserInitials(user)}
                 </span>
@@ -597,19 +635,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                     Cập nhật thông tin để giữ hồ sơ luôn mới nhất
                   </p>
                 </div>
-                <button
-                  onClick={closeModal}
-                  className='w-8 h-8 flex items-center justify-center rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex-shrink-0'
-                >
-                  <svg className='w-5 h-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
-                    <path
-                      strokeLinecap='round'
-                      strokeLinejoin='round'
-                      strokeWidth={2}
-                      d='M6 18L18 6M6 6l12 12'
-                    />
-                  </svg>
-                </button>
               </div>
             </div>
 
@@ -640,7 +665,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       }}
                       onChange={e => {
                         const newValue = e.target.value;
-                        console.log('✏️ firstName onChange:', {
+                        console.log('[EDIT] firstName onChange:', {
                           newValue,
                           currentUserState: user?.firstName || user?.first_name,
                           fullUserState: user,
@@ -661,11 +686,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         // Also update user state for consistency
                         setUser(prev => {
                           if (!prev) {
-                            console.log('⚠️ prev is null in onChange!');
+                            console.log('[WARNING] prev is null in onChange!');
                             return null;
                           }
                           const newUser = { ...prev, firstName: newValue };
-                          console.log('✏️ Updated user state:', {
+                          console.log('[EDIT] Updated user state:', {
                             oldFirstName: prev?.firstName || prev?.first_name,
                             newFirstName: newUser?.firstName,
                           });
@@ -705,7 +730,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       }}
                       onChange={e => {
                         const newValue = e.target.value;
-                        console.log('✏️ lastName onChange:', {
+                        console.log('[EDIT] lastName onChange:', {
                           newValue,
                           currentUserState: user?.lastName || user?.last_name,
                           fullUserState: user,
@@ -726,11 +751,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         // Also update user state for consistency
                         setUser(prev => {
                           if (!prev) {
-                            console.log('⚠️ prev is null in onChange!');
+                            console.log('[WARNING] prev is null in onChange!');
                             return null;
                           }
                           const newUser = { ...prev, lastName: newValue };
-                          console.log('✏️ Updated user state:', {
+                          console.log('[EDIT] Updated user state:', {
                             oldLastName: prev?.lastName || prev?.last_name,
                             newLastName: newUser?.lastName,
                           });
@@ -751,124 +776,52 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Email
                     </label>
-                    <input
-                      type='email'
-                      value={formData?.email ?? user?.email ?? ''}
-                      onFocus={() => {
-                        console.log('👆 Email input focused, setting isEditingRef to true');
-                        isEditingRef.current = true;
-                        // Initialize formData if not exists
-                        if (!formData && user) {
-                          setFormData({
-                            firstName: user.firstName || user.first_name || '',
-                            lastName: user.lastName || user.last_name || '',
-                            email: user.email || '',
-                            phone: user.phone || '',
-                            isActive: user.isActive ?? true,
-                          });
-                        }
-                      }}
-                      onChange={e => {
-                        const newValue = e.target.value;
-                        console.log('✏️ email onChange:', {
-                          newValue,
-                          currentUserState: user?.email,
-                          fullUserState: user,
-                          isEditingBefore: isEditingRef.current,
-                        });
-                        isEditingRef.current = true;
-                        // Update formData first (immediate UI update, won't reset on re-render)
-                        setFormData(prev => ({
-                          ...(prev || {
-                            firstName: user?.firstName || user?.first_name || '',
-                            lastName: user?.lastName || user?.last_name || '',
-                            email: user?.email || '',
-                            phone: user?.phone || '',
-                            isActive: user?.isActive ?? true,
-                          }),
-                          email: newValue,
-                        }));
-                        // Also update user state for consistency
-                        setUser(prev => {
-                          if (!prev) {
-                            console.log('⚠️ prev is null in onChange!');
-                            return null;
-                          }
-                          const newUser = { ...prev, email: newValue };
-                          console.log('✏️ Updated user state:', {
-                            oldEmail: prev?.email,
-                            newEmail: newUser?.email,
-                          });
-                          return newUser;
-                        });
-                      }}
-                      onBlur={() => {
-                        console.log('👋 Email input blurred, current value:', user?.email);
-                      }}
-                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
-                    />
+                    <div className='flex gap-2'>
+                      <input
+                        type='email'
+                        value={formData?.email ?? user?.email ?? ''}
+                        readOnly
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                      />
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        onClick={() => {
+                          isEditingRef.current = true;
+                          openChangeEmailModal();
+                        }}
+                        className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                      >
+                        Đổi Email
+                      </Button>
+                    </div>
                   </div>
 
                   <div>
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Số điện thoại
                     </label>
-                    <input
-                      type='tel'
-                      value={formData?.phone ?? user?.phone ?? ''}
-                      onFocus={() => {
-                        console.log('👆 Phone input focused, setting isEditingRef to true');
-                        isEditingRef.current = true;
-                        // Initialize formData if not exists
-                        if (!formData && user) {
-                          setFormData({
-                            firstName: user.firstName || user.first_name || '',
-                            lastName: user.lastName || user.last_name || '',
-                            email: user.email || '',
-                            phone: user.phone || '',
-                            isActive: user.isActive ?? true,
-                          });
-                        }
-                      }}
-                      onChange={e => {
-                        const newValue = e.target.value;
-                        console.log('✏️ phone onChange:', {
-                          newValue,
-                          currentUserState: user?.phone,
-                          fullUserState: user,
-                          isEditingBefore: isEditingRef.current,
-                        });
-                        isEditingRef.current = true;
-                        // Update formData first (immediate UI update, won't reset on re-render)
-                        setFormData(prev => ({
-                          ...(prev || {
-                            firstName: user?.firstName || user?.first_name || '',
-                            lastName: user?.lastName || user?.last_name || '',
-                            email: user?.email || '',
-                            phone: user?.phone || '',
-                            isActive: user?.isActive ?? true,
-                          }),
-                          phone: newValue,
-                        }));
-                        // Also update user state for consistency
-                        setUser(prev => {
-                          if (!prev) {
-                            console.log('⚠️ prev is null in onChange!');
-                            return null;
-                          }
-                          const newUser = { ...prev, phone: newValue };
-                          console.log('✏️ Updated user state:', {
-                            oldPhone: prev?.phone,
-                            newPhone: newUser?.phone,
-                          });
-                          return newUser;
-                        });
-                      }}
-                      onBlur={() => {
-                        console.log('👋 Phone input blurred, current value:', user?.phone);
-                      }}
-                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
-                    />
+                    <div className='flex gap-2'>
+                      <input
+                        type='tel'
+                        value={formData?.phone ?? user?.phone ?? ''}
+                        readOnly
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                      />
+                      <Button
+                        type='button'
+                        size='sm'
+                        variant='outline'
+                        onClick={() => {
+                          isEditingRef.current = true;
+                          openChangePhoneModal();
+                        }}
+                        className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                      >
+                        Đổi SĐT
+                      </Button>
+                    </div>
                   </div>
 
                   {/* Status Toggle - Only show for non-current users */}
@@ -1057,6 +1010,54 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           </div>
         </Modal>
       )}
+
+      {/* Change Email Modal */}
+      <ChangeEmailPhoneModal
+        isOpen={isChangeEmailOpen}
+        onClose={closeChangeEmailModal}
+        onSuccess={(newEmail) => {
+          if (newEmail && user) {
+            const updatedUser = { ...user, email: newEmail };
+            setUser(updatedUser);
+            setFormData(prev => prev ? { ...prev, email: newEmail } : null);
+            onUpdate?.(updatedUser);
+            if (window.showToast) {
+              window.showToast({
+                type: 'success',
+                message: 'Đổi email thành công!',
+                duration: 3000,
+              });
+            }
+          }
+        }}
+        userEmail={user?.email}
+        userPhone={user?.phone}
+        type='EMAIL'
+      />
+
+      {/* Change Phone Modal */}
+      <ChangeEmailPhoneModal
+        isOpen={isChangePhoneOpen}
+        onClose={closeChangePhoneModal}
+        onSuccess={(newEmail, newPhone) => {
+          if (newPhone && user) {
+            const updatedUser = { ...user, phone: newPhone };
+            setUser(updatedUser);
+            setFormData(prev => prev ? { ...prev, phone: newPhone } : null);
+            onUpdate?.(updatedUser);
+            if (window.showToast) {
+              window.showToast({
+                type: 'success',
+                message: 'Đổi số điện thoại thành công!',
+                duration: 3000,
+              });
+            }
+          }
+        }}
+        userEmail={user?.email}
+        userPhone={user?.phone}
+        type='PHONE'
+      />
     </div>
   );
 }

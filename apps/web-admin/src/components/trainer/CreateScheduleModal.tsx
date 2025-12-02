@@ -1,19 +1,17 @@
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.css';
 import {
   AlertCircle,
   BookOpen,
-  Calendar,
   ChevronLeft,
   ChevronRight,
   Clock,
   MapPin,
   Save,
 } from 'lucide-react';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { scheduleService } from '../../services/schedule.service';
 import AdminModal from '../common/AdminModal';
 import CustomSelect from '../common/CustomSelect';
+import DatePicker from '../common/DatePicker';
 import Button from '../ui/Button/Button';
 import { scheduleApi } from '@/services/api';
 
@@ -76,13 +74,6 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentStep, setCurrentStep] = useState(1);
 
-  // Refs for pickers
-  const datePickerRef = useRef<HTMLInputElement>(null);
-  const timePickerStartRef = useRef<HTMLInputElement>(null);
-  const timePickerEndRef = useRef<HTMLInputElement>(null);
-  const flatpickrInstanceRef = useRef<any>(null);
-  const flatpickrTimeStartRef = useRef<any>(null);
-  const flatpickrTimeEndRef = useRef<any>(null);
 
   // Load initial data
   useEffect(() => {
@@ -106,330 +97,13 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   }, [isOpen, userId]);
 
-  // Initialize date picker with flatpickr - Vietnamese format
-  useEffect(() => {
-    if (!isOpen || currentStep !== 2) {
-      // Clean up when modal is closed or not on step 2
-      if (flatpickrInstanceRef.current) {
-        flatpickrInstanceRef.current.destroy();
-        flatpickrInstanceRef.current = null;
-      }
-      return;
-    }
-
-    // Initialize flatpickr when step 2 is shown
-    const initializeFlatpickr = () => {
-      if (!datePickerRef.current) {
-        setTimeout(initializeFlatpickr, 100);
-        return;
-      }
-
-      if (flatpickrInstanceRef.current) {
-        return; // Already initialized
-      }
-
-      // Check if already has flatpickr instance
-      if ((datePickerRef.current as any)._flatpickr) {
-        flatpickrInstanceRef.current = (datePickerRef.current as any)._flatpickr;
-        return;
-      }
-
-      // Calculate minimum date (at least 3 days from now)
-      const minDate = new Date();
-      minDate.setDate(minDate.getDate() + 3);
-      minDate.setHours(0, 0, 0, 0); // Reset time to start of day
-
-      const fp = flatpickr(datePickerRef.current, {
-        dateFormat: 'd/m/Y', // Vietnamese format: DD/MM/YYYY
-        altFormat: 'd/m/Y', // Display format
-        altInput: false,
-        minDate: minDate, // At least 3 days from now
-        allowInput: true,
-        clickOpens: true,
-        // Compact and professional styling
-        static: false, // Inline calendar (more compact)
-        inline: false, // Popup mode
-        appendTo: document.body, // Append to body to avoid overflow issues
-        locale: {
-          firstDayOfWeek: 1, // Monday
-          weekdays: {
-            shorthand: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-            longhand: ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'],
-          },
-          months: {
-            shorthand: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
-            longhand: [
-              'Tháng 1',
-              'Tháng 2',
-              'Tháng 3',
-              'Tháng 4',
-              'Tháng 5',
-              'Tháng 6',
-              'Tháng 7',
-              'Tháng 8',
-              'Tháng 9',
-              'Tháng 10',
-              'Tháng 11',
-              'Tháng 12',
-            ],
-          },
-        },
-        onChange: (selectedDates, dateStr) => {
-          if (selectedDates.length > 0) {
-            // Use local date components to avoid timezone issues
-            const date = selectedDates[0];
-            const year = date.getFullYear();
-            const month = String(date.getMonth() + 1).padStart(2, '0');
-            const day = String(date.getDate()).padStart(2, '0');
-
-            // Store in YYYY-MM-DD for internal use
-            const selectedDateISO = `${year}-${month}-${day}`;
-            // Display in DD/MM/YYYY format
-            const selectedDateDisplay = `${day}/${month}/${year}`;
-
-            setFormData(prev => ({
-              ...prev,
-              date: selectedDateISO, // Store as ISO for consistency
-            }));
-
-            // Update input display value
-            if (datePickerRef.current) {
-              datePickerRef.current.value = selectedDateDisplay;
-            }
-          }
-        },
-      });
-
-      flatpickrInstanceRef.current = Array.isArray(fp) ? fp[0] : fp;
-
-      // Set initial value if formData.date exists
-      if (formData.date) {
-        try {
-          // Convert YYYY-MM-DD to DD/MM/YYYY for display
-          const [year, month, day] = formData.date.split('-');
-          const displayDate = `${day}/${month}/${year}`;
-          fp.setDate(displayDate, false);
-          if (datePickerRef.current) {
-            datePickerRef.current.value = displayDate;
-          }
-        } catch (error) {
-          console.error('Error setting initial date:', error);
-        }
-      }
-    };
-
-    initializeFlatpickr();
-
-    return () => {
-      if (flatpickrInstanceRef.current) {
-        flatpickrInstanceRef.current.destroy();
-        flatpickrInstanceRef.current = null;
-      }
-    };
-  }, [isOpen, currentStep]); // Re-initialize when step changes to step 2
-
-  // Initialize time pickers with flatpickr - Vietnamese format (24h)
-  useEffect(() => {
-    if (!isOpen || currentStep !== 2) {
-      // Clean up when modal is closed or not on step 2
-      if (flatpickrTimeStartRef.current) {
-        flatpickrTimeStartRef.current.destroy();
-        flatpickrTimeStartRef.current = null;
-      }
-      if (flatpickrTimeEndRef.current) {
-        flatpickrTimeEndRef.current.destroy();
-        flatpickrTimeEndRef.current = null;
-      }
-      return;
-    }
-
-    // Initialize time pickers when step 2 is shown
-    const initializeTimePickers = () => {
-      // Start time picker
-      if (!timePickerStartRef.current) {
-        setTimeout(initializeTimePickers, 50);
-        return;
-      }
-
-      if (flatpickrTimeStartRef.current) {
-        return; // Already initialized
-      }
-
-      // Check if already has flatpickr instance
-      if ((timePickerStartRef.current as any)._flatpickr) {
-        flatpickrTimeStartRef.current = (timePickerStartRef.current as any)._flatpickr;
-      } else {
-        // Only set default date if formData already has a time value
-        let defaultStartDate = null;
-        if (formData.start_time) {
-          const [startHour, startMin] = formData.start_time.split(':');
-          const date = new Date();
-          date.setHours(parseInt(startHour) || 9, parseInt(startMin) || 0, 0, 0);
-          defaultStartDate = date;
-        }
-
-        const fpStartConfig: any = {
-          enableTime: true,
-          noCalendar: true,
-          dateFormat: 'H:i', // 24-hour format (HH:mm)
-          time_24hr: true, // Use 24-hour format (Vietnam standard)
-          allowInput: false, // Don't allow manual input for consistency
-          clickOpens: true,
-          appendTo: document.body,
-        };
-
-        // Only set defaultDate if we have a time value
-        if (defaultStartDate) {
-          fpStartConfig.defaultDate = defaultStartDate;
-        }
-
-        const fpStart = flatpickr(timePickerStartRef.current, {
-          ...fpStartConfig,
-          onChange: (selectedDates, dateStr) => {
-            if (selectedDates.length > 0) {
-              const date = selectedDates[0];
-              const hours = String(date.getHours()).padStart(2, '0');
-              const minutes = String(date.getMinutes()).padStart(2, '0');
-              const timeValue = `${hours}:${minutes}`;
-              setFormData(prev => ({
-                ...prev,
-                start_time: timeValue,
-              }));
-
-              // Update input display - flatpickr will handle this automatically
-              // but we ensure it's set correctly
-              if (timePickerStartRef.current) {
-                timePickerStartRef.current.value = timeValue;
-              }
-            } else if (dateStr) {
-              // Fallback: use dateStr if available
-              setFormData(prev => ({
-                ...prev,
-                start_time: dateStr,
-              }));
-              if (timePickerStartRef.current) {
-                timePickerStartRef.current.value = dateStr;
-              }
-            }
-          },
-        });
-
-        const instanceStart = Array.isArray(fpStart) ? fpStart[0] : fpStart;
-        flatpickrTimeStartRef.current = instanceStart;
-      }
-
-      // End time picker
-      if (!timePickerEndRef.current) {
-        return;
-      }
-
-      if (flatpickrTimeEndRef.current) {
-        return; // Already initialized
-      }
-
-      // Check if already has flatpickr instance
-      if ((timePickerEndRef.current as any)._flatpickr) {
-        flatpickrTimeEndRef.current = (timePickerEndRef.current as any)._flatpickr;
-      } else {
-        // Only set default date if formData already has a time value
-        let defaultEndDate = null;
-        if (formData.end_time) {
-          const [endHour, endMin] = formData.end_time.split(':');
-          const date = new Date();
-          date.setHours(parseInt(endHour) || 10, parseInt(endMin) || 0, 0, 0);
-          defaultEndDate = date;
-        }
-
-        const fpEndConfig: any = {
-          enableTime: true,
-          noCalendar: true,
-          dateFormat: 'H:i', // 24-hour format (HH:mm)
-          time_24hr: true, // Use 24-hour format (Vietnam standard)
-          allowInput: false, // Don't allow manual input for consistency
-          clickOpens: true,
-          appendTo: document.body,
-        };
-
-        // Only set defaultDate if we have a time value
-        if (defaultEndDate) {
-          fpEndConfig.defaultDate = defaultEndDate;
-        }
-
-        const fpEnd = flatpickr(timePickerEndRef.current, {
-          ...fpEndConfig,
-          onChange: (selectedDates, dateStr) => {
-            if (selectedDates.length > 0) {
-              const date = selectedDates[0];
-              const hours = String(date.getHours()).padStart(2, '0');
-              const minutes = String(date.getMinutes()).padStart(2, '0');
-              const timeValue = `${hours}:${minutes}`;
-              setFormData(prev => ({
-                ...prev,
-                end_time: timeValue,
-              }));
-
-              // Update input display - flatpickr will handle this automatically
-              // but we ensure it's set correctly
-              if (timePickerEndRef.current) {
-                timePickerEndRef.current.value = timeValue;
-              }
-            } else if (dateStr) {
-              // Fallback: use dateStr if available
-              setFormData(prev => ({
-                ...prev,
-                end_time: dateStr,
-              }));
-              if (timePickerEndRef.current) {
-                timePickerEndRef.current.value = dateStr;
-              }
-            }
-          },
-        });
-
-        const instanceEnd = Array.isArray(fpEnd) ? fpEnd[0] : fpEnd;
-        flatpickrTimeEndRef.current = instanceEnd;
-      }
-    };
-
-    const timer = setTimeout(() => {
-      initializeTimePickers();
-    }, 150); // Slightly longer delay to ensure date picker is initialized first
-
-    return () => {
-      clearTimeout(timer);
-      if (flatpickrTimeStartRef.current) {
-        flatpickrTimeStartRef.current.destroy();
-        flatpickrTimeStartRef.current = null;
-      }
-      if (flatpickrTimeEndRef.current) {
-        flatpickrTimeEndRef.current.destroy();
-        flatpickrTimeEndRef.current = null;
-      }
-    };
-  }, [isOpen, currentStep]); // Only re-initialize when modal opens/closes or step changes
-
-  // Update time picker display values when formData changes (without re-initializing)
-  useEffect(() => {
-    if (flatpickrTimeStartRef.current && formData.start_time && timePickerStartRef.current) {
-      try {
-        // Update the input value directly
-        timePickerStartRef.current.value = formData.start_time;
-      } catch (error) {
-        console.error('Error updating start time display:', error);
-      }
-    }
-  }, [formData.start_time]);
-
-  useEffect(() => {
-    if (flatpickrTimeEndRef.current && formData.end_time && timePickerEndRef.current) {
-      try {
-        // Update the input value directly
-        timePickerEndRef.current.value = formData.end_time;
-      } catch (error) {
-        console.error('Error updating end time display:', error);
-      }
-    }
-  }, [formData.end_time]);
+  // Calculate minimum date (at least 3 days from now)
+  const minDate = useMemo(() => {
+    const date = new Date();
+    date.setDate(date.getDate() + 3);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
 
   const loadInitialData = async () => {
     try {
@@ -819,110 +493,6 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
   return (
     <>
-      {/* Custom styles for compact datepicker and timepicker in modal */}
-      <style>{`
-        /* Compact datepicker for modal */
-        .flatpickr-calendar {
-          font-size: 12px !important;
-          width: auto !important;
-          padding: 8px !important;
-          border-radius: 8px !important;
-          box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06) !important;
-        }
-        .flatpickr-months {
-          margin-bottom: 4px !important;
-        }
-        .flatpickr-current-month {
-          font-size: 13px !important;
-          padding: 4px 0 !important;
-        }
-        .flatpickr-current-month .flatpickr-monthDropdown-months {
-          font-size: 13px !important;
-          padding: 2px 4px !important;
-        }
-        .flatpickr-current-month input.cur-year {
-          font-size: 13px !important;
-          padding: 2px 4px !important;
-        }
-        .flatpickr-weekdays {
-          margin-top: 4px !important;
-          margin-bottom: 2px !important;
-        }
-        .flatpickr-weekday {
-          font-size: 11px !important;
-          font-weight: 600 !important;
-          padding: 4px 0 !important;
-        }
-        .flatpickr-days {
-          margin-top: 4px !important;
-        }
-        .flatpickr-day {
-          font-size: 12px !important;
-          height: 28px !important;
-          line-height: 28px !important;
-          width: 28px !important;
-          margin: 2px !important;
-          border-radius: 6px !important;
-        }
-        /* Hide navigation arrows */
-        .flatpickr-prev-month,
-        .flatpickr-next-month {
-          display: none !important;
-        }
-        
-        /* Compact timepicker for modal */
-        .flatpickr-calendar.timepicker {
-          width: auto !important;
-          min-width: 120px !important;
-          padding: 12px !important;
-        }
-        .flatpickr-time {
-          padding: 0 !important;
-          height: auto !important;
-          line-height: 1.5 !important;
-        }
-        .flatpickr-time .flatpickr-time-wrapper {
-          display: flex !important;
-          align-items: center !important;
-          justify-content: center !important;
-          gap: 4px !important;
-        }
-        .flatpickr-time .flatpickr-am-pm {
-          font-size: 11px !important;
-          padding: 4px 6px !important;
-          border-radius: 4px !important;
-        }
-        .flatpickr-time input {
-          font-size: 14px !important;
-          font-weight: 600 !important;
-          width: 32px !important;
-          height: 32px !important;
-          line-height: 32px !important;
-          padding: 0 !important;
-          text-align: center !important;
-          border-radius: 6px !important;
-          border: 1px solid #e5e7eb !important;
-          background: #f9fafb !important;
-          transition: all 0.2s !important;
-        }
-        .flatpickr-time input:hover,
-        .flatpickr-time input:focus {
-          background: #ffffff !important;
-          border-color: #f97316 !important;
-          box-shadow: 0 0 0 2px rgba(249, 115, 22, 0.1) !important;
-        }
-        .flatpickr-time .flatpickr-time-separator {
-          font-size: 16px !important;
-          font-weight: 600 !important;
-          color: #374151 !important;
-          margin: 0 2px !important;
-        }
-        /* Hide time picker arrows */
-        .flatpickr-time .arrowUp,
-        .flatpickr-time .arrowDown {
-          display: none !important;
-        }
-      `}</style>
       <AdminModal
         isOpen={isOpen}
         onClose={onClose}
@@ -1136,21 +706,17 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                       Ngày *
                     </label>
                     <div className='relative'>
-                      <input
-                        ref={datePickerRef}
-                        id='schedule-date'
-                        type='text'
+                      <DatePicker
+                        value={formData.date}
+                        onChange={(date) => {
+                          if (typeof date === 'string') {
+                            setFormData(prev => ({ ...prev, date }));
+                          }
+                        }}
                         placeholder='dd/mm/yyyy'
-                        readOnly
-                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                          errors.date
-                            ? 'border-red-500 dark:border-red-500'
-                            : 'border-gray-300 dark:border-gray-700'
-                        }`}
-                      />
-                      <Calendar
-                        size={14}
-                        className='absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 pointer-events-none'
+                        mode='single'
+                        minDate={minDate}
+                        className={errors.date ? 'border-red-500' : ''}
                       />
                     </div>
                     {errors.date && (
@@ -1165,17 +731,21 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                       Bắt đầu *
                     </label>
                     <div className='relative'>
-                      <input
-                        ref={timePickerStartRef}
-                        id='time-start'
-                        type='text'
+                      <DatePicker
+                        value={formData.start_time ? `2000-01-01 ${formData.start_time}` : undefined}
+                        onChange={(date) => {
+                          if (typeof date === 'string') {
+                            const timePart = date.split(' ')[1]?.substring(0, 5);
+                            if (timePart) {
+                              setFormData(prev => ({ ...prev, start_time: timePart }));
+                            }
+                          }
+                        }}
                         placeholder='hh:mm'
-                        readOnly
-                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                          errors.start_time
-                            ? 'border-red-500 dark:border-red-500'
-                            : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                        mode='time'
+                        noCalendar={true}
+                        dateFormat='H:i'
+                        className={errors.start_time ? 'border-red-500' : ''}
                       />
                       <Clock
                         size={14}
@@ -1194,17 +764,21 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                       Kết thúc *
                     </label>
                     <div className='relative'>
-                      <input
-                        ref={timePickerEndRef}
-                        id='time-end'
-                        type='text'
+                      <DatePicker
+                        value={formData.end_time ? `2000-01-01 ${formData.end_time}` : undefined}
+                        onChange={(date) => {
+                          if (typeof date === 'string') {
+                            const timePart = date.split(' ')[1]?.substring(0, 5);
+                            if (timePart) {
+                              setFormData(prev => ({ ...prev, end_time: timePart }));
+                            }
+                          }
+                        }}
                         placeholder='hh:mm'
-                        readOnly
-                        className={`w-full px-4 py-2.5 pr-10 text-theme-xs border rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
-                          errors.end_time
-                            ? 'border-red-500 dark:border-red-500'
-                            : 'border-gray-300 dark:border-gray-700'
-                        }`}
+                        mode='time'
+                        noCalendar={true}
+                        dateFormat='H:i'
+                        className={errors.end_time ? 'border-red-500' : ''}
                       />
                       <Clock
                         size={14}

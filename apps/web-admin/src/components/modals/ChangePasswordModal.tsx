@@ -1,5 +1,6 @@
 import { Eye, EyeOff, Key, Mail, Phone, Shield } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { gsap } from 'gsap';
 import OTPInput from '../auth/OTPInput';
 import { userService } from '../../services/user.service';
@@ -93,53 +94,24 @@ export default function ChangePasswordModal({
     }
   }, [userEmail, userPhone, verificationMethod]); // Load on mount and when user info changes
 
-  // GSAP modal entrance/exit animation
+  // Reset state when modal closes
   useEffect(() => {
-    if (isOpen && modalRef.current && backdropRef.current && contentRef.current) {
-      // Entrance animation
-      gsap.set([backdropRef.current, contentRef.current], { opacity: 0 });
-      gsap.set(contentRef.current, { scale: 0.9, y: 20 });
-
-      const tl = gsap.timeline();
-      tl.to(backdropRef.current, {
-        opacity: 1,
-        duration: 0.2,
-        ease: 'power2.out',
-      });
-      tl.to(
-        contentRef.current,
-        {
-          opacity: 1,
-          scale: 1,
-          y: 0,
-          duration: 0.4,
-          ease: 'back.out(1.2)',
-        },
-        '-=0.1'
-      );
-    } else if (!isOpen && backdropRef.current && contentRef.current) {
-      // Exit animation
-      const tl = gsap.timeline({
-        onComplete: () => {
-          if (contentRef.current) contentRef.current.style.display = 'none';
-        },
-      });
-      tl.to(contentRef.current, {
-        opacity: 0,
-        scale: 0.95,
-        y: 10,
-        duration: 0.2,
-        ease: 'power2.in',
-      });
-      tl.to(
-        backdropRef.current,
-        {
-          opacity: 0,
-          duration: 0.15,
-          ease: 'power2.in',
-        },
-        '-=0.1'
-      );
+    if (!isOpen) {
+      // Reset all state when modal closes
+      setCurrentStep(1);
+      setOtp('');
+      setOtpVerified(false);
+      setOtpError('');
+      setOtpLoading(false);
+      setOtpSuccessLoading(false);
+      setNewPassword('');
+      setConfirmPassword('');
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+      setPasswordError('');
+      setIsSubmitting(false);
+      setIdentifier('');
+      setOtpCooldown(0);
     }
   }, [isOpen]);
 
@@ -497,26 +469,40 @@ export default function ChangePasswordModal({
 
   const passwordStrength = getPasswordStrength(newPassword);
 
-  if (!isOpen && !modalRef.current) return null;
-
   return (
-    <div
-      ref={modalRef}
-      className='fixed inset-0 z-[100000] flex items-center justify-center p-5'
-      style={{ display: isOpen ? 'flex' : 'none' }}
-      onClick={onClose}
-    >
-      <div
-        ref={backdropRef}
-        className='fixed inset-0 bg-black/80 backdrop-blur-sm'
-        style={{ opacity: 0 }}
-      />
-      <div
-        ref={contentRef}
-        className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative'
-        style={{ opacity: 0 }}
-        onClick={e => e.stopPropagation()}
-      >
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          ref={modalRef}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.2 }}
+          className='fixed inset-0 z-[100000] flex items-center justify-center p-5'
+          onClick={onClose}
+        >
+          <motion.div
+            ref={backdropRef}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className='fixed inset-0 bg-black/80 backdrop-blur-sm'
+          />
+          <motion.div
+            ref={contentRef}
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{
+              type: 'spring',
+              damping: 25,
+              stiffness: 300,
+              duration: 0.3,
+            }}
+            className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative'
+            onClick={e => e.stopPropagation()}
+          >
             {/* Close Button */}
             <button
               className='absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200 shadow-sm hover:shadow-md'
@@ -804,8 +790,10 @@ export default function ChangePasswordModal({
                 </form>
               )}
             </div>
-          </div>
-    </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
 

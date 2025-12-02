@@ -223,6 +223,123 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
+  const loginWithFace = async (
+    image: string
+  ): Promise<{
+    hasMember: boolean;
+    user: any;
+    accessToken: string;
+    refreshToken?: string;
+    registrationStatus?: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }> => {
+    try {
+      setIsLoading(true);
+      setError(null);
+
+      const isConnected = await debugApi.testConnection();
+      if (!isConnected) {
+        throw new Error(
+          'Cannot connect to API server. Please check your network connection and server status.'
+        );
+      }
+
+      const response = await authService.loginWithFace(image);
+
+      if (response.success && response.data) {
+        const { user, accessToken, refreshToken } = response.data;
+
+        // Store auth data
+        await Promise.all([storeToken(accessToken), storeUser(user)]);
+
+        setUser(user);
+        setToken(accessToken);
+
+        // Register push notification token
+        try {
+          const { pushNotificationService } = await import(
+            '@/services/notification/push.service'
+          );
+          await pushNotificationService.registerPushToken(user.id);
+        } catch (pushError) {
+          // Don't fail login if push registration fails
+        }
+
+        // Check if user has member record
+        const memberExists = await memberService.checkMemberExists();
+        setHasMember(memberExists);
+
+        // Check subscription status (requires member_id from member service)
+        let registrationStatus = {
+          hasSubscription: false,
+          hasCompletedProfile: false,
+        };
+
+        if (memberExists) {
+          // Load member profile and store member.id
+          await loadMemberProfile();
+
+          // Get member profile once to check both subscription and profile completion
+          try {
+            const profileResponse = await memberService.getMemberProfile();
+            const profile = profileResponse?.data;
+
+            if (profile?.id) {
+              // Check subscription using member.id
+              try {
+                const subscriptions = await billingService.getMemberSubscriptions(
+                  profile.id
+                );
+
+                const activeSubscription = subscriptions.find((sub: any) => {
+                  const latestPayment = sub.payments?.[0]; // Get latest payment
+                  return (
+                    sub.status === 'ACTIVE' && latestPayment?.status === 'COMPLETED'
+                  );
+                });
+
+                registrationStatus.hasSubscription = !!activeSubscription;
+              } catch (err) {
+                // Silent fail
+              }
+            }
+
+            // Check profile completion
+            if (profile) {
+              const hasDateOfBirth = !!profile?.date_of_birth;
+              const hasBasicInfo = !!(profile?.height && profile?.weight);
+
+              registrationStatus.hasCompletedProfile =
+                hasDateOfBirth && hasBasicInfo;
+            }
+          } catch (err) {
+            // Silent fail
+          }
+        } else {
+          setMember(null);
+        }
+
+        return {
+          hasMember: memberExists,
+          user,
+          accessToken,
+          refreshToken,
+          registrationStatus,
+        };
+      } else {
+        throw new Error(response.message || 'Face login failed');
+      }
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Face login failed';
+      setError(errorMessage);
+      throw err;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const register = async (credentials: RegisterCredentials) => {
     try {
       setIsLoading(true);
@@ -466,6 +583,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     hasMember,
     member, // Expose member.id (member_id) for easy access throughout app
     login,
+    loginWithFace,
     register,
     logout,
     forgotPassword,

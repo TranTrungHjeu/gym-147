@@ -3,8 +3,8 @@
  * Sử dụng pgvector với HNSW index
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class VectorSearchService {
   /**
@@ -56,7 +56,7 @@ class VectorSearchService {
           price,
           class_embedding,
           1 - (class_embedding <=> ${memberVector}::vector) as similarity
-        FROM gym_classes
+        FROM schedule_schema.gym_classes
         WHERE class_embedding IS NOT NULL
           AND is_active = true
         ORDER BY class_embedding <=> ${memberVector}::vector
@@ -74,7 +74,7 @@ class VectorSearchService {
         similarity: parseFloat(row.similarity),
       }));
     } catch (error) {
-      console.error('❌ Error in vector search:', error);
+      console.error('[ERROR] Error in vector search:', error);
       throw error;
     }
   }
@@ -100,7 +100,7 @@ class VectorSearchService {
           duration,
           price,
           1 - (class_embedding <=> ${vectorString}::vector) as similarity
-        FROM gym_classes
+        FROM schedule_schema.gym_classes
         WHERE class_embedding IS NOT NULL
           AND is_active = true
         ORDER BY class_embedding <=> ${vectorString}::vector
@@ -118,7 +118,7 @@ class VectorSearchService {
         similarity: parseFloat(row.similarity),
       }));
     } catch (error) {
-      console.error('❌ Error in semantic search:', error);
+      console.error('[ERROR] Error in semantic search:', error);
       throw error;
     }
   }
@@ -139,7 +139,7 @@ class VectorSearchService {
           membership_type,
           fitness_goals,
           1 - (profile_embedding <=> ${memberVector}::vector) as similarity
-        FROM members
+        FROM member_schema.members
         WHERE profile_embedding IS NOT NULL
           AND membership_status = 'ACTIVE'
         ORDER BY profile_embedding <=> ${memberVector}::vector
@@ -155,7 +155,7 @@ class VectorSearchService {
         similarity: parseFloat(row.similarity),
       }));
     } catch (error) {
-      console.error('❌ Error finding similar members:', error);
+      console.error('[ERROR] Error finding similar members:', error);
       throw error;
     }
   }

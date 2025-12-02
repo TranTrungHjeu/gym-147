@@ -79,20 +79,20 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting gym classes with filters:', filters);
+      console.log('[CLASS] Getting gym classes with filters:', filters);
 
       const response = await scheduleApiService.get('/classes', {
         params: filters,
       });
 
-      console.log('📚 Classes API response:', response);
+      console.log('[CLASS] Classes API response:', response);
 
       return {
         success: true,
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching classes:', error);
+      console.error('[ERROR] Error fetching classes:', error);
       return { success: false, error: error.message };
     }
   }
@@ -106,7 +106,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting class by ID:', id);
+      console.log('[CLASS] Getting class by ID:', id);
 
       const response = await scheduleApiService.get(`/classes/${id}`);
 
@@ -115,7 +115,7 @@ class ClassService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching class:', error);
+      console.error('[ERROR] Error fetching class:', error);
       return { success: false, error: error.message };
     }
   }
@@ -129,7 +129,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting classes by category:', category);
+      console.log('[CLASS] Getting classes by category:', category);
 
       const response = await scheduleApiService.get('/classes', {
         params: { category, is_active: true },
@@ -140,7 +140,7 @@ class ClassService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching classes by category:', error);
+      console.error('[ERROR] Error fetching classes by category:', error);
       return { success: false, error: error.message };
     }
   }
@@ -154,7 +154,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting classes by difficulty:', difficulty);
+      console.log('[CLASS] Getting classes by difficulty:', difficulty);
 
       const response = await scheduleApiService.get('/classes', {
         params: { difficulty, is_active: true },
@@ -165,7 +165,7 @@ class ClassService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching classes by difficulty:', error);
+      console.error('[ERROR] Error fetching classes by difficulty:', error);
       return { success: false, error: error.message };
     }
   }
@@ -179,7 +179,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Searching classes with query:', query);
+      console.log('[CLASS] Searching classes with query:', query);
 
       const response = await scheduleApiService.get('/classes', {
         params: { search: query, is_active: true },
@@ -190,7 +190,7 @@ class ClassService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error searching classes:', error);
+      console.error('[ERROR] Error searching classes:', error);
       return { success: false, error: error.message };
     }
   }
@@ -204,7 +204,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting popular classes, limit:', limit);
+      console.log('[CLASS] Getting popular classes, limit:', limit);
 
       const response = await scheduleApiService.get('/classes/popular', {
         params: { limit },
@@ -215,7 +215,7 @@ class ClassService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching popular classes:', error);
+      console.error('[ERROR] Error fetching popular classes:', error);
       return { success: false, error: error.message };
     }
   }
@@ -229,7 +229,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting class categories');
+      console.log('[CLASS] Getting class categories');
 
       const response = await scheduleApiService.get('/classes/categories');
 
@@ -238,7 +238,7 @@ class ClassService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching class categories:', error);
+      console.error('[ERROR] Error fetching class categories:', error);
       return { success: false, error: error.message };
     }
   }
@@ -257,7 +257,7 @@ class ClassService {
     error?: string;
   }> {
     try {
-      console.log('📚 Getting class statistics');
+      console.log('[CLASS] Getting class statistics');
 
       const response = await scheduleApiService.get('/classes/stats');
 
@@ -266,7 +266,7 @@ class ClassService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching class statistics:', error);
+      console.error('[ERROR] Error fetching class statistics:', error);
       return { success: false, error: error.message };
     }
   }
@@ -294,7 +294,7 @@ class ClassService {
         useAI: useAI ? 'true' : 'false',
         useVector: useVector ? 'true' : 'false',
       };
-      console.log('🌐 [getClassRecommendations] Calling API:', {
+      console.log('[API] [getClassRecommendations] Calling API:', {
         memberId,
         params,
         endpoint: `/classes/members/${memberId}/recommendations`,
@@ -305,7 +305,7 @@ class ClassService {
         { params }
       );
 
-      console.log('📥 [getClassRecommendations] API Response:', {
+      console.log('[DATA] [getClassRecommendations] API Response:', {
         hasResponse: !!response,
         hasData: !!response.data,
         responseData: response.data,
@@ -315,7 +315,7 @@ class ClassService {
       const data = response.data?.data || response.data || {};
       const recommendations = data.recommendations || [];
 
-      console.log('📊 [getClassRecommendations] Extracted data:', {
+      console.log('[DATA] [getClassRecommendations] Extracted data:', {
         hasData: !!data,
         recommendationsCount: recommendations.length,
         method: data.method,
@@ -332,7 +332,7 @@ class ClassService {
         },
       };
     } catch (error: any) {
-      console.error('❌ [getClassRecommendations] Error fetching class recommendations:', {
+      console.error('[ERROR] [getClassRecommendations] Error fetching class recommendations:', {
         message: error.message,
         status: error.status,
         response: error.response?.data,
@@ -392,7 +392,7 @@ class ClassService {
         },
       };
     } catch (error: any) {
-      console.error('❌ Error fetching scheduling suggestions:', error);
+      console.error('[ERROR] Error fetching scheduling suggestions:', error);
       return {
         success: false,
         error: error.message || 'Failed to fetch scheduling suggestions',

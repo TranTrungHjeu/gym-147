@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Database Certification Service
@@ -27,7 +27,7 @@ class DatabaseCertificationService {
         qualifiedTrainers: result,
       };
     } catch (error) {
-      console.error('❌ Error getting qualified trainers from database:', error);
+      console.error('[ERROR] Error getting qualified trainers from database:', error);
       return {
         success: false,
         error: error.message,
@@ -115,7 +115,7 @@ class DatabaseCertificationService {
         warning,
       };
     } catch (error) {
-      console.error('❌ Error validating trainer can teach:', error);
+      console.error('[ERROR] Error validating trainer can teach:', error);
       return {
         canTeach: false,
         reason: 'Error validating certification',
@@ -187,7 +187,7 @@ class DatabaseCertificationService {
         specializationsWithDetails,
       };
     } catch (error) {
-      console.error('❌ Error getting trainer specializations with details:', error);
+      console.error('[ERROR] Error getting trainer specializations with details:', error);
       return {
         success: false,
         error: error.message,
@@ -219,7 +219,7 @@ class DatabaseCertificationService {
         trainers: result,
       };
     } catch (error) {
-      console.error('❌ Error getting all trainers with specializations:', error);
+      console.error('[ERROR] Error getting all trainers with specializations:', error);
       return {
         success: false,
         error: error.message,
@@ -282,7 +282,7 @@ class DatabaseCertificationService {
         },
       };
     } catch (error) {
-      console.error('❌ Error getting certification statistics:', error);
+      console.error('[ERROR] Error getting certification statistics:', error);
       return {
         success: false,
         error: error.message,
@@ -313,7 +313,7 @@ class DatabaseCertificationService {
         constraints: 'OK',
       };
     } catch (error) {
-      console.error('❌ Database health check failed:', error);
+      console.error('[ERROR] Database health check failed:', error);
       return {
         success: false,
         error: error.message,

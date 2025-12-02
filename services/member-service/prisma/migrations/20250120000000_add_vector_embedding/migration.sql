@@ -1,5 +1,5 @@
--- Enable pgvector extension
-CREATE EXTENSION IF NOT EXISTS vector;
+-- Note: pgvector extension must be enabled in Supabase SQL Editor first
+-- Run: CREATE EXTENSION IF NOT EXISTS vector; in Supabase Dashboard
 
 -- Add vector embedding column to members table
 ALTER TABLE "members" ADD COLUMN IF NOT EXISTS "profile_embedding" vector(1536);

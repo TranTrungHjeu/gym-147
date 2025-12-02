@@ -20,7 +20,7 @@ const SocialButton: React.FC<SocialButtonProps> = ({
       case 'google':
         return {
           text: 'Continue with Google',
-          icon: '🔍', // Replace with actual icon/image
+          icon: '[SEARCH]', // Replace with actual icon/image
           backgroundColor: theme.colors.surface,
           textColor: theme.colors.text,
         };

@@ -1,6 +1,11 @@
+import { AlertModal } from '@/components/ui/AlertModal';
 import { Button } from '@/components/ui/Button';
+import { SkeletonLoader, SkeletonCard } from '@/components/ui/SkeletonLoader';
+import { useToast } from '@/hooks/useToast';
+import { useAnalyticsActions } from '@/hooks/useAnalytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { authService } from '@/services';
+import { userService } from '@/services/identity/user.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
@@ -12,6 +17,8 @@ import {
   Monitor,
   Shield,
   Smartphone,
+  User,
+  RefreshCw,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -28,13 +35,15 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-type SecurityTab = 'password' | '2fa' | 'sessions';
+type SecurityTab = 'password' | '2fa' | 'face' | 'sessions';
 
 export default function SecuritySettingsScreen() {
   const router = useRouter();
   const { theme } = useTheme();
   const { user } = useAuth();
   const { t } = useTranslation();
+  const { showSuccess, showError, ToastComponent } = useToast();
+  const analytics = useAnalyticsActions();
 
   const [activeTab, setActiveTab] = useState<SecurityTab>('password');
   const [loading, setLoading] = useState(false);
@@ -56,28 +65,143 @@ export default function SecuritySettingsScreen() {
 
   // Sessions state
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+
+  // Face encoding state
+  const [faceEnrolled, setFaceEnrolled] = useState(false);
+  const [loadingFaceStatus, setLoadingFaceStatus] = useState(false);
+  const [faceError, setFaceError] = useState<string | null>(null);
+  const [errorModalVisible, setErrorModalVisible] = useState(false);
+  const [errorModalData, setErrorModalData] = useState<{
+    title: string;
+    message: string;
+    suggestion?: string;
+  } | null>(null);
 
   useEffect(() => {
     loadSecurityData();
+    getCurrentSessionId();
+    loadFaceEncodingStatus();
   }, []);
+
+  const loadFaceEncodingStatus = async (showRetry = false) => {
+    try {
+      setLoadingFaceStatus(true);
+      setFaceError(null);
+      analytics.trackFeatureUsage('load_face_encoding_status');
+      
+      const response = await userService.getFaceEncodingStatus();
+      if (response.success && response.data) {
+        setFaceEnrolled(response.data.enrolled || response.data.hasFaceEncoding);
+        if (showRetry) {
+          showSuccess(
+            t('faceLogin.statusUpdated', {
+              defaultValue: 'Trạng thái đã được cập nhật',
+            })
+          );
+        }
+      } else {
+        const errorMessage =
+          response.message ||
+          t('faceLogin.loadStatusError', {
+            defaultValue: 'Không thể tải trạng thái đăng ký khuôn mặt',
+          });
+        setFaceError(errorMessage);
+        setFaceEnrolled(false);
+        
+        if (showRetry) {
+          analytics.trackError('load_face_status_failed', errorMessage);
+          setErrorModalData({
+            title: t('common.error', { defaultValue: 'Lỗi' }),
+            message: errorMessage,
+            suggestion: t('faceLogin.retrySuggestion', {
+              defaultValue: 'Vui lòng thử lại hoặc kiểm tra kết nối mạng',
+            }),
+          });
+          setErrorModalVisible(true);
+        } else {
+          showError(errorMessage);
+        }
+      }
+    } catch (error: any) {
+      const errorMessage =
+        error.message ||
+        t('faceLogin.loadStatusError', {
+          defaultValue: 'Không thể tải trạng thái đăng ký khuôn mặt',
+        });
+      setFaceError(errorMessage);
+      setFaceEnrolled(false);
+      analytics.trackError('load_face_status_exception', errorMessage);
+      
+      if (showRetry) {
+        setErrorModalData({
+          title: t('common.error', { defaultValue: 'Lỗi' }),
+          message: errorMessage,
+          suggestion: t('faceLogin.retrySuggestion', {
+            defaultValue: 'Vui lòng thử lại hoặc kiểm tra kết nối mạng',
+          }),
+        });
+        setErrorModalVisible(true);
+      } else {
+        showError(errorMessage);
+      }
+    } finally {
+      setLoadingFaceStatus(false);
+    }
+  };
+
+  const getCurrentSessionId = async () => {
+    try {
+      const token = await authService.getStoredToken();
+      if (token) {
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          setCurrentSessionId(payload.sessionId || null);
+        } catch (e) {
+          console.error('Error decoding token:', e);
+        }
+      }
+    } catch (error) {
+      console.error('Error getting current session ID:', error);
+    }
+  };
 
   const loadSecurityData = async () => {
     try {
+      setLoading(true);
+
       // Load 2FA status
-      // TODO: Add API call to check 2FA status
-      setTwoFactorEnabled(false);
+      const twoFactorResponse = await authService.get2FAStatus();
+      if (twoFactorResponse.success && twoFactorResponse.data) {
+        setTwoFactorEnabled(twoFactorResponse.data.enabled);
+        if (twoFactorResponse.data.secret && !twoFactorResponse.data.enabled) {
+          setTwoFactorSecret(twoFactorResponse.data.secret);
+          setTwoFactorQR(twoFactorResponse.data.qrCodeUrl || '');
+        }
+      } else {
+        setTwoFactorEnabled(false);
+      }
 
       // Load active sessions
-      // TODO: Add API call to get active sessions
-      setActiveSessions([]);
+      const sessionsResponse = await authService.getActiveSessions();
+      if (sessionsResponse.success && sessionsResponse.data?.devices) {
+        setActiveSessions(sessionsResponse.data.devices);
+      } else {
+        setActiveSessions([]);
+      }
     } catch (error) {
       console.error('Error loading security data:', error);
+    } finally {
+      setLoading(false);
     }
   };
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadSecurityData();
+    await Promise.all([
+      loadSecurityData(),
+      loadFaceEncodingStatus(),
+    ]);
     setRefreshing(false);
   };
 
@@ -165,7 +289,14 @@ export default function SecuritySettingsScreen() {
       if (response.success) {
         setTwoFactorEnabled(true);
         setVerificationCode('');
+        setTwoFactorSecret('');
+        setTwoFactorQR('');
         Alert.alert(t('common.success'), '2FA enabled successfully');
+        // Refresh 2FA status
+        const statusResponse = await authService.get2FAStatus();
+        if (statusResponse.success && statusResponse.data) {
+          setTwoFactorEnabled(statusResponse.data.enabled);
+        }
       } else {
         Alert.alert(
           t('common.error'),
@@ -199,6 +330,11 @@ export default function SecuritySettingsScreen() {
                 setTwoFactorSecret('');
                 setTwoFactorQR('');
                 Alert.alert(t('common.success'), '2FA disabled successfully');
+                // Refresh 2FA status
+                const statusResponse = await authService.get2FAStatus();
+                if (statusResponse.success && statusResponse.data) {
+                  setTwoFactorEnabled(statusResponse.data.enabled);
+                }
               } else {
                 Alert.alert(
                   t('common.error'),
@@ -465,6 +601,211 @@ export default function SecuritySettingsScreen() {
     </View>
   );
 
+  const renderFaceTab = () => (
+    <View style={styles.tabContent}>
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <User size={24} color={theme.colors.primary} />
+          <View style={{ flex: 1, marginLeft: 12 }}>
+            <Text style={[Typography.h4, { color: theme.colors.text }]}>
+              {t('faceLogin.title', {
+                defaultValue: 'Đăng nhập bằng khuôn mặt',
+              })}
+            </Text>
+            <Text
+              style={[
+                Typography.bodySmall,
+                { color: theme.colors.textSecondary, marginTop: 4 },
+              ]}
+            >
+              {t('faceLogin.description', {
+                defaultValue: 'Đăng nhập nhanh chóng và an toàn bằng khuôn mặt',
+              })}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {loadingFaceStatus ? (
+        <View style={styles.loadingContainer}>
+          <SkeletonCard />
+        </View>
+      ) : faceError && !faceEnrolled ? (
+        <View
+          style={[
+            styles.statusCard,
+            { backgroundColor: theme.colors.error + '15' },
+          ]}
+        >
+          <Text
+            style={[Typography.bodyMedium, { color: theme.colors.error }]}
+          >
+            {faceError}
+          </Text>
+            <Button
+              title={t('common.retry', { defaultValue: 'Thử lại' })}
+              onPress={() => loadFaceEncodingStatus(true)}
+              variant="outline"
+              size="small"
+              style={styles.retryButton}
+            />
+        </View>
+      ) : (
+        <>
+          {faceEnrolled ? (
+            <View
+              style={[
+                styles.statusCard,
+                { backgroundColor: theme.colors.success + '15' },
+              ]}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  { color: theme.colors.success },
+                ]}
+              >
+                {t('faceLogin.enrolled', {
+                  defaultValue: 'Đã đăng ký khuôn mặt',
+                })}
+              </Text>
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.statusCard,
+                { backgroundColor: theme.colors.warning + '15' },
+              ]}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  { color: theme.colors.warning },
+                ]}
+              >
+                {t('faceLogin.notEnrolled', {
+                  defaultValue: 'Chưa đăng ký khuôn mặt',
+                })}
+              </Text>
+            </View>
+          )}
+
+          <View style={styles.section}>
+            <Button
+              title={
+                faceEnrolled
+                  ? t('faceLogin.updateFace', {
+                      defaultValue: 'Cập nhật khuôn mặt',
+                    })
+                  : t('faceLogin.enrollFace', {
+                      defaultValue: 'Đăng ký khuôn mặt',
+                    })
+              }
+              onPress={async () => {
+                analytics.trackButtonClick(
+                  faceEnrolled ? 'update_face' : 'enroll_face',
+                  'security_settings'
+                );
+                router.push('/settings/face-enrollment');
+              }}
+              loading={loadingFaceStatus}
+              style={styles.submitButton}
+            />
+            
+            <Button
+              title={t('common.refresh', { defaultValue: 'Làm mới' })}
+              onPress={() => loadFaceEncodingStatus(true)}
+              variant="outline"
+              loading={loadingFaceStatus}
+              style={styles.submitButton}
+            />
+
+            {faceEnrolled && (
+              <Button
+                title={t('faceLogin.deleteFace', {
+                  defaultValue: 'Xóa khuôn mặt',
+                })}
+                onPress={async () => {
+                  Alert.alert(
+                    t('faceLogin.deleteFace', {
+                      defaultValue: 'Xóa khuôn mặt',
+                    }),
+                    t('faceLogin.confirmDelete', {
+                      defaultValue:
+                        'Bạn có chắc chắn muốn xóa khuôn mặt đã đăng ký?',
+                    }),
+                    [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('faceLogin.delete', {
+                          defaultValue: 'Xóa',
+                        }),
+                        style: 'destructive',
+                        onPress: async () => {
+                          setLoading(true);
+                          try {
+                            const response =
+                              await userService.deleteFaceEncoding();
+                            if (response.success) {
+                              analytics.trackFeatureUsage('delete_face_encoding_success');
+                              setFaceEnrolled(false);
+                              // Reload status to ensure consistency
+                              await loadFaceEncodingStatus();
+                              showSuccess(
+                                t('faceLogin.deleteSuccess', {
+                                  defaultValue: 'Đã xóa khuôn mặt thành công',
+                                })
+                              );
+                            } else {
+                              const errorMessage =
+                                response.message ||
+                                t('faceLogin.deleteError', {
+                                  defaultValue: 'Không thể xóa khuôn mặt. Vui lòng thử lại.',
+                                });
+                              analytics.trackError('delete_face_encoding_failed', errorMessage);
+                              setErrorModalData({
+                                title: t('common.error', { defaultValue: 'Lỗi' }),
+                                message: errorMessage,
+                                suggestion: t('faceLogin.retrySuggestion', {
+                                  defaultValue: 'Vui lòng thử lại sau',
+                                }),
+                              });
+                              setErrorModalVisible(true);
+                            }
+                          } catch (error: any) {
+                            const errorMessage =
+                              error.message ||
+                              t('faceLogin.deleteError', {
+                                defaultValue: 'Không thể xóa khuôn mặt',
+                              });
+                            analytics.trackError('delete_face_encoding_exception', errorMessage);
+                            setErrorModalData({
+                              title: t('common.error', { defaultValue: 'Lỗi' }),
+                              message: errorMessage,
+                              suggestion: t('faceLogin.retrySuggestion', {
+                                defaultValue: 'Vui lòng thử lại sau',
+                              }),
+                            });
+                            setErrorModalVisible(true);
+                          } finally {
+                            setLoading(false);
+                          }
+                        },
+                      },
+                    ]
+                  );
+                }}
+                loading={loading}
+                variant="outline"
+                style={styles.submitButton}
+              />
+            )}
+          </View>
+        </>
+      )}
+    </View>
+  );
+
   const renderSessionsTab = () => (
     <View style={styles.tabContent}>
       <View style={styles.section}>
@@ -481,6 +822,57 @@ export default function SecuritySettingsScreen() {
         </Text>
       </View>
 
+      {activeSessions.length > 0 && (
+        <View style={styles.section}>
+          <Button
+            title="Logout All Other Sessions"
+            onPress={() => {
+              Alert.alert(
+                'Logout All Sessions',
+                'Are you sure you want to logout all other sessions? You will remain logged in on this device.',
+                [
+                  { text: t('common.cancel'), style: 'cancel' },
+                  {
+                    text: 'Logout All',
+                    style: 'destructive',
+                    onPress: async () => {
+                      try {
+                        setLoading(true);
+                        const response = await authService.revokeAllSessions();
+                        if (response.success) {
+                          Alert.alert(
+                            t('common.success'),
+                            'All other sessions logged out successfully'
+                          );
+                          // Refresh sessions list
+                          await loadSecurityData();
+                        } else {
+                          Alert.alert(
+                            t('common.error'),
+                            response.message || 'Failed to logout all sessions'
+                          );
+                        }
+                      } catch (error: any) {
+                        console.error('Error revoking all sessions:', error);
+                        Alert.alert(
+                          t('common.error'),
+                          error.message || 'Failed to logout all sessions'
+                        );
+                      } finally {
+                        setLoading(false);
+                      }
+                    },
+                  },
+                ]
+              );
+            }}
+            loading={loading}
+            variant="outline"
+            style={styles.revokeAllButton}
+          />
+        </View>
+      )}
+
       {activeSessions.length === 0 ? (
         <View style={styles.emptyState}>
           <Monitor size={48} color={theme.colors.textSecondary} />
@@ -494,43 +886,86 @@ export default function SecuritySettingsScreen() {
           </Text>
         </View>
       ) : (
-        activeSessions.map((session, index) => (
-          <View
-            key={index}
-            style={[
-              styles.sessionCard,
-              {
-                backgroundColor: theme.colors.surface,
-                borderColor: theme.colors.border,
-              },
-            ]}
-          >
-            <View style={styles.sessionIcon}>
-              <Smartphone size={24} color={theme.colors.primary} />
-            </View>
-            <View style={styles.sessionInfo}>
-              <Text
-                style={[Typography.bodyMedium, { color: theme.colors.text }]}
-              >
-                {session.device || 'Unknown Device'}
-              </Text>
-              <Text
-                style={[
-                  Typography.bodySmall,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {session.location || 'Unknown Location'}
-              </Text>
-              <Text
-                style={[
-                  Typography.caption,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                Last active: {session.lastActive || 'Unknown'}
-              </Text>
-            </View>
+        activeSessions.map((session, index) => {
+          const isCurrentSession = session.id === currentSessionId;
+          const lastActiveDate = session.last_used_at
+            ? new Date(session.last_used_at)
+            : null;
+          const formattedLastActive = lastActiveDate
+            ? lastActiveDate.toLocaleString('en-US', {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit',
+              })
+            : 'Unknown';
+
+          return (
+            <View
+              key={session.id || index}
+              style={[
+                styles.sessionCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: isCurrentSession
+                    ? theme.colors.primary
+                    : theme.colors.border,
+                  borderWidth: isCurrentSession ? 2 : 1,
+                },
+              ]}
+            >
+              <View style={styles.sessionIcon}>
+                <Smartphone size={24} color={theme.colors.primary} />
+              </View>
+              <View style={styles.sessionInfo}>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                  <Text
+                    style={[
+                      Typography.bodyMedium,
+                      { color: theme.colors.text },
+                    ]}
+                  >
+                    {session.device_info || session.user_agent || 'Unknown Device'}
+                  </Text>
+                  {isCurrentSession && (
+                    <View
+                      style={[
+                        styles.currentBadge,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          Typography.caption,
+                          {
+                            color: theme.colors.textInverse,
+                            fontSize: 10,
+                            fontWeight: '600',
+                          },
+                        ]}
+                      >
+                        Current
+                      </Text>
+                    </View>
+                  )}
+                </View>
+                <Text
+                  style={[
+                    Typography.bodySmall,
+                    { color: theme.colors.textSecondary, marginTop: 4 },
+                  ]}
+                >
+                  {session.location || session.ip_address || 'Unknown Location'}
+                </Text>
+                <Text
+                  style={[
+                    Typography.caption,
+                    { color: theme.colors.textSecondary, marginTop: 2 },
+                  ]}
+                >
+                  Last active: {formattedLastActive}
+                </Text>
+              </View>
             <TouchableOpacity
               style={styles.logoutButton}
               onPress={() => {
@@ -542,8 +977,34 @@ export default function SecuritySettingsScreen() {
                     {
                       text: 'Logout',
                       style: 'destructive',
-                      onPress: () => {
-                        // TODO: Implement logout session
+                      onPress: async () => {
+                        try {
+                          setLoading(true);
+                          const response = await authService.revokeSession(
+                            session.id
+                          );
+                          if (response.success) {
+                            Alert.alert(
+                              t('common.success'),
+                              'Session logged out successfully'
+                            );
+                            // Refresh sessions list
+                            await loadSecurityData();
+                          } else {
+                            Alert.alert(
+                              t('common.error'),
+                              response.message || 'Failed to logout session'
+                            );
+                          }
+                        } catch (error: any) {
+                          console.error('Error revoking session:', error);
+                          Alert.alert(
+                            t('common.error'),
+                            error.message || 'Failed to logout session'
+                          );
+                        } finally {
+                          setLoading(false);
+                        }
                       },
                     },
                   ]
@@ -556,8 +1017,9 @@ export default function SecuritySettingsScreen() {
                 Logout
               </Text>
             </TouchableOpacity>
-          </View>
-        ))
+            </View>
+          );
+        })
       )}
     </View>
   );
@@ -648,6 +1110,41 @@ export default function SecuritySettingsScreen() {
         <TouchableOpacity
           style={[
             styles.tab,
+            activeTab === 'face' && {
+              borderBottomColor: theme.colors.primary,
+            },
+          ]}
+          onPress={() => setActiveTab('face')}
+        >
+          <User
+            size={20}
+            color={
+              activeTab === 'face'
+                ? theme.colors.primary
+                : theme.colors.textSecondary
+            }
+          />
+          <Text
+            style={[
+              Typography.bodyMedium,
+              {
+                color:
+                  activeTab === 'face'
+                    ? theme.colors.primary
+                    : theme.colors.textSecondary,
+                marginLeft: 8,
+              },
+            ]}
+          >
+            {t('faceLogin.title', {
+              defaultValue: 'Face',
+            })}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.tab,
             activeTab === 'sessions' && {
               borderBottomColor: theme.colors.primary,
             },
@@ -688,8 +1185,23 @@ export default function SecuritySettingsScreen() {
       >
         {activeTab === 'password' && renderPasswordTab()}
         {activeTab === '2fa' && render2FATab()}
+        {activeTab === 'face' && renderFaceTab()}
         {activeTab === 'sessions' && renderSessionsTab()}
       </ScrollView>
+      
+      {/* Toast Component */}
+      <ToastComponent />
+      
+      {/* Error Modal */}
+      <AlertModal
+        visible={errorModalVisible}
+        title={errorModalData?.title || t('common.error', { defaultValue: 'Lỗi' })}
+        message={errorModalData?.message || ''}
+        suggestion={errorModalData?.suggestion}
+        type="error"
+        buttonText={t('common.ok', { defaultValue: 'OK' })}
+        onClose={() => setErrorModalVisible(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -800,5 +1312,20 @@ const styles = StyleSheet.create({
   },
   logoutButton: {
     padding: 8,
+  },
+  currentBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    marginLeft: 8,
+  },
+  revokeAllButton: {
+    marginBottom: 16,
+  },
+  loadingContainer: {
+    paddingVertical: 24,
+  },
+  retryButton: {
+    marginTop: 12,
   },
 });

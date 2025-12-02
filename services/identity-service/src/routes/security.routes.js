@@ -9,6 +9,7 @@ const securityController = new SecurityController();
 router.post('/verify-2fa-login', (req, res) => securityController.verify2FALogin(req, res));
 
 // Two-Factor Authentication routes (protected for setup/management)
+router.get('/2fa/status', authMiddleware, (req, res) => securityController.get2FAStatus(req, res));
 router.post('/enable-2fa', authMiddleware, (req, res) => securityController.enable2FA(req, res));
 router.post('/verify-2fa', authMiddleware, (req, res) => securityController.verify2FA(req, res));
 router.post('/disable-2fa', authMiddleware, (req, res) => securityController.disable2FA(req, res));

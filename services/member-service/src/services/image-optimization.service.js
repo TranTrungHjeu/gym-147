@@ -98,7 +98,7 @@ class ImageOptimizationService {
         compressionRatio: ((1 - optimizedBuffer.length / imageBuffer.length) * 100).toFixed(2),
       };
     } catch (error) {
-      console.error('❌ Image optimization error:', error);
+      console.error('[ERROR] Image optimization error:', error);
       return {
         success: false,
         error: error.message,
@@ -155,7 +155,7 @@ class ImageOptimizationService {
         orientation: metadata.orientation,
       };
     } catch (error) {
-      console.error('❌ Get image metadata error:', error);
+      console.error('[ERROR] Get image metadata error:', error);
       return {
         success: false,
         error: error.message,
@@ -225,7 +225,7 @@ class ImageOptimizationService {
         metadata: metadataResult,
       };
     } catch (error) {
-      console.error('❌ Image validation error:', error);
+      console.error('[ERROR] Image validation error:', error);
       return {
         success: false,
         error: error.message,
@@ -267,7 +267,7 @@ class ImageOptimizationService {
         size: convertedBuffer.length,
       };
     } catch (error) {
-      console.error('❌ Format conversion error:', error);
+      console.error('[ERROR] Format conversion error:', error);
       return {
         success: false,
         error: error.message,

@@ -94,7 +94,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
 
           // Setup booking notification listeners with optimistic updates
           scheduleSocket.on('booking:new', (data: any) => {
-            console.log('📢 booking:new event received in TrainerLayout:', data);
+            console.log('[NOTIFY] booking:new event received in TrainerLayout:', data);
             eventManager.dispatch('booking:new', data);
             eventManager.dispatch('booking:updated', data);
             // Show subtle toast notification
@@ -113,7 +113,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('booking:confirmed', (data: any) => {
-            console.log('📢 booking:confirmed event received in TrainerLayout:', data);
+            console.log('[NOTIFY] booking:confirmed event received in TrainerLayout:', data);
             eventManager.dispatch('booking:confirmed', data);
             eventManager.dispatch('booking:updated', data);
             eventManager.dispatch('booking:status_changed', data);
@@ -128,7 +128,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('booking:cancelled', (data: any) => {
-            console.log('📢 booking:cancelled event received in TrainerLayout:', data);
+            console.log('[NOTIFY] booking:cancelled event received in TrainerLayout:', data);
             eventManager.dispatch('booking:cancelled', data);
             eventManager.dispatch('booking:updated', data);
             eventManager.dispatch('booking:status_changed', data);
@@ -143,7 +143,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('member:checked_in', (data: any) => {
-            console.log('📢 member:checked_in event received in TrainerLayout:', data);
+            console.log('[NOTIFY] member:checked_in event received in TrainerLayout:', data);
             eventManager.dispatch('member:checked_in', data);
             // Show success toast notification
             if (window.showToast && data.data?.member_name && data.data?.class_name) {
@@ -157,7 +157,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
 
           // Setup certification status notification listener for trainer
           scheduleSocket.on('certification:pending', (data: any) => {
-            console.log('📢 certification:pending event received in TrainerLayout:', data);
+            console.log('[NOTIFY] certification:pending event received in TrainerLayout:', data);
             eventManager.dispatch('certification:pending', data);
             eventManager.dispatch('certification:updated', data);
             if (data?.notification_id) {
@@ -166,7 +166,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:upload', (data: any) => {
-            console.log('📢 certification:upload event received in TrainerLayout:', data);
+            console.log('[NOTIFY] certification:upload event received in TrainerLayout:', data);
             eventManager.dispatch('certification:upload', data);
             eventManager.dispatch('certification:updated', data);
             if (data?.notification_id) {
@@ -175,7 +175,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:created', (data: any) => {
-            console.log('📢 certification:created event received in TrainerLayout:', data);
+            console.log('[NOTIFY] certification:created event received in TrainerLayout:', data);
             eventManager.dispatch('certification:created', data);
             eventManager.dispatch('certification:upload', data);
             eventManager.dispatch('certification:updated', data);
@@ -185,7 +185,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('notification:new', (data: any) => {
-            console.log('📢 notification:new event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            console.log('[NOTIFY] notification:new event received in TrainerLayout:', JSON.stringify(data, null, 2));
             eventManager.dispatch('notification:new', data);
             if (data && (data.type?.includes('CERTIFICATION') || data.data?.certification_id)) {
               eventManager.dispatch('certification:updated', data);
@@ -193,7 +193,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:status', (data: any) => {
-            console.log('📢 certification:status event received in TrainerLayout:', data);
+            console.log('[NOTIFY] certification:status event received in TrainerLayout:', data);
             eventManager.dispatch('certification:status', data);
             eventManager.dispatch('certification:updated', data);
             if (data?.notification_id) {
@@ -202,7 +202,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:verified', (data: any) => {
-            console.log('📢 certification:verified event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            console.log('[NOTIFY] certification:verified event received in TrainerLayout:', JSON.stringify(data, null, 2));
             eventManager.dispatch('certification:verified', data);
             eventManager.dispatch('certification:updated', data);
             if (data) {
@@ -211,7 +211,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:rejected', (data: any) => {
-            console.log('📢 certification:rejected event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            console.log('[NOTIFY] certification:rejected event received in TrainerLayout:', JSON.stringify(data, null, 2));
             eventManager.dispatch('certification:rejected', data);
             eventManager.dispatch('certification:updated', data);
             if (data) {
@@ -220,7 +220,7 @@ const TrainerLayout: React.FC<TrainerLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:deleted', (data: any) => {
-            console.log('📢 certification:deleted event received in TrainerLayout:', JSON.stringify(data, null, 2));
+            console.log('[NOTIFY] certification:deleted event received in TrainerLayout:', JSON.stringify(data, null, 2));
             eventManager.dispatch('certification:deleted', data);
             if (data) {
               eventManager.dispatch('notification:new', data);

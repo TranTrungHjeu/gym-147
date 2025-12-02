@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const notificationService = require('../services/notification.service.js');
 
 // ==================== ADMIN CERTIFICATION ENDPOINTS ====================
@@ -161,7 +161,7 @@ const verifyCertification = async (req, res) => {
         if (existingLevel < newLevel) {
           certsToDeactivate.push(existingCert.id);
           console.log(
-            `🗑️  Will deactivate cert ${existingCert.id} (${existingCert.certification_level}) - new cert has higher level (${certification.certification_level})`
+            `[DELETE]  Will deactivate cert ${existingCert.id} (${existingCert.certification_level}) - new cert has higher level (${certification.certification_level})`
           );
         }
         // Case 2: Same level
@@ -173,7 +173,7 @@ const verifyCertification = async (req, res) => {
           ) {
             certsToDeactivate.push(existingCert.id);
             console.log(
-              `🗑️  Will deactivate cert ${existingCert.id} - same name/issuer, upgrading to new cert`
+              `[DELETE]  Will deactivate cert ${existingCert.id} - same name/issuer, upgrading to new cert`
             );
           }
           // Different name/issuer - check expiration date
@@ -185,18 +185,18 @@ const verifyCertification = async (req, res) => {
               // New cert expires later - deactivate old
               certsToDeactivate.push(existingCert.id);
               console.log(
-                `🗑️  Will deactivate cert ${existingCert.id} - new cert expires later (${newExp.toISOString()} vs ${existingExp.toISOString()})`
+                `[DELETE]  Will deactivate cert ${existingCert.id} - new cert expires later (${newExp.toISOString()} vs ${existingExp.toISOString()})`
               );
             } else if (newExp && !existingExp) {
               // New cert has expiration, old doesn't - deactivate old (prefer cert with expiration)
               certsToDeactivate.push(existingCert.id);
               console.log(
-                `🗑️  Will deactivate cert ${existingCert.id} - new cert has expiration date, old doesn't`
+                `[DELETE]  Will deactivate cert ${existingCert.id} - new cert has expiration date, old doesn't`
               );
             } else if (!newExp && existingExp) {
               // New cert has no expiration, old has - keep both (don't deactivate)
               console.log(
-                `ℹ️  Keeping cert ${existingCert.id} - old cert has expiration date, new doesn't (both will be active)`
+                `[INFO]  Keeping cert ${existingCert.id} - old cert has expiration date, new doesn't (both will be active)`
               );
             }
             // If both have no expiration or new expires earlier, keep both active
@@ -216,15 +216,15 @@ const verifyCertification = async (req, res) => {
           },
         });
         console.log(
-          `✅ Deactivated ${certsToDeactivate.length} older certification(s) in category ${certification.category} after verifying new certification`
+          `[SUCCESS] Deactivated ${certsToDeactivate.length} older certification(s) in category ${certification.category} after verifying new certification`
         );
       } else {
         console.log(
-          `ℹ️  No older certifications to deactivate for category ${certification.category}`
+          `[INFO]  No older certifications to deactivate for category ${certification.category}`
         );
       }
     } catch (deactivateError) {
-      console.error('❌ Error deactivating older certifications:', deactivateError);
+      console.error('[ERROR] Error deactivating older certifications:', deactivateError);
       // Don't fail the request if deactivation fails
     }
 
@@ -232,23 +232,23 @@ const verifyCertification = async (req, res) => {
     try {
       const specializationSyncService = require('../services/specialization-sync.service.js');
       console.log(
-        `🔄 Starting specialization sync for trainer ${certification.trainer_id} after admin verification`
+        `[SYNC] Starting specialization sync for trainer ${certification.trainer_id} after admin verification`
       );
       const syncResult = await specializationSyncService.updateTrainerSpecializations(certification.trainer_id);
       if (syncResult && syncResult.success) {
         console.log(
-          `✅ Auto-synced specializations for trainer ${certification.trainer_id} after admin verification`
+          `[SUCCESS] Auto-synced specializations for trainer ${certification.trainer_id} after admin verification`
         );
-        console.log(`📋 Updated specializations:`, syncResult.specializations);
+        console.log(`[LIST] Updated specializations:`, syncResult.specializations);
       } else {
         console.error(
-          `❌ Specialization sync returned failure for trainer ${certification.trainer_id}:`,
+          `[ERROR] Specialization sync returned failure for trainer ${certification.trainer_id}:`,
           syncResult?.error || 'Unknown error'
         );
       }
     } catch (syncError) {
-      console.error('❌ Error auto-syncing specializations:', syncError);
-      console.error('❌ Sync error stack:', syncError.stack);
+      console.error('[ERROR] Error auto-syncing specializations:', syncError);
+      console.error('[ERROR] Sync error stack:', syncError.stack);
       // Don't fail the request if sync fails, but log it for debugging
     }
 
@@ -275,9 +275,9 @@ const verifyCertification = async (req, res) => {
             verified_by: verified_by,
           });
         });
-        console.log(`📡 Emitted certification:verified event to ${admins.length} admin(s) for trainer list reload`);
+        console.log(`[EMIT] Emitted certification:verified event to ${admins.length} admin(s) for trainer list reload`);
       } catch (error) {
-        console.error('❌ Error emitting certification:verified event to admins:', error);
+        console.error('[ERROR] Error emitting certification:verified event to admins:', error);
       }
     }
 
@@ -343,7 +343,7 @@ const rejectCertification = async (req, res) => {
       try {
         const specializationSyncService = require('../services/specialization-sync.service.js');
         console.log(
-          `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after rejecting verified certification`
+          `[SYNC] Removing specialization ${certification.category} from trainer ${certification.trainer_id} after rejecting verified certification`
         );
         const removeResult = await specializationSyncService.removeSpecialization(
           certification.trainer_id,
@@ -352,16 +352,16 @@ const rejectCertification = async (req, res) => {
         if (removeResult && removeResult.success) {
           if (removeResult.removed) {
             console.log(
-              `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after rejection`
+              `[SUCCESS] Removed specialization ${certification.category} from trainer ${certification.trainer_id} after rejection`
             );
           } else {
             console.log(
-              `ℹ️  Specialization ${certification.category} kept - trainer still has other valid certifications`
+              `[INFO]  Specialization ${certification.category} kept - trainer still has other valid certifications`
             );
           }
         }
       } catch (removeError) {
-        console.error('❌ Error removing specialization after rejection:', removeError);
+        console.error('[ERROR] Error removing specialization after rejection:', removeError);
       }
     }
 
@@ -389,9 +389,9 @@ const rejectCertification = async (req, res) => {
             verified_by: verified_by,
           });
         });
-        console.log(`📡 Emitted certification:rejected event to ${admins.length} admin(s) for trainer list reload`);
+        console.log(`[EMIT] Emitted certification:rejected event to ${admins.length} admin(s) for trainer list reload`);
       } catch (error) {
-        console.error('❌ Error emitting certification:rejected event to admins:', error);
+        console.error('[ERROR] Error emitting certification:rejected event to admins:', error);
       }
     }
 
@@ -674,7 +674,7 @@ const suspendCertification = async (req, res) => {
       try {
         const specializationSyncService = require('../services/specialization-sync.service.js');
         console.log(
-          `🔄 Removing specialization ${certification.category} from trainer ${certification.trainer_id} after suspending verified certification`
+          `[SYNC] Removing specialization ${certification.category} from trainer ${certification.trainer_id} after suspending verified certification`
         );
         const removeResult = await specializationSyncService.removeSpecialization(
           certification.trainer_id,
@@ -683,16 +683,16 @@ const suspendCertification = async (req, res) => {
         if (removeResult && removeResult.success) {
           if (removeResult.removed) {
             console.log(
-              `✅ Removed specialization ${certification.category} from trainer ${certification.trainer_id} after suspension`
+              `[SUCCESS] Removed specialization ${certification.category} from trainer ${certification.trainer_id} after suspension`
             );
           } else {
             console.log(
-              `ℹ️  Specialization ${certification.category} kept - trainer still has other valid certifications`
+              `[INFO]  Specialization ${certification.category} kept - trainer still has other valid certifications`
             );
           }
         }
       } catch (removeError) {
-        console.error('❌ Error removing specialization after suspension:', removeError);
+        console.error('[ERROR] Error removing specialization after suspension:', removeError);
       }
     }
 

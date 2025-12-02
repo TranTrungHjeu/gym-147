@@ -123,15 +123,15 @@ class S3UploadService {
       let finalMimeType = mimeType;
 
       if (options.optimize !== false) {
-        console.log('🖼️ Optimizing image...');
+        console.log('[IMAGE] Optimizing image...');
         optimizationResult = await imageOptimization.optimizeAvatar(fileBuffer);
 
         if (optimizationResult.success) {
           optimizedBuffer = optimizationResult.buffer;
           finalMimeType = 'image/jpeg'; // Avatar is always converted to JPEG
-          console.log(`✅ Image optimized: ${optimizationResult.compressionRatio}% smaller`);
+          console.log(`[SUCCESS] Image optimized: ${optimizationResult.compressionRatio}% smaller`);
         } else {
-          console.warn('⚠️ Image optimization failed, using original:', optimizationResult.error);
+          console.warn('[WARNING] Image optimization failed, using original:', optimizationResult.error);
         }
       }
 
@@ -161,7 +161,7 @@ class S3UploadService {
       // Generate public URL (with CDN if configured)
       const url = cdnService.getUrl(key);
 
-      console.log(`✅ Avatar uploaded successfully: ${url}`);
+      console.log(`[SUCCESS] Avatar uploaded successfully: ${url}`);
 
       return {
         success: true,
@@ -175,8 +175,8 @@ class S3UploadService {
         metadata: imageValidation.metadata,
       };
     } catch (error) {
-      console.error('❌ Error uploading avatar to S3:', error);
-      console.error('❌ Error details:', {
+      console.error('[ERROR] Error uploading avatar to S3:', error);
+      console.error('[ERROR] Error details:', {
         message: error.message,
         code: error.code,
         name: error.name,
@@ -200,7 +200,7 @@ class S3UploadService {
    */
   async deleteFile(key) {
     try {
-      console.log(`🗑️ Deleting avatar from S3: ${key}`);
+      console.log(`[DELETE] Deleting avatar from S3: ${key}`);
 
       const command = new DeleteObjectCommand({
         Bucket: this.bucketName,
@@ -209,14 +209,14 @@ class S3UploadService {
 
       await this.s3Client.send(command);
 
-      console.log(`✅ Avatar deleted successfully: ${key}`);
+      console.log(`[SUCCESS] Avatar deleted successfully: ${key}`);
 
       return {
         success: true,
         key,
       };
     } catch (error) {
-      console.error('❌ Error deleting avatar from S3:', error);
+      console.error('[ERROR] Error deleting avatar from S3:', error);
       return {
         success: false,
         error: error.message,
@@ -241,7 +241,7 @@ class S3UploadService {
 
       return key;
     } catch (error) {
-      console.error('❌ Error extracting key from URL:', error);
+      console.error('[ERROR] Error extracting key from URL:', error);
       return null;
     }
   }

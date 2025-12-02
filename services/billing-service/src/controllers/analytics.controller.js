@@ -10,6 +10,129 @@ if (!prisma) {
 
 class AnalyticsController {
   /**
+   * Helper function to wrap Prisma queries with timeout and retry for connection errors
+   * @param {Function} queryFn - Function that returns the Prisma query promise
+   * @param {number} timeoutMs - Timeout in milliseconds (default: 10000)
+   * @param {string} queryName - Name of the query for logging
+   * @param {number} maxRetries - Maximum retries for connection errors (default: 1)
+   * @returns {Promise} Query result or throws error
+   */
+  async withTimeout(queryFn, timeoutMs = 10000, queryName = 'Query', maxRetries = 1) {
+    const { reconnectDatabase, checkConnectionHealth } = require('../lib/prisma.js');
+
+    const executeQuery = async (attempt = 0) => {
+      try {
+        // Check connection health before query
+        const isHealthy = await checkConnectionHealth();
+        if (!isHealthy) {
+          console.log(`[INFO] Connection unhealthy, attempting reconnect before ${queryName}...`);
+          await reconnectDatabase();
+        }
+
+        // Create fresh query promise for each attempt
+        const queryPromise = queryFn();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`${queryName} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+        });
+
+        return await Promise.race([queryPromise, timeoutPromise]);
+      } catch (error) {
+        // Retry on connection errors (P1001, P1008, P1014, etc.)
+        const isConnectionError =
+          error.code === 'P1001' || // Can't reach database server
+          error.code === 'P1008' || // Operations timed out
+          error.code === 'P1014' || // The database server is not available
+          error.code === 'P1017' || // Server has closed the connection
+          error.message?.includes("Can't reach database server") ||
+          error.message?.includes('connection') ||
+          error.message?.includes('ECONNREFUSED') ||
+          error.message?.includes('ETIMEDOUT') ||
+          error.message?.includes('ENOTFOUND');
+
+        if (isConnectionError && attempt < maxRetries) {
+          const retryDelay = 1000 * (attempt + 1); // Exponential backoff: 1s, 2s, 3s...
+          console.log(
+            `[RETRY] Retrying ${queryName} after connection error (attempt ${
+              attempt + 1
+            }/${maxRetries}, delay ${retryDelay}ms): ${error.message}`
+          );
+
+          // Attempt to reconnect before retry
+          await reconnectDatabase();
+
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          return executeQuery(attempt + 1);
+        }
+
+        throw error;
+      }
+    };
+
+    return executeQuery();
+  }
+
+  /**
+   * Helper function to handle database errors consistently
+   */
+  handleDatabaseError(error, res, context = 'Operation') {
+    console.error(`[ERROR] ${context} error:`, error);
+
+    // Handle database connection errors (P1001: Can't reach database server)
+    if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
+      console.error('[ERROR] Database connection failed:', error.message);
+      console.log('[INFO] Returning 503 Service Unavailable response');
+      return res.status(503).json({
+        success: false,
+        message: 'Database service temporarily unavailable. Please try again later.',
+        error: 'DATABASE_CONNECTION_ERROR',
+        data: null,
+      });
+    }
+
+    // Handle timeout errors
+    // P1008: Operations timed out
+    // P1014: The database server is not available
+    if (
+      error.code === 'P1008' ||
+      error.code === 'P1014' ||
+      error.message?.includes('timeout') ||
+      error.message?.includes('timed out') ||
+      error.message?.includes('Operation timed out')
+    ) {
+      console.error('[ERROR] Database operation timed out:', error.message);
+      console.log('[INFO] Returning 504 Gateway Timeout response');
+      return res.status(504).json({
+        success: false,
+        message:
+          'Database operation timed out. The request took too long to complete. Please try again.',
+        error: 'DATABASE_TIMEOUT_ERROR',
+        data: null,
+      });
+    }
+
+    // Handle other Prisma errors
+    if (error.code?.startsWith('P')) {
+      console.error('[ERROR] Prisma error:', error.code, error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database query failed. Please try again later.',
+        error: 'DATABASE_ERROR',
+        data: null,
+      });
+    }
+
+    // Generic error
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      data: null,
+    });
+  }
+
+  /**
    * Get dashboard analytics for admin
    */
   async getDashboardAnalytics(req, res) {
@@ -18,79 +141,167 @@ class AnalyticsController {
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - parseInt(period));
 
-      const [
-        totalRevenue,
-        activeSubscriptions,
-        totalMembers,
-        revenueByType,
-        paymentStats,
-        recentRevenue,
-        topPlans,
-      ] = await Promise.all([
+      // Use Promise.allSettled to handle partial failures gracefully
+      // Each query has its own timeout to prevent one slow query from blocking others
+      // Queries are wrapped in functions to allow retry on connection errors
+      const results = await Promise.allSettled([
         // Total revenue
-        prisma.payment.aggregate({
-          where: {
-            status: 'COMPLETED', // PaymentStatus enum: COMPLETED, not SUCCESS
-            created_at: { gte: startDate },
-          },
-          _sum: { amount: true },
-          _count: { id: true },
-        }),
+        this.withTimeout(
+          () =>
+            prisma.payment.aggregate({
+              where: {
+                status: 'COMPLETED',
+                created_at: { gte: startDate },
+              },
+              _sum: { amount: true },
+              _count: { id: true },
+            }),
+          15000, // 15 seconds timeout
+          'Total revenue aggregate',
+          1 // 1 retry for connection errors
+        ),
 
         // Active subscriptions
-        prisma.subscription.count({
-          where: { status: 'ACTIVE' },
-        }),
+        this.withTimeout(
+          () =>
+            prisma.subscription.count({
+              where: { status: 'ACTIVE' },
+            }),
+          10000, // 10 seconds timeout
+          'Active subscriptions count',
+          1 // 1 retry for connection errors
+        ),
 
         // Total members with subscriptions
-        prisma.subscription.groupBy({
-          by: ['member_id'],
-          where: {
-            created_at: { gte: startDate },
-          },
-        }),
+        this.withTimeout(
+          () =>
+            prisma.subscription.groupBy({
+              by: ['member_id'],
+              where: {
+                created_at: { gte: startDate },
+              },
+            }),
+          15000, // 15 seconds timeout
+          'Total members groupBy',
+          1 // 1 retry for connection errors
+        ),
 
         // Revenue by type
-        prisma.payment.groupBy({
-          by: ['type'],
-          where: {
-            status: 'COMPLETED', // PaymentStatus enum: COMPLETED, not SUCCESS
-            created_at: { gte: startDate },
-          },
-          _sum: { amount: true },
-          _count: { id: true },
-        }),
+        this.withTimeout(
+          () =>
+            prisma.payment.groupBy({
+              by: ['payment_type'],
+              where: {
+                status: 'COMPLETED',
+                created_at: { gte: startDate },
+              },
+              _sum: { amount: true },
+              _count: { id: true },
+            }),
+          15000, // 15 seconds timeout
+          'Revenue by type groupBy',
+          1 // 1 retry for connection errors
+        ),
 
         // Payment stats
-        prisma.payment.groupBy({
-          by: ['status'],
-          where: {
-            created_at: { gte: startDate },
-          },
-          _count: { id: true },
-        }),
+        this.withTimeout(
+          () =>
+            prisma.payment.groupBy({
+              by: ['status'],
+              where: {
+                created_at: { gte: startDate },
+              },
+              _count: { id: true },
+            }),
+          15000, // 15 seconds timeout
+          'Payment stats groupBy',
+          1 // 1 retry for connection errors
+        ),
 
         // Recent revenue (last 7 days)
-        revenueReportService.getReports(
-          new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-          new Date()
+        this.withTimeout(
+          () =>
+            revenueReportService.getReports(
+              new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+              new Date()
+            ),
+          20000, // 20 seconds timeout (this might be slower)
+          'Recent revenue reports',
+          1 // 1 retry for connection errors
         ),
 
         // Top plans by subscription count
-        prisma.subscription.groupBy({
-          by: ['plan_id'],
-          where: {
-            status: 'ACTIVE',
-          },
-          _count: { id: true },
-          orderBy: {
-            _count: {
-              id: 'desc',
-            },
-          },
-          take: 5,
-        }),
+        this.withTimeout(
+          () =>
+            prisma.subscription.groupBy({
+              by: ['plan_id'],
+              where: {
+                status: 'ACTIVE',
+              },
+              _count: { id: true },
+              orderBy: {
+                _count: {
+                  id: 'desc',
+                },
+              },
+              take: 5,
+            }),
+          10000, // 10 seconds timeout
+          'Top plans groupBy',
+          1 // 1 retry for connection errors
+        ),
       ]);
+
+      // Extract results, handling failures gracefully
+      const totalRevenue =
+        results[0].status === 'fulfilled'
+          ? results[0].value
+          : { _sum: { amount: null }, _count: { id: 0 } };
+      const activeSubscriptions = results[1].status === 'fulfilled' ? results[1].value : 0;
+      const totalMembers = results[2].status === 'fulfilled' ? results[2].value : [];
+      const revenueByType = results[3].status === 'fulfilled' ? results[3].value : [];
+      const paymentStats = results[4].status === 'fulfilled' ? results[4].value : [];
+      const recentRevenue =
+        results[5].status === 'fulfilled' ? results[5].value : { success: false, reports: [] };
+      const topPlans = results[6].status === 'fulfilled' ? results[6].value : [];
+
+      // Log any failures for debugging with more context
+      const queryNames = [
+        'Total revenue aggregate',
+        'Active subscriptions count',
+        'Total members groupBy',
+        'Revenue by type groupBy',
+        'Payment stats groupBy',
+        'Recent revenue reports',
+        'Top plans groupBy',
+      ];
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          const error = result.reason;
+          const isTimeout =
+            error?.message?.includes('timeout') || error?.message?.includes('timed out');
+          const isConnectionError =
+            error?.code === 'P1001' || error?.message?.includes("Can't reach database server");
+
+          if (isTimeout) {
+            console.warn(
+              `[WARNING] Query ${index} (${queryNames[index]}) timed out:`,
+              error?.message
+            );
+          } else if (isConnectionError) {
+            console.warn(
+              `[WARNING] Query ${index} (${queryNames[index]}) connection failed:`,
+              error?.message
+            );
+          } else {
+            console.warn(
+              `[WARNING] Query ${index} (${queryNames[index]}) failed:`,
+              error?.message || error
+            );
+          }
+        }
+      });
 
       // Get plan names for top plans
       const planIds = topPlans.map(p => p.plan_id);
@@ -119,7 +330,7 @@ class AnalyticsController {
             activeSubscriptions,
             newMembers: totalMembers.length,
             revenueByType: revenueByType.map(item => ({
-              type: item.type,
+              type: item.payment_type, // Map payment_type to type for frontend compatibility
               amount: Number(item._sum.amount || 0),
               count: item._count.id,
             })),
@@ -137,12 +348,7 @@ class AnalyticsController {
         },
       });
     } catch (error) {
-      console.error('Get dashboard analytics error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get dashboard analytics');
     }
   }
 
@@ -215,7 +421,9 @@ class AnalyticsController {
 
       res.json({
         success: true,
-        message: result.isNew ? 'Revenue report generated successfully' : 'Revenue report updated successfully',
+        message: result.isNew
+          ? 'Revenue report generated successfully'
+          : 'Revenue report updated successfully',
         data: { report: result.report },
       });
     } catch (error) {
@@ -420,7 +628,9 @@ class AnalyticsController {
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="revenue-report-${start.toISOString().split('T')[0]}-${end.toISOString().split('T')[0]}.pdf"`
+        `attachment; filename="revenue-report-${start.toISOString().split('T')[0]}-${
+          end.toISOString().split('T')[0]
+        }.pdf"`
       );
       res.send(pdfBuffer);
     } catch (error) {
@@ -462,10 +672,15 @@ class AnalyticsController {
 
       const excelBuffer = await reportExportService.exportRevenueReportToExcel(result);
 
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="revenue-report-${start.toISOString().split('T')[0]}-${end.toISOString().split('T')[0]}.xlsx"`
+        `attachment; filename="revenue-report-${start.toISOString().split('T')[0]}-${
+          end.toISOString().split('T')[0]
+        }.xlsx"`
       );
       res.send(excelBuffer);
     } catch (error) {
@@ -483,17 +698,17 @@ class AnalyticsController {
    */
   async getRevenueTrends(req, res) {
     try {
-      console.log('📊 Getting revenue trends...', { query: req.query });
+      console.log('[STATS] Getting revenue trends...', { query: req.query });
       const { from, to } = req.query;
 
       let startDate, endDate;
       if (from && to) {
         startDate = new Date(from);
         endDate = new Date(to);
-        
+
         // Validate dates
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          console.error('❌ Invalid date format:', { from, to });
+          console.error('[ERROR] Invalid date format:', { from, to });
           return res.status(400).json({
             success: false,
             message: 'Invalid date format. Use ISO format (YYYY-MM-DD)',
@@ -511,7 +726,7 @@ class AnalyticsController {
       endDate.setHours(23, 59, 59, 999);
       startDate.setHours(0, 0, 0, 0);
 
-      console.log('📅 Date range:', { startDate, endDate });
+      console.log('[DATE] Date range:', { startDate, endDate });
 
       // Get daily revenue data
       const payments = await prisma.payment.findMany({
@@ -531,7 +746,7 @@ class AnalyticsController {
         },
       });
 
-      console.log(`📊 Found ${payments.length} payments`);
+      console.log(`[STATS] Found ${payments.length} payments`);
 
       // Group by date
       const revenueByDate = {};
@@ -567,7 +782,7 @@ class AnalyticsController {
       const revenues = dates.map(date => revenueByDate[date].revenue);
       const transactions = dates.map(date => revenueByDate[date].transactions);
 
-      console.log('✅ Revenue trends generated:', { datesCount: dates.length });
+      console.log('[SUCCESS] Revenue trends generated:', { datesCount: dates.length });
 
       res.json({
         success: true,
@@ -579,14 +794,7 @@ class AnalyticsController {
         },
       });
     } catch (error) {
-      console.error('❌ Get revenue trends error:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      });
+      return this.handleDatabaseError(error, res, 'Get revenue trends');
     }
   }
 
@@ -595,17 +803,17 @@ class AnalyticsController {
    */
   async getRevenueByPlan(req, res) {
     try {
-      console.log('📊 Getting revenue by plan...', { query: req.query });
+      console.log('[STATS] Getting revenue by plan...', { query: req.query });
       const { from, to, period = '30' } = req.query;
 
       let startDate, endDate;
       if (from && to) {
         startDate = new Date(from);
         endDate = new Date(to);
-        
+
         // Validate dates
         if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
-          console.error('❌ Invalid date format:', { from, to });
+          console.error('[ERROR] Invalid date format:', { from, to });
           return res.status(400).json({
             success: false,
             message: 'Invalid date format. Use ISO format (YYYY-MM-DD)',
@@ -623,39 +831,66 @@ class AnalyticsController {
       endDate.setHours(23, 59, 59, 999);
       startDate.setHours(0, 0, 0, 0);
 
-      console.log('📅 Date range:', { startDate, endDate });
+      console.log('[DATE] Date range:', { startDate, endDate });
 
       // Get payments with subscription and plan information
-      const payments = await prisma.payment.findMany({
-        where: {
-          status: 'COMPLETED',
-          created_at: {
-            gte: startDate,
-            lte: endDate,
-          },
-          subscription_id: {
-            not: null, // Only subscription payments
-          },
-        },
-        include: {
-          subscription: {
-            include: {
-              plan: {
-                select: {
-                  id: true,
-                  name: true,
-                  price: true,
+      // Wrap with timeout to handle slow queries gracefully
+      let payments;
+      try {
+        payments = await this.withTimeout(
+          () =>
+            prisma.payment.findMany({
+              where: {
+                status: 'COMPLETED',
+                created_at: {
+                  gte: startDate,
+                  lte: endDate,
+                },
+                subscription_id: {
+                  not: null, // Only subscription payments
                 },
               },
-            },
-          },
-        },
-        orderBy: {
-          created_at: 'desc',
-        },
-      });
+              include: {
+                subscription: {
+                  include: {
+                    plan: {
+                      select: {
+                        id: true,
+                        name: true,
+                        price: true,
+                      },
+                    },
+                  },
+                },
+              },
+              orderBy: {
+                created_at: 'desc',
+              },
+            }),
+          20000, // 20 seconds timeout for complex query with joins
+          'Get revenue by plan payments',
+          1 // 1 retry for connection errors
+        );
+      } catch (error) {
+        // If query times out or fails, return empty result instead of failing completely
+        console.warn('[WARNING] Failed to fetch payments for revenue by plan:', error.message);
+        payments = [];
+      }
 
-      console.log(`📊 Found ${payments.length} subscription payments`);
+      console.log(`[STATS] Found ${payments.length} subscription payments`);
+
+      // If no payments (due to timeout or empty result), return empty response
+      if (!payments || payments.length === 0) {
+        return res.json({
+          success: true,
+          message: 'Revenue by plan retrieved successfully',
+          data: {
+            plans: [],
+            totalRevenue: 0,
+            totalTransactions: 0,
+          },
+        });
+      }
 
       // Group by plan
       const revenueByPlan = {};
@@ -690,7 +925,7 @@ class AnalyticsController {
           transactions: item.transactions,
         }));
 
-      console.log('✅ Revenue by plan generated:', { plansCount: plans.length });
+      console.log('[SUCCESS] Revenue by plan generated:', { plansCount: plans.length });
 
       res.json({
         success: true,
@@ -702,14 +937,7 @@ class AnalyticsController {
         },
       });
     } catch (error) {
-      console.error('❌ Get revenue by plan error:', error);
-      console.error('Error stack:', error.stack);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
-      });
+      return this.handleDatabaseError(error, res, 'Get revenue by plan');
     }
   }
 
@@ -751,10 +979,15 @@ class AnalyticsController {
 
       const excelBuffer = await reportExportService.exportMemberAnalyticsToExcel(members);
 
-      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader(
+        'Content-Type',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      );
       res.setHeader(
         'Content-Disposition',
-        `attachment; filename="member-analytics-${type}-${new Date().toISOString().split('T')[0]}.xlsx"`
+        `attachment; filename="member-analytics-${type}-${
+          new Date().toISOString().split('T')[0]
+        }.xlsx"`
       );
       res.send(excelBuffer);
     } catch (error) {
@@ -769,4 +1002,3 @@ class AnalyticsController {
 }
 
 module.exports = new AnalyticsController();
-

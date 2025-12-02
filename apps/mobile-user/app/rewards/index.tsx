@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pointsService, rewardService, type Reward } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { AppEvents } from '@/utils/eventEmitter';
 import { useRouter } from 'expo-router';
 import { Coins, Gift, Sparkles, Tag } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
@@ -49,24 +50,22 @@ export default function RewardsScreen() {
 
   // Listen for socket events to refresh data
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-
-    const handleRewardRedeemed = (event: any) => {
-      console.log('🎁 Reward redeemed event received:', event.detail);
+    const handleRewardRedeemed = (data: any) => {
+      console.log('[GIFT] Reward redeemed event received:', data);
       // Refresh rewards and points balance
       loadData();
     };
 
-    const handleRewardRefunded = (event: any) => {
-      console.log('💰 Reward refunded event received:', event.detail);
+    const handleRewardRefunded = (data: any) => {
+      console.log('[REWARD] Reward refunded event received:', data);
       loadData();
     };
 
-    const handlePointsUpdated = (event: any) => {
-      console.log('💎 Points updated event received:', event.detail);
+    const handlePointsUpdated = (data: any) => {
+      console.log('[POINTS] Points updated event received:', data);
       // Update points balance immediately
-      if (event.detail?.new_balance !== undefined) {
-        setPointsBalance(event.detail.new_balance);
+      if (data?.new_balance !== undefined) {
+        setPointsBalance(data.new_balance);
       } else {
         // Refresh balance
         if (member?.id) {
@@ -79,14 +78,14 @@ export default function RewardsScreen() {
       }
     };
 
-    window.addEventListener('reward:redeemed', handleRewardRedeemed);
-    window.addEventListener('reward:refunded', handleRewardRefunded);
-    window.addEventListener('points:updated', handlePointsUpdated);
+    const unsubscribe1 = AppEvents.on('reward:redeemed', handleRewardRedeemed);
+    const unsubscribe2 = AppEvents.on('reward:refunded', handleRewardRefunded);
+    const unsubscribe3 = AppEvents.on('points:updated', handlePointsUpdated);
 
     return () => {
-      window.removeEventListener('reward:redeemed', handleRewardRedeemed);
-      window.removeEventListener('reward:refunded', handleRewardRefunded);
-      window.removeEventListener('points:updated', handlePointsUpdated);
+      unsubscribe1();
+      unsubscribe2();
+      unsubscribe3();
     };
   }, [member?.id]);
 

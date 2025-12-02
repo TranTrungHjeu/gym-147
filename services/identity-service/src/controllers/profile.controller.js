@@ -224,9 +224,10 @@ class ProfileController {
       if (!identifier) {
         return res.status(400).json({
           success: false,
-          message: verificationMethod === 'EMAIL'
-            ? 'Email hiện tại không tồn tại'
-            : 'Số điện thoại hiện tại không tồn tại',
+          message:
+            verificationMethod === 'EMAIL'
+              ? 'Email hiện tại không tồn tại'
+              : 'Số điện thoại hiện tại không tồn tại',
           data: null,
         });
       }
@@ -246,7 +247,7 @@ class ProfileController {
 
       // Prepare update data
       const updateData = {};
-      
+
       if (firstName !== undefined && firstName !== null && firstName !== '') {
         updateData.first_name = firstName.trim();
       }
@@ -257,7 +258,7 @@ class ProfileController {
       // Update email if provided and changed
       if (newEmail && newEmail.trim() !== '' && newEmail !== user.email) {
         const trimmedEmail = newEmail.trim().toLowerCase();
-        
+
         // Check if email is already used by another user
         const emailExists = await prisma.user.findFirst({
           where: {
@@ -283,7 +284,7 @@ class ProfileController {
       if (newPhone && newPhone.trim() !== '' && newPhone !== user.phone) {
         const trimmedPhone = newPhone.trim();
         const phoneValidation = this.validatePhone(trimmedPhone);
-        
+
         if (!phoneValidation.isValid) {
           return res.status(400).json({
             success: false,
@@ -613,16 +614,79 @@ class ProfileController {
     try {
       const userId = req.user.userId || req.user.id;
 
-      // TODO: Implement file upload logic
-      // This would typically involve:
-      // 1. Validate file type and size
-      // 2. Upload to cloud storage (AWS S3, Cloudinary, etc.)
-      // 3. Update user.face_photo_url in database
+      // Check if file was uploaded
+      if (!req.file) {
+        return res.status(400).json({
+          success: false,
+          message: 'No file uploaded. Please select an image file.',
+          data: null,
+        });
+      }
+
+      // Get current user to check for existing avatar
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { id: true, face_photo_url: true },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // Get S3 upload service
+      const s3UploadService = require('../services/s3-upload.service.js');
+
+      // Validate S3 configuration
+      const configValidation = s3UploadService.validateConfiguration();
+      if (!configValidation.valid) {
+        console.warn('[WARNING] S3 configuration invalid:', configValidation.message);
+        return res.status(500).json({
+          success: false,
+          message: 'File upload service is not configured. Please contact administrator.',
+          data: null,
+        });
+      }
+
+      // When using multer-s3, req.file.location contains the S3 URL
+      const avatarUrl = req.file.location || req.file.path;
+
+      // Delete old avatar from S3 if exists
+      if (user.face_photo_url) {
+        try {
+          const oldKey = s3UploadService.extractKeyFromUrl(user.face_photo_url);
+          if (oldKey) {
+            await s3UploadService.deleteFile(oldKey);
+            console.log(`[DELETE] Deleted old avatar: ${oldKey}`);
+          }
+        } catch (deleteError) {
+          console.warn('[WARNING] Failed to delete old avatar:', deleteError.message);
+          // Continue even if deletion fails
+        }
+      }
+
+      // Update user.face_photo_url in database
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          face_photo_url: avatarUrl,
+        },
+        select: {
+          id: true,
+          face_photo_url: true,
+        },
+      });
 
       res.json({
         success: true,
-        message: 'Avatar upload functionality will be implemented',
-        data: null,
+        message: 'Avatar uploaded successfully',
+        data: {
+          url: avatarUrl,
+          key: req.file.key,
+        },
       });
     } catch (error) {
       console.error('Upload avatar error:', error);
@@ -855,9 +919,10 @@ class ProfileController {
       if (!identifier) {
         return res.status(400).json({
           success: false,
-          message: verificationMethod === 'EMAIL'
-            ? 'Email hiện tại không tồn tại. Vui lòng liên hệ admin.'
-            : 'Số điện thoại hiện tại không tồn tại. Vui lòng liên hệ admin.',
+          message:
+            verificationMethod === 'EMAIL'
+              ? 'Email hiện tại không tồn tại. Vui lòng liên hệ admin.'
+              : 'Số điện thoại hiện tại không tồn tại. Vui lòng liên hệ admin.',
           data: null,
         });
       }
@@ -914,9 +979,10 @@ class ProfileController {
         message: sendResult.message || 'Mã OTP đã được gửi thành công',
         data: {
           verificationMethod,
-          identifier: verificationMethod === 'EMAIL' 
-            ? identifier.replace(/(.{2})(.*)(@.*)/, '$1****$3') // Mask email
-            : identifier.replace(/(\d{4})(\d+)/, '****$2'), // Mask phone
+          identifier:
+            verificationMethod === 'EMAIL'
+              ? identifier.replace(/(.{2})(.*)(@.*)/, '$1****$3') // Mask email
+              : identifier.replace(/(\d{4})(\d+)/, '****$2'), // Mask phone
           remainingAttempts: 5 - this.getRateLimitCount(rateLimitKey),
           retryAfter: 60, // 60 seconds cooldown
           ...(process.env.NODE_ENV === 'development' && { otp: sendResult.otp }),
@@ -974,9 +1040,10 @@ class ProfileController {
       if (!identifier) {
         return res.status(400).json({
           success: false,
-          message: verificationMethod === 'EMAIL'
-            ? 'Email không tồn tại. Vui lòng cập nhật email trước.'
-            : 'Số điện thoại không tồn tại. Vui lòng cập nhật số điện thoại trước.',
+          message:
+            verificationMethod === 'EMAIL'
+              ? 'Email không tồn tại. Vui lòng cập nhật email trước.'
+              : 'Số điện thoại không tồn tại. Vui lòng cập nhật số điện thoại trước.',
           data: null,
         });
       }
@@ -1033,9 +1100,10 @@ class ProfileController {
         message: sendResult.message || 'Mã OTP đã được gửi thành công',
         data: {
           verificationMethod,
-          identifier: verificationMethod === 'EMAIL' 
-            ? identifier.replace(/(.{2})(.*)(@.*)/, '$1****$3') // Mask email
-            : identifier.replace(/(\d{4})(\d+)/, '****$2'), // Mask phone
+          identifier:
+            verificationMethod === 'EMAIL'
+              ? identifier.replace(/(.{2})(.*)(@.*)/, '$1****$3') // Mask email
+              : identifier.replace(/(\d{4})(\d+)/, '****$2'), // Mask phone
           remainingAttempts: 5 - this.getRateLimitCount(rateLimitKey),
           retryAfter: 60, // 60 seconds cooldown
           ...(process.env.NODE_ENV === 'development' && { otp: sendResult.otp }),
@@ -1108,9 +1176,8 @@ class ProfileController {
       if (!identifier) {
         return res.status(400).json({
           success: false,
-          message: verificationMethod === 'EMAIL'
-            ? 'Email không tồn tại'
-            : 'Số điện thoại không tồn tại',
+          message:
+            verificationMethod === 'EMAIL' ? 'Email không tồn tại' : 'Số điện thoại không tồn tại',
           data: null,
         });
       }
@@ -1172,6 +1239,211 @@ class ProfileController {
         success: false,
         message: 'Internal server error',
         data: null,
+      });
+    }
+  }
+
+  // ==================== FACE RECOGNITION MANAGEMENT ====================
+
+  /**
+   * Update face encoding for user
+   * PUT /profile/face-encoding
+   * Supports two ways:
+   * 1. Send image (base64) - automatically extracts encoding
+   * 2. Send face_encoding (already extracted) - backward compatible
+   */
+  async updateFaceEncoding(req, res) {
+    try {
+      const userId = req.user?.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const { image, face_encoding, face_photo_url } = req.body;
+
+      // Validate: need either image or face_encoding
+      if (!image && !face_encoding) {
+        return res.status(400).json({
+          success: false,
+          message: 'Either image (base64) or face_encoding is required',
+        });
+      }
+
+      let encodingBuffer;
+
+      // Method 1: Auto-extract encoding from image
+      if (image) {
+        try {
+          const faceRecognitionService = require('../services/face-recognition.service');
+
+          // Extract face encoding from image
+          const encodingResult = await faceRecognitionService.extractFaceEncoding(image);
+
+          if (!encodingResult.faceDetected) {
+            return res.status(400).json({
+              success: false,
+              message:
+                'No face detected in image. Please ensure your face is clearly visible and well-lit.',
+            });
+          }
+
+          if (!encodingResult.descriptor) {
+            return res.status(400).json({
+              success: false,
+              message: 'Failed to extract face encoding from image',
+            });
+          }
+
+          // Convert descriptor (Float32Array) to Buffer
+          encodingBuffer = Buffer.from(encodingResult.descriptor.buffer);
+        } catch (extractError) {
+          console.error('[FACE-RECOGNITION] Extract encoding error:', extractError);
+          return res.status(400).json({
+            success: false,
+            message: `Failed to process image: ${extractError.message}`,
+          });
+        }
+      } else {
+        // Method 2: Use provided face_encoding (backward compatible)
+        // Convert encoding to Buffer if it's a string
+        if (typeof face_encoding === 'string') {
+          // If it's a string, assume it's base64 or JSON
+          if (face_encoding.startsWith('data:')) {
+            // Base64 data URL
+            const base64Data = face_encoding.replace(/^data:.*,/, '');
+            encodingBuffer = Buffer.from(base64Data, 'base64');
+          } else {
+            // JSON string or plain string - store as UTF-8
+            encodingBuffer = Buffer.from(face_encoding, 'utf-8');
+          }
+        } else if (Buffer.isBuffer(face_encoding)) {
+          encodingBuffer = face_encoding;
+        } else {
+          // JSON object - stringify it
+          encodingBuffer = Buffer.from(JSON.stringify(face_encoding), 'utf-8');
+        }
+      }
+
+      // Update user's face encoding
+      const updatedUser = await prisma.user.update({
+        where: { id: userId },
+        data: {
+          face_encoding: encodingBuffer,
+          face_photo_url: face_photo_url || undefined,
+          updated_at: new Date(),
+        },
+        select: {
+          id: true,
+          face_photo_url: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Face encoding enrolled successfully',
+        data: {
+          updated: true,
+          hasFaceEncoding: true,
+        },
+      });
+    } catch (error) {
+      console.error('[FACE-RECOGNITION] Update face encoding error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update face encoding',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Get face encoding status
+   * GET /profile/face-encoding/status
+   */
+  async getFaceEncodingStatus(req, res) {
+    try {
+      const userId = req.user?.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          face_encoding: true,
+          face_photo_url: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+        });
+      }
+
+      res.json({
+        success: true,
+        data: {
+          enrolled: !!user.face_encoding,
+          hasFaceEncoding: !!user.face_encoding,
+          hasFacePhoto: !!user.face_photo_url,
+        },
+      });
+    } catch (error) {
+      console.error('[FACE-RECOGNITION] Get face encoding status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to get face encoding status',
+        error: error.message,
+      });
+    }
+  }
+
+  /**
+   * Delete face encoding
+   * DELETE /profile/face-encoding
+   */
+  async deleteFaceEncoding(req, res) {
+    try {
+      const userId = req.user?.userId || req.user?.id;
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required',
+        });
+      }
+
+      // Update user to remove face encoding
+      await prisma.user.update({
+        where: { id: userId },
+        data: {
+          face_encoding: null,
+          face_photo_url: null, // Optionally remove photo URL too
+          updated_at: new Date(),
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Face encoding deleted successfully',
+        data: {
+          deleted: true,
+        },
+      });
+    } catch (error) {
+      console.error('[FACE-RECOGNITION] Delete face encoding error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to delete face encoding',
+        error: error.message,
       });
     }
   }

@@ -18,13 +18,13 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedules with filters:', filters);
+      console.log('[DATE] Getting schedules with filters:', filters);
 
       const response = await scheduleApiService.get('/schedules', {
         params: filters,
       });
 
-      console.log('📅 Schedules API response:', response);
+      console.log('[DATE] Schedules API response:', response);
 
       // Handle different response structures
       let schedules = [];
@@ -38,14 +38,14 @@ class ScheduleService {
         schedules = response.data.data;
       }
 
-      console.log('📅 Extracted schedules:', schedules.length, 'schedules');
+      console.log('[DATE] Extracted schedules:', schedules.length, 'schedules');
 
       return {
         success: true,
         data: schedules,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedules:', error);
+      console.error('[ERROR] Error fetching schedules:', error);
       return { success: false, error: error.message };
     }
   }
@@ -59,7 +59,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedule by ID:', id);
+      console.log('[DATE] Getting schedule by ID:', id);
 
       const response = await scheduleApiService.get(`/schedules/${id}`);
 
@@ -80,7 +80,7 @@ class ScheduleService {
         data: schedule,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedule:', error);
+      console.error('[ERROR] Error fetching schedule:', error);
       return { success: false, error: error.message };
     }
   }
@@ -94,7 +94,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedules for date:', date);
+      console.log('[DATE] Getting schedules for date:', date);
 
       const response = await scheduleApiService.get('/schedules', {
         params: {
@@ -108,7 +108,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedules by date:', error);
+      console.error('[ERROR] Error fetching schedules by date:', error);
       return { success: false, error: error.message };
     }
   }
@@ -125,7 +125,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedules for date range:', {
+      console.log('[DATE] Getting schedules for date range:', {
         startDate,
         endDate,
       });
@@ -142,7 +142,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedules by date range:', error);
+      console.error('[ERROR] Error fetching schedules by date range:', error);
       return { success: false, error: error.message };
     }
   }
@@ -156,7 +156,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting available schedules with filters:', filters);
+      console.log('[DATE] Getting available schedules with filters:', filters);
 
       const response = await scheduleApiService.get('/schedules', {
         params: {
@@ -170,7 +170,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching available schedules:', error);
+      console.error('[ERROR] Error fetching available schedules:', error);
       return { success: false, error: error.message };
     }
   }
@@ -184,7 +184,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedules by category:', category);
+      console.log('[DATE] Getting schedules by category:', category);
 
       const response = await scheduleApiService.get('/schedules', {
         params: { class_category: category },
@@ -195,7 +195,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedules by category:', error);
+      console.error('[ERROR] Error fetching schedules by category:', error);
       return { success: false, error: error.message };
     }
   }
@@ -209,7 +209,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedules by trainer:', trainerId);
+      console.log('[DATE] Getting schedules by trainer:', trainerId);
 
       const response = await scheduleApiService.get('/schedules', {
         params: { trainer_id: trainerId },
@@ -220,7 +220,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedules by trainer:', error);
+      console.error('[ERROR] Error fetching schedules by trainer:', error);
       return { success: false, error: error.message };
     }
   }
@@ -235,11 +235,11 @@ class ScheduleService {
   }> {
     try {
       const today = new Date().toISOString().split('T')[0];
-      console.log("📅 Getting today's schedules:", today);
+      console.log("[DATE] Getting today's schedules:", today);
 
       return await this.getSchedulesByDate(today);
     } catch (error: any) {
-      console.error("❌ Error fetching today's schedules:", error);
+      console.error("[ERROR] Error fetching today's schedules:", error);
       return { success: false, error: error.message };
     }
   }
@@ -269,11 +269,11 @@ class ScheduleService {
       const startDate = startOfWeek.toISOString().split('T')[0];
       const endDate = endOfWeek.toISOString().split('T')[0];
 
-      console.log("📅 Getting this week's schedules:", { startDate, endDate });
+      console.log("[DATE] Getting this week's schedules:", { startDate, endDate });
 
       return await this.getSchedulesByDateRange(startDate, endDate);
     } catch (error: any) {
-      console.error("❌ Error fetching this week's schedules:", error);
+      console.error("[ERROR] Error fetching this week's schedules:", error);
       return { success: false, error: error.message };
     }
   }
@@ -287,7 +287,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting schedule statistics');
+      console.log('[DATE] Getting schedule statistics');
 
       const response = await scheduleApiService.get('/schedules/stats');
 
@@ -296,7 +296,7 @@ class ScheduleService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedule statistics:', error);
+      console.error('[ERROR] Error fetching schedule statistics:', error);
       return { success: false, error: error.message };
     }
   }
@@ -310,7 +310,7 @@ class ScheduleService {
     error?: string;
   }> {
     try {
-      console.log('📅 Searching schedules with query:', query);
+      console.log('[DATE] Searching schedules with query:', query);
 
       const response = await scheduleApiService.get('/schedules', {
         params: { search: query },
@@ -321,7 +321,7 @@ class ScheduleService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error searching schedules:', error);
+      console.error('[ERROR] Error searching schedules:', error);
       return { success: false, error: error.message };
     }
   }

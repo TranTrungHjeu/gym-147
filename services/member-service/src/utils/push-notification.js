@@ -18,7 +18,7 @@ async function getIdentityClient() {
   const identityDbUrl = process.env.IDENTITY_DATABASE_URL;
   
   if (!identityDbUrl) {
-    console.warn('⚠️ IDENTITY_DATABASE_URL not set, push notifications may not work');
+    console.warn('[WARNING] IDENTITY_DATABASE_URL not set, push notifications may not work');
     return null;
   }
 
@@ -31,11 +31,11 @@ async function getIdentityClient() {
       
       // Test connection
       await identityClient.connect();
-      console.log('✅ Connected to Identity database for push notifications');
+      console.log('[SUCCESS] Connected to Identity database for push notifications');
       connectionPromise = null;
       return identityClient;
     } catch (error) {
-      console.error('❌ Failed to connect to Identity database:', error);
+      console.error('[ERROR] Failed to connect to Identity database:', error);
       identityClient = null;
       connectionPromise = null;
       return null;
@@ -58,7 +58,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
     const client = await getIdentityClient();
     
     if (!client) {
-      console.log(`⚠️ Identity database client not available, skipping push notification for user ${userId}`);
+      console.log(`[WARNING] Identity database client not available, skipping push notification for user ${userId}`);
       return { success: false, error: 'Identity database not configured' };
     }
 
@@ -72,7 +72,7 @@ async function sendPushNotification(userId, title, body, data = {}) {
       );
       user = dbResult.rows[0];
     } catch (dbError) {
-      console.error('❌ Database query error:', dbError);
+      console.error('[ERROR] Database query error:', dbError);
       // Try to reconnect if connection was lost
       if (dbError.code === '57P01' || dbError.code === 'ECONNREFUSED') {
         identityClient = null;
@@ -81,17 +81,17 @@ async function sendPushNotification(userId, title, body, data = {}) {
     }
 
     if (!user) {
-      console.log(`❌ User not found: ${userId}`);
+      console.log(`[ERROR] User not found: ${userId}`);
       return { success: false, error: 'User not found' };
     }
 
     if (!user.push_token) {
-      console.log(`❌ No push token for user: ${userId}`);
+      console.log(`[ERROR] No push token for user: ${userId}`);
       return { success: false, error: 'No push token' };
     }
 
     if (!user.push_enabled) {
-      console.log(`❌ Push notifications disabled for user: ${userId}`);
+      console.log(`[ERROR] Push notifications disabled for user: ${userId}`);
       return { success: false, error: 'Push disabled' };
     }
 
@@ -120,14 +120,14 @@ async function sendPushNotification(userId, title, body, data = {}) {
     const result = await response.json();
 
     if (result.data && result.data.status === 'ok') {
-      console.log(`✅ Push notification sent to user ${userId}: ${title}`);
+      console.log(`[SUCCESS] Push notification sent to user ${userId}: ${title}`);
       return { success: true, result };
     } else {
-      console.log(`⚠️ Push notification failed for user ${userId}:`, result);
+      console.log(`[WARNING] Push notification failed for user ${userId}:`, result);
       return { success: false, error: result };
     }
   } catch (error) {
-    console.error('❌ Send push notification error:', error);
+    console.error('[ERROR] Send push notification error:', error);
     return { success: false, error: error.message };
   }
 }
@@ -145,7 +145,7 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
     const client = await getIdentityClient();
     
     if (!client) {
-      console.log(`⚠️ Identity database client not available, skipping bulk push notifications`);
+      console.log(`[WARNING] Identity database client not available, skipping bulk push notifications`);
       return { success: false, sent: 0, total: userIds.length, error: 'Identity database not configured' };
     }
 
@@ -160,7 +160,7 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
     const users = dbResult.rows;
 
     if (users.length === 0) {
-      console.log(`❌ No users with push tokens found`);
+      console.log(`[ERROR] No users with push tokens found`);
       return { success: false, sent: 0, total: userIds.length };
     }
 
@@ -188,10 +188,10 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
 
     const result = await response.json();
 
-    console.log(`✅ Bulk push notifications sent to ${users.length}/${userIds.length} users`);
+    console.log(`[SUCCESS] Bulk push notifications sent to ${users.length}/${userIds.length} users`);
     return { success: true, sent: users.length, total: userIds.length, result };
   } catch (error) {
-    console.error('❌ Send bulk push notifications error:', error);
+    console.error('[ERROR] Send bulk push notifications error:', error);
     return { success: false, error: error.message };
   }
 }

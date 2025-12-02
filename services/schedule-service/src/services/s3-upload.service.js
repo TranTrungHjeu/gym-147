@@ -108,7 +108,7 @@ class S3UploadService {
       // Generate public URL (with CDN if configured) - same as equipment images
       const url = cdnService.getUrl(key);
 
-      console.log(`✅ File uploaded successfully: ${url}`);
+      console.log(`[SUCCESS] File uploaded successfully: ${url}`);
 
       return {
         success: true,
@@ -167,7 +167,7 @@ class S3UploadService {
    */
   async generatePresignedUrl(fileName, mimeType, userId = 'unknown') {
     try {
-      console.log(`🔗 Generating presigned URL for: ${fileName}`);
+      console.log(`[LINK] Generating presigned URL for: ${fileName}`);
 
       // Generate unique filename
       const uniqueSuffix = crypto.randomBytes(16).toString('hex');
@@ -193,7 +193,7 @@ class S3UploadService {
       // Generate public URL (with CDN if configured) - similar to equipment images
       const publicUrl = cdnService.getUrl(key);
 
-      console.log(`✅ Presigned URL generated: ${key}`);
+      console.log(`[SUCCESS] Presigned URL generated: ${key}`);
 
       return {
         success: true,

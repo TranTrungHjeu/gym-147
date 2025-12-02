@@ -242,7 +242,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
                 <PartyPopper size={16} color={theme.colors.primary} />
                 <Text style={themedStyles.bonusText}>
                   {t('registration.bonusDaysApplied', { days: bonusDays }) ||
-                    `Đã thêm ${bonusDays} ngày sử dụng'}
+                    `Đã thêm ${bonusDays} ngày sử dụng`}
                 </Text>
               </View>
             ) : null}
@@ -282,7 +282,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
               {String(t('registration.discount') || 'Giảm giá')}
             </Text>
             <Text style={themedStyles.discountValue}>
-              {String(`-${formatPrice(discountAmount)}`)}
+              {`-${formatPrice(discountAmount)}`}
             </Text>
           </View>
           <Text style={themedStyles.discountCode}>

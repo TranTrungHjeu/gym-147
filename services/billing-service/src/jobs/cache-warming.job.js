@@ -21,7 +21,7 @@ class CacheWarmingJob {
    */
   async warmMembershipPlans() {
     try {
-      console.log('🔥 [CACHE WARMING] Starting to warm membership plans cache...');
+      console.log('[CACHE] [CACHE WARMING] Starting to warm membership plans cache...');
 
       // Get all active membership plans
       const plans = await prisma.membershipPlan.findMany({
@@ -36,7 +36,7 @@ class CacheWarmingJob {
         orderBy: { created_at: 'desc' },
       });
 
-      console.log(`📊 [CACHE WARMING] Found ${plans.length} active membership plans`);
+      console.log(`[DATA] [CACHE WARMING] Found ${plans.length} active membership plans`);
 
       // Cache each plan individually
       let cachedCount = 0;
@@ -64,10 +64,10 @@ class CacheWarmingJob {
         await this.setCache(`plans:type:${type}`, typePlans, 3600);
       }
 
-      console.log(`✅ [CACHE WARMING] Cached ${cachedCount}/${plans.length} membership plans`);
+      console.log(`[SUCCESS] [CACHE WARMING] Cached ${cachedCount}/${plans.length} membership plans`);
       return { success: true, cached: cachedCount, total: plans.length };
     } catch (error) {
-      console.error('❌ [CACHE WARMING] Error warming membership plans:', error);
+      console.error('[ERROR] [CACHE WARMING] Error warming membership plans:', error);
       return { success: false, error: error.message };
     }
   }
@@ -78,7 +78,7 @@ class CacheWarmingJob {
    */
   async warmPopularPlans() {
     try {
-      console.log('🔥 [CACHE WARMING] Starting to warm popular plans cache...');
+      console.log('[CACHE] [CACHE WARMING] Starting to warm popular plans cache...');
 
       // Get plans with most active subscriptions
       const popularPlans = await prisma.subscription.groupBy({
@@ -112,15 +112,15 @@ class CacheWarmingJob {
         },
       });
 
-      console.log(`📊 [CACHE WARMING] Found ${plans.length} popular plans`);
+      console.log(`[DATA] [CACHE WARMING] Found ${plans.length} popular plans`);
 
       // Cache popular plans list
       await this.setCache('plans:popular', plans, 3600);
 
-      console.log(`✅ [CACHE WARMING] Cached ${plans.length} popular plans`);
+      console.log(`[SUCCESS] [CACHE WARMING] Cached ${plans.length} popular plans`);
       return { success: true, cached: plans.length, total: plans.length };
     } catch (error) {
-      console.error('❌ [CACHE WARMING] Error warming popular plans:', error);
+      console.error('[ERROR] [CACHE WARMING] Error warming popular plans:', error);
       return { success: false, error: error.message };
     }
   }
@@ -139,7 +139,7 @@ class CacheWarmingJob {
       await redisService.client.setEx(key, ttl, serialized);
       return true;
     } catch (error) {
-      console.error(`❌ [CACHE WARMING] Error setting cache for key ${key}:`, error);
+      console.error(`[ERROR] [CACHE WARMING] Error setting cache for key ${key}:`, error);
       return false;
     }
   }
@@ -149,7 +149,7 @@ class CacheWarmingJob {
    */
   async run() {
     if (this.isRunning) {
-      console.log('⚠️ [CACHE WARMING] Job is already running, skipping...');
+      console.log('[WARN] [CACHE WARMING] Job is already running, skipping...');
       return;
     }
 
@@ -157,7 +157,7 @@ class CacheWarmingJob {
     const startTime = Date.now();
 
     try {
-      console.log('🚀 [CACHE WARMING] ========== STARTING CACHE WARMING ==========');
+      console.log('[START] [CACHE WARMING] ========== STARTING CACHE WARMING ==========');
 
       const results = {
         membershipPlans: await this.warmMembershipPlans(),
@@ -165,12 +165,12 @@ class CacheWarmingJob {
       };
 
       const duration = ((Date.now() - startTime) / 1000).toFixed(2);
-      console.log(`✅ [CACHE WARMING] ========== CACHE WARMING COMPLETED (${duration}s) ==========`);
-      console.log('📊 [CACHE WARMING] Results:', JSON.stringify(results, null, 2));
+      console.log(`[SUCCESS] [CACHE WARMING] ========== CACHE WARMING COMPLETED (${duration}s) ==========`);
+      console.log('[DATA] [CACHE WARMING] Results:', JSON.stringify(results, null, 2));
 
       return results;
     } catch (error) {
-      console.error('❌ [CACHE WARMING] Fatal error during cache warming:', error);
+      console.error('[ERROR] [CACHE WARMING] Fatal error during cache warming:', error);
       return { success: false, error: error.message };
     } finally {
       this.isRunning = false;
@@ -184,17 +184,17 @@ class CacheWarmingJob {
   startScheduled() {
     // Run every hour at minute 0 (e.g., 1:00, 2:00, 3:00)
     cron.schedule('0 * * * *', async () => {
-      console.log('⏰ [CACHE WARMING] Scheduled cache warming triggered');
+      console.log('[TIMER] [CACHE WARMING] Scheduled cache warming triggered');
       await this.run();
     });
 
     // Also run immediately on startup (after 30 seconds delay to let services initialize)
     setTimeout(async () => {
-      console.log('🚀 [CACHE WARMING] Running initial cache warming...');
+      console.log('[START] [CACHE WARMING] Running initial cache warming...');
       await this.run();
     }, 30000); // 30 seconds delay
 
-    console.log('✅ [CACHE WARMING] Scheduled cache warming started (runs every hour)');
+    console.log('[SUCCESS] [CACHE WARMING] Scheduled cache warming started (runs every hour)');
   }
 }
 
@@ -208,11 +208,11 @@ module.exports = cacheWarmingJob;
 if (require.main === module) {
   cacheWarmingJob.run()
     .then(() => {
-      console.log('✅ Cache warming completed');
+      console.log('[SUCCESS] Cache warming completed');
       process.exit(0);
     })
     .catch((error) => {
-      console.error('❌ Cache warming failed:', error);
+      console.error('[ERROR] Cache warming failed:', error);
       process.exit(1);
     });
 }

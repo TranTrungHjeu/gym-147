@@ -24,11 +24,11 @@ class SmartSchedulingService {
       try {
         member = await memberService.getMemberById(memberId);
         if (!member) {
-          console.warn(`⚠️ Member not found: ${memberId}, using default scheduling suggestions`);
+          console.warn(`[WARNING] Member not found: ${memberId}, using default scheduling suggestions`);
           member = null;
         }
       } catch (memberError) {
-        console.warn('⚠️ Smart scheduling: Failed to fetch member (non-critical), using default suggestions:', {
+        console.warn('[WARNING] Smart scheduling: Failed to fetch member (non-critical), using default suggestions:', {
           memberId,
           error: memberError.message,
         });
@@ -188,7 +188,7 @@ class SmartSchedulingService {
                              aiError.response?.data?.errorCode === 'RATE_LIMIT_EXCEEDED';
           
           if (isRateLimit) {
-            console.log('⚠️ AI service rate limit exceeded, falling back to rule-based suggestions');
+            console.log('[WARNING] AI service rate limit exceeded, falling back to rule-based suggestions');
           } else {
             console.error('AI suggestions error:', {
               message: aiError.message,
@@ -499,7 +499,7 @@ class SmartSchedulingService {
     try {
       // Check if member is available
       if (!member) {
-        console.warn('⚠️ Cannot generate AI suggestions: member is null');
+        console.warn('[WARNING] Cannot generate AI suggestions: member is null');
         return null;
       }
 
@@ -574,7 +574,7 @@ class SmartSchedulingService {
       const startTime = Date.now();
       const response = await aiClient.post('/ai/scheduling-suggestions', requestPayload);
       const duration = Date.now() - startTime;
-      console.log(`✅ AI scheduling suggestions received in ${duration}ms`);
+      console.log(`[SUCCESS] AI scheduling suggestions received in ${duration}ms`);
 
       if (response.data?.success && response.data?.data?.suggestions) {
         return response.data.data.suggestions;
@@ -583,7 +583,7 @@ class SmartSchedulingService {
       // Check if it's a rate limit error
       const errorCode = response.data?.data?.errorCode || response.data?.errorCode;
       if (errorCode === 'RATE_LIMIT_EXCEEDED') {
-        console.log('⚠️ AI rate limit exceeded for scheduling suggestions');
+        console.log('[WARNING] AI rate limit exceeded for scheduling suggestions');
       }
 
       return null;
@@ -593,9 +593,9 @@ class SmartSchedulingService {
       const isTimeout = error.code === 'ECONNABORTED' || error.message?.includes('timeout');
       
       if (isRateLimit) {
-        console.log('⚠️ AI service rate limit exceeded for scheduling suggestions');
+        console.log('[WARNING] AI service rate limit exceeded for scheduling suggestions');
       } else if (isTimeout) {
-        console.warn('⏱️ AI scheduling suggestions timeout (90s exceeded), falling back to rule-based suggestions');
+        console.warn('[TIMER] AI scheduling suggestions timeout (90s exceeded), falling back to rule-based suggestions');
         console.warn('   → Consider reducing payload size or increasing timeout if needed');
       } else {
         console.error('AI scheduling suggestions error:', {

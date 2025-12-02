@@ -282,6 +282,23 @@ class RewardService {
   }
 
   /**
+   * Get redemption trend data
+   */
+  async getRedemptionTrend(params?: {
+    period?: 'daily' | 'weekly' | 'monthly';
+    startDate?: string;
+    endDate?: string;
+  }): Promise<ApiResponse<{ dates: string[]; redemptions: number[]; points_spent: number[] }>> {
+    const queryParams = new URLSearchParams();
+    if (params?.period) queryParams.append('period', params.period);
+    if (params?.startDate) queryParams.append('startDate', params.startDate);
+    if (params?.endDate) queryParams.append('endDate', params.endDate);
+
+    const endpoint = `/analytics/rewards/redemption-trend${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request<{ dates: string[]; redemptions: number[]; points_spent: number[] }>(endpoint);
+  }
+
+  /**
    * Upload reward image to S3
    */
   async uploadRewardImage(image: string): Promise<ApiResponse<{ image_url: string; key: string }>> {

@@ -40,7 +40,7 @@ class ChallengeController {
    */
   async createChallenge(req, res) {
     try {
-      // ✅ Check authentication - Decode JWT token
+      // [SUCCESS] Check authentication - Decode JWT token
       const user = this.getUserFromToken(req);
       if (!user) {
         return res.status(401).json({
@@ -50,7 +50,7 @@ class ChallengeController {
         });
       }
 
-      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      // [SUCCESS] Check authorization - Only SUPER_ADMIN and ADMIN
       const userRole = user.role;
       if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
         return res.status(403).json({
@@ -320,7 +320,7 @@ class ChallengeController {
    */
   async updateChallenge(req, res) {
     try {
-      // ✅ Check authentication
+      // [SUCCESS] Check authentication
       const user = this.getUserFromToken(req);
       if (!user) {
         return res.status(401).json({
@@ -330,7 +330,7 @@ class ChallengeController {
         });
       }
 
-      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      // [SUCCESS] Check authorization - Only SUPER_ADMIN and ADMIN
       const userRole = user.role;
       if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
         return res.status(403).json({
@@ -373,7 +373,7 @@ class ChallengeController {
    */
   async deleteChallenge(req, res) {
     try {
-      // ✅ Check authentication
+      // [SUCCESS] Check authentication
       const user = this.getUserFromToken(req);
       if (!user) {
         return res.status(401).json({
@@ -383,7 +383,7 @@ class ChallengeController {
         });
       }
 
-      // ✅ Check authorization - Only SUPER_ADMIN and ADMIN
+      // [SUCCESS] Check authorization - Only SUPER_ADMIN and ADMIN
       const userRole = user.role;
       if (userRole !== 'SUPER_ADMIN' && userRole !== 'ADMIN') {
         return res.status(403).json({

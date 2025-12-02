@@ -82,7 +82,44 @@ class TrainerService {
   async syncTrainerSpecializations(trainerId: string): Promise<ApiResponse<Trainer>> {
     return this.request<Trainer>(`/trainers/${trainerId}/sync-specializations`, 'POST');
   }
+
+  async uploadAvatar(
+    userId: string,
+    base64Image: string,
+    mimeType: string = 'image/jpeg',
+    filename: string = 'avatar.jpg'
+  ): Promise<ApiResponse<{ avatarUrl: string; trainer: Trainer }>> {
+    return this.request<{ avatarUrl: string; trainer: Trainer }>(
+      `/trainers/user/${userId}/avatar`,
+      'POST',
+      {
+        base64Image,
+        mimeType,
+        filename,
+      }
+    );
+  }
+
+  async updateTrainerSchedule(
+    userId: string,
+    scheduleId: string,
+    data: {
+      class_name?: string;
+      description?: string;
+      date?: string;
+      start_time?: string;
+      end_time?: string;
+      room_id?: string;
+      max_capacity?: number;
+      special_notes?: string;
+    }
+  ): Promise<ApiResponse<{ schedule: any }>> {
+    return this.request<{ schedule: any }>(
+      `/trainers/user/${userId}/schedules/${scheduleId}`,
+      'PUT',
+      data
+    );
+  }
 }
 
 export const trainerService = new TrainerService();
-

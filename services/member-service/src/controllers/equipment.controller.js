@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const s3UploadService = require('../services/s3-upload.service');
 const challengeService = require('../services/challenge.service.js');
 const notificationService = require('../services/notification.service');
@@ -10,7 +10,7 @@ try {
   try {
     distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('⚠️ Distributed lock utility not available, equipment usage will use database transactions only');
+    console.warn('[WARNING] Distributed lock utility not available, equipment usage will use database transactions only');
   }
 }
 
@@ -400,7 +400,7 @@ class EquipmentController {
         orderBy: { entry_time: 'desc' },
       });
 
-      console.log('🏋️ Active gym session check:', {
+      console.log('[GYM] Active gym session check:', {
         found: !!activeGymSession,
         sessionId: activeGymSession?.id,
         memberId,
@@ -409,7 +409,7 @@ class EquipmentController {
       // If no active gym session, create one automatically
       let sessionToLink = activeGymSession;
       if (!activeGymSession) {
-        console.log('⚠️ No active gym session found. Auto-creating one...');
+        console.log('[WARNING] No active gym session found. Auto-creating one...');
         sessionToLink = await prisma.gymSession.create({
           data: {
             member_id: memberId,
@@ -417,7 +417,7 @@ class EquipmentController {
             entry_gate: 'Equipment Station',
           },
         });
-        console.log('✅ Auto-created gym session:', sessionToLink.id);
+        console.log('[SUCCESS] Auto-created gym session:', sessionToLink.id);
       }
 
       // Create usage record with auto-timeout after 3 hours
@@ -433,7 +433,7 @@ class EquipmentController {
         auto_end_at: autoEndTime, // Auto-end after 3 hours if not manually stopped
       };
 
-      console.log('📝 Creating equipment usage with data:', {
+      console.log('[PROCESS] Creating equipment usage with data:', {
         member_id: usageData.member_id,
         equipment_id: usageData.equipment_id,
         session_id: usageData.session_id,
@@ -456,7 +456,7 @@ class EquipmentController {
           },
         });
 
-        console.log('✅ Equipment usage created:', {
+        console.log('[SUCCESS] Equipment usage created:', {
           usageId: usage.id,
           session_id: usage.session_id,
           member_id: usage.member_id,
@@ -488,7 +488,7 @@ class EquipmentController {
           where: { id: queueEntry.id },
         });
 
-        console.log(`✅ Removed queue entry for member ${memberId} (position ${removedPosition})`);
+        console.log(`[SUCCESS] Removed queue entry for member ${memberId} (position ${removedPosition})`);
 
         // Reorder remaining queue entries
         await prisma.equipmentQueue.updateMany({
@@ -529,7 +529,7 @@ class EquipmentController {
         });
       }
 
-      // ✅ Fix: Auto-update EQUIPMENT challenges when starting equipment usage (async, don't wait)
+      // [SUCCESS] Fix: Auto-update EQUIPMENT challenges when starting equipment usage (async, don't wait)
       challengeService
         .autoUpdateEquipmentChallenges(memberId, 1, 0)
         .catch((err) => {
@@ -658,7 +658,7 @@ class EquipmentController {
       });
 
       if (!activeUsage) {
-        console.error('❌ Active usage not found:', {
+        console.error('[ERROR] Active usage not found:', {
           usage_id,
           member_id: memberId,
           user_id: userId,
@@ -722,7 +722,7 @@ class EquipmentController {
       // Ensure at least 1 calorie if duration > 0, to avoid discouraging short workouts
       const calories_burned = durationInSeconds > 0 ? Math.max(1, Math.round(exactCalories)) : 0;
 
-      console.log('⏱️ Duration & Calories calculation:', {
+      console.log('[TIMER] Duration & Calories calculation:', {
         equipmentCategory: activeUsage.equipment.category,
         durationInSeconds,
         durationInMinutes,
@@ -766,7 +766,7 @@ class EquipmentController {
         },
       });
 
-      console.log('✅ Saved to database:', {
+      console.log('[SUCCESS] Saved to database:', {
         usage_id: usage.id,
         duration_stored: usage.duration,
         calories_stored: usage.calories_burned,
@@ -786,7 +786,7 @@ class EquipmentController {
         },
       });
 
-      // ✅ Fix: Auto-update FITNESS challenges (calories) - async, don't wait
+      // [SUCCESS] Fix: Auto-update FITNESS challenges (calories) - async, don't wait
       if (calories_burned > 0) {
         challengeService
           .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
@@ -795,7 +795,7 @@ class EquipmentController {
           });
       }
 
-      // ✅ Fix: Auto-update EQUIPMENT challenges (count) - async, don't wait
+      // [SUCCESS] Fix: Auto-update EQUIPMENT challenges (count) - async, don't wait
       challengeService
         .autoUpdateEquipmentChallenges(memberId, 1, durationInMinutes)
         .catch((err) => {
@@ -836,7 +836,7 @@ class EquipmentController {
         });
 
         console.log(
-          `🔔 Notifying ${nextInQueue.member.full_name} - ${activeUsage.equipment.name} is available`
+          `[BELL] Notifying ${nextInQueue.member.full_name} - ${activeUsage.equipment.name} is available`
         );
 
         // Emit WebSocket event to notify user (for online users)
@@ -863,7 +863,7 @@ class EquipmentController {
             const { sendPushNotification } = require('../utils/push-notification');
             await sendPushNotification(
               nextInQueue.member.user_id,
-              "🎉 It's Your Turn!",
+              "[CELEBRATE] It's Your Turn!",
               `${activeUsage.equipment.name} is now available. You have 5 minutes to claim it.`,
               {
                 type: 'QUEUE_YOUR_TURN',
@@ -874,7 +874,7 @@ class EquipmentController {
               }
             );
           } catch (pushError) {
-            console.warn('⚠️ Push notification utility not available:', pushError.message);
+            console.warn('[WARNING] Push notification utility not available:', pushError.message);
             // Continue without push notification
           }
         }
@@ -1050,7 +1050,7 @@ class EquipmentController {
         // Ensure at least 1 calorie if duration > 0
         const calories_burned = durationInSeconds > 0 ? Math.max(1, Math.round(exactCalories)) : 0;
 
-        console.log('⏱️ [AUTO-STOP] Duration & Calories calculation:', {
+        console.log('[TIMER] [AUTO-STOP] Duration & Calories calculation:', {
           sessionId: session.id,
           equipmentCategory: session.equipment.category,
           durationInSeconds,
@@ -1079,7 +1079,7 @@ class EquipmentController {
           },
         });
 
-        console.log('✅ [AUTO-STOP] Saved to database:', {
+        console.log('[SUCCESS] [AUTO-STOP] Saved to database:', {
           usage_id: updatedUsage.id,
           duration_stored: updatedUsage.duration,
           calories_stored: updatedUsage.calories_burned,
@@ -1150,7 +1150,7 @@ class EquipmentController {
         });
 
         console.log(
-          `⏱️ Auto-stopped expired session: ${session.id} for ${session.member.full_name}`
+          `[TIMER] Auto-stopped expired session: ${session.id} for ${session.member.full_name}`
         );
       }
 
@@ -1267,7 +1267,7 @@ class EquipmentController {
   // Get equipment usage stats by status (for admin/reports)
   async getEquipmentUsageStatsByStatus(req, res) {
     try {
-      console.log('📊 Getting equipment usage stats by status...');
+      console.log('[STATS] Getting equipment usage stats by status...');
       
       // Get all equipment grouped by status
       const equipmentStats = await prisma.equipment.groupBy({
@@ -1277,7 +1277,7 @@ class EquipmentController {
         },
       });
 
-      console.log('📊 Equipment stats:', equipmentStats);
+      console.log('[STATS] Equipment stats:', equipmentStats);
 
       // Format response
       const stats = equipmentStats.map(stat => ({
@@ -1832,7 +1832,7 @@ class EquipmentController {
             userId = payload.userId || payload.id || 'unknown';
           }
         } catch (error) {
-          console.warn('⚠️ Could not extract user ID from token:', error.message);
+          console.warn('[WARNING] Could not extract user ID from token:', error.message);
         }
       }
 

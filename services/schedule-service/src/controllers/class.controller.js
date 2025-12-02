@@ -321,6 +321,125 @@ class ClassController {
         },
       });
 
+      // Notify admins and super-admins about new class creation
+      // Only notify if class is created by a trainer (trainer_id is provided)
+      if (trainer_id && global.io) {
+        try {
+          const notificationService = require('../services/notification.service.js');
+          console.log('[BELL] Starting admin notification process for new class...');
+
+          const admins = await notificationService.getAdminsAndSuperAdmins();
+          console.log(
+            `[LIST] Found ${admins.length} admin/super-admin users:`,
+            admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
+          );
+
+          // Get trainer info if trainer_id is provided
+          let trainerInfo = null;
+          if (trainer_id) {
+            const trainer = await prisma.trainer.findUnique({
+              where: { id: trainer_id },
+              select: {
+                id: true,
+                full_name: true,
+                user_id: true,
+              },
+            });
+            trainerInfo = trainer;
+          }
+
+          // Create notifications for all admins
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.user_id,
+            type: 'GENERAL',
+            title: 'Lớp học mới được tạo',
+            message: trainerInfo
+              ? `${trainerInfo.full_name} đã tạo lớp học mới: ${gymClass.name}`
+              : `Lớp học mới đã được tạo: ${gymClass.name}`,
+            data: {
+              class_id: gymClass.id,
+              class_name: gymClass.name,
+              class_category: gymClass.category,
+              class_difficulty: gymClass.difficulty,
+              class_duration: gymClass.duration,
+              class_max_capacity: gymClass.max_capacity,
+              class_price: gymClass.price,
+              trainer_id: trainerInfo?.id || null,
+              trainer_name: trainerInfo?.full_name || null,
+              created_at: gymClass.created_at,
+              role: 'TRAINER', // Add role to identify notification source
+            },
+            channels: ['IN_APP', 'PUSH'],
+          }));
+
+          // Create notifications in identity service
+          if (adminNotifications.length > 0) {
+            console.log(
+              `💾 Creating ${adminNotifications.length} notifications in identity service...`
+            );
+
+            const createdNotifications = [];
+            for (const notificationData of adminNotifications) {
+              try {
+                const created = await notificationService.createNotificationInIdentityService(
+                  notificationData,
+                  'normal'
+                );
+                createdNotifications.push(created);
+              } catch (error) {
+                console.error(
+                  `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
+                  error.message
+                );
+              }
+            }
+
+            console.log(
+              `[SUCCESS] Created ${createdNotifications.length} notifications in identity service`
+            );
+
+            // Emit socket events to all admins (only for notifications that were created)
+            const validNotifications = createdNotifications.filter(n => n && n.id);
+            if (validNotifications.length > 0) {
+              console.log(
+                `[EMIT] Starting to emit socket events to ${validNotifications.length} admin(s)...`
+              );
+
+              validNotifications.forEach(notification => {
+                const roomName = `user:${notification.user_id}`;
+                const socketData = {
+                  class_id: gymClass.id,
+                  class_name: gymClass.name,
+                  class_category: gymClass.category,
+                  class_difficulty: gymClass.difficulty,
+                  trainer_name: trainerInfo?.full_name || null,
+                  created_at: gymClass.created_at,
+                };
+
+                const room = global.io.sockets.adapter.rooms.get(roomName);
+                const socketCount = room ? room.size : 0;
+
+                console.log(
+                  `[EMIT] Emitting class:new to room ${roomName} (${socketCount} socket(s) connected)`,
+                  socketData
+                );
+                global.io.to(roomName).emit('class:new', socketData);
+              });
+
+              console.log(
+                `[SUCCESS] Sent ${adminNotifications.length} notifications to admins about new class`
+              );
+            }
+          } else {
+            console.warn('[WARN] No admin notifications to send (adminNotifications.length = 0)');
+          }
+        } catch (notifError) {
+          console.error('[ERROR] Error sending admin notifications for new class:', notifError);
+          console.error('Error stack:', notifError.stack);
+          // Don't fail the request if notification fails
+        }
+      }
+
       res.status(201).json({
         success: true,
         message: 'Class created successfully',
@@ -480,7 +599,7 @@ class ClassController {
       if (skipCache !== 'true') {
         const cachedResult = await cacheService.get(cacheKey);
         if (cachedResult) {
-          console.log('✅ Returning cached recommendations for member:', memberId);
+          console.log('[SUCCESS] Returning cached recommendations for member:', memberId);
           return res.json({
             success: true,
             message: 'Class recommendations retrieved successfully (cached)',
@@ -496,10 +615,10 @@ class ClassController {
       let member;
       let canUseAI = false;
       try {
-        console.log(`🔍 [getClassRecommendations] Fetching member ${memberId}...`);
+        console.log(`[SEARCH] [getClassRecommendations] Fetching member ${memberId}...`);
         member = await memberService.getMemberById(memberId);
         if (!member) {
-          console.warn(`⚠️ [getClassRecommendations] Member ${memberId} not found`);
+          console.warn(`[WARNING] [getClassRecommendations] Member ${memberId} not found`);
           return res.status(404).json({
             success: false,
             message: 'Member not found',
@@ -507,7 +626,7 @@ class ClassController {
           });
         }
         console.log(
-          `✅ [getClassRecommendations] Member fetched: ${member.full_name || member.id}`,
+          `[SUCCESS] [getClassRecommendations] Member fetched: ${member.full_name || member.id}`,
           {
             hasProfileEmbedding: !!member.profile_embedding,
             profileEmbeddingType: member.profile_embedding
@@ -521,11 +640,11 @@ class ClassController {
           ['PREMIUM', 'VIP'].includes(member.membership_type) &&
           member.ai_class_recommendations_enabled === true;
         console.log(
-          `ℹ️ [getClassRecommendations] AI enabled: ${canUseAI} (membership: ${member.membership_type}, ai_enabled: ${member.ai_class_recommendations_enabled})`
+          `[INFO] [getClassRecommendations] AI enabled: ${canUseAI} (membership: ${member.membership_type}, ai_enabled: ${member.ai_class_recommendations_enabled})`
         );
       } catch (memberError) {
         console.error(
-          '❌ [getClassRecommendations] Failed to fetch member data, using rule-based recommendations:',
+          '[ERROR] [getClassRecommendations] Failed to fetch member data, using rule-based recommendations:',
           {
             memberId,
             error: memberError.message,
@@ -607,7 +726,7 @@ class ClassController {
 
       // Try vector-based recommendations first (if member has embedding)
       const useVectorParam = useVector === 'true'; // Default: true
-      console.log('🔍 [getClassRecommendations] Vector-based check:', {
+      console.log('[SEARCH] [getClassRecommendations] Vector-based check:', {
         useVectorParam,
         hasMember: !!member,
         hasProfileEmbedding: !!member?.profile_embedding,
@@ -617,7 +736,7 @@ class ClassController {
 
       if (useVectorParam && member && member.profile_embedding) {
         try {
-          console.log('🔍 [getClassRecommendations] Using vector-based recommendations');
+          console.log('[SEARCH] [getClassRecommendations] Using vector-based recommendations');
           recommendations = await this.generateVectorBasedRecommendations({
             member,
             memberId,
@@ -629,7 +748,7 @@ class ClassController {
 
           if (recommendations && recommendations.length > 0) {
             console.log(
-              `✅ [getClassRecommendations] Generated ${recommendations.length} vector-based recommendations`
+              `[SUCCESS] [getClassRecommendations] Generated ${recommendations.length} vector-based recommendations`
             );
 
             // Cache the result (TTL: 1 hour = 3600 seconds)
@@ -651,7 +770,7 @@ class ClassController {
           }
         } catch (vectorError) {
           console.warn(
-            '⚠️ [getClassRecommendations] Vector-based recommendations failed, falling back:',
+            '[WARNING] [getClassRecommendations] Vector-based recommendations failed, falling back:',
             {
               message: vectorError.message,
               stack: vectorError.stack,
@@ -661,7 +780,7 @@ class ClassController {
           // Continue to AI or rule-based
         }
       } else {
-        console.warn('⚠️ [getClassRecommendations] Skipping vector-based recommendations:', {
+        console.warn('[WARNING] [getClassRecommendations] Skipping vector-based recommendations:', {
           useVectorParam,
           hasMember: !!member,
           hasProfileEmbedding: !!member?.profile_embedding,
@@ -702,14 +821,16 @@ class ClassController {
           if (response.data?.success && response.data?.data?.recommendations) {
             recommendations = response.data.data.recommendations;
             analysis = response.data.data.analysis;
-            console.log('✅ AI class recommendations generated:', recommendations.length);
+            console.log('[SUCCESS] AI class recommendations generated:', recommendations.length);
           } else {
             // Check if it's a rate limit error
             const errorCode = response.data?.data?.errorCode || response.data?.errorCode;
             if (errorCode === 'RATE_LIMIT_EXCEEDED') {
-              console.log('⚠️ AI rate limit exceeded, falling back to rule-based recommendations');
+              console.log(
+                '[WARNING] AI rate limit exceeded, falling back to rule-based recommendations'
+              );
             } else {
-              console.log('⚠️ AI recommendations failed, falling back to rule-based');
+              console.log('[WARNING] AI recommendations failed, falling back to rule-based');
             }
             recommendations = this.generateRuleBasedRecommendations({
               attendanceHistory,
@@ -727,7 +848,7 @@ class ClassController {
 
           if (isRateLimit) {
             console.log(
-              '⚠️ AI service rate limit exceeded, falling back to rule-based recommendations'
+              '[WARNING] AI service rate limit exceeded, falling back to rule-based recommendations'
             );
           } else {
             console.error('AI recommendations error:', {
@@ -749,7 +870,7 @@ class ClassController {
         }
       } else if (useAI === 'true' && !canUseAI && member) {
         // Member wants AI but doesn't have access - return message
-        console.log('⚠️ Member requested AI but does not have access:', {
+        console.log('[WARNING] Member requested AI but does not have access:', {
           membership_type: member.membership_type,
           ai_enabled: member.ai_class_recommendations_enabled,
         });
@@ -842,29 +963,29 @@ class ClassController {
 
       // Convert array to PostgreSQL vector string format if needed
       // searchSimilarClasses will handle the conversion, but we log it here
-      console.log('🔍 [generateVectorBasedRecommendations] Using member vector:', {
+      console.log('[SEARCH] [generateVectorBasedRecommendations] Using member vector:', {
         isArray: Array.isArray(memberVector),
         length: Array.isArray(memberVector) ? memberVector.length : 0,
         type: typeof memberVector,
       });
 
       // Step 2: Vector Search - Get top 50 candidates
-      console.log('🔍 [generateVectorBasedRecommendations] Starting vector search...');
+      console.log('[SEARCH] [generateVectorBasedRecommendations] Starting vector search...');
       const candidates = await vectorSearchService.searchSimilarClasses(memberVector, 50);
       console.log(
-        `📊 [generateVectorBasedRecommendations] Vector search returned ${candidates.length} candidates`
+        `[STATS] [generateVectorBasedRecommendations] Vector search returned ${candidates.length} candidates`
       );
 
       if (candidates.length === 0) {
         console.warn(
-          '⚠️ [generateVectorBasedRecommendations] No candidates found from vector search'
+          '[WARNING] [generateVectorBasedRecommendations] No candidates found from vector search'
         );
         return [];
       }
 
       // Step 3: Apply filtering constraints
       console.log(
-        `🔍 [generateVectorBasedRecommendations] Filtering ${candidates.length} candidates...`
+        `[SEARCH] [generateVectorBasedRecommendations] Filtering ${candidates.length} candidates...`
       );
       const filteredCandidates = this.filterCandidates({
         candidates,
@@ -873,17 +994,19 @@ class ClassController {
         upcomingSchedules,
       });
       console.log(
-        `📊 [generateVectorBasedRecommendations] After filtering: ${filteredCandidates.length} candidates remaining`
+        `[STATS] [generateVectorBasedRecommendations] After filtering: ${filteredCandidates.length} candidates remaining`
       );
 
       if (filteredCandidates.length === 0) {
-        console.warn('⚠️ [generateVectorBasedRecommendations] All candidates were filtered out');
+        console.warn(
+          '[WARNING] [generateVectorBasedRecommendations] All candidates were filtered out'
+        );
         return [];
       }
 
       // Step 4: Calculate metrics for scoring
       console.log(
-        `🔍 [generateVectorBasedRecommendations] Calculating metrics for ${filteredCandidates.length} candidates...`
+        `[SEARCH] [generateVectorBasedRecommendations] Calculating metrics for ${filteredCandidates.length} candidates...`
       );
       const classesWithMetrics = await Promise.all(
         filteredCandidates.map(async candidate => {
@@ -954,7 +1077,7 @@ class ClassController {
 
       // Step 5: Calculate final scores and rank
       console.log(
-        `📊 [generateVectorBasedRecommendations] Calculated metrics for ${classesWithMetrics.length} classes`
+        `[STATS] [generateVectorBasedRecommendations] Calculated metrics for ${classesWithMetrics.length} classes`
       );
       const recentCategories = attendanceHistory
         .slice(0, 10)
@@ -962,13 +1085,15 @@ class ClassController {
         .filter(Boolean);
 
       console.log(
-        `🔍 [generateVectorBasedRecommendations] Scoring and ranking ${classesWithMetrics.length} classes...`
+        `[SEARCH] [generateVectorBasedRecommendations] Scoring and ranking ${classesWithMetrics.length} classes...`
       );
       const rankedClasses = scoringService.scoreAndRankClasses(
         classesWithMetrics,
         recentCategories
       );
-      console.log(`📊 [generateVectorBasedRecommendations] Ranked ${rankedClasses.length} classes`);
+      console.log(
+        `[STATS] [generateVectorBasedRecommendations] Ranked ${rankedClasses.length} classes`
+      );
 
       // Step 6: Convert to recommendation format (top 5)
       const recommendations = rankedClasses.slice(0, 5).map((classItem, index) => ({
@@ -991,7 +1116,7 @@ class ClassController {
       }));
 
       console.log(
-        `✅ [generateVectorBasedRecommendations] Generated ${recommendations.length} vector-based recommendations:`,
+        `[SUCCESS] [generateVectorBasedRecommendations] Generated ${recommendations.length} vector-based recommendations:`,
         recommendations.map(r => ({
           title: r.title,
           priority: r.priority,
@@ -1001,7 +1126,7 @@ class ClassController {
 
       return recommendations;
     } catch (error) {
-      console.error('❌ Error in vector-based recommendations:', error);
+      console.error('[ERROR] Error in vector-based recommendations:', error);
       throw error;
     }
   }
@@ -1046,7 +1171,7 @@ class ClassController {
 
     if (filteredCount > 0) {
       console.log(
-        `📊 [filterCandidates] Filtered out ${filteredCount} candidates, ${filtered.length} remaining`
+        `[STATS] [filterCandidates] Filtered out ${filteredCount} candidates, ${filtered.length} remaining`
       );
     }
 

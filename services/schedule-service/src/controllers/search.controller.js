@@ -41,11 +41,11 @@ class SearchController {
       }
 
       // Step 1: Generate embedding từ query
-      console.log('🔍 Generating embedding for query:', query);
+      console.log('[SEARCH] Generating embedding for query:', query);
       const queryVector = await embeddingService.generateEmbedding(query);
 
       // Step 2: Vector search
-      console.log('🔍 Performing semantic search...');
+      console.log('[SEARCH] Performing semantic search...');
       const results = await vectorSearchService.semanticSearch(queryVector, 10);
 
       res.json({
@@ -58,7 +58,7 @@ class SearchController {
         },
       });
     } catch (error) {
-      console.error('❌ Semantic search error:', error);
+      console.error('[ERROR] Semantic search error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

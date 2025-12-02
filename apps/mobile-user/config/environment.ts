@@ -152,15 +152,15 @@ export const API_ENDPOINTS = {
 } as const;
 
 // ================================
-// 🔧 SERVICE URLS CONFIGURATION
+// [CONFIG] SERVICE URLS CONFIGURATION
 // ================================
 // Centralized service URLs - modify here to switch between different environments
 //
-// 📱 For REAL DEVICE (same WiFi network):
+// [MOBILE] For REAL DEVICE (same WiFi network):
 //    - Find your computer's IP: Run 'ipconfig' (Windows) or 'ifconfig' (Mac/Linux)
 //    - Use format: http://[YOUR_IP]:PORT
 //
-// 🖥️  For ANDROID EMULATOR:
+// [DESKTOP]  For ANDROID EMULATOR:
 //    - Use: http://10.0.2.2:PORT
 //
 // 🍎 For iOS SIMULATOR:
@@ -172,8 +172,8 @@ export const SERVICE_URLS = buildServiceUrls(environment.API_URL);
 
 // Debug: Log service URLs on initialization
 if (__DEV__) {
-  console.log('🔧 Environment API_URL:', environment.API_URL);
-  console.log('🔧 Built SERVICE_URLS:', SERVICE_URLS);
+  console.log('[CONFIG] Environment API_URL:', environment.API_URL);
+  console.log('[CONFIG] Built SERVICE_URLS:', SERVICE_URLS);
 }
 
 // App Configuration

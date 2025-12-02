@@ -12,13 +12,13 @@ export const debugApi = {
   async testConnection(): Promise<boolean> {
     // Skip connection test on web platform to avoid CORS issues
     if (Platform.OS === 'web') {
-      console.log('🌐 Skipping API connection test on web platform (CORS restrictions)');
+      console.log('[NETWORK] Skipping API connection test on web platform (CORS restrictions)');
       return true; // Return true to not block the app
     }
 
     try {
-      console.log('🔍 Testing API connection...');
-      console.log('📍 API URL:', environment.API_URL);
+      console.log('[SEARCH] Testing API connection...');
+      console.log('[LOCATION] API URL:', environment.API_URL);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 seconds timeout
@@ -36,14 +36,14 @@ export const debugApi = {
       // Accept 404 as success (no route for /) and other 4xx/5xx as connection success
       if (response.status >= 200 && response.status < 600) {
         console.log(
-          '✅ API connection successful (status:',
+          '[SUCCESS] API connection successful (status:',
           response.status,
           ')'
         );
         return true;
       } else {
         console.log(
-          '❌ API connection failed:',
+          '[ERROR] API connection failed:',
           response.status,
           response.statusText
         );
@@ -52,13 +52,13 @@ export const debugApi = {
     } catch (error: any) {
       // Handle CORS errors gracefully
       if (error.message?.includes('CORS') || error.message?.includes('Failed to fetch')) {
-        console.log('⚠️ CORS error detected - this is expected on web platform');
-        console.log('💡 To test API on web, configure CORS on your backend server');
+        console.log('[WARN] CORS error detected - this is expected on web platform');
+        console.log('[INFO] To test API on web, configure CORS on your backend server');
         return true; // Return true to not block the app
       }
 
-      console.log('❌ API connection error:', error.message);
-      console.log('🔧 Troubleshooting tips:');
+      console.log('[ERROR] API connection error:', error.message);
+      console.log('[DEBUG] Troubleshooting tips:');
       console.log('1. Make sure your backend services are running');
       console.log('2. Check if the service URL is correct');
       console.log('3. For Android emulator, use: http://10.0.2.2:3001');
@@ -76,7 +76,7 @@ export const debugApi = {
    */
   async testEndpoint(endpoint: string): Promise<boolean> {
     try {
-      console.log(`🔍 Testing endpoint: ${endpoint}`);
+      console.log(`[SEARCH] Testing endpoint: ${endpoint}`);
 
       const response = await fetch(`${environment.API_URL}${endpoint}`, {
         method: 'GET',
@@ -85,27 +85,27 @@ export const debugApi = {
         },
       });
 
-      console.log(`📊 Response status: ${response.status}`);
+      console.log(`[DATA] Response status: ${response.status}`);
       console.log(
-        `📊 Response headers:`,
+        `[STATS] Response headers:`,
         Object.fromEntries(response.headers.entries())
       );
 
       if (response.ok) {
         const data = await response.text();
-        console.log('✅ Endpoint test successful');
-        console.log('📄 Response data:', data);
+        console.log('[SUCCESS] Endpoint test successful');
+        console.log('[DATA] Response data:', data);
         return true;
       } else {
         console.log(
-          '❌ Endpoint test failed:',
+          '[ERROR] Endpoint test failed:',
           response.status,
           response.statusText
         );
         return false;
       }
     } catch (error: any) {
-      console.log('❌ Endpoint test error:', error.message);
+      console.log('[ERROR] Endpoint test error:', error.message);
       return false;
     }
   },
@@ -114,11 +114,11 @@ export const debugApi = {
    * Get network info
    */
   getNetworkInfo() {
-    console.log('🌐 Network Information:');
-    console.log('📍 API URL:', environment.API_URL);
-    console.log('🏠 Environment:', environment.ENVIRONMENT);
-    console.log('🐛 Debug mode:', environment.DEBUG);
-    console.log('📱 Platform:', Platform.OS);
+    console.log('[NETWORK] Network Information:');
+    console.log('[LOCATION] API URL:', environment.API_URL);
+    console.log('[ENV] Environment:', environment.ENVIRONMENT);
+    console.log('[DEBUG] Debug mode:', environment.DEBUG);
+    console.log('[PLATFORM] Platform:', Platform.OS);
 
     return {
       apiUrl: environment.API_URL,
@@ -132,7 +132,7 @@ export const debugApi = {
    */
   async testLoginEndpoint(): Promise<boolean> {
     try {
-      console.log('🔍 Testing login endpoint...');
+      console.log('[SEARCH] Testing login endpoint...');
 
       const response = await fetch(`${environment.API_URL}/auth/login`, {
         method: 'POST',
@@ -145,7 +145,7 @@ export const debugApi = {
         }),
       });
 
-      console.log(`📊 Login endpoint status: ${response.status}`);
+      console.log(`[DATA] Login endpoint status: ${response.status}`);
 
       // We expect this to fail with 401/400, but the endpoint should be reachable
       if (
@@ -153,21 +153,21 @@ export const debugApi = {
         response.status === 400 ||
         response.status === 422
       ) {
-        console.log('✅ Login endpoint is reachable (expected auth failure)');
+        console.log('[SUCCESS] Login endpoint is reachable (expected auth failure)');
         return true;
       } else if (response.ok) {
-        console.log('✅ Login endpoint is working');
+        console.log('[SUCCESS] Login endpoint is working');
         return true;
       } else {
         console.log(
-          '❌ Login endpoint failed:',
+          '[ERROR] Login endpoint failed:',
           response.status,
           response.statusText
         );
         return false;
       }
     } catch (error: any) {
-      console.log('❌ Login endpoint error:', error.message);
+      console.log('[ERROR] Login endpoint error:', error.message);
       return false;
     }
   },

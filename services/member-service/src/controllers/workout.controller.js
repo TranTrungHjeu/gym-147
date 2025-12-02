@@ -1,7 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const aiService = require('../services/ai.service');
 const challengeService = require('../services/challenge.service.js');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class WorkoutController {
   // ==================== WORKOUT PLAN MANAGEMENT ====================
@@ -887,9 +887,9 @@ class WorkoutController {
           if (aiResult.success && aiResult.recommendations.length > 0) {
             recommendations = aiResult.recommendations;
             analysis = aiResult.analysis;
-            console.log('✅ AI recommendations generated:', recommendations.length);
+            console.log('[SUCCESS] AI recommendations generated:', recommendations.length);
           } else {
-            console.log('⚠️ AI recommendations failed, falling back to rule-based');
+            console.log('[WARNING] AI recommendations failed, falling back to rule-based');
             // Fall back to rule-based recommendations
             recommendations = this.generateRecommendations({
               activePlan,
@@ -1125,7 +1125,7 @@ class WorkoutController {
 
       if (!activeSession) {
         // Create a new gym session for this workout
-        console.log('📝 Creating new gym session for workout plan completion');
+        console.log('[PROCESS] Creating new gym session for workout plan completion');
         activeSession = await prisma.gymSession.create({
           data: {
             member_id: memberId,
@@ -1134,7 +1134,7 @@ class WorkoutController {
             entry_time: new Date(Date.now() - (duration_minutes || 60) * 60 * 1000), // Start time based on duration
           },
         });
-        console.log('✅ Created gym session:', activeSession.id);
+        console.log('[SUCCESS] Created gym session:', activeSession.id);
       }
 
       // Get current calories from session
@@ -1152,14 +1152,14 @@ class WorkoutController {
         },
       });
 
-      console.log('✅ Updated gym session with workout calories:', {
+      console.log('[SUCCESS] Updated gym session with workout calories:', {
         sessionId: updatedSession.id,
         previousCalories: currentCalories,
         workoutCalories: totalCalories,
         newTotalCalories,
       });
 
-      // ✅ Fix: Auto-update FITNESS challenges (async, don't wait)
+      // [SUCCESS] Fix: Auto-update FITNESS challenges (async, don't wait)
       challengeService
         .autoUpdateFitnessChallenges(memberId, totalCalories, 1)
         .catch((err) => {
@@ -1236,7 +1236,7 @@ class WorkoutController {
       );
 
       if (!exercise) {
-        console.warn(`⚠️ Exercise not found in workout plan: ${completed.id || completed.name}`);
+        console.warn(`[WARNING] Exercise not found in workout plan: ${completed.id || completed.name}`);
         return;
       }
 
@@ -1310,7 +1310,7 @@ class WorkoutController {
       // Calculate calories for this exercise
       const exerciseCalories = Math.round(durationMinutes * caloriesPerMinute);
 
-      console.log(`  📊 Exercise: ${exercise.name}`, {
+      console.log(`  [STATS] Exercise: ${exercise.name}`, {
         category,
         intensity,
         sets: completed.sets || exercise.sets,
@@ -1327,7 +1327,7 @@ class WorkoutController {
     if (totalCalories === 0 && completedExercises.length > 0) {
       // Fallback: estimate 50 calories per exercise
       totalCalories = completedExercises.length * 50;
-      console.log(`⚠️ Using fallback calorie estimation: ${totalCalories} kcal`);
+      console.log(`[WARNING] Using fallback calorie estimation: ${totalCalories} kcal`);
     }
 
     return totalCalories;

@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import { DatePicker } from '@/components/ui/DatePicker';
 import { Picker } from '@/components/ui/Picker';
 import { TextArea } from '@/components/ui/TextArea';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,7 +21,6 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import DateTimePickerModal from 'react-native-modal-datetime-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function AddMetricScreen() {
@@ -64,7 +64,6 @@ export default function AddMetricScreen() {
   };
 
   const [loading, setLoading] = useState(false);
-  const [isDatePickerVisible, setDatePickerVisible] = useState(false);
   const [formData, setFormData] = useState<AddMetricRequest>({
     type: MetricType.WEIGHT,
     value: 0,
@@ -153,12 +152,11 @@ export default function AddMetricScreen() {
     }));
   };
 
-  const handleDateConfirm = (date: Date) => {
+  const handleDateChange = (date: Date) => {
     setFormData((prev) => ({
       ...prev,
       recordedAt: date.toISOString(),
     }));
-    setDatePickerVisible(false);
   };
 
   const handleNotesChange = (notes: string) => {
@@ -347,26 +345,13 @@ export default function AddMetricScreen() {
               <Text style={[Typography.label, { color: theme.colors.text }]}>
                 {t('health.form.date')}
               </Text>
-              <TouchableOpacity
-                onPress={() => setDatePickerVisible(true)}
-                style={{
-                  padding: 12,
-                  backgroundColor: theme.colors.surface,
-                  borderRadius: 8,
-                  borderWidth: 1,
-                  borderColor: theme.colors.border,
-                }}
-              >
-                <Text style={{ color: theme.colors.text }}>
-                  {new Date(formData.recordedAt).toLocaleDateString()}{' '}
-                  {new Date(formData.recordedAt).toLocaleTimeString()}
-                </Text>
-              </TouchableOpacity>
-              <DateTimePickerModal
-                isVisible={isDatePickerVisible}
+              <DatePicker
+                value={new Date(formData.recordedAt)}
+                onChange={handleDateChange}
                 mode="datetime"
-                onConfirm={handleDateConfirm}
-                onCancel={() => setDatePickerVisible(false)}
+                placeholder={t('health.form.selectDate', {
+                  defaultValue: 'Select date and time',
+                })}
               />
             </View>
 

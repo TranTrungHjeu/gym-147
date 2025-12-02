@@ -20,7 +20,7 @@ class RedisPubSub {
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('❌ RedisPubSub Publisher: Max reconnection attempts reached');
+            console.error('[ERROR] RedisPubSub Publisher: Max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           return Math.min(retries * 100, 3000);
@@ -34,7 +34,7 @@ class RedisPubSub {
       socket: {
         reconnectStrategy: (retries) => {
           if (retries > 10) {
-            console.error('❌ RedisPubSub Subscriber: Max reconnection attempts reached');
+            console.error('[ERROR] RedisPubSub Subscriber: Max reconnection attempts reached');
             return new Error('Max reconnection attempts reached');
           }
           return Math.min(retries * 100, 3000);
@@ -43,22 +43,22 @@ class RedisPubSub {
     });
 
     this.publisher.on('error', (err) => {
-      console.error('❌ RedisPubSub Publisher Error:', err);
+      console.error('[ERROR] RedisPubSub Publisher Error:', err);
       this.isConnected = false;
     });
 
     this.subscriber.on('error', (err) => {
-      console.error('❌ RedisPubSub Subscriber Error:', err);
+      console.error('[ERROR] RedisPubSub Subscriber Error:', err);
       this.isConnected = false;
     });
 
     this.publisher.on('ready', () => {
-      console.log('✅ RedisPubSub Publisher: Connected and ready');
+      console.log('[SUCCESS] RedisPubSub Publisher: Connected and ready');
       this.checkConnection();
     });
 
     this.subscriber.on('ready', () => {
-      console.log('✅ RedisPubSub Subscriber: Connected and ready');
+      console.log('[SUCCESS] RedisPubSub Subscriber: Connected and ready');
       this.checkConnection();
     });
 
@@ -69,12 +69,12 @@ class RedisPubSub {
 
     // Connect both clients
     this.publisher.connect().catch(err => {
-      console.error('❌ Failed to connect RedisPubSub Publisher:', err.message);
+      console.error('[ERROR] Failed to connect RedisPubSub Publisher:', err.message);
       this.isConnected = false;
     });
 
     this.subscriber.connect().catch(err => {
-      console.error('❌ Failed to connect RedisPubSub Subscriber:', err.message);
+      console.error('[ERROR] Failed to connect RedisPubSub Subscriber:', err.message);
       this.isConnected = false;
     });
   }
@@ -85,7 +85,7 @@ class RedisPubSub {
   private checkConnection() {
     if (this.publisher.isReady && this.subscriber.isReady) {
       this.isConnected = true;
-      console.log('✅ RedisPubSub: Both clients connected');
+      console.log('[SUCCESS] RedisPubSub: Both clients connected');
     }
   }
 
@@ -99,7 +99,7 @@ class RedisPubSub {
         try {
           handler(message, channel);
         } catch (error) {
-          console.error(`❌ Error in Pub/Sub handler for channel ${channel}:`, error);
+          console.error(`[ERROR] Error in Pub/Sub handler for channel ${channel}:`, error);
         }
       });
     }
@@ -113,17 +113,17 @@ class RedisPubSub {
    */
   async publish(channel: string, data: any): Promise<number> {
     if (!this.isConnected || !this.publisher.isReady) {
-      console.warn(`⚠️ RedisPubSub not connected, message not published to ${channel}`);
+      console.warn(`[WARNING] RedisPubSub not connected, message not published to ${channel}`);
       return 0;
     }
 
     try {
       const message = typeof data === 'string' ? data : JSON.stringify(data);
       const subscribers = await this.publisher.publish(channel, message);
-      console.log(`📢 Published to ${channel} (${subscribers} subscribers)`);
+      console.log(`[NOTIFY] Published to ${channel} (${subscribers} subscribers)`);
       return subscribers;
     } catch (error) {
-      console.error(`❌ Error publishing to channel ${channel}:`, error);
+      console.error(`[ERROR] Error publishing to channel ${channel}:`, error);
       return 0;
     }
   }
@@ -136,7 +136,7 @@ class RedisPubSub {
    */
   async subscribe(channel: string, handler: (message: string, channel: string) => void): Promise<boolean> {
     if (!this.isConnected || !this.subscriber.isReady) {
-      console.warn(`⚠️ RedisPubSub not connected, cannot subscribe to ${channel}`);
+      console.warn(`[WARNING] RedisPubSub not connected, cannot subscribe to ${channel}`);
       return false;
     }
 
@@ -148,13 +148,13 @@ class RedisPubSub {
         await this.subscriber.subscribe(channel, (message, channel) => {
           this.handleMessage(channel, message);
         });
-        console.log(`📡 Subscribed to channel: ${channel}`);
+        console.log(`[EMIT] Subscribed to channel: ${channel}`);
       }
 
       this.subscriptions.get(channel)!.add(handler);
       return true;
     } catch (error) {
-      console.error(`❌ Error subscribing to channel ${channel}:`, error);
+      console.error(`[ERROR] Error subscribing to channel ${channel}:`, error);
       return false;
     }
   }
@@ -183,18 +183,18 @@ class RedisPubSub {
           // No more handlers, unsubscribe from Redis
           await this.subscriber.unsubscribe(channel);
           this.subscriptions.delete(channel);
-          console.log(`📡 Unsubscribed from channel: ${channel}`);
+          console.log(`[EMIT] Unsubscribed from channel: ${channel}`);
         }
       } else {
         // Remove all handlers
         await this.subscriber.unsubscribe(channel);
         this.subscriptions.delete(channel);
-        console.log(`📡 Unsubscribed from channel: ${channel}`);
+        console.log(`[EMIT] Unsubscribed from channel: ${channel}`);
       }
 
       return true;
     } catch (error) {
-      console.error(`❌ Error unsubscribing from channel ${channel}:`, error);
+      console.error(`[ERROR] Error unsubscribing from channel ${channel}:`, error);
       return false;
     }
   }
@@ -207,7 +207,7 @@ class RedisPubSub {
    */
   async pSubscribe(pattern: string, handler: (message: string, channel: string) => void): Promise<boolean> {
     if (!this.isConnected || !this.subscriber.isReady) {
-      console.warn(`⚠️ RedisPubSub not connected, cannot pSubscribe to ${pattern}`);
+      console.warn(`[WARNING] RedisPubSub not connected, cannot pSubscribe to ${pattern}`);
       return false;
     }
 
@@ -215,10 +215,10 @@ class RedisPubSub {
       await this.subscriber.pSubscribe(pattern, (message, channel) => {
         handler(message, channel);
       });
-      console.log(`📡 Pattern subscribed to: ${pattern}`);
+      console.log(`[EMIT] Pattern subscribed to: ${pattern}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error pattern subscribing to ${pattern}:`, error);
+      console.error(`[ERROR] Error pattern subscribing to ${pattern}:`, error);
       return false;
     }
   }
@@ -235,10 +235,10 @@ class RedisPubSub {
 
     try {
       await this.subscriber.pUnsubscribe(pattern);
-      console.log(`📡 Pattern unsubscribed from: ${pattern}`);
+      console.log(`[EMIT] Pattern unsubscribed from: ${pattern}`);
       return true;
     } catch (error) {
-      console.error(`❌ Error pattern unsubscribing from ${pattern}:`, error);
+      console.error(`[ERROR] Error pattern unsubscribing from ${pattern}:`, error);
       return false;
     }
   }
@@ -256,9 +256,9 @@ class RedisPubSub {
       }
       this.isConnected = false;
       this.subscriptions.clear();
-      console.log('🔌 RedisPubSub: Disconnected');
+      console.log('[SOCKET] RedisPubSub: Disconnected');
     } catch (error) {
-      console.error('❌ Error disconnecting RedisPubSub:', error);
+      console.error('[ERROR] Error disconnecting RedisPubSub:', error);
     }
   }
 }

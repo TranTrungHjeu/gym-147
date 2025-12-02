@@ -291,7 +291,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
         });
 
         flatpickrInstanceRef.current = Array.isArray(fp) ? fp[0] : fp;
-        console.log('📅 ScheduleFormModal - Datepicker initialized, formData.date:', formData.date);
+        console.log('[DATE] ScheduleFormModal - Datepicker initialized, formData.date:', formData.date);
 
         // Set initial value if formData.date exists - use setTimeout to ensure it's set after initialization
         setTimeout(() => {
@@ -300,12 +300,12 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               // Convert YYYY-MM-DD to DD/MM/YYYY for display
               const [year, month, day] = formData.date.split('-');
               const displayDate = `${day}/${month}/${year}`;
-              console.log('📅 ScheduleFormModal - Setting datepicker value:', displayDate);
+              console.log('[DATE] ScheduleFormModal - Setting datepicker value:', displayDate);
               flatpickrInstanceRef.current.setDate(displayDate, false);
               if (datePickerRef.current) {
                 datePickerRef.current.value = displayDate;
                 console.log(
-                  '📅 ScheduleFormModal - Datepicker input value set to:',
+                  '[DATE] ScheduleFormModal - Datepicker input value set to:',
                   datePickerRef.current.value
                 );
               }
@@ -313,7 +313,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
               console.error('Error setting initial date:', error);
             }
           } else {
-            console.log('📅 ScheduleFormModal - Cannot set datepicker value:', {
+            console.log('[DATE] ScheduleFormModal - Cannot set datepicker value:', {
               hasDate: !!formData.date,
               hasInstance: !!flatpickrInstanceRef.current,
               hasRef: !!datePickerRef.current,
@@ -337,26 +337,26 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   // Sync datepicker value when formData.date changes (after initialization)
   useEffect(() => {
     if (!isOpen || !formData.date) {
-      console.log('📅 ScheduleFormModal - Sync date skipped:', {
+      console.log('[DATE] ScheduleFormModal - Sync date skipped:', {
         isOpen,
         hasDate: !!formData.date,
       });
       return;
     }
 
-    console.log('📅 ScheduleFormModal - Syncing datepicker, formData.date:', formData.date);
+    console.log('[DATE] ScheduleFormModal - Syncing datepicker, formData.date:', formData.date);
     // Wait a bit to ensure flatpickr is initialized
     const timer = setTimeout(() => {
       if (flatpickrInstanceRef.current && datePickerRef.current) {
         try {
           const [year, month, day] = formData.date.split('-');
           const displayDate = `${day}/${month}/${year}`;
-          console.log('📅 ScheduleFormModal - Syncing datepicker to:', displayDate);
+          console.log('[DATE] ScheduleFormModal - Syncing datepicker to:', displayDate);
           flatpickrInstanceRef.current.setDate(displayDate, false);
           if (datePickerRef.current) {
             datePickerRef.current.value = displayDate;
             console.log(
-              '📅 ScheduleFormModal - Datepicker synced, input value:',
+              '[DATE] ScheduleFormModal - Datepicker synced, input value:',
               datePickerRef.current.value
             );
           }
@@ -364,7 +364,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           console.error('Error syncing date:', error);
         }
       } else {
-        console.log('📅 ScheduleFormModal - Cannot sync datepicker:', {
+        console.log('[DATE] ScheduleFormModal - Cannot sync datepicker:', {
           hasInstance: !!flatpickrInstanceRef.current,
           hasRef: !!datePickerRef.current,
         });
@@ -459,7 +459,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           const instanceStart = Array.isArray(fpStart) ? fpStart[0] : fpStart;
           flatpickrTimeStartRef.current = instanceStart;
           console.log(
-            '📅 ScheduleFormModal - Start timepicker initialized, formData.start_time:',
+            '[DATE] ScheduleFormModal - Start timepicker initialized, formData.start_time:',
             formData.start_time
           );
 
@@ -472,7 +472,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             ) {
               try {
                 console.log(
-                  '📅 ScheduleFormModal - Setting start timepicker value:',
+                  '[DATE] ScheduleFormModal - Setting start timepicker value:',
                   formData.start_time
                 );
                 timePickerStartRef.current.value = formData.start_time;
@@ -481,14 +481,14 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
                 date.setHours(parseInt(hour) || 9, parseInt(min) || 0, 0, 0);
                 flatpickrTimeStartRef.current.setDate(date, false);
                 console.log(
-                  '📅 ScheduleFormModal - Start timepicker input value set to:',
+                  '[DATE] ScheduleFormModal - Start timepicker input value set to:',
                   timePickerStartRef.current.value
                 );
               } catch (error) {
                 console.error('Error setting initial start time:', error);
               }
             } else {
-              console.log('📅 ScheduleFormModal - Cannot set start timepicker value:', {
+              console.log('[DATE] ScheduleFormModal - Cannot set start timepicker value:', {
                 hasTime: !!formData.start_time,
                 hasInstance: !!flatpickrTimeStartRef.current,
                 hasRef: !!timePickerStartRef.current,
@@ -562,7 +562,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           const instanceEnd = Array.isArray(fpEnd) ? fpEnd[0] : fpEnd;
           flatpickrTimeEndRef.current = instanceEnd;
           console.log(
-            '📅 ScheduleFormModal - End timepicker initialized, formData.end_time:',
+            '[DATE] ScheduleFormModal - End timepicker initialized, formData.end_time:',
             formData.end_time
           );
 
@@ -571,7 +571,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             if (formData.end_time && flatpickrTimeEndRef.current && timePickerEndRef.current) {
               try {
                 console.log(
-                  '📅 ScheduleFormModal - Setting end timepicker value:',
+                  '[DATE] ScheduleFormModal - Setting end timepicker value:',
                   formData.end_time
                 );
                 timePickerEndRef.current.value = formData.end_time;
@@ -580,14 +580,14 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
                 date.setHours(parseInt(hour) || 10, parseInt(min) || 0, 0, 0);
                 flatpickrTimeEndRef.current.setDate(date, false);
                 console.log(
-                  '📅 ScheduleFormModal - End timepicker input value set to:',
+                  '[DATE] ScheduleFormModal - End timepicker input value set to:',
                   timePickerEndRef.current.value
                 );
               } catch (error) {
                 console.error('Error setting initial end time:', error);
               }
             } else {
-              console.log('📅 ScheduleFormModal - Cannot set end timepicker value:', {
+              console.log('[DATE] ScheduleFormModal - Cannot set end timepicker value:', {
                 hasTime: !!formData.end_time,
                 hasInstance: !!flatpickrTimeEndRef.current,
                 hasRef: !!timePickerEndRef.current,
@@ -616,7 +616,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   // Update time picker display values when formData changes (after initialization)
   useEffect(() => {
     if (!isOpen || !formData.start_time) {
-      console.log('📅 ScheduleFormModal - Sync start time skipped:', {
+      console.log('[DATE] ScheduleFormModal - Sync start time skipped:', {
         isOpen,
         hasTime: !!formData.start_time,
       });
@@ -624,7 +624,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
     }
 
     console.log(
-      '📅 ScheduleFormModal - Syncing start timepicker, formData.start_time:',
+      '[DATE] ScheduleFormModal - Syncing start timepicker, formData.start_time:',
       formData.start_time
     );
     // Wait a bit to ensure flatpickr is initialized
@@ -637,14 +637,14 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           date.setHours(parseInt(hour) || 9, parseInt(min) || 0, 0, 0);
           flatpickrTimeStartRef.current.setDate(date, false);
           console.log(
-            '📅 ScheduleFormModal - Start timepicker synced, input value:',
+            '[DATE] ScheduleFormModal - Start timepicker synced, input value:',
             timePickerStartRef.current.value
           );
         } catch (error) {
           console.error('Error updating start time display:', error);
         }
       } else {
-        console.log('📅 ScheduleFormModal - Cannot sync start timepicker:', {
+        console.log('[DATE] ScheduleFormModal - Cannot sync start timepicker:', {
           hasInstance: !!flatpickrTimeStartRef.current,
           hasRef: !!timePickerStartRef.current,
         });
@@ -656,7 +656,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
 
   useEffect(() => {
     if (!isOpen || !formData.end_time) {
-      console.log('📅 ScheduleFormModal - Sync end time skipped:', {
+      console.log('[DATE] ScheduleFormModal - Sync end time skipped:', {
         isOpen,
         hasTime: !!formData.end_time,
       });
@@ -664,7 +664,7 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
     }
 
     console.log(
-      '📅 ScheduleFormModal - Syncing end timepicker, formData.end_time:',
+      '[DATE] ScheduleFormModal - Syncing end timepicker, formData.end_time:',
       formData.end_time
     );
     // Wait a bit to ensure flatpickr is initialized
@@ -677,14 +677,14 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
           date.setHours(parseInt(hour) || 10, parseInt(min) || 0, 0, 0);
           flatpickrTimeEndRef.current.setDate(date, false);
           console.log(
-            '📅 ScheduleFormModal - End timepicker synced, input value:',
+            '[DATE] ScheduleFormModal - End timepicker synced, input value:',
             timePickerEndRef.current.value
           );
         } catch (error) {
           console.error('Error updating end time display:', error);
         }
       } else {
-        console.log('📅 ScheduleFormModal - Cannot sync end timepicker:', {
+        console.log('[DATE] ScheduleFormModal - Cannot sync end timepicker:', {
           hasInstance: !!flatpickrTimeEndRef.current,
           hasRef: !!timePickerEndRef.current,
         });
@@ -703,10 +703,10 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
         trainerService.getAllTrainers(),
       ]);
 
-      console.log('📅 ScheduleFormModal - Loading initial data...');
-      console.log('📅 ScheduleFormModal - classesRes:', classesRes);
-      console.log('📅 ScheduleFormModal - roomsRes:', roomsRes);
-      console.log('📅 ScheduleFormModal - trainersRes:', trainersRes);
+      console.log('[DATE] ScheduleFormModal - Loading initial data...');
+      console.log('[DATE] ScheduleFormModal - classesRes:', classesRes);
+      console.log('[DATE] ScheduleFormModal - roomsRes:', roomsRes);
+      console.log('[DATE] ScheduleFormModal - trainersRes:', trainersRes);
 
       if (classesRes.success) {
         // Handle nested structure: data.classes or direct array
@@ -721,8 +721,8 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             classesData = (classesRes.data as any).data.classes;
           }
         }
-        console.log('📅 ScheduleFormModal - Setting classes:', classesData.length);
-        console.log('📅 ScheduleFormModal - classesData:', classesData);
+        console.log('[DATE] ScheduleFormModal - Setting classes:', classesData.length);
+        console.log('[DATE] ScheduleFormModal - classesData:', classesData);
         setClasses(classesData);
       }
       if (roomsRes.success) {
@@ -738,8 +738,8 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             roomsData = (roomsRes.data as any).data.rooms;
           }
         }
-        console.log('📅 ScheduleFormModal - Setting rooms:', roomsData.length);
-        console.log('📅 ScheduleFormModal - roomsData:', roomsData);
+        console.log('[DATE] ScheduleFormModal - Setting rooms:', roomsData.length);
+        console.log('[DATE] ScheduleFormModal - roomsData:', roomsData);
         setRooms(roomsData);
       }
       if (trainersRes.success) {
@@ -755,8 +755,8 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
             trainersData = (trainersRes.data as any).data.trainers;
           }
         }
-        console.log('📅 ScheduleFormModal - Setting trainers:', trainersData.length);
-        console.log('📅 ScheduleFormModal - trainersData:', trainersData);
+        console.log('[DATE] ScheduleFormModal - Setting trainers:', trainersData.length);
+        console.log('[DATE] ScheduleFormModal - trainersData:', trainersData);
         setTrainers(trainersData);
       }
     } catch (error) {
@@ -886,10 +886,10 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       value: cls.id,
       label: `${cls.name} (${cls.category})`,
     }));
-    console.log('📅 ScheduleFormModal - classOptions:', options);
-    console.log('📅 ScheduleFormModal - formData.class_id:', formData.class_id);
+    console.log('[DATE] ScheduleFormModal - classOptions:', options);
+    console.log('[DATE] ScheduleFormModal - formData.class_id:', formData.class_id);
     console.log(
-      '📅 ScheduleFormModal - class_id in options:',
+      '[DATE] ScheduleFormModal - class_id in options:',
       options.some(opt => opt.value === formData.class_id)
     );
     return options;
@@ -900,10 +900,10 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
       value: room.id,
       label: `${room.name} (Sức chứa: ${room.capacity})`,
     }));
-    console.log('📅 ScheduleFormModal - roomOptions:', options);
-    console.log('📅 ScheduleFormModal - formData.room_id:', formData.room_id);
+    console.log('[DATE] ScheduleFormModal - roomOptions:', options);
+    console.log('[DATE] ScheduleFormModal - formData.room_id:', formData.room_id);
     console.log(
-      '📅 ScheduleFormModal - room_id in options:',
+      '[DATE] ScheduleFormModal - room_id in options:',
       options.some(opt => opt.value === formData.room_id)
     );
     return options;
@@ -917,10 +917,10 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
         label: trainer.full_name,
       })),
     ];
-    console.log('📅 ScheduleFormModal - trainerOptions:', options);
-    console.log('📅 ScheduleFormModal - formData.trainer_id:', formData.trainer_id);
+    console.log('[DATE] ScheduleFormModal - trainerOptions:', options);
+    console.log('[DATE] ScheduleFormModal - formData.trainer_id:', formData.trainer_id);
     console.log(
-      '📅 ScheduleFormModal - trainer_id in options:',
+      '[DATE] ScheduleFormModal - trainer_id in options:',
       options.some(opt => opt.value === formData.trainer_id)
     );
     return options;
@@ -931,36 +931,36 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
   // Set formData from schedule after options are loaded
   useEffect(() => {
     if (isOpen && schedule && classes.length > 0 && rooms.length > 0) {
-      console.log('📅 ScheduleFormModal - Setting formData from schedule after options loaded');
-      console.log('📅 ScheduleFormModal - Schedule data:', schedule);
-      console.log('📅 ScheduleFormModal - schedule.date:', schedule.date, typeof schedule.date);
+      console.log('[DATE] ScheduleFormModal - Setting formData from schedule after options loaded');
+      console.log('[DATE] ScheduleFormModal - Schedule data:', schedule);
+      console.log('[DATE] ScheduleFormModal - schedule.date:', schedule.date, typeof schedule.date);
       console.log(
-        '📅 ScheduleFormModal - schedule.start_time:',
+        '[DATE] ScheduleFormModal - schedule.start_time:',
         schedule.start_time,
         typeof schedule.start_time
       );
       console.log(
-        '📅 ScheduleFormModal - schedule.end_time:',
+        '[DATE] ScheduleFormModal - schedule.end_time:',
         schedule.end_time,
         typeof schedule.end_time
       );
 
       // Convert date to Vietnam timezone for display
       const dateValue = schedule.date ? formatDateVN(schedule.date) : '';
-      console.log('📅 ScheduleFormModal - dateValue (VN):', dateValue);
+      console.log('[DATE] ScheduleFormModal - dateValue (VN):', dateValue);
 
       // Convert time to Vietnam timezone
       let startTime = '';
       let endTime = '';
       if (schedule.start_time) {
-        console.log('📅 ScheduleFormModal - Formatting start_time:', schedule.start_time);
+        console.log('[DATE] ScheduleFormModal - Formatting start_time:', schedule.start_time);
         startTime = formatTimeVN(schedule.start_time);
-        console.log('📅 ScheduleFormModal - startTime (VN):', startTime);
+        console.log('[DATE] ScheduleFormModal - startTime (VN):', startTime);
       }
       if (schedule.end_time) {
-        console.log('📅 ScheduleFormModal - Formatting end_time:', schedule.end_time);
+        console.log('[DATE] ScheduleFormModal - Formatting end_time:', schedule.end_time);
         endTime = formatTimeVN(schedule.end_time);
-        console.log('📅 ScheduleFormModal - endTime (VN):', endTime);
+        console.log('[DATE] ScheduleFormModal - endTime (VN):', endTime);
       }
 
       const newFormData = {
@@ -975,13 +975,13 @@ const ScheduleFormModal: React.FC<ScheduleFormModalProps> = ({
         special_notes: schedule.special_notes || '',
         status: schedule.status || 'SCHEDULED',
       };
-      console.log('📅 ScheduleFormModal - Setting formData:', newFormData);
-      console.log('📅 ScheduleFormModal - schedule.gym_class?.id:', schedule.gym_class?.id);
-      console.log('📅 ScheduleFormModal - schedule.room?.id:', schedule.room?.id);
-      console.log('📅 ScheduleFormModal - schedule.trainer_id:', (schedule as any).trainer_id);
-      console.log('📅 ScheduleFormModal - Current classes length:', classes.length);
-      console.log('📅 ScheduleFormModal - Current rooms length:', rooms.length);
-      console.log('📅 ScheduleFormModal - Current trainers length:', trainers.length);
+      console.log('[DATE] ScheduleFormModal - Setting formData:', newFormData);
+      console.log('[DATE] ScheduleFormModal - schedule.gym_class?.id:', schedule.gym_class?.id);
+      console.log('[DATE] ScheduleFormModal - schedule.room?.id:', schedule.room?.id);
+      console.log('[DATE] ScheduleFormModal - schedule.trainer_id:', (schedule as any).trainer_id);
+      console.log('[DATE] ScheduleFormModal - Current classes length:', classes.length);
+      console.log('[DATE] ScheduleFormModal - Current rooms length:', rooms.length);
+      console.log('[DATE] ScheduleFormModal - Current trainers length:', trainers.length);
       setFormData(newFormData);
     }
   }, [isOpen, schedule, classes.length, rooms.length, trainers.length]);

@@ -16,6 +16,7 @@ const challengesRoutes = require('./challenges.routes');
 const pointsRoutes = require('./points.routes');
 const rewardsRoutes = require('./rewards.routes');
 const aiRoutes = require('./ai.routes');
+const guestPassesRoutes = require('./guest-passes.routes');
 
 // ==================== HEALTH CHECK ROUTE ====================
 
@@ -148,6 +149,7 @@ router.get('/api-docs', (req, res) => {
 });
 router.use('/', pointsRoutes);
 router.use('/', rewardsRoutes);
+router.use('/', guestPassesRoutes);
 router.use('/', streaksRoutes);
 router.use('/', challengesRoutes);
 router.use('/', sessionsRoutes);

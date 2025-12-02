@@ -69,7 +69,7 @@ class AchievementService {
       }
 
       console.log(
-        '🏆 Extracted achievements:',
+        '[TROPHY] Extracted achievements:',
         achievements.length,
         'achievements'
       );

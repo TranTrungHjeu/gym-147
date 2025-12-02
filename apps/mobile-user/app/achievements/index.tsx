@@ -1,4 +1,5 @@
 import AchievementCard from '@/components/AchievementCard';
+import { ShareModal } from '@/components/ShareModal';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   achievementService,
@@ -15,6 +16,7 @@ import {
   Dumbbell,
   Footprints,
   Medal,
+  Share2,
   Sunrise,
   Trophy,
 } from 'lucide-react-native';
@@ -45,6 +47,7 @@ export default function AchievementsScreen() {
   // Data states
   const [achievements, setAchievements] = useState<Achievement[]>([]);
   const [summary, setSummary] = useState<AchievementSummary | null>(null);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   // Load data on component mount and when member ID is available
   useEffect(() => {
@@ -178,6 +181,15 @@ export default function AchievementsScreen() {
         </Text>
         <TouchableOpacity
           style={[
+            styles.shareButton,
+            { backgroundColor: theme.colors.primary + '20' },
+          ]}
+          onPress={() => setShowShareModal(true)}
+        >
+          <Share2 size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[
             styles.leaderboardButton,
             { backgroundColor: theme.colors.primary + '20' },
           ]}
@@ -304,6 +316,20 @@ export default function AchievementsScreen() {
           )}
         </View>
       </ScrollView>
+
+      {/* Share Modal */}
+      <ShareModal
+        visible={showShareModal}
+        onClose={() => setShowShareModal(false)}
+        title={t('achievements.shareTitle', {
+          defaultValue: 'My Achievements',
+        })}
+        message={t('achievements.shareMessage', {
+          defaultValue: `I've completed ${completedAchievements.length} achievements! Check out my progress.`,
+          count: completedAchievements.length,
+        })}
+        url={`${process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'}/achievements`}
+      />
     </SafeAreaView>
   );
 }
@@ -322,6 +348,11 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+    marginRight: 8,
+  },
+  shareButton: {
+    padding: 8,
+    borderRadius: 20,
     marginRight: 8,
   },
   leaderboardButton: {

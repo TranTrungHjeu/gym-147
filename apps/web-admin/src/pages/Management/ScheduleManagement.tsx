@@ -13,8 +13,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import { TableLoading } from '../../components/ui/AppLoading';
 import ExportButton from '../../components/common/ExportButton';
 import { formatVietnamDateTime } from '../../utils/dateTime';
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.css';
+import DatePicker from '../../components/common/DatePicker';
 
 // Helper function to format date in Vietnam timezone
 const formatDateVN = (dateString: string | Date): string => {
@@ -47,8 +46,6 @@ const ScheduleManagement: React.FC = () => {
   const [classTypeFilter, setClassTypeFilter] = useState<string>('all');
   const [dateFilter, setDateFilter] = useState<string>('');
   const [selectedSchedules, setSelectedSchedules] = useState<Set<string>>(new Set());
-  const datePickerRef = useRef<HTMLInputElement>(null);
-  const flatpickrInstanceRef = useRef<any>(null);
   const [selectedSchedule, setSelectedSchedule] = useState<ScheduleItem | null>(null);
   const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
@@ -65,105 +62,6 @@ const ScheduleManagement: React.FC = () => {
     loadSchedules();
   }, [statusFilter, dateFilter]);
 
-  // Initialize flatpickr for date filter
-  useEffect(() => {
-    if (!datePickerRef.current) {
-      return;
-    }
-
-    if (flatpickrInstanceRef.current) {
-      return; // Already initialized
-    }
-
-    // Check if already has flatpickr instance
-    if ((datePickerRef.current as any)._flatpickr) {
-      flatpickrInstanceRef.current = (datePickerRef.current as any)._flatpickr;
-      return;
-    }
-
-    const fp = flatpickr(datePickerRef.current, {
-      dateFormat: 'd/m/Y', // Vietnamese format: DD/MM/YYYY
-      altFormat: 'd/m/Y', // Display format
-      altInput: false,
-      allowInput: true,
-      clickOpens: true,
-      static: false,
-      inline: false,
-      appendTo: document.body,
-      locale: {
-        firstDayOfWeek: 1, // Monday
-        weekdays: {
-          shorthand: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-          longhand: ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'],
-        },
-        months: {
-          shorthand: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
-          longhand: [
-            'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
-            'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
-          ],
-        },
-      },
-      onChange: (selectedDates) => {
-        if (selectedDates.length > 0) {
-          const date = selectedDates[0];
-          const year = date.getFullYear();
-          const month = String(date.getMonth() + 1).padStart(2, '0');
-          const day = String(date.getDate()).padStart(2, '0');
-          const selectedDateISO = `${year}-${month}-${day}`;
-          setDateFilter(selectedDateISO);
-        } else {
-          setDateFilter('');
-        }
-      },
-    });
-
-    flatpickrInstanceRef.current = Array.isArray(fp) ? fp[0] : fp;
-
-    // Set initial value if dateFilter exists
-    if (dateFilter) {
-      try {
-        const [year, month, day] = dateFilter.split('-');
-        const displayDate = `${day}/${month}/${year}`;
-        fp.setDate(displayDate, false);
-        if (datePickerRef.current) {
-          datePickerRef.current.value = displayDate;
-        }
-      } catch (error) {
-        console.error('Error setting initial date:', error);
-      }
-    }
-
-    return () => {
-      if (flatpickrInstanceRef.current) {
-        flatpickrInstanceRef.current.destroy();
-        flatpickrInstanceRef.current = null;
-      }
-    };
-  }, []);
-
-  // Sync dateFilter with flatpickr when dateFilter changes externally
-  useEffect(() => {
-    if (flatpickrInstanceRef.current && datePickerRef.current) {
-      if (dateFilter) {
-        try {
-          const [year, month, day] = dateFilter.split('-');
-          const displayDate = `${day}/${month}/${year}`;
-          flatpickrInstanceRef.current.setDate(displayDate, false);
-          if (datePickerRef.current) {
-            datePickerRef.current.value = displayDate;
-          }
-        } catch (error) {
-          console.error('Error syncing date:', error);
-        }
-      } else {
-        flatpickrInstanceRef.current.clear();
-        if (datePickerRef.current) {
-          datePickerRef.current.value = '';
-        }
-      }
-    }
-  }, [dateFilter]);
 
   const loadSchedules = async () => {
     try {
@@ -182,9 +80,9 @@ const ScheduleManagement: React.FC = () => {
       
       const response = await scheduleService.getAllSchedules(filters);
       
-      console.log('📅 ScheduleManagement - getAllSchedules response:', response);
-      console.log('📅 Response data type:', typeof response.data);
-      console.log('📅 Response data:', response.data);
+      console.log('[DATE] ScheduleManagement - getAllSchedules response:', response);
+      console.log('[DATE] Response data type:', typeof response.data);
+      console.log('[DATE] Response data:', response.data);
       
       if (response.success && response.data) {
         // Handle different response structures
@@ -193,7 +91,7 @@ const ScheduleManagement: React.FC = () => {
         if (Array.isArray(response.data)) {
           // Direct array response
           schedulesList = response.data;
-          console.log('📅 Using direct array format');
+          console.log('[DATE] Using direct array format');
         } else if (response.data && typeof response.data === 'object') {
           // Backend returns: { data: { schedules: [...], pagination: {...} } }
           const data = response.data as any;
@@ -201,12 +99,12 @@ const ScheduleManagement: React.FC = () => {
           // Try different possible structures
           if (data.schedules && Array.isArray(data.schedules)) {
             schedulesList = data.schedules;
-            console.log('📅 Using data.schedules format');
+            console.log('[DATE] Using data.schedules format');
           } else if (data.data?.schedules && Array.isArray(data.data.schedules)) {
             schedulesList = data.data.schedules;
-            console.log('📅 Using data.data.schedules format');
+            console.log('[DATE] Using data.data.schedules format');
           } else {
-            console.warn('⚠️ Unknown response structure:', data);
+            console.warn('[WARNING] Unknown response structure:', data);
             schedulesList = [];
           }
         }
@@ -237,18 +135,18 @@ const ScheduleManagement: React.FC = () => {
           };
         });
         
-        console.log('📅 Extracted schedules:', transformedSchedules.length, 'schedules');
+        console.log('[DATE] Extracted schedules:', transformedSchedules.length, 'schedules');
         if (transformedSchedules.length > 0) {
-          console.log('📅 First schedule sample:', transformedSchedules[0]);
+          console.log('[DATE] First schedule sample:', transformedSchedules[0]);
         }
         setSchedules(transformedSchedules);
       } else {
-        console.warn('⚠️ getAllSchedules response not successful:', response);
+        console.warn('[WARNING] getAllSchedules response not successful:', response);
         setSchedules([]);
       }
     } catch (error: any) {
       showToast('Không thể tải danh sách lịch tập', 'error');
-      console.error('❌ Error loading schedules:', error);
+      console.error('[ERROR] Error loading schedules:', error);
       setSchedules([]);
     } finally {
       setIsLoading(false);
@@ -804,30 +702,25 @@ const ScheduleManagement: React.FC = () => {
             />
           </div>
 
-          {/* Date Filter with flatpickr */}
-          <div className='relative group'>
-          <input
-              ref={datePickerRef}
-              type='text'
+          {/* Date Filter */}
+          <div className='relative'>
+            <DatePicker
+              value={dateFilter || undefined}
+              onChange={(date) => {
+                if (typeof date === 'string') {
+                  setDateFilter(date);
+                } else {
+                  setDateFilter('');
+                }
+              }}
               placeholder='dd/mm/yyyy'
-              readOnly
-              className='w-full py-2 pl-9 pr-9 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 cursor-pointer bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-            />
-            <Calendar
-              size={14}
-              className='absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 dark:group-focus-within:text-orange-400 group-hover:text-orange-500 dark:group-hover:text-orange-400 pointer-events-none transition-colors duration-200'
+              mode='single'
             />
             {dateFilter && (
               <button
                 type='button'
                 onClick={() => {
                   setDateFilter('');
-                  if (flatpickrInstanceRef.current) {
-                    flatpickrInstanceRef.current.clear();
-                  }
-                  if (datePickerRef.current) {
-                    datePickerRef.current.value = '';
-                  }
                 }}
                 className='absolute right-2.5 top-1/2 -translate-y-1/2 w-5 h-5 flex items-center justify-center text-gray-400 dark:text-gray-500 hover:text-orange-500 dark:hover:text-orange-400 transition-colors duration-200 z-10'
                 title='Xóa bộ lọc ngày'

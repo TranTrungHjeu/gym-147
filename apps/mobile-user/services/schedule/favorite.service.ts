@@ -28,7 +28,7 @@ class FavoriteService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error adding favorite:', error);
+      console.error('[ERROR] Error adding favorite:', error);
       return { success: false, error: error.message };
     }
   }
@@ -73,7 +73,7 @@ class FavoriteService {
         error: response?.error || response?.message || 'Failed to remove favorite',
       };
     } catch (error: any) {
-      console.error('❌ Error removing favorite:', error);
+      console.error('[ERROR] Error removing favorite:', error);
       return { success: false, error: error.message || 'Failed to remove favorite' };
     }
   }
@@ -108,7 +108,7 @@ class FavoriteService {
         data: Array.isArray(favorites) ? favorites : [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching favorites:', error);
+      console.error('[ERROR] Error fetching favorites:', error);
       return { success: false, error: error.message };
     }
   }
@@ -157,7 +157,7 @@ class FavoriteService {
       });
       const urlWithParams = `${baseUrl}?${queryParams.toString()}`;
 
-      console.log('🔍 Checking favorite:', { memberId: memberId.trim(), favoriteType: favoriteTypeStr, favoriteId: favoriteIdStr });
+      console.log('[SEARCH] Checking favorite:', { memberId: memberId.trim(), favoriteType: favoriteTypeStr, favoriteId: favoriteIdStr });
 
       const response = await scheduleApiService.get(urlWithParams);
 
@@ -169,7 +169,7 @@ class FavoriteService {
         data: isFavorited,
       };
     } catch (error: any) {
-      console.error('❌ Error checking favorite:', error);
+      console.error('[ERROR] Error checking favorite:', error);
       return { success: false, error: error.message };
     }
   }

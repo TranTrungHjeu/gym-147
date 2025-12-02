@@ -1,8 +1,7 @@
 const { createClient } = require('redis');
-const { PrismaClient } = require('@prisma/client');
 const { sendPushNotification } = require('../utils/push-notification');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Notification Worker for Member Service
@@ -29,7 +28,7 @@ class NotificationWorker {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Notification Worker: Max reconnection attempts reached');
+              console.error('[ERROR] Notification Worker: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -38,23 +37,23 @@ class NotificationWorker {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Notification Worker Redis Error:', err);
+        console.error('[ERROR] Notification Worker Redis Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Notification Worker: Connected and ready');
+        console.log('[SUCCESS] Notification Worker: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Notification Worker: Connection closed');
+        console.log('[SOCKET] Notification Worker: Connection closed');
         this.isConnected = false;
       });
 
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Notification Worker Redis:', error);
+      console.error('[ERROR] Failed to initialize Notification Worker Redis:', error);
       this.isConnected = false;
     }
   }
@@ -158,7 +157,7 @@ class NotificationWorker {
         const retryCount = (notificationData._retryCount || 0) + 1;
         
         if (retryCount < this.maxRetries) {
-          console.log(`🔄 Retrying notification (attempt ${retryCount}/${this.maxRetries})`);
+          console.log(`[SYNC] Retrying notification (attempt ${retryCount}/${this.maxRetries})`);
           notificationData._retryCount = retryCount;
           
           // Add back to queue with delay
@@ -167,7 +166,7 @@ class NotificationWorker {
           }, this.retryDelay * retryCount);
         } else {
           // Move to dead letter queue
-          console.error(`❌ Notification failed after ${this.maxRetries} retries, moving to DLQ`);
+          console.error(`[ERROR] Notification failed after ${this.maxRetries} retries, moving to DLQ`);
           await this.client.lPush('notifications:dlq', JSON.stringify({
             ...notificationData,
             failed_at: new Date().toISOString(),
@@ -187,7 +186,7 @@ class NotificationWorker {
    */
   async enqueueNotification(notificationData, priority = 'normal') {
     if (!this.isConnected || !this.client) {
-      console.warn('⚠️ Redis not connected, notification will not be queued');
+      console.warn('[WARNING] Redis not connected, notification will not be queued');
       return false;
     }
 
@@ -208,11 +207,11 @@ class NotificationWorker {
     await this.initialize();
 
     if (!this.isConnected) {
-      console.warn('⚠️ Notification worker cannot start: Redis not connected');
+      console.warn('[WARNING] Notification worker cannot start: Redis not connected');
       return;
     }
 
-    console.log('🚀 Notification worker started');
+    console.log('[START] Notification worker started');
 
     // Process high priority queue every 100ms
     setInterval(() => {
@@ -245,7 +244,7 @@ class NotificationWorker {
       this.isConnected = false;
     }
 
-    console.log('🛑 Notification worker stopped');
+    console.log('[STOP] Notification worker stopped');
   }
 }
 

@@ -42,7 +42,7 @@ export class SubscriptionService {
       
       if (!subscriptionData) return null;
 
-      console.log('📅 Raw subscription data from API:', {
+      console.log('[DATE] Raw subscription data from API:', {
         hasData: !!subscriptionData,
         plan_id: subscriptionData.plan_id,
         hasPlan: !!subscriptionData.plan,
@@ -55,7 +55,7 @@ export class SubscriptionService {
       // Verify plan_id matches plan.id - if not, log warning
       if (subscriptionData.plan_id && subscriptionData.plan?.id && 
           subscriptionData.plan_id !== subscriptionData.plan.id) {
-        console.warn('⚠️ Plan ID mismatch:', {
+        console.warn('[WARN] Plan ID mismatch:', {
           subscriptionPlanId: subscriptionData.plan_id,
           planObjectId: subscriptionData.plan.id,
           planObjectName: subscriptionData.plan.name,
@@ -91,7 +91,7 @@ export class SubscriptionService {
         } : undefined,
       };
       
-      console.log('📅 Parsed subscription:', {
+      console.log('[DATE] Parsed subscription:', {
         plan_id: parsedSubscription.plan_id,
         planId: parsedSubscription.plan?.id,
         planName: parsedSubscription.plan?.name,
@@ -161,7 +161,7 @@ export class SubscriptionService {
     paymentMethod?: string
   ): Promise<Subscription> {
     try {
-      console.log('🔄 Renewing subscription:', {
+      console.log('[RENEW] Renewing subscription:', {
         subscriptionId,
         paymentMethod,
         endpoint: `/subscriptions/${subscriptionId}/renew`,
@@ -172,7 +172,7 @@ export class SubscriptionService {
         paymentMethod ? { payment_method: paymentMethod } : {}
       );
       
-      console.log('✅ Renew subscription response:', response);
+      console.log('[SUCCESS] Renew subscription response:', response);
       
       const subscriptionData = response.data?.subscription || response.data?.data || response.data;
       

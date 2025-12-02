@@ -109,7 +109,7 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
   };
 
   // Debug chart data structure
-  console.log('📊 Chart data structure debug:', {
+  console.log('[DATA] Chart data structure debug:', {
     labels: chartData.labels,
     datasets: chartData.datasets,
     datasetsLength: chartData.datasets.length,
@@ -128,7 +128,7 @@ export const HealthMetricChart: React.FC<HealthMetricChartProps> = ({
     chartData.labels.length === chartData.datasets[0].data.length;
 
   // Debug logging
-  console.log('📊 Chart data validation:', {
+  console.log('[DATA] Chart data validation:', {
     dataLength: chartData.datasets[0].data.length,
     labelsLength: chartData.labels.length,
     isValidChartData,

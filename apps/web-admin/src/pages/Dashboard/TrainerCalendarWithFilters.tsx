@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ExportButton from '../../components/common/ExportButton';
+import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import Button from '../../components/ui/Button/Button';
 import { CalendarEvent, scheduleService } from '../../services/schedule.service';
+import { getCurrentUser } from '../../utils/auth';
 
 export default function TrainerCalendarWithFilters() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -12,9 +15,17 @@ export default function TrainerCalendarWithFilters() {
     classType: '',
     room: '',
   });
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [userId, setUserId] = useState<string>('');
+  const [showAllSchedules, setShowAllSchedules] = useState(false);
 
   useEffect(() => {
     fetchEvents();
+    // Get current user ID
+    const user = getCurrentUser();
+    if (user?.id) {
+      setUserId(user.id);
+    }
   }, [currentDate, viewMode, filters]);
 
   const fetchEvents = async () => {
@@ -115,13 +126,17 @@ export default function TrainerCalendarWithFilters() {
     if (viewMode === 'month') {
       const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
       const endOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
-      return `${startOfMonth.toLocaleDateString('vi-VN')} - ${endOfMonth.toLocaleDateString('vi-VN')}`;
+      return `${startOfMonth.toLocaleDateString('vi-VN')} - ${endOfMonth.toLocaleDateString(
+        'vi-VN'
+      )}`;
     } else if (viewMode === 'week') {
       const startOfWeek = new Date(currentDate);
       startOfWeek.setDate(currentDate.getDate() - currentDate.getDay());
       const endOfWeek = new Date(startOfWeek);
       endOfWeek.setDate(startOfWeek.getDate() + 6);
-      return `${startOfWeek.toLocaleDateString('vi-VN')} - ${endOfWeek.toLocaleDateString('vi-VN')}`;
+      return `${startOfWeek.toLocaleDateString('vi-VN')} - ${endOfWeek.toLocaleDateString(
+        'vi-VN'
+      )}`;
     } else {
       return currentDate.toLocaleDateString('vi-VN');
     }
@@ -130,6 +145,24 @@ export default function TrainerCalendarWithFilters() {
   const clearFilters = () => {
     setFilters({ status: '', classType: '', room: '' });
   };
+
+  // Filter events based on filters (events from API are already filtered, but we can add client-side filtering if needed)
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      const matchesStatus = !filters.status || event.status === filters.status;
+      const matchesClassType =
+        !filters.classType ||
+        event.class_name?.toLowerCase().includes(filters.classType.toLowerCase());
+      const matchesRoom =
+        !filters.room || event.room?.toLowerCase().includes(filters.room.toLowerCase());
+      return matchesStatus && matchesClassType && matchesRoom;
+    });
+  }, [events, filters]);
+
+  // Events to display - either all or filtered based on toggle
+  const displayEvents = useMemo(() => {
+    return showAllSchedules ? events : filteredEvents;
+  }, [showAllSchedules, events, filteredEvents]);
 
   if (loading) {
     return (
@@ -154,33 +187,66 @@ export default function TrainerCalendarWithFilters() {
             <p className='text-gray-600 dark:text-gray-400'>Xem và quản lý lịch dạy của bạn</p>
           </div>
           <div className='flex gap-2'>
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng xuất lịch đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
-            >
-              Xuất lịch
-            </Button>
-            <Button
-              size='sm'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng tạo lịch mới đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
-            >
+            {displayEvents && displayEvents.length > 0 ? (
+              <>
+                <ExportButton
+                  data={displayEvents.map(event => ({
+                    'Lớp học': event.class_name || 'N/A',
+                    'Ngày bắt đầu': event.start
+                      ? new Date(event.start).toLocaleDateString('vi-VN')
+                      : 'N/A',
+                    'Thời gian bắt đầu': event.start
+                      ? new Date(event.start).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    'Thời gian kết thúc': event.end
+                      ? new Date(event.end).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    Phòng: event.room || 'N/A',
+                    'Trạng thái': event.status || 'N/A',
+                    'Số người tham gia': event.attendees || 0,
+                    'Sức chứa tối đa': event.max_capacity || 0,
+                  }))}
+                  columns={[
+                    { key: 'Lớp học', label: 'Lớp học' },
+                    { key: 'Ngày bắt đầu', label: 'Ngày bắt đầu' },
+                    { key: 'Thời gian bắt đầu', label: 'Thời gian bắt đầu' },
+                    { key: 'Thời gian kết thúc', label: 'Thời gian kết thúc' },
+                    { key: 'Phòng', label: 'Phòng' },
+                    { key: 'Trạng thái', label: 'Trạng thái' },
+                    { key: 'Số người tham gia', label: 'Số người tham gia' },
+                    { key: 'Sức chứa tối đa', label: 'Sức chứa tối đa' },
+                  ]}
+                  filename={`trainer-calendar-${currentDate.toISOString().split('T')[0]}`}
+                  title='Lịch dạy'
+                  variant='outline'
+                  size='sm'
+                  showiCal={true}
+                  iCalEvents={displayEvents
+                    .filter(e => e.start && e.end)
+                    .map(event => ({
+                      title: event.class_name || event.title || 'Lớp học',
+                      description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${
+                        event.attendees || 0
+                      }/${event.max_capacity || 0}`,
+                      start: event.start,
+                      end: event.end,
+                      location: event.room || '',
+                    }))}
+                />
+                <CalendarSyncButtons events={displayEvents} />
+              </>
+            ) : (
+              <Button size='sm' variant='outline' disabled>
+                Xuất lịch
+              </Button>
+            )}
+            <Button size='sm' onClick={() => setIsCreateModalOpen(true)}>
               Tạo lịch mới
             </Button>
           </div>
@@ -189,7 +255,30 @@ export default function TrainerCalendarWithFilters() {
 
       {/* Filters */}
       <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6'>
-        <h3 className='text-lg font-semibold text-gray-800 dark:text-white/90 mb-4'>Bộ lọc</h3>
+        <div className='flex items-center justify-between mb-4'>
+          <h3 className='text-lg font-semibold text-gray-800 dark:text-white/90'>Bộ lọc</h3>
+          <div className='flex items-center gap-2'>
+            <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+              Xem tất cả lịch:
+            </label>
+            <button
+              type='button'
+              onClick={() => setShowAllSchedules(!showAllSchedules)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
+                showAllSchedules ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                  showAllSchedules ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+            <span className='text-xs text-gray-600 dark:text-gray-400'>
+              {showAllSchedules ? 'Tất cả' : 'Đã lọc'}
+            </span>
+          </div>
+        </div>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
@@ -283,11 +372,13 @@ export default function TrainerCalendarWithFilters() {
               Khoảng thời gian: {getDateRangeInfo()}
             </p>
           </div>
-          <div className='text-sm text-gray-600 dark:text-gray-400'>{events.length} sự kiện</div>
+          <div className='text-sm text-gray-600 dark:text-gray-400'>
+            {displayEvents.length} sự kiện
+          </div>
         </div>
 
         <div className='space-y-4'>
-          {events.length === 0 ? (
+          {displayEvents.length === 0 ? (
             <div className='text-center py-8'>
               <div className='text-gray-500 dark:text-gray-400 text-lg mb-2'>
                 Không có sự kiện nào
@@ -299,7 +390,7 @@ export default function TrainerCalendarWithFilters() {
               </p>
             </div>
           ) : (
-            events.map(event => (
+            displayEvents.map(event => (
               <div
                 key={event.id}
                 className='border-l-4 border-orange-500 pl-4 py-3 bg-gray-50 dark:bg-gray-700 rounded-md shadow-sm hover:shadow-md transition-shadow'
@@ -382,6 +473,19 @@ export default function TrainerCalendarWithFilters() {
           Đồng bộ lịch
         </Button>
       </div>
+
+      {/* Create Schedule Modal */}
+      {userId && (
+        <CreateScheduleModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            setIsCreateModalOpen(false);
+            fetchEvents(); // Refresh events after creating schedule
+          }}
+          userId={userId}
+        />
+      )}
     </div>
   );
 }

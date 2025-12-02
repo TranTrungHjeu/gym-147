@@ -8,6 +8,7 @@ const authController = new AuthController();
 
 // Public routes (không cần authentication)
 router.post('/login', (req, res) => authController.login(req, res));
+router.post('/login/face', (req, res) => authController.loginWithFace(req, res));
 router.post('/send-otp', (req, res) => authController.sendRegistrationOTP(req, res));
 router.post('/verify-otp', (req, res) => authController.verifyRegistrationOTP(req, res));
 router.post('/register', (req, res) => authController.registerMember(req, res)); // Chỉ tạo MEMBER

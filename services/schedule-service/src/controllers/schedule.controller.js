@@ -111,8 +111,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedDate = payload.date
     ? parseDateInput(payload.date)
     : currentSchedule
-      ? new Date(currentSchedule.date)
-      : null;
+    ? new Date(currentSchedule.date)
+    : null;
 
   if (!parsedDate) {
     errors.push('date không hợp lệ');
@@ -121,8 +121,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedStart = payload.start_time
     ? parseDateInput(payload.start_time)
     : currentSchedule
-      ? new Date(currentSchedule.start_time)
-      : null;
+    ? new Date(currentSchedule.start_time)
+    : null;
 
   if (!parsedStart) {
     errors.push('start_time không hợp lệ');
@@ -131,8 +131,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedEnd = payload.end_time
     ? parseDateInput(payload.end_time)
     : currentSchedule
-      ? new Date(currentSchedule.end_time)
-      : null;
+    ? new Date(currentSchedule.end_time)
+    : null;
 
   if (!parsedEnd) {
     errors.push('end_time không hợp lệ');
@@ -163,8 +163,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const normalizedStatus = payload.status
     ? normalizeStatus(payload.status)
     : isUpdate
-      ? normalizeStatus(currentSchedule?.status)
-      : null;
+    ? normalizeStatus(currentSchedule?.status)
+    : null;
 
   if (payload.status && !normalizedStatus) {
     errors.push('status không hợp lệ');
@@ -186,7 +186,9 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     } else {
       // Check room status - only AVAILABLE rooms can be used for new schedules
       if (room.status !== 'AVAILABLE') {
-        errors.push(`Phòng ${room.name} đang không khả dụng (trạng thái: ${room.status}). Vui lòng chọn phòng khác.`);
+        errors.push(
+          `Phòng ${room.name} đang không khả dụng (trạng thái: ${room.status}). Vui lòng chọn phòng khác.`
+        );
       }
     }
   }
@@ -199,7 +201,9 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     } else {
       // Check trainer status - only ACTIVE trainers can be assigned
       if (trainer.status !== 'ACTIVE') {
-        errors.push(`Huấn luyện viên ${trainer.full_name} đang không hoạt động (trạng thái: ${trainer.status}). Vui lòng chọn huấn luyện viên khác.`);
+        errors.push(
+          `Huấn luyện viên ${trainer.full_name} đang không hoạt động (trạng thái: ${trainer.status}). Vui lòng chọn huấn luyện viên khác.`
+        );
       }
     }
   }
@@ -219,13 +223,15 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     if (gymClass && gymClass.max_capacity) {
       maxCapacityValue = gymClass.max_capacity;
     } else {
-    errors.push('max_capacity là bắt buộc');
+      errors.push('max_capacity là bắt buộc');
     }
   }
 
   // Validate max_capacity against GymClass.max_capacity (if gymClass exists)
   if (gymClass && maxCapacityValue !== null && maxCapacityValue > gymClass.max_capacity) {
-    errors.push(`Sức chứa không được vượt quá sức chứa của lớp học (${gymClass.max_capacity} người)`);
+    errors.push(
+      `Sức chứa không được vượt quá sức chứa của lớp học (${gymClass.max_capacity} người)`
+    );
   }
 
   // Validate max_capacity against room.capacity
@@ -246,14 +252,13 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   if (parsedStart && parsedEnd && errors.filter(msg => msg.includes('time')).length === 0) {
     const durationMs = parsedEnd.getTime() - parsedStart.getTime();
     const durationMinutes = Math.round(durationMs / (1000 * 60));
-    
+
     // Validate duration range (15 minutes to 3 hours)
     if (durationMinutes < 15) {
       errors.push('Thời lượng lớp học tối thiểu 15 phút');
     } else if (durationMinutes > 180) {
       errors.push('Thời lượng lớp học tối đa 180 phút (3 giờ)');
     }
-
   }
 
   if (
@@ -320,7 +325,7 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
       special_notes:
         payload.special_notes !== undefined
           ? payload.special_notes
-          : (currentSchedule?.special_notes ?? null),
+          : currentSchedule?.special_notes ?? null,
       status: normalizedStatus || currentSchedule?.status || undefined,
     },
   };
@@ -721,7 +726,7 @@ class ScheduleController {
               };
 
               console.log(
-                `📡 Emitting notification:new to trainer user:${schedule.trainer.user_id}`,
+                `[EMIT] Emitting notification:new to trainer user:${schedule.trainer.user_id}`,
                 notificationPayload
               );
               global.io
@@ -744,10 +749,12 @@ class ScheduleController {
             };
 
             console.log(
-              `📡 Emitting schedule:updated to trainer user:${schedule.trainer.user_id}`,
+              `[EMIT] Emitting schedule:updated to trainer user:${schedule.trainer.user_id}`,
               socketPayload
             );
-            global.io.to(`user:${schedule.trainer.user_id}`).emit('schedule:updated', socketPayload);
+            global.io
+              .to(`user:${schedule.trainer.user_id}`)
+              .emit('schedule:updated', socketPayload);
           } catch (notifError) {
             console.error('Error creating trainer notification:', notifError);
           }
@@ -779,66 +786,62 @@ class ScheduleController {
               },
             }));
 
-          // Enqueue notifications to Redis queue
+          // Create notifications in Identity Service (saves to database immediately)
           if (memberNotifications.length > 0) {
             try {
               const notificationService = require('../services/notification.service.js');
-              
+
               const createdNotifications = [];
               for (const notificationData of memberNotifications) {
                 try {
-                  const enqueued = await notificationService.enqueueNotification(
+                  const created = await notificationService.createNotificationInIdentityService(
                     {
                       user_id: notificationData.user_id,
                       type: notificationData.type,
                       title: notificationData.title,
                       message: notificationData.message,
                       data: notificationData.data,
+                      channels: ['IN_APP', 'PUSH'],
                     },
                     'normal' // Use normal priority for schedule updates
                   );
-                  if (enqueued) {
-                    // Create mock notification for backward compatibility (socket events)
-                    createdNotifications.push({
-                      id: `queued_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                      user_id: notificationData.user_id,
-                      type: notificationData.type,
-                      title: notificationData.title,
-                      message: notificationData.message,
-                      data: notificationData.data,
-                      created_at: new Date(),
-                      is_read: false,
-                    });
+                  if (created) {
+                    createdNotifications.push(created);
                   }
                 } catch (error) {
-                  console.error(`❌ Failed to enqueue notification for user ${notificationData.user_id}:`, error.message);
+                  console.error(
+                    `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
+                    error.message
+                  );
                 }
               }
-              
-              console.log(`✅ Enqueued ${createdNotifications.length} notifications to Redis queue`);
-              
+
+              console.log(
+                `[SUCCESS] Created ${createdNotifications.length} notifications in Identity Service`
+              );
+
               const notificationsWithIds = createdNotifications;
 
-              // Emit socket events to all members
+              // Emit socket events to all members (only for notifications that were created)
               memberNotifications.forEach((notification, index) => {
                 const createdNotif = notificationsWithIds.find(
-                  n => n.user_id === notification.user_id
+                  n => n && n.user_id === notification.user_id
                 );
 
-                // Emit notification:new event for NotificationDropdown
-                if (createdNotif) {
+                // Emit notification:new event for NotificationDropdown (only if notification was created)
+                if (createdNotif && createdNotif.id) {
                   const notificationPayload = {
                     notification_id: createdNotif.id,
                     type: notification.type,
                     title: notification.title,
                     message: notification.message,
                     data: notification.data,
-                    created_at: createdNotif.created_at.toISOString(),
+                    created_at: createdNotif.created_at?.toISOString() || new Date().toISOString(),
                     is_read: false,
                   };
 
                   console.log(
-                    `📡 Emitting notification:new to member user:${notification.user_id}`,
+                    `[EMIT] Emitting notification:new to member user:${notification.user_id}`,
                     notificationPayload
                   );
                   global.io
@@ -864,7 +867,7 @@ class ScheduleController {
                 };
 
                 console.log(
-                  `📡 Emitting schedule:updated to member user:${notification.user_id}`,
+                  `[EMIT] Emitting schedule:updated to member user:${notification.user_id}`,
                   socketPayload
                 );
                 global.io
@@ -873,7 +876,7 @@ class ScheduleController {
               });
 
               console.log(
-                `✅ Sent ${memberNotifications.length} notifications to members about schedule update`
+                `[SUCCESS] Sent ${memberNotifications.length} notifications to members about schedule update`
               );
             } catch (notifError) {
               console.error('Error creating member notifications:', notifError);
@@ -944,14 +947,16 @@ class ScheduleController {
         if (schedule.bookings && schedule.bookings.length > 0) {
           schedule.bookings.forEach(booking => {
             if (booking.member?.user_id) {
-              global.io.to(`user:${booking.member.user_id}`).emit('schedule:deleted', socketPayload);
+              global.io
+                .to(`user:${booking.member.user_id}`)
+                .emit('schedule:deleted', socketPayload);
             }
           });
         }
 
         // Broadcast to all admins
         global.io.emit('schedule:deleted', socketPayload);
-        console.log(`📡 Emitted schedule:deleted event for schedule ${id}`);
+        console.log(`[EMIT] Emitted schedule:deleted event for schedule ${id}`);
       }
 
       res.json({
@@ -1127,7 +1132,7 @@ class ScheduleController {
       });
 
       // Debug: Log attendance data
-      console.log('🔍 Debug: Schedules with attendance data:', {
+      console.log('[SEARCH] Debug: Schedules with attendance data:', {
         total_schedules: schedules.length,
         schedules_with_attendance: schedules.filter(s => s.attendance && s.attendance.length > 0)
           .length,
@@ -1143,8 +1148,8 @@ class ScheduleController {
 
       // Debug: Check if attendance records exist in database
       const totalAttendanceRecords = await prisma.attendance.count();
-      console.log('📊 Total attendance records in database:', totalAttendanceRecords);
-      
+      console.log('[STATS] Total attendance records in database:', totalAttendanceRecords);
+
       if (totalAttendanceRecords > 0) {
         const sampleAttendance = await prisma.attendance.findFirst({
           include: {
@@ -1153,8 +1158,8 @@ class ScheduleController {
             },
           },
         });
-        console.log('📋 Sample attendance record:', sampleAttendance);
-        
+        console.log('[LIST] Sample attendance record:', sampleAttendance);
+
         // Check attendance for specific schedule
         const scheduleId = schedules[0]?.id;
         if (scheduleId) {
@@ -1162,17 +1167,17 @@ class ScheduleController {
             where: { schedule_id: scheduleId },
             include: {
               schedule: {
-                select: { id: true, date: true, start_time: true }
-              }
-            }
+                select: { id: true, date: true, start_time: true },
+              },
+            },
           });
-          console.log(`📋 Attendance for schedule ${scheduleId}:`, {
+          console.log(`[LIST] Attendance for schedule ${scheduleId}:`, {
             count: attendanceForSchedule.length,
-            records: attendanceForSchedule
+            records: attendanceForSchedule,
           });
         }
       } else {
-        console.log('❌ No attendance records found in database!');
+        console.log('[ERROR] No attendance records found in database!');
       }
 
       const schedulesWithMembers = await Promise.all(

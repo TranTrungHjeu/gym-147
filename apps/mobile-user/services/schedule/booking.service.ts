@@ -28,8 +28,8 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting bookings for member:', memberId);
-      console.log('📅 Filters:', filters);
+      console.log('[DATA] Getting bookings for member:', memberId);
+      console.log('[DATE] Filters:', filters);
 
       const response = await scheduleApiService.get(
         `/bookings/members/${memberId}`,
@@ -38,7 +38,7 @@ class BookingService {
         }
       );
 
-      console.log('📅 Bookings API response:', response);
+      console.log('[DATE] Bookings API response:', response);
 
       // Handle different response structures
       let bookings = [];
@@ -52,14 +52,14 @@ class BookingService {
         bookings = response.data.data;
       }
 
-      console.log('📅 Extracted bookings:', bookings.length, 'bookings');
+      console.log('[DATE] Extracted bookings:', bookings.length, 'bookings');
 
       return {
         success: true,
         data: bookings,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching member bookings:', error);
+      console.error('[ERROR] Error fetching member bookings:', error);
       return { success: false, error: error.message };
     }
   }
@@ -73,11 +73,11 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting booking by ID:', id);
+      console.log('[DATE] Getting booking by ID:', id);
 
       const response = await scheduleApiService.get(`/bookings/${id}`);
 
-      console.log('📅 Booking by ID API response:', {
+      console.log('[DATE] Booking by ID API response:', {
         hasData: !!response.data,
         dataType: typeof response.data,
         dataKeys: response.data ? Object.keys(response.data) : [],
@@ -97,7 +97,7 @@ class BookingService {
         booking = response.data;
       }
 
-      console.log('📅 Extracted booking:', {
+      console.log('[DATE] Extracted booking:', {
         id: booking?.id,
         payment_status: booking?.payment_status,
         status: booking?.status,
@@ -108,7 +108,7 @@ class BookingService {
         data: booking,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching booking:', error);
+      console.error('[ERROR] Error fetching booking:', error);
       return { success: false, error: error.message };
     }
   }
@@ -139,7 +139,7 @@ class BookingService {
         paymentInitiation: responseData?.paymentInitiation,
       };
     } catch (error: any) {
-      console.error('❌ Error creating booking:', error);
+      console.error('[ERROR] Error creating booking:', error);
       return { success: false, error: error.message };
     }
   }
@@ -156,22 +156,22 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Cancelling booking:', bookingId);
-      console.log('📅 Cancellation data:', cancellationData);
+      console.log('[DATE] Cancelling booking:', bookingId);
+      console.log('[DATE] Cancellation data:', cancellationData);
 
       const response = await scheduleApiService.put(
         `/bookings/${bookingId}/cancel`,
         cancellationData
       );
 
-      console.log('📅 Booking cancelled successfully:', response.data);
+      console.log('[DATE] Booking cancelled successfully:', response.data);
 
       return {
         success: true,
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error cancelling booking:', error);
+      console.error('[ERROR] Error cancelling booking:', error);
       return { success: false, error: error.message };
     }
   }
@@ -185,7 +185,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting bookings for schedule:', scheduleId);
+      console.log('[DATE] Getting bookings for schedule:', scheduleId);
 
       const response = await scheduleApiService.get(
         `/bookings/schedule/${scheduleId}`
@@ -196,7 +196,7 @@ class BookingService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedule bookings:', error);
+      console.error('[ERROR] Error fetching schedule bookings:', error);
       return { success: false, error: error.message };
     }
   }
@@ -210,7 +210,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting waitlist for schedule:', scheduleId);
+      console.log('[DATE] Getting waitlist for schedule:', scheduleId);
 
       const response = await scheduleApiService.get(
         `/bookings/schedule/${scheduleId}/waitlist`
@@ -221,7 +221,7 @@ class BookingService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching schedule waitlist:', error);
+      console.error('[ERROR] Error fetching schedule waitlist:', error);
       return { success: false, error: error.message };
     }
   }
@@ -234,15 +234,15 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Removing from waitlist:', bookingId);
+      console.log('[DATE] Removing from waitlist:', bookingId);
 
       await scheduleApiService.delete(`/bookings/${bookingId}/waitlist`);
 
-      console.log('📅 Removed from waitlist successfully');
+      console.log('[DATE] Removed from waitlist successfully');
 
       return { success: true };
     } catch (error: any) {
-      console.error('❌ Error removing from waitlist:', error);
+      console.error('[ERROR] Error removing from waitlist:', error);
       return { success: false, error: error.message };
     }
   }
@@ -256,20 +256,20 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Promoting from waitlist:', bookingId);
+      console.log('[DATE] Promoting from waitlist:', bookingId);
 
       const response = await scheduleApiService.post(
         `/bookings/${bookingId}/promote`
       );
 
-      console.log('📅 Promoted from waitlist successfully:', response.data);
+      console.log('[DATE] Promoted from waitlist successfully:', response.data);
 
       return {
         success: true,
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error promoting from waitlist:', error);
+      console.error('[ERROR] Error promoting from waitlist:', error);
       return { success: false, error: error.message };
     }
   }
@@ -283,7 +283,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting booking stats for member:', memberId);
+      console.log('[DATE] Getting booking stats for member:', memberId);
 
       const response = await scheduleApiService.get(
         `/bookings/members/${memberId}/stats`
@@ -294,7 +294,7 @@ class BookingService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching booking stats:', error);
+      console.error('[ERROR] Error fetching booking stats:', error);
       return { success: false, error: error.message };
     }
   }
@@ -312,7 +312,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Checking if member can book schedule:', {
+      console.log('[DATE] Checking if member can book schedule:', {
         memberId,
         scheduleId,
       });
@@ -328,7 +328,7 @@ class BookingService {
         reason: response.data.reason,
       };
     } catch (error: any) {
-      console.error('❌ Error checking booking availability:', error);
+      console.error('[ERROR] Error checking booking availability:', error);
       return { success: false, canBook: false, error: error.message };
     }
   }
@@ -342,7 +342,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting upcoming bookings for member:', memberId);
+      console.log('[DATE] Getting upcoming bookings for member:', memberId);
 
       const response = await scheduleApiService.get(
         `/bookings/members/${memberId}`,
@@ -359,7 +359,7 @@ class BookingService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching upcoming bookings:', error);
+      console.error('[ERROR] Error fetching upcoming bookings:', error);
       return { success: false, error: error.message };
     }
   }
@@ -373,7 +373,7 @@ class BookingService {
     error?: string;
   }> {
     try {
-      console.log('📅 Getting past bookings for member:', memberId);
+      console.log('[DATE] Getting past bookings for member:', memberId);
 
       const response = await scheduleApiService.get(
         `/bookings/members/${memberId}`,
@@ -390,7 +390,7 @@ class BookingService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching past bookings:', error);
+      console.error('[ERROR] Error fetching past bookings:', error);
       return { success: false, error: error.message };
     }
   }

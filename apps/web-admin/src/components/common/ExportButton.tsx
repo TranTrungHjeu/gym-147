@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { FileSpreadsheet, FileText } from 'lucide-react';
+import { Calendar, FileSpreadsheet, FileText } from 'lucide-react';
 import React from 'react';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 import { addNotoSansFont } from '../../utils/fonts/noto-sans-vietnamese';
@@ -317,6 +317,96 @@ const ExportUtils = {
   exportToCSV: (options: ExportOptions) => {
     ExportUtils.exportToExcel(options);
   },
+
+  exportToiCal: (
+    events: Array<{
+      title: string;
+      description?: string;
+      start: Date | string;
+      end: Date | string;
+      location?: string;
+      url?: string;
+    }>,
+    filename: string = 'calendar'
+  ) => {
+    if (!events || events.length === 0) {
+      alert('Không có sự kiện để xuất');
+      return;
+    }
+
+    // Helper function to format date for iCal (YYYYMMDDTHHmmssZ)
+    const formatDate = (date: Date | string): string => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      const hours = String(d.getUTCHours()).padStart(2, '0');
+      const minutes = String(d.getUTCMinutes()).padStart(2, '0');
+      const seconds = String(d.getUTCSeconds()).padStart(2, '0');
+      return `${year}${month}${day}T${hours}${minutes}${seconds}Z`;
+    };
+
+    // Helper function to escape text for iCal
+    const escapeText = (text: string): string => {
+      return text
+        .replace(/\\/g, '\\\\')
+        .replace(/;/g, '\\;')
+        .replace(/,/g, '\\,')
+        .replace(/\n/g, '\\n')
+        .replace(/\r/g, '');
+    };
+
+    // Generate iCal content
+    let icalContent = 'BEGIN:VCALENDAR\r\n';
+    icalContent += 'VERSION:2.0\r\n';
+    icalContent += 'PRODID:-//Gym Management//Gym Calendar//EN\r\n';
+    icalContent += 'CALSCALE:GREGORIAN\r\n';
+    icalContent += 'METHOD:PUBLISH\r\n';
+
+    events.forEach(event => {
+      const start = formatDate(event.start);
+      const end = formatDate(event.end);
+      const title = escapeText(event.title);
+      const description = event.description ? escapeText(event.description) : '';
+      const location = event.location ? escapeText(event.location) : '';
+      const url = event.url ? escapeText(event.url) : '';
+
+      icalContent += 'BEGIN:VEVENT\r\n';
+      icalContent += `UID:${Date.now()}-${Math.random()
+        .toString(36)
+        .substr(2, 9)}@gym-management\r\n`;
+      icalContent += `DTSTART:${start}\r\n`;
+      icalContent += `DTEND:${end}\r\n`;
+      icalContent += `DTSTAMP:${formatDate(new Date())}\r\n`;
+      icalContent += `SUMMARY:${title}\r\n`;
+      if (description) {
+        icalContent += `DESCRIPTION:${description}\r\n`;
+      }
+      if (location) {
+        icalContent += `LOCATION:${location}\r\n`;
+      }
+      if (url) {
+        icalContent += `URL:${url}\r\n`;
+      }
+      icalContent += 'STATUS:CONFIRMED\r\n';
+      icalContent += 'SEQUENCE:0\r\n';
+      icalContent += 'END:VEVENT\r\n';
+    });
+
+    icalContent += 'END:VCALENDAR\r\n';
+
+    // Create blob and download
+    const blob = new Blob([icalContent], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', `${filename}.ics`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  },
 };
 
 interface ExportButtonProps {
@@ -328,7 +418,16 @@ interface ExportButtonProps {
   filename?: string;
   title?: string;
   variant?: 'primary' | 'secondary' | 'outline';
-  size?: 'sm' | 'md' | 'lg';
+  size?: 'xs' | 'sm' | 'md' | 'lg';
+  showiCal?: boolean;
+  iCalEvents?: Array<{
+    title: string;
+    description?: string;
+    start: Date | string;
+    end: Date | string;
+    location?: string;
+    url?: string;
+  }>;
 }
 
 const ExportButton: React.FC<ExportButtonProps> = ({
@@ -338,6 +437,8 @@ const ExportButton: React.FC<ExportButtonProps> = ({
   title,
   variant = 'outline',
   size = 'md',
+  showiCal = false,
+  iCalEvents,
 }) => {
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     if (format === 'pdf') {
@@ -359,6 +460,12 @@ const ExportButton: React.FC<ExportButtonProps> = ({
     }
   };
 
+  const handleExportiCal = () => {
+    if (iCalEvents && iCalEvents.length > 0) {
+      ExportUtils.exportToiCal(iCalEvents, filename);
+    }
+  };
+
   return (
     <div className='flex gap-2'>
       <AdminButton
@@ -377,6 +484,11 @@ const ExportButton: React.FC<ExportButtonProps> = ({
       >
         Export PDF
       </AdminButton>
+      {showiCal && iCalEvents && iCalEvents.length > 0 && (
+        <AdminButton variant={variant} size={size} icon={Calendar} onClick={handleExportiCal}>
+          Export iCal
+        </AdminButton>
+      )}
     </div>
   );
 };

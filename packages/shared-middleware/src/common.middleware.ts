@@ -23,7 +23,7 @@ const getCorsOrigin = () => {
   }
   // Development fallback with warning
   console.warn(
-    '⚠️  CORS_ORIGIN not set, using development default. Set CORS_ORIGIN in .env for production.'
+    '[WARNING]  CORS_ORIGIN not set, using development default. Set CORS_ORIGIN in .env for production.'
   );
   return 'http://localhost:5173';
 };

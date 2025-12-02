@@ -1,8 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
 const sepayService = require('../services/sepay.service');
-
-const prisma = new PrismaClient();
 const notificationService = require('../services/notification.service');
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class BankTransferController {
   /**
@@ -13,7 +12,7 @@ class BankTransferController {
     try {
       const { payment_id, member_id, amount } = req.body;
 
-      console.log('🏦 Creating bank transfer:', { payment_id, member_id, amount });
+      console.log('[BANK] Creating bank transfer:', { payment_id, member_id, amount });
 
       // Validate input
       if (!payment_id || !member_id || !amount) {
@@ -42,7 +41,7 @@ class BankTransferController {
 
       if (existingTransfer) {
         // Return existing transfer info
-        console.log('✅ Bank transfer already exists:', existingTransfer.id);
+        console.log('[SUCCESS] Bank transfer already exists:', existingTransfer.id);
         return res.status(200).json({
           success: true,
           data: existingTransfer,
@@ -74,7 +73,7 @@ class BankTransferController {
         },
       });
 
-      console.log('✅ Bank transfer created:', bankTransfer.id);
+      console.log('[SUCCESS] Bank transfer created:', bankTransfer.id);
 
       res.status(201).json({
         success: true,
@@ -142,7 +141,7 @@ class BankTransferController {
     try {
       const { id } = req.params;
 
-      console.log('🔍 Verifying bank transfer:', id);
+      console.log('[SEARCH] Verifying bank transfer:', id);
 
       const bankTransfer = await prisma.bankTransfer.findUnique({
         where: { id },
@@ -169,7 +168,7 @@ class BankTransferController {
       if (bankTransfer.status === 'COMPLETED' || bankTransfer.status === 'VERIFIED') {
         // Ensure payment is also completed
         if (bankTransfer.payment && bankTransfer.payment.status !== 'COMPLETED') {
-          console.log('⚠️ BankTransfer verified but Payment not completed, fixing...');
+          console.log('[WARNING] BankTransfer verified but Payment not completed, fixing...');
           const fixedPayment = await prisma.payment.update({
             where: { id: bankTransfer.payment_id },
             data: {
@@ -191,14 +190,14 @@ class BankTransferController {
               where: { id: bankTransfer.payment.subscription_id },
               data: { status: 'ACTIVE' },
             });
-            console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+            console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
 
             // Update member membership if subscription and plan exist
             if (fixedPayment.subscription && fixedPayment.subscription.plan) {
               try {
                 const axios = require('axios');
                 const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-                console.log('🔗 Updating membership for already-verified transfer, using URL:', memberServiceUrl);
+                console.log('[LINK] Updating membership for already-verified transfer, using URL:', memberServiceUrl);
 
                 // Get member to find user_id
                 const memberResponse = await axios.get(`${memberServiceUrl}/members/${fixedPayment.member_id}`, {
@@ -216,15 +215,15 @@ class BankTransferController {
                     timeout: 10000,
                   });
 
-                  console.log(`✅ Member membership updated (already-verified): ${memberData.user_id} -> ${fixedPayment.subscription.plan.type}`);
+                  console.log(`[SUCCESS] Member membership updated (already-verified): ${memberData.user_id} -> ${fixedPayment.subscription.plan.type}`);
                 }
               } catch (memberError) {
-                console.error('❌ Failed to update member membership (already-verified):', memberError.message);
+                console.error('[ERROR] Failed to update member membership (already-verified):', memberError.message);
               }
             }
           }
 
-          console.log('✅ Payment status fixed to COMPLETED');
+          console.log('[SUCCESS] Payment status fixed to COMPLETED');
         }
 
         return res.status(200).json({
@@ -290,10 +289,10 @@ class BankTransferController {
             where: { id: bankTransfer.payment.subscription_id },
             data: { status: 'ACTIVE' },
           });
-          console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+          console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
 
           // Update member membership status and type
-          console.log('🔍 Checking subscription for membership update:', {
+          console.log('[SEARCH] Checking subscription for membership update:', {
             hasSubscription: !!bankTransfer.payment.subscription,
             hasPlan: !!(bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan),
             subscriptionId: bankTransfer.payment.subscription_id,
@@ -301,7 +300,7 @@ class BankTransferController {
           });
 
           if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
-            console.log('✅ Subscription and plan found, updating membership...', {
+            console.log('[SUCCESS] Subscription and plan found, updating membership...', {
               planType: bankTransfer.payment.subscription.plan.type,
               startDate: bankTransfer.payment.subscription.start_date,
               endDate: bankTransfer.payment.subscription.end_date,
@@ -313,7 +312,7 @@ class BankTransferController {
                 throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
               }
               const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-              console.log('🔗 Using MEMBER_SERVICE_URL:', memberServiceUrl);
+              console.log('[LINK] Using MEMBER_SERVICE_URL:', memberServiceUrl);
 
               // Get member to find user_id (payment.member_id is Member.id, not user_id)
               // Use /api prefix if needed, or direct /members if no prefix
@@ -327,7 +326,7 @@ class BankTransferController {
               const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
               
               if (!memberData || !memberData.user_id) {
-                console.error('❌ Cannot find user_id from member data:', memberData);
+                console.error('[ERROR] Cannot find user_id from member data:', memberData);
                 throw new Error('Member data does not contain user_id');
               }
 
@@ -350,17 +349,17 @@ class BankTransferController {
                 timeout: 10000,
               });
 
-              console.log('✅ Member membership update response:', {
+              console.log('[SUCCESS] Member membership update response:', {
                 status: updateResponse.status,
                 success: updateResponse.data?.success,
                 message: updateResponse.data?.message,
                 data: updateResponse.data?.data,
               });
               
-              console.log(`✅ Member membership updated successfully: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
+              console.log(`[SUCCESS] Member membership updated successfully: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
             } catch (memberError) {
-              console.error('❌ Failed to update member membership:', memberError.message);
-              console.error('❌ Error details:', {
+              console.error('[ERROR] Failed to update member membership:', memberError.message);
+              console.error('[ERROR] Error details:', {
                 message: memberError.message,
                 response: memberError.response?.data,
                 status: memberError.response?.status,
@@ -369,7 +368,7 @@ class BankTransferController {
               // Don't fail the verify - payment is still valid
             }
           } else {
-            console.warn('⚠️ Cannot update membership: subscription or plan not found', {
+            console.warn('[WARNING] Cannot update membership: subscription or plan not found', {
               hasSubscription: !!bankTransfer.payment.subscription,
               hasPlan: !!(bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan),
             });
@@ -402,12 +401,12 @@ class BankTransferController {
             );
 
             console.log(
-              '✅ Booking payment confirmed via manual verify:',
+              '[SUCCESS] Booking payment confirmed via manual verify:',
               updatedPayment.reference_id
             );
           } catch (bookingError) {
             console.error(
-              '❌ Failed to confirm booking payment via manual verify:',
+              '[ERROR] Failed to confirm booking payment via manual verify:',
               bookingError.response?.data || bookingError.message
             );
             console.error('Error details:', {
@@ -419,7 +418,7 @@ class BankTransferController {
           }
         }
 
-        console.log('✅ Transfer verified and payment completed');
+        console.log('[SUCCESS] Transfer verified and payment completed');
 
         return res.status(200).json({
           success: true,
@@ -466,7 +465,7 @@ class BankTransferController {
       const transferContent = transaction.content;
 
       if (!transferContent || !transferContent.includes('GYMFIT')) {
-        console.log('⚠️ Not a GymFit transfer, ignoring');
+        console.log('[WARNING] Not a GymFit transfer, ignoring');
         return res.status(200).json({ success: true, message: 'Ignored' });
       }
 
@@ -475,11 +474,11 @@ class BankTransferController {
       const transferCode = codeMatch ? codeMatch[1] : null;
 
       if (!transferCode) {
-        console.log('⚠️ Cannot extract transfer code from content:', transferContent);
+        console.log('[WARNING] Cannot extract transfer code from content:', transferContent);
         return res.status(200).json({ success: true, message: 'Invalid format' });
       }
 
-      console.log('🔍 Extracted transfer code:', transferCode);
+      console.log('[SEARCH] Extracted transfer code:', transferCode);
 
       // Find bank transfer by code (flexible matching)
       const bankTransfer = await prisma.bankTransfer.findFirst({
@@ -495,17 +494,17 @@ class BankTransferController {
       });
 
       if (!bankTransfer) {
-        console.log('⚠️ No matching bank transfer found');
+        console.log('[WARNING] No matching bank transfer found');
         return res.status(200).json({ success: true, message: 'No match' });
       }
 
-      console.log('✅ Found matching bank transfer:', bankTransfer.id);
+      console.log('[SUCCESS] Found matching bank transfer:', bankTransfer.id);
 
       // Verify amount
       const amountMatch = Math.abs(transaction.amount - parseFloat(bankTransfer.amount)) < 0.01;
 
       if (!amountMatch) {
-        console.log('❌ Amount mismatch:', {
+        console.log('[ERROR] Amount mismatch:', {
           expected: bankTransfer.amount,
           received: transaction.amount,
         });
@@ -542,7 +541,7 @@ class BankTransferController {
         where: { id: bankTransfer.payment_id },
       });
 
-      console.log('🔍 Payment before update:', {
+      console.log('[SEARCH] Payment before update:', {
         id: paymentBeforeUpdate?.id,
         payment_type: paymentBeforeUpdate?.payment_type,
         reference_id: paymentBeforeUpdate?.reference_id,
@@ -560,7 +559,7 @@ class BankTransferController {
         },
       });
 
-      console.log('✅ Payment updated:', {
+      console.log('[SUCCESS] Payment updated:', {
         id: updatedPayment.id,
         payment_type: updatedPayment.payment_type,
         reference_id: updatedPayment.reference_id,
@@ -574,7 +573,7 @@ class BankTransferController {
           data: { status: 'ACTIVE' },
         });
 
-        console.log('✅ Subscription activated:', bankTransfer.payment.subscription_id);
+        console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
 
         // Update member membership status and type
         if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
@@ -592,7 +591,7 @@ class BankTransferController {
             const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
             
             if (!memberData || !memberData.user_id) {
-              console.error('❌ Cannot find user_id from member data:', memberData);
+              console.error('[ERROR] Cannot find user_id from member data:', memberData);
               throw new Error('Member data does not contain user_id');
             }
 
@@ -606,9 +605,9 @@ class BankTransferController {
               timeout: 10000,
             });
 
-            console.log(`✅ Member membership updated via Sepay webhook: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
+            console.log(`[SUCCESS] Member membership updated via Sepay webhook: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
           } catch (memberError) {
-            console.error('❌ Failed to update member membership via Sepay webhook:', memberError.message);
+            console.error('[ERROR] Failed to update member membership via Sepay webhook:', memberError.message);
             console.error('Error details:', memberError.response?.data || memberError.message);
             // Don't fail the webhook - payment is still valid
           }
@@ -616,7 +615,7 @@ class BankTransferController {
 
         // Notify admins about successful subscription payment
         try {
-          console.log('📢 Notifying admins about subscription payment success (bank transfer)...');
+          console.log('[NOTIFY] Notifying admins about subscription payment success (bank transfer)...');
           if (!process.env.SCHEDULE_SERVICE_URL) {
             throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
           }
@@ -675,9 +674,9 @@ class BankTransferController {
               timeout: 10000,
             }
           );
-          console.log('✅ Successfully notified admins about subscription payment (bank transfer)');
+          console.log('[SUCCESS] Successfully notified admins about subscription payment (bank transfer)');
         } catch (notifyError) {
-          console.error('❌ Failed to notify admins about subscription payment (bank transfer):', notifyError.message);
+          console.error('[ERROR] Failed to notify admins about subscription payment (bank transfer):', notifyError.message);
         }
 
         // Create payment notification for member
@@ -703,7 +702,7 @@ class BankTransferController {
             });
           }
         } catch (notificationError) {
-          console.error('❌ Error creating payment/subscription notification:', notificationError);
+          console.error('[ERROR] Error creating payment/subscription notification:', notificationError);
           // Don't fail the webhook if notification fails
         }
       }
@@ -740,10 +739,10 @@ class BankTransferController {
             }
           );
 
-          console.log('✅ Webhook: Booking payment confirmed:', updatedPayment.reference_id);
-          console.log('✅ Webhook: Confirm response:', confirmResponse.data);
+          console.log('[SUCCESS] Webhook: Booking payment confirmed:', updatedPayment.reference_id);
+          console.log('[SUCCESS] Webhook: Confirm response:', confirmResponse.data);
         } catch (bookingError) {
-          console.error('❌ Webhook: Failed to confirm booking payment:', {
+          console.error('[ERROR] Webhook: Failed to confirm booking payment:', {
             bookingId: updatedPayment.reference_id,
             error: bookingError.message,
             response: bookingError.response?.data,
@@ -754,13 +753,13 @@ class BankTransferController {
           // Don't fail the webhook - payment is still valid
         }
       } else {
-        console.log('⚠️ Webhook: Not a CLASS_BOOKING payment or missing reference_id', {
+        console.log('[WARNING] Webhook: Not a CLASS_BOOKING payment or missing reference_id', {
           payment_type: updatedPayment.payment_type,
           reference_id: updatedPayment.reference_id,
         });
       }
 
-      console.log('✅ Payment completed via bank transfer');
+      console.log('[SUCCESS] Payment completed via bank transfer');
 
       // Respond to Sepay
       res.status(200).json({

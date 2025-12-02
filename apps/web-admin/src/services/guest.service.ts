@@ -7,19 +7,19 @@ export interface GuestPass {
   guest_email?: string;
   guest_phone?: string;
   guest_id_number?: string; // CMND/CCCD
-  
+
   // Pass details
   pass_type: 'SINGLE_DAY' | 'WEEK' | 'MONTH';
   issued_date: string;
   valid_from: string;
   valid_until: string;
   status: 'ACTIVE' | 'USED' | 'EXPIRED' | 'CANCELLED';
-  
+
   // Usage tracking
   uses_count: number;
   max_uses: number; // Usually 1 for single day, multiple for week/month
   last_used_at?: string;
-  
+
   // Access tracking
   access_logs?: Array<{
     id: string;
@@ -28,21 +28,21 @@ export interface GuestPass {
     entry_method: string;
     gate_id?: string;
   }>;
-  
+
   // Payment
   price?: number;
   payment_status: 'PAID' | 'INCLUDED' | 'FREE'; // INCLUDED = từ membership benefits
   payment_id?: string;
-  
+
   // Issuer info
   issuer_membership_id?: string;
   issuer_subscription_id?: string;
-  
+
   // Notes
   notes?: string;
   cancellation_reason?: string;
   cancelled_at?: string;
-  
+
   // Relations
   issuer?: {
     id: string;
@@ -50,7 +50,7 @@ export interface GuestPass {
     email: string;
     membership_number: string;
   };
-  
+
   created_at: string;
   updated_at: string;
 }
@@ -164,17 +164,25 @@ class GuestService {
     }
   }
 
-  async recordAccess(guestPassId: string, entryMethod: string, gateId?: string) {
+  async useGuestPass(
+    guestPassId: string,
+    accessData: { entry_method?: string; entry_time?: string; gate_id?: string }
+  ) {
     try {
-      const response = await api.post(`${this.baseUrl}/${guestPassId}/access`, {
-        entry_method: entryMethod,
-        gate_id: gateId,
-      });
+      const response = await api.post(`${this.baseUrl}/${guestPassId}/use`, accessData);
       return response.data;
     } catch (error: any) {
-      console.error('Error recording guest access:', error);
+      console.error('Error using guest pass:', error);
       throw error;
     }
+  }
+
+  async recordAccess(guestPassId: string, entryMethod: string, gateId?: string) {
+    // Alias for useGuestPass for backward compatibility
+    return this.useGuestPass(guestPassId, {
+      entry_method: entryMethod,
+      gate_id: gateId,
+    });
   }
 
   async getStats(filters?: { date_from?: string; date_to?: string }) {
@@ -211,4 +219,3 @@ class GuestService {
 }
 
 export const guestService = new GuestService();
-

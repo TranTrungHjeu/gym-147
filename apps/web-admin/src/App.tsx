@@ -18,6 +18,7 @@ import AppLayout from './layout/AppLayout';
 import TrainerLayout from './layout/TrainerLayout';
 import RewardAnalytics from './pages/Analytics/RewardAnalytics';
 import Auth from './pages/AuthPages/Auth';
+import OAuthCallback from './pages/AuthPages/OAuthCallback';
 import ResetPassword from './pages/AuthPages/ResetPassword';
 import Blank from './pages/Blank';
 import Calendar from './pages/Calendar';
@@ -39,7 +40,6 @@ import TrainerRatings from './pages/Dashboard/TrainerRatings';
 import TrainerReviews from './pages/Dashboard/TrainerReviews';
 import TrainerSchedule from './pages/Dashboard/TrainerSchedule';
 import TrainerStats from './pages/Dashboard/TrainerStats';
-import FormElements from './pages/Forms/FormElements';
 import APIKeysManagement from './pages/Management/APIKeysManagement';
 import AuditLogsManagement from './pages/Management/AuditLogsManagement';
 import BackupRestoreManagement from './pages/Management/BackupRestoreManagement';
@@ -50,6 +50,7 @@ import EmailTemplatesManagement from './pages/Management/EmailTemplatesManagemen
 import EquipmentManagement from './pages/Management/EquipmentManagement';
 import GuestManagement from './pages/Management/GuestManagement';
 import MemberManagement from './pages/Management/MemberManagement';
+import NotificationManagement from './pages/Management/NotificationManagement';
 import PersonalTrainingManagement from './pages/Management/PersonalTrainingManagement';
 import RedemptionManagement from './pages/Management/RedemptionManagement';
 import ReportsManagement from './pages/Management/ReportsManagement';
@@ -60,7 +61,6 @@ import ScheduleManagement from './pages/Management/ScheduleManagement';
 import ScheduledReportsManagement from './pages/Management/ScheduledReportsManagement';
 import SettingsManagement from './pages/Management/SettingsManagement';
 import TrainerManagement from './pages/Management/TrainerManagement';
-import NotificationManagement from './pages/Management/NotificationManagement';
 import VerifyCode from './pages/Management/VerifyCode';
 import WebhooksManagement from './pages/Management/WebhooksManagement';
 import NotificationsPage from './pages/Notifications';
@@ -71,13 +71,6 @@ import MembersReport from './pages/Reports/MembersReport';
 import RevenueReport from './pages/Reports/RevenueReport';
 import SystemReport from './pages/Reports/SystemReport';
 import UsersReport from './pages/Reports/UsersReport';
-import BasicTables from './pages/Tables/BasicTables';
-import Alerts from './pages/UiElements/Alerts';
-import Avatars from './pages/UiElements/Avatars';
-import Badges from './pages/UiElements/Badges';
-import Buttons from './pages/UiElements/Buttons';
-import Images from './pages/UiElements/Images';
-import Videos from './pages/UiElements/Videos';
 import Unauthorized from './pages/Unauthorized';
 import UserManagement from './pages/UserManagement';
 import UserProfiles from './pages/UserProfiles';
@@ -94,6 +87,7 @@ export default function App() {
           <Route path='/services' element={<ServicesPage />} />
           <Route path='/team' element={<TeamPage />} />
           <Route path='/contact' element={<ContactPage />} />
+          <Route path='/auth/callback' element={<OAuthCallback />} />
           <Route
             path='/auth'
             element={
@@ -110,18 +104,23 @@ export default function App() {
             path='/dashboard'
             element={
               <ProtectedRoute>
-                <AppLayout>
-                  <RoleBasedRouter
-                    userRole={(() => {
-                      try {
-                        const user = localStorage.getItem('user');
-                        return user ? JSON.parse(user).role : 'MEMBER';
-                      } catch {
-                        return 'MEMBER';
-                      }
-                    })()}
-                  />
-                </AppLayout>
+                {(() => {
+                  try {
+                    const user = localStorage.getItem('user');
+                    const role = user ? JSON.parse(user).role : 'MEMBER';
+                    // Member should not see AppLayout (sidebar/header)
+                    if (role === 'MEMBER') {
+                      return <RoleBasedRouter userRole='MEMBER' />;
+                    }
+                    return (
+                      <AppLayout>
+                        <RoleBasedRouter userRole={role} />
+                      </AppLayout>
+                    );
+                  } catch {
+                    return <RoleBasedRouter userRole='MEMBER' />;
+                  }
+                })()}
               </ProtectedRoute>
             }
           />
@@ -149,9 +148,7 @@ export default function App() {
             path='/member-dashboard'
             element={
               <ProtectedRoute requiredRole='MEMBER'>
-                <AppLayout>
-                  <RoleBasedRouter userRole='MEMBER' />
-                </AppLayout>
+                <RoleBasedRouter userRole='MEMBER' />
               </ProtectedRoute>
             }
           />
@@ -661,14 +658,7 @@ export default function App() {
             <Route path='profile' element={<UserProfiles />} />
             <Route path='calendar' element={<Calendar />} />
             <Route path='blank' element={<Blank />} />
-            <Route path='form-elements' element={<FormElements />} />
-            <Route path='basic-tables' element={<BasicTables />} />
-            <Route path='alerts' element={<Alerts />} />
-            <Route path='avatars' element={<Avatars />} />
-            <Route path='badge' element={<Badges />} />
-            <Route path='buttons' element={<Buttons />} />
-            <Route path='images' element={<Images />} />
-            <Route path='videos' element={<Videos />} />
+            {/* Legacy UI component routes removed - components not implemented */}
           </Route>
 
           {/* Full Dashboard Routes (with sidebar) */}
@@ -684,14 +674,6 @@ export default function App() {
             <Route path='profile' element={<UserProfiles />} />
             <Route path='calendar' element={<Calendar />} />
             <Route path='blank' element={<Blank />} />
-            <Route path='form-elements' element={<FormElements />} />
-            <Route path='basic-tables' element={<BasicTables />} />
-            <Route path='alerts' element={<Alerts />} />
-            <Route path='avatars' element={<Avatars />} />
-            <Route path='badge' element={<Badges />} />
-            <Route path='buttons' element={<Buttons />} />
-            <Route path='images' element={<Images />} />
-            <Route path='videos' element={<Videos />} />
           </Route>
 
           {/* Fallback Route */}

@@ -73,6 +73,33 @@ export enum NotificationType {
 }
 
 /**
+ * Notification status
+ */
+export type NotificationStatus = 'UNREAD' | 'READ' | 'ARCHIVED';
+
+/**
+ * Notification priority
+ */
+export type NotificationPriority = 'URGENT' | 'HIGH' | 'MEDIUM' | 'LOW' | 'NORMAL';
+
+/**
+ * Notification interface
+ */
+export interface Notification {
+  id: string;
+  type: NotificationType | string;
+  title: string;
+  message: string;
+  status: NotificationStatus;
+  priority: NotificationPriority | string;
+  createdAt: string;
+  readAt: string | null;
+  metadata?: Record<string, any>;
+  userId?: string;
+  memberId?: string;
+}
+
+/**
  * Notification data payload structure
  */
 export interface NotificationData {

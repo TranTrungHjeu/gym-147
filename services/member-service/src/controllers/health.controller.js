@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class HealthController {
   /**
@@ -10,7 +10,7 @@ class HealthController {
       const { id: memberId } = req.params; // Route uses :id, not :memberId
       const { period = '30', metricType } = req.query;
 
-      console.log('🔍 getHealthTrends called with memberId:', memberId);
+      console.log('[SEARCH] getHealthTrends called with memberId:', memberId);
 
       // Validate period parameter
       const periodDays = parseInt(period);
@@ -78,7 +78,7 @@ class HealthController {
       const { id: memberId } = req.params; // Route uses :id (must be Member.id, not user_id)
       const { metricType, startDate, endDate, limit = 50, offset = 0 } = req.query;
 
-      console.log('🔍 getMemberHealthMetrics called with memberId:', memberId);
+      console.log('[SEARCH] getMemberHealthMetrics called with memberId:', memberId);
 
       if (!memberId) {
         return res.status(400).json({

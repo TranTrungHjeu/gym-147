@@ -57,6 +57,25 @@ class NotificationService {
 
       return response.data;
     } catch (error: any) {
+      // Handle specific HTTP status codes
+      if (error.response?.status === 503) {
+        const serviceError: any = new Error(
+          'Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.'
+        );
+        serviceError.code = 'ERR_SERVICE_UNAVAILABLE';
+        serviceError.isServiceUnavailable = true;
+        throw serviceError;
+      }
+
+      if (error.response?.status === 504) {
+        const timeoutError: any = new Error(
+          'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.'
+        );
+        timeoutError.code = 'ERR_GATEWAY_TIMEOUT';
+        timeoutError.isTimeout = true;
+        throw timeoutError;
+      }
+
       const errorData = error.response?.data || { message: error.message || 'Request failed' };
       throw new Error(errorData.message || 'Request failed');
     }
@@ -112,22 +131,24 @@ class NotificationService {
     return this.request<any>(`/notifications/${notificationId}`, 'DELETE');
   }
 
-  async bulkMarkAsRead(userId: string, notificationIds: string[]): Promise<ApiResponse<{ updated_count: number }>> {
+  async bulkMarkAsRead(
+    userId: string,
+    notificationIds: string[]
+  ): Promise<ApiResponse<{ updated_count: number }>> {
     // Backend route: PUT /notifications/bulk/read
-    return this.request<{ updated_count: number }>(
-      `/notifications/bulk/read`,
-      'PUT',
-      { notification_ids: notificationIds }
-    );
+    return this.request<{ updated_count: number }>(`/notifications/bulk/read`, 'PUT', {
+      notification_ids: notificationIds,
+    });
   }
 
-  async bulkDelete(userId: string, notificationIds: string[]): Promise<ApiResponse<{ deleted_count: number }>> {
+  async bulkDelete(
+    userId: string,
+    notificationIds: string[]
+  ): Promise<ApiResponse<{ deleted_count: number }>> {
     // Backend route: DELETE /notifications/bulk
-    return this.request<{ deleted_count: number }>(
-      `/notifications/bulk`,
-      'DELETE',
-      { notification_ids: notificationIds }
-    );
+    return this.request<{ deleted_count: number }>(`/notifications/bulk`, 'DELETE', {
+      notification_ids: notificationIds,
+    });
   }
 
   async deleteAllRead(userId: string): Promise<ApiResponse<{ deleted_count: number }>> {
@@ -139,7 +160,10 @@ class NotificationService {
       if (response.success && response.data?.notifications) {
         const readNotifications = response.data.notifications.filter(n => n.is_read);
         if (readNotifications.length > 0) {
-          return await this.bulkDelete(userId, readNotifications.map(n => n.id));
+          return await this.bulkDelete(
+            userId,
+            readNotifications.map(n => n.id)
+          );
         }
       }
 
@@ -168,13 +192,15 @@ class NotificationService {
     };
     member_ids?: string[];
     data?: any;
-  }): Promise<ApiResponse<{
-    total_targets: number;
-    sent_count: number;
-    failed_count: number;
-    errors?: Array<{ userId: string; error: string }>;
-    history_id?: string;
-  }>> {
+  }): Promise<
+    ApiResponse<{
+      total_targets: number;
+      sent_count: number;
+      failed_count: number;
+      errors?: Array<{ userId: string; error: string }>;
+      history_id?: string;
+    }>
+  > {
     // Backend route: POST /notifications/bulk/members
     return this.request<{
       total_targets: number;
@@ -198,13 +224,15 @@ class NotificationService {
     };
     trainer_ids?: string[];
     data?: any;
-  }): Promise<ApiResponse<{
-    total_targets: number;
-    sent_count: number;
-    failed_count: number;
-    errors?: Array<{ userId: string; error: string }>;
-    history_id?: string;
-  }>> {
+  }): Promise<
+    ApiResponse<{
+      total_targets: number;
+      sent_count: number;
+      failed_count: number;
+      errors?: Array<{ userId: string; error: string }>;
+      history_id?: string;
+    }>
+  > {
     // Backend route: POST /notifications/bulk/trainers
     return this.request<{
       total_targets: number;
@@ -225,29 +253,31 @@ class NotificationService {
     target_type?: 'MEMBER' | 'TRAINER';
     startDate?: string;
     endDate?: string;
-  }): Promise<ApiResponse<{
-    history: Array<{
-      id: string;
-      sender_id: string;
-      sender_role: string;
-      target_type: string;
-      target_ids?: string[];
-      filters?: any;
-      title: string;
-      message: string;
-      notification_type: string;
-      sent_count: number;
-      failed_count: number;
-      total_targets: number;
-      created_at: string;
-    }>;
-    pagination: {
-      page: number;
-      limit: number;
-      total: number;
-      pages: number;
-    };
-  }>> {
+  }): Promise<
+    ApiResponse<{
+      history: Array<{
+        id: string;
+        sender_id: string;
+        sender_role: string;
+        target_type: string;
+        target_ids?: string[];
+        filters?: any;
+        title: string;
+        message: string;
+        notification_type: string;
+        sent_count: number;
+        failed_count: number;
+        total_targets: number;
+        created_at: string;
+      }>;
+      pagination: {
+        page: number;
+        limit: number;
+        total: number;
+        pages: number;
+      };
+    }>
+  > {
     const queryParams = new URLSearchParams();
     if (filters?.page) queryParams.append('page', filters.page.toString());
     if (filters?.limit) queryParams.append('limit', filters.limit.toString());

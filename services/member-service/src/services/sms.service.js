@@ -12,9 +12,9 @@ class SMSService {
 
   initialize() {
     if (this.provider === 'esms' && this.esmsApiKey && this.esmsSecretKey) {
-      console.log('✅ SMS service (ESMS) initialized');
+      console.log('[SUCCESS] SMS service (ESMS) initialized');
     } else {
-      console.log('⚠️ SMS service will use mock mode');
+      console.log('[WARNING] SMS service will use mock mode');
     }
   }
 
@@ -38,7 +38,7 @@ class SMSService {
         };
       }
     } catch (error) {
-      console.error('❌ Send SMS error:', error);
+      console.error('[ERROR] Send SMS error:', error);
       return {
         success: false,
         error: error.message || 'Failed to send SMS',
@@ -65,21 +65,21 @@ class SMSService {
       });
 
       if (response.data.CodeResult === 100 || response.data.CodeResult === '100') {
-        console.log(`✅ SMS sent to ${phoneNumber}`);
+        console.log(`[SUCCESS] SMS sent to ${phoneNumber}`);
         return {
           success: true,
           message: 'SMS sent successfully',
           smsId: response.data.SMSID,
         };
       } else {
-        console.error('❌ ESMS error:', response.data);
+        console.error('[ERROR] ESMS error:', response.data);
         return {
           success: false,
           error: response.data.ErrorMessage || 'ESMS API error',
         };
       }
     } catch (error) {
-      console.error('❌ ESMS API error:', error);
+      console.error('[ERROR] ESMS API error:', error);
       throw error;
     }
   }
@@ -108,13 +108,13 @@ class SMSService {
    */
   getTemplate(templateName, variables = {}) {
     const templates = {
-      WORKOUT_REMINDER: `GYM147: Xin chao ${variables.member_name || 'Ban'}! Den luc tap luyen ${variables.workout_time || 'hom nay'}! Hay den phong gym va dat duoc muc tieu cua ban. 💪`,
+      WORKOUT_REMINDER: `GYM147: Xin chao ${variables.member_name || 'Ban'}! Den luc tap luyen ${variables.workout_time || 'hom nay'}! Hay den phong gym va dat duoc muc tieu cua ban. [STRENGTH]`,
       MEMBERSHIP_ALERT: `GYM147: Xin chao ${variables.member_name || 'Ban'}! ${variables.message || 'Co thong tin quan trong ve goi tap cua ban.'}`,
-      ACHIEVEMENT: `GYM147: Chuc mung ${variables.member_name || 'Ban'}! Ban da mo khoa thanh tich "${variables.achievement_title || 'Thanh tich'}"! 🏆`,
-      PAYMENT_SUCCESS: `GYM147: Thanh toan thanh cong! So tien: ${variables.amount || '0'} VND. Cam on ban da su dung dich vu! ✅`,
-      PAYMENT_FAILED: `GYM147: Thanh toan khong thanh cong. Ly do: ${variables.reason || 'Vui long thu lai sau.'} ❌`,
-      MEMBERSHIP_EXPIRING: `GYM147: Goi tap "${variables.membership_type || 'goi tap'}" cua ban se het han sau ${variables.days_left || '7'} ngay. Hay gia han som! ⏰`,
-      EQUIPMENT_MAINTENANCE: `GYM147: ${variables.equipment_name || 'Mot so thiet bi'} se duoc bao tri trong thoi gian sap toi. Xin loi vi su bat tien nay. 🔧`,
+      ACHIEVEMENT: `GYM147: Chuc mung ${variables.member_name || 'Ban'}! Ban da mo khoa thanh tich "${variables.achievement_title || 'Thanh tich'}"! [TROPHY]`,
+      PAYMENT_SUCCESS: `GYM147: Thanh toan thanh cong! So tien: ${variables.amount || '0'} VND. Cam on ban da su dung dich vu! [SUCCESS]`,
+      PAYMENT_FAILED: `GYM147: Thanh toan khong thanh cong. Ly do: ${variables.reason || 'Vui long thu lai sau.'} [ERROR]`,
+      MEMBERSHIP_EXPIRING: `GYM147: Goi tap "${variables.membership_type || 'goi tap'}" cua ban se het han sau ${variables.days_left || '7'} ngay. Hay gia han som! [TIMER]`,
+      EQUIPMENT_MAINTENANCE: `GYM147: ${variables.equipment_name || 'Mot so thiet bi'} se duoc bao tri trong thoi gian sap toi. Xin loi vi su bat tien nay. [CONFIG]`,
     };
 
     const template = templates[templateName];

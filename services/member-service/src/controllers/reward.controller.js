@@ -271,12 +271,12 @@ class RewardController {
       const { id } = req.params;
       const updateData = req.body;
       
-      console.log(`📝 Updating reward ${id} with data:`, JSON.stringify(updateData, null, 2));
+      console.log(`[PROCESS] Updating reward ${id} with data:`, JSON.stringify(updateData, null, 2));
       
       const result = await rewardService.updateReward(id, updateData);
 
       if (!result.success) {
-        console.error(`❌ Failed to update reward ${id}:`, result.error);
+        console.error(`[ERROR] Failed to update reward ${id}:`, result.error);
         return res.status(400).json({
           success: false,
           message: result.error,
@@ -284,7 +284,7 @@ class RewardController {
         });
       }
 
-      console.log(`✅ Successfully updated reward ${id}`);
+      console.log(`[SUCCESS] Successfully updated reward ${id}`);
       res.json({
         success: true,
         message: 'Reward updated successfully',
@@ -439,6 +439,37 @@ class RewardController {
   }
 
   /**
+   * Get redemption trend
+   */
+  async getRedemptionTrend(req, res) {
+    try {
+      const { period = 'monthly', startDate, endDate } = req.query;
+      const result = await rewardService.getRedemptionTrend(period, startDate, endDate);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Redemption trend retrieved successfully',
+        data: result.data,
+      });
+    } catch (error) {
+      console.error('Get redemption trend error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Get recommended rewards for member
    */
   async getRecommendedRewards(req, res) {
@@ -579,7 +610,7 @@ class RewardController {
             userId = payload.userId || payload.id || 'unknown';
           }
         } catch (error) {
-          console.warn('⚠️ Could not extract user ID from token:', error.message);
+          console.warn('[WARNING] Could not extract user ID from token:', error.message);
         }
       }
 

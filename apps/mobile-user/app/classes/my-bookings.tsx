@@ -46,8 +46,8 @@ export default function MyBookingsScreen() {
       setLoading(true);
       setError(null);
 
-      console.log('📅 Loading bookings...');
-      console.log('👤 User:', user);
+      console.log('[LOAD] Loading bookings...');
+      console.log('[USER] User:', user);
 
       if (!user?.id) {
         setError('Please login to view bookings');
@@ -57,14 +57,14 @@ export default function MyBookingsScreen() {
       const response = await bookingService.getMemberBookings(user.id);
 
       if (response.success && response.data) {
-        console.log('✅ Bookings loaded:', response.data.length, 'bookings');
+        console.log('[SUCCESS] Bookings loaded:', response.data.length, 'bookings');
         setBookings(response.data);
       } else {
-        console.log('❌ Failed to load bookings:', response.error);
+        console.log('[ERROR] Failed to load bookings:', response.error);
         setError(response.error || 'Failed to load bookings');
       }
     } catch (err: any) {
-      console.error('❌ Error loading bookings:', err);
+      console.error('[ERROR] Error loading bookings:', err);
       setError(err.message || 'Failed to load bookings');
     } finally {
       setLoading(false);
@@ -102,7 +102,7 @@ export default function MyBookingsScreen() {
                 );
               }
             } catch (error: any) {
-              console.error('❌ Error cancelling booking:', error);
+              console.error('[ERROR] Error cancelling booking:', error);
               Alert.alert(
                 t('common.error'),
                 error.message || t('classes.booking.cancelFailed')

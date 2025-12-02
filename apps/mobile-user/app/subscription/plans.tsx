@@ -1,4 +1,5 @@
 import PlanCard from '@/components/PlanCard';
+import PremiumFeatureCard from '@/components/PremiumFeatureCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { subscriptionService } from '@/services/billing/subscription.service';
 import { memberService } from '@/services/member/member.service';
@@ -6,11 +7,20 @@ import type { MembershipPlan, Subscription } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Crown, Star, Zap } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import {
+  ArrowLeft,
+  Crown,
+  Star,
+  Zap,
+  Brain,
+  Watch,
+  BarChart3,
+} from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
+  Animated,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -19,6 +29,78 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
+// Continue Button Component with Animation
+function ContinueButton({
+  onPress,
+  theme,
+  t,
+}: {
+  onPress: () => void;
+  theme: any;
+  t: any;
+}) {
+  const slideAnim = useRef(new Animated.Value(100)).current;
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
+
+  useEffect(() => {
+    // Slide up and fade in animation
+    Animated.parallel([
+      Animated.spring(slideAnim, {
+        toValue: 0,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 7,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  return (
+    <Animated.View
+      style={[
+        styles.subscribeContainer,
+        {
+          transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+          opacity: fadeAnim,
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={[
+          styles.subscribeButton,
+          { backgroundColor: theme.colors.primary },
+        ]}
+        onPress={onPress}
+        activeOpacity={0.8}
+      >
+        <Text
+          style={[
+            Typography.bodyLarge,
+            {
+              color: '#FFFFFF',
+              textAlign: 'center',
+              fontWeight: '700',
+            },
+          ]}
+        >
+          {t('subscription.plans.continue', { defaultValue: 'Tiếp tục' })}
+        </Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+}
 
 export default function PlansScreen() {
   const router = useRouter();
@@ -47,7 +129,7 @@ export default function PlansScreen() {
       try {
         const profileResponse = await memberService.getMemberProfile();
         memberProfileData = profileResponse?.data;
-        console.log('📅 Member profile loaded in plans:', {
+        console.log('[DATA] Member profile loaded in plans:', {
           membership_type: memberProfileData?.membership_type,
           expires_at: memberProfileData?.expires_at,
         });
@@ -66,7 +148,7 @@ export default function PlansScreen() {
         const memberPlan = plansData.find((p) => p.type === memberPlanType);
 
         if (memberPlan) {
-          console.log('🔍 Checking plan correction in plans.tsx:', {
+          console.log('[SEARCH] Checking plan correction in plans.tsx:', {
             subscriptionPlanId: subscriptionData.plan_id,
             subscriptionPlanType: subscriptionData.plan?.type,
             memberPlanType: memberPlanType,
@@ -78,7 +160,7 @@ export default function PlansScreen() {
           // Always use member's actual plan type from member service
           if (memberPlan.id !== subscriptionData.plan_id) {
             console.warn(
-              '⚠️ Plan mismatch in plans.tsx: Subscription plan_id does not match member membership_type',
+              '[WARNING] Plan mismatch in plans.tsx: Subscription plan_id does not match member membership_type',
               {
                 subscriptionPlanId: subscriptionData.plan_id,
                 subscriptionPlanType: subscriptionData.plan?.type,
@@ -91,7 +173,7 @@ export default function PlansScreen() {
             // Use member's actual plan type instead
             subscriptionData.plan_id = memberPlan.id;
             subscriptionData.plan = memberPlan;
-            console.log('✅ Corrected subscription plan in plans.tsx:', {
+            console.log('[SUCCESS] Corrected subscription plan in plans.tsx:', {
               newPlanId: memberPlan.id,
               newPlanName: memberPlan.name,
               newPlanType: memberPlan.type,
@@ -102,7 +184,7 @@ export default function PlansScreen() {
           }
         } else {
           console.warn(
-            '⚠️ Could not find plan for membership_type in plans.tsx:',
+            '[WARNING] Could not find plan for membership_type in plans.tsx:',
             memberPlanType
           );
         }
@@ -128,23 +210,27 @@ export default function PlansScreen() {
     setSelectedPlan(planId);
   };
 
-  const handleSubscribe = async () => {
-    if (!selectedPlan || !member?.id) {
+  const handleSubscribe = async (planId?: string) => {
+    const targetPlanId = planId || selectedPlan;
+
+    if (!targetPlanId) {
       Alert.alert(t('common.error'), t('subscription.plans.pleaseSelectPlan'));
       return;
     }
 
-    const planData = plans.find((p) => p.id === selectedPlan);
+    const planData = plans.find((p) => p.id === targetPlanId);
     if (!planData) {
       Alert.alert(t('common.error'), 'Plan not found');
       return;
     }
 
+    // Khi chưa có subscription, có thể chưa có member
+    // Payment screen sẽ tự xử lý việc tạo member nếu cần
     // Navigate to payment screen
     router.push({
       pathname: '/subscription/payment',
       params: {
-        planId: selectedPlan,
+        planId: targetPlanId,
         action: 'SUBSCRIBE',
         amount: planData.price.toString(),
       },
@@ -152,7 +238,7 @@ export default function PlansScreen() {
   };
 
   const handleRenew = async () => {
-    console.log('🔄 handleRenew called', {
+    console.log('[RENEW] handleRenew called', {
       hasSubscription: !!currentSubscription,
       memberId: member?.id,
     });
@@ -173,7 +259,7 @@ export default function PlansScreen() {
 
     const currentPlanData = plans.find((p) => String(p.id) === currentPlanId);
     if (!currentPlanData) {
-      console.error('❌ Current plan not found in plans list:', {
+      console.error('[ERROR] Current plan not found in plans list:', {
         currentPlanId,
         availablePlanIds: plans.map((p) => p.id),
         subscriptionPlanId: currentSubscription.plan_id,
@@ -201,7 +287,7 @@ export default function PlansScreen() {
   };
 
   const handleUpgrade = async (planId: string) => {
-    console.log('⬆️ handleUpgrade called', {
+    console.log('[UPGRADE] handleUpgrade called', {
       planId,
       hasSubscription: !!currentSubscription,
       memberId: member?.id,
@@ -235,7 +321,7 @@ export default function PlansScreen() {
 
     const currentPlanData = plans.find((p) => String(p.id) === currentPlanId);
     if (!currentPlanData) {
-      console.error('❌ Current plan not found in plans list:', {
+      console.error('[ERROR] Current plan not found in plans list:', {
         currentPlanId,
         availablePlanIds: plans.map((p) => p.id),
         subscriptionPlanId: currentSubscription.plan_id,
@@ -358,7 +444,7 @@ export default function PlansScreen() {
 
     const comparePlanId = String(planId);
 
-    console.log('🔍 Checking if plan is current:', {
+    console.log('[SEARCH] Checking if plan is current:', {
       planId: comparePlanId,
       currentPlanId,
       subscriptionPlanId: currentSubscription.plan_id,
@@ -453,40 +539,230 @@ export default function PlansScreen() {
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        {plans.map((plan) => (
-          <PlanCard
-            key={plan.id}
-            plan={plan}
-            isCurrentPlan={isCurrentPlan(plan.id)}
-            canUpgrade={canUpgrade(plan)}
-            isSelected={selectedPlan === plan.id}
-            onSelect={() => handleSelectPlan(plan.id)}
-            onUpgrade={() => {
-              console.log('🔘 onUpgrade callback called', {
-                planId: plan.id,
-                planName: plan.name,
-                isCurrentPlan: isCurrentPlan(plan.id),
-                hasSubscription: !!currentSubscription,
-              });
+        {/* Premium Features Overview Section - Only show when no subscription */}
+        {!currentSubscription && (
+          <View style={styles.premiumFeaturesSection}>
+            <View style={styles.sectionHeader}>
+              <Text
+                style={[
+                  Typography.h2,
+                  { color: theme.colors.text, marginBottom: 8 },
+                ]}
+              >
+                {t('subscription.plans.premiumFeatures.title', {
+                  defaultValue: 'Premium Features',
+                })}
+              </Text>
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  { color: theme.colors.textSecondary, marginBottom: 24 },
+                ]}
+              >
+                {t('subscription.plans.premiumFeatures.subtitle', {
+                  defaultValue:
+                    'Unlock advanced features with our premium plans',
+                })}
+              </Text>
+            </View>
 
-              // Nếu plan được chọn là plan hiện tại, gọi handleRenew thay vì handleUpgrade
-              if (isCurrentPlan(plan.id)) {
-                console.log('🔄 Redirecting to renew');
-                handleRenew();
-                return;
-              }
-              if (currentSubscription) {
-                console.log('⬆️ Calling handleUpgrade');
-                handleUpgrade(plan.id);
-              } else {
-                console.log('📝 No subscription, calling handleSelectPlan');
-                handleSelectPlan(plan.id);
-              }
-            }}
-            onRenew={handleRenew}
-            upgrading={upgrading === plan.id}
+            <PremiumFeatureCard
+              title={t('subscription.premiumFeatures.smartWorkouts.title', {
+                defaultValue: 'Smart Workout Plans',
+              })}
+              description={t(
+                'subscription.premiumFeatures.smartWorkouts.description',
+                {
+                  defaultValue:
+                    'AI-generated personalized workout plans based on your goals',
+                }
+              )}
+              icon={<Brain size={24} color={theme.colors.primary} />}
+              isLocked={false}
+              featureList={[
+                t('subscription.premiumFeatures.smartWorkouts.feature1', {
+                  defaultValue: 'AI-powered workout generation',
+                }),
+                t('subscription.premiumFeatures.smartWorkouts.feature2', {
+                  defaultValue: 'Personalized exercise recommendations',
+                }),
+                t('subscription.premiumFeatures.smartWorkouts.feature3', {
+                  defaultValue: 'Adaptive training programs',
+                }),
+              ]}
+              badge={t('subscription.premiumFeatures.badge', {
+                defaultValue: 'PREMIUM+',
+              })}
+            />
+
+            <PremiumFeatureCard
+              title={t('subscription.premiumFeatures.wearable.title', {
+                defaultValue: 'Wearable Integration',
+              })}
+              description={t(
+                'subscription.premiumFeatures.wearable.description',
+                {
+                  defaultValue: 'Sync your fitness tracker and smartwatch data',
+                }
+              )}
+              icon={<Watch size={24} color={theme.colors.primary} />}
+              isLocked={false}
+              featureList={[
+                t('subscription.premiumFeatures.wearable.feature1', {
+                  defaultValue: 'Real-time heart rate monitoring',
+                }),
+                t('subscription.premiumFeatures.wearable.feature2', {
+                  defaultValue: 'Activity tracking sync',
+                }),
+                t('subscription.premiumFeatures.wearable.feature3', {
+                  defaultValue: 'Sleep and recovery insights',
+                }),
+              ]}
+              badge={t('subscription.premiumFeatures.badge', {
+                defaultValue: 'PREMIUM+',
+              })}
+            />
+
+            <PremiumFeatureCard
+              title={t('subscription.premiumFeatures.analytics.title', {
+                defaultValue: 'Advanced Analytics',
+              })}
+              description={t(
+                'subscription.premiumFeatures.analytics.description',
+                {
+                  defaultValue:
+                    'Deep insights into your fitness progress and trends',
+                }
+              )}
+              icon={<BarChart3 size={24} color={theme.colors.primary} />}
+              isLocked={false}
+              featureList={[
+                t('subscription.premiumFeatures.analytics.feature1', {
+                  defaultValue: 'Detailed progress reports',
+                }),
+                t('subscription.premiumFeatures.analytics.feature2', {
+                  defaultValue: 'Performance trends analysis',
+                }),
+                t('subscription.premiumFeatures.analytics.feature3', {
+                  defaultValue: 'Goal achievement tracking',
+                }),
+              ]}
+              badge={t('subscription.premiumFeatures.badge', {
+                defaultValue: 'VIP',
+              })}
+            />
+          </View>
+        )}
+
+        {/* Plans List */}
+        <View
+          style={[
+            styles.plansSection,
+            !currentSubscription && styles.plansSectionNoSubscription,
+          ]}
+        >
+          <Text
+            style={[
+              !currentSubscription ? Typography.h2 : Typography.h3,
+              {
+                color: theme.colors.text,
+                marginBottom: !currentSubscription ? 8 : 16,
+              },
+            ]}
+          >
+            {!currentSubscription
+              ? t('subscription.plans.choosePlan', {
+                  defaultValue: 'Choose Your Plan',
+                })
+              : t('subscription.plans.availablePlans', {
+                  defaultValue: 'Available Plans',
+                })}
+          </Text>
+          {!currentSubscription && (
+            <Text
+              style={[
+                Typography.bodyMedium,
+                {
+                  color: theme.colors.textSecondary,
+                  marginBottom: 20,
+                },
+              ]}
+            >
+              {t('subscription.plans.selectPlanDescription', {
+                defaultValue: 'Select a plan to get started',
+              })}
+            </Text>
+          )}
+        </View>
+
+        {plans.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text
+              style={[
+                Typography.bodyLarge,
+                { color: theme.colors.textSecondary, textAlign: 'center' },
+              ]}
+            >
+              {t('subscription.plans.noPlansAvailable', {
+                defaultValue: 'No plans available at the moment',
+              })}
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.plansList}>
+            {plans.map((plan) => {
+              const handlePlanUpgrade = () => {
+                console.log('🔘 onUpgrade callback called', {
+                  planId: plan.id,
+                  planName: plan.name,
+                  isCurrentPlan: isCurrentPlan(plan.id),
+                  hasSubscription: !!currentSubscription,
+                });
+
+                // Nếu plan được chọn là plan hiện tại, gọi handleRenew thay vì handleUpgrade
+                if (isCurrentPlan(plan.id)) {
+                  console.log('[RENEW] Redirecting to renew');
+                  handleRenew();
+                  return;
+                }
+                if (currentSubscription) {
+                  console.log('[UPGRADE] Calling handleUpgrade');
+                  handleUpgrade(plan.id);
+                } else {
+                  // Khi chưa có subscription, nhấn subscribe chỉ chọn plan (không navigate)
+                  console.log('[SELECT] No subscription, selecting plan');
+                  handleSelectPlan(plan.id);
+                }
+              };
+
+              return (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  isCurrentPlan={isCurrentPlan(plan.id)}
+                  canUpgrade={canUpgrade(plan)}
+                  isSelected={selectedPlan === plan.id}
+                  onSelect={() => {
+                    console.log('[SELECT] Plan selected:', plan.id);
+                    handleSelectPlan(plan.id);
+                  }}
+                  onUpgrade={handlePlanUpgrade}
+                  onRenew={handleRenew}
+                  upgrading={upgrading === plan.id}
+                />
+              );
+            })}
+          </View>
+        )}
+
+        {/* Continue Button - Only show when plan is selected and no subscription */}
+        {!currentSubscription && selectedPlan && (
+          <ContinueButton
+            onPress={() => handleSubscribe()}
+            theme={theme}
+            t={t}
           />
-        ))}
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -520,8 +796,35 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingTop: 16,
     paddingBottom: 32,
+    alignItems: 'center',
+  },
+  premiumFeaturesSection: {
+    marginBottom: 32,
+    paddingBottom: 24,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  sectionHeader: {
+    marginBottom: 20,
+  },
+  plansSection: {
+    marginTop: 8,
+    marginBottom: 16,
+  },
+  plansSectionNoSubscription: {
+    marginTop: 0,
+  },
+  emptyState: {
+    paddingVertical: 48,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  plansList: {
+    width: '100%',
+    alignItems: 'center',
   },
   planCard: {
     margin: 16,
@@ -586,13 +889,28 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   subscribeContainer: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 20,
+    borderRadius: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.05)',
   },
   subscribeButton: {
-    marginTop: 16,
-    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
 });

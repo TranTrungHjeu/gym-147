@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const notificationService = require('./notification.service.js');
 const pointsService = require('./points.service.js');
 
@@ -234,7 +234,7 @@ class ChallengeService {
    */
   async updateProgress(challengeId, memberId, increment = 1) {
     try {
-      // ✅ Fix: Use transaction to prevent race condition
+      // [SUCCESS] Fix: Use transaction to prevent race condition
       return await prisma.$transaction(async (tx) => {
         // 1. Get challenge to validate it's active and in date range
         const challenge = await tx.challenge.findUnique({
@@ -448,12 +448,12 @@ class ChallengeService {
           isCurrentUser: false, // Will be set by frontend
         }));
 
-        console.log(`✅ Retrieved leaderboard from Redis cache (period: ${period})`);
+        console.log(`[SUCCESS] Retrieved leaderboard from Redis cache (period: ${period})`);
         return { success: true, leaderboard: result };
       }
 
       // Cache miss - fetch from database
-      console.log(`📊 Cache miss - fetching leaderboard from database (period: ${period})`);
+      console.log(`[STATS] Cache miss - fetching leaderboard from database (period: ${period})`);
       const { getPeriodFilter } = require('../utils/leaderboard.util.js');
       const dateFilter = getPeriodFilter(period);
 
@@ -516,7 +516,7 @@ class ChallengeService {
         isCurrentUser: false, // Will be set by frontend
       }));
 
-      console.log(`✅ Fetched and cached leaderboard (period: ${period})`);
+      console.log(`[SUCCESS] Fetched and cached leaderboard (period: ${period})`);
       return { success: true, leaderboard: result };
     } catch (error) {
       console.error('Get challenge leaderboard error:', error);

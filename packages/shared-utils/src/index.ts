@@ -6,3 +6,4 @@ export * from './string.utils';
 export * from './common.utils';
 export * from './redis-lock.utils';
 export * from './redis-pubsub.utils';
+export { logger, Logger, LogLevel } from './logger';

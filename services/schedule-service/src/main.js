@@ -28,7 +28,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else {
   // Development fallback with warning
   console.warn(
-    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+    'WARNING: ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
   );
   socketIOOrigins = [
     'http://localhost:5173',
@@ -70,7 +70,7 @@ io.on('connection', socket => {
     const room = io.sockets.adapter.rooms.get(roomName);
     const socketCount = room ? room.size : 0;
     console.log(
-      `📡 Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`
+      `[EMIT] Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`
     );
   });
 
@@ -106,7 +106,8 @@ io.on('connection', socket => {
 app.set('trust proxy', true);
 
 // Middleware
-app.use(express.json());
+app.use(express.json({ limit: '15mb' })); // Increased limit for avatar uploads (base64 can be large)
+app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
 // CORS configuration for Express (reuse from Socket.IO setup above)
 const allowedOrigins = socketIOOrigins;

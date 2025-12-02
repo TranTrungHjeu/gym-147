@@ -23,7 +23,7 @@ class PriceMappingService {
     const normalizedDifficulty = difficulty?.toUpperCase();
     
     if (!normalizedDifficulty || !this.PRICE_MAP[normalizedDifficulty]) {
-      console.warn(`⚠️ Unknown difficulty level: ${difficulty}, using default price`);
+      console.warn(`[WARNING] Unknown difficulty level: ${difficulty}, using default price`);
       return this.PRICE_MAP.ALL_LEVELS; // Default to ALL_LEVELS price
     }
 

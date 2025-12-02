@@ -186,6 +186,7 @@ model Attendance {
   class_rating    Int?         // 1-5 stars
   trainer_rating  Int?         // 1-5 stars
   feedback_notes  String?
+  trainer_reply   String?       // Trainer's reply to feedback
   
   created_at      DateTime     @default(now())
   updated_at      DateTime     @updatedAt

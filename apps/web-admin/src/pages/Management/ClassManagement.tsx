@@ -61,7 +61,7 @@ const ClassManagement: React.FC = () => {
   // Listen for schedule:new event to reload classes list
   useEffect(() => {
     const handleScheduleUpdated = (event: CustomEvent) => {
-      console.log('📢 schedule:updated event received in ClassManagement:', event.detail);
+      console.log('[NOTIFY] schedule:updated event received in ClassManagement:', event.detail);
       // Reload classes list when a new schedule is created
       loadClasses();
     };

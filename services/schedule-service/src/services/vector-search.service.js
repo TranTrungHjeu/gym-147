@@ -3,8 +3,8 @@
  * Tìm kiếm classes dựa trên vector similarity
  */
 
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class VectorSearchService {
   /**
@@ -22,7 +22,7 @@ class VectorSearchService {
         ? `[${memberVector.join(',')}]`
         : memberVector;
 
-      console.log('🔍 [VectorSearchService] Searching similar classes:', {
+      console.log('[SEARCH] [VectorSearchService] Searching similar classes:', {
         vectorLength: Array.isArray(memberVector) ? memberVector.length : 0,
         vectorStringLength: vectorString.length,
         k,
@@ -50,7 +50,7 @@ class VectorSearchService {
         LIMIT ${k}
       `;
 
-      console.log(`✅ [VectorSearchService] Found ${results.length} similar classes`);
+      console.log(`[SUCCESS] [VectorSearchService] Found ${results.length} similar classes`);
 
       const mappedResults = results.map(row => ({
         id: row.id,
@@ -65,7 +65,7 @@ class VectorSearchService {
       }));
 
       if (mappedResults.length > 0) {
-        console.log('📊 [VectorSearchService] Top 3 results:', mappedResults.slice(0, 3).map(r => ({
+        console.log('[STATS] [VectorSearchService] Top 3 results:', mappedResults.slice(0, 3).map(r => ({
           name: r.name,
           category: r.category,
           similarity: r.similarity.toFixed(4),
@@ -74,7 +74,7 @@ class VectorSearchService {
 
       return mappedResults;
     } catch (error) {
-      console.error('❌ Error in vector search:', {
+      console.error('[ERROR] Error in vector search:', {
         message: error.message,
         code: error.code,
         stack: error.stack,
@@ -122,7 +122,7 @@ class VectorSearchService {
         similarity: parseFloat(row.similarity) || 0,
       }));
     } catch (error) {
-      console.error('❌ Error in semantic search:', error);
+      console.error('[ERROR] Error in semantic search:', error);
       return [];
     }
   }

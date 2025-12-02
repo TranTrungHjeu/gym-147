@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const notificationService = require('./notification.service.js');
 const pointsService = require('./points.service.js');
 
@@ -308,7 +308,7 @@ class StreakService {
       const totalPoints = basePoints + bonusPoints;
 
       if (totalPoints > 0) {
-        // ✅ Fix: Use pointsService.awardPoints to prevent race condition
+        // [SUCCESS] Fix: Use pointsService.awardPoints to prevent race condition
         const result = await pointsService.awardPoints(
           memberId,
           totalPoints,

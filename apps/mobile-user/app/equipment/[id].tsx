@@ -158,7 +158,7 @@ export default function EquipmentDetailScreen() {
             start_time: usage.start_time,
             equipment_id: id,
           });
-          console.log('✅ Restored active usage session:', usage.id);
+          console.log('[SUCCESS] Restored active usage session:', usage.id);
         }
       }
     } catch (err: any) {
@@ -181,7 +181,7 @@ export default function EquipmentDetailScreen() {
 
     equipmentService.subscribeToUserQueue(user.id, {
       onYourTurn: async (data) => {
-        console.log('🔔 Queue: Your turn!', data);
+        console.log('[BELL] Queue: Your turn!', data);
 
         // Show local notification
         try {
@@ -228,13 +228,13 @@ export default function EquipmentDetailScreen() {
         });
       },
       onEquipmentAvailable: (data) => {
-        console.log('🔔 Equipment available:', data);
+        console.log('[BELL] Equipment available:', data);
         if (data.equipment_id === id) {
           loadEquipmentDetails();
         }
       },
       onPositionChanged: (data) => {
-        console.log('🔔 Queue position changed:', data);
+        console.log('[BELL] Queue position changed:', data);
         if (data.equipment_id === id) {
           loadEquipmentDetails();
         }
@@ -253,7 +253,7 @@ export default function EquipmentDetailScreen() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         // App came to foreground - reload to restore active usage
-        console.log('📱 App returned to foreground - reloading equipment data');
+        console.log('[MOBILE] App returned to foreground - reloading equipment data');
         loadEquipmentDetails();
       }
     });
@@ -342,7 +342,7 @@ export default function EquipmentDetailScreen() {
 
       // Auto-reload when timeout is reached to reflect auto-stop
       if (duration >= MAX_DURATION && isMounted) {
-        console.log('⏱️ Session timeout reached - reloading...');
+        console.log('[TIMER] Session timeout reached - reloading...');
         loadEquipmentDetails();
       }
     }, 1000);
@@ -505,12 +505,12 @@ export default function EquipmentDetailScreen() {
   const handleEndUsage = async () => {
     // Prevent multiple calls
     if (endingUsage) {
-      console.log('⏳ Already ending usage, ignoring duplicate call');
+      console.log('[PROCESS] Already ending usage, ignoring duplicate call');
       return;
     }
 
     if (!member?.id || !activeUsage) {
-      console.error('❌ Cannot end usage:', {
+      console.error('[ERROR] Cannot end usage:', {
         hasMember: !!member,
         memberId: member?.id,
         hasActiveUsage: !!activeUsage,
@@ -519,7 +519,7 @@ export default function EquipmentDetailScreen() {
       return;
     }
 
-    console.log('🛑 Ending usage:', {
+    console.log('[STOP] Ending usage:', {
       memberId: member.id,
       usageId: activeUsage.id,
       equipmentId: id,
@@ -551,7 +551,7 @@ export default function EquipmentDetailScreen() {
             activeUsage.id
           );
 
-          console.log('📥 Stop usage response:', {
+          console.log('[DATA] Stop usage response:', {
             success: response.success,
             message: response.message,
             data: response.data,
@@ -574,7 +574,7 @@ export default function EquipmentDetailScreen() {
             });
             loadEquipmentDetails();
           } else {
-            console.error('❌ Stop usage failed:', response);
+            console.error('[ERROR] Stop usage failed:', response);
             setConfirmModal((prev) => ({ ...prev, visible: false }));
             setAlertModal({
               visible: true,
@@ -584,7 +584,7 @@ export default function EquipmentDetailScreen() {
             });
           }
         } catch (err: any) {
-          console.error('❌ Stop usage error:', {
+          console.error('[ERROR] Stop usage error:', {
             message: err.message,
             status: err.status,
             errors: err.errors,

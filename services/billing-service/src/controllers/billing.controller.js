@@ -18,6 +18,110 @@ axios.defaults.headers.put['Content-Type'] = 'application/json';
 axios.defaults.headers.patch['Content-Type'] = 'application/json';
 
 class BillingController {
+  /**
+   * Helper function to wrap Prisma queries with timeout and retry for connection errors
+   * @param {Function} queryFn - Function that returns the Prisma query promise
+   * @param {number} timeoutMs - Timeout in milliseconds (default: 10000)
+   * @param {string} queryName - Name of the query for logging
+   * @param {number} maxRetries - Maximum retries for connection errors (default: 1)
+   * @returns {Promise} Query result or throws error
+   */
+  async withTimeout(queryFn, timeoutMs = 10000, queryName = 'Query', maxRetries = 1) {
+    const executeQuery = async (attempt = 0) => {
+      try {
+        // Create fresh query promise for each attempt
+        const queryPromise = queryFn();
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => {
+            reject(new Error(`${queryName} timed out after ${timeoutMs}ms`));
+          }, timeoutMs);
+        });
+
+        return await Promise.race([queryPromise, timeoutPromise]);
+      } catch (error) {
+        // Retry on connection errors (P1001)
+        const isConnectionError =
+          error.code === 'P1001' ||
+          error.message?.includes("Can't reach database server") ||
+          error.message?.includes('connection');
+
+        if (isConnectionError && attempt < maxRetries) {
+          const retryDelay = 1000 * (attempt + 1); // Exponential backoff: 1s, 2s, 3s...
+          console.log(
+            `[RETRY] Retrying ${queryName} after connection error (attempt ${
+              attempt + 1
+            }/${maxRetries}, delay ${retryDelay}ms)`
+          );
+          await new Promise(resolve => setTimeout(resolve, retryDelay));
+          return executeQuery(attempt + 1);
+        }
+
+        throw error;
+      }
+    };
+
+    return executeQuery();
+  }
+
+  /**
+   * Helper function to handle database errors consistently
+   */
+  handleDatabaseError(error, res, context = 'Operation') {
+    console.error(`[ERROR] ${context} error:`, error);
+
+    // Handle database connection errors (P1001: Can't reach database server)
+    if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
+      console.error('[ERROR] Database connection failed:', error.message);
+      console.log('[INFO] Returning 503 Service Unavailable response');
+      return res.status(503).json({
+        success: false,
+        message: 'Database service temporarily unavailable. Please try again later.',
+        error: 'DATABASE_CONNECTION_ERROR',
+        data: null,
+      });
+    }
+
+    // Handle timeout errors
+    // P1008: Operations timed out
+    // P1014: The database server is not available
+    if (
+      error.code === 'P1008' ||
+      error.code === 'P1014' ||
+      error.message?.includes('timeout') ||
+      error.message?.includes('timed out') ||
+      error.message?.includes('Operation timed out')
+    ) {
+      console.error('[ERROR] Database operation timed out:', error.message);
+      console.log('[INFO] Returning 504 Gateway Timeout response');
+      return res.status(504).json({
+        success: false,
+        message:
+          'Database operation timed out. The request took too long to complete. Please try again.',
+        error: 'DATABASE_TIMEOUT_ERROR',
+        data: null,
+      });
+    }
+
+    // Handle other Prisma errors
+    if (error.code?.startsWith('P')) {
+      console.error('[ERROR] Prisma error:', error.code, error.message);
+      return res.status(500).json({
+        success: false,
+        message: 'Database query failed. Please try again later.',
+        error: 'DATABASE_ERROR',
+        data: null,
+      });
+    }
+
+    // Generic error
+    return res.status(500).json({
+      success: false,
+      message: 'Internal server error',
+      error: 'INTERNAL_ERROR',
+      data: null,
+    });
+  }
+
   // Membership Plans Management
   async getAllPlans(req, res) {
     try {
@@ -170,23 +274,52 @@ class BillingController {
           let member = null;
           if (sub.member_id) {
             try {
-              const memberResponse = await axios.get(
-                `${MEMBER_SERVICE_URL}/api/members/${sub.member_id}`
-              );
-              if (memberResponse.data?.success) {
-                member = {
-                  id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
-                  full_name:
-                    memberResponse.data.data?.full_name ||
-                    memberResponse.data.data?.member?.full_name,
-                  email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
-                };
+              // Try fetching by member ID first
+              let memberResponse;
+              try {
+                memberResponse = await axios.get(
+                  `${MEMBER_SERVICE_URL}/api/members/${sub.member_id}`
+                );
+              } catch (idError) {
+                // If 404, try fetching by user_id (member_id might be user_id)
+                if (idError.response?.status === 404) {
+                  try {
+                    memberResponse = await axios.get(
+                      `${MEMBER_SERVICE_URL}/api/members/user/${sub.member_id}`
+                    );
+                  } catch (userIdError) {
+                    throw idError; // Throw original error if both fail
+                  }
+                } else {
+                  throw idError;
+                }
+              }
+
+              if (memberResponse?.data?.success && memberResponse.data.data) {
+                // Member service returns { success: true, data: { member: {...} } }
+                const memberData = memberResponse.data.data.member || memberResponse.data.data;
+                if (memberData) {
+                  member = {
+                    id: memberData.id || sub.member_id,
+                    full_name: memberData.full_name || 'N/A',
+                    email: memberData.email || '',
+                  };
+                }
               }
             } catch (error) {
-              console.warn(
-                `Could not fetch member ${sub.member_id} for subscription:`,
-                error.message
-              );
+              // Only log if it's not a 404 (expected for missing members)
+              if (error.response?.status !== 404) {
+                console.warn(
+                  `Could not fetch member ${sub.member_id} for subscription:`,
+                  error.message
+                );
+              }
+              // Set a fallback member object so UI doesn't break
+              member = {
+                id: sub.member_id,
+                full_name: 'N/A',
+                email: '',
+              };
             }
           }
           return {
@@ -215,17 +348,23 @@ class BillingController {
     try {
       const { memberId } = req.params;
 
-      const subscription = await prisma.subscription.findUnique({
-        where: { member_id: memberId },
-        include: {
-          plan: true,
-          subscription_addons: true,
-          payments: {
-            orderBy: { created_at: 'desc' },
-            take: 1,
-          },
-        },
-      });
+      const subscription = await this.withTimeout(
+        () =>
+          prisma.subscription.findUnique({
+            where: { member_id: memberId },
+            include: {
+              plan: true,
+              subscription_addons: true,
+              payments: {
+                orderBy: { created_at: 'desc' },
+                take: 1,
+              },
+            },
+          }),
+        15000, // 15 seconds timeout
+        'Get member subscription',
+        1 // 1 retry for connection errors
+      );
 
       if (!subscription) {
         return res.status(404).json({
@@ -241,12 +380,7 @@ class BillingController {
         data: subscription,
       });
     } catch (error) {
-      console.error('Get member subscription error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve member subscription',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get member subscription');
     }
   }
 
@@ -382,7 +516,7 @@ class BillingController {
             end_date: endDate,
             status: 'ACTIVE',
             price: plan.price,
-            benefits: plan.benefits || [], // ✅ Correct field name
+            benefits: plan.benefits || [], // [SUCCESS] Correct field name
             notes: `Subscribed to ${plan.name} plan`,
           },
           {
@@ -393,10 +527,10 @@ class BillingController {
         );
 
         console.log(
-          `✅ Member Service updated: membership_type = ${plan.type}, membership record created`
+          `[SUCCESS] Member Service updated: membership_type = ${plan.type}, membership record created`
         );
       } catch (memberError) {
-        console.error('❌ Failed to update Member Service:', memberError.message);
+        console.error('[ERROR] Failed to update Member Service:', memberError.message);
         console.error('Response:', memberError.response?.data);
         // Don't fail the subscription creation - member service update is secondary
       }
@@ -414,7 +548,7 @@ class BillingController {
           action: 'created',
         });
       } catch (notificationError) {
-        console.error('❌ Failed to create subscription notification:', notificationError);
+        console.error('[ERROR] Failed to create subscription notification:', notificationError);
         // Don't fail subscription creation if notification fails
       }
 
@@ -537,9 +671,12 @@ class BillingController {
               timeout: 10000,
             }
           );
-          console.log('✅ Successfully notified admins about subscription upgrade');
+          console.log('[SUCCESS] Successfully notified admins about subscription upgrade');
         } catch (notificationError) {
-          console.error('❌ Error notifying admins about subscription upgrade:', notificationError);
+          console.error(
+            '[ERROR] Error notifying admins about subscription upgrade:',
+            notificationError
+          );
           // Don't fail the update if notification fails
         }
       }
@@ -748,9 +885,12 @@ class BillingController {
               timeout: 10000,
             }
           );
-          console.log('✅ Successfully notified admins about subscription renewal');
+          console.log('[SUCCESS] Successfully notified admins about subscription renewal');
         } catch (notificationError) {
-          console.error('❌ Error notifying admins about subscription renewal:', notificationError);
+          console.error(
+            '[ERROR] Error notifying admins about subscription renewal:',
+            notificationError
+          );
           // Don't fail the renewal if notification fails
         }
 
@@ -765,7 +905,10 @@ class BillingController {
             action: 'renewed',
           });
         } catch (notificationError) {
-          console.error('❌ Error creating subscription renewal notification:', notificationError);
+          console.error(
+            '[ERROR] Error creating subscription renewal notification:',
+            notificationError
+          );
         }
       }
 
@@ -864,23 +1007,52 @@ class BillingController {
           let member = null;
           if (payment.member_id) {
             try {
-              const memberResponse = await axios.get(
-                `${MEMBER_SERVICE_URL}/api/members/${payment.member_id}`
-              );
-              if (memberResponse.data?.success) {
-                member = {
-                  id: memberResponse.data.data?.id || memberResponse.data.data?.member?.id,
-                  full_name:
-                    memberResponse.data.data?.full_name ||
-                    memberResponse.data.data?.member?.full_name,
-                  email: memberResponse.data.data?.email || memberResponse.data.data?.member?.email,
-                };
+              // Try fetching by member ID first
+              let memberResponse;
+              try {
+                memberResponse = await axios.get(
+                  `${MEMBER_SERVICE_URL}/api/members/${payment.member_id}`
+                );
+              } catch (idError) {
+                // If 404, try fetching by user_id (member_id might be user_id)
+                if (idError.response?.status === 404) {
+                  try {
+                    memberResponse = await axios.get(
+                      `${MEMBER_SERVICE_URL}/api/members/user/${payment.member_id}`
+                    );
+                  } catch (userIdError) {
+                    throw idError; // Throw original error if both fail
+                  }
+                } else {
+                  throw idError;
+                }
+              }
+
+              if (memberResponse?.data?.success && memberResponse.data.data) {
+                // Member service returns { success: true, data: { member: {...} } }
+                const memberData = memberResponse.data.data.member || memberResponse.data.data;
+                if (memberData) {
+                  member = {
+                    id: memberData.id || payment.member_id,
+                    full_name: memberData.full_name || 'N/A',
+                    email: memberData.email || '',
+                  };
+                }
               }
             } catch (error) {
-              console.warn(
-                `Could not fetch member ${payment.member_id} for payment:`,
-                error.message
-              );
+              // Only log if it's not a 404 (expected for missing members)
+              if (error.response?.status !== 404) {
+                console.warn(
+                  `Could not fetch member ${payment.member_id} for payment:`,
+                  error.message
+                );
+              }
+              // Set a fallback member object so UI doesn't break
+              member = {
+                id: payment.member_id,
+                full_name: 'N/A',
+                email: '',
+              };
             }
           }
           return {
@@ -1141,7 +1313,7 @@ class BillingController {
           status: invoice.status,
         });
       } catch (notificationError) {
-        console.error('❌ Error creating invoice notification:', notificationError);
+        console.error('[ERROR] Error creating invoice notification:', notificationError);
       }
 
       res.status(201).json({
@@ -1319,10 +1491,15 @@ class BillingController {
         });
       }
 
+      // Validate subscription_id if payment_type is SUBSCRIPTION
+      if (payment_type === 'SUBSCRIPTION' && !subscription_id) {
+        console.warn('[WARNING] [INITIATE_PAYMENT] subscription_id is missing for SUBSCRIPTION payment type');
+      }
+
       // Create pending payment record
       const payment = await prisma.payment.create({
         data: {
-          subscription_id,
+          subscription_id: subscription_id || null,
           member_id,
           amount,
           currency: 'VND',
@@ -1341,6 +1518,14 @@ class BillingController {
                 }
               : null,
         },
+      });
+
+      console.log('[SUCCESS] [INITIATE_PAYMENT] Payment created:', {
+        payment_id: payment.id,
+        subscription_id: payment.subscription_id,
+        member_id: payment.member_id,
+        payment_type: payment.payment_type,
+        amount: payment.amount,
       });
 
       // Generate payment URL based on gateway
@@ -1402,11 +1587,17 @@ class BillingController {
         };
       }
 
+      // Ensure subscription_id is included in response
+      const paymentResponse = {
+        ...payment,
+        subscription_id: payment.subscription_id || subscription_id || null,
+      };
+
       res.json({
         success: true,
         message: 'Khởi tạo thanh toán thành công',
         data: {
-          payment,
+          payment: paymentResponse,
           paymentUrl,
           gatewayData,
         },
@@ -1443,7 +1634,7 @@ class BillingController {
       });
 
       if (!payment_id || !status) {
-        console.error('❌ [WEBHOOK] Missing required fields:', logContext);
+        console.error('[ERROR] [WEBHOOK] Missing required fields:', logContext);
         return res.status(400).json({
           success: false,
           message: 'Thiếu thông tin webhook',
@@ -1468,7 +1659,7 @@ class BillingController {
       });
 
       if (!payment) {
-        console.error('❌ [WEBHOOK] Payment not found:', logContext);
+        console.error('[ERROR] [WEBHOOK] Payment not found:', logContext);
         return res.status(404).json({
           success: false,
           message: 'Không tìm thấy thanh toán',
@@ -1505,7 +1696,7 @@ class BillingController {
         data: updateData,
       });
 
-      console.log('✅ [WEBHOOK] Payment status updated:', {
+      console.log('[SUCCESS] [WEBHOOK] Payment status updated:', {
         ...logContext,
         newStatus: updatedPayment.status,
       });
@@ -1544,18 +1735,18 @@ class BillingController {
                 paid_date: new Date(),
               },
             });
-            console.log('✅ [WEBHOOK] Invoice status updated to PAID:', {
+            console.log('[SUCCESS] [WEBHOOK] Invoice status updated to PAID:', {
               ...logContext,
               invoice_id: invoice.id,
             });
           } else {
-            console.warn('⚠️ [WEBHOOK] No invoice found for payment:', {
+            console.warn('[WARNING] [WEBHOOK] No invoice found for payment:', {
               ...logContext,
               payment_id: payment.id,
             });
           }
 
-          console.log('✅ Subscription renewed via payment completion:', {
+          console.log('[SUCCESS] Subscription renewed via payment completion:', {
             subscription_id: updatedSubscription.id,
             new_end_date: newEndDate,
           });
@@ -1571,7 +1762,7 @@ class BillingController {
             });
           } catch (notificationError) {
             console.error(
-              '❌ Error creating subscription renewal notification:',
+              '[ERROR] Error creating subscription renewal notification:',
               notificationError
             );
           }
@@ -1592,7 +1783,7 @@ class BillingController {
               action: 'created',
             });
           } catch (notificationError) {
-            console.error('❌ Error creating subscription notification:', notificationError);
+            console.error('[ERROR] Error creating subscription notification:', notificationError);
           }
         }
 
@@ -1607,7 +1798,7 @@ class BillingController {
             subscriptionId: payment.subscription_id,
           });
         } catch (notificationError) {
-          console.error('❌ Error creating payment notification:', notificationError);
+          console.error('[ERROR] Error creating payment notification:', notificationError);
         }
 
         // Mark reward redemption as used if payment used a reward code
@@ -1620,13 +1811,13 @@ class BillingController {
               updatedSubscription.id
             );
             if (markResult.success) {
-              console.log('✅ Reward redemption marked as used:', rewardRedemptionId);
+              console.log('[SUCCESS] Reward redemption marked as used:', rewardRedemptionId);
             } else {
-              console.error('❌ Failed to mark reward redemption as used:', markResult.error);
+              console.error('[ERROR] Failed to mark reward redemption as used:', markResult.error);
               // Don't fail the webhook if marking fails
             }
           } catch (rewardError) {
-            console.error('❌ Error marking reward redemption as used:', rewardError);
+            console.error('[ERROR] Error marking reward redemption as used:', rewardError);
             // Don't fail the webhook if marking fails
           }
         }
@@ -1650,16 +1841,16 @@ class BillingController {
             user_id = memberData?.user_id;
 
             if (!user_id) {
-              console.error('❌ [WEBHOOK] Cannot find user_id from member data:', {
+              console.error('[ERROR] [WEBHOOK] Cannot find user_id from member data:', {
                 ...logContext,
                 memberData: memberData ? Object.keys(memberData) : 'null',
               });
               throw new Error('Member data does not contain user_id');
             }
 
-            console.log('✅ [WEBHOOK] Found user_id:', { ...logContext, user_id });
+            console.log('[SUCCESS] [WEBHOOK] Found user_id:', { ...logContext, user_id });
           } catch (memberFetchError) {
-            console.error('❌ [WEBHOOK] Failed to fetch member to get user_id:', {
+            console.error('[ERROR] [WEBHOOK] Failed to fetch member to get user_id:', {
               ...logContext,
               error: memberFetchError.message,
               response: memberFetchError.response?.data,
@@ -1683,13 +1874,13 @@ class BillingController {
           );
 
           memberUpdateSuccess = true;
-          console.log('✅ [WEBHOOK] Member membership updated:', {
+          console.log('[SUCCESS] [WEBHOOK] Member membership updated:', {
             ...logContext,
             user_id,
             membership_type: payment.subscription.plan.type,
           });
         } catch (memberError) {
-          console.error('❌ [WEBHOOK] Failed to update member membership:', {
+          console.error('[ERROR] [WEBHOOK] Failed to update member membership:', {
             ...logContext,
             error: memberError.message,
             response: memberError.response?.data,
@@ -1707,7 +1898,7 @@ class BillingController {
               retry_count: 0,
               created_at: new Date().toISOString(),
             });
-            console.log('📝 [WEBHOOK] Compensation task stored:', {
+            console.log('[PROCESS] [WEBHOOK] Compensation task stored:', {
               ...logContext,
               compensationTaskId,
             });
@@ -1720,7 +1911,7 @@ class BillingController {
 
         // Notify admins about successful subscription payment
         try {
-          console.log('📢 Notifying admins about subscription payment success...');
+          console.log('[NOTIFY] Notifying admins about subscription payment success...');
           if (!process.env.SCHEDULE_SERVICE_URL) {
             throw new Error(
               'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
@@ -1780,10 +1971,10 @@ class BillingController {
               timeout: 10000,
             }
           );
-          console.log('✅ Successfully notified admins about subscription payment');
+          console.log('[SUCCESS] Successfully notified admins about subscription payment');
         } catch (notifyError) {
           console.error(
-            '❌ Failed to notify admins about subscription payment:',
+            '[ERROR] Failed to notify admins about subscription payment:',
             notifyError.message
           );
           // Don't fail the webhook if notification fails
@@ -1799,12 +1990,12 @@ class BillingController {
               subscription_id: payment.subscription_id,
               timestamp: new Date().toISOString(),
             });
-            console.log('📡 [WEBHOOK] Socket event emitted:', {
+            console.log('[EMIT] [WEBHOOK] Socket event emitted:', {
               ...logContext,
               user_id,
             });
           } catch (socketError) {
-            console.error('❌ [WEBHOOK] Error emitting socket event:', {
+            console.error('[ERROR] [WEBHOOK] Error emitting socket event:', {
               ...logContext,
               error: socketError.message,
             });
@@ -1813,7 +2004,7 @@ class BillingController {
       }
 
       // Audit log
-      console.log('📋 [WEBHOOK] Payment webhook processed successfully:', {
+      console.log('[LIST] [WEBHOOK] Payment webhook processed successfully:', {
         ...logContext,
         paymentStatus: updatedPayment.status,
         hasSubscription: !!payment.subscription,
@@ -1825,7 +2016,7 @@ class BillingController {
         data: updatedPayment,
       });
     } catch (error) {
-      console.error('❌ [WEBHOOK] Payment webhook error:', {
+      console.error('[ERROR] [WEBHOOK] Payment webhook error:', {
         ...logContext,
         error: error.message,
         stack: error.stack,
@@ -1853,9 +2044,9 @@ class BillingController {
   // Enhanced subscription creation with discount support
   async createSubscriptionWithDiscount(req, res) {
     try {
-      console.log('📦 Request body:', req.body);
+      console.log('[DATA] Request body:', req.body);
       const { member_id, plan_id, start_date, discount_code, bonus_days = 0 } = req.body;
-      console.log('🔑 Extracted member_id:', member_id, 'plan_id:', plan_id);
+      console.log('[CONFIG] Extracted member_id:', member_id, 'plan_id:', plan_id);
 
       // Check if member already has a subscription
       const existingSubscription = await prisma.subscription.findUnique({
@@ -1875,7 +2066,7 @@ class BillingController {
         const isActiveOrPastDue = ['ACTIVE', 'PAST_DUE'].includes(existingSubscription.status);
 
         if (hasCompletedPayment || isActiveOrPastDue) {
-          console.log('ℹ️ Member already has valid subscription, returning existing one');
+          console.log('[INFO] Member already has valid subscription, returning existing one');
           return res.json({
             success: true,
             message: 'Member đã có subscription đang hoạt động',
@@ -1884,7 +2075,7 @@ class BillingController {
         }
 
         // If subscription exists but payment not completed, we'll update it below
-        console.log('ℹ️ Member has pending subscription, will update it');
+        console.log('[INFO] Member has pending subscription, will update it');
       }
 
       // Get plan details
@@ -1922,7 +2113,7 @@ class BillingController {
 
         // Check if this is a reward redemption code (format: REWARD-XXXX-XXXX)
         if (codeUpper.startsWith('REWARD-')) {
-          console.log('🎁 Checking reward redemption code:', codeUpper);
+          console.log('[GIFT] Checking reward redemption code:', codeUpper);
           const rewardCodeResult = await rewardDiscountService.verifyRewardCode(
             codeUpper,
             member_id
@@ -1943,7 +2134,7 @@ class BillingController {
             }
 
             totalAmount = Math.max(0, baseAmount - discountAmount);
-            console.log('✅ Reward discount applied:', {
+            console.log('[SUCCESS] Reward discount applied:', {
               type: rewardDiscount.type,
               value: rewardDiscount.value,
               discountAmount,
@@ -2020,7 +2211,7 @@ class BillingController {
 
       // Record discount usage after subscription is created
       if (discountCodeRecord && discountAmount > 0) {
-        console.log('🎁 Checking for existing discount usage:', {
+        console.log('[GIFT] Checking for existing discount usage:', {
           discount_code_id: discountCodeRecord.id,
           member_id,
           subscription_id: subscription.id,
@@ -2043,14 +2234,14 @@ class BillingController {
           },
         });
 
-        console.log('🎁 Existing usage check result:', {
+        console.log('[GIFT] Existing usage check result:', {
           found_same_code: !!existingUsage,
           existing_usage_id: existingUsage?.id,
           subscription_has_any_discount: !!subscriptionHasDiscount,
         });
 
         if (!existingUsage && !subscriptionHasDiscount) {
-          console.log('🎁 Creating new DiscountUsage...');
+          console.log('[GIFT] Creating new DiscountUsage...');
           await prisma.discountUsage.create({
             data: {
               discount_code_id: discountCodeRecord.id,
@@ -2065,12 +2256,14 @@ class BillingController {
             where: { id: discountCodeRecord.id },
             data: { usage_count: { increment: 1 } },
           });
-          console.log('✅ DiscountUsage created successfully');
+          console.log('[SUCCESS] DiscountUsage created successfully');
         } else {
           if (existingUsage) {
-            console.log('⚠️ Same discount code already used for this subscription, skipping');
+            console.log(
+              '[WARNING] Same discount code already used for this subscription, skipping'
+            );
           } else {
-            console.log('⚠️ Subscription already has a different discount code, skipping');
+            console.log('[WARNING] Subscription already has a different discount code, skipping');
           }
         }
       }
@@ -2269,12 +2462,7 @@ class BillingController {
         },
       });
     } catch (error) {
-      console.error('Get stats error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve billing statistics',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get stats');
     }
   }
 }

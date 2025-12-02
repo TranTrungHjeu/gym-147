@@ -63,17 +63,17 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
     setError(null);
     try {
       const response = await scheduleService.getClassById(gymClass.id);
-      console.log('📋 Class detail response:', response);
+      console.log('[LIST] Class detail response:', response);
       
       if (response.success && response.data) {
         const classData = response.data as any;
         // Backend returns { class: { schedules: [...] } }
         // Backend now hydrates member details for bookings
         const schedulesData = classData.class?.schedules || classData.schedules || [];
-        console.log('📅 Schedules data:', schedulesData);
-        console.log('📅 First schedule:', schedulesData[0]);
-        console.log('📅 First schedule bookings:', schedulesData[0]?.bookings);
-        console.log('📅 First booking member:', schedulesData[0]?.bookings?.[0]?.member);
+        console.log('[DATE] Schedules data:', schedulesData);
+        console.log('[DATE] First schedule:', schedulesData[0]);
+        console.log('[DATE] First schedule bookings:', schedulesData[0]?.bookings);
+        console.log('[DATE] First booking member:', schedulesData[0]?.bookings?.[0]?.member);
         
         setSchedules(schedulesData);
       }
@@ -176,7 +176,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         if (trainer?.user_id || trainer?.full_name) {
                           const searchName = trainer.full_name || '';
                           const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
-                          console.log('🔗 Navigating to:', url);
+                          console.log('[LINK] Navigating to:', url);
                           navigate(url);
                           onClose();
                         }
@@ -189,7 +189,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                           if (trainer?.user_id || trainer?.full_name) {
                             const searchName = trainer.full_name || '';
                             const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
-                            console.log('🔗 Navigating to:', url);
+                            console.log('[LINK] Navigating to:', url);
                             navigate(url);
                             onClose();
                           }
@@ -234,7 +234,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         if (member?.user_id || member?.id || member?.full_name) {
                           const searchName = member.full_name || '';
                           const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
-                          console.log('🔗 Navigating to:', url);
+                          console.log('[LINK] Navigating to:', url);
                           navigate(url);
                           onClose();
                         }
@@ -247,7 +247,7 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                           if (member?.user_id || member?.id || member?.full_name) {
                             const searchName = member.full_name || '';
                             const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
-                            console.log('🔗 Navigating to:', url);
+                            console.log('[LINK] Navigating to:', url);
                             navigate(url);
                             onClose();
                           }

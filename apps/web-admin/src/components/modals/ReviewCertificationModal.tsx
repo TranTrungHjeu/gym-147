@@ -120,7 +120,7 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
         },
       });
       window.dispatchEvent(updatedEvent);
-      console.log(`✅ [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (VERIFIED)`);
+      console.log(`[SUCCESS] [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (VERIFIED)`);
       
       showToast('Đã duyệt chứng chỉ thành công', 'success');
       onReviewComplete();
@@ -158,7 +158,7 @@ const ReviewCertificationModal: React.FC<ReviewCertificationModalProps> = ({
         },
       });
       window.dispatchEvent(updatedEvent);
-      console.log(`✅ [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (REJECTED)`);
+      console.log(`[SUCCESS] [REVIEW_CERT_MODAL] Dispatched optimistic certification:updated event for ${updatedCert.id} (REJECTED)`);
       
       showToast('Đã từ chối chứng chỉ', 'success');
       onReviewComplete();

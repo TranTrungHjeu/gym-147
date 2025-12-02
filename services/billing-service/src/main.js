@@ -24,7 +24,7 @@ if (process.env.ALLOWED_ORIGINS) {
   );
 } else {
   console.warn(
-    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+    'WARNING: ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
   );
   socketIOOrigins = [
     'http://localhost:3000',
@@ -53,34 +53,34 @@ global.io = io;
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log(`✅ Billing service: Client connected: ${socket.id}`);
+  console.log(`[SUCCESS] Billing service: Client connected: ${socket.id}`);
 
   // Subscribe to user-specific notifications
   socket.on('subscribe:user', user_id => {
     socket.join(`user:${user_id}`);
-    console.log(`👤 Billing service: Client ${socket.id} subscribed to user:${user_id}`);
+    console.log(`[USER] Billing service: Client ${socket.id} subscribed to user:${user_id}`);
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`👤 Billing service: Client ${socket.id} unsubscribed from user:${user_id}`);
+    console.log(`[USER] Billing service: Client ${socket.id} unsubscribed from user:${user_id}`);
   });
 
   // Subscribe to admin notifications
   socket.on('subscribe:admin', () => {
     socket.join('admin');
-    console.log(`👑 Billing service: Client ${socket.id} subscribed to admin room`);
+    console.log(`[ADMIN] Billing service: Client ${socket.id} subscribed to admin room`);
   });
 
   // Unsubscribe from admin notifications
   socket.on('unsubscribe:admin', () => {
     socket.leave('admin');
-    console.log(`👑 Billing service: Client ${socket.id} unsubscribed from admin room`);
+    console.log(`[ADMIN] Billing service: Client ${socket.id} unsubscribed from admin room`);
   });
 
   socket.on('disconnect', () => {
-    console.log(`❌ Billing service: Client disconnected: ${socket.id}`);
+    console.log(`[ERROR] Billing service: Client disconnected: ${socket.id}`);
   });
 });
 
@@ -101,7 +101,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else {
   // Development fallback with warning
   console.warn(
-    '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+    'WARNING: ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
   );
   allowedOrigins = [
     'http://localhost:3000',
@@ -161,12 +161,12 @@ app.get('/health', (req, res) => {
 // Import routes
 const { billingRoutes } = require('./routes/billing.routes.js');
 const bankTransferRoutes = require('./routes/bankTransfer.routes.js');
-console.log('✅ Routes imported successfully');
+console.log('[SUCCESS] Routes imported successfully');
 
 // Use routes (mounted at root - gateway will forward /billing/* here)
 app.use('/', billingRoutes);
 app.use('/bank-transfers', bankTransferRoutes);
-console.log('✅ Routes registered successfully');
+console.log('[SUCCESS] Routes registered successfully');
 
 // Error handling middleware (must be after routes)
 const {
@@ -186,20 +186,20 @@ const revenueReportService = require('./services/revenue-report.service.js');
 
 // Generate revenue report daily at 2 AM
 cron.schedule('0 2 * * *', async () => {
-  console.log('🔄 Generating daily revenue report...');
+  console.log('[REFRESH] Generating daily revenue report...');
   try {
     const result = await revenueReportService.generateYesterdayReport();
     if (result.success) {
-      console.log(`✅ Revenue report generated successfully (${result.isNew ? 'new' : 'updated'})`);
+      console.log(`[SUCCESS] Revenue report generated successfully (${result.isNew ? 'new' : 'updated'})`);
     } else {
-      console.error('❌ Failed to generate revenue report:', result.error);
+      console.error('[ERROR] Failed to generate revenue report:', result.error);
     }
   } catch (error) {
-    console.error('❌ Error generating revenue report:', error);
+    console.error('[ERROR] Error generating revenue report:', error);
   }
 });
 
-console.log('✅ Scheduled jobs initialized');
+console.log('[SUCCESS] Scheduled jobs initialized');
 
 const port = process.env.PORT || 3004;
 const host = process.env.HOST || '0.0.0.0';

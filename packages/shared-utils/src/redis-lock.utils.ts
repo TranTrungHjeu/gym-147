@@ -39,7 +39,7 @@ class DistributedLock {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Redis Lock: Max reconnection attempts reached');
+              console.error('[ERROR] Redis Lock: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -48,25 +48,25 @@ class DistributedLock {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Redis Lock Client Error:', err);
+        console.error('[ERROR] Redis Lock Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Redis Lock: Connected and ready');
+        console.log('[SUCCESS] Redis Lock: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Redis Lock: Connection closed');
+        console.log('[SOCKET] Redis Lock: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis Lock:', error);
-      console.log('⚠️ Distributed locks will not be available');
+      console.error('[ERROR] Failed to initialize Redis Lock:', error);
+      console.log('[WARNING] Distributed locks will not be available');
       this.isConnected = false;
     }
   }
@@ -130,7 +130,7 @@ class DistributedLock {
           await new Promise(resolve => setTimeout(resolve, delay));
         }
       } catch (error) {
-        console.error(`❌ Error acquiring lock (attempt ${attempt + 1}):`, error);
+        console.error(`[ERROR] Error acquiring lock (attempt ${attempt + 1}):`, error);
         if (attempt === retryAttempts) {
           return {
             acquired: false,
@@ -185,7 +185,7 @@ class DistributedLock {
 
       return result === 1;
     } catch (error) {
-      console.error('❌ Error releasing lock:', error);
+      console.error('[ERROR] Error releasing lock:', error);
       return false;
     }
   }
@@ -227,7 +227,7 @@ class DistributedLock {
 
       return result === 1;
     } catch (error) {
-      console.error('❌ Error extending lock:', error);
+      console.error('[ERROR] Error extending lock:', error);
       return false;
     }
   }
@@ -249,7 +249,7 @@ class DistributedLock {
       const result = await this.client.exists(lockKey);
       return result === 1;
     } catch (error) {
-      console.error('❌ Error checking lock existence:', error);
+      console.error('[ERROR] Error checking lock existence:', error);
       return false;
     }
   }

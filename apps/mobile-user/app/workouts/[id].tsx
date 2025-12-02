@@ -1,9 +1,10 @@
+import { ShareModal } from '@/components/ShareModal';
 import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer';
 import { workoutPlanService, youtubeVideoService } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Clock, Dumbbell, Play, Target } from 'lucide-react-native';
+import { ArrowLeft, Clock, Dumbbell, Play, Share2, Target } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -59,6 +60,7 @@ export default function WorkoutDetailScreen() {
     {}
   );
   const [loadingVideos, setLoadingVideos] = useState(false);
+  const [showShareModal, setShowShareModal] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -248,7 +250,19 @@ export default function WorkoutDetailScreen() {
             {t('workouts.workoutDetails')}
           </Text>
         </View>
-        <View style={themedStyles.headerSpacer} />
+        <TouchableOpacity
+          style={[
+            themedStyles.backButton,
+            {
+              backgroundColor: theme.isDark
+                ? 'rgba(255, 255, 255, 0.1)'
+                : 'rgba(0, 0, 0, 0.05)',
+            },
+          ]}
+          onPress={() => setShowShareModal(true)}
+        >
+          <Share2 size={22} color={theme.colors.text} strokeWidth={2.5} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -578,10 +592,23 @@ export default function WorkoutDetailScreen() {
             {t('workouts.startWorkout')}
           </Text>
         </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
+        </ScrollView>
+
+        {/* Share Modal */}
+        {workout && (
+          <ShareModal
+            visible={showShareModal}
+            onClose={() => setShowShareModal(false)}
+            title={workout.name}
+            message={workout.description || t('workouts.shareMessage', {
+              defaultValue: 'Check out this workout plan!',
+            })}
+            url={`${process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'}/workouts/${workout.id}`}
+          />
+        )}
+      </SafeAreaView>
+    );
+  }
 
 const styles = (theme: any) =>
   StyleSheet.create({

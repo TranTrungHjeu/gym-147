@@ -11,7 +11,7 @@ async function verifyWebhookSignature(req, res, next) {
 
     // Verify signature
     if (!sepayService.verifyWebhookSignature(req.body, signature)) {
-      console.error('❌ Webhook signature verification failed', {
+      console.error('[ERROR] Webhook signature verification failed', {
         webhookId,
         hasSignature: !!signature,
         timestamp: new Date().toISOString(),
@@ -26,7 +26,7 @@ async function verifyWebhookSignature(req, res, next) {
     if (webhookId) {
       const isProcessed = await redisService.isWebhookProcessed(webhookId);
       if (isProcessed) {
-        console.log('⚠️ Webhook already processed (idempotency check):', webhookId);
+        console.log('[WARNING] Webhook already processed (idempotency check):', webhookId);
         return res.status(200).json({
           success: true,
           message: 'Webhook already processed',
@@ -39,7 +39,7 @@ async function verifyWebhookSignature(req, res, next) {
     req.webhookId = webhookId;
     next();
   } catch (error) {
-    console.error('❌ Webhook verification error:', error);
+    console.error('[ERROR] Webhook verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Webhook verification failed',

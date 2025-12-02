@@ -1,3 +1,5 @@
+const crypto = require('crypto');
+const path = require('path');
 const { prisma } = require('../lib/prisma.js');
 const memberService = require('../services/member.service.js');
 const databaseCertificationService = require('../services/database-certification.service.js');
@@ -5,6 +7,7 @@ const PriceMappingService = require('../services/price-mapping.service.js');
 const rateLimitService = require('../services/rate-limit.service.js');
 const waitlistService = require('../services/waitlist.service.js');
 const notificationService = require('../services/notification.service.js');
+const s3UploadService = require('../services/s3-upload.service.js');
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {
@@ -111,7 +114,7 @@ class TrainerController {
           // Filter by specialization (array contains)
           where.specializations = { has: specialization };
         }
-        
+
         // Search by name, email, or phone
         if (search && search.trim()) {
           const searchTerm = search.trim();
@@ -254,7 +257,7 @@ class TrainerController {
       // Phone is required in schema, use a placeholder if not provided
       const trainerPhone = phone || `temp-${user_id.substring(0, 8)}`;
 
-      console.log('🔄 Creating trainer in database:', {
+      console.log('[CREATE] Creating trainer in database:', {
         user_id,
         full_name,
         email,
@@ -275,7 +278,7 @@ class TrainerController {
         },
       });
 
-      console.log('✅ Trainer created successfully:', trainer.id);
+      console.log('[SUCCESS] Trainer created successfully:', trainer.id);
 
       // Emit trainer:created event for real-time updates
       if (global.io) {
@@ -290,7 +293,7 @@ class TrainerController {
           specializations: trainer.specializations,
           created_at: trainer.created_at,
         };
-        console.log('📡 Emitting trainer:created event:', socketPayload);
+        console.log('[SOCKET] Emitting trainer:created event:', socketPayload);
         global.io.emit('trainer:created', socketPayload);
         // Also emit to admin room
         global.io.to('admin').emit('trainer:created', socketPayload);
@@ -302,12 +305,12 @@ class TrainerController {
         data: { trainer },
       });
     } catch (error) {
-      console.error('❌ Create trainer error:', {
+      console.error('[ERROR] Create trainer error:', {
         message: error.message,
         code: error.code,
         meta: error.meta,
       });
-      
+
       // Handle unique constraint violations
       if (error.code === 'P2002') {
         const field = error.meta?.target?.[0] || 'field';
@@ -360,7 +363,7 @@ class TrainerController {
 
         if (invalidSpecializations.length > 0) {
           console.warn(
-            `⚠️ Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
+            `[WARNING] Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
               ', '
             )}`
           );
@@ -397,7 +400,7 @@ class TrainerController {
           specializations: trainer.specializations,
           updated_at: trainer.updated_at,
         };
-        console.log('📡 Emitting trainer:updated event:', socketPayload);
+        console.log('[SOCKET] Emitting trainer:updated event:', socketPayload);
         global.io.emit('trainer:updated', socketPayload);
         // Also emit to admin room
         global.io.to('admin').emit('trainer:updated', socketPayload);
@@ -433,7 +436,7 @@ class TrainerController {
         status,
       } = req.body;
 
-      console.log('📝 updateTrainerByUserId called:', {
+      console.log('[UPDATE] updateTrainerByUserId called:', {
         user_id,
         full_name,
         phone,
@@ -447,7 +450,7 @@ class TrainerController {
       });
 
       if (!trainer) {
-        console.log('⚠️ Trainer not found for user_id:', user_id);
+        console.log('[WARN] Trainer not found for user_id:', user_id);
         return res.status(404).json({
           success: false,
           message: 'Trainer not found',
@@ -488,7 +491,7 @@ class TrainerController {
 
         if (invalidSpecializations.length > 0) {
           console.warn(
-            `⚠️ Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
+            `[WARNING] Warning: Attempting to set specializations without verified certifications: ${invalidSpecializations.join(
               ', '
             )}`
           );
@@ -517,7 +520,7 @@ class TrainerController {
         try {
           const specializationSyncService = require('../services/specialization-sync.service.js');
           console.log(
-            `🔄 Auto-syncing specializations after manual update for trainer ${trainer.id}`
+            `[SYNC] Auto-syncing specializations after manual update for trainer ${trainer.id}`
           );
           const syncResult = await specializationSyncService.updateTrainerSpecializations(
             trainer.id
@@ -525,21 +528,26 @@ class TrainerController {
           if (syncResult && syncResult.success) {
             if (syncResult.changed) {
               console.log(
-                `✅ Specializations auto-synced after manual update - corrected to match certifications`
+                `[SUCCESS] Specializations auto-synced after manual update - corrected to match certifications`
               );
               console.log(`   Before: [${syncResult.before.join(', ')}]`);
               console.log(`   After: [${syncResult.after.join(', ')}]`);
             } else {
-              console.log(`ℹ️ Specializations already match certifications - no changes needed`);
+              console.log(
+                `[INFO] Specializations already match certifications - no changes needed`
+              );
             }
           }
         } catch (syncError) {
-          console.error('❌ Error auto-syncing specializations after manual update:', syncError);
+          console.error(
+            '[ERROR] Error auto-syncing specializations after manual update:',
+            syncError
+          );
           // Don't fail the request, just log the error
         }
       }
 
-      console.log('✅ Trainer updated successfully:', {
+      console.log('[SUCCESS] Trainer updated successfully:', {
         trainerId: updatedTrainer.id,
         full_name: updatedTrainer.full_name,
         phone: updatedTrainer.phone,
@@ -590,9 +598,9 @@ class TrainerController {
           const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
           const axios = require('axios');
 
-          console.log(`🗑️ Deleting user ${trainer.user_id} from identity service`);
+          console.log(`[DELETE] Deleting user ${trainer.user_id} from identity service`);
           const identityUrl = IDENTITY_SERVICE_URL;
-          
+
           // Get auth token from request headers if available
           const authToken = req.headers.authorization;
           const headers = authToken ? { Authorization: authToken } : {};
@@ -602,13 +610,20 @@ class TrainerController {
             timeout: 10000,
           });
 
-          console.log(`✅ User ${trainer.user_id} deleted successfully from identity service`);
+          console.log(
+            `[SUCCESS] User ${trainer.user_id} deleted successfully from identity service`
+          );
         } catch (identityError) {
-          console.error('❌ Error deleting user from identity service:', identityError.message);
+          console.error(
+            '[ERROR] Error deleting user from identity service:',
+            identityError.message
+          );
           // Continue even if identity service deletion fails
           // The trainer is already deleted from schedule service
           if (identityError.response?.status === 404) {
-            console.log('⚠️ User not found in identity service (may have been already deleted)');
+            console.log(
+              '[WARN] User not found in identity service (may have been already deleted)'
+            );
           }
         }
       }
@@ -630,7 +645,7 @@ class TrainerController {
         // Emit to user room (user:deleted will be emitted by identity service)
         // This is just for admin notifications
         global.io.emit('trainer:deleted', socketPayload);
-        console.log(`📡 Emitted trainer:deleted event for trainer ${trainer.id}`);
+        console.log(`[SOCKET] Emitted trainer:deleted event for trainer ${trainer.id}`);
       }
 
       res.json({
@@ -675,9 +690,9 @@ class TrainerController {
           const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
           const axios = require('axios');
 
-          console.log(`🗑️ Deleting user ${user_id} from identity service`);
+          console.log(`[DELETE] Deleting user ${user_id} from identity service`);
           const identityUrl = IDENTITY_SERVICE_URL;
-          
+
           // Get auth token from request headers if available
           const authToken = req.headers.authorization;
           const headers = authToken ? { Authorization: authToken } : {};
@@ -687,13 +702,18 @@ class TrainerController {
             timeout: 10000,
           });
 
-          console.log(`✅ User ${user_id} deleted successfully from identity service`);
+          console.log(`[SUCCESS] User ${user_id} deleted successfully from identity service`);
         } catch (identityError) {
-          console.error('❌ Error deleting user from identity service:', identityError.message);
+          console.error(
+            '[ERROR] Error deleting user from identity service:',
+            identityError.message
+          );
           // Continue even if identity service deletion fails
           // The trainer is already deleted from schedule service
           if (identityError.response?.status === 404) {
-            console.log('⚠️ User not found in identity service (may have been already deleted)');
+            console.log(
+              '[WARN] User not found in identity service (may have been already deleted)'
+            );
           }
         }
       }
@@ -713,7 +733,7 @@ class TrainerController {
 
         // Emit to all admins (broadcast)
         global.io.emit('trainer:deleted', socketPayload);
-        console.log(`📡 Emitted trainer:deleted event for trainer ${trainer.id}`);
+        console.log(`[SOCKET] Emitted trainer:deleted event for trainer ${trainer.id}`);
       }
 
       res.json({
@@ -786,12 +806,12 @@ class TrainerController {
         return sum + classPrice * bookingsCount;
       }, 0);
 
-      // Calculate average rating (mock for now, as we don't have rating system)
-      const rating = 4.8;
+      // Get average rating from trainer's rating_average field
+      const rating = trainer.rating_average || 0;
 
-      // Mock achievements and goals
-      const achievements = Math.floor(completedSessions / 10); // 1 achievement per 10 completed sessions
-      const goalsCompleted = Math.floor(completedSessions / 5); // 1 goal per 5 completed sessions
+      // Achievements and goals are member-specific features, not applicable to trainers
+      const achievements = 0;
+      const goalsCompleted = 0;
 
       res.json({
         success: true,
@@ -1303,6 +1323,7 @@ class TrainerController {
             member_email: rating.member?.email || 'unknown@example.com',
             rating: rating.trainer_rating,
             comment: rating.feedback_notes,
+            trainer_reply: rating.trainer_reply,
             is_public: true,
             created_at: rating.created_at,
           })),
@@ -1408,6 +1429,185 @@ class TrainerController {
   }
 
   /**
+   * Reply to a review/feedback
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async replyToReview(req, res) {
+    try {
+      const { user_id } = req.params;
+      const { attendance_id } = req.params;
+      const { reply_message } = req.body;
+
+      if (!reply_message || reply_message.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Reply message is required',
+          data: null,
+        });
+      }
+
+      // Get trainer by user_id
+      const trainer = await prisma.trainer.findFirst({
+        where: { user_id },
+      });
+
+      if (!trainer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trainer not found',
+          data: null,
+        });
+      }
+
+      // Get attendance record
+      const attendance = await prisma.attendance.findUnique({
+        where: { id: attendance_id },
+        include: {
+          schedule: {
+            include: {
+              trainer: true,
+            },
+          },
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          message: 'Review not found',
+          data: null,
+        });
+      }
+
+      // Verify this attendance belongs to a schedule of this trainer
+      if (attendance.schedule.trainer_id !== trainer.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to reply to this review',
+          data: null,
+        });
+      }
+
+      // Update attendance with trainer reply
+      const updatedAttendance = await prisma.attendance.update({
+        where: { id: attendance_id },
+        data: {
+          trainer_reply: reply_message.trim(),
+        },
+        include: {
+          schedule: {
+            include: {
+              gym_class: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Reply posted successfully',
+        data: {
+          attendance: updatedAttendance,
+        },
+      });
+    } catch (error) {
+      console.error('Reply to review error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Report a review (for inappropriate content)
+   * @param {Object} req - Express request object
+   * @param {Object} res - Express response object
+   */
+  async reportReview(req, res) {
+    try {
+      const { user_id } = req.params;
+      const { attendance_id } = req.params;
+      const { reason, additional_notes } = req.body;
+
+      if (!reason) {
+        return res.status(400).json({
+          success: false,
+          message: 'Report reason is required',
+          data: null,
+        });
+      }
+
+      // Get trainer by user_id
+      const trainer = await prisma.trainer.findFirst({
+        where: { user_id },
+      });
+
+      if (!trainer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trainer not found',
+          data: null,
+        });
+      }
+
+      // Get attendance record
+      const attendance = await prisma.attendance.findUnique({
+        where: { id: attendance_id },
+        include: {
+          schedule: {
+            include: {
+              trainer: true,
+            },
+          },
+        },
+      });
+
+      if (!attendance) {
+        return res.status(404).json({
+          success: false,
+          message: 'Review not found',
+          data: null,
+        });
+      }
+
+      // Verify this attendance belongs to a schedule of this trainer
+      if (attendance.schedule.trainer_id !== trainer.id) {
+        return res.status(403).json({
+          success: false,
+          message: 'You do not have permission to report this review',
+          data: null,
+        });
+      }
+
+      // TODO: Store report in a separate table or send to admin
+      // For now, just log it
+      console.log('Review reported:', {
+        attendance_id,
+        trainer_id: trainer.id,
+        reason,
+        additional_notes,
+        reported_at: new Date(),
+      });
+
+      res.json({
+        success: true,
+        message: 'Review reported successfully. Admin will review it.',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Report review error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Create a new schedule for trainer
    * @param {Object} req - Express request object
    * @param {Object} res - Express response object
@@ -1452,7 +1652,12 @@ class TrainerController {
 
       // Check rate limit (only check, don't increment yet)
       if (
-        !(await rateLimitService.canPerformOperation(user_id, 'create_schedule', 10, 24 * 60 * 60 * 1000))
+        !(await rateLimitService.canPerformOperation(
+          user_id,
+          'create_schedule',
+          10,
+          24 * 60 * 60 * 1000
+        ))
       ) {
         const rateLimitInfo = rateLimitService.getRateLimitInfo(user_id, 'create_schedule');
         return res.status(429).json({
@@ -1744,7 +1949,7 @@ class TrainerController {
           ADVANCED: 'ADVANCED',
           ALL_LEVELS: 'EXPERT', // EXPERT is required to teach ALL_LEVELS
         };
-        
+
         const requiredCertLevel = difficultyToCertLevel[difficulty] || 'BASIC';
 
         // Get max_capacity from room.capacity (room is already fetched above)
@@ -1830,13 +2035,13 @@ class TrainerController {
       await rateLimitService.incrementRateLimit(user_id, 'create_schedule', 24 * 60 * 60 * 1000);
 
       // Notify admins and super-admins about new schedule
-      console.log('🔔 Checking if global.io exists:', !!global.io);
+      console.log('[BELL] Checking if global.io exists:', !!global.io);
       if (global.io) {
         try {
-          console.log('🔔 Starting admin notification process for new schedule...');
+          console.log('[BELL] Starting admin notification process for new schedule...');
           const admins = await notificationService.getAdminsAndSuperAdmins();
           console.log(
-            `📋 Found ${admins.length} admin/super-admin users:`,
+            `[LIST] Found ${admins.length} admin/super-admin users:`,
             admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
           );
 
@@ -1868,10 +2073,12 @@ class TrainerController {
 
           // Create notifications in identity service
           if (adminNotifications.length > 0) {
-            console.log(`💾 Creating ${adminNotifications.length} notifications in identity service...`);
+            console.log(
+              `💾 Creating ${adminNotifications.length} notifications in identity service...`
+            );
             const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
             const axios = require('axios');
-            
+
             const createdNotifications = [];
             for (const notificationData of adminNotifications) {
               try {
@@ -1890,16 +2097,22 @@ class TrainerController {
                   createdNotifications.push(response.data.data.notification);
                 }
               } catch (error) {
-                console.error(`❌ Failed to create notification for user ${notificationData.user_id}:`, error.message);
+                console.error(
+                  `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
+                  error.message
+                );
               }
             }
-            console.log(`✅ Created ${createdNotifications.length} notifications in identity service`);
-
-            // Emit socket events to all admins
             console.log(
-              `📡 Starting to emit socket events to ${createdNotifications.length} admin(s)...`
+              `[SUCCESS] Created ${createdNotifications.length} notifications in identity service`
             );
-            createdNotifications.forEach(notification => {
+
+            // Emit socket events to all admins (only for notifications that were created)
+            const validNotifications = createdNotifications.filter(n => n && n.id);
+            console.log(
+              `[EMIT] Starting to emit socket events to ${validNotifications.length} admin(s)...`
+            );
+            validNotifications.forEach(notification => {
               const roomName = `user:${notification.user_id}`;
               const socketData = {
                 schedule_id: schedule.id,
@@ -1918,7 +2131,7 @@ class TrainerController {
               const socketCount = room ? room.size : 0;
 
               console.log(
-                `📡 Emitting schedule:new to room ${roomName} (${socketCount} socket(s) connected)`,
+                `[EMIT] Emitting schedule:new to room ${roomName} (${socketCount} socket(s) connected)`,
                 socketData
               );
               global.io.to(roomName).emit('schedule:new', socketData);
@@ -1926,14 +2139,14 @@ class TrainerController {
               // Also log all rooms for debugging
               const allRooms = Array.from(global.io.sockets.adapter.rooms.keys());
               const userRooms = allRooms.filter(r => r.startsWith('user:'));
-              console.log(`📊 All user rooms:`, userRooms);
+              console.log(`[DATA] All user rooms:`, userRooms);
             });
 
             console.log(
-              `✅ Sent ${adminNotifications.length} notifications to admins about new schedule`
+              `[SUCCESS] Sent ${adminNotifications.length} notifications to admins about new schedule`
             );
           } else {
-            console.warn('⚠️ No admin notifications to send (adminNotifications.length = 0)');
+            console.warn('[WARN] No admin notifications to send (adminNotifications.length = 0)');
           }
 
           // Also emit schedule:created event to trainer for optimistic UI update
@@ -1961,19 +2174,19 @@ class TrainerController {
             const trainerSocketCount = trainerRoom ? trainerRoom.size : 0;
 
             console.log(
-              `📡 Emitting schedule:created to trainer room ${trainerRoomName} (${trainerSocketCount} socket(s) connected)`,
+              `[EMIT] Emitting schedule:created to trainer room ${trainerRoomName} (${trainerSocketCount} socket(s) connected)`,
               trainerSocketData
             );
             global.io.to(trainerRoomName).emit('schedule:created', trainerSocketData);
-            console.log(`✅ Emitted schedule:created event to trainer`);
+            console.log(`[SUCCESS] Emitted schedule:created event to trainer`);
           }
         } catch (notifError) {
-          console.error('❌ Error sending admin notifications for new schedule:', notifError);
+          console.error('[ERROR] Error sending admin notifications for new schedule:', notifError);
           console.error('Error stack:', notifError.stack);
           // Don't fail the request if notification fails
         }
       } else {
-        console.warn('⚠️ global.io is not available, skipping admin notifications');
+        console.warn('[WARN] global.io is not available, skipping admin notifications');
       }
 
       res.status(201).json({
@@ -2205,8 +2418,17 @@ class TrainerController {
   async updateTrainerSchedule(req, res) {
     try {
       const { user_id, schedule_id } = req.params;
-      const { class_name, description, max_capacity, special_notes, cancellation_reason } =
-        req.body;
+      const {
+        class_name,
+        description,
+        date,
+        start_time,
+        end_time,
+        room_id,
+        max_capacity,
+        special_notes,
+        cancellation_reason,
+      } = req.body;
 
       // Get trainer
       const trainer = await prisma.trainer.findUnique({
@@ -2231,7 +2453,12 @@ class TrainerController {
           room: true,
           bookings: {
             where: { status: 'CONFIRMED' },
-            include: { member: true },
+            select: {
+              id: true,
+              member_id: true,
+              status: true,
+              booked_at: true,
+            },
           },
         },
       });
@@ -2253,10 +2480,12 @@ class TrainerController {
       }
 
       // Check if schedule can be modified (at least 7 days in advance)
+      // Use new date if provided, otherwise use current schedule date
+      const dateToCheck = date ? new Date(date) : new Date(schedule.date);
       const sevenDaysFromNow = new Date();
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
-      if (new Date(schedule.start_time) < sevenDaysFromNow) {
+      if (dateToCheck < sevenDaysFromNow) {
         return res.status(400).json({
           success: false,
           message: 'Chỉ có thể sửa lịch dạy trước ít nhất 7 ngày',
@@ -2264,29 +2493,580 @@ class TrainerController {
         });
       }
 
+      // Parse and validate date/time if provided
+      let parsedDate = new Date(schedule.date);
+      let parsedStartTime = new Date(schedule.start_time);
+      let parsedEndTime = new Date(schedule.end_time);
+
+      if (date || start_time || end_time) {
+        // Parse date
+        if (date) {
+          const dateObj = new Date(date);
+          if (isNaN(dateObj.getTime())) {
+            return res.status(400).json({
+              success: false,
+              message: 'Ngày không hợp lệ',
+              data: null,
+            });
+          }
+          parsedDate = dateObj;
+        }
+
+        // Parse start_time
+        if (start_time) {
+          const [hours, minutes] = start_time.split(':').map(Number);
+          if (
+            isNaN(hours) ||
+            isNaN(minutes) ||
+            hours < 0 ||
+            hours > 23 ||
+            minutes < 0 ||
+            minutes > 59
+          ) {
+            return res.status(400).json({
+              success: false,
+              message: 'Giờ bắt đầu không hợp lệ',
+              data: null,
+            });
+          }
+          const startDate = new Date(parsedDate);
+          startDate.setHours(hours, minutes, 0, 0);
+          parsedStartTime = startDate;
+        } else if (date) {
+          // If only date changed, update start_time to use new date
+          const oldStart = new Date(schedule.start_time);
+          parsedStartTime = new Date(parsedDate);
+          parsedStartTime.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+        }
+
+        // Parse end_time
+        if (end_time) {
+          const [hours, minutes] = end_time.split(':').map(Number);
+          if (
+            isNaN(hours) ||
+            isNaN(minutes) ||
+            hours < 0 ||
+            hours > 23 ||
+            minutes < 0 ||
+            minutes > 59
+          ) {
+            return res.status(400).json({
+              success: false,
+              message: 'Giờ kết thúc không hợp lệ',
+              data: null,
+            });
+          }
+          const endDate = new Date(parsedDate);
+          endDate.setHours(hours, minutes, 0, 0);
+          parsedEndTime = endDate;
+        } else if (date) {
+          // If only date changed, update end_time to use new date
+          const oldEnd = new Date(schedule.end_time);
+          parsedEndTime = new Date(parsedDate);
+          parsedEndTime.setHours(oldEnd.getHours(), oldEnd.getMinutes(), 0, 0);
+        }
+
+        // Validate time logic
+        if (parsedStartTime && parsedEndTime && parsedStartTime >= parsedEndTime) {
+          return res.status(400).json({
+            success: false,
+            message: 'Giờ bắt đầu phải nhỏ hơn giờ kết thúc',
+            data: null,
+          });
+        }
+
+        // Validate duration (15 minutes to 3 hours)
+        if (parsedStartTime && parsedEndTime) {
+          const durationMs = parsedEndTime.getTime() - parsedStartTime.getTime();
+          const durationMinutes = Math.round(durationMs / (1000 * 60));
+          if (durationMinutes < 15) {
+            return res.status(400).json({
+              success: false,
+              message: 'Thời lượng lớp học tối thiểu 15 phút',
+              data: null,
+            });
+          }
+          if (durationMinutes > 180) {
+            return res.status(400).json({
+              success: false,
+              message: 'Thời lượng lớp học tối đa 180 phút (3 giờ)',
+              data: null,
+            });
+          }
+        }
+
+        // Check for conflicts with other schedules (trainer and room)
+        const ACTIVE_SCHEDULE_STATUSES = ['SCHEDULED', 'IN_PROGRESS'];
+        // Use new room_id if provided, otherwise use current room_id
+        const targetRoomId = room_id || schedule.room_id;
+
+        const [trainerConflict, roomConflict] = await Promise.all([
+          // Check trainer conflict
+          prisma.schedule.findFirst({
+            where: {
+              trainer_id: schedule.trainer_id,
+              id: { not: schedule_id },
+              status: { in: ACTIVE_SCHEDULE_STATUSES },
+              start_time: { lt: parsedEndTime },
+              end_time: { gt: parsedStartTime },
+            },
+          }),
+          // Check room conflict (use target room - new or current)
+          prisma.schedule.findFirst({
+            where: {
+              room_id: targetRoomId,
+              id: { not: schedule_id },
+              status: { in: ACTIVE_SCHEDULE_STATUSES },
+              start_time: { lt: parsedEndTime },
+              end_time: { gt: parsedStartTime },
+            },
+          }),
+        ]);
+
+        if (trainerConflict) {
+          return res.status(409).json({
+            success: false,
+            message: 'Bạn đã có lịch dạy trùng giờ',
+            data: {
+              conflictSchedule: {
+                id: trainerConflict.id,
+                start_time: trainerConflict.start_time,
+                end_time: trainerConflict.end_time,
+              },
+            },
+          });
+        }
+
+        if (roomConflict) {
+          return res.status(409).json({
+            success: false,
+            message: 'Phòng đã được sử dụng trong khung giờ này',
+            data: {
+              conflictSchedule: {
+                id: roomConflict.id,
+                start_time: roomConflict.start_time,
+                end_time: roomConflict.end_time,
+              },
+            },
+          });
+        }
+      }
+
+      // Get current schedule data before update for change detection
+      const currentSchedule = {
+        max_capacity: schedule.max_capacity,
+        special_notes: schedule.special_notes,
+        gym_class_name: schedule.gym_class.name,
+        gym_class_description: schedule.gym_class.description,
+        date: schedule.date,
+        start_time: schedule.start_time,
+        end_time: schedule.end_time,
+        room_id: schedule.room_id,
+        room_name: schedule.room.name,
+      };
+
+      // Prepare update data
+      const updateData = {};
+      if (max_capacity !== undefined && max_capacity !== schedule.max_capacity) {
+        updateData.max_capacity = max_capacity;
+      }
+      if (special_notes !== undefined && special_notes !== schedule.special_notes) {
+        updateData.special_notes = special_notes;
+      }
+      if (parsedDate && parsedDate.getTime() !== new Date(schedule.date).getTime()) {
+        updateData.date = parsedDate;
+      }
+      if (
+        parsedStartTime &&
+        parsedStartTime.getTime() !== new Date(schedule.start_time).getTime()
+      ) {
+        updateData.start_time = parsedStartTime;
+      }
+      if (parsedEndTime && parsedEndTime.getTime() !== new Date(schedule.end_time).getTime()) {
+        updateData.end_time = parsedEndTime;
+      }
+
       // Update schedule
       const updatedSchedule = await prisma.schedule.update({
         where: { id: schedule_id },
-        data: {
-          max_capacity: max_capacity || schedule.max_capacity,
-          special_notes: special_notes !== undefined ? special_notes : schedule.special_notes,
-        },
+        data: updateData,
         include: {
           gym_class: true,
           trainer: true,
           room: true,
+          bookings: {
+            where: { status: 'CONFIRMED' },
+            select: {
+              id: true,
+              member_id: true,
+              status: true,
+              booked_at: true,
+            },
+          },
         },
       });
+
+      // Hydrate bookings with member info
+      updatedSchedule.bookings = await hydrateBookingsWithMembers(updatedSchedule.bookings);
 
       // Update gym class if needed
       if (class_name || description) {
         await prisma.gymClass.update({
-          where: { id: schedule.gym_class_id },
+          where: { id: schedule.gym_class.id },
           data: {
             name: class_name || schedule.gym_class.name,
             description: description !== undefined ? description : schedule.gym_class.description,
           },
         });
+
+        // Reload updated schedule with updated gym class
+        const reloadedSchedule = await prisma.schedule.findUnique({
+          where: { id: schedule_id },
+          include: {
+            gym_class: true,
+            trainer: true,
+            room: true,
+            bookings: {
+              where: { status: 'CONFIRMED' },
+              select: {
+                id: true,
+                member_id: true,
+                status: true,
+                booked_at: true,
+              },
+            },
+          },
+        });
+
+        if (reloadedSchedule) {
+          Object.assign(updatedSchedule, reloadedSchedule);
+          // Hydrate bookings with member info
+          updatedSchedule.bookings = await hydrateBookingsWithMembers(reloadedSchedule.bookings);
+        }
+      }
+
+      // Detect changes for notification
+      const changes = [];
+      if (currentSchedule.max_capacity !== updatedSchedule.max_capacity) {
+        changes.push('sức chứa');
+      }
+      if (currentSchedule.special_notes !== updatedSchedule.special_notes) {
+        changes.push('ghi chú đặc biệt');
+      }
+      if (class_name && currentSchedule.gym_class_name !== class_name) {
+        changes.push('tên lớp');
+      }
+      if (description !== undefined && currentSchedule.gym_class_description !== description) {
+        changes.push('mô tả lớp');
+      }
+      if (room_id && currentSchedule.room_id !== room_id) {
+        changes.push('phòng');
+      }
+      if (
+        parsedDate &&
+        new Date(currentSchedule.date).getTime() !== new Date(updatedSchedule.date).getTime()
+      ) {
+        changes.push('ngày');
+      }
+      if (
+        parsedStartTime &&
+        new Date(currentSchedule.start_time).getTime() !==
+          new Date(updatedSchedule.start_time).getTime()
+      ) {
+        changes.push('giờ bắt đầu');
+      }
+      if (
+        parsedEndTime &&
+        new Date(currentSchedule.end_time).getTime() !==
+          new Date(updatedSchedule.end_time).getTime()
+      ) {
+        changes.push('giờ kết thúc');
+      }
+
+      // Send notifications if there are changes
+      if (changes.length > 0 && global.io) {
+        try {
+          const notificationService = require('../services/notification.service.js');
+          const changesText = changes.join(', ');
+
+          // 1. Notify admins and super-admins about schedule update
+          console.log('[BELL] Starting admin notification process for schedule update...');
+          const admins = await notificationService.getAdminsAndSuperAdmins();
+          console.log(
+            `[LIST] Found ${admins.length} admin/super-admin users:`,
+            admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
+          );
+
+          // Create notifications for all admins
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.user_id,
+            type: 'GENERAL',
+            title: 'Lịch dạy được cập nhật bởi trainer',
+            message: `${trainer.full_name} đã cập nhật ${changesText} của lớp ${updatedSchedule.gym_class.name}`,
+            data: {
+              schedule_id: updatedSchedule.id,
+              class_id: updatedSchedule.gym_class.id,
+              class_name: updatedSchedule.gym_class.name,
+              trainer_id: trainer.id,
+              trainer_name: trainer.full_name,
+              room_id: updatedSchedule.room.id,
+              room_name: updatedSchedule.room.name,
+              date: updatedSchedule.date,
+              start_time: updatedSchedule.start_time,
+              end_time: updatedSchedule.end_time,
+              max_capacity: updatedSchedule.max_capacity,
+              changes: changes,
+              role: 'TRAINER', // Role indicates who performed the action
+            },
+            channels: ['IN_APP', 'PUSH'],
+          }));
+
+          // Create notifications in identity service
+          if (adminNotifications.length > 0) {
+            console.log(
+              `💾 Creating ${adminNotifications.length} notifications in identity service for admins...`
+            );
+
+            const createdAdminNotifications = [];
+            for (const notificationData of adminNotifications) {
+              try {
+                const created = await notificationService.createNotificationInIdentityService(
+                  notificationData,
+                  'normal'
+                );
+                if (created) {
+                  createdAdminNotifications.push(created);
+                }
+              } catch (error) {
+                console.error(
+                  `[ERROR] Failed to create notification for admin ${notificationData.user_id}:`,
+                  error.message
+                );
+              }
+            }
+
+            console.log(
+              `[SUCCESS] Created ${createdAdminNotifications.length} notifications in identity service for admins`
+            );
+
+            // Emit socket events to all admins (only for notifications that were created)
+            const validAdminNotifications = createdAdminNotifications.filter(n => n && n.id);
+            if (validAdminNotifications.length > 0) {
+              console.log(
+                `[EMIT] Starting to emit socket events to ${validAdminNotifications.length} admin(s)...`
+              );
+
+              validAdminNotifications.forEach(notification => {
+                const roomName = `user:${notification.user_id}`;
+                const socketData = {
+                  schedule_id: updatedSchedule.id,
+                  class_id: updatedSchedule.gym_class.id,
+                  class_name: updatedSchedule.gym_class.name,
+                  class_category: updatedSchedule.gym_class.category,
+                  trainer_id: trainer.id,
+                  trainer_name: trainer.full_name,
+                  room_name: updatedSchedule.room.name,
+                  date: updatedSchedule.date,
+                  start_time: updatedSchedule.start_time,
+                  end_time: updatedSchedule.end_time,
+                  max_capacity: updatedSchedule.max_capacity,
+                  changes: changes,
+                  created_at: updatedSchedule.created_at,
+                };
+
+                const room = global.io.sockets.adapter.rooms.get(roomName);
+                const socketCount = room ? room.size : 0;
+
+                console.log(
+                  `[EMIT] Emitting schedule:updated to room ${roomName} (${socketCount} socket(s) connected)`,
+                  socketData
+                );
+                global.io.to(roomName).emit('schedule:updated', socketData);
+
+                // Also emit notification:new event
+                if (notification.id) {
+                  const notificationPayload = {
+                    notification_id: notification.id,
+                    type: notification.type,
+                    title: notification.title,
+                    message: notification.message,
+                    data: notification.data,
+                    created_at: notification.created_at?.toISOString() || new Date().toISOString(),
+                    is_read: false,
+                  };
+                  global.io.to(roomName).emit('notification:new', notificationPayload);
+                }
+              });
+
+              console.log(
+                `[SUCCESS] Sent ${adminNotifications.length} notifications to admins about schedule update`
+              );
+            }
+          }
+
+          // 2. Notify all members who booked this schedule
+          if (updatedSchedule.bookings && updatedSchedule.bookings.length > 0) {
+            const memberNotifications = updatedSchedule.bookings
+              .filter(booking => booking.member?.user_id)
+              .map(booking => ({
+                user_id: booking.member.user_id,
+                type: 'SCHEDULE_UPDATE',
+                title: 'Lịch tập đã được cập nhật',
+                message: `Trainer ${trainer.full_name} đã cập nhật ${changesText} của lớp ${updatedSchedule.gym_class.name} bạn đã đặt`,
+                data: {
+                  schedule_id: updatedSchedule.id,
+                  booking_id: booking.id,
+                  class_id: updatedSchedule.gym_class.id,
+                  class_name: updatedSchedule.gym_class.name,
+                  trainer_id: trainer.id,
+                  trainer_name: trainer.full_name,
+                  room_id: updatedSchedule.room.id,
+                  room_name: updatedSchedule.room.name,
+                  date: updatedSchedule.date,
+                  start_time: updatedSchedule.start_time,
+                  end_time: updatedSchedule.end_time,
+                  max_capacity: updatedSchedule.max_capacity,
+                  status: updatedSchedule.status,
+                  changes: changes,
+                  role: 'TRAINER', // Role indicates who performed the action
+                },
+                channels: ['IN_APP', 'PUSH'],
+              }));
+
+            // Create notifications in Identity Service (saves to database immediately)
+            if (memberNotifications.length > 0) {
+              try {
+                const createdMemberNotifications = [];
+                for (const notificationData of memberNotifications) {
+                  try {
+                    const created = await notificationService.createNotificationInIdentityService(
+                      {
+                        user_id: notificationData.user_id,
+                        type: notificationData.type,
+                        title: notificationData.title,
+                        message: notificationData.message,
+                        data: notificationData.data,
+                        channels: notificationData.channels,
+                      },
+                      'normal' // Use normal priority for schedule updates
+                    );
+                    if (created) {
+                      createdMemberNotifications.push(created);
+                    }
+                  } catch (error) {
+                    console.error(
+                      `[ERROR] Failed to create notification for member ${notificationData.user_id}:`,
+                      error.message
+                    );
+                  }
+                }
+
+                console.log(
+                  `[SUCCESS] Created ${createdMemberNotifications.length} notifications in Identity Service for members`
+                );
+
+                const notificationsWithIds = createdMemberNotifications;
+
+                // Emit socket events to all members (only for notifications that were created)
+                memberNotifications.forEach((notification, index) => {
+                  const createdNotif = notificationsWithIds.find(
+                    n => n && n.user_id === notification.user_id
+                  );
+
+                  // Emit notification:new event for NotificationDropdown (only if notification was created)
+                  if (createdNotif && createdNotif.id) {
+                    const notificationPayload = {
+                      notification_id: createdNotif.id,
+                      type: notification.type,
+                      title: notification.title,
+                      message: notification.message,
+                      data: notification.data,
+                      created_at:
+                        createdNotif.created_at?.toISOString() || new Date().toISOString(),
+                      is_read: false,
+                    };
+
+                    console.log(
+                      `[EMIT] Emitting notification:new to member user:${notification.user_id}`,
+                      notificationPayload
+                    );
+                    global.io
+                      .to(`user:${notification.user_id}`)
+                      .emit('notification:new', notificationPayload);
+                  }
+
+                  // Emit schedule:updated event for real-time UI update
+                  const socketPayload = {
+                    schedule_id: updatedSchedule.id,
+                    booking_id: updatedSchedule.bookings.find(
+                      b => b.member?.user_id === notification.user_id
+                    )?.id,
+                    class_name: updatedSchedule.gym_class.name,
+                    room_name: updatedSchedule.room.name,
+                    date: updatedSchedule.date,
+                    start_time: updatedSchedule.start_time,
+                    end_time: updatedSchedule.end_time,
+                    max_capacity: updatedSchedule.max_capacity,
+                    status: updatedSchedule.status,
+                    changes: changes,
+                    updated_at: updatedSchedule.updated_at,
+                  };
+
+                  console.log(
+                    `[EMIT] Emitting schedule:updated to member user:${notification.user_id}`,
+                    socketPayload
+                  );
+                  global.io
+                    .to(`user:${notification.user_id}`)
+                    .emit('schedule:updated', socketPayload);
+                });
+
+                console.log(
+                  `[SUCCESS] Sent ${memberNotifications.length} notifications to members about schedule update`
+                );
+              } catch (notifError) {
+                console.error('Error creating member notifications:', notifError);
+              }
+            }
+          }
+
+          // 3. Emit schedule:updated event to trainer for optimistic UI update
+          if (updatedSchedule.trainer?.user_id) {
+            const trainerRoomName = `user:${updatedSchedule.trainer.user_id}`;
+            const trainerSocketData = {
+              schedule_id: updatedSchedule.id,
+              class_id: updatedSchedule.gym_class.id,
+              class_name: updatedSchedule.gym_class.name,
+              category: updatedSchedule.gym_class.category,
+              difficulty: updatedSchedule.gym_class.difficulty,
+              room_id: updatedSchedule.room.id,
+              room_name: updatedSchedule.room.name,
+              date: updatedSchedule.date,
+              start_time: updatedSchedule.start_time,
+              end_time: updatedSchedule.end_time,
+              max_capacity: updatedSchedule.max_capacity,
+              current_bookings: updatedSchedule.current_bookings,
+              status: updatedSchedule.status,
+              changes: changes,
+              special_notes: updatedSchedule.special_notes,
+              updated_at: updatedSchedule.updated_at,
+            };
+
+            const trainerRoom = global.io.sockets.adapter.rooms.get(trainerRoomName);
+            const trainerSocketCount = trainerRoom ? trainerRoom.size : 0;
+
+            console.log(
+              `[EMIT] Emitting schedule:updated to trainer room ${trainerRoomName} (${trainerSocketCount} socket(s) connected)`,
+              trainerSocketData
+            );
+            global.io.to(trainerRoomName).emit('schedule:updated', trainerSocketData);
+            console.log(`[SUCCESS] Emitted schedule:updated event to trainer`);
+          }
+        } catch (notifError) {
+          console.error('[ERROR] Error sending notifications for schedule update:', notifError);
+          console.error('Error stack:', notifError.stack);
+          // Don't fail the request if notification fails
+        }
       }
 
       res.json({
@@ -2337,7 +3117,12 @@ class TrainerController {
           room: true,
           bookings: {
             where: { status: 'CONFIRMED' },
-            include: { member: true },
+            select: {
+              id: true,
+              member_id: true,
+              status: true,
+              booked_at: true,
+            },
           },
         },
       });
@@ -2349,6 +3134,9 @@ class TrainerController {
           data: null,
         });
       }
+
+      // Hydrate bookings with member info for later use
+      schedule.bookings = await hydrateBookingsWithMembers(schedule.bookings);
 
       if (schedule.trainer_id !== trainer.id) {
         return res.status(403).json({
@@ -2723,6 +3511,178 @@ class TrainerController {
         success: false,
         message: 'Có lỗi xảy ra khi lấy thông tin doanh thu',
         data: null,
+      });
+    }
+  }
+
+  /**
+   * Upload trainer avatar
+   */
+  async uploadAvatar(req, res) {
+    try {
+      console.log('📤 Trainer avatar upload request received');
+
+      // Get user_id from JWT token
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'No token provided',
+          data: null,
+        });
+      }
+
+      const token = authHeader.split(' ')[1];
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) {
+        return res.status(401).json({
+          success: false,
+          message: 'Invalid token format',
+          data: null,
+        });
+      }
+
+      let payloadBase64 = tokenParts[1];
+      while (payloadBase64.length % 4) {
+        payloadBase64 += '=';
+      }
+
+      const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+      const userId = payload.userId || payload.id;
+
+      // Find trainer by user_id
+      const trainer = await prisma.trainer.findFirst({
+        where: { user_id: userId },
+      });
+
+      if (!trainer) {
+        return res.status(404).json({
+          success: false,
+          message: 'Trainer not found',
+          data: null,
+        });
+      }
+
+      // Get base64 image from request body
+      const { base64Image, mimeType = 'image/jpeg', filename = 'avatar.jpg' } = req.body;
+
+      if (!base64Image) {
+        return res.status(400).json({
+          success: false,
+          message: 'No image data provided',
+          data: null,
+        });
+      }
+
+      // Validate MIME type
+      const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+      if (!allowedTypes.includes(mimeType)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Invalid file type. Only JPEG, PNG, and WebP are allowed',
+          data: null,
+        });
+      }
+
+      // Remove data:image/xxx;base64, prefix if present
+      const base64Data = base64Image.replace(/^data:image\/\w+;base64,/, '');
+
+      // Convert base64 to buffer
+      const imageBuffer = Buffer.from(base64Data, 'base64');
+
+      // Validate file size (max 5MB)
+      const maxSize = 5 * 1024 * 1024; // 5MB
+      if (imageBuffer.length > maxSize) {
+        return res.status(400).json({
+          success: false,
+          message: `File too large. Maximum size is ${maxSize / 1024 / 1024}MB`,
+          data: null,
+        });
+      }
+
+      // Validate minimum size (at least 1KB)
+      const minSize = 1024; // 1KB
+      if (imageBuffer.length < minSize) {
+        return res.status(400).json({
+          success: false,
+          message: 'File too small. Please upload a valid image',
+          data: null,
+        });
+      }
+
+      console.log(`📷 Uploading avatar for trainer: ${trainer.id}`);
+
+      // Upload to S3 with folder 'trainer-avatars'
+      const uniqueSuffix = crypto.randomBytes(16).toString('hex');
+      const extension = path.extname(filename) || '.jpg';
+      const key = `trainer-avatars/${uniqueSuffix}${extension}`;
+
+      const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
+      const s3Client = new S3Client({
+        region: process.env.AWS_REGION,
+        credentials: {
+          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+        },
+      });
+
+      const command = new PutObjectCommand({
+        Bucket: process.env.AWS_S3_BUCKET_NAME,
+        Key: key,
+        Body: imageBuffer,
+        ContentType: mimeType,
+        CacheControl: 'public, max-age=31536000',
+      });
+
+      await s3Client.send(command);
+
+      // Generate URL
+      const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+
+      // Delete old avatar if exists
+      if (trainer.profile_photo) {
+        try {
+          const oldUrl = new URL(trainer.profile_photo);
+          const oldKey = oldUrl.pathname.substring(1);
+          if (oldKey.startsWith('trainer-avatars/')) {
+            const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
+            const deleteCommand = new DeleteObjectCommand({
+              Bucket: process.env.AWS_S3_BUCKET_NAME,
+              Key: oldKey,
+            });
+            await s3Client.send(deleteCommand);
+            console.log(`[DELETE] Deleted old avatar: ${oldKey}`);
+          }
+        } catch (deleteError) {
+          console.warn('[WARN] Error deleting old avatar (non-critical):', deleteError.message);
+        }
+      }
+
+      // Update trainer with new avatar URL
+      const updatedTrainer = await prisma.trainer.update({
+        where: { id: trainer.id },
+        data: {
+          profile_photo: url,
+          updated_at: new Date(),
+        },
+      });
+
+      console.log(`[SUCCESS] Avatar uploaded successfully: ${url}`);
+
+      res.json({
+        success: true,
+        message: 'Avatar uploaded successfully',
+        data: {
+          avatarUrl: url,
+          trainer: updatedTrainer,
+        },
+      });
+    } catch (error) {
+      console.error('[ERROR] Upload trainer avatar error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        error: error.message,
       });
     }
   }

@@ -33,22 +33,44 @@ global.io = io;
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log(`✅ Identity service: Client connected: ${socket.id}`);
+  console.log(`[SUCCESS] Identity service: Client connected: ${socket.id}`);
 
   // Subscribe to user-specific notifications
   socket.on('subscribe:user', user_id => {
     socket.join(`user:${user_id}`);
-    console.log(`👤 Identity service: Client ${socket.id} subscribed to user:${user_id}`);
+    console.log(`[USER] Identity service: Client ${socket.id} subscribed to user:${user_id}`);
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`👤 Identity service: Client ${socket.id} unsubscribed from user:${user_id}`);
+    console.log(`[USER] Identity service: Client ${socket.id} unsubscribed from user:${user_id}`);
+  });
+
+  // Chat events
+  socket.on('chat:typing', data => {
+    const { receiver_id, is_typing } = data;
+    if (receiver_id) {
+      socket.to(`user:${receiver_id}`).emit('chat:typing', {
+        sender_id: socket.userId,
+        is_typing,
+      });
+    }
+  });
+
+  socket.on('chat:read', data => {
+    const { message_ids } = data;
+    // Handle read receipts
+    if (message_ids && message_ids.length > 0) {
+      socket.broadcast.emit('chat:messages:read', {
+        message_ids,
+        read_by: socket.userId,
+      });
+    }
   });
 
   socket.on('disconnect', () => {
-    console.log(`❌ Identity service: Client disconnected: ${socket.id}`);
+    console.log(`[ERROR] Identity service: Client disconnected: ${socket.id}`);
   });
 });
 
@@ -89,7 +111,7 @@ async function startServer() {
     } else {
       // Development fallback with warning
       console.warn(
-        '⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+        'WARNING: ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
       );
       allowedOrigins = [
         'http://localhost:3000',

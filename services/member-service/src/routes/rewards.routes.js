@@ -7,6 +7,7 @@ router.post('/rewards', (req, res) => rewardController.createReward(req, res));
 router.get('/rewards', (req, res) => rewardController.getRewards(req, res));
 router.post('/rewards/verify-code', (req, res) => rewardController.verifyCode(req, res));
 router.get('/rewards/stats', (req, res) => rewardController.getRewardStats(req, res));
+router.get('/analytics/rewards/redemption-trend', (req, res) => rewardController.getRedemptionTrend(req, res));
 router.post('/rewards/image/upload', (req, res) => rewardController.uploadRewardImage(req, res));
 
 // Dynamic routes with params (must be after static routes)

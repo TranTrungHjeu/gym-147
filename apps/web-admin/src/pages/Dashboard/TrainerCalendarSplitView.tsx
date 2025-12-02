@@ -8,11 +8,139 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import CustomSelect from '../../components/common/CustomSelect';
 import Button from '../../components/ui/Button/Button';
 // Removed SVG icon imports - using colored dots instead
+import ExportButton, { ExportUtils } from '../../components/common/ExportButton';
 import EventDetailsModal from '../../components/modals/EventDetailsModal';
+import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import { CalendarEvent, scheduleService } from '../../services/schedule.service';
+import { getCurrentUser } from '../../utils/auth';
 
 // Import Vietnamese locale
 import viLocale from '@fullcalendar/core/locales/vi';
+
+// Calendar Sync Buttons Component
+const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
+  const handleGoogleCalendarSync = () => {
+    if (!events || events.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    // Generate iCal file first
+    const iCalEvents = events
+      .filter(e => e.start && e.end)
+      .map(event => ({
+        title: event.class_name || event.title || 'Lớp học',
+        description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${event.attendees || 0}/${
+          event.max_capacity || 0
+        }`,
+        start: event.start,
+        end: event.end,
+        location: event.room || '',
+      }));
+
+    if (iCalEvents.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện hợp lệ để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    // For Google Calendar, we can use the webcal:// protocol or direct URL
+    // Generate iCal file and provide download link
+    const filename = `trainer-calendar-${new Date().toISOString().split('T')[0]}`;
+    ExportUtils.exportToiCal(iCalEvents, filename);
+
+    // Also provide option to add to Google Calendar via URL
+    if (window.showToast) {
+      window.showToast({
+        type: 'success',
+        message: 'Đã tải file iCal. Bạn có thể import vào Google Calendar hoặc Outlook.',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleOutlookSync = () => {
+    if (!events || events.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    // Generate iCal file for Outlook
+    const iCalEvents = events
+      .filter(e => e.start && e.end)
+      .map(event => ({
+        title: event.class_name || event.title || 'Lớp học',
+        description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${event.attendees || 0}/${
+          event.max_capacity || 0
+        }`,
+        start: event.start,
+        end: event.end,
+        location: event.room || '',
+      }));
+
+    if (iCalEvents.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện hợp lệ để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    const filename = `trainer-calendar-${new Date().toISOString().split('T')[0]}`;
+    ExportUtils.exportToiCal(iCalEvents, filename);
+
+    if (window.showToast) {
+      window.showToast({
+        type: 'success',
+        message: 'Đã tải file iCal. Bạn có thể import vào Outlook.',
+        duration: 5000,
+      });
+    }
+  };
+
+  return (
+    <div className='flex gap-2'>
+      <AdminButton
+        variant='outline'
+        size='sm'
+        icon={ExternalLink}
+        onClick={handleGoogleCalendarSync}
+        className='text-[11px] font-heading whitespace-nowrap'
+      >
+        Sync Google
+      </AdminButton>
+      <AdminButton
+        variant='outline'
+        size='sm'
+        icon={ExternalLink}
+        onClick={handleOutlookSync}
+        className='text-[11px] font-heading whitespace-nowrap'
+      >
+        Sync Outlook
+      </AdminButton>
+    </div>
+  );
+};
 
 export default function TrainerCalendarSplitView() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -28,6 +156,9 @@ export default function TrainerCalendarSplitView() {
   });
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [userId, setUserId] = useState<string>('');
+  const [showAllSchedules, setShowAllSchedules] = useState(false);
 
   // Database data for filter options - will be updated from API
   const [classTypes, setClassTypes] = useState<string[]>([]);
@@ -74,19 +205,29 @@ export default function TrainerCalendarSplitView() {
     });
   }, [events, filters]);
 
-  // Memoized statistics
+  // Events to display - either all or filtered based on toggle
+  const displayEvents = useMemo(() => {
+    return showAllSchedules ? events : filteredEvents;
+  }, [showAllSchedules, events, filteredEvents]);
+
+  // Memoized statistics - based on display events
   const statistics = useMemo(() => {
-    const total = filteredEvents.length;
-    const scheduled = filteredEvents.filter(e => e.status === 'SCHEDULED').length;
-    const inProgress = filteredEvents.filter(e => e.status === 'IN_PROGRESS').length;
-    const completed = filteredEvents.filter(e => e.status === 'COMPLETED').length;
-    const cancelled = filteredEvents.filter(e => e.status === 'CANCELLED').length;
+    const total = displayEvents.length;
+    const scheduled = displayEvents.filter(e => e.status === 'SCHEDULED').length;
+    const inProgress = displayEvents.filter(e => e.status === 'IN_PROGRESS').length;
+    const completed = displayEvents.filter(e => e.status === 'COMPLETED').length;
+    const cancelled = displayEvents.filter(e => e.status === 'CANCELLED').length;
 
     return { total, scheduled, inProgress, completed, cancelled };
-  }, [filteredEvents]);
+  }, [displayEvents]);
 
   useEffect(() => {
     fetchEvents();
+    // Get current user ID
+    const user = getCurrentUser();
+    if (user?.id) {
+      setUserId(user.id);
+    }
   }, [currentDate, viewMode, filters]);
 
   // Reset initial load flag when date or view mode changes
@@ -114,7 +255,7 @@ export default function TrainerCalendarSplitView() {
     try {
       // Fetch class types
       const classTypesResponse = await scheduleService.getTrainerClasses();
-      console.log('📚 Class types response:', classTypesResponse);
+      console.log('[CLASS] Class types response:', classTypesResponse);
 
       // Handle different response structures
       let classTypesData = [];
@@ -132,15 +273,15 @@ export default function TrainerCalendarSplitView() {
               .filter(Boolean)
           ),
         ];
-        console.log('✅ Unique class types found:', uniqueClassTypes);
+        console.log('[SUCCESS] Unique class types found:', uniqueClassTypes);
         if (uniqueClassTypes.length > 0) {
           setClassTypes(uniqueClassTypes);
         } else {
           setClassTypes([]);
-          console.warn('⚠️ No class types found');
+          console.warn('[WARNING] No class types found');
         }
       } else {
-        console.warn('⚠️ No class types data from API');
+        console.warn('[WARNING] No class types data from API');
         setClassTypes([]);
       }
 
@@ -161,19 +302,19 @@ export default function TrainerCalendarSplitView() {
       if (Array.isArray(roomsData) && roomsData.length > 0) {
         // Extract room names from Room objects
         const roomNames = roomsData.map((room: any) => room.name).filter(Boolean);
-        console.log('✅ Rooms found from API:', roomNames);
+        console.log('[SUCCESS] Rooms found from API:', roomNames);
         if (roomNames.length > 0) {
           setRooms(roomNames);
         } else {
           setRooms([]);
-          console.warn('⚠️ No room names found');
+          console.warn('[WARNING] No room names found');
         }
       } else {
-        console.warn('⚠️ No rooms data from API');
+        console.warn('[WARNING] No rooms data from API');
         setRooms([]);
       }
     } catch (error) {
-      console.error('❌ Error fetching filter options:', error);
+      console.error('[ERROR] Error fetching filter options:', error);
       setClassTypes([]);
       setRooms([]);
     }
@@ -418,10 +559,10 @@ export default function TrainerCalendarSplitView() {
     window.location.href = `/dashboard/trainer-schedule?scheduleId=${selectedEvent.id}`;
   }, [selectedEvent]);
 
-  // Memoized FullCalendar events - chỉ tính lại khi events hoặc filteredEvents thay đổi
+  // Memoized FullCalendar events - chỉ tính lại khi events hoặc displayEvents thay đổi
   const fullCalendarEvents: EventInput[] = useMemo(() => {
     return events.map(event => {
-      const isFiltered = filteredEvents.some(filteredEvent => filteredEvent.id === event.id);
+      const isFiltered = displayEvents.some(displayEvent => displayEvent.id === event.id);
       return {
         id: event.id,
         title: event.title,
@@ -444,7 +585,7 @@ export default function TrainerCalendarSplitView() {
         },
       };
     });
-  }, [events, filteredEvents]);
+  }, [events, displayEvents]);
 
   if (loading) {
     return (
@@ -517,34 +658,74 @@ export default function TrainerCalendarSplitView() {
           </div>
 
           <div className='flex gap-2'>
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng xuất lịch đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
-              className='text-theme-xs font-semibold font-heading'
-            >
-              Xuất lịch
-            </Button>
+            {displayEvents && displayEvents.length > 0 ? (
+              <>
+                <ExportButton
+                  data={displayEvents.map(event => ({
+                    'Lớp học': event.class_name || 'N/A',
+                    'Ngày bắt đầu': event.start
+                      ? new Date(event.start).toLocaleDateString('vi-VN')
+                      : 'N/A',
+                    'Thời gian bắt đầu': event.start
+                      ? new Date(event.start).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    'Thời gian kết thúc': event.end
+                      ? new Date(event.end).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    Phòng: event.room || 'N/A',
+                    'Trạng thái': event.status || 'N/A',
+                    'Số người tham gia': event.attendees || 0,
+                    'Sức chứa tối đa': event.max_capacity || 0,
+                  }))}
+                  columns={[
+                    { key: 'Lớp học', label: 'Lớp học' },
+                    { key: 'Ngày bắt đầu', label: 'Ngày bắt đầu' },
+                    { key: 'Thời gian bắt đầu', label: 'Thời gian bắt đầu' },
+                    { key: 'Thời gian kết thúc', label: 'Thời gian kết thúc' },
+                    { key: 'Phòng', label: 'Phòng' },
+                    { key: 'Trạng thái', label: 'Trạng thái' },
+                    { key: 'Số người tham gia', label: 'Số người tham gia' },
+                    { key: 'Sức chứa tối đa', label: 'Sức chứa tối đa' },
+                  ]}
+                  filename={`trainer-calendar-${currentDate.toISOString().split('T')[0]}`}
+                  title='Lịch dạy'
+                  variant='outline'
+                  size='sm'
+                  showiCal={true}
+                  iCalEvents={displayEvents
+                    .filter(e => e.start && e.end)
+                    .map(event => ({
+                      title: event.class_name || event.title || 'Lớp học',
+                      description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${
+                        event.attendees || 0
+                      }/${event.max_capacity || 0}`,
+                      start: event.start,
+                      end: event.end,
+                      location: event.room || '',
+                    }))}
+                />
+                <CalendarSyncButtons events={displayEvents} />
+              </>
+            ) : (
+              <Button
+                size='sm'
+                variant='outline'
+                disabled
+                className='text-theme-xs font-semibold font-heading'
+              >
+                Xuất lịch
+              </Button>
+            )}
             <Button
               size='sm'
               variant='primary'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng tạo lịch mới đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
+              onClick={() => setIsCreateModalOpen(true)}
               className='text-theme-xs font-semibold font-heading'
             >
               Tạo lịch mới
@@ -554,6 +735,37 @@ export default function TrainerCalendarSplitView() {
 
         {/* Filters Section */}
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+          <div className='flex items-center justify-between mb-3'>
+            <div className='flex items-center gap-2'>
+              <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
+                Xem tất cả lịch:
+              </label>
+              <button
+                type='button'
+                onClick={() => setShowAllSchedules(!showAllSchedules)}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+                  showAllSchedules ? 'bg-orange-600' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    showAllSchedules ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className='text-xs text-gray-600 dark:text-gray-400'>
+                {showAllSchedules ? 'Tất cả' : 'Đã lọc'}
+              </span>
+            </div>
+            {Object.values(filters).some(f => f) && (
+              <button
+                onClick={clearFilters}
+                className='text-xs text-orange-600 dark:text-orange-400 hover:underline'
+              >
+                Xóa bộ lọc
+              </button>
+            )}
+          </div>
           <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
             {/* Status Filter */}
             <div>
@@ -1042,13 +1254,13 @@ export default function TrainerCalendarSplitView() {
             </h2>
             <div className='px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 rounded-lg'>
               <span className='text-xs font-bold text-orange-600 dark:text-orange-400 font-heading'>
-                {filteredEvents.length}
+                {displayEvents.length}
               </span>
             </div>
           </div>
 
           <div className='events-list-container space-y-3 overflow-hidden'>
-            {filteredEvents.length === 0 ? (
+            {displayEvents.length === 0 ? (
               <div className='flex flex-col items-center justify-center py-12'>
                 <div className='w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4'>
                   <svg
@@ -1075,7 +1287,7 @@ export default function TrainerCalendarSplitView() {
                 </p>
               </div>
             ) : (
-              filteredEvents.map((event, index) => (
+              displayEvents.map((event, index) => (
                 <motion.div
                   key={event.id}
                   className={`event-item group border-l-4 rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
@@ -1257,6 +1469,19 @@ export default function TrainerCalendarSplitView() {
         event={selectedEvent}
         onAttendance={handleAttendanceClick}
       />
+
+      {/* Create Schedule Modal */}
+      {userId && (
+        <CreateScheduleModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            setIsCreateModalOpen(false);
+            fetchEvents(); // Refresh events after creating schedule
+          }}
+          userId={userId}
+        />
+      )}
     </motion.div>
   );
 }

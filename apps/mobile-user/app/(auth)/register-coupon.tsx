@@ -453,7 +453,7 @@ const RegisterCouponScreen = () => {
             {discount.bonusDays && discount.bonusDays > 0 ? (
               <View style={themedStyles.bonusDaysContainer}>
                 <Text style={themedStyles.bonusDaysText}>
-                  🎉 +{discount.bonusDays} {t('registration.bonusDays')}
+                  [CELEBRATE] +{discount.bonusDays} {t('registration.bonusDays')}
                 </Text>
               </View>
             ) : null}

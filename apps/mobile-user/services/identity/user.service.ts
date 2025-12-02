@@ -61,15 +61,15 @@ class UserService {
    */
   async updateProfile(data: UpdateProfileData): Promise<ApiResponse<User>> {
     try {
-      console.log('🔍 Updating profile with SERVICE_URLS.IDENTITY:', this.baseUrl);
+      console.log('[SEARCH] Updating profile with SERVICE_URLS.IDENTITY:', this.baseUrl);
       const response = await identityApiService.put('/profile', data);
       return {
         success: true,
         data: response.data?.user || response.data,
       };
     } catch (error: any) {
-      console.error('❌ Update profile error:', error);
-      console.error('❌ Error details:', {
+      console.error('[ERROR] Update profile error:', error);
+      console.error('[ERROR] Error details:', {
         message: error.message,
         status: error.status,
         url: error.url || `${this.baseUrl}/profile`,
@@ -349,6 +349,77 @@ class UserService {
       return {
         success: false,
         message: error.message || 'Failed to mark all notifications as read',
+      };
+    }
+  }
+
+  /**
+   * Enroll face encoding for user
+   * @param image - Base64 encoded image string
+   * @param facePhotoUrl - Optional URL to store face photo
+   */
+  async enrollFaceEncoding(
+    image: string,
+    facePhotoUrl?: string
+  ): Promise<ApiResponse<{ updated: boolean; hasFaceEncoding: boolean }>> {
+    try {
+      const response = await identityApiService.put('/profile/face-encoding', {
+        image,
+        face_photo_url: facePhotoUrl,
+      });
+      return {
+        success: true,
+        data: response.data?.data || response.data,
+        message: response.data?.message || 'Face encoding enrolled successfully',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to enroll face encoding',
+      };
+    }
+  }
+
+  /**
+   * Get face encoding status
+   */
+  async getFaceEncodingStatus(): Promise<
+    ApiResponse<{
+      enrolled: boolean;
+      hasFaceEncoding: boolean;
+      hasFacePhoto: boolean;
+    }>
+  > {
+    try {
+      const response = await identityApiService.get(
+        '/profile/face-encoding/status'
+      );
+      return {
+        success: true,
+        data: response.data?.data || response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to get face encoding status',
+      };
+    }
+  }
+
+  /**
+   * Delete face encoding
+   */
+  async deleteFaceEncoding(): Promise<ApiResponse<void>> {
+    try {
+      const response = await identityApiService.delete('/profile/face-encoding');
+      return {
+        success: true,
+        message: response.data?.message || 'Face encoding deleted successfully',
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to delete face encoding',
       };
     }
   }

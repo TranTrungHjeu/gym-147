@@ -19,7 +19,7 @@ class BillingService {
       );
       return response.data || [];
     } catch (error) {
-      console.error('❌ Error fetching active plans:', error);
+      console.error('[ERROR] Error fetching active plans:', error);
       throw error;
     }
   }

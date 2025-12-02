@@ -68,7 +68,7 @@ export default function TrainerCertifications() {
         const index = prev.findIndex(cert => cert.id === certificationId);
         if (index === -1) {
           // Certification not found, might be new - will be added by socket data if available
-          console.log(`ℹ️ [TRAINER_CERTS] Certification ${certificationId} not found in list, skipping optimistic update`);
+          console.log(`[INFO] [TRAINER_CERTS] Certification ${certificationId} not found in list, skipping optimistic update`);
           return prev;
         }
 
@@ -79,7 +79,7 @@ export default function TrainerCertifications() {
           verification_status: status as any,
           updated_at: new Date().toISOString(),
         };
-        console.log(`✅ [TRAINER_CERTS] Updated certification ${certificationId} status to ${status} optimistically`);
+        console.log(`[SUCCESS] [TRAINER_CERTS] Updated certification ${certificationId} status to ${status} optimistically`);
         return updated;
       });
     };
@@ -87,7 +87,7 @@ export default function TrainerCertifications() {
     // Helper to add new certification optimistically
     const addCertificationOptimistically = (certData: any) => {
       if (!certData?.certification_id && !certData?.id) {
-        console.warn('⚠️ [TRAINER_CERTS] Cannot add certification: missing id');
+        console.warn('[WARNING] [TRAINER_CERTS] Cannot add certification: missing id');
         return;
       }
 
@@ -97,7 +97,7 @@ export default function TrainerCertifications() {
         // Check if certification already exists
         const exists = prev.some(cert => cert.id === certId);
         if (exists) {
-          console.log(`ℹ️ [TRAINER_CERTS] Certification ${certId} already exists, updating status instead`);
+          console.log(`[INFO] [TRAINER_CERTS] Certification ${certId} already exists, updating status instead`);
           // Update status if it exists
           updateCertificationStatus(certId, certData.verification_status || 'PENDING', certData);
           return prev;
@@ -122,7 +122,7 @@ export default function TrainerCertifications() {
         };
 
         // Add to beginning of list (newest first)
-        console.log(`✅ [TRAINER_CERTS] Added certification ${certId} optimistically`);
+        console.log(`[SUCCESS] [TRAINER_CERTS] Added certification ${certId} optimistically`);
         return [newCert, ...prev];
       });
 
@@ -131,7 +131,7 @@ export default function TrainerCertifications() {
     };
 
     const handleCertificationUpdated = (event: CustomEvent) => {
-      console.log('📢 certification:updated event received in TrainerCertifications:', event.detail);
+      console.log('[NOTIFY] certification:updated event received in TrainerCertifications:', event.detail);
       const data = event.detail;
 
       // If we have certification data, update optimistically
@@ -157,7 +157,7 @@ export default function TrainerCertifications() {
     };
 
     const handleCertificationCreated = (event: CustomEvent) => {
-      console.log('📢 certification:created event received in TrainerCertifications:', event.detail);
+      console.log('[NOTIFY] certification:created event received in TrainerCertifications:', event.detail);
       const data = event.detail;
 
       // Optimistically add certification to the list
@@ -205,7 +205,7 @@ export default function TrainerCertifications() {
             updated_at: data.updated_at || new Date().toISOString(),
           };
           
-          console.log(`✅ [TRAINER_CERTS] Added certification ${certId} optimistically`);
+          console.log(`[SUCCESS] [TRAINER_CERTS] Added certification ${certId} optimistically`);
           return [newCert, ...prev];
         });
         
@@ -224,7 +224,7 @@ export default function TrainerCertifications() {
     };
 
     const handleCertificationDeleted = (event: CustomEvent) => {
-      console.log('📢 certification:deleted event received in TrainerCertifications:', event.detail);
+      console.log('[NOTIFY] certification:deleted event received in TrainerCertifications:', event.detail);
       const data = event.detail;
 
       // Remove certification optimistically (no reload)
@@ -235,12 +235,12 @@ export default function TrainerCertifications() {
         setCertifications(prev => {
           const exists = prev.some(cert => cert.id === certId);
           if (!exists) {
-            console.log(`ℹ️ [TRAINER_CERTS] Certification ${certId} not found in list, skipping removal`);
+            console.log(`[INFO] [TRAINER_CERTS] Certification ${certId} not found in list, skipping removal`);
             return prev;
           }
           
           const filtered = prev.filter(cert => cert.id !== certId);
-          console.log(`✅ [TRAINER_CERTS] Removed certification ${certId} optimistically. Remaining: ${filtered.length}`);
+          console.log(`[SUCCESS] [TRAINER_CERTS] Removed certification ${certId} optimistically. Remaining: ${filtered.length}`);
           return filtered;
         });
 
@@ -510,9 +510,9 @@ export default function TrainerCertifications() {
 
       {/* Search and Filters */}
       <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
-        <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
+        <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
           {/* Search Input */}
-          <div className='md:col-span-2 group relative'>
+          <div className='group relative w-full'>
             <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
             <input
               type='text'
@@ -522,12 +522,12 @@ export default function TrainerCertifications() {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
 
           {/* Status Filter */}
-          <div>
+          <div className='w-full'>
             <CustomSelect
               options={[
                 { value: 'all', label: 'Tất cả trạng thái' },
@@ -543,7 +543,7 @@ export default function TrainerCertifications() {
                 setCurrentPage(1);
               }}
               placeholder='Tất cả trạng thái'
-              className='font-inter'
+              className='font-inter w-full'
             />
           </div>
         </div>

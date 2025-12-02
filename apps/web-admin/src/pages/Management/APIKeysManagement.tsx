@@ -327,7 +327,7 @@ const APIKeysManagement: React.FC = () => {
         <div className='space-y-4'>
           <div className='p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg'>
             <p className='text-sm text-orange-800 dark:text-orange-300 font-medium mb-2'>
-              ⚠️ Lưu ý quan trọng
+              [WARNING] Lưu ý quan trọng
             </p>
             <p className='text-sm text-orange-700 dark:text-orange-400'>
               API key này chỉ hiển thị một lần duy nhất. Vui lòng sao chép và lưu trữ an toàn.

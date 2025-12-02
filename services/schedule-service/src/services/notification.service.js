@@ -1,6 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const { createClient } = require('redis');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Notification Service for Certification Management
@@ -23,13 +23,15 @@ class NotificationService {
   async initializeRedis() {
     try {
       const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      
+
       this.redisClient = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
-              console.error('❌ Notification Service Redis: Max reconnection attempts reached');
+              console.error(
+                '[ERROR] Notification Service Redis: Max reconnection attempts reached'
+              );
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -37,24 +39,24 @@ class NotificationService {
         },
       });
 
-      this.redisClient.on('error', (err) => {
-        console.error('❌ Notification Service Redis Error:', err);
+      this.redisClient.on('error', err => {
+        console.error('[ERROR] Notification Service Redis Error:', err);
         this.isConnected = false;
       });
 
       this.redisClient.on('ready', () => {
-        console.log('✅ Notification Service Redis: Connected and ready');
+        console.log('[SUCCESS] Notification Service Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.redisClient.on('end', () => {
-        console.log('🔌 Notification Service Redis: Connection closed');
+        console.log('[DISCONNECT] Notification Service Redis: Connection closed');
         this.isConnected = false;
       });
 
       await this.redisClient.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Notification Service Redis:', error.message);
+      console.error('[ERROR] Failed to initialize Notification Service Redis:', error.message);
       this.isConnected = false;
     }
   }
@@ -67,7 +69,7 @@ class NotificationService {
    */
   async enqueueNotification(notificationData, priority = 'normal') {
     if (!this.isConnected || !this.redisClient) {
-      console.warn('⚠️ Redis not connected, notification will not be queued');
+      console.warn('[WARN] Redis not connected, notification will not be queued');
       return false;
     }
 
@@ -96,79 +98,109 @@ class NotificationService {
       };
 
       await this.redisClient.rPush(queueKey, JSON.stringify(notificationPayload));
-      console.log(`✅ [NOTIFICATION] Enqueued notification to Redis: ${type} for user ${user_id} (priority: ${priority})`);
+      console.log(
+        `[SUCCESS] [NOTIFICATION] Enqueued notification to Redis: ${type} for user ${user_id} (priority: ${priority})`
+      );
       return true;
     } catch (error) {
-      console.error('❌ [NOTIFICATION] Error enqueueing notification:', error);
+      console.error('[ERROR] [NOTIFICATION] Error enqueueing notification:', error);
       return false;
     }
   }
 
   /**
-   * Helper function to create notification in Identity Service (now enqueues to Redis)
+   * Helper function to create notification in Identity Service
+   * First tries to call Identity Service API directly (saves to database immediately)
+   * Falls back to Redis queue if API call fails
    * @param {Object} notificationData - { user_id, type, title, message, data? }
    * @param {string} priority - 'high', 'normal', or 'low' (default: 'normal')
-   * @returns {Promise<Object>} Mock notification object (for backward compatibility)
+   * @returns {Promise<Object>} Notification object with ID from database
    */
   async createNotificationInIdentityService(notificationData, priority = 'normal') {
     try {
-      const { user_id, type, title, message, data } = notificationData;
+      const { user_id, type, title, message, data, channels } = notificationData;
 
-      console.log(`📤 [NOTIFICATION] Enqueueing notification to Redis:`, {
+      console.log(`[SEND] [NOTIFICATION] Creating notification in Identity Service:`, {
         user_id,
         type,
         title,
         message: message?.substring(0, 50) + '...',
         hasData: !!data,
+        channels: channels || ['IN_APP', 'PUSH'],
         priority,
       });
 
-      const enqueued = await this.enqueueNotification(notificationData, priority);
+      // Try to call Identity Service API directly first (saves to database immediately)
+      try {
+        const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
+        const axios = require('axios');
 
-      if (!enqueued) {
-        // Fallback: return a mock notification object for backward compatibility
-        console.warn('⚠️ [NOTIFICATION] Failed to enqueue, returning mock notification');
-        return {
-          id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          user_id,
-          type,
-          title,
-          message,
-          data: data || {},
-          created_at: new Date(),
-          is_read: false,
-        };
+        if (IDENTITY_SERVICE_URL) {
+          const response = await axios.post(
+            `${IDENTITY_SERVICE_URL}/notifications`,
+            {
+              user_id,
+              type,
+              title,
+              message,
+              data: data || {},
+              channels: channels || ['IN_APP', 'PUSH'],
+            },
+            {
+              timeout: 10000,
+              headers: {
+                'Content-Type': 'application/json',
+                'X-Service-Name': 'schedule-service',
+              },
+            }
+          );
+
+          if (response.data?.success && response.data?.data?.notification) {
+            console.log(
+              `[SUCCESS] [NOTIFICATION] Notification created directly in Identity Service: ${response.data.data.notification.id}`
+            );
+            return response.data.data.notification;
+          } else if (response.data?.success && response.data?.data?.enqueued) {
+            // If enqueued, return null (will be created by worker, no need for mock)
+            console.log(
+              `[INFO] [NOTIFICATION] Notification enqueued to Redis, will be processed by worker`
+            );
+            return null;
+          }
+        }
+      } catch (apiError) {
+        console.warn(
+          `[WARN] [NOTIFICATION] Failed to call Identity Service API directly: ${apiError.message}`
+        );
+        console.warn(`[WARN] [NOTIFICATION] Falling back to Redis queue...`);
+        // Continue to fallback (Redis queue)
       }
 
-      // Return a mock notification object for backward compatibility
-      // The actual notification will be created by the worker
-      return {
-        id: `queued_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id,
-        type,
-        title,
-        message,
-        data: data || {},
-        created_at: new Date(),
-        is_read: false,
+      // Fallback: Enqueue to Redis queue
+      const notificationDataWithChannels = {
+        ...notificationData,
+        channels: channels || notificationData.channels || ['IN_APP', 'PUSH'],
       };
+
+      const enqueued = await this.enqueueNotification(notificationDataWithChannels, priority);
+
+      if (!enqueued) {
+        console.warn('[WARN] [NOTIFICATION] Failed to enqueue notification');
+        return null;
+      }
+
+      // If enqueued, return null (will be created by worker)
+      console.log(
+        `[INFO] [NOTIFICATION] Notification enqueued to Redis, will be processed by worker`
+      );
+      return null;
     } catch (error) {
-      console.error('❌ [NOTIFICATION] Error enqueueing notification:', {
+      console.error('[ERROR] [NOTIFICATION] Error creating notification:', {
         message: error.message,
         user_id: notificationData?.user_id,
         type: notificationData?.type,
       });
-      // Return mock notification for backward compatibility
-      return {
-        id: `error_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-        user_id: notificationData?.user_id,
-        type: notificationData?.type,
-        title: notificationData?.title,
-        message: notificationData?.message,
-        data: notificationData?.data || {},
-        created_at: new Date(),
-        is_read: false,
-      };
+      return null;
     }
   }
   /**
@@ -179,7 +211,9 @@ class NotificationService {
    */
   async notifyAdminsOfCertificationUpload(trainerId, certificationId, certificationData) {
     try {
-      console.log(`📢 Sending notification to admins for certification upload: ${certificationId}`);
+      console.log(
+        `[NOTIFY] Sending notification to admins for certification upload: ${certificationId}`
+      );
 
       // Get trainer info
       const trainer = await prisma.trainer.findUnique({
@@ -231,30 +265,52 @@ class NotificationService {
           createdNotifications.push(created);
         } catch (error) {
           console.error(
-            `❌ Failed to create notification for user ${notificationData.user_id}:`,
+            `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
             error.message
           );
         }
       }
 
-      console.log(`✅ Created ${createdNotifications.length} notifications in identity service`);
+      console.log(
+        `[SUCCESS] Created ${createdNotifications.length} notifications in identity service`
+      );
 
-      // Emit socket events for real-time notifications
-      if (global.io && createdNotifications.length > 0) {
-        for (const notification of createdNotifications) {
-          const roomName = `user:${notification.user_id}`;
-          const socketPayload = {
-            notification_id: notification.id,
-            type: notification.type,
-            title: notification.title,
-            message: notification.message,
-            data: notification.data,
-            created_at: notification.created_at,
-            is_read: notification.is_read,
-          };
-          global.io.to(roomName).emit('notification:new', socketPayload);
+      // Emit socket events for real-time notifications (only for notifications that were created, not enqueued)
+      try {
+        if (global.io && createdNotifications.length > 0) {
+          for (const notification of createdNotifications) {
+            if (!notification || !notification.id) {
+              // Skip null notifications (enqueued, will be processed by worker)
+              continue;
+            }
+            const roomName = `user:${notification.user_id}`;
+            const socketPayload = {
+              notification_id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              data: notification.data,
+              created_at: notification.created_at,
+              is_read: notification.is_read,
+            };
+            try {
+              global.io.to(roomName).emit('notification:new', socketPayload);
+            } catch (emitError) {
+              console.error(`[ERROR] Error emitting notification:new to ${roomName}:`, emitError);
+            }
+          }
+          console.log(
+            `[SOCKET] Emitted socket events for ${
+              createdNotifications.filter(n => n && n.id).length
+            } notifications`
+          );
         }
-        console.log(`📡 Emitted socket events for ${createdNotifications.length} notifications`);
+      } catch (socketError) {
+        console.error(
+          '[ERROR] Socket emit error in sendCertificationUploadNotification:',
+          socketError
+        );
+        // Don't fail notification creation if socket fails
       }
     } catch (error) {
       console.error('Error sending certification upload notification:', error);
@@ -319,8 +375,8 @@ class NotificationService {
         },
       });
 
-      // Emit socket event to trainer for real-time notification
-      if (global.io) {
+      // Emit socket event to trainer for real-time notification (only if notification was created)
+      if (global.io && notification && notification.id) {
         const roomName = `user:${trainer.user_id}`;
         const socketData = {
           notification_id: notification.id,
@@ -332,24 +388,33 @@ class NotificationService {
           is_read: false,
         };
 
-        global.io.to(roomName).emit('certification:verified', socketData);
-        global.io.to(roomName).emit('notification:new', {
-          notification_id: notification.id,
-          type: notification.type,
-          title: notification.title,
-          message: notification.message,
-          data: socketData,
-          created_at: notification.created_at,
-          is_read: false,
-        });
-        console.log(`📡 Emitted socket events to trainer room: ${roomName}`);
+        try {
+          global.io.to(roomName).emit('certification:verified', socketData);
+          global.io.to(roomName).emit('notification:new', {
+            notification_id: notification.id,
+            type: notification.type,
+            title: notification.title,
+            message: notification.message,
+            data: socketData,
+            created_at: notification.created_at,
+            is_read: false,
+          });
+          console.log(`[SOCKET] Emitted socket events to trainer room: ${roomName}`);
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket events to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
+        }
+      } else if (!notification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainer.user_id} (will be processed by worker)`
+        );
       }
 
       // Note: Admin notifications are handled by sendCertificationUploadNotification
       // when certification is created with VERIFIED status
       // This function only sends notification to trainer about AI auto-verification
 
-      console.log(`✅ Sent auto-verification notification to trainer`);
+      console.log(`[SUCCESS] Sent auto-verification notification to trainer`);
     } catch (error) {
       console.error('Error sending auto-verification notification:', error);
     }
@@ -371,7 +436,7 @@ class NotificationService {
     reason = null
   ) {
     try {
-      console.log(`📢 Sending certification status change notification: ${action}`);
+      console.log(`[NOTIFY] Sending certification status change notification: ${action}`);
 
       // Get trainer info
       const trainer = await prisma.trainer.findUnique({
@@ -418,7 +483,7 @@ class NotificationService {
           const lastName = admin.last_name || '';
 
           // Debug: Log raw values to check encoding
-          console.log(`🔍 [ADMIN_NAME] Raw values:`, {
+          console.log(`[SEARCH] [ADMIN_NAME] Raw values:`, {
             first_name: firstName,
             first_name_bytes: Buffer.from(firstName, 'utf8').toString('hex'),
             last_name: lastName,
@@ -428,7 +493,7 @@ class NotificationService {
           const fullName = `${lastName} ${firstName}`.trim();
 
           // Debug: Log final name
-          console.log(`🔍 [ADMIN_NAME] Final fullName:`, {
+          console.log(`[SEARCH] [ADMIN_NAME] Final fullName:`, {
             fullName,
             fullName_bytes: Buffer.from(fullName, 'utf8').toString('hex'),
             length: fullName.length,
@@ -447,16 +512,16 @@ class NotificationService {
 
           adminEmail = admin.email;
           console.log(
-            `✅ Found admin user: ${adminName} (${adminEmail}), first_name: ${firstName}, last_name: ${lastName}`
+            `[SUCCESS] Found admin user: ${adminName} (${adminEmail}), first_name: ${firstName}, last_name: ${lastName}`
           );
         } else {
           console.warn(
-            `⚠️ Admin with ID ${adminId} not found in admin list, using default name 'Admin'`
+            `[WARNING] Admin with ID ${adminId} not found in admin list, using default name 'Admin'`
           );
-          console.warn(`⚠️ Available admin IDs: ${allAdmins.map(a => a.user_id).join(', ')}`);
+          console.warn(`[WARN] Available admin IDs: ${allAdmins.map(a => a.user_id).join(', ')}`);
         }
       } catch (adminError) {
-        console.error('❌ Error fetching admin info:', adminError.message);
+        console.error('[ERROR] Error fetching admin info:', adminError.message);
         // Fallback: use 'Admin' as default name
         adminName = 'Admin';
       }
@@ -517,8 +582,8 @@ class NotificationService {
         },
       });
 
-      // Emit socket event to trainer
-      if (global.io) {
+      // Emit socket event to trainer (only if notification was created)
+      if (global.io && notification && notification.id) {
         try {
           const roomName = `user:${trainer.user_id}`;
           const eventName =
@@ -557,39 +622,45 @@ class NotificationService {
 
           if (socketCount > 0) {
             console.log(
-              `📡 Emitting ${eventName} to room ${roomName} (${socketCount} socket(s) connected)`,
+              `[EMIT] Emitting ${eventName} to room ${roomName} (${socketCount} socket(s) connected)`,
               socketData
             );
-            // Emit certification:verified or certification:rejected event
-            global.io.to(roomName).emit(eventName, socketData);
+            try {
+              // Emit certification:verified or certification:rejected event
+              global.io.to(roomName).emit(eventName, socketData);
 
-            // Also emit notification:new event for real-time notification display
-            global.io.to(roomName).emit('notification:new', {
-              notification_id: notification.id,
-              type: notification.type,
-              title: notification.title,
-              message: notification.message,
-              data: socketData,
-              created_at: notification.created_at,
-              is_read: false,
-            });
-            console.log(`✅ Emitted ${eventName} and notification:new to room ${roomName}`);
+              // Also emit notification:new event for real-time notification display
+              global.io.to(roomName).emit('notification:new', {
+                notification_id: notification.id,
+                type: notification.type,
+                title: notification.title,
+                message: notification.message,
+                data: socketData,
+                created_at: notification.created_at,
+                is_read: false,
+              });
+              console.log(
+                `[SUCCESS] Emitted ${eventName} and notification:new to room ${roomName}`
+              );
+            } catch (emitError) {
+              console.error(`[ERROR] Error emitting socket events to room ${roomName}:`, emitError);
+            }
           } else {
             console.log(
-              `⚠️ No sockets connected to room ${roomName} - notification saved to database only`
+              `[WARNING] No sockets connected to room ${roomName} - notification saved to database only`
             );
           }
         } catch (socketError) {
           console.error(
-            '❌ Error emitting socket event for certification status change:',
+            '[ERROR] Error emitting socket event for certification status change:',
             socketError
           );
         }
       } else {
-        console.warn('⚠️ global.io not available - skipping socket notification');
+        console.warn('[WARN] global.io not available - skipping socket notification');
       }
 
-      console.log(`✅ Sent certification status change notification`);
+      console.log(`[SUCCESS] Sent certification status change notification`);
     } catch (error) {
       console.error('Error sending certification status change notification:', error);
     }
@@ -604,21 +675,21 @@ class NotificationService {
     const axios = require('axios');
 
     try {
-      console.log(`\n🔍 [GET_ADMINS] ========== STARTING ADMIN FETCH ==========`);
+      console.log(`\n[SEARCH] [GET_ADMINS] ========== STARTING ADMIN FETCH ==========`);
 
       // Use IDENTITY_SERVICE_URL directly (no need for API_GATEWAY_URL or GATEWAY_URL)
       const identityUrl = IDENTITY_SERVICE_URL;
-      console.log(`🔗 [GET_ADMINS] Using Identity Service URL: ${identityUrl}`);
+      console.log(`[LINK] [GET_ADMINS] Using Identity Service URL: ${identityUrl}`);
 
       if (!identityUrl) {
-        console.error(`❌ [GET_ADMINS] IDENTITY_SERVICE_URL is not set`);
+        console.error(`[ERROR] [GET_ADMINS] IDENTITY_SERVICE_URL is not set`);
         throw new Error(
           'IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.'
         );
       }
 
       const adminEndpoint = `${identityUrl}/auth/users/admins`;
-      console.log(`🔗 [GET_ADMINS] Calling endpoint: ${adminEndpoint}`);
+      console.log(`[LINK] [GET_ADMINS] Calling endpoint: ${adminEndpoint}`);
 
       // Get all admins and super admins (public endpoint, no auth required)
       const adminsResponse = await axios.get(adminEndpoint, {
@@ -631,8 +702,8 @@ class NotificationService {
         responseEncoding: 'utf8',
       });
 
-      console.log(`📊 [GET_ADMINS] Response status: ${adminsResponse.status}`);
-      console.log(`📊 [GET_ADMINS] Response data structure:`, {
+      console.log(`[DATA] [GET_ADMINS] Response status: ${adminsResponse.status}`);
+      console.log(`[DATA] [GET_ADMINS] Response data structure:`, {
         hasData: !!adminsResponse.data,
         hasDataData: !!adminsResponse.data?.data,
         hasUsers: !!adminsResponse.data?.data?.users,
@@ -646,9 +717,9 @@ class NotificationService {
       });
 
       const rawUsers = adminsResponse.data?.data?.users || [];
-      console.log(`📊 [GET_ADMINS] Raw users from API:`, rawUsers.length);
+      console.log(`[DATA] [GET_ADMINS] Raw users from API:`, rawUsers.length);
       if (rawUsers.length > 0) {
-        console.log(`📋 [GET_ADMINS] Sample user:`, rawUsers[0]);
+        console.log(`[DATA] [GET_ADMINS] Sample user:`, rawUsers[0]);
       }
 
       const allAdmins = rawUsers.map(user => ({
@@ -659,7 +730,7 @@ class NotificationService {
         last_name: user.last_name,
       }));
 
-      console.log(`📊 [GET_ADMINS] Admin API response:`, {
+      console.log(`[DATA] [GET_ADMINS] Admin API response:`, {
         totalCount: allAdmins.length,
         adminCount: allAdmins.filter(a => a.role === 'ADMIN').length,
         superAdminCount: allAdmins.filter(a => a.role === 'SUPER_ADMIN').length,
@@ -668,26 +739,26 @@ class NotificationService {
 
       if (allAdmins.length > 0) {
         console.log(
-          `✅ [GET_ADMINS] Found ${allAdmins.length} admin/super-admin users:`,
+          `[SUCCESS] [GET_ADMINS] Found ${allAdmins.length} admin/super-admin users:`,
           allAdmins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
         );
       } else {
-        console.warn(`⚠️ [GET_ADMINS] WARNING: No admins found in response!`);
+        console.warn(`[WARN] [GET_ADMINS] WARNING: No admins found in response!`);
         console.warn(
-          `⚠️ [GET_ADMINS] Response data:`,
+          `[WARNING] [GET_ADMINS] Response data:`,
           JSON.stringify(adminsResponse.data, null, 2).substring(0, 1000)
         );
       }
 
-      console.log(`🔍 [GET_ADMINS] ========== END ADMIN FETCH ==========\n`);
+      console.log(`[SEARCH] [GET_ADMINS] ========== END ADMIN FETCH ==========\n`);
       return allAdmins;
     } catch (error) {
-      console.error('\n❌ [GET_ADMINS] ========== ERROR GETTING ADMINS ==========');
-      console.error('❌ [GET_ADMINS] Error message:', error.message);
-      console.error('❌ [GET_ADMINS] Error code:', error.code);
-      console.error('❌ [GET_ADMINS] Error name:', error.name);
-      console.error('❌ [GET_ADMINS] Error stack:', error.stack);
-      console.error('❌ [GET_ADMINS] Error details:', {
+      console.error('\n[ERROR] [GET_ADMINS] ========== ERROR GETTING ADMINS ==========');
+      console.error('[ERROR] [GET_ADMINS] Error message:', error.message);
+      console.error('[ERROR] [GET_ADMINS] Error code:', error.code);
+      console.error('[ERROR] [GET_ADMINS] Error name:', error.name);
+      console.error('[ERROR] [GET_ADMINS] Error stack:', error.stack);
+      console.error('[ERROR] [GET_ADMINS] Error details:', {
         code: error.code,
         address: error.address,
         port: error.port,
@@ -700,13 +771,13 @@ class NotificationService {
 
       // Retry with API Gateway if direct connection failed (optional fallback)
       if (error.code === 'ECONNREFUSED' || error.code === 'ETIMEDOUT') {
-        console.log(`🔄 [GET_ADMINS] Connection failed, checking for API Gateway fallback...`);
+        console.log(`[RETRY] [GET_ADMINS] Connection failed, checking for API Gateway fallback...`);
         const apiGatewayUrl = process.env.API_GATEWAY_URL || process.env.GATEWAY_URL;
 
         if (apiGatewayUrl) {
           try {
             const gatewayUrl = `${apiGatewayUrl.replace(/\/$/, '')}/identity`;
-            console.log(`🔄 [GET_ADMINS] Retrying with API Gateway URL: ${gatewayUrl}`);
+            console.log(`[RETRY] [GET_ADMINS] Retrying with API Gateway URL: ${gatewayUrl}`);
 
             // Get all admins and super admins (public endpoint, no auth required)
             const adminsResponse = await axios.get(`${gatewayUrl}/auth/users/admins`, {
@@ -722,28 +793,30 @@ class NotificationService {
             }));
 
             console.log(
-              `✅ [GET_ADMINS] Found ${allAdmins.length} admin/super-admin users via API Gateway: ${gatewayUrl}`
+              `[SUCCESS] [GET_ADMINS] Found ${allAdmins.length} admin/super-admin users via API Gateway: ${gatewayUrl}`
             );
-            console.error('❌ [GET_ADMINS] ========== END ERROR (RETRY SUCCESS) ==========\n');
+            console.error('[ERROR] [GET_ADMINS] ========== END ERROR (RETRY SUCCESS) ==========\n');
             return allAdmins;
           } catch (gatewayError) {
-            console.error(`❌ [GET_ADMINS] API Gateway retry failed:`, gatewayError.message);
-            console.error(`❌ [GET_ADMINS] Gateway error details:`, {
+            console.error(`[ERROR] [GET_ADMINS] API Gateway retry failed:`, gatewayError.message);
+            console.error(`[ERROR] [GET_ADMINS] Gateway error details:`, {
               code: gatewayError.code,
               response: gatewayError.response?.data,
               status: gatewayError.response?.status,
             });
-            console.error('❌ [GET_ADMINS] ========== END ERROR (RETRY FAILED) ==========\n');
+            console.error('[ERROR] [GET_ADMINS] ========== END ERROR (RETRY FAILED) ==========\n');
             throw gatewayError;
           }
         } else {
-          console.log(`⚠️ [GET_ADMINS] No API Gateway URL configured for retry`);
+          console.log(`[WARN] [GET_ADMINS] No API Gateway URL configured for retry`);
         }
       }
 
       // Return empty array on error to prevent blocking
-      console.error('⚠️ [GET_ADMINS] Returning empty array due to error (non-connection error)');
-      console.error('❌ [GET_ADMINS] ========== END ERROR (RETURNING EMPTY) ==========\n');
+      console.error(
+        '[WARN] [GET_ADMINS] Returning empty array due to error (non-connection error)'
+      );
+      console.error('[ERROR] [GET_ADMINS] ========== END ERROR (RETURNING EMPTY) ==========\n');
       return [];
     }
   }
@@ -772,13 +845,13 @@ class NotificationService {
   }) {
     try {
       console.log(
-        `\n📢 [NOTIFICATION] ========== STARTING CERTIFICATION UPLOAD NOTIFICATION ==========`
+        `\n[NOTIFY] [NOTIFICATION] ========== STARTING CERTIFICATION UPLOAD NOTIFICATION ==========`
       );
       console.log(
-        `📢 [NOTIFICATION] Processing certification upload notification: ${certificationId}, status: ${verificationStatus}, isManualEntry: ${isManualEntry}`
+        `[NOTIFY] [NOTIFICATION] Processing certification upload notification: ${certificationId}, status: ${verificationStatus}, isManualEntry: ${isManualEntry}`
       );
       console.log(
-        `📢 [NOTIFICATION] Parameters: trainerId=${trainerId}, trainerName=${trainerName}, category=${category}, level=${certificationLevel}`
+        `[NOTIFY] [NOTIFICATION] Parameters: trainerId=${trainerId}, trainerName=${trainerName}, category=${category}, level=${certificationLevel}`
       );
 
       // Determine if AI scan was performed and auto-verified
@@ -786,7 +859,7 @@ class NotificationService {
       const aiAutoVerified = verificationStatus === 'VERIFIED' && aiScanPerformed;
 
       console.log(
-        `📢 [NOTIFICATION] AI scan performed: ${aiScanPerformed}, AI auto-verified: ${aiAutoVerified}`
+        `[NOTIFY] [NOTIFICATION] AI scan performed: ${aiScanPerformed}, AI auto-verified: ${aiAutoVerified}`
       );
 
       // Send notification to admins in these cases:
@@ -795,13 +868,13 @@ class NotificationService {
       // DO NOT send notification for: VERIFIED (manually verified by admin) - handled separately
 
       console.log(
-        `🔍 [NOTIFICATION] Checking notification conditions: verificationStatus=${verificationStatus}, aiAutoVerified=${aiAutoVerified}, isManualEntry=${isManualEntry}`
+        `[SEARCH] [NOTIFICATION] Checking notification conditions: verificationStatus=${verificationStatus}, aiAutoVerified=${aiAutoVerified}, isManualEntry=${isManualEntry}`
       );
 
       if (verificationStatus === 'VERIFIED' && !aiAutoVerified) {
         // Manual verification by admin - handled separately (not an upload notification)
         console.log(
-          `ℹ️ [NOTIFICATION] Certification ${certificationId} was manually verified by admin - skipping upload notification`
+          `[INFO] [NOTIFICATION] Certification ${certificationId} was manually verified by admin - skipping upload notification`
         );
         return;
       }
@@ -810,20 +883,20 @@ class NotificationService {
       // For VERIFIED status with AI auto-verification, send notification to inform admins
       if (verificationStatus !== 'PENDING' && verificationStatus !== 'VERIFIED') {
         console.warn(
-          `⚠️ [NOTIFICATION] Unexpected verification status ${verificationStatus} for certification ${certificationId} - skipping notification`
+          `[WARNING] [NOTIFICATION] Unexpected verification status ${verificationStatus} for certification ${certificationId} - skipping notification`
         );
         return;
       }
 
       console.log(
-        `✅ [NOTIFICATION] Certification ${certificationId} status: ${verificationStatus} - sending notification to admins (isManualEntry: ${isManualEntry})`
+        `[SUCCESS] [NOTIFICATION] Certification ${certificationId} status: ${verificationStatus} - sending notification to admins (isManualEntry: ${isManualEntry})`
       );
       console.log(
-        `📋 [NOTIFICATION] Will proceed to fetch trainer info and admin list, then create notifications`
+        `[DATA] [NOTIFICATION] Will proceed to fetch trainer info and admin list, then create notifications`
       );
 
       // Get trainer info
-      console.log(`🔍 [NOTIFICATION] Fetching trainer info for trainerId: ${trainerId}`);
+      console.log(`[SEARCH] [NOTIFICATION] Fetching trainer info for trainerId: ${trainerId}`);
       const trainer = await prisma.trainer.findUnique({
         where: { id: trainerId },
         select: {
@@ -834,63 +907,67 @@ class NotificationService {
       });
 
       if (!trainer) {
-        console.error(`❌ [NOTIFICATION] Trainer not found for trainerId: ${trainerId}`);
-        console.error(`❌ [NOTIFICATION] Cannot send notification to admins without trainer info`);
+        console.error(`[ERROR] [NOTIFICATION] Trainer not found for trainerId: ${trainerId}`);
+        console.error(
+          `[ERROR] [NOTIFICATION] Cannot send notification to admins without trainer info`
+        );
         throw new Error(`Trainer not found for trainerId: ${trainerId}`);
       }
 
       console.log(
-        `✅ [NOTIFICATION] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
+        `[SUCCESS] [NOTIFICATION] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
       );
 
       // Get all admins and super-admins
-      console.log(`🔍 [NOTIFICATION] ========== FETCHING ADMIN LIST ==========`);
+      console.log(`[SEARCH] [NOTIFICATION] ========== FETCHING ADMIN LIST ==========`);
       console.log(
-        `🔍 [NOTIFICATION] Fetching all admins and super-admins from Identity Service...`
+        `[SEARCH] [NOTIFICATION] Fetching all admins and super-admins from Identity Service...`
       );
       let admins = [];
       try {
         admins = await this.getAdminsAndSuperAdmins();
         console.log(
-          `✅ [NOTIFICATION] Successfully fetched ${admins.length} admin(s)/super-admin(s) from Identity Service`
+          `[SUCCESS] [NOTIFICATION] Successfully fetched ${admins.length} admin(s)/super-admin(s) from Identity Service`
         );
         if (admins.length > 0) {
           console.log(
-            `📋 [NOTIFICATION] Admin list:`,
+            `[LIST] [NOTIFICATION] Admin list:`,
             admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
           );
         } else {
-          console.warn(`⚠️ [NOTIFICATION] WARNING: No admins found in Identity Service!`);
+          console.warn(`[WARN] [NOTIFICATION] WARNING: No admins found in Identity Service!`);
         }
-        console.log(`🔍 [NOTIFICATION] ========== END FETCHING ADMIN LIST ==========`);
+        console.log(`[SEARCH] [NOTIFICATION] ========== END FETCHING ADMIN LIST ==========`);
       } catch (adminFetchError) {
-        console.error('❌ [NOTIFICATION] ========== CRITICAL ERROR FETCHING ADMINS ==========');
-        console.error('❌ [NOTIFICATION] Error fetching admins:', adminFetchError);
-        console.error('❌ [NOTIFICATION] Admin fetch error details:', {
+        console.error(
+          '[ERROR] [NOTIFICATION] ========== CRITICAL ERROR FETCHING ADMINS =========='
+        );
+        console.error('[ERROR] [NOTIFICATION] Error fetching admins:', adminFetchError);
+        console.error('[ERROR] [NOTIFICATION] Admin fetch error details:', {
           message: adminFetchError.message,
           stack: adminFetchError.stack,
           code: adminFetchError.code,
           response: adminFetchError.response?.data,
           status: adminFetchError.response?.status,
         });
-        console.error('❌ [NOTIFICATION] ========== END CRITICAL ERROR ==========');
+        console.error('[ERROR] [NOTIFICATION] ========== END CRITICAL ERROR ==========');
         // Throw error so it's caught and logged in createCertification
         throw new Error(`Failed to fetch admin list: ${adminFetchError.message}`);
       }
 
       if (admins.length === 0) {
         console.error(
-          '❌ [NOTIFICATION] ========== CRITICAL: No admin/super-admin users found =========='
+          '[ERROR] [NOTIFICATION] ========== CRITICAL: No admin/super-admin users found =========='
         );
         console.error(
-          '❌ [NOTIFICATION] This means NO admin will receive notification about this certification upload'
+          '[ERROR] [NOTIFICATION] This means NO admin will receive notification about this certification upload'
         );
-        console.error('❌ [NOTIFICATION] Certification ID:', certificationId);
-        console.error('❌ [NOTIFICATION] Trainer ID:', trainerId);
+        console.error('[ERROR] [NOTIFICATION] Certification ID:', certificationId);
+        console.error('[ERROR] [NOTIFICATION] Trainer ID:', trainerId);
         console.error(
-          '❌ [NOTIFICATION] This is a critical issue - notifications will not be sent to admins'
+          '[ERROR] [NOTIFICATION] This is a critical issue - notifications will not be sent to admins'
         );
-        console.error('❌ [NOTIFICATION] ========== END CRITICAL ERROR ==========');
+        console.error('[ERROR] [NOTIFICATION] ========== END CRITICAL ERROR ==========');
         // Don't return - throw error so it's logged in createCertification
         throw new Error(
           'No admin/super-admin users found in system. Cannot send certification upload notification.'
@@ -898,10 +975,10 @@ class NotificationService {
       }
 
       console.log(
-        `✅ [NOTIFICATION] Found ${admins.length} admin(s)/super-admin(s) - will create notifications for all of them`
+        `[SUCCESS] [NOTIFICATION] Found ${admins.length} admin(s)/super-admin(s) - will create notifications for all of them`
       );
       console.log(
-        `📋 [NOTIFICATION] Admin list:`,
+        `[LIST] [NOTIFICATION] Admin list:`,
         admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
       );
 
@@ -931,7 +1008,7 @@ class NotificationService {
       } else {
         // Should not reach here for upload notification
         console.warn(
-          `⚠️ Unexpected verification status ${verificationStatus} for certification ${certificationId} - skipping notification`
+          `[WARNING] Unexpected verification status ${verificationStatus} for certification ${certificationId} - skipping notification`
         );
         return;
       }
@@ -942,7 +1019,9 @@ class NotificationService {
       const notificationType =
         verificationStatus === 'VERIFIED' ? 'CERTIFICATION_AUTO_VERIFIED' : 'CERTIFICATION_UPLOAD';
 
-      console.log(`📝 [NOTIFICATION] Creating notification data for ${admins.length} admin(s)...`);
+      console.log(
+        `[CREATE] [NOTIFICATION] Creating notification data for ${admins.length} admin(s)...`
+      );
       const adminNotifications = admins.map(admin => ({
         user_id: admin.user_id,
         type: notificationType,
@@ -969,10 +1048,10 @@ class NotificationService {
       }));
 
       console.log(
-        `✅ [NOTIFICATION] Created ${adminNotifications.length} notification data object(s) for ${admins.length} admin(s)`
+        `[SUCCESS] [NOTIFICATION] Created ${adminNotifications.length} notification data object(s) for ${admins.length} admin(s)`
       );
       console.log(
-        `📋 [NOTIFICATION] Notification details:`,
+        `[LIST] [NOTIFICATION] Notification details:`,
         adminNotifications.map(n => ({
           user_id: n.user_id,
           type: n.type,
@@ -991,14 +1070,14 @@ class NotificationService {
 
       if (adminNotifications.length === 0) {
         console.error(
-          '❌ [NOTIFICATION] ========== CRITICAL: adminNotifications array is empty =========='
+          '[ERROR] [NOTIFICATION] ========== CRITICAL: adminNotifications array is empty =========='
         );
         console.error(
-          '❌ [NOTIFICATION] This should not happen - admins were found but notification array is empty'
+          '[ERROR] [NOTIFICATION] This should not happen - admins were found but notification array is empty'
         );
-        console.error('❌ [NOTIFICATION] Certification ID:', certificationId);
-        console.error('❌ [NOTIFICATION] Trainer ID:', trainerId);
-        console.error('❌ [NOTIFICATION] Admins found:', admins.length);
+        console.error('[ERROR] [NOTIFICATION] Certification ID:', certificationId);
+        console.error('[ERROR] [NOTIFICATION] Trainer ID:', trainerId);
+        console.error('[ERROR] [NOTIFICATION] Admins found:', admins.length);
         throw new Error('adminNotifications array is empty - cannot create notifications');
       }
 
@@ -1027,13 +1106,20 @@ class NotificationService {
                   message: notifData.message,
                   data: notifData.data,
                 });
-                console.log(
-                  `✅ [NOTIFICATION] Successfully created notification ${created.id} for admin ${notifData.user_id}`
-                );
-                return created;
+                if (created) {
+                  console.log(
+                    `[SUCCESS] [NOTIFICATION] Successfully created notification ${created.id} for admin ${notifData.user_id}`
+                  );
+                  return created;
+                } else {
+                  console.log(
+                    `[INFO] [NOTIFICATION] Notification enqueued for admin ${notifData.user_id} (will be processed by worker)`
+                  );
+                  return null;
+                }
               } catch (error) {
                 console.error(
-                  `❌ [NOTIFICATION] Failed to create notification for admin ${notifData.user_id}:`,
+                  `[ERROR] [NOTIFICATION] Failed to create notification for admin ${notifData.user_id}:`,
                   error.message
                 );
                 failedNotifications.push({
@@ -1047,44 +1133,55 @@ class NotificationService {
 
           // Separate successful and failed notifications
           results.forEach((result, index) => {
-            if (result.status === 'fulfilled') {
+            if (result.status === 'fulfilled' && result.value) {
+              // Only add non-null notifications (null means enqueued, will be created by worker)
               createdNotifications.push(result.value);
-            } else {
+            } else if (result.status === 'rejected') {
               failedNotifications.push({
                 user_id: adminNotifications[index].user_id,
                 error: result.reason?.message || 'Unknown error',
               });
             }
+            // If result.value is null, it means notification was enqueued (not an error)
           });
 
           console.log(
-            `✅ [NOTIFICATION] Successfully saved ${createdNotifications.length}/${adminNotifications.length} notifications to Identity Service`
+            `[SUCCESS] [NOTIFICATION] Successfully saved ${createdNotifications.length}/${adminNotifications.length} notifications to Identity Service`
           );
 
           if (failedNotifications.length > 0) {
             console.warn(
-              `⚠️ [NOTIFICATION] Failed to create ${failedNotifications.length} notification(s):`,
+              `[WARNING] [NOTIFICATION] Failed to create ${failedNotifications.length} notification(s):`,
               failedNotifications
             );
           }
 
           console.log(
-            `📊 [NOTIFICATION] Notification saved for ${createdNotifications.length} admin(s) - online admins will receive real-time, offline admins will see when they log in`
+            `[STATS] [NOTIFICATION] Notification saved for ${createdNotifications.length} admin(s) - online admins will receive real-time, offline admins will see when they log in`
           );
 
           // Log notification IDs for debugging
           if (createdNotifications.length > 0) {
             console.log(
-              `📋 [NOTIFICATION] Created notification IDs:`,
-              createdNotifications.map(n => n.id)
+              `[LIST] [NOTIFICATION] Created notification IDs:`,
+              createdNotifications.map(n => n?.id).filter(Boolean)
+            );
+          }
+
+          // Log enqueued notifications count
+          const enqueuedCount =
+            adminNotifications.length - createdNotifications.length - failedNotifications.length;
+          if (enqueuedCount > 0) {
+            console.log(
+              `[INFO] [NOTIFICATION] ${enqueuedCount} notification(s) enqueued to Redis (will be processed by worker)`
             );
           }
         } catch (dbError) {
           console.error(
-            '❌ [NOTIFICATION] Error saving notifications to Identity Service:',
+            '[ERROR] [NOTIFICATION] Error saving notifications to Identity Service:',
             dbError
           );
-          console.error('❌ [NOTIFICATION] Error details:', {
+          console.error('[ERROR] [NOTIFICATION] Error details:', {
             message: dbError.message,
             name: dbError.name,
             code: dbError.code,
@@ -1096,7 +1193,7 @@ class NotificationService {
           // If all notifications failed, throw error
           if (createdNotifications.length === 0 && adminNotifications.length > 0) {
             console.error(
-              '❌ [NOTIFICATION] ALL notifications failed to create! This is a critical error.'
+              '[ERROR] [NOTIFICATION] ALL notifications failed to create! This is a critical error.'
             );
             throw new Error(
               `Failed to create any notifications for ${adminNotifications.length} admin(s). First error: ${dbError.message}`
@@ -1106,7 +1203,7 @@ class NotificationService {
           // If some succeeded, log warning but don't throw (partial success)
           if (createdNotifications.length > 0) {
             console.warn(
-              `⚠️ [NOTIFICATION] Partial success: ${createdNotifications.length}/${adminNotifications.length} notifications created`
+              `[WARNING] [NOTIFICATION] Partial success: ${createdNotifications.length}/${adminNotifications.length} notifications created`
             );
           }
         }
@@ -1120,16 +1217,21 @@ class NotificationService {
           let offlineAdminsCount = 0;
 
           console.log(
-            `📡 [NOTIFICATION] Starting to emit socket events to online admins (${createdNotifications.length} notification(s) created)...`
+            `[EMIT] [NOTIFICATION] Starting to emit socket events to online admins (${createdNotifications.length} notification(s) created)...`
           );
 
           if (createdNotifications.length === 0) {
             console.warn(
-              `⚠️ [NOTIFICATION] No notifications were created - cannot emit socket events. This may indicate an issue with notification creation.`
+              `[WARNING] [NOTIFICATION] No notifications were created - cannot emit socket events. This may indicate an issue with notification creation.`
             );
           }
 
           createdNotifications.forEach(createdNotification => {
+            // Skip null notifications (enqueued, will be processed by worker)
+            if (!createdNotification || !createdNotification.id) {
+              return;
+            }
+
             const roomName = `user:${createdNotification.user_id}`;
 
             const socketData = {
@@ -1162,81 +1264,117 @@ class NotificationService {
 
               // Emit different events based on verification status
               if (verificationStatus === 'VERIFIED') {
-                // AI auto-verified: emit certification:verified
-                console.log(
-                  `📡 [ONLINE] Emitting certification:verified to room ${roomName} (${socketCount} socket(s) connected)`
-                );
-                global.io.to(roomName).emit('certification:verified', socketData);
+                try {
+                  // AI auto-verified: emit certification:verified
+                  console.log(
+                    `[EMIT] [ONLINE] Emitting certification:verified to room ${roomName} (${socketCount} socket(s) connected)`
+                  );
+                  global.io.to(roomName).emit('certification:verified', socketData);
+
+                  // Also emit a general notification event for real-time notification display
+                  global.io.to(roomName).emit('notification:new', {
+                    notification_id: createdNotification.id,
+                    type: createdNotification.type,
+                    title: createdNotification.title,
+                    message: createdNotification.message,
+                    data: {
+                      ...socketData,
+                      ...createdNotification.data, // Include all notification data (trainer_id, trainer_name, etc.)
+                    },
+                    created_at: createdNotification.created_at,
+                    is_read: false,
+                  });
+
+                  console.log(
+                    `[SUCCESS] [ONLINE] Emitted events and notification:new to ${roomName}`
+                  );
+                } catch (emitError) {
+                  console.error(
+                    `[ERROR] Error emitting socket events to room ${roomName}:`,
+                    emitError
+                  );
+                }
               } else {
                 // PENDING: emit both events for compatibility with frontend
-                console.log(
-                  `📡 [ONLINE] Emitting certification:upload and certification:pending to room ${roomName} (${socketCount} socket(s) connected)`
-                );
-                // Emit certification:upload (new event name)
-                global.io.to(roomName).emit('certification:upload', socketData);
-                // Also emit certification:pending (for backward compatibility with frontend)
-                global.io.to(roomName).emit('certification:pending', socketData);
+                try {
+                  console.log(
+                    `[EMIT] [ONLINE] Emitting certification:upload and certification:pending to room ${roomName} (${socketCount} socket(s) connected)`
+                  );
+                  // Emit certification:upload (new event name)
+                  global.io.to(roomName).emit('certification:upload', socketData);
+                  // Also emit certification:pending (for backward compatibility with frontend)
+                  global.io.to(roomName).emit('certification:pending', socketData);
+
+                  // Also emit a general notification event for real-time notification display
+                  global.io.to(roomName).emit('notification:new', {
+                    notification_id: createdNotification.id,
+                    type: createdNotification.type,
+                    title: createdNotification.title,
+                    message: createdNotification.message,
+                    data: {
+                      ...socketData,
+                      ...createdNotification.data, // Include all notification data (trainer_id, trainer_name, etc.)
+                    },
+                    created_at: createdNotification.created_at,
+                    is_read: false,
+                  });
+
+                  console.log(
+                    `[SUCCESS] [ONLINE] Emitted events and notification:new to ${roomName}`
+                  );
+                } catch (emitError) {
+                  console.error(
+                    `[ERROR] Error emitting socket events to room ${roomName}:`,
+                    emitError
+                  );
+                }
               }
-
-              // Also emit a general notification event for real-time notification display
-              global.io.to(roomName).emit('notification:new', {
-                notification_id: createdNotification.id,
-                type: createdNotification.type,
-                title: createdNotification.title,
-                message: createdNotification.message,
-                data: {
-                  ...socketData,
-                  ...createdNotification.data, // Include all notification data (trainer_id, trainer_name, etc.)
-                },
-                created_at: createdNotification.created_at,
-                is_read: false,
-              });
-
-              console.log(`✅ [ONLINE] Emitted events and notification:new to ${roomName}`);
             } else {
               // Admin is offline - notification saved to database, will see when they log in
               offlineAdminsCount++;
               console.log(
-                `📋 [OFFLINE] Admin ${createdNotification.user_id} is offline - notification saved to database, will see when they log in`
+                `[LIST] [OFFLINE] Admin ${createdNotification.user_id} is offline - notification saved to database, will see when they log in`
               );
             }
           });
 
           console.log(
-            `✅ [NOTIFICATION] Notification summary: ${onlineAdminsCount} online admin(s) received real-time notification, ${offlineAdminsCount} offline admin(s) will see notification when they log in`
+            `[SUCCESS] [NOTIFICATION] Notification summary: ${onlineAdminsCount} online admin(s) received real-time notification, ${offlineAdminsCount} offline admin(s) will see notification when they log in`
           );
         } else {
           console.warn(
-            '⚠️ [NOTIFICATION] global.io not available - all notifications saved to Identity Service only (admins will see when they log in)'
+            '[WARNING] [NOTIFICATION] global.io not available - all notifications saved to Identity Service only (admins will see when they log in)'
           );
         }
       } else {
         console.error(
-          '❌ [NOTIFICATION] ========== CRITICAL: No notifications were created =========='
+          '[ERROR] [NOTIFICATION] ========== CRITICAL: No notifications were created =========='
         );
-        console.error('❌ [NOTIFICATION] This should not happen - adminNotifications.length was 0');
-        console.error('❌ [NOTIFICATION] Certification ID:', certificationId);
-        console.error('❌ [NOTIFICATION] Trainer ID:', trainerId);
-        console.error('❌ [NOTIFICATION] ========== END CRITICAL ERROR ==========');
+        console.error(
+          '[ERROR] [NOTIFICATION] This should not happen - adminNotifications.length was 0'
+        );
+        console.error('[ERROR] [NOTIFICATION] Certification ID:', certificationId);
+        console.error('[ERROR] [NOTIFICATION] Trainer ID:', trainerId);
+        console.error('[ERROR] [NOTIFICATION] ========== END CRITICAL ERROR ==========');
       }
 
       console.log(
-        `\n✅ [NOTIFICATION] ========== CERTIFICATION UPLOAD NOTIFICATION COMPLETED ==========`
+        `\n[SUCCESS] [NOTIFICATION] ========== CERTIFICATION UPLOAD NOTIFICATION COMPLETED ==========`
       );
       console.log(
-        `✅ [NOTIFICATION] Summary: Created ${createdNotifications.length} notification(s) for ${admins.length} admin(s)`
+        `[SUCCESS] [NOTIFICATION] Summary: Created ${createdNotifications.length} notification(s) for ${admins.length} admin(s)`
       );
       console.log(
-        `✅ [NOTIFICATION] Certification ID: ${certificationId}, Trainer: ${trainerName}`
+        `[SUCCESS] [NOTIFICATION] Certification ID: ${certificationId}, Trainer: ${trainerName}`
       );
-      console.log(`✅ [NOTIFICATION] ========== END NOTIFICATION PROCESS ==========\n`);
+      console.log(`[SUCCESS] [NOTIFICATION] ========== END NOTIFICATION PROCESS ==========\n`);
     } catch (error) {
       console.error(
-        '❌ [NOTIFICATION] ========== CRITICAL ERROR SENDING CERTIFICATION UPLOAD NOTIFICATION =========='
+        '[ERROR] [NOTIFICATION] ========== CRITICAL ERROR SENDING CERTIFICATION UPLOAD NOTIFICATION =========='
       );
-      console.error('❌ [NOTIFICATION] Error:', error);
-      console.error('❌ [NOTIFICATION] Error stack:', error.stack);
-      console.error('❌ [NOTIFICATION] Error details:', {
+      console.error('[ERROR] [NOTIFICATION] Error:', error);
+      console.error('[ERROR] [NOTIFICATION] Error stack:', error.stack);
+      console.error('[ERROR] [NOTIFICATION] Error details:', {
         message: error.message,
         name: error.name,
         code: error.code,
@@ -1249,7 +1387,7 @@ class NotificationService {
         isManualEntry,
         aiScanPerformed: !!aiScanResult,
       });
-      console.error('❌ [NOTIFICATION] ========== END CRITICAL ERROR ==========');
+      console.error('[ERROR] [NOTIFICATION] ========== END CRITICAL ERROR ==========');
       // Don't throw - notification failure shouldn't break certification creation
       // But log it clearly so we know there's an issue
     }
@@ -1271,9 +1409,9 @@ class NotificationService {
   }) {
     try {
       console.log(
-        `\n📢 [TRAINER_NOTIF] ========== SENDING CERTIFICATION STATUS NOTIFICATION TO TRAINER ==========`
+        `\n[NOTIFY] [TRAINER_NOTIF] ========== SENDING CERTIFICATION STATUS NOTIFICATION TO TRAINER ==========`
       );
-      console.log(`📢 [TRAINER_NOTIF] Parameters:`, {
+      console.log(`[NOTIFY] [TRAINER_NOTIF] Parameters:`, {
         trainerId,
         trainerName,
         certificationId,
@@ -1285,7 +1423,7 @@ class NotificationService {
       });
 
       // Get trainer info
-      console.log(`🔍 [TRAINER_NOTIF] Fetching trainer info for trainerId: ${trainerId}`);
+      console.log(`[SEARCH] [TRAINER_NOTIF] Fetching trainer info for trainerId: ${trainerId}`);
       const trainer = await prisma.trainer.findUnique({
         where: { id: trainerId },
         select: {
@@ -1296,12 +1434,12 @@ class NotificationService {
       });
 
       if (!trainer) {
-        console.error(`❌ [TRAINER_NOTIF] Trainer not found for trainerId: ${trainerId}`);
+        console.error(`[ERROR] [TRAINER_NOTIF] Trainer not found for trainerId: ${trainerId}`);
         return;
       }
 
       console.log(
-        `✅ [TRAINER_NOTIF] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
+        `[SUCCESS] [TRAINER_NOTIF] Trainer found: ${trainer.full_name} (user_id: ${trainer.user_id})`
       );
 
       // Create notification for trainer
@@ -1345,7 +1483,9 @@ class NotificationService {
         data: notificationData.data,
       });
 
-      console.log(`✅ [TRAINER_NOTIF] Notification created successfully: ID=${notification.id}`);
+      console.log(
+        `[SUCCESS] [TRAINER_NOTIF] Notification created successfully: ID=${notification.id}`
+      );
 
       // Emit socket event to trainer for real-time notification
       if (global.io) {
@@ -1368,53 +1508,65 @@ class NotificationService {
         const socketCount = room ? room.size : 0;
 
         console.log(
-          `📡 [TRAINER_NOTIF] Checking socket room: ${roomName}, socketCount: ${socketCount}`
+          `[EMIT] [TRAINER_NOTIF] Checking socket room: ${roomName}, socketCount: ${socketCount}`
         );
 
         if (socketCount > 0) {
           console.log(
-            `📡 [TRAINER_NOTIF] Trainer is online - emitting socket events to room: ${roomName}`
+            `[EMIT] [TRAINER_NOTIF] Trainer is online - emitting socket events to room: ${roomName}`
           );
-          // Emit certification:pending for backward compatibility
-          global.io.to(roomName).emit('certification:pending', socketData);
-          // Emit certification:created for optimistic UI update
-          global.io.to(roomName).emit('certification:created', {
-            ...socketData,
-            id: certificationId,
-            certification_id: certificationId,
-          });
-          // Emit notification:new for notification dropdown
-          global.io.to(roomName).emit('notification:new', {
-            notification_id: notification.id,
-            type: notification.type,
-            title: notification.title,
-            message: notification.message,
-            data: socketData,
-            created_at: notification.created_at,
-            is_read: false,
-          });
-          console.log(`✅ [TRAINER_NOTIF] Socket events emitted to trainer room: ${roomName}`);
+          try {
+            // Emit certification:pending for backward compatibility
+            global.io.to(roomName).emit('certification:pending', socketData);
+            // Emit certification:created for optimistic UI update
+            global.io.to(roomName).emit('certification:created', {
+              ...socketData,
+              id: certificationId,
+              certification_id: certificationId,
+            });
+            // Emit notification:new for notification dropdown
+            global.io.to(roomName).emit('notification:new', {
+              notification_id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              data: socketData,
+              created_at: notification.created_at,
+              is_read: false,
+            });
+            console.log(
+              `[SUCCESS] [TRAINER_NOTIF] Socket events emitted to trainer room: ${roomName}`
+            );
+          } catch (emitError) {
+            console.error(
+              `[ERROR] [TRAINER_NOTIF] Error emitting socket events to room ${roomName}:`,
+              emitError
+            );
+          }
         } else {
           console.log(
-            `📋 [TRAINER_NOTIF] Trainer is offline - notification saved to database, will see when they log in`
+            `[LIST] [TRAINER_NOTIF] Trainer is offline - notification saved to database, will see when they log in`
           );
         }
       } else {
         console.warn(
-          `⚠️ [TRAINER_NOTIF] global.io not available - notification saved to database only`
+          `[WARNING] [TRAINER_NOTIF] global.io not available - notification saved to database only`
         );
       }
 
       console.log(
-        `✅ [TRAINER_NOTIF] Certification status notification sent to trainer ${trainerId} (user_id: ${trainer.user_id})`
+        `[SUCCESS] [TRAINER_NOTIF] Certification status notification sent to trainer ${trainerId} (user_id: ${trainer.user_id})`
       );
     } catch (error) {
       console.error(
-        `\n❌ [TRAINER_NOTIF] ========== ERROR SENDING CERTIFICATION STATUS NOTIFICATION ==========`
+        `\n[ERROR] [TRAINER_NOTIF] ========== ERROR SENDING CERTIFICATION STATUS NOTIFICATION ==========`
       );
-      console.error('❌ [TRAINER_NOTIF] Error sending certification status notification:', error);
-      console.error('❌ [TRAINER_NOTIF] Error stack:', error.stack);
-      console.error('❌ [TRAINER_NOTIF] Error details:', {
+      console.error(
+        '[ERROR] [TRAINER_NOTIF] Error sending certification status notification:',
+        error
+      );
+      console.error('[ERROR] [TRAINER_NOTIF] Error stack:', error.stack);
+      console.error('[ERROR] [TRAINER_NOTIF] Error details:', {
         message: error.message,
         code: error.code,
         trainerId,
@@ -1486,8 +1638,8 @@ class NotificationService {
         },
       });
 
-      // Emit socket events to trainer
-      if (global.io) {
+      // Emit socket events to trainer (only if notification was created)
+      if (global.io && notification && notification.id) {
         const roomName = `user:${trainer.user_id}`;
         const socketPayload = {
           notification_id: notification.id,
@@ -1508,10 +1660,16 @@ class NotificationService {
         // Also emit notification:new event for NotificationDropdown
         global.io.to(roomName).emit('notification:new', socketPayload);
 
-        console.log(`✅ Emitted certification:deleted and notification:new events to ${roomName}`);
+        console.log(
+          `[SUCCESS] Emitted certification:deleted and notification:new events to ${roomName}`
+        );
+      } else if (!notification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
       }
 
-      console.log(`✅ Sent certification deletion notification to trainer ${trainerId}`);
+      console.log(`[SUCCESS] Sent certification deletion notification to trainer ${trainerId}`);
     } catch (error) {
       console.error('Error sending certification deletion notification:', error);
     }
@@ -1524,7 +1682,7 @@ class NotificationService {
   async sendCertificationExpiringWarning({ trainerId, trainerName, certifications }) {
     try {
       console.log(
-        `📢 Sending expiry warning to trainer ${trainerName} for ${certifications.length} certification(s)`
+        `[NOTIFY] Sending expiry warning to trainer ${trainerName} for ${certifications.length} certification(s)`
       );
 
       // Get trainer info
@@ -1609,8 +1767,8 @@ class NotificationService {
         },
       });
 
-      // Emit socket event to trainer
-      if (global.io) {
+      // Emit socket event to trainer (only if notification was created)
+      if (global.io && notification && notification.id) {
         const roomName = `user:${trainer.user_id}`;
         global.io.to(roomName).emit('certification:expiring_soon', {
           notification_id: notification.id,
@@ -1625,9 +1783,13 @@ class NotificationService {
           })),
           created_at: notification.created_at,
         });
+      } else if (!notification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
       }
 
-      console.log(`✅ Sent expiry warning notification to trainer ${trainerId}`);
+      console.log(`[SUCCESS] Sent expiry warning notification to trainer ${trainerId}`);
     } catch (error) {
       console.error('Error sending certification expiry warning notification:', error);
     }
@@ -1644,14 +1806,14 @@ class NotificationService {
   }) {
     try {
       console.log(
-        `📢 Sending expiry summary to admins: ${totalExpiring} certification(s), ${trainersAffected} trainer(s) affected`
+        `[NOTIFY] Sending expiry summary to admins: ${totalExpiring} certification(s), ${trainersAffected} trainer(s) affected`
       );
 
       // Get all admins and super-admins
       const admins = await this.getAdminsAndSuperAdmins();
 
       if (admins.length === 0) {
-        console.log('⚠️ No admins found - skipping expiry summary notification');
+        console.log('[WARN] No admins found - skipping expiry summary notification');
         return;
       }
 
@@ -1736,29 +1898,34 @@ class NotificationService {
           createdNotifications.push(created);
         } catch (error) {
           console.error(
-            `❌ Failed to create notification for user ${notificationData.user_id}:`,
+            `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
             error.message
           );
         }
       }
 
       console.log(
-        `✅ Created ${createdNotifications.length} expiry summary notifications in identity service`
+        `[SUCCESS] Created ${createdNotifications.length} expiry summary notifications in identity service`
       );
 
-      // Emit socket events to all admins
+      // Emit socket events to all admins (only for notifications that were created)
       if (global.io) {
         createdNotifications.forEach(notification => {
+          // Skip null notifications (enqueued, will be processed by worker)
+          if (!notification || !notification.id) {
+            return;
+          }
+
           const roomName = `user:${notification.user_id}`;
           const room = global.io.sockets.adapter.rooms.get(roomName);
           const socketCount = room ? room.size : 0;
 
           if (socketCount > 0) {
             console.log(
-              `📡 Emitting certification:expiring_summary to room ${roomName} (${socketCount} socket(s) connected)`
+              `[EMIT] Emitting certification:expiring_summary to room ${roomName} (${socketCount} socket(s) connected)`
             );
             global.io.to(roomName).emit('certification:expiring_summary', {
-              notification_id: notification.id || null,
+              notification_id: notification.id,
               title,
               message,
               total_expiring: totalExpiring,
@@ -1768,13 +1935,13 @@ class NotificationService {
             });
           } else {
             console.log(
-              `⚠️ No sockets connected to room ${roomName} - notification saved to database only`
+              `[WARNING] No sockets connected to room ${roomName} - notification saved to database only`
             );
           }
         });
       }
 
-      console.log(`✅ Sent expiry summary to ${admins.length} admin(s)`);
+      console.log(`[SUCCESS] Sent expiry summary to ${admins.length} admin(s)`);
     } catch (error) {
       console.error('Error sending certification expiry summary to admins:', error);
     }
@@ -1787,7 +1954,7 @@ class NotificationService {
   async sendCertificationExpiredNotification({ trainerId, trainerName, category, certifications }) {
     try {
       console.log(
-        `📢 Sending expired certification notification to trainer ${trainerName} for category ${category}`
+        `[NOTIFY] Sending expired certification notification to trainer ${trainerName} for category ${category}`
       );
 
       // Get trainer info
@@ -1863,8 +2030,8 @@ class NotificationService {
         },
       });
 
-      // Emit socket event to trainer
-      if (global.io) {
+      // Emit socket event to trainer (only if notification was created)
+      if (global.io && notification && notification.id) {
         const roomName = `user:${trainer.user_id}`;
         global.io.to(roomName).emit('certification:expired', {
           notification_id: notification.id,
@@ -1878,9 +2045,13 @@ class NotificationService {
           })),
           created_at: notification.created_at,
         });
+      } else if (!notification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
       }
 
-      console.log(`✅ Sent expired certification notification to trainer ${trainerId}`);
+      console.log(`[SUCCESS] Sent expired certification notification to trainer ${trainerId}`);
     } catch (error) {
       console.error('Error sending expired certification notification:', error);
     }
@@ -1894,7 +2065,7 @@ class NotificationService {
     try {
       // This would integrate with WebSocket service for real-time notifications
       // For now, just log the notifications
-      console.log('📡 Real-time notifications would be sent here:', notifications.length);
+      console.log('[SOCKET] Real-time notifications would be sent here:', notifications.length);
     } catch (error) {
       console.error('Error sending real-time notification:', error);
     }
@@ -1984,7 +2155,7 @@ class NotificationService {
    */
   async sendNotification(notificationData) {
     try {
-      const { type, user_id, member_id, title, message, data } = notificationData;
+      const { type, user_id, member_id, title, message, data, channels } = notificationData;
 
       // Get user_id from member_id if needed
       let targetUserId = user_id;
@@ -1995,13 +2166,13 @@ class NotificationService {
           if (member && member.user_id) {
             targetUserId = member.user_id;
           } else {
-            console.warn(`⚠️ Could not get user_id for member_id: ${member_id}`);
+            console.warn(`[WARN] Could not get user_id for member_id: ${member_id}`);
             // Fallback to member_id if user_id not found (for backward compatibility)
             targetUserId = member_id;
           }
         } catch (memberError) {
           console.error(
-            `❌ Error getting user_id for member_id ${member_id}:`,
+            `[ERROR] Error getting user_id for member_id ${member_id}:`,
             memberError.message
           );
           // Fallback to member_id if lookup fails
@@ -2074,55 +2245,41 @@ class NotificationService {
         }
       }
 
-      // Enqueue notification to Redis queue instead of calling Identity Service API directly
+      // Create notification in Identity Service (saves to database immediately)
       let createdNotification;
       try {
         const priority = notificationDataObj?.priority || 'normal';
-        const enqueued = await this.enqueueNotification({
-          user_id: targetUserId,
-          type,
-          title: finalTitle,
-          message: finalMessage,
-          data: notificationDataObj,
-        }, priority);
-
-        if (enqueued) {
-          console.log(
-            `✅ Notification enqueued to Redis: ${type} to user ${targetUserId} (priority: ${priority})`
-          );
-          // Create a mock notification object for backward compatibility
-          createdNotification = {
-            id: `queued_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        createdNotification = await this.createNotificationInIdentityService(
+          {
             user_id: targetUserId,
             type,
             title: finalTitle,
             message: finalMessage,
-            data: notificationDataObj,
-            created_at: new Date(),
-            is_read: false,
-          };
+            data: {
+              ...notificationDataObj,
+              channels: channels || notificationDataObj?.channels || ['IN_APP', 'PUSH'], // Ensure push notifications
+            },
+            channels: channels || notificationDataObj?.channels || ['IN_APP', 'PUSH'], // Ensure push notifications
+          },
+          priority
+        );
+
+        if (createdNotification) {
+          console.log(
+            `[SUCCESS] Notification created in Identity Service: ${type} to user ${targetUserId} (priority: ${priority}, id: ${createdNotification.id})`
+          );
         } else {
-          throw new Error('Failed to enqueue notification to Redis');
+          console.log(
+            `[INFO] Notification enqueued to Redis: ${type} to user ${targetUserId} (priority: ${priority})`
+          );
         }
       } catch (error) {
-        console.error('❌ Error enqueueing notification to Redis:', error.message);
-        // Don't throw - notification failure shouldn't break the main flow
-        // Create a mock notification object for socket emission
-        createdNotification = {
-          id: `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          user_id: targetUserId,
-          type,
-          title: finalTitle,
-          message: finalMessage,
-          data: notificationDataObj,
-          created_at: new Date(),
-          is_read: false,
-        };
-        console.warn('⚠️ Using temporary notification ID for socket emission');
+        console.error('[ERROR] Error creating notification in Identity Service:', error.message);
+        createdNotification = null;
       }
 
-      // Emit socket event based on notification type
-      if (global.io) {
+      // Emit socket event based on notification type (only if notification was created)
+      if (global.io && createdNotification) {
         const roomName = `user:${targetUserId}`;
         const socketPayload = {
           notification_id: createdNotification.id,
@@ -2145,24 +2302,31 @@ class NotificationService {
         };
 
         const socketEvent = socketEventMap[type];
-        if (socketEvent) {
-          console.log(`📡 Emitting socket event ${socketEvent} to ${roomName}`);
-          global.io.to(roomName).emit(socketEvent, socketPayload);
+        try {
+          if (socketEvent) {
+            console.log(`[SOCKET] Emitting socket event ${socketEvent} to ${roomName}`);
+            global.io.to(roomName).emit(socketEvent, socketPayload);
 
-          // Also emit general notification:new event for compatibility
-          global.io.to(roomName).emit('notification:new', socketPayload);
-          console.log(`✅ Socket events emitted successfully to ${roomName}`);
-        } else {
-          // For other notification types, just emit notification:new
-          console.log(`📡 Emitting notification:new to ${roomName}`);
-          global.io.to(roomName).emit('notification:new', socketPayload);
-          console.log(`✅ Socket event notification:new emitted successfully to ${roomName}`);
+            // Also emit general notification:new event for compatibility
+            global.io.to(roomName).emit('notification:new', socketPayload);
+            console.log(`[SUCCESS] Socket events emitted successfully to ${roomName}`);
+          } else {
+            // For other notification types, just emit notification:new
+            console.log(`[SOCKET] Emitting notification:new to ${roomName}`);
+            global.io.to(roomName).emit('notification:new', socketPayload);
+            console.log(
+              `[SUCCESS] Socket event notification:new emitted successfully to ${roomName}`
+            );
+          }
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket events to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
         }
       } else {
-        console.warn('⚠️ global.io not available - notification saved to database only');
+        console.warn('[WARN] global.io not available - notification saved to database only');
       }
     } catch (error) {
-      console.error('❌ Error sending notification:', error);
+      console.error('[ERROR] Error sending notification:', error);
       throw error;
     }
   }
@@ -2189,6 +2353,7 @@ class NotificationService {
               start_time: startTime,
               reminder_minutes: reminderMinutes,
             },
+            channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
           })
         )
       );
@@ -2197,14 +2362,22 @@ class NotificationService {
 
       // Emit socket events
       if (global.io) {
-        memberUserIds.forEach(userId => {
-          global.io.to(`user:${userId}`).emit('class:reminder', {
-            schedule_id: scheduleId,
-            class_name: className,
-            start_time: startTime,
-            reminder_minutes: reminderMinutes,
+        try {
+          memberUserIds.forEach(userId => {
+            try {
+              global.io.to(`user:${userId}`).emit('class:reminder', {
+                schedule_id: scheduleId,
+                class_name: className,
+                start_time: startTime,
+                reminder_minutes: reminderMinutes,
+              });
+            } catch (emitError) {
+              console.error(`[ERROR] Error emitting class:reminder to user ${userId}:`, emitError);
+            }
           });
-        });
+        } catch (socketError) {
+          console.error('[ERROR] Error emitting socket events for class reminder:', socketError);
+        }
       }
 
       return {
@@ -2213,7 +2386,7 @@ class NotificationService {
         total: memberUserIds.length,
       };
     } catch (error) {
-      console.error('❌ Send class reminder error:', error);
+      console.error('[ERROR] Send class reminder error:', error);
       return {
         success: false,
         error: error.message,
@@ -2225,7 +2398,14 @@ class NotificationService {
    * Send schedule change notification to members
    * @param {Object} params - { scheduleId, className, changeType, oldData, newData, memberUserIds }
    */
-  async sendScheduleChangeNotification({ scheduleId, className, changeType, oldData, newData, memberUserIds }) {
+  async sendScheduleChangeNotification({
+    scheduleId,
+    className,
+    changeType,
+    oldData,
+    newData,
+    memberUserIds,
+  }) {
     try {
       const titleMap = {
         updated: 'Lịch học đã được cập nhật',
@@ -2237,7 +2417,9 @@ class NotificationService {
       const messageMap = {
         updated: `Lịch học ${className} đã được cập nhật. Vui lòng kiểm tra thông tin mới.`,
         cancelled: `Lịch học ${className} đã bị hủy. Chúng tôi rất xin lỗi vì sự bất tiện này.`,
-        room_changed: `Lịch học ${className} đã được chuyển sang phòng ${newData.room_name || 'khác'}.`,
+        room_changed: `Lịch học ${className} đã được chuyển sang phòng ${
+          newData.room_name || 'khác'
+        }.`,
         time_changed: `Thời gian của lớp ${className} đã được thay đổi từ ${oldData.start_time} sang ${newData.start_time}.`,
       };
 
@@ -2258,6 +2440,7 @@ class NotificationService {
               old_data: oldData,
               new_data: newData,
             },
+            channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
           })
         )
       );
@@ -2266,15 +2449,26 @@ class NotificationService {
 
       // Emit socket events
       if (global.io) {
-        memberUserIds.forEach(userId => {
-          global.io.to(`user:${userId}`).emit('schedule:changed', {
-            schedule_id: scheduleId,
-            class_name: className,
-            change_type: changeType,
-            old_data: oldData,
-            new_data: newData,
+        try {
+          memberUserIds.forEach(userId => {
+            try {
+              global.io.to(`user:${userId}`).emit('schedule:changed', {
+                schedule_id: scheduleId,
+                class_name: className,
+                change_type: changeType,
+                old_data: oldData,
+                new_data: newData,
+              });
+            } catch (emitError) {
+              console.error(
+                `[ERROR] Error emitting schedule:changed to user ${userId}:`,
+                emitError
+              );
+            }
           });
-        });
+        } catch (socketError) {
+          console.error('[ERROR] Error emitting socket events for schedule change:', socketError);
+        }
       }
 
       return {
@@ -2283,7 +2477,7 @@ class NotificationService {
         total: memberUserIds.length,
       };
     } catch (error) {
-      console.error('❌ Send schedule change notification error:', error);
+      console.error('[ERROR] Send schedule change notification error:', error);
       return {
         success: false,
         error: error.message,
@@ -2295,10 +2489,17 @@ class NotificationService {
    * Send personal training request from trainer to member
    * @param {Object} params - { trainerId, trainerName, memberUserId, message, proposedTime }
    */
-  async sendPersonalTrainingRequest({ trainerId, trainerName, memberUserId, message, proposedTime }) {
+  async sendPersonalTrainingRequest({
+    trainerId,
+    trainerName,
+    memberUserId,
+    message,
+    proposedTime,
+  }) {
     try {
       const title = 'Yêu cầu tập luyện cá nhân';
-      const notificationMessage = message || `${trainerName} đã gửi yêu cầu tập luyện cá nhân cho bạn.`;
+      const notificationMessage =
+        message || `${trainerName} đã gửi yêu cầu tập luyện cá nhân cho bạn.`;
 
       const result = await this.sendNotification({
         user_id: memberUserId,
@@ -2311,6 +2512,7 @@ class NotificationService {
           proposed_time: proposedTime,
           request_type: 'PERSONAL_TRAINING',
         },
+        channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
       });
 
       // Emit socket event
@@ -2325,7 +2527,7 @@ class NotificationService {
 
       return result;
     } catch (error) {
-      console.error('❌ Send personal training request error:', error);
+      console.error('[ERROR] Send personal training request error:', error);
       return {
         success: false,
         error: error.message,
@@ -2351,7 +2553,7 @@ class NotificationService {
     memberId = null
   ) {
     try {
-      console.log(`📢 Sending check-in notification to trainer: ${trainerId}`);
+      console.log(`[NOTIFY] Sending check-in notification to trainer: ${trainerId}`);
 
       const notificationData = {
         member_name: memberName,
@@ -2368,21 +2570,28 @@ class NotificationService {
         notificationData.member_id = memberId;
       }
 
-      // Create notification in identity service
+      // Create notification in identity service with push notification
       const createdNotification = await this.createNotificationInIdentityService({
         user_id: trainerId,
         type: 'MEMBER_CHECKED_IN',
         title: 'Thành viên đã check-in',
         message: `${memberName} đã check-in vào lớp ${className}`,
         data: notificationData,
+        channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
       });
 
-      console.log(
-        `✅ Check-in notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`
-      );
+      if (createdNotification && createdNotification.id) {
+        console.log(
+          `[SUCCESS] Check-in notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`
+        );
+      } else {
+        console.log(
+          `[INFO] Check-in notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
+      }
 
-      // Emit socket event to trainer
-      if (global.io) {
+      // Emit socket event to trainer (only if notification was created)
+      if (global.io && createdNotification && createdNotification.id) {
         const roomName = `user:${trainerId}`;
         const socketPayload = {
           notification_id: createdNotification.id,
@@ -2394,17 +2603,26 @@ class NotificationService {
           is_read: createdNotification.is_read,
         };
 
-        console.log(`📡 Emitting socket event member:checked_in to ${roomName}`);
-        global.io.to(roomName).emit('member:checked_in', socketPayload);
+        try {
+          console.log(`[SOCKET] Emitting socket event member:checked_in to ${roomName}`);
+          global.io.to(roomName).emit('member:checked_in', socketPayload);
 
-        // Also emit general notification:new event for compatibility
-        global.io.to(roomName).emit('notification:new', socketPayload);
-        console.log(`✅ Socket events emitted successfully to ${roomName}`);
+          // Also emit general notification:new event for compatibility
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`[SUCCESS] Socket events emitted successfully to ${roomName}`);
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket events to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
+        }
+      } else if (!createdNotification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
       } else {
-        console.warn('⚠️ global.io not available - notification saved to database only');
+        console.warn('[WARN] global.io not available - notification saved to database only');
       }
     } catch (error) {
-      console.error('❌ Error sending check-in notification:', error);
+      console.error('[ERROR] Error sending check-in notification:', error);
       throw error;
     }
   }

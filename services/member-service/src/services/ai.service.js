@@ -582,7 +582,7 @@ LƯU Ý:
 - Phân tích dữ liệu thực tế để đưa ra gợi ý phù hợp
 - Ưu tiên các gợi ý có thể cải thiện fitness goals và engagement`;
 
-      console.log('📡 Sending request to AI API...');
+      console.log('[EMIT] Sending request to AI API...');
       const response = await axios.post(
         this.apiUrl,
         {
@@ -607,17 +607,17 @@ LƯU Ý:
         }
       );
 
-      console.log('✅ AI API Response received:', {
+      console.log('[SUCCESS] AI API Response received:', {
         status: response.status,
         hasChoices: !!response.data?.choices,
         choicesCount: response.data?.choices?.length || 0,
       });
 
       const aiResponse = response.data.choices[0]?.message?.content || '';
-      console.log('📝 Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
+      console.log('[PROCESS] Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
 
       const parsed = this.parseRecommendationsResponse(aiResponse);
-      console.log('✅ Parsed recommendations:', parsed.recommendations?.length || 0);
+      console.log('[SUCCESS] Parsed recommendations:', parsed.recommendations?.length || 0);
 
       return {
         success: true,
@@ -629,7 +629,7 @@ LƯU Ý:
       const isRateLimit = status === 429;
       const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
 
-      console.error('❌ AI class recommendations generation error:', {
+      console.error('[ERROR] AI class recommendations generation error:', {
         message: error.message,
         code: error.code,
         status: status,
@@ -944,7 +944,7 @@ LƯU Ý:
 - Phân tích patterns thực tế để đưa ra gợi ý phù hợp
 - Ưu tiên các khung giờ có nhiều điểm số cao và phù hợp với thói quen`;
 
-      console.log('📡 Sending request to AI API...');
+      console.log('[EMIT] Sending request to AI API...');
       const response = await axios.post(
         this.apiUrl,
         {
@@ -969,17 +969,17 @@ LƯU Ý:
         }
       );
 
-      console.log('✅ AI API Response received:', {
+      console.log('[SUCCESS] AI API Response received:', {
         status: response.status,
         hasChoices: !!response.data?.choices,
         choicesCount: response.data?.choices?.length || 0,
       });
 
       const aiResponse = response.data.choices[0]?.message?.content || '';
-      console.log('📝 Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
+      console.log('[PROCESS] Raw AI Response (first 200 chars):', aiResponse.substring(0, 200));
 
       const parsed = this.parseRecommendationsResponse(aiResponse);
-      console.log('✅ Parsed suggestions:', parsed.suggestions?.length || 0);
+      console.log('[SUCCESS] Parsed suggestions:', parsed.suggestions?.length || 0);
 
       return {
         success: true,
@@ -990,7 +990,7 @@ LƯU Ý:
       const isRateLimit = status === 429;
       const isTimeout = error.code === 'ECONNABORTED' || error.message.includes('timeout');
 
-      console.error('❌ AI scheduling suggestions generation error:', {
+      console.error('[ERROR] AI scheduling suggestions generation error:', {
         message: error.message,
         code: error.code,
         status: status,

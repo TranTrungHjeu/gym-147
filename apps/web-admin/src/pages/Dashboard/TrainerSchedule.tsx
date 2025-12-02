@@ -1,17 +1,28 @@
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.min.css';
-import { ChevronLeft, ChevronRight, ChevronUp, Search } from 'lucide-react';
-import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  ChevronUp,
+  Edit,
+  Eye,
+  MoreVertical,
+  Search,
+} from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdminModal from '../../components/common/AdminModal';
 import CustomSelect from '../../components/common/CustomSelect';
+import DatePicker from '../../components/common/DatePicker';
 import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
+import EditScheduleModal from '../../components/trainer/EditScheduleModal';
 import Button from '../../components/ui/Button/Button';
+import { Dropdown } from '../../components/ui/dropdown/Dropdown';
+import { DropdownItem } from '../../components/ui/dropdown/DropdownItem';
 import { useOptimisticScheduleUpdates } from '@/hooks/useOptimisticScheduleUpdates';
 // import { useRealtimeNotifications } from '../../hooks/useRealtimeNotifications'; // Disabled to prevent unnecessary re-renders
 import { scheduleService } from '../../services/schedule.service';
 import { socketService } from '../../services/socket.service';
 import { memberApi } from '@/services/api';
+import ExportButton from '../../components/common/ExportButton';
 
 interface AttendanceRecord {
   id: string;
@@ -127,12 +138,14 @@ const ScheduleControls = React.memo(
     onDateChange,
     onViewModeChange,
     onShowCreateModal,
+    schedulesData,
   }: {
     selectedDate: string;
     viewMode: 'day' | 'week' | 'month';
     onDateChange: (date: string) => void;
     onViewModeChange: (mode: 'day' | 'week' | 'month') => void;
     onShowCreateModal: () => void;
+    schedulesData?: ScheduleItem[];
   }) => {
     return (
       <div className='px-6'>
@@ -143,6 +156,7 @@ const ScheduleControls = React.memo(
             viewMode={viewMode}
             onViewModeChange={onViewModeChange}
             onShowCreateModal={onShowCreateModal}
+            schedulesData={schedulesData}
           />
         </div>
       </div>
@@ -173,21 +187,21 @@ const ScheduleFilters = React.memo(
     return (
       <div className='px-6'>
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
-          <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
             {/* Search Input */}
-            <div className='md:col-span-2 group relative'>
+            <div className='group relative w-full'>
               <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
               <input
                 type='text'
                 placeholder='Tìm kiếm lịch dạy...'
                 value={searchTerm}
                 onChange={e => onSearchChange(e.target.value)}
-                className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
 
             {/* Status Filter */}
-            <div>
+            <div className='w-full'>
               <CustomSelect
                 options={[
                   { value: 'all', label: 'Tất cả trạng thái' },
@@ -199,12 +213,12 @@ const ScheduleFilters = React.memo(
                 value={statusFilter}
                 onChange={onStatusChange}
                 placeholder='Tất cả trạng thái'
-                className='font-inter'
+                className='font-inter w-full'
               />
             </div>
 
             {/* Class Type Filter */}
-            <div>
+            <div className='w-full'>
               <CustomSelect
                 options={[
                   { value: 'all', label: 'Tất cả loại lớp' },
@@ -222,7 +236,7 @@ const ScheduleFilters = React.memo(
                 value={classTypeFilter}
                 onChange={onClassTypeChange}
                 placeholder='Tất cả loại lớp'
-                className='font-inter'
+                className='font-inter w-full'
               />
             </div>
           </div>
@@ -241,197 +255,16 @@ const DatePickerComponent = ({
   viewMode,
   onViewModeChange,
   onShowCreateModal,
+  schedulesData,
 }: {
   selectedDate: string;
   onDateChange: (date: string) => void;
   viewMode: 'day' | 'week' | 'month';
   onViewModeChange: (mode: 'day' | 'week' | 'month') => void;
   onShowCreateModal: () => void;
+  schedulesData?: ScheduleItem[];
 }) => {
-  const datePickerRef = useRef<HTMLInputElement>(null);
-  const flatpickrInstanceRef = useRef<any>(null);
-
-  // Use ref to store the latest onDateChange callback
-  const onDateChangeRef = useRef(onDateChange);
-  
-  // Update ref when prop changes (but don't cause re-renders)
-  useEffect(() => {
-    onDateChangeRef.current = onDateChange;
-  }, [onDateChange]);
-
-  // Stable handler that uses ref - doesn't need to be in dependencies
-  const handleDateChange = useCallback((dates: Date[]) => {
-    if (dates.length > 0) {
-      const date = dates[0];
-      // Fix timezone issue by using local date components
-      // Convert from flatpickr's d/m/Y format to YYYY-MM-DD for API
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
-      const newDate = `${year}-${month}-${day}`;
-      onDateChangeRef.current(newDate);
-    }
-  }, []); // Empty deps - uses ref which is always current
-
-  const handleOpen = useCallback(() => {
-    // Flatpickr opened
-  }, []);
-
-  const handleClose = useCallback(() => {
-    // Flatpickr closed
-  }, []);
-
-  // Stable element with useMemo - element never changes
-  const datePickerElement = useMemo(() => {
-    // Convert YYYY-MM-DD to DD/MM/YYYY for display
-    let displayValue = '';
-    if (selectedDate) {
-      const [year, month, day] = selectedDate.split('-');
-      if (year && month && day) {
-        displayValue = `${day}/${month}/${year}`;
-      }
-    }
-
-    const isDisabled = viewMode !== 'day';
-
-    return (
-      <input
-        ref={datePickerRef}
-        type='text'
-        placeholder='dd/mm/yyyy'
-        defaultValue={displayValue}
-        className={`w-full py-2 pl-3 pr-8 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm ${
-          isDisabled
-            ? 'cursor-not-allowed opacity-60 bg-gray-100 dark:bg-gray-800/50'
-            : 'cursor-pointer hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
-        }`}
-        readOnly
-      />
-    );
-  }, [selectedDate, viewMode]); // Update when selectedDate or viewMode changes
-
-  // Store initial selectedDate in a ref to use in initialization
-  const initialSelectedDateRef = useRef(selectedDate);
-  
-  // Store callbacks in refs to avoid dependencies
-  const handleDateChangeRef = useRef(handleDateChange);
-  const handleOpenRef = useRef(handleOpen);
-  const handleCloseRef = useRef(handleClose);
-  
-  // Update refs when callbacks change
-  useEffect(() => {
-    handleDateChangeRef.current = handleDateChange;
-    handleOpenRef.current = handleOpen;
-    handleCloseRef.current = handleClose;
-  }, [handleDateChange, handleOpen, handleClose]);
-  
-  // Initialize flatpickr when element is ready - only once on mount
-  useLayoutEffect(() => {
-    // Wait for ref to be set
-    if (!datePickerRef.current) {
-      return;
-    }
-
-    // If flatpickr already initialized, don't initialize again
-    if (flatpickrInstanceRef.current) {
-      return;
-    }
-
-    // Get Vietnam date for default (use initial value from ref)
-    const getVietnamDateForDefault = (): string => {
-      if (initialSelectedDateRef.current) return initialSelectedDateRef.current;
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
-    };
-
-    const fp = flatpickr(datePickerRef.current, {
-      defaultDate: getVietnamDateForDefault(),
-      dateFormat: 'd/m/Y', // Vietnamese format: DD/MM/YYYY
-      altFormat: 'd/m/Y', // Display format
-      allowInput: true,
-      clickOpens: true,
-      locale: {
-        firstDayOfWeek: 1, // Monday
-        weekdays: {
-          shorthand: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-          longhand: ['Chủ nhật', 'Thứ hai', 'Thứ ba', 'Thứ tư', 'Thứ năm', 'Thứ sáu', 'Thứ bảy'],
-        },
-        months: {
-          shorthand: ['T1', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'T8', 'T9', 'T10', 'T11', 'T12'],
-          longhand: [
-            'Tháng 1',
-            'Tháng 2',
-            'Tháng 3',
-            'Tháng 4',
-            'Tháng 5',
-            'Tháng 6',
-            'Tháng 7',
-            'Tháng 8',
-            'Tháng 9',
-            'Tháng 10',
-            'Tháng 11',
-            'Tháng 12',
-          ],
-        },
-      },
-      onChange: (...args) => handleDateChangeRef.current(...args),
-      onOpen: () => handleOpenRef.current(),
-      onClose: () => handleCloseRef.current(),
-    });
-
-    flatpickrInstanceRef.current = fp;
-
-    return () => {
-      if (flatpickrInstanceRef.current) {
-        flatpickrInstanceRef.current.destroy();
-        flatpickrInstanceRef.current = null;
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run once on mount - callbacks accessed via refs
-
-  // Update date when selectedDate changes from outside (e.g., API response)
-  useEffect(() => {
-    if (flatpickrInstanceRef.current && datePickerRef.current && selectedDate) {
-      try {
-        // Convert YYYY-MM-DD to Date object and update flatpickr
-        const [year, month, day] = selectedDate.split('-');
-        if (year && month && day) {
-          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          flatpickrInstanceRef.current.setDate(date, false);
-          // Also update the input value to show DD/MM/YYYY format
-          datePickerRef.current.value = `${day}/${month}/${year}`;
-        }
-      } catch (error) {
-        console.error('Error updating Flatpickr date:', error);
-      }
-    }
-  }, [selectedDate]);
-
-  // Enable/disable flatpickr based on viewMode
-  useEffect(() => {
-    if (flatpickrInstanceRef.current && datePickerRef.current) {
-      // Disable when viewMode is 'week' or 'month'
-      const isDisabled = viewMode !== 'day';
-      
-      if (isDisabled) {
-        // Disable flatpickr
-        flatpickrInstanceRef.current.set('clickOpens', false);
-        // Disable input
-        datePickerRef.current.disabled = true;
-        datePickerRef.current.style.cursor = 'not-allowed';
-      } else {
-        // Enable flatpickr
-        flatpickrInstanceRef.current.set('clickOpens', true);
-        // Enable input
-        datePickerRef.current.disabled = false;
-        datePickerRef.current.style.cursor = 'pointer';
-      }
-    }
-  }, [viewMode]);
+  const isDisabled = viewMode !== 'day';
 
   return (
     <div className='flex flex-col sm:flex-row gap-3 items-stretch sm:items-center'>
@@ -439,24 +272,17 @@ const DatePickerComponent = ({
       <div className='flex items-center gap-3 flex-1 min-w-0'>
         {/* Date Picker */}
         <div className='flex-shrink-0 w-[150px]'>
-          <div className='relative'>
-            {datePickerElement}
-            <div className='absolute inset-y-0 right-0 flex items-center pr-2.5 pointer-events-none'>
-              <svg
-                className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={2}
-                  d='M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'
-                />
-              </svg>
-            </div>
-          </div>
+          <DatePicker
+            value={selectedDate}
+            onChange={date => {
+              if (typeof date === 'string') {
+                onDateChange(date);
+              }
+            }}
+            placeholder='dd/mm/yyyy'
+            mode='single'
+            disabled={isDisabled}
+          />
         </div>
 
         {/* View Mode Select */}
@@ -477,22 +303,43 @@ const DatePickerComponent = ({
 
       {/* Right side: Action buttons */}
       <div className='flex gap-2 flex-shrink-0'>
-        <Button
-          size='sm'
-          variant='outline'
-          onClick={() => {
-            if (window.showToast) {
-              window.showToast({
-                type: 'info',
-                message: 'Chức năng xuất lịch đang được phát triển',
-                duration: 3000,
-              });
-            }
-          }}
-          className='text-[11px] font-heading whitespace-nowrap'
-        >
-          Xuất lịch
-        </Button>
+        {schedulesData && schedulesData.length > 0 ? (
+          <ExportButton
+            data={schedulesData.map(schedule => ({
+              'Lớp học': schedule.gym_class?.name || 'N/A',
+              Ngày: schedule.date || 'N/A',
+              'Thời gian bắt đầu': schedule.start_time || 'N/A',
+              'Thời gian kết thúc': schedule.end_time || 'N/A',
+              Phòng: schedule.room?.name || 'N/A',
+              'Trạng thái': schedule.status || 'N/A',
+              'Số lượng đăng ký': schedule.current_bookings || 0,
+              'Sức chứa tối đa': schedule.max_capacity || 0,
+            }))}
+            columns={[
+              { key: 'Lớp học', label: 'Lớp học' },
+              { key: 'Ngày', label: 'Ngày' },
+              { key: 'Thời gian bắt đầu', label: 'Thời gian bắt đầu' },
+              { key: 'Thời gian kết thúc', label: 'Thời gian kết thúc' },
+              { key: 'Phòng', label: 'Phòng' },
+              { key: 'Trạng thái', label: 'Trạng thái' },
+              { key: 'Số lượng đăng ký', label: 'Số lượng đăng ký' },
+              { key: 'Sức chứa tối đa', label: 'Sức chứa tối đa' },
+            ]}
+            filename={`trainer-schedule-${selectedDate}`}
+            title='Lịch dạy'
+            variant='outline'
+            size='sm'
+          />
+        ) : (
+          <Button
+            size='sm'
+            variant='outline'
+            disabled
+            className='text-[11px] font-heading whitespace-nowrap'
+          >
+            Xuất lịch
+          </Button>
+        )}
         <Button
           size='sm'
           variant='primary'
@@ -525,6 +372,12 @@ const ScheduleTable = ({
   onEditClick,
   getCheckInButton,
   updatedScheduleIds,
+  openPopupId,
+  popupPosition,
+  handleRowClick,
+  popupRef,
+  setOpenPopupId,
+  setPopupPosition,
 }: {
   schedules: ScheduleItem[];
   loading: boolean;
@@ -541,8 +394,13 @@ const ScheduleTable = ({
   onEditClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
   updatedScheduleIds?: Set<string>;
+  openPopupId: string | null;
+  popupPosition: { x: number; y: number } | null;
+  handleRowClick: (e: React.MouseEvent, schedule: ScheduleItem) => void;
+  popupRef: React.RefObject<HTMLDivElement>;
+  setOpenPopupId: (id: string | null) => void;
+  setPopupPosition: (pos: { x: number; y: number } | null) => void;
 }) => {
-
   // Move filtering, sorting, pagination logic here
   // Calculate filtered schedules directly without useMemo
   let filtered = [...schedules];
@@ -695,77 +553,130 @@ const ScheduleTable = ({
               </thead>
               <tbody className='divide-y divide-gray-200 dark:divide-gray-700'>
                 {paginatedSchedules.map((schedule, index) => {
-                  const isUpdated = updatedScheduleIds?.has(schedule.id) || (schedule as any)._updated;
+                  const isUpdated =
+                    updatedScheduleIds?.has(schedule.id) || (schedule as any)._updated;
                   const isCheckedIn = (schedule as any)._checked_in;
-                  
+
                   return (
-                  <tr
-                    key={schedule.id}
-                    className={`border-b border-l-4 border-l-transparent hover:border-l-orange-500 border-gray-200 dark:border-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10 transition-all duration-200 group ${
-                      index % 2 === 0
-                        ? 'bg-white dark:bg-gray-900'
-                        : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } ${
-                      isUpdated ? 'schedule-row-updated' : ''
-                    } ${
-                      isCheckedIn ? 'animate-highlight-update' : ''
-                    }`}
-                  >
-                    <td className='px-4 py-2.5 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
-                      {startIndex + index + 1}
-                    </td>
-                    <td className='px-4 py-2.5'>
-                      <div className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white leading-tight'>
-                        {schedule.gym_class?.name || 'Tên lớp không xác định'}
-                      </div>
-                      <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
-                        {schedule.gym_class?.category || 'Không xác định'}
-                      </div>
-                    </td>
-                    <td className='px-4 py-2.5'>
-                      <div className='text-[11px] font-inter text-gray-900 dark:text-white leading-tight'>
-                        {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
-                      </div>
-                      <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
-                        {formatDate(schedule.date)}
-                      </div>
-                    </td>
-                    <td className='px-4 py-2.5 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
-                      {schedule.room?.name || 'Phòng không xác định'}
-                    </td>
-                    <td className='px-4 py-2.5'>
-                      <div className={`text-[11px] font-inter text-gray-900 dark:text-white leading-tight transition-all duration-200 ${
-                        isUpdated ? 'animate-count-update font-semibold' : ''
-                      }`}>
-                        {schedule.current_bookings || 0}/{schedule.max_capacity || 0}
-                      </div>
-                      <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
-                        học viên
-                      </div>
-                    </td>
-                    <td className='px-4 py-2.5'>
-                      <span
-                        className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border ${getStatusColor(
-                          schedule.status
-                        )}`}
-                      >
-                        {getStatusLabel(schedule.status)}
-                      </span>
-                    </td>
-                    <td className='px-4 py-2.5'>
-                      <div className='flex gap-1'>
-                        <Button
-                          size='sm'
-                          variant='outline'
-                          onClick={() => onAttendanceClick(schedule)}
-                          className='text-[11px] px-2 py-1 font-inter'
+                    <tr
+                      key={schedule.id}
+                      onClick={e => handleRowClick(e, schedule)}
+                      className={`schedule-row border-b border-l-4 border-l-transparent hover:border-l-orange-500 border-gray-200 dark:border-gray-700 hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10 transition-all duration-200 group cursor-pointer relative ${
+                        index % 2 === 0
+                          ? 'bg-white dark:bg-gray-900'
+                          : 'bg-gray-50/50 dark:bg-gray-800/50'
+                      } ${isUpdated ? 'schedule-row-updated' : ''} ${
+                        isCheckedIn ? 'animate-highlight-update' : ''
+                      }`}
+                    >
+                      <td className='px-4 py-2.5 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
+                        {startIndex + index + 1}
+                      </td>
+                      <td className='px-4 py-2.5'>
+                        <div className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white leading-tight'>
+                          {schedule.gym_class?.name || 'Tên lớp không xác định'}
+                        </div>
+                        <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
+                          {schedule.gym_class?.category || 'Không xác định'}
+                        </div>
+                      </td>
+                      <td className='px-4 py-2.5'>
+                        <div className='text-[11px] font-inter text-gray-900 dark:text-white leading-tight'>
+                          {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
+                        </div>
+                        <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
+                          {formatDate(schedule.date)}
+                        </div>
+                      </td>
+                      <td className='px-4 py-2.5 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
+                        {schedule.room?.name || 'Phòng không xác định'}
+                      </td>
+                      <td className='px-4 py-2.5'>
+                        <div
+                          className={`text-[11px] font-inter text-gray-900 dark:text-white leading-tight transition-all duration-200 ${
+                            isUpdated ? 'animate-count-update font-semibold' : ''
+                          }`}
                         >
-                          Xem
-                        </Button>
-                        {getCheckInButton(schedule)}
-                      </div>
-                    </td>
-                  </tr>
+                          {schedule.current_bookings || 0}/{schedule.max_capacity || 0}
+                        </div>
+                        <div className='text-[10px] font-inter text-gray-500 dark:text-gray-400 mt-0.5 leading-tight'>
+                          học viên
+                        </div>
+                      </td>
+                      <td className='px-4 py-2.5'>
+                        <span
+                          className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border ${getStatusColor(
+                            schedule.status
+                          )}`}
+                        >
+                          {getStatusLabel(schedule.status)}
+                        </span>
+                      </td>
+                      <td className='px-4 py-2.5'>
+                        <div className='flex gap-1 relative'>
+                          <Button
+                            size='sm'
+                            variant='outline'
+                            onClick={e => {
+                              e.stopPropagation();
+                              onAttendanceClick(schedule);
+                            }}
+                            className='text-[11px] px-2 py-1 font-inter'
+                          >
+                            Xem
+                          </Button>
+                          {getCheckInButton(schedule)}
+
+                          {/* Popup Menu */}
+                          {openPopupId === schedule.id && popupPosition && (
+                            <div
+                              ref={popupRef}
+                              className='popup-menu fixed z-50'
+                              style={{
+                                left: `${popupPosition.x}px`,
+                                top: `${popupPosition.y}px`,
+                                transform: 'translateX(-50%)',
+                              }}
+                              onClick={e => e.stopPropagation()}
+                            >
+                              <Dropdown
+                                isOpen={true}
+                                onClose={() => {
+                                  setOpenPopupId(null);
+                                  setPopupPosition(null);
+                                }}
+                                className='min-w-[180px]'
+                              >
+                                <div className='py-1'>
+                                  <DropdownItem
+                                    onClick={() => {
+                                      onEditClick(schedule);
+                                      setOpenPopupId(null);
+                                      setPopupPosition(null);
+                                    }}
+                                    className='flex items-center gap-2 px-4 py-2.5 text-[11px] text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors'
+                                  >
+                                    <Edit className='w-3.5 h-3.5' />
+                                    <span>Cập nhật lịch dạy</span>
+                                  </DropdownItem>
+                                  <DropdownItem
+                                    onClick={() => {
+                                      onAttendanceClick(schedule);
+                                      setOpenPopupId(null);
+                                      setPopupPosition(null);
+                                    }}
+                                    className='flex items-center gap-2 px-4 py-2.5 text-[11px] text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:text-orange-600 dark:hover:text-orange-400 transition-colors'
+                                  >
+                                    <Eye className='w-3.5 h-3.5' />
+                                    <span>Xem điểm danh</span>
+                                  </DropdownItem>
+                                </div>
+                              </Dropdown>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
                   );
                 })}
               </tbody>
@@ -855,6 +766,12 @@ const ScheduleTableSection = ({
   onEditClick,
   getCheckInButton,
   updatedScheduleIds,
+  openPopupId,
+  popupPosition,
+  handleRowClick,
+  popupRef,
+  setOpenPopupId,
+  setPopupPosition,
 }: {
   schedules: ScheduleItem[];
   loading: boolean;
@@ -871,6 +788,12 @@ const ScheduleTableSection = ({
   onEditClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
   updatedScheduleIds?: Set<string>;
+  openPopupId: string | null;
+  popupPosition: { x: number; y: number } | null;
+  handleRowClick: (e: React.MouseEvent, schedule: ScheduleItem) => void;
+  popupRef: React.RefObject<HTMLDivElement>;
+  setOpenPopupId: (id: string | null) => void;
+  setPopupPosition: (pos: { x: number; y: number } | null) => void;
 }) => {
   return (
     <div className='px-6 pb-6'>
@@ -890,6 +813,12 @@ const ScheduleTableSection = ({
         onEditClick={onEditClick}
         getCheckInButton={getCheckInButton}
         updatedScheduleIds={updatedScheduleIds}
+        openPopupId={openPopupId}
+        popupPosition={popupPosition}
+        handleRowClick={handleRowClick}
+        popupRef={popupRef}
+        setOpenPopupId={setOpenPopupId}
+        setPopupPosition={setPopupPosition}
       />
     </div>
   );
@@ -938,6 +867,11 @@ export default function TrainerSchedule() {
     classIdFromUrl ? 'month' : 'day'
   );
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [selectedScheduleForEdit, setSelectedScheduleForEdit] = useState<ScheduleItem | null>(null);
+  const [openPopupId, setOpenPopupId] = useState<string | null>(null);
+  const [popupPosition, setPopupPosition] = useState<{ x: number; y: number } | null>(null);
+  const popupRef = useRef<HTMLDivElement>(null);
   const [userId, setUserId] = useState<string>('');
 
   // Advanced filters
@@ -989,8 +923,8 @@ export default function TrainerSchedule() {
     const socket = socketService.getSocket() || socketService.connect(userId);
 
     const handleScheduleUpdate = (data: any) => {
-      console.log('📡 Received schedule:updated event:', data);
-      
+      console.log('[EMIT] Received schedule:updated event:', data);
+
       // Update the schedule in the list without reloading
       setSchedules(prevSchedules => {
         const updatedSchedules = prevSchedules.map(schedule => {
@@ -1000,7 +934,7 @@ export default function TrainerSchedule() {
               ...schedule,
               room_name: data.room_name || schedule.room_name,
               date: data.date || schedule.date,
-              start_time: data.start_time 
+              start_time: data.start_time
                 ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
                 : schedule.start_time,
               end_time: data.end_time
@@ -1009,22 +943,22 @@ export default function TrainerSchedule() {
               max_capacity: data.max_capacity ?? schedule.max_capacity,
               status: data.status || schedule.status,
             };
-            
+
             // Notification will be shown in NotificationDropdown automatically
             // No need for toast notification
-            
+
             return updated;
           }
           return schedule;
         });
-        
+
         return updatedSchedules;
       });
     };
 
     const handleScheduleCreated = (data: any) => {
-      console.log('📡 Received schedule:created event:', data);
-      
+      console.log('[EMIT] Received schedule:created event:', data);
+
       // Add new schedule to the list optimistically
       setSchedules(prevSchedules => {
         // Check if schedule already exists
@@ -1033,57 +967,143 @@ export default function TrainerSchedule() {
           // Update existing schedule
           return prevSchedules.map(schedule => {
             if (schedule.id === data.schedule_id) {
+              // Parse dates correctly
+              let dateValue = schedule.date;
+              if (data.date) {
+                const date = new Date(data.date);
+                if (!isNaN(date.getTime())) {
+                  dateValue = date.toISOString().split('T')[0];
+                }
+              }
+
+              let startTimeValue = schedule.start_time;
+              if (data.start_time) {
+                const startTime = new Date(data.start_time);
+                if (!isNaN(startTime.getTime())) {
+                  startTimeValue = startTime.toISOString();
+                }
+              }
+
+              let endTimeValue = schedule.end_time;
+              if (data.end_time) {
+                const endTime = new Date(data.end_time);
+                if (!isNaN(endTime.getTime())) {
+                  endTimeValue = endTime.toISOString();
+                }
+              }
+
               return {
                 ...schedule,
-                class_name: data.class_name || schedule.class_name,
-                category: data.category || schedule.category,
-                difficulty: data.difficulty || schedule.difficulty,
-                room_name: data.room_name || schedule.room_name,
-                date: data.date || schedule.date,
-                start_time: data.start_time 
-                  ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
-                  : schedule.start_time,
-                end_time: data.end_time
-                  ? new Date(data.end_time).toISOString().split('T')[1].slice(0, 5)
-                  : schedule.end_time,
+                date: dateValue,
+                start_time: startTimeValue,
+                end_time: endTimeValue,
                 max_capacity: data.max_capacity ?? schedule.max_capacity,
                 current_bookings: data.current_bookings ?? schedule.current_bookings ?? 0,
                 status: data.status || schedule.status,
+                // Update gym_class object
+                gym_class: {
+                  ...schedule.gym_class,
+                  name: data.class_name || schedule.gym_class?.name || 'Tên lớp không xác định',
+                  category: data.category || schedule.gym_class?.category || 'CARDIO',
+                  difficulty: data.difficulty || schedule.gym_class?.difficulty || 'BEGINNER',
+                },
+                // Update room object
+                room: {
+                  ...schedule.room,
+                  name: data.room_name || schedule.room?.name || 'Phòng không xác định',
+                },
                 _updated: true,
               };
             }
             return schedule;
           });
         }
-        
+
         // Add new schedule at the beginning
+        // Parse dates correctly - backend sends ISO strings
+        let dateValue: string;
+        if (data.date) {
+          const date = new Date(data.date);
+          if (isNaN(date.getTime())) {
+            console.warn('[WARNING] Invalid date from socket:', data.date);
+            dateValue = new Date().toISOString().split('T')[0];
+          } else {
+            dateValue = date.toISOString().split('T')[0]; // Format as YYYY-MM-DD
+          }
+        } else {
+          dateValue = new Date().toISOString().split('T')[0];
+        }
+
+        let startTimeValue: string;
+        if (data.start_time) {
+          const startTime = new Date(data.start_time);
+          if (isNaN(startTime.getTime())) {
+            console.warn('[WARNING] Invalid start_time from socket:', data.start_time);
+            startTimeValue = new Date().toISOString();
+          } else {
+            startTimeValue = startTime.toISOString();
+          }
+        } else {
+          startTimeValue = new Date().toISOString();
+        }
+
+        let endTimeValue: string;
+        if (data.end_time) {
+          const endTime = new Date(data.end_time);
+          if (isNaN(endTime.getTime())) {
+            console.warn('[WARNING] Invalid end_time from socket:', data.end_time);
+            endTimeValue = new Date().toISOString();
+          } else {
+            endTimeValue = endTime.toISOString();
+          }
+        } else {
+          endTimeValue = new Date().toISOString();
+        }
+
         const newSchedule: ScheduleItem = {
           id: data.schedule_id,
           class_id: data.class_id,
           trainer_id: userId,
-          class_name: data.class_name || 'Unknown Class',
-          category: data.category || 'CARDIO',
-          difficulty: data.difficulty || 'BEGINNER',
           room_id: data.room_id,
-          room_name: data.room_name || 'Unknown Room',
-          date: data.date,
-          start_time: data.start_time 
-            ? new Date(data.start_time).toISOString().split('T')[1].slice(0, 5)
-            : '',
-          end_time: data.end_time
-            ? new Date(data.end_time).toISOString().split('T')[1].slice(0, 5)
-            : '',
+          date: dateValue,
+          start_time: startTimeValue,
+          end_time: endTimeValue,
           max_capacity: data.max_capacity ?? 1,
           current_bookings: data.current_bookings ?? 0,
           status: data.status || 'SCHEDULED',
+          // Set gym_class object (required by interface)
+          gym_class: {
+            id: data.class_id,
+            name: data.class_name || 'Tên lớp không xác định',
+            description: '',
+            category: data.category || 'CARDIO',
+            duration: 0,
+            max_capacity: data.max_capacity ?? 1,
+            difficulty: data.difficulty || 'BEGINNER',
+            equipment_needed: [],
+            price: '0',
+            thumbnail: '',
+            required_certification_level: 'BASIC',
+            is_active: true,
+          },
+          // Set room object (required by interface)
+          room: {
+            id: data.room_id,
+            name: data.room_name || 'Phòng không xác định',
+            capacity: 0,
+            area_sqm: 0,
+            equipment: [],
+            amenities: [],
+            status: 'AVAILABLE',
+          },
           bookings: [],
           attendance: [],
           _updated: true,
         };
-        
+
         return [newSchedule, ...prevSchedules];
       });
-      
+
       // Show success toast
       if (window.showToast) {
         window.showToast({
@@ -1189,7 +1209,7 @@ export default function TrainerSchedule() {
     if (isFirstRender.current) {
       return;
     }
-    
+
     // Only fetch if initial load is complete
     // This will only update schedules state, not trigger re-render of Header/Controls/Filters
     if (!initialLoading) {
@@ -1207,9 +1227,9 @@ export default function TrainerSchedule() {
 
     // Debounce server sync - only sync after 5 seconds of no updates
     const syncTimer = setTimeout(() => {
-      console.log('🔄 Syncing schedules with server after optimistic updates...');
+      console.log('[SYNC] Syncing schedules with server after optimistic updates...');
       fetchSchedules(false).catch(error => {
-        console.error('❌ Error syncing schedules:', error);
+        console.error('[ERROR] Error syncing schedules:', error);
       });
     }, 5000);
 
@@ -1402,16 +1422,69 @@ export default function TrainerSchedule() {
     [sortColumn, sortDirection]
   );
 
-  // Placeholder handlers for table actions
-  const handleEditClick = useCallback((_schedule: ScheduleItem) => {
-    if (window.showToast) {
-      window.showToast({
-        type: 'info',
-        message: 'Chức năng điểm danh đang được phát triển',
-        duration: 3000,
-      });
-    }
+  // Handle edit schedule
+  const handleEditClick = useCallback((schedule: ScheduleItem) => {
+    setSelectedScheduleForEdit(schedule);
+    setShowEditModal(true);
+    setOpenPopupId(null); // Close popup when opening edit modal
   }, []);
+
+  // Handle row click to show popup
+  const handleRowClick = useCallback(
+    (e: React.MouseEvent, schedule: ScheduleItem) => {
+      // Don't show popup if clicking on buttons or links
+      const target = e.target as HTMLElement;
+      if (
+        target.closest('button') ||
+        target.closest('a') ||
+        target.closest('.dropdown-menu') ||
+        target.closest('.popup-menu') ||
+        target.closest('span') // Don't show on status badge
+      ) {
+        return;
+      }
+
+      // Get click position in viewport coordinates
+      const clickX = e.clientX;
+      const clickY = e.clientY;
+
+      // Position popup near the click
+      setPopupPosition({
+        x: clickX,
+        y: clickY + 5, // Small offset below click
+      });
+
+      // Toggle popup
+      if (openPopupId === schedule.id) {
+        setOpenPopupId(null);
+        setPopupPosition(null);
+      } else {
+        setOpenPopupId(schedule.id);
+      }
+    },
+    [openPopupId]
+  );
+
+  // Close popup when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (
+        popupRef.current &&
+        !popupRef.current.contains(target) &&
+        !target.closest('.schedule-row')
+      ) {
+        setOpenPopupId(null);
+      }
+    };
+
+    if (openPopupId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [openPopupId]);
 
   // Check-in/Check-out handlers
   const handleEnableCheckIn = useCallback(
@@ -1447,7 +1520,7 @@ export default function TrainerSchedule() {
           // Refresh schedules to get updated status
           await fetchSchedules();
         } else {
-          console.error('❌ Failed to enable check-in:', response.message);
+          console.error('[ERROR] Failed to enable check-in:', response.message);
           if (window.showToast) {
             window.showToast({
               type: 'error',
@@ -1457,7 +1530,7 @@ export default function TrainerSchedule() {
           }
         }
       } catch (error) {
-        console.error('❌ Error enabling check-in:', error);
+        console.error('[ERROR] Error enabling check-in:', error);
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -1503,7 +1576,7 @@ export default function TrainerSchedule() {
           // Refresh schedules to get updated status
           await fetchSchedules();
         } else {
-          console.error('❌ Failed to disable check-in:', response.message);
+          console.error('[ERROR] Failed to disable check-in:', response.message);
           if (window.showToast) {
             window.showToast({
               type: 'error',
@@ -1513,7 +1586,7 @@ export default function TrainerSchedule() {
           }
         }
       } catch (error) {
-        console.error('❌ Error disabling check-in:', error);
+        console.error('[ERROR] Error disabling check-in:', error);
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -1564,7 +1637,7 @@ export default function TrainerSchedule() {
             await fetchMemberData(memberIds);
           }
         } else {
-          console.error('❌ Failed to check out all members:', response.message);
+          console.error('[ERROR] Failed to check out all members:', response.message);
           if (window.showToast) {
             window.showToast({
               type: 'error',
@@ -1574,7 +1647,7 @@ export default function TrainerSchedule() {
           }
         }
       } catch (error) {
-        console.error('❌ Error checking out all members:', error);
+        console.error('[ERROR] Error checking out all members:', error);
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -1724,7 +1797,7 @@ export default function TrainerSchedule() {
           await fetchMemberData(memberIds);
         }
       } else {
-        console.error('❌ Failed to check in member:', response.message);
+        console.error('[ERROR] Failed to check in member:', response.message);
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -1734,7 +1807,7 @@ export default function TrainerSchedule() {
         }
       }
     } catch (error) {
-      console.error('❌ Error checking in member:', error);
+      console.error('[ERROR] Error checking in member:', error);
       if (window.showToast) {
         window.showToast({
           type: 'error',
@@ -1784,7 +1857,7 @@ export default function TrainerSchedule() {
           await fetchMemberData(memberIds);
         }
       } else {
-        console.error('❌ Failed to check out member:', response.message);
+        console.error('[ERROR] Failed to check out member:', response.message);
         if (window.showToast) {
           window.showToast({
             type: 'error',
@@ -1794,7 +1867,7 @@ export default function TrainerSchedule() {
         }
       }
     } catch (error) {
-      console.error('❌ Error checking out member:', error);
+      console.error('[ERROR] Error checking out member:', error);
       if (window.showToast) {
         window.showToast({
           type: 'error',
@@ -1897,18 +1970,21 @@ export default function TrainerSchedule() {
     setCurrentPage(1);
   }, []);
 
-  const handleClassTypeChange = useCallback((value: string) => {
-    setClassTypeFilter(value);
-    // Clear classId filter when changing category filter
-    if (classIdFilter) {
-      setClassIdFilter('');
-      // Remove classId from URL
-      const newSearchParams = new URLSearchParams(searchParams);
-      newSearchParams.delete('classId');
-      setSearchParams(newSearchParams, { replace: true });
-    }
-    setCurrentPage(1);
-  }, [classIdFilter, searchParams, setSearchParams]);
+  const handleClassTypeChange = useCallback(
+    (value: string) => {
+      setClassTypeFilter(value);
+      // Clear classId filter when changing category filter
+      if (classIdFilter) {
+        setClassIdFilter('');
+        // Remove classId from URL
+        const newSearchParams = new URLSearchParams(searchParams);
+        newSearchParams.delete('classId');
+        setSearchParams(newSearchParams, { replace: true });
+      }
+      setCurrentPage(1);
+    },
+    [classIdFilter, searchParams, setSearchParams]
+  );
 
   // Modal filtering logic - prioritize attendance records over bookings
   const filteredMembers = (() => {
@@ -2010,240 +2086,6 @@ export default function TrainerSchedule() {
 
   return (
     <>
-      {/* Flatpickr Vietnamese Compact Styles */}
-      <style>{`
-        /* Compact Professional Vietnamese Flatpickr Calendar */
-        .flatpickr-calendar {
-          font-family: 'Inter', sans-serif !important;
-          font-size: 10px !important;
-          border-radius: 6px !important;
-          border: 1px solid rgba(249, 115, 22, 0.15) !important;
-          box-shadow: 0 8px 12px -3px rgba(0, 0, 0, 0.1), 0 3px 4px -2px rgba(0, 0, 0, 0.05) !important;
-          background: #ffffff !important;
-          overflow: hidden !important;
-          width: 350px !important;
-        }
-        
-        .dark .flatpickr-calendar {
-          background: #1f2937 !important;
-          border-color: rgba(249, 115, 22, 0.3) !important;
-        }
-        
-        /* Month Header - Compact */
-        .flatpickr-months {
-          padding: 6px 6px !important;
-          background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
-          border-bottom: 1px solid rgba(249, 115, 22, 0.1) !important;
-        }
-        
-        .dark .flatpickr-months {
-          background: linear-gradient(135deg, #7c2d12 0%, #9a3412 100%) !important;
-          border-bottom-color: rgba(249, 115, 22, 0.2) !important;
-        }
-        
-        .flatpickr-current-month {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          font-family: 'Inter', sans-serif !important;
-          color: #9a3412 !important;
-        }
-        
-        .dark .flatpickr-current-month {
-          color: #fed7aa !important;
-        }
-        
-        .flatpickr-current-month .cur-month,
-        .flatpickr-current-month input.cur-year {
-          font-size: 10px !important;
-          font-weight: 700 !important;
-          font-family: 'Inter', sans-serif !important;
-          color: #9a3412 !important;
-        }
-        
-        .dark .flatpickr-current-month .cur-month,
-        .dark .flatpickr-current-month input.cur-year {
-          color: #fed7aa !important;
-        }
-        
-        /* Navigation Arrows - Compact */
-        .flatpickr-prev-month,
-        .flatpickr-next-month {
-          padding: 3px !important;
-          border-radius: 3px !important;
-          transition: all 0.2s ease !important;
-          width: 20px !important;
-          height: 20px !important;
-        }
-        
-        .flatpickr-prev-month:hover,
-        .flatpickr-next-month:hover {
-          background: rgba(249, 115, 22, 0.1) !important;
-        }
-        
-        .flatpickr-prev-month svg,
-        .flatpickr-next-month svg {
-          width: 9px !important;
-          height: 9px !important;
-          fill: #9a3412 !important;
-        }
-        
-        .dark .flatpickr-prev-month svg,
-        .dark .flatpickr-next-month svg {
-          fill: #fed7aa !important;
-        }
-        
-        /* Weekdays - Compact */
-        .flatpickr-weekdays {
-          padding: 4px 4px 3px !important;
-          background: #fff7ed !important;
-        }
-        
-        .dark .flatpickr-weekdays {
-          background: #7c2d12 !important;
-        }
-        
-        .flatpickr-weekday {
-          font-size: 9px !important;
-          font-weight: 700 !important;
-          font-family: 'Inter', sans-serif !important;
-          color: #9a3412 !important;
-          text-transform: uppercase !important;
-          letter-spacing: 0.2px !important;
-          padding: 2px 0 !important;
-        }
-        
-        .dark .flatpickr-weekday {
-          color: #fed7aa !important;
-        }
-        
-        /* Days Container - Compact */
-        .flatpickr-days {
-          padding: 3px !important;
-        }
-        
-        /* Individual Days - Compact */
-        .flatpickr-day {
-          font-size: 10px !important;
-          font-family: 'Inter', sans-serif !important;
-          height: 22px !important;
-          line-height: 22px !important;
-          border-radius: 4px !important;
-          margin: 1px !important;
-          transition: all 0.15s ease !important;
-          font-weight: 500 !important;
-          width: calc((100% - 8px) / 7) !important;
-        }
-        
-        .flatpickr-day:hover {
-          background: #fff7ed !important;
-          border-color: #f97316 !important;
-          color: #ea580c !important;
-        }
-        
-        .dark .flatpickr-day:hover {
-          background: #9a3412 !important;
-          border-color: #f97316 !important;
-          color: #fed7aa !important;
-        }
-        
-        /* Selected Day - Compact */
-        .flatpickr-day.selected,
-        .flatpickr-day.startRange,
-        .flatpickr-day.endRange {
-          background: linear-gradient(135deg, #f97316 0%, #ea580c 100%) !important;
-          border-color: #f97316 !important;
-          color: #ffffff !important;
-          font-weight: 700 !important;
-          box-shadow: 0 2px 4px -1px rgba(249, 115, 22, 0.3) !important;
-        }
-        
-        .flatpickr-day.selected:hover,
-        .flatpickr-day.startRange:hover,
-        .flatpickr-day.endRange:hover {
-          background: linear-gradient(135deg, #ea580c 0%, #c2410c 100%) !important;
-        }
-        
-        /* Today - Compact */
-        .flatpickr-day.today {
-          border: 1.5px solid #f97316 !important;
-          color: #f97316 !important;
-          font-weight: 700 !important;
-          background: #fff7ed !important;
-        }
-        
-        .dark .flatpickr-day.today {
-          background: #7c2d12 !important;
-          border-color: #f97316 !important;
-          color: #fed7aa !important;
-        }
-        
-        .flatpickr-day.today:hover {
-          background: #fff7ed !important;
-          border-color: #ea580c !important;
-          color: #000000 !important;
-        }
-        
-        .dark .flatpickr-day.today:hover {
-          background: #9a3412 !important;
-          border-color: #f97316 !important;
-          color: #ffffff !important;
-        }
-        
-        /* Disabled/Other Month Days - Compact */
-        .flatpickr-day.flatpickr-disabled,
-        .flatpickr-day.prevMonthDay,
-        .flatpickr-day.nextMonthDay {
-          color: #d1d5db !important;
-          opacity: 0.4 !important;
-          font-size: 8px !important;
-        }
-        
-        .dark .flatpickr-day.flatpickr-disabled,
-        .dark .flatpickr-day.prevMonthDay,
-        .dark .flatpickr-day.nextMonthDay {
-          color: #6b7280 !important;
-        }
-        
-        /* Time Picker - Compact */
-        .flatpickr-time {
-          font-size: 9px !important;
-          font-family: 'Inter', sans-serif !important;
-          border-top: 1px solid rgba(249, 115, 22, 0.1) !important;
-          padding: 4px !important;
-        }
-        
-        .dark .flatpickr-time {
-          border-top-color: rgba(249, 115, 22, 0.2) !important;
-        }
-        
-        .flatpickr-time input {
-          font-size: 9px !important;
-          font-family: 'Inter', sans-serif !important;
-          font-weight: 500 !important;
-        }
-        
-        /* Calendar inner container */
-        .flatpickr-innerContainer {
-          padding: 0 !important;
-        }
-        
-        /* Reduce spacing in calendar */
-        .flatpickr-month {
-          height: 28px !important;
-        }
-        
-        /* Reduce overall calendar size */
-        .flatpickr-calendar.arrowTop:before,
-        .flatpickr-calendar.arrowTop:after {
-          border-bottom-color: #ffffff !important;
-        }
-        
-        .dark .flatpickr-calendar.arrowTop:before,
-        .dark .flatpickr-calendar.arrowTop:after {
-          border-bottom-color: #1f2937 !important;
-        }
-      `}</style>
-
       {/* Header */}
       <ScheduleHeader />
 
@@ -2254,6 +2096,7 @@ export default function TrainerSchedule() {
         onDateChange={handleDateChange}
         onViewModeChange={handleViewModeChange}
         onShowCreateModal={handleShowCreateModal}
+        schedulesData={schedules}
       />
 
       {/* Filters */}
@@ -2278,6 +2121,12 @@ export default function TrainerSchedule() {
         currentPage={currentPage}
         itemsPerPage={itemsPerPage}
         onPageChange={setCurrentPage}
+        openPopupId={openPopupId}
+        popupPosition={popupPosition}
+        handleRowClick={handleRowClick}
+        popupRef={popupRef}
+        setOpenPopupId={setOpenPopupId}
+        setPopupPosition={setPopupPosition}
         onSort={handleSort}
         onAttendanceClick={openAttendanceModal}
         onEditClick={handleEditClick}
@@ -2412,7 +2261,6 @@ export default function TrainerSchedule() {
                               key={record.id}
                               className='relative overflow-hidden rounded-lg border-l-4 border-l-transparent hover:border-l-orange-500 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 group'
                             >
-
                               {/* Content */}
                               <div className='relative p-3 z-10'>
                                 <div className='flex items-center gap-3'>
@@ -2608,7 +2456,7 @@ export default function TrainerSchedule() {
         onSuccess={() => {
           // Close modal
           setShowCreateModal(false);
-          
+
           // Show success message
           if (window.showToast) {
             window.showToast({
@@ -2617,10 +2465,25 @@ export default function TrainerSchedule() {
               duration: 3000,
             });
           }
-          
+
           // Note: No need to fetch schedules as the schedule requires at least 2 days in advance
           // When the user selects a date 2+ days from now, the schedules will be fetched automatically
         }}
+        userId={userId}
+      />
+
+      {/* Edit Schedule Modal */}
+      <EditScheduleModal
+        isOpen={showEditModal}
+        onClose={() => {
+          setShowEditModal(false);
+          setSelectedScheduleForEdit(null);
+        }}
+        onSuccess={() => {
+          // Refresh schedules to get updated data
+          fetchSchedules();
+        }}
+        schedule={selectedScheduleForEdit}
         userId={userId}
       />
     </>

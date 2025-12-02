@@ -518,7 +518,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             cancelable: true,
           }));
           
-          console.log(`✅ [ADD_CERT_MODAL] ⭐⭐ Dispatched optimistic certification:created event for ${createdCert.id}`, {
+          console.log(`[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`, {
             trainer_id: createdCert.trainer_id,
             certification_id: createdCert.id,
             verification_status: createdCert.verification_status,
@@ -628,7 +628,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             cancelable: true,
           }));
           
-          console.log(`✅ [ADD_CERT_MODAL] ⭐⭐ Dispatched optimistic certification:created event for ${createdCert.id}`, {
+          console.log(`[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`, {
             trainer_id: createdCert.trainer_id,
             certification_id: createdCert.id,
             verification_status: createdCert.verification_status,

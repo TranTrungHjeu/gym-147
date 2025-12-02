@@ -130,8 +130,23 @@ const BillingManagement: React.FC = () => {
               });
             }
           }
-        } catch (error) {
+        } catch (error: any) {
           console.error('Error loading analytics:', error);
+          
+          // Show user-friendly error message for service unavailable
+          if (error.status === 503 || error.isServiceUnavailable) {
+            showToast(
+              error.message || 'Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.',
+              'warning'
+            );
+          } else if (error.status === 504 || error.isTimeout) {
+            showToast(
+              error.message || 'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.',
+              'warning'
+            );
+          } else {
+            showToast('Không thể tải dữ liệu phân tích. Vui lòng thử lại sau.', 'error');
+          }
         } finally {
           setIsLoadingAnalytics(false);
         }
@@ -188,7 +203,20 @@ const BillingManagement: React.FC = () => {
         }
       }
     } catch (error: any) {
-      showToast(`Không thể tải dữ liệu ${activeTab}`, 'error');
+      // Show user-friendly error message based on error type
+      if (error.status === 503 || error.isServiceUnavailable) {
+        showToast(
+          error.message || 'Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.',
+          'warning'
+        );
+      } else if (error.status === 504 || error.isTimeout) {
+        showToast(
+          error.message || 'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.',
+          'warning'
+        );
+      } else {
+        showToast(`Không thể tải dữ liệu ${activeTab}`, 'error');
+      }
       console.error('Error loading data:', error);
     } finally {
       setIsLoading(false);

@@ -95,14 +95,34 @@ export default function TrainerSidebarWidget() {
       }
     };
 
+    // Listen for avatar update events (optimistic update)
+    const handleAvatarUpdate = (e: CustomEvent) => {
+      if (e.detail && e.detail.userId && e.detail.role === 'TRAINER') {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            if (parsedUser.id === e.detail.userId) {
+              // Optimistically update trainer avatar
+              setTrainer({ profile_photo: e.detail.avatarUrl } as Trainer);
+            }
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+          }
+        }
+      }
+    };
+
     // Add event listeners
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
+    window.addEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
 
     // Cleanup
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
     };
   }, []);
 
@@ -126,16 +146,12 @@ export default function TrainerSidebarWidget() {
     const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
     const initials = firstInitial + lastInitial;
 
-    // Generate a consistent color based on name
+    // Use only orange colors for consistency
     const colors = [
       'bg-orange-500',
       'bg-orange-600',
       'bg-orange-700',
       'bg-orange-800',
-      'bg-gray-600',
-      'bg-gray-700',
-      'bg-gray-800',
-      'bg-gray-900',
     ];
     const colorIndex = (firstName + lastName).length % colors.length;
 

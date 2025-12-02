@@ -1,4 +1,5 @@
 import { Button } from '@/components/ui/Button';
+import PremiumFeatureCard from '@/components/PremiumFeatureCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { paymentService } from '@/services/billing/payment.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
@@ -13,6 +14,10 @@ import {
   CreditCard,
   FileText,
   TrendingUp,
+  Brain,
+  Watch,
+  BarChart3,
+  Zap,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -73,7 +78,7 @@ export default function SubscriptionScreen() {
       try {
         const profileResponse = await memberService.getMemberProfile();
         memberProfileData = profileResponse?.data;
-        console.log('📅 Member profile loaded:', memberProfileData);
+        console.log('[DATA] Member profile loaded:', memberProfileData);
         setMemberProfile(memberProfileData);
       } catch (err) {
         console.warn('Could not load member profile:', err);
@@ -98,7 +103,7 @@ export default function SubscriptionScreen() {
         const memberPlanType = memberProfileData?.membership_type;
         const memberPlanName = memberProfileData?.membership_type; // Could be BASIC, PREMIUM, VIP, STUDENT
 
-        console.log('📦 Subscription data loaded:', {
+        console.log('[SUBSCRIPTION] Subscription data loaded:', {
           subscriptionPlanId: subscriptionData.plan_id,
           subscriptionPlanName: subscriptionData.plan?.name,
           subscriptionPlanType: subscriptionData.plan?.type,
@@ -122,7 +127,7 @@ export default function SubscriptionScreen() {
             // This is the source of truth for what plan the member actually has
             if (memberPlan.id !== subscriptionData.plan_id) {
               console.warn(
-                '⚠️ Plan mismatch: Subscription plan_id does not match member membership_type',
+                '[WARNING] Plan mismatch: Subscription plan_id does not match member membership_type',
                 {
                   subscriptionPlanId: subscriptionData.plan_id,
                   subscriptionPlanType: subscriptionData.plan?.type,
@@ -135,7 +140,7 @@ export default function SubscriptionScreen() {
               // Use member's actual plan type instead
               subscriptionData.plan_id = memberPlan.id;
               subscriptionData.plan = memberPlan;
-              console.log('✅ Corrected subscription plan to match member:', {
+              console.log('[SUCCESS] Corrected subscription plan to match member:', {
                 oldPlanId: subscriptionData.plan_id,
                 oldPlanName: subscriptionData.plan?.name,
                 newPlanId: memberPlan.id,
@@ -148,7 +153,7 @@ export default function SubscriptionScreen() {
             }
           } else {
             console.warn(
-              '⚠️ Could not find plan for membership_type:',
+              '[WARNING] Could not find plan for membership_type:',
               memberPlanType
             );
           }
@@ -157,7 +162,7 @@ export default function SubscriptionScreen() {
           subscriptionData.plan_id !== subscriptionData.plan?.id
         ) {
           console.warn(
-            '⚠️ Plan object mismatch detected, replacing with correct plan'
+            '[WARNING] Plan object mismatch detected, replacing with correct plan'
           );
           subscriptionData.plan = actualPlan;
         }
@@ -354,7 +359,7 @@ export default function SubscriptionScreen() {
                 {(() => {
                   // Debug: Log subscription data
                   const memberExpiresAt = memberProfile?.expires_at;
-                  console.log('📅 Subscription dates:', {
+                  console.log('[DATA] Subscription dates:', {
                     current_period_end: subscription.current_period_end,
                     end_date: subscription.end_date,
                     next_billing_date: subscription.next_billing_date,
@@ -372,7 +377,7 @@ export default function SubscriptionScreen() {
                     subscription.nextBillingDate ||
                     (memberExpiresAt ? new Date(memberExpiresAt) : null);
 
-                  console.log('📅 Selected expiration date:', expirationDate);
+                  console.log('[DATA] Selected expiration date:', expirationDate);
 
                   // Always show time remaining, even if date is missing
                   if (!expirationDate) {
@@ -406,7 +411,7 @@ export default function SubscriptionScreen() {
 
                   // Check if date is valid
                   if (isNaN(endDate.getTime())) {
-                    console.error('❌ Invalid date:', expirationDate);
+                    console.error('[ERROR] Invalid date:', expirationDate);
                     return (
                       <View style={styles.detailItem}>
                         <Text
@@ -639,6 +644,103 @@ export default function SubscriptionScreen() {
                 ))}
               </View>
             )}
+
+            {/* Premium Features Upgrade Section - Show if user has BASIC plan */}
+            {subscription.plan?.type === 'BASIC' && (
+              <View style={styles.premiumFeaturesSection}>
+                <Text
+                  style={[
+                    Typography.h4,
+                    { color: theme.colors.text, marginBottom: 16 },
+                  ]}
+                >
+                  {t('subscription.premiumFeatures.upgradeTitle', {
+                    defaultValue: 'Unlock Premium Features',
+                  })}
+                </Text>
+
+                {!subscription.plan.smart_workout_plans && (
+                  <PremiumFeatureCard
+                    title={t('subscription.premiumFeatures.smartWorkouts.title', {
+                      defaultValue: 'Smart Workout Plans',
+                    })}
+                    description={t(
+                      'subscription.premiumFeatures.smartWorkouts.description',
+                      {
+                        defaultValue:
+                          'AI-generated personalized workout plans based on your goals',
+                      }
+                    )}
+                    icon={<Brain size={24} color={theme.colors.primary} />}
+                    isLocked={true}
+                    onUpgrade={handleUpgradeSubscription}
+                    featureList={[
+                      t('subscription.premiumFeatures.smartWorkouts.feature1', {
+                        defaultValue: 'AI-powered workout generation',
+                      }),
+                      t('subscription.premiumFeatures.smartWorkouts.feature2', {
+                        defaultValue: 'Personalized exercise recommendations',
+                      }),
+                    ]}
+                  />
+                )}
+
+                {!subscription.plan.wearable_integration && (
+                  <PremiumFeatureCard
+                    title={t('subscription.premiumFeatures.wearable.title', {
+                      defaultValue: 'Wearable Integration',
+                    })}
+                    description={t(
+                      'subscription.premiumFeatures.wearable.description',
+                      {
+                        defaultValue:
+                          'Sync your fitness tracker and smartwatch data',
+                      }
+                    )}
+                    icon={<Watch size={24} color={theme.colors.primary} />}
+                    isLocked={true}
+                    onUpgrade={handleUpgradeSubscription}
+                    featureList={[
+                      t('subscription.premiumFeatures.wearable.feature1', {
+                        defaultValue: 'Real-time heart rate monitoring',
+                      }),
+                      t('subscription.premiumFeatures.wearable.feature2', {
+                        defaultValue: 'Activity tracking sync',
+                      }),
+                    ]}
+                  />
+                )}
+
+                {!subscription.plan.advanced_analytics && (
+                  <PremiumFeatureCard
+                    title={t('subscription.premiumFeatures.analytics.title', {
+                      defaultValue: 'Advanced Analytics',
+                    })}
+                    description={t(
+                      'subscription.premiumFeatures.analytics.description',
+                      {
+                        defaultValue:
+                          'Deep insights into your fitness progress and trends',
+                      }
+                    )}
+                    icon={<BarChart3 size={24} color={theme.colors.primary} />}
+                    isLocked={true}
+                    onUpgrade={handleUpgradeSubscription}
+                    featureList={[
+                      t('subscription.premiumFeatures.analytics.feature1', {
+                        defaultValue: 'Detailed progress reports',
+                      }),
+                      t('subscription.premiumFeatures.analytics.feature2', {
+                        defaultValue: 'Performance trends analysis',
+                      }),
+                    ]}
+                    badge={t('subscription.premiumFeatures.badge', {
+                      defaultValue: 'VIP',
+                    })}
+                  />
+                )}
+              </View>
+            )}
           </View>
         ) : (
           <View style={styles.noSubscriptionContainer}>
@@ -658,6 +760,110 @@ export default function SubscriptionScreen() {
               onPress={handleViewPlans}
               style={styles.viewPlansButton}
             />
+
+            {/* Premium Features Section */}
+            <View style={styles.premiumFeaturesSection}>
+              <Text
+                style={[
+                  Typography.h4,
+                  { color: theme.colors.text, marginBottom: 16 },
+                ]}
+              >
+                {t('subscription.premiumFeatures.title', {
+                  defaultValue: 'Premium Features',
+                })}
+              </Text>
+
+              <PremiumFeatureCard
+                title={t('subscription.premiumFeatures.smartWorkouts.title', {
+                  defaultValue: 'Smart Workout Plans',
+                })}
+                description={t(
+                  'subscription.premiumFeatures.smartWorkouts.description',
+                  {
+                    defaultValue:
+                      'AI-generated personalized workout plans based on your goals',
+                  }
+                )}
+                icon={<Brain size={24} color={theme.colors.primary} />}
+                isLocked={true}
+                onUpgrade={handleViewPlans}
+                featureList={[
+                  t('subscription.premiumFeatures.smartWorkouts.feature1', {
+                    defaultValue: 'AI-powered workout generation',
+                  }),
+                  t('subscription.premiumFeatures.smartWorkouts.feature2', {
+                    defaultValue: 'Personalized exercise recommendations',
+                  }),
+                  t('subscription.premiumFeatures.smartWorkouts.feature3', {
+                    defaultValue: 'Adaptive training programs',
+                  }),
+                ]}
+                badge={t('subscription.premiumFeatures.badge', {
+                  defaultValue: 'PREMIUM',
+                })}
+              />
+
+              <PremiumFeatureCard
+                title={t('subscription.premiumFeatures.wearable.title', {
+                  defaultValue: 'Wearable Integration',
+                })}
+                description={t(
+                  'subscription.premiumFeatures.wearable.description',
+                  {
+                    defaultValue:
+                      'Sync your fitness tracker and smartwatch data',
+                  }
+                )}
+                icon={<Watch size={24} color={theme.colors.primary} />}
+                isLocked={true}
+                onUpgrade={handleViewPlans}
+                featureList={[
+                  t('subscription.premiumFeatures.wearable.feature1', {
+                    defaultValue: 'Real-time heart rate monitoring',
+                  }),
+                  t('subscription.premiumFeatures.wearable.feature2', {
+                    defaultValue: 'Activity tracking sync',
+                  }),
+                  t('subscription.premiumFeatures.wearable.feature3', {
+                    defaultValue: 'Sleep and recovery insights',
+                  }),
+                ]}
+                badge={t('subscription.premiumFeatures.badge', {
+                  defaultValue: 'PREMIUM',
+                })}
+              />
+
+              <PremiumFeatureCard
+                title={t('subscription.premiumFeatures.analytics.title', {
+                  defaultValue: 'Advanced Analytics',
+                })}
+                description={t(
+                  'subscription.premiumFeatures.analytics.description',
+                  {
+                    defaultValue:
+                      'Deep insights into your fitness progress and trends',
+                  }
+                )}
+                icon={<BarChart3 size={24} color={theme.colors.primary} />}
+                isLocked={true}
+                onUpgrade={handleViewPlans}
+                featureList={[
+                  t('subscription.premiumFeatures.analytics.feature1', {
+                    defaultValue: 'Detailed progress reports',
+                  }),
+                  t('subscription.premiumFeatures.analytics.feature2', {
+                    defaultValue: 'Performance trends analysis',
+                  }),
+                  t('subscription.premiumFeatures.analytics.feature3', {
+                    defaultValue: 'Goal achievement tracking',
+                  }),
+                ]}
+                badge={t('subscription.premiumFeatures.badge', {
+                  defaultValue: 'VIP',
+                })}
+              />
+            </View>
           </View>
         )}
 
@@ -935,6 +1141,11 @@ const styles = StyleSheet.create({
   },
   viewPlansButton: {
     marginTop: 16,
+  },
+  premiumFeaturesSection: {
+    marginTop: 32,
+    paddingHorizontal: 16,
+    width: '100%',
   },
   quickActions: {
     padding: 16,

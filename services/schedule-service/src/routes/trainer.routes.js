@@ -33,27 +33,34 @@ router.get('/user/:user_id/reviews', (req, res) =>
 );
 router.get('/user/:user_id/ratings', (req, res) => trainerController.getTrainerRatings(req, res));
 router.get('/user/:user_id/feedback', (req, res) => trainerController.getTrainerFeedback(req, res));
+router.post('/user/:user_id/reviews/:attendance_id/reply', (req, res) =>
+  trainerController.replyToReview(req, res)
+);
+router.post('/user/:user_id/reviews/:attendance_id/report', (req, res) =>
+  trainerController.reportReview(req, res)
+);
 router.get('/user/:user_id/certifications', (req, res) =>
   trainerController.getTrainerCertifications(req, res)
 );
 router.get('/user/:user_id/available-categories', (req, res) =>
   trainerController.getAvailableCategories(req, res)
 );
+router.post('/user/:user_id/avatar', (req, res) => trainerController.uploadAvatar(req, res));
 
 // Trainer Certification routes (must be BEFORE /:id route to avoid route conflicts)
 // These routes use /trainers/:trainerId/... pattern
 // Note: Routes with specific patterns (like /certifications) must come before generic routes (like /:id)
 router.get('/:trainerId/certifications', (req, res, next) => {
-  console.log('✅ GET /trainers/:trainerId/certifications route matched');
-  console.log('📍 Request params:', req.params);
-  console.log('📍 Request query:', req.query);
+  console.log('[SUCCESS] GET /trainers/:trainerId/certifications route matched');
+  console.log('[LOCATION] Request params:', req.params);
+  console.log('[LOCATION] Request query:', req.query);
   certificationController.getTrainerCertifications(req, res, next);
 });
 router.post('/:trainerId/certifications', (req, res, next) => {
-  console.log('✅ POST /trainers/:trainerId/certifications route matched');
-  console.log('📍 Request params:', req.params);
-  console.log('📍 Request body:', req.body);
-  console.log('📍 TrainerId from params:', req.params.trainerId);
+  console.log('[SUCCESS] POST /trainers/:trainerId/certifications route matched');
+  console.log('[LOCATION] Request params:', req.params);
+  console.log('[LOCATION] Request body:', req.body);
+  console.log('[LOCATION] TrainerId from params:', req.params.trainerId);
   certificationController.createCertification(req, res, next);
 });
 router.post('/:trainerId/upload-certificate', certificationController.uploadCertificateToS3);

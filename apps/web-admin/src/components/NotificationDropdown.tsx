@@ -95,7 +95,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     // Socket should already be connected by AppLayout/TrainerLayout
     // Just get the socket and setup listeners
     const setupSocketListeners = () => {
-      console.log(`🔌 [NOTIFICATION_DROPDOWN] Setting up socket listeners for userId: ${userId}`);
+      console.log(
+        `[SOCKET] [NOTIFICATION_DROPDOWN] Setting up socket listeners for userId: ${userId}`
+      );
 
       // Get schedule, member, and identity sockets
       let scheduleSocket = socketService.getSocket('schedule');
@@ -116,7 +118,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       }
 
       if (!scheduleSocket) {
-        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Schedule socket not available, retrying in 1s...`);
+        console.warn(
+          `[WARNING] [NOTIFICATION_DROPDOWN] Schedule socket not available, retrying in 1s...`
+        );
         setTimeout(setupSocketListeners, 1000);
         return null;
       }
@@ -124,11 +128,13 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       // Wait for schedule socket to connect
       if (!scheduleSocket.connected) {
         console.log(
-          `⏳ [NOTIFICATION_DROPDOWN] Schedule socket not connected yet, waiting for connect event...`
+          `[WAIT] [NOTIFICATION_DROPDOWN] Schedule socket not connected yet, waiting for connect event...`
         );
         if (scheduleSocket.once) {
           scheduleSocket.once('connect', () => {
-            console.log(`✅ [NOTIFICATION_DROPDOWN] Schedule socket connected, setting up listeners...`);
+            console.log(
+              `[SUCCESS] [NOTIFICATION_DROPDOWN] Schedule socket connected, setting up listeners...`
+            );
             setupSocketListeners();
           });
         } else {
@@ -139,36 +145,40 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       }
 
       console.log(
-        `✅ [NOTIFICATION_DROPDOWN] Schedule socket is connected: ${scheduleSocket.id}, User ID: ${userId}`
+        `[SUCCESS] [NOTIFICATION_DROPDOWN] Schedule socket is connected: ${scheduleSocket.id}, User ID: ${userId}`
       );
 
       // Ensure we're subscribed to the user room FIRST, before setting up listeners
       if (userId) {
-        console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribing to user room: user:${userId}`);
+        console.log(`[SUBSCRIBE] [NOTIFICATION_DROPDOWN] Subscribing to user room: user:${userId}`);
         scheduleSocket.emit('subscribe:user', userId);
-        
+
         // Also subscribe member socket if available
         if (memberSocket && memberSocket.connected) {
           memberSocket.emit('subscribe:user', userId);
           // Subscribe to admin room for admin notifications
           memberSocket.emit('subscribe:admin');
-          console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribed member socket to user and admin rooms`);
+          console.log(
+            `[SUBSCRIBE] [NOTIFICATION_DROPDOWN] Subscribed member socket to user and admin rooms`
+          );
         }
 
         // Subscribe identity socket if available (for bulk notifications)
         if (identitySocket && identitySocket.connected) {
           identitySocket.emit('subscribe:user', userId);
-          console.log(`📡 [NOTIFICATION_DROPDOWN] Subscribed identity socket to user room`);
+          console.log(
+            `[SUBSCRIBE] [NOTIFICATION_DROPDOWN] Subscribed identity socket to user room`
+          );
         }
       }
 
       // Helper function to add notification optimistically (without fetching from server)
       const addNotificationOptimistically = (notificationData: any) => {
         console.log(
-          `🔍 [NOTIFICATION_DROPDOWN] addNotificationOptimistically called with:`,
+          `[SEARCH] [NOTIFICATION_DROPDOWN] addNotificationOptimistically called with:`,
           JSON.stringify(notificationData, null, 2)
         );
-        console.log(`🔍 [NOTIFICATION_DROPDOWN] Current isOpen state: ${isOpen}`);
+        console.log(`[SEARCH] [NOTIFICATION_DROPDOWN] Current isOpen state: ${isOpen}`);
 
         // Extract notification_id from various possible locations
         const notificationId =
@@ -178,23 +188,25 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
         if (!notificationId) {
           console.warn(
-            '⚠️ [NOTIFICATION_DROPDOWN] Cannot add notification: missing notification_id',
+            '[WARNING] [NOTIFICATION_DROPDOWN] Cannot add notification: missing notification_id',
             notificationData
           );
           return;
         }
 
         console.log(
-          `✅ [NOTIFICATION_DROPDOWN] Found notification_id: ${notificationId}, adding to state`
+          `[SUCCESS] [NOTIFICATION_DROPDOWN] Found notification_id: ${notificationId}, adding to state`
         );
 
         // Check if notification already exists and add to state
         setNotifications(prev => {
-          console.log(`📊 [NOTIFICATION_DROPDOWN] Current notifications count: ${prev.length}`);
+          console.log(
+            `[STATS] [NOTIFICATION_DROPDOWN] Current notifications count: ${prev.length}`
+          );
           const exists = prev.some(n => n.id === notificationId);
           if (exists) {
             console.log(
-              `ℹ️ [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists in state, skipping`
+              `[INFO] [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists in state, skipping`
             );
             return prev; // Don't modify state if already exists
           }
@@ -208,7 +220,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
             type: notificationData.type || notificationData.data?.type || 'GENERAL',
             title: notificationData.title || notificationData.data?.title || 'Thông báo mới',
             message: notificationData.message || notificationData.data?.message || '',
-            data: notificationData.data || (notificationData.data === undefined ? notificationData : {}),
+            data:
+              notificationData.data ||
+              (notificationData.data === undefined ? notificationData : {}),
             is_read: notificationData.is_read || false,
             created_at:
               notificationData.created_at ||
@@ -221,7 +235,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
               new Date().toISOString(),
           };
 
-          console.log(`🔍 [NOTIFICATION_DROPDOWN] Created notification object:`, {
+          console.log(`[SEARCH] [NOTIFICATION_DROPDOWN] Created notification object:`, {
             id: newNotification.id,
             title: newNotification.title,
             message: newNotification.message,
@@ -231,20 +245,23 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           });
 
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Created notification object:`,
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Created notification object:`,
             JSON.stringify(newNotification, null, 2)
           );
 
           // Add to beginning of list (newest first) - NO RELOAD, just state update
           const updated = [newNotification, ...prev].slice(0, 50); // Keep only latest 50
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} to state. Total notifications: ${prev.length} → ${updated.length}`
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Added notification ${notificationId} to state. Total notifications: ${prev.length} -> ${updated.length}`
           );
-          console.log(`✅ [NOTIFICATION_DROPDOWN] New notification will appear at index 0:`, {
-            id: newNotification.id,
-            title: newNotification.title,
-            type: newNotification.type,
-          });
+          console.log(
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] New notification will appear at index 0:`,
+            {
+              id: newNotification.id,
+              title: newNotification.title,
+              type: newNotification.type,
+            }
+          );
           return updated;
         });
 
@@ -267,7 +284,9 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         // Use setTimeout to ensure DOM is updated first
         setTimeout(() => {
           if (dropdownRef.current && isOpen) {
-            const scrollContainer = dropdownRef.current.querySelector('[data-scroll-container]') as HTMLElement;
+            const scrollContainer = dropdownRef.current.querySelector(
+              '[data-scroll-container]'
+            ) as HTMLElement;
             if (scrollContainer) {
               // Only scroll if user is not at the top (scrolled down)
               if (scrollContainer.scrollTop > 50) {
@@ -292,7 +311,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
       const handleBookingNew = (eventName: string, data?: any) => {
         console.log(
-          `📢 [NOTIFICATION_DROPDOWN] Received ${eventName} event:`,
+          `[NOTIFY] [NOTIFICATION_DROPDOWN] Received ${eventName} event:`,
           JSON.stringify(data, null, 2)
         );
 
@@ -314,7 +333,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         // Skip if we've already processed this event recently (within 5 seconds)
         if (processedEventsRef.current.has(eventId)) {
           console.log(
-            `⏭️ [NOTIFICATION_DROPDOWN] Skipping duplicate ${eventName} event: ${eventId}`
+            `[SKIP] [NOTIFICATION_DROPDOWN] Skipping duplicate ${eventName} event: ${eventId}`
           );
           return;
         }
@@ -327,46 +346,47 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         }, 5000);
 
         console.log(
-          `✅ [NOTIFICATION_DROPDOWN] Processing ${eventName} event optimistically (no reload)`
+          `[SUCCESS] [NOTIFICATION_DROPDOWN] Processing ${eventName} event optimistically (no reload)`
         );
-        console.log(`🔍 [NOTIFICATION_DROPDOWN] Extracted notification_id: ${notificationId}`);
+        console.log(
+          `[SEARCH] [NOTIFICATION_DROPDOWN] Extracted notification_id: ${notificationId}`
+        );
 
         // For notification:new event, data structure is already correct
         if (eventName === 'notification:new' && data) {
           console.log(
-            `📝 [NOTIFICATION_DROPDOWN] Processing notification:new event. notificationId: ${notificationId}, data:`,
+            `[PROCESS] [NOTIFICATION_DROPDOWN] Processing notification:new event. notificationId: ${notificationId}, data:`,
             JSON.stringify(data, null, 2)
           );
-          
-          // If notification_id is missing, generate a temporary one from timestamp and title
-          // This allows the notification to still be displayed even if backend didn't provide ID
-          let finalNotificationId = notificationId;
-          if (!finalNotificationId) {
-            // Generate a temporary ID from timestamp and title hash
-            const titleHash = data.title ? data.title.substring(0, 10).replace(/\s/g, '_') : 'notif';
-            finalNotificationId = `temp_${Date.now()}_${titleHash}`;
+
+          // If notification_id is missing, skip this notification (don't create temporary one)
+          if (!notificationId) {
             console.warn(
-              `⚠️ [NOTIFICATION_DROPDOWN] notification:new event missing notification_id. Generated temporary ID: ${finalNotificationId}`
+              `[WARNING] [NOTIFICATION_DROPDOWN] notification:new event missing notification_id. Skipping notification.`
             );
-            // Add notification_id to data for addNotificationOptimistically
-            data.notification_id = finalNotificationId;
+            return;
           }
-          
+
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Calling addNotificationOptimistically for notification:new event (ID: ${finalNotificationId})`
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Calling addNotificationOptimistically for notification:new event (ID: ${notificationId})`
           );
           // Add notification immediately to UI (optimistic update)
           try {
             addNotificationOptimistically(data);
-            console.log(`✅ [NOTIFICATION_DROPDOWN] addNotificationOptimistically completed for ${finalNotificationId}`);
+            console.log(
+              `[SUCCESS] [NOTIFICATION_DROPDOWN] addNotificationOptimistically completed for ${notificationId}`
+            );
           } catch (error) {
-            console.error(`❌ [NOTIFICATION_DROPDOWN] Error in addNotificationOptimistically:`, error);
+            console.error(
+              `[ERROR] [NOTIFICATION_DROPDOWN] Error in addNotificationOptimistically:`,
+              error
+            );
           }
 
           // Sync unread count in background after delay (no UI impact)
           setTimeout(() => {
             fetchUnreadCount().catch(error => {
-              console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
             });
           }, 2000);
           return;
@@ -402,7 +422,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           };
 
           console.log(
-            `📝 [NOTIFICATION_DROPDOWN] Adding notification from ${eventName} event (ID: ${notificationId}):`,
+            `[PROCESS] [NOTIFICATION_DROPDOWN] Adding notification from ${eventName} event (ID: ${notificationId}):`,
             notificationData
           );
 
@@ -412,7 +432,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           // Sync unread count in background after delay (no UI impact)
           setTimeout(() => {
             fetchUnreadCount().catch(error => {
-              console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
             });
           }, 2000);
           return;
@@ -421,13 +441,13 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         // Fallback: For events without notification_id, do NOT reload notifications
         // Only sync unread count in background (no UI impact)
         console.log(
-          `ℹ️ [NOTIFICATION_DROPDOWN] Event ${eventName} doesn't contain notification_id. Data:`,
+          `[INFO] [NOTIFICATION_DROPDOWN] Event ${eventName} doesn't contain notification_id. Data:`,
           data
         );
-        console.log(`ℹ️ [NOTIFICATION_DROPDOWN] Syncing unread count only (no reload).`);
+        console.log(`[INFO] [NOTIFICATION_DROPDOWN] Syncing unread count only (no reload).`);
         setTimeout(() => {
           fetchUnreadCount().catch(error => {
-            console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+            console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
           });
         }, 1000);
       };
@@ -465,6 +485,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         memberSocket.off('member:updated');
         memberSocket.off('member:deleted');
         memberSocket.off('member:status_changed');
+        memberSocket.off('member:registration_completed');
         memberSocket.off('reward:redemption:new');
         memberSocket.off('equipment:queue:updated');
         memberSocket.off('equipment:status:changed');
@@ -477,106 +498,48 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       }
 
       // Register Schedule Service event listeners
-      scheduleSocket.on('booking:new', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:new event received`);
-        handleBookingNew('booking:new', data);
-      });
-      scheduleSocket.on('booking:pending_payment', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:pending_payment event received`);
-        handleBookingNew('booking:pending_payment', data);
-      });
-      scheduleSocket.on('booking:confirmed', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:confirmed event received`);
-        handleBookingNew('booking:confirmed', data);
-      });
-      scheduleSocket.on('booking:cancelled', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:cancelled event received`);
-        handleBookingNew('booking:cancelled', data);
-      });
-      scheduleSocket.on('booking:payment:success', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:payment:success event received`);
-        handleBookingNew('booking:payment:success', data);
-      });
-      scheduleSocket.on('booking:status_changed', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] booking:status_changed event received`);
-        handleBookingNew('booking:status_changed', data);
-      });
-      scheduleSocket.on('schedule:new', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:new event received`);
-        handleBookingNew('schedule:new', data);
-      });
-      scheduleSocket.on('schedule:updated', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:updated event received`);
-        handleBookingNew('schedule:updated', data);
-      });
-      scheduleSocket.on('schedule:deleted', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:deleted event received`);
-        handleBookingNew('schedule:deleted', data);
-      });
-      scheduleSocket.on('schedule:cancelled', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] schedule:cancelled event received`);
-        handleBookingNew('schedule:cancelled', data);
-      });
+      // All schedule events - notifications will come via notification:new if backend creates them
+      if (scheduleSocket) {
+        const scheduleEvents = [
+          'booking:new',
+          'booking:pending_payment',
+          'booking:confirmed',
+          'booking:cancelled',
+          'booking:payment:success',
+          'booking:status_changed',
+          'schedule:new',
+          'schedule:updated',
+          'schedule:deleted',
+          'schedule:cancelled',
+          'certification:upload',
+          'certification:pending',
+          'certification:status',
+          'certification:verified',
+          'certification:rejected',
+          'certification:deleted',
+          'certification:expiring_soon',
+          'certification:expired',
+          'waitlist:added',
+          'waitlist:promoted',
+          'room:changed',
+          'room:change:rejected',
+          'member:checked_in',
+          'trainer:deleted',
+        ];
 
-      // Certification events
-      scheduleSocket.on('certification:upload', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:upload event received:`, data);
-        handleBookingNew('certification:upload', data);
-      });
-      scheduleSocket.on('certification:pending', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:pending event received:`, data);
-        handleBookingNew('certification:pending', data);
-      });
-      scheduleSocket.on('certification:status', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:status event received`);
-        handleBookingNew('certification:status', data);
-      });
-      scheduleSocket.on('certification:verified', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:verified event received`);
-        handleBookingNew('certification:verified', data);
-      });
-      scheduleSocket.on('certification:rejected', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:rejected event received`);
-        handleBookingNew('certification:rejected', data);
-      });
-      scheduleSocket.on('certification:deleted', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:deleted event received`);
-        handleBookingNew('certification:deleted', data);
-      });
-      scheduleSocket.on('certification:expiring_soon', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:expiring_soon event received`);
-        handleBookingNew('certification:expiring_soon', data);
-      });
-      scheduleSocket.on('certification:expired', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] certification:expired event received`);
-        handleBookingNew('certification:expired', data);
-      });
-
-      // Waitlist and room events
-      scheduleSocket.on('waitlist:added', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] waitlist:added event received`);
-        handleBookingNew('waitlist:added', data);
-      });
-      scheduleSocket.on('waitlist:promoted', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] waitlist:promoted event received`);
-        handleBookingNew('waitlist:promoted', data);
-      });
-      scheduleSocket.on('room:changed', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] room:changed event received`);
-        handleBookingNew('room:changed', data);
-      });
-      scheduleSocket.on('room:change:rejected', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] room:change:rejected event received`);
-        handleBookingNew('room:change:rejected', data);
-      });
-      scheduleSocket.on('member:checked_in', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] member:checked_in event received`);
-        handleBookingNew('member:checked_in', data);
-      });
-      scheduleSocket.on('trainer:deleted', data => {
-        console.log(`📢 [NOTIFICATION_DROPDOWN] trainer:deleted event received`);
-        handleBookingNew('trainer:deleted', data);
-      });
+        scheduleEvents.forEach(eventName => {
+          scheduleSocket.on(eventName, () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] ${eventName} event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
+          });
+        });
+      }
 
       // Primary notification event from schedule service
       console.log(
@@ -584,21 +547,95 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       );
       scheduleSocket.on('notification:new', data => {
         console.log(
-          '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from schedule socket:',
+          '[NOTIFY] [NOTIFICATION_DROPDOWN] [STAR] notification:new event received from schedule socket:',
           JSON.stringify(data, null, 2)
         );
         handleBookingNew('notification:new', data);
       });
+
+      // Listen for notification:read events (when notifications are marked as read)
+      scheduleSocket.on('notification:read', (data: any) => {
+        try {
+          console.log(
+            '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:read event received:',
+            JSON.stringify(data, null, 2)
+          );
+
+          if (data.all) {
+            // Mark all as read - update all notifications and set count to 0
+            setNotifications(prev =>
+              prev.map(n => ({
+                ...n,
+                is_read: true,
+                read_at: data.read_at || new Date().toISOString(),
+              }))
+            );
+            setUnreadCount(0);
+          } else if (data.bulk && data.notification_ids && Array.isArray(data.notification_ids)) {
+            // Bulk mark as read
+            const updatedCount = data.updated_count || data.notification_ids.length;
+            setNotifications(prev =>
+              prev.map(n =>
+                data.notification_ids.includes(n.id)
+                  ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                  : n
+              )
+            );
+            setUnreadCount(prev => Math.max(0, prev - updatedCount));
+          } else if (data.notification_id) {
+            // Single notification marked as read
+            setNotifications(prev =>
+              prev.map(n =>
+                n.id === data.notification_id
+                  ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                  : n
+              )
+            );
+            setUnreadCount(prev => Math.max(0, prev - 1));
+          }
+        } catch (error) {
+          console.error(
+            '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:read event:',
+            error
+          );
+        }
+      });
+
+      // Listen for notification:count_updated events (real-time count sync)
+      scheduleSocket.on(
+        'notification:count_updated',
+        (data: { count: number; user_id?: string }) => {
+          try {
+            // Only update if this update is for the current user
+            if (!data.user_id || data.user_id === userId) {
+              console.log(
+                '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:count_updated event received:',
+                data.count
+              );
+              setUnreadCount(data.count);
+            }
+          } catch (error) {
+            console.error(
+              '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:count_updated event:',
+              error
+            );
+          }
+        }
+      );
 
       // Setup Member Service socket listeners if available
       if (memberSocket) {
         // Wait for member socket to connect
         const setupMemberListeners = () => {
           if (!memberSocket || !memberSocket.connected) {
-            console.log(`⏳ [NOTIFICATION_DROPDOWN] Member socket not connected yet, waiting...`);
+            console.log(
+              `[WAIT] [NOTIFICATION_DROPDOWN] Member socket not connected yet, waiting...`
+            );
             if (memberSocket?.once) {
               memberSocket.once('connect', () => {
-                console.log(`✅ [NOTIFICATION_DROPDOWN] Member socket connected, setting up listeners...`);
+                console.log(
+                  `[SUCCESS] [NOTIFICATION_DROPDOWN] Member socket connected, setting up listeners...`
+                );
                 setupMemberListeners();
               });
             } else {
@@ -608,7 +645,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           }
 
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Member socket is connected: ${memberSocket.id}`
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Member socket is connected: ${memberSocket.id}`
           );
 
           // Subscribe to user and admin rooms
@@ -622,6 +659,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           memberSocket.off('member:updated');
           memberSocket.off('member:deleted');
           memberSocket.off('member:status_changed');
+          memberSocket.off('member:registration_completed');
           memberSocket.off('reward:redemption:new');
           memberSocket.off('equipment:queue:updated');
           memberSocket.off('equipment:status:changed');
@@ -629,144 +667,227 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           memberSocket.off('notification:new');
 
           // Register Member Service event listeners
-          memberSocket.on('member:created', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] member:created event received`);
-            // Create notification for admin
-            const notificationData = {
-              notification_id: `member_created_${data.member_id || data.id}_${Date.now()}`,
-              type: 'MEMBER_REGISTERED',
-              title: 'Thành viên mới đăng ký',
-              message: `${data.data?.full_name || 'Thành viên mới'} đã đăng ký thành công`,
-              data: data.data || data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('member:created', notificationData);
+          // member:created event - notification will come via notification:new if backend creates it
+          memberSocket.on('member:created', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] member:created event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('member:updated', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] member:updated event received`);
-            const notificationData = {
-              notification_id: `member_updated_${data.member_id || data.id}_${Date.now()}`,
-              type: 'MEMBER_UPDATED',
-              title: 'Cập nhật thông tin thành viên',
-              message: `Thông tin của ${data.data?.full_name || 'thành viên'} đã được cập nhật`,
-              data: data.data || data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('member:updated', notificationData);
+          memberSocket.on('member:registration_completed', data => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] member:registration_completed event received`
+            );
+            // Update unread count immediately (notification will be added when backend emits notification:new)
+            setUnreadCount(prev => {
+              const newCount = prev + 1;
+              console.log(
+                `[NOTIFICATION_DROPDOWN] Unread count updated from member:registration_completed: ${prev} → ${newCount}`
+              );
+              return newCount;
+            });
+            // Sync unread count from database after a short delay to ensure accuracy
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('member:deleted', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] member:deleted event received`);
-            const notificationData = {
-              notification_id: `member_deleted_${data.member_id || data.id}_${Date.now()}`,
-              type: 'MEMBER_DELETED',
-              title: 'Xóa thành viên',
-              message: `Thành viên đã bị xóa khỏi hệ thống`,
-              data: data.data || data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('member:deleted', notificationData);
+          // member:updated event - notification is created in database by backend
+          // and will be received via notification:new event, so we skip creating optimistic notification here
+          memberSocket.on('member:updated', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] member:updated event received (notification will come via notification:new)`
+            );
+            // Just update unread count optimistically, actual notification will come from notification:new
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('member:status_changed', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] member:status_changed event received`);
-            const statusText = data.data?.newStatus === 'ACTIVE' ? 'kích hoạt' : 'vô hiệu hóa';
-            const notificationData = {
-              notification_id: `member_status_${data.member_id || data.id}_${Date.now()}`,
-              type: 'MEMBER_UPDATED',
-              title: 'Thay đổi trạng thái thành viên',
-              message: `Trạng thái thành viên đã được ${statusText}`,
-              data: data.data || data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('member:status_changed', notificationData);
+          // member:deleted event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('member:deleted', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] member:deleted event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('reward:redemption:new', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] reward:redemption:new event received`);
-            const notificationData = {
-              notification_id: `reward_redemption_${data.redemption_id}_${Date.now()}`,
-              type: 'REWARD_REDEMPTION',
-              title: 'Đổi thưởng mới',
-              message: `${data.member_name} đã đổi ${data.reward_title} với ${data.points_spent} điểm`,
-              data: data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('reward:redemption:new', notificationData);
+          // member:status_changed event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('member:status_changed', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] member:status_changed event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('equipment:queue:updated', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:queue:updated event received`);
-            // Only notify if significant change (e.g., queue position changed significantly)
-            const notificationData = {
-              notification_id: `equipment_queue_${data.equipment_id}_${Date.now()}`,
-              type: 'GENERAL',
-              title: 'Cập nhật hàng chờ thiết bị',
-              message: `Hàng chờ thiết bị ${data.equipment_name || ''} đã được cập nhật`,
-              data: data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('equipment:queue:updated', notificationData);
+          // reward:redemption:new event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('reward:redemption:new', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] reward:redemption:new event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('equipment:status:changed', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:status:changed event received`);
-            const notificationData = {
-              notification_id: `equipment_status_${data.equipment_id}_${Date.now()}`,
-              type: 'GENERAL',
-              title: 'Thay đổi trạng thái thiết bị',
-              message: `Thiết bị ${data.equipment_name || ''} đã thay đổi trạng thái`,
-              data: data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('equipment:status:changed', notificationData);
+          // equipment:queue:updated event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('equipment:queue:updated', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] equipment:queue:updated event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
-          memberSocket.on('equipment:issue:reported', data => {
-            console.log(`📢 [NOTIFICATION_DROPDOWN] equipment:issue:reported event received`);
-            const notificationData = {
-              notification_id: `equipment_issue_${data.equipment_id}_${Date.now()}`,
-              type: 'GENERAL',
-              title: 'Báo cáo sự cố thiết bị',
-              message: `Có báo cáo sự cố về thiết bị ${data.equipment_name || ''}`,
-              data: data,
-              created_at: new Date().toISOString(),
-              is_read: false,
-            };
-            handleBookingNew('equipment:issue:reported', notificationData);
+          // equipment:status:changed event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('equipment:status:changed', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] equipment:status:changed event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
+          });
+
+          // equipment:issue:reported event - notification is created in database by backend
+          // and will be received via notification:new event
+          memberSocket.on('equipment:issue:reported', () => {
+            console.log(
+              `[NOTIFY] [NOTIFICATION_DROPDOWN] equipment:issue:reported event received (notification will come via notification:new)`
+            );
+            setTimeout(() => {
+              fetchUnreadCount().catch(error => {
+                console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+              });
+            }, 1000);
           });
 
           // Primary notification event from member service
           memberSocket.on('notification:new', data => {
             console.log(
-              '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from member socket:',
+              '[NOTIFY] [NOTIFICATION_DROPDOWN] [STAR] notification:new event received from member socket:',
               JSON.stringify(data, null, 2)
             );
             handleBookingNew('notification:new', data);
           });
+
+          // Listen for notification:read events from member service
+          memberSocket.on('notification:read', (data: any) => {
+            try {
+              console.log(
+                '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:read event received from member socket:',
+                JSON.stringify(data, null, 2)
+              );
+
+              if (data.all) {
+                setNotifications(prev =>
+                  prev.map(n => ({
+                    ...n,
+                    is_read: true,
+                    read_at: data.read_at || new Date().toISOString(),
+                  }))
+                );
+                setUnreadCount(0);
+              } else if (
+                data.bulk &&
+                data.notification_ids &&
+                Array.isArray(data.notification_ids)
+              ) {
+                const updatedCount = data.updated_count || data.notification_ids.length;
+                setNotifications(prev =>
+                  prev.map(n =>
+                    data.notification_ids.includes(n.id)
+                      ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                      : n
+                  )
+                );
+                setUnreadCount(prev => Math.max(0, prev - updatedCount));
+              } else if (data.notification_id) {
+                setNotifications(prev =>
+                  prev.map(n =>
+                    n.id === data.notification_id
+                      ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                      : n
+                  )
+                );
+                setUnreadCount(prev => Math.max(0, prev - 1));
+              }
+            } catch (error) {
+              console.error(
+                '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:read event:',
+                error
+              );
+            }
+          });
+
+          // Listen for notification:count_updated events from member service
+          memberSocket.on(
+            'notification:count_updated',
+            (data: { count: number; user_id?: string }) => {
+              try {
+                if (!data.user_id || data.user_id === userId) {
+                  console.log(
+                    '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:count_updated event received from member socket:',
+                    data.count
+                  );
+                  setUnreadCount(data.count);
+                }
+              } catch (error) {
+                console.error(
+                  '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:count_updated event:',
+                  error
+                );
+              }
+            }
+          );
         };
 
         setupMemberListeners();
       } else {
-        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Member socket not available`);
+        console.warn(`[WARNING] [NOTIFICATION_DROPDOWN] Member socket not available`);
       }
 
       // Setup Identity Service socket listeners for bulk notifications
       if (identitySocket) {
         const setupIdentityListeners = () => {
           if (!identitySocket || !identitySocket.connected) {
-            console.log(`⏳ [NOTIFICATION_DROPDOWN] Identity socket not connected yet, waiting...`);
+            console.log(
+              `[WAIT] [NOTIFICATION_DROPDOWN] Identity socket not connected yet, waiting...`
+            );
             if (identitySocket?.once) {
               identitySocket.once('connect', () => {
-                console.log(`✅ [NOTIFICATION_DROPDOWN] Identity socket connected, setting up listeners...`);
+                console.log(
+                  `[SUCCESS] [NOTIFICATION_DROPDOWN] Identity socket connected, setting up listeners...`
+                );
                 setupIdentityListeners();
               });
             } else {
@@ -777,7 +898,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           }
 
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Identity socket is connected: ${identitySocket.id}, User ID: ${userId}`
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Identity socket is connected: ${identitySocket.id}, User ID: ${userId}`
           );
 
           // Remove existing listeners first to avoid duplicates
@@ -789,26 +910,96 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           );
           identitySocket.on('notification:new', data => {
             console.log(
-              '📢 [NOTIFICATION_DROPDOWN] ⭐ notification:new event received from identity socket:',
+              '[NOTIFY] [NOTIFICATION_DROPDOWN] [STAR] notification:new event received from identity socket:',
               JSON.stringify(data, null, 2)
             );
             handleBookingNew('notification:new', data);
           });
+
+          // Listen for notification:read events from identity service
+          identitySocket.on('notification:read', (data: any) => {
+            try {
+              console.log(
+                '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:read event received from identity socket:',
+                JSON.stringify(data, null, 2)
+              );
+
+              if (data.all) {
+                setNotifications(prev =>
+                  prev.map(n => ({
+                    ...n,
+                    is_read: true,
+                    read_at: data.read_at || new Date().toISOString(),
+                  }))
+                );
+                setUnreadCount(0);
+              } else if (
+                data.bulk &&
+                data.notification_ids &&
+                Array.isArray(data.notification_ids)
+              ) {
+                const updatedCount = data.updated_count || data.notification_ids.length;
+                setNotifications(prev =>
+                  prev.map(n =>
+                    data.notification_ids.includes(n.id)
+                      ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                      : n
+                  )
+                );
+                setUnreadCount(prev => Math.max(0, prev - updatedCount));
+              } else if (data.notification_id) {
+                setNotifications(prev =>
+                  prev.map(n =>
+                    n.id === data.notification_id
+                      ? { ...n, is_read: true, read_at: data.read_at || new Date().toISOString() }
+                      : n
+                  )
+                );
+                setUnreadCount(prev => Math.max(0, prev - 1));
+              }
+            } catch (error) {
+              console.error(
+                '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:read event:',
+                error
+              );
+            }
+          });
+
+          // Listen for notification:count_updated events from identity service
+          identitySocket.on(
+            'notification:count_updated',
+            (data: { count: number; user_id?: string }) => {
+              try {
+                if (!data.user_id || data.user_id === userId) {
+                  console.log(
+                    '[NOTIFY] [NOTIFICATION_DROPDOWN] notification:count_updated event received from identity socket:',
+                    data.count
+                  );
+                  setUnreadCount(data.count);
+                }
+              } catch (error) {
+                console.error(
+                  '[ERROR] [NOTIFICATION_DROPDOWN] Error handling notification:count_updated event:',
+                  error
+                );
+              }
+            }
+          );
         };
 
         setupIdentityListeners();
       } else {
-        console.warn(`⚠️ [NOTIFICATION_DROPDOWN] Identity socket not available`);
+        console.warn(`[WARNING] [NOTIFICATION_DROPDOWN] Identity socket not available`);
       }
 
-      console.log(
-        `✅ [NOTIFICATION_DROPDOWN] All socket listeners registered successfully`
-      );
+      console.log(`[SUCCESS] [NOTIFICATION_DROPDOWN] All socket listeners registered successfully`);
 
       // Verify subscription after a short delay
       setTimeout(() => {
         console.log(
-          `🔍 [NOTIFICATION_DROPDOWN] Socket subscription verification - Schedule Socket ID: ${scheduleSocket.id}, Member Socket ID: ${memberSocket?.id || 'N/A'}, User ID: ${userId}`
+          `[SEARCH] [NOTIFICATION_DROPDOWN] Socket subscription verification - Schedule Socket ID: ${
+            scheduleSocket.id
+          }, Member Socket ID: ${memberSocket?.id || 'N/A'}, User ID: ${userId}`
         );
       }, 500);
 
@@ -847,6 +1038,8 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         scheduleSocket.off('member:checked_in');
         scheduleSocket.off('trainer:deleted');
         scheduleSocket.off('notification:new');
+        scheduleSocket.off('notification:read');
+        scheduleSocket.off('notification:count_updated');
 
         // Cleanup member socket listeners
         if (memberSocket) {
@@ -854,16 +1047,21 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           memberSocket.off('member:updated');
           memberSocket.off('member:deleted');
           memberSocket.off('member:status_changed');
+          memberSocket.off('member:registration_completed');
           memberSocket.off('reward:redemption:new');
           memberSocket.off('equipment:queue:updated');
           memberSocket.off('equipment:status:changed');
           memberSocket.off('equipment:issue:reported');
           memberSocket.off('notification:new');
+          memberSocket.off('notification:read');
+          memberSocket.off('notification:count_updated');
         }
 
         // Cleanup identity socket listeners
         if (identitySocket) {
           identitySocket.off('notification:new');
+          identitySocket.off('notification:read');
+          identitySocket.off('notification:count_updated');
         }
 
         clearInterval(interval);
@@ -876,12 +1074,15 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     // Note: Socket events should handle this, but this is a fallback
     // We don't reload here - socket events will handle adding notifications optimistically
     const handleCertificationCreated = (event: CustomEvent) => {
-      console.log('📢 [NOTIFICATION_DROPDOWN] certification:created event received:', event.detail);
+      console.log(
+        '[NOTIFY] [NOTIFICATION_DROPDOWN] certification:created event received:',
+        event.detail
+      );
       // Don't reload notifications - socket events will handle this optimistically
       // Just sync unread count in the background after a delay to ensure accuracy
       setTimeout(() => {
         fetchUnreadCount().catch(error => {
-          console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+          console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
         });
       }, 2000);
     };
@@ -892,7 +1093,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     // This is important because sometimes socket events might be received by Layout components first
     const handleNotificationNew = (event: CustomEvent) => {
       console.log(
-        '📢 [NOTIFICATION_DROPDOWN] ⭐⭐ notification:new custom event received from Layout:',
+        '[NOTIFY] [NOTIFICATION_DROPDOWN] [STAR][STAR] notification:new custom event received from Layout:',
         JSON.stringify(event.detail, null, 2)
       );
       // Extract notification data and add optimistically
@@ -906,14 +1107,14 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
       if (notificationId) {
         console.log(
-          `✅ [NOTIFICATION_DROPDOWN] Found notification_id from custom event: ${notificationId}`
+          `[SUCCESS] [NOTIFICATION_DROPDOWN] Found notification_id from custom event: ${notificationId}`
         );
 
         setNotifications(prev => {
           const exists = prev.some(n => n.id === notificationId);
           if (exists) {
             console.log(
-              `ℹ️ [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists, skipping`
+              `[INFO] [NOTIFICATION_DROPDOWN] Notification ${notificationId} already exists, skipping`
             );
             return prev;
           }
@@ -957,7 +1158,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
           };
 
           console.log(
-            `✅ [NOTIFICATION_DROPDOWN] Added notification ${notificationId} from custom event`
+            `[SUCCESS] [NOTIFICATION_DROPDOWN] Added notification ${notificationId} from custom event`
           );
           return [newNotification, ...prev].slice(0, 50);
         });
@@ -971,7 +1172,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
         });
       } else {
         console.warn(
-          '⚠️ [NOTIFICATION_DROPDOWN] Custom event notification:new missing notification_id:',
+          '[WARNING] [NOTIFICATION_DROPDOWN] Custom event notification:new missing notification_id:',
           notificationData
         );
       }
@@ -998,7 +1199,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       // Just sync unread count in the background after a delay to ensure accuracy
       setTimeout(() => {
         fetchUnreadCount().catch(error => {
-          console.error('❌ [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
+          console.error('[ERROR] [NOTIFICATION_DROPDOWN] Error syncing unread count:', error);
         });
       }, 1000);
     };
@@ -1121,7 +1322,7 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       // Optimistic update: Remove from UI immediately for smooth animation
       const deletedNotification = notifications.find(notif => notif.id === notificationId);
       setNotifications(prev => prev.filter(notif => notif.id !== notificationId));
-      
+
       // Update unread count if needed
       if (deletedNotification && !deletedNotification.is_read) {
         setUnreadCount(prev => Math.max(0, prev - 1));
@@ -1286,30 +1487,28 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
       if ('role' in data && data.role) {
         return data.role as string;
       }
-      // If notification has auto_verified: true or verified_by: 'AI_SYSTEM', it's from AI
       if (data.auto_verified === true || data.verified_by === 'AI_SYSTEM') {
         return 'AI';
       }
-      // If notification has admin_id or admin_name, it's from ADMIN
       if ('admin_id' in data || 'admin_name' in data) {
         return 'ADMIN';
       }
-      // If notification has trainer_id or trainer_name, it's from TRAINER
       if ('trainer_id' in data || 'trainer_name' in data) {
         return 'TRAINER';
       }
-      // If notification has member_id or member_name, it's from MEMBER
       if ('member_id' in data || 'member_name' in data) {
         return 'MEMBER';
       }
     }
 
     // Priority 2: Check message content for role hints (before type inference)
+    // Only check if message explicitly says "admin đã" or "quản trị viên đã" (admin did something)
+    // NOT if it says "thành viên đã" or "member đã" (member did something)
     const messageLower = message?.toLowerCase() || '';
     if (
-      messageLower.includes('admin đã') ||
-      messageLower.includes('quản trị viên đã') ||
-      messageLower.startsWith('admin')
+      (messageLower.includes('admin đã') || messageLower.includes('quản trị viên đã')) &&
+      !messageLower.includes('thành viên đã') &&
+      !messageLower.includes('member đã')
     ) {
       return 'ADMIN';
     }
@@ -1838,13 +2037,6 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
                           transition: {
                             duration: 0.35,
                             ease: [0.4, 0, 0.2, 1] as const, // ease-in-out cubic-bezier
-                          },
-                          marginBottom: 0,
-                          paddingTop: 0,
-                          paddingBottom: 0,
-                          transition: {
-                            duration: 0.3,
-                            ease: [0.42, 0, 1, 1] as const,
                           },
                         },
                       };

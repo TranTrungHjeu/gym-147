@@ -19,7 +19,7 @@ class BulkNotificationController {
         });
       }
 
-      const { title, message, type = 'GENERAL', filters, member_ids, data } = req.body;
+      const { title, message, type = 'GENERAL', filters, member_ids, data, channels } = req.body;
 
       // Validate required fields
       if (!title || !message) {
@@ -42,7 +42,7 @@ class BulkNotificationController {
       // Rate limiting: max 1000 recipients
       const MAX_RECIPIENTS = 1000;
 
-      console.log('📢 [BULK_NOTIFICATION] Starting bulk notification to members:', {
+      console.log('[NOTIFY] [BULK_NOTIFICATION] Starting bulk notification to members:', {
         senderId,
         senderRole,
         hasFilters: !!filters,
@@ -58,7 +58,7 @@ class BulkNotificationController {
           ...(filters || {}),
         });
       } catch (error) {
-        console.error('❌ [BULK_NOTIFICATION] Error getting members:', error.message);
+        console.error('[ERROR] [BULK_NOTIFICATION] Error getting members:', error.message);
         return res.status(500).json({
           success: false,
           message: 'Failed to retrieve members',
@@ -83,12 +83,10 @@ class BulkNotificationController {
         });
       }
 
-      console.log(`📊 [BULK_NOTIFICATION] Found ${members.length} member(s) to notify`);
+      console.log(`[DATA] [BULK_NOTIFICATION] Found ${members.length} member(s) to notify`);
 
       // Extract user_ids from members
-      const userIds = members
-        .map(m => m.user_id || m.id)
-        .filter(id => id); // Filter out null/undefined
+      const userIds = members.map(m => m.user_id || m.id).filter(id => id); // Filter out null/undefined
 
       if (userIds.length === 0) {
         return res.status(400).json({
@@ -104,15 +102,16 @@ class BulkNotificationController {
         title,
         message,
         data: data || {},
+        channels: channels || ['IN_APP', 'PUSH'], // Default to both in-app and push notifications
       };
 
-      console.log(`💾 [BULK_NOTIFICATION] Creating ${userIds.length} notification(s)...`);
+      console.log(`[SAVE] [BULK_NOTIFICATION] Creating ${userIds.length} notification(s)...`);
       const createResults = await bulkNotificationService.createNotificationsForUsers(
         userIds,
         notificationData
       );
 
-      console.log(`📊 [BULK_NOTIFICATION] Create results (MEMBERS):`, {
+      console.log(`[DATA] [BULK_NOTIFICATION] Create results (MEMBERS):`, {
         success: createResults.success,
         failed: createResults.failed,
         notificationsCount: createResults.notifications?.length || 0,
@@ -120,7 +119,9 @@ class BulkNotificationController {
       });
 
       // Emit socket events with notification IDs
-      console.log(`📡 [BULK_NOTIFICATION] Emitting socket events to ${userIds.length} user(s)...`);
+      console.log(
+        `[SOCKET] [BULK_NOTIFICATION] Emitting socket events to ${userIds.length} user(s)...`
+      );
       await bulkNotificationService.emitSocketEvents(
         userIds,
         notificationData,
@@ -145,13 +146,13 @@ class BulkNotificationController {
       let history = null;
       try {
         history = await bulkNotificationService.saveNotificationHistory(historyData);
-        console.log(`✅ [BULK_NOTIFICATION] History saved: ${history.id}`);
+        console.log(`[SUCCESS] [BULK_NOTIFICATION] History saved: ${history.id}`);
       } catch (historyError) {
-        console.error('❌ [BULK_NOTIFICATION] Error saving history:', historyError.message);
+        console.error('[ERROR] [BULK_NOTIFICATION] Error saving history:', historyError.message);
         // Don't fail the request if history save fails
       }
 
-      console.log(`✅ [BULK_NOTIFICATION] Bulk notification completed:`, {
+      console.log(`[SUCCESS] [BULK_NOTIFICATION] Bulk notification completed:`, {
         total: userIds.length,
         success: createResults.success,
         failed: createResults.failed,
@@ -169,7 +170,10 @@ class BulkNotificationController {
         },
       });
     } catch (error) {
-      console.error('❌ [BULK_NOTIFICATION] Error sending bulk notification to members:', error);
+      console.error(
+        '[ERROR] [BULK_NOTIFICATION] Error sending bulk notification to members:',
+        error
+      );
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -206,7 +210,7 @@ class BulkNotificationController {
         });
       }
 
-      const { title, message, type = 'GENERAL', filters, trainer_ids, data } = req.body;
+      const { title, message, type = 'GENERAL', filters, trainer_ids, data, channels } = req.body;
 
       // Validate required fields
       if (!title || !message) {
@@ -229,7 +233,7 @@ class BulkNotificationController {
       // Rate limiting: max 1000 recipients
       const MAX_RECIPIENTS = 1000;
 
-      console.log('📢 [BULK_NOTIFICATION] Starting bulk notification to trainers:', {
+      console.log('[NOTIFY] [BULK_NOTIFICATION] Starting bulk notification to trainers:', {
         senderId,
         senderRole,
         hasFilters: !!filters,
@@ -245,7 +249,7 @@ class BulkNotificationController {
           ...(filters || {}),
         });
       } catch (error) {
-        console.error('❌ [BULK_NOTIFICATION] Error getting trainers:', error.message);
+        console.error('[ERROR] [BULK_NOTIFICATION] Error getting trainers:', error.message);
         return res.status(500).json({
           success: false,
           message: 'Failed to retrieve trainers',
@@ -270,13 +274,16 @@ class BulkNotificationController {
         });
       }
 
-      console.log(`📊 [BULK_NOTIFICATION] Found ${trainers.length} trainer(s) to notify`);
-      console.log(`🔍 [BULK_NOTIFICATION] Trainer data sample:`, trainers.slice(0, 3).map(t => ({
-        id: t.id,
-        user_id: t.user_id,
-        full_name: t.full_name,
-        email: t.email,
-      })));
+      console.log(`[DATA] [BULK_NOTIFICATION] Found ${trainers.length} trainer(s) to notify`);
+      console.log(
+        `[SEARCH] [BULK_NOTIFICATION] Trainer data sample:`,
+        trainers.slice(0, 3).map(t => ({
+          id: t.id,
+          user_id: t.user_id,
+          full_name: t.full_name,
+          email: t.email,
+        }))
+      );
 
       // Extract user_ids from trainers and verify they exist in Identity Service
       const { prisma: identityPrisma } = require('../lib/prisma.js');
@@ -286,7 +293,7 @@ class BulkNotificationController {
       for (const trainer of trainers) {
         const userId = trainer.user_id || trainer.id;
         if (!userId) {
-          console.warn(`⚠️ [BULK_NOTIFICATION] Trainer ${trainer.id} has no user_id`);
+          console.warn(`[WARN] [BULK_NOTIFICATION] Trainer ${trainer.id} has no user_id`);
           invalidTrainers.push({ trainer, reason: 'No user_id' });
           continue;
         }
@@ -301,11 +308,19 @@ class BulkNotificationController {
           if (userExists) {
             validUserIds.push(userId);
           } else {
-            console.warn(`⚠️ [BULK_NOTIFICATION] User ${userId} not found in Identity Service for trainer ${trainer.id} (${trainer.full_name})`);
-            invalidTrainers.push({ trainer, reason: `User ${userId} not found in Identity Service` });
+            console.warn(
+              `[WARN] [BULK_NOTIFICATION] User ${userId} not found in Identity Service for trainer ${trainer.id} (${trainer.full_name})`
+            );
+            invalidTrainers.push({
+              trainer,
+              reason: `User ${userId} not found in Identity Service`,
+            });
           }
         } catch (error) {
-          console.error(`❌ [BULK_NOTIFICATION] Error checking user ${userId}:`, error.message);
+          console.error(
+            `[ERROR] [BULK_NOTIFICATION] Error checking user ${userId}:`,
+            error.message
+          );
           invalidTrainers.push({ trainer, reason: `Error checking user: ${error.message}` });
         }
       }
@@ -324,7 +339,9 @@ class BulkNotificationController {
       });
 
       if (validUserIds.length === 0) {
-        console.error(`❌ [BULK_NOTIFICATION] No valid user IDs found in trainers. All trainers have invalid user_ids.`);
+        console.error(
+          `[ERROR] [BULK_NOTIFICATION] No valid user IDs found in trainers. All trainers have invalid user_ids.`
+        );
         return res.status(400).json({
           success: false,
           message: `No valid user IDs found. ${invalidTrainers.length} trainer(s) have invalid or missing user_ids.`,
@@ -349,15 +366,16 @@ class BulkNotificationController {
         title,
         message,
         data: data || {},
+        channels: channels || ['IN_APP', 'PUSH'], // Default to both in-app and push notifications
       };
 
-      console.log(`💾 [BULK_NOTIFICATION] Creating ${userIds.length} notification(s)...`);
+      console.log(`[SAVE] [BULK_NOTIFICATION] Creating ${userIds.length} notification(s)...`);
       const createResults = await bulkNotificationService.createNotificationsForUsers(
         userIds,
         notificationData
       );
 
-      console.log(`📊 [BULK_NOTIFICATION] Create results (TRAINERS):`, {
+      console.log(`[DATA] [BULK_NOTIFICATION] Create results (TRAINERS):`, {
         success: createResults.success,
         failed: createResults.failed,
         notificationsCount: createResults.notifications?.length || 0,
@@ -365,7 +383,9 @@ class BulkNotificationController {
       });
 
       // Emit socket events with notification IDs
-      console.log(`📡 [BULK_NOTIFICATION] Emitting socket events to ${userIds.length} user(s)...`);
+      console.log(
+        `[SOCKET] [BULK_NOTIFICATION] Emitting socket events to ${userIds.length} user(s)...`
+      );
       await bulkNotificationService.emitSocketEvents(
         userIds,
         notificationData,
@@ -390,13 +410,13 @@ class BulkNotificationController {
       let history = null;
       try {
         history = await bulkNotificationService.saveNotificationHistory(historyData);
-        console.log(`✅ [BULK_NOTIFICATION] History saved: ${history.id}`);
+        console.log(`[SUCCESS] [BULK_NOTIFICATION] History saved: ${history.id}`);
       } catch (historyError) {
-        console.error('❌ [BULK_NOTIFICATION] Error saving history:', historyError.message);
+        console.error('[ERROR] [BULK_NOTIFICATION] Error saving history:', historyError.message);
         // Don't fail the request if history save fails
       }
 
-      console.log(`✅ [BULK_NOTIFICATION] Bulk notification completed:`, {
+      console.log(`[SUCCESS] [BULK_NOTIFICATION] Bulk notification completed:`, {
         total: userIds.length,
         success: createResults.success,
         failed: createResults.failed,
@@ -414,7 +434,10 @@ class BulkNotificationController {
         },
       });
     } catch (error) {
-      console.error('❌ [BULK_NOTIFICATION] Error sending bulk notification to trainers:', error);
+      console.error(
+        '[ERROR] [BULK_NOTIFICATION] Error sending bulk notification to trainers:',
+        error
+      );
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -431,14 +454,7 @@ class BulkNotificationController {
    */
   async getNotificationHistory(req, res) {
     try {
-      const {
-        page = 1,
-        limit = 20,
-        sender_id,
-        target_type,
-        startDate,
-        endDate,
-      } = req.query;
+      const { page = 1, limit = 20, sender_id, target_type, startDate, endDate } = req.query;
 
       const filters = {
         page: parseInt(page),
@@ -469,7 +485,3 @@ class BulkNotificationController {
 }
 
 module.exports = { BulkNotificationController };
-
-
-
-

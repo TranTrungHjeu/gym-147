@@ -45,8 +45,8 @@ export default function MyUsageScreen() {
       setLoading(true);
       setError(null);
 
-      console.log('🏋️ Loading usage data...');
-      console.log('👤 User:', user);
+      console.log('[EQUIPMENT] Loading usage data...');
+      console.log('[USER] User:', user);
 
       if (!user?.id) {
         setError('Please login to view usage history');
@@ -61,24 +61,24 @@ export default function MyUsageScreen() {
 
       if (historyResponse.success && historyResponse.data) {
         console.log(
-          '✅ Usage history loaded:',
+          '[SUCCESS] Usage history loaded:',
           historyResponse.data.length,
           'sessions'
         );
         setUsageHistory(historyResponse.data);
       } else {
-        console.log('❌ Failed to load usage history:', historyResponse.error);
+        console.log('[ERROR] Failed to load usage history:', historyResponse.error);
         setUsageHistory([]);
       }
 
       if (statsResponse.success && statsResponse.data) {
-        console.log('✅ Usage stats loaded:', statsResponse.data);
+        console.log('[SUCCESS] Usage stats loaded:', statsResponse.data);
         setUsageStats(statsResponse.data);
       } else {
-        console.log('❌ Failed to load usage stats:', statsResponse.error);
+        console.log('[ERROR] Failed to load usage stats:', statsResponse.error);
       }
     } catch (err: any) {
-      console.error('❌ Error loading usage data:', err);
+      console.error('[ERROR] Error loading usage data:', err);
       setError(err.message || 'Failed to load usage data');
     } finally {
       setLoading(false);

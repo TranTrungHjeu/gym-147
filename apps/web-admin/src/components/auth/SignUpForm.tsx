@@ -539,7 +539,7 @@ export default function SignUpForm({ onSwitchToSignIn, clearErrors = false, plan
                 {false && (
                   <div className='mt-2 p-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
                     <p className='text-xs text-red-600 dark:text-red-400 text-center font-medium'>
-                      ⚠️ {signupType === 'email' ? 'Email' : 'Số điện thoại'} này đã được sử dụng!
+                      [WARNING] {signupType === 'email' ? 'Email' : 'Số điện thoại'} này đã được sử dụng!
                     </p>
                     <p className='text-xs text-red-500 dark:text-red-500 text-center mt-1'>
                       Thử chuyển sang {signupType === 'email' ? 'số điện thoại' : 'email'} khác

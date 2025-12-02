@@ -28,7 +28,7 @@ class PushNotificationService {
   async requestPermissions(): Promise<boolean> {
     try {
       if (!Device.isDevice) {
-        console.log('🔔 Push notifications only work on physical devices');
+        console.log('[BELL] Push notifications only work on physical devices');
         return false;
       }
 
@@ -42,14 +42,14 @@ class PushNotificationService {
       }
 
       if (finalStatus !== 'granted') {
-        console.log('🔔 Failed to get push notification permissions');
+        console.log('[BELL] Failed to get push notification permissions');
         return false;
       }
 
-      console.log('✅ Push notification permissions granted');
+      console.log('[SUCCESS] Push notification permissions granted');
       return true;
     } catch (error) {
-      console.error('❌ Request permissions error:', error);
+      console.error('[ERROR] Request permissions error:', error);
       return false;
     }
   }
@@ -60,7 +60,7 @@ class PushNotificationService {
   async getExpoPushToken(): Promise<string | null> {
     try {
       if (!Device.isDevice) {
-        console.log('🔔 Cannot get push token on simulator/emulator');
+        console.log('[BELL] Cannot get push token on simulator/emulator');
         return null;
       }
 
@@ -68,10 +68,10 @@ class PushNotificationService {
       // For standalone app, uncomment and add projectId
       const token = await Notifications.getExpoPushTokenAsync();
 
-      console.log('✅ Expo Push Token:', token.data);
+      console.log('[SUCCESS] Expo Push Token:', token.data);
       return token.data;
     } catch (error: any) {
-      console.error('❌ Get push token error:', error);
+      console.error('[ERROR] Get push token error:', error);
       console.error('Error details:', {
         message: error.message,
         code: error.code,
@@ -79,12 +79,12 @@ class PushNotificationService {
 
       // Try fallback without options if first attempt fails
       try {
-        console.log('🔄 Retrying without projectId...');
+        console.log('[RETRY] Retrying without projectId...');
         const fallbackToken = await Notifications.getExpoPushTokenAsync();
-        console.log('✅ Expo Push Token (fallback):', fallbackToken.data);
+        console.log('[SUCCESS] Expo Push Token (fallback):', fallbackToken.data);
         return fallbackToken.data;
       } catch (fallbackError) {
-        console.error('❌ Fallback also failed:', fallbackError);
+        console.error('[ERROR] Fallback also failed:', fallbackError);
         return null;
       }
     }
@@ -97,19 +97,19 @@ class PushNotificationService {
     try {
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
-        console.log('🔔 No permission to register push token');
+        console.log('[BELL] No permission to register push token');
         return false;
       }
 
       const pushToken = await this.getExpoPushToken();
       if (!pushToken) {
-        console.log('🔔 No push token to register');
+        console.log('[BELL] No push token to register');
         return false;
       }
 
       const pushPlatform = Platform.OS; // 'ios' | 'android'
 
-      console.log('🔔 Registering push token with backend...');
+      console.log('[BELL] Registering push token with backend...');
       console.log('   User ID:', userId);
       console.log('   Token:', pushToken.substring(0, 30) + '...');
       console.log('   Platform:', pushPlatform);
@@ -123,14 +123,14 @@ class PushNotificationService {
       );
 
       if (response.success) {
-        console.log('✅ Push token registered successfully');
+        console.log('[SUCCESS] Push token registered successfully');
         return true;
       } else {
-        console.log('❌ Failed to register push token:', response.message);
+        console.log('[ERROR] Failed to register push token:', response.message);
         return false;
       }
     } catch (error: any) {
-      console.error('❌ Register push token error:', error);
+      console.error('[ERROR] Register push token error:', error);
       return false;
     }
   }
@@ -151,14 +151,14 @@ class PushNotificationService {
       );
 
       if (response.success) {
-        console.log(`✅ Push preference updated: ${enabled}`);
+        console.log(`[SUCCESS] Push preference updated: ${enabled}`);
         return true;
       } else {
-        console.log('❌ Failed to update push preference:', response.message);
+        console.log('[ERROR] Failed to update push preference:', response.message);
         return false;
       }
     } catch (error: any) {
-      console.error('❌ Update push preference error:', error);
+      console.error('[ERROR] Update push preference error:', error);
       return false;
     }
   }
@@ -186,7 +186,7 @@ class PushNotificationService {
         };
       }
     } catch (error: any) {
-      console.error('❌ Get push settings error:', error);
+      console.error('[ERROR] Get push settings error:', error);
       return {
         success: false,
       };
@@ -200,7 +200,7 @@ class PushNotificationService {
     // Listen for notifications received while app is foregrounded
     const foregroundSubscription =
       Notifications.addNotificationReceivedListener((notification) => {
-        console.log('🔔 Notification received (foreground):', notification);
+        console.log('[BELL] Notification received (foreground):', notification);
         console.log('   Title:', notification.request.content.title);
         console.log('   Body:', notification.request.content.body);
         console.log('   Data:', notification.request.content.data);
@@ -210,7 +210,7 @@ class PushNotificationService {
     // This listener is kept for logging purposes
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('🔔 Notification tapped (push service):', response);
+        console.log('[BELL] Notification tapped (push service):', response);
         console.log('   Action:', response.actionIdentifier);
         console.log('   Data:', response.notification.request.content.data);
       });
@@ -241,7 +241,7 @@ class PushNotificationService {
         sound: 'default',
       });
 
-      console.log('✅ Android notification channels configured');
+      console.log('[SUCCESS] Android notification channels configured');
     }
   }
 }

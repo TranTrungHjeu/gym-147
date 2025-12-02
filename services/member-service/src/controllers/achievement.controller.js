@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const pointsService = require('../services/points.service.js');
 const notificationService = require('../services/notification.service.js');
 
@@ -131,14 +131,14 @@ class AchievementController {
         });
       }
 
-      console.log('🔍 Fetching achievements for member_id:', id);
+      console.log('[SEARCH] Fetching achievements for member_id:', id);
 
       const achievements = await prisma.achievement.findMany({
         where: { member_id: id },
         orderBy: { unlocked_at: 'desc' },
       });
 
-      console.log(`✅ Found ${achievements.length} achievements for member ${id}`);
+      console.log(`[SUCCESS] Found ${achievements.length} achievements for member ${id}`);
 
       res.json({
         success: true,
@@ -146,7 +146,7 @@ class AchievementController {
         data: achievements,
       });
     } catch (error) {
-      console.error('❌ Get member achievements error:', error);
+      console.error('[ERROR] Get member achievements error:', error);
       console.error('Error details:', {
         message: error.message,
         stack: error.stack,
@@ -281,7 +281,7 @@ class AchievementController {
       const { userId } = req.params;
       const { period } = req.query;
 
-      console.log('🔍 getUserRank called with userId:', userId, 'period:', period);
+      console.log('[SEARCH] getUserRank called with userId:', userId, 'period:', period);
 
       // Find member by user_id first (since frontend sends identity service user_id)
       const member = await prisma.member.findUnique({
@@ -294,14 +294,14 @@ class AchievementController {
         },
       });
 
-      console.log('👤 Member found:', member ? 'YES ✅' : 'NO ❌');
+      console.log('[USER] Member found:', member ? 'YES [SUCCESS]' : 'NO [ERROR]');
       if (member) {
         console.log('   Member ID:', member.id);
         console.log('   Name:', member.full_name);
       }
 
       if (!member) {
-        console.log('❌ Returning 404 - Member not found');
+        console.log('[ERROR] Returning 404 - Member not found');
         return res.status(404).json({
           success: false,
           message: 'Member not found',
@@ -548,7 +548,7 @@ class AchievementController {
             },
           });
 
-          // ✅ Fix: Award points for achievement
+          // [SUCCESS] Fix: Award points for achievement
           if (achievement.points > 0) {
             pointsService
               .awardPoints(
@@ -604,7 +604,7 @@ class AchievementController {
             },
           });
 
-          // ✅ Fix: Award points for achievement
+          // [SUCCESS] Fix: Award points for achievement
           if (achievement.points > 0) {
             pointsService
               .awardPoints(
@@ -660,7 +660,7 @@ class AchievementController {
             },
           });
 
-          // ✅ Fix: Award points for achievement
+          // [SUCCESS] Fix: Award points for achievement
           if (achievement.points > 0) {
             pointsService
               .awardPoints(
@@ -723,7 +723,7 @@ class AchievementController {
             },
           });
 
-          // ✅ Fix: Award points for achievement
+          // [SUCCESS] Fix: Award points for achievement
           if (achievement.points > 0) {
             pointsService
               .awardPoints(

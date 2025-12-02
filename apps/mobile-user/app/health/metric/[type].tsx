@@ -1,15 +1,18 @@
 import { Button } from '@/components/ui/Button';
+import { DateRangePicker } from '@/components/ui/DateRangePicker';
+import { SkeletonCard, EmptyState } from '@/components/ui';
+import { useToast } from '@/hooks/useToast';
+import { useAnalyticsActions } from '@/hooks/useAnalytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { healthService } from '@/services/member/health.service';
 import { MetricType } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, Calendar } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  ActivityIndicator,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -18,7 +21,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { HealthMetricChart } from '@/components/health/HealthMetricChart';
+import { HealthMetricChart } from '@/components/charts/HealthMetricChart';
 
 export default function HealthMetricDetailScreen() {
   const router = useRouter();
@@ -26,13 +29,20 @@ export default function HealthMetricDetailScreen() {
   const { user } = useAuth();
   const { type } = useLocalSearchParams<{ type: string }>();
   const { t, i18n } = useTranslation();
+  const { showError, ToastComponent } = useToast();
+  const analytics = useAnalyticsActions();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [metrics, setMetrics] = useState<any[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [showDateRangePicker, setShowDateRangePicker] = useState(false);
+  const [dateRange, setDateRange] = useState<{ startDate?: Date; endDate?: Date }>({});
 
   useEffect(() => {
+    if (type) {
+      analytics.trackScreenView('health_metric_detail', { metricType: type });
+    }
     loadMetrics();
   }, [type, user?.id]);
 
@@ -43,18 +53,37 @@ export default function HealthMetricDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const response = await healthService.getHealthMetrics(user.id, {
+      const filters: any = {
         type: type as MetricType,
-      });
+      };
+
+      if (dateRange.startDate) {
+        filters.date_from = dateRange.startDate.toISOString().split('T')[0];
+      }
+      if (dateRange.endDate) {
+        filters.date_to = dateRange.endDate.toISOString().split('T')[0];
+      }
+
+      const response = await healthService.getHealthMetrics(user.id, filters);
 
       if (response.success && response.data) {
         setMetrics(response.data);
+        setError(null);
       } else {
-        setError('Failed to load metrics');
+        const errorMessage = response.error || t('health.loadError', {
+          defaultValue: 'Không thể tải dữ liệu sức khỏe',
+        });
+        setError(errorMessage);
+        analytics.trackError('load_health_metrics_failed', errorMessage);
+        showError(errorMessage);
       }
     } catch (err: any) {
-      console.error('Error loading health metrics:', err);
-      setError(err.message || 'Failed to load metrics');
+      const errorMessage = err.message || t('health.loadError', {
+        defaultValue: 'Không thể tải dữ liệu sức khỏe',
+      });
+      setError(errorMessage);
+      analytics.trackError('load_health_metrics_exception', errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -84,14 +113,16 @@ export default function HealthMetricDetailScreen() {
             {getMetricTypeTranslation(type || '')}
           </Text>
         </View>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.primary} />
-        </View>
+        <ScrollView style={styles.content} contentContainerStyle={styles.loadingContainer}>
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScrollView>
       </SafeAreaView>
     );
   }
 
-  if (error) {
+  if (error && !refreshing) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
@@ -106,23 +137,14 @@ export default function HealthMetricDetailScreen() {
           </Text>
         </View>
         <View style={styles.errorContainer}>
-          <Text style={[Typography.h4, { color: theme.colors.error }]}>
-            {t('common.error')}
-          </Text>
-          <Text
-            style={[
-              Typography.bodyMedium,
-              { color: theme.colors.textSecondary, marginTop: 8 },
-            ]}
-          >
-            {error}
-          </Text>
-          <Button
-            title={t('common.retry')}
-            onPress={loadMetrics}
-            style={styles.retryButton}
+          <EmptyState
+            title={t('common.error', { defaultValue: 'Lỗi' })}
+            message={error}
+            actionLabel={t('common.retry', { defaultValue: 'Thử lại' })}
+            onAction={loadMetrics}
           />
         </View>
+        <ToastComponent />
       </SafeAreaView>
     );
   }
@@ -139,6 +161,12 @@ export default function HealthMetricDetailScreen() {
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
           {getMetricTypeTranslation(type || '')}
         </Text>
+        <TouchableOpacity
+          style={[styles.filterButton, { backgroundColor: theme.colors.surface }]}
+          onPress={() => setShowDateRangePicker(true)}
+        >
+          <Calendar size={20} color={theme.colors.primary} />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -170,7 +198,10 @@ export default function HealthMetricDetailScreen() {
                     { backgroundColor: theme.colors.surface, borderColor: theme.colors.border },
                   ]}
                   onPress={() => {
-                    // Navigate to individual metric detail if needed
+                    analytics.trackButtonClick('view_metric_detail', 'health_metric_list');
+                    if (metric.id) {
+                      router.push(`/health/metric/${metric.id}`);
+                    }
                   }}
                 >
                   <View style={styles.metricHeader}>
@@ -208,25 +239,36 @@ export default function HealthMetricDetailScreen() {
           </>
         ) : (
           <View style={styles.emptyContainer}>
-            <Text style={[Typography.h4, { color: theme.colors.text }]}>
-              {t('health.noMetrics')}
-            </Text>
-            <Text
-              style={[
-                Typography.bodyMedium,
-                { color: theme.colors.textSecondary, marginTop: 8, textAlign: 'center' },
-              ]}
-            >
-              {t('health.noMetricsDescription')}
-            </Text>
-            <Button
-              title={t('health.addMetric')}
-              onPress={() => router.push('/health/add-metric')}
-              style={styles.addButton}
+            <EmptyState
+              title={t('health.noMetrics', { defaultValue: 'Chưa có dữ liệu' })}
+              message={t('health.noMetricsDescription', {
+                defaultValue: 'Bạn chưa có dữ liệu sức khỏe nào. Hãy thêm dữ liệu đầu tiên!',
+              })}
+              actionLabel={t('health.addMetric', { defaultValue: 'Thêm dữ liệu' })}
+              onAction={() => {
+                analytics.trackButtonClick('add_metric_from_empty', 'health_metric_detail');
+                router.push('/health/add-metric');
+              }}
             />
           </View>
         )}
       </ScrollView>
+
+      {/* Date Range Picker */}
+      <DateRangePicker
+        visible={showDateRangePicker}
+        onClose={() => setShowDateRangePicker(false)}
+        onApply={(startDate, endDate) => {
+          setDateRange({ startDate, endDate });
+          setShowDateRangePicker(false);
+          loadMetrics();
+        }}
+        initialStartDate={dateRange.startDate}
+        initialEndDate={dateRange.endDate}
+        maximumDate={new Date()}
+      />
+
+      <ToastComponent />
     </SafeAreaView>
   );
 }
@@ -242,6 +284,11 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+  },
+  filterButton: {
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: 8,
   },
   content: {
     flex: 1,

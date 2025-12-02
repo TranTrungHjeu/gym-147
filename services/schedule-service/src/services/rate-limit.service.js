@@ -7,7 +7,7 @@ let redisRateLimiter = null;
 try {
   redisRateLimiter = require('../../../packages/shared-middleware/src/rate-limit.middleware.js').rateLimiter;
 } catch (e) {
-  console.warn('⚠️ Shared rate limiter not available, using in-memory fallback');
+  console.warn('[WARNING] Shared rate limiter not available, using in-memory fallback');
 }
 
 class RateLimitService {

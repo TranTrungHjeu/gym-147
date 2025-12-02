@@ -91,7 +91,7 @@ class CDNService {
       
       return this.getUrl(key);
     } catch (error) {
-      console.error('❌ Error converting S3 URL to CDN:', error);
+      console.error('[ERROR] Error converting S3 URL to CDN:', error);
       return s3Url; // Return original URL on error
     }
   }
@@ -155,7 +155,7 @@ class CDNService {
           status: result.Invalidation?.Status,
         };
       } catch (error) {
-        console.error('❌ CloudFront invalidation error:', error);
+        console.error('[ERROR] CloudFront invalidation error:', error);
         return {
           success: false,
           error: error.message,
@@ -186,7 +186,7 @@ class CDNService {
           result: response.data,
         };
       } catch (error) {
-        console.error('❌ Cloudflare cache purge error:', error);
+        console.error('[ERROR] Cloudflare cache purge error:', error);
         return {
           success: false,
           error: error.message,

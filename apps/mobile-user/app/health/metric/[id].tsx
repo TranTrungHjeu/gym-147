@@ -1,3 +1,8 @@
+import { AlertModal } from '@/components/ui/AlertModal';
+import { Button } from '@/components/ui/Button';
+import { SkeletonCard, EmptyState } from '@/components/ui';
+import { useToast } from '@/hooks/useToast';
+import { useAnalyticsActions } from '@/hooks/useAnalytics';
 import { useAuth } from '@/contexts/AuthContext';
 import { healthService } from '@/services';
 import { HealthMetric } from '@/types/healthTypes';
@@ -8,7 +13,6 @@ import { ArrowLeft, Edit2, Save, Trash2, X } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
-  Alert,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -25,17 +29,24 @@ export default function MetricDetailScreen() {
   const { member } = useAuth();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { t, i18n } = useTranslation();
+  const { showSuccess, showError, ToastComponent } = useToast();
+  const analytics = useAnalyticsActions();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [metric, setMetric] = useState<HealthMetric | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   // Edit states
   const [editValue, setEditValue] = useState('');
   const [editNotes, setEditNotes] = useState('');
 
   useEffect(() => {
+    if (id) {
+      analytics.trackScreenView('health_metric_detail_id', { metricId: id });
+    }
     loadMetric();
   }, [id]);
 
@@ -54,10 +65,19 @@ export default function MetricDetailScreen() {
         setMetric(foundMetric);
         setEditValue(foundMetric.value.toString());
         setEditNotes(foundMetric.notes || '');
+      } else {
+        const errorMessage = t('health.metricNotFound', {
+          defaultValue: 'Không tìm thấy dữ liệu sức khỏe',
+        });
+        analytics.trackError('metric_not_found', errorMessage);
+        showError(errorMessage);
       }
-    } catch (error) {
-      console.error('Error loading metric:', error);
-      Alert.alert(t('common.error'), 'Failed to load metric details');
+    } catch (error: any) {
+      const errorMessage = error.message || t('health.loadError', {
+        defaultValue: 'Không thể tải dữ liệu sức khỏe',
+      });
+      analytics.trackError('load_metric_exception', errorMessage);
+      showError(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -86,12 +106,16 @@ export default function MetricDetailScreen() {
 
     const newValue = parseFloat(editValue);
     if (isNaN(newValue)) {
-      Alert.alert(t('common.error'), 'Please enter a valid number');
+      showError(t('health.invalidValue', {
+        defaultValue: 'Vui lòng nhập số hợp lệ',
+      }));
       return;
     }
 
     try {
-      setLoading(true);
+      setSaving(true);
+      analytics.trackButtonClick('save_metric', 'health_metric_detail');
+      
       const response = await healthService.updateHealthMetric(
         member.id,
         metric.id,
@@ -102,67 +126,70 @@ export default function MetricDetailScreen() {
       );
 
       if (response.success) {
-        Alert.alert(t('common.success'), 'Metric updated successfully');
+        analytics.trackFeatureUsage('update_health_metric_success');
+        showSuccess(t('health.updateSuccess', {
+          defaultValue: 'Cập nhật dữ liệu thành công',
+        }));
         setIsEditing(false);
         await loadMetric();
       } else {
-        Alert.alert(
-          t('common.error'),
-          response.message || 'Failed to update metric'
-        );
+        const errorMessage = response.message || t('health.updateError', {
+          defaultValue: 'Không thể cập nhật dữ liệu',
+        });
+        analytics.trackError('update_metric_failed', errorMessage);
+        showError(errorMessage);
       }
     } catch (error: any) {
-      console.error('Error updating metric:', error);
-      Alert.alert(
-        t('common.error'),
-        error.message || 'Failed to update metric'
-      );
+      const errorMessage = error.message || t('health.updateError', {
+        defaultValue: 'Không thể cập nhật dữ liệu',
+      });
+      analytics.trackError('update_metric_exception', errorMessage);
+      showError(errorMessage);
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
   const handleDelete = () => {
-    Alert.alert(
-      'Delete Metric',
-      'Are you sure you want to delete this metric? This action cannot be undone.',
-      [
-        { text: t('common.cancel'), style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            if (!metric) return;
+    analytics.trackButtonClick('delete_metric_confirm', 'health_metric_detail');
+    setDeleteModalVisible(true);
+  };
 
-            try {
-              setLoading(true);
-              const response = await healthService.deleteHealthMetric(
-                member.id,
-                metric.id
-              );
+  const confirmDelete = async () => {
+    if (!metric || !member?.id) return;
 
-              if (response.success) {
-                Alert.alert(t('common.success'), 'Metric deleted successfully');
-                router.back();
-              } else {
-                Alert.alert(
-                  t('common.error'),
-                  response.message || 'Failed to delete metric'
-                );
-              }
-            } catch (error: any) {
-              console.error('Error deleting metric:', error);
-              Alert.alert(
-                t('common.error'),
-                error.message || 'Failed to delete metric'
-              );
-            } finally {
-              setLoading(false);
-            }
-          },
-        },
-      ]
-    );
+    try {
+      setLoading(true);
+      analytics.trackButtonClick('delete_metric', 'health_metric_detail');
+      
+      const response = await healthService.deleteHealthMetric(
+        member.id,
+        metric.id
+      );
+
+      if (response.success) {
+        analytics.trackFeatureUsage('delete_health_metric_success');
+        showSuccess(t('health.deleteSuccess', {
+          defaultValue: 'Đã xóa dữ liệu thành công',
+        }));
+        router.back();
+      } else {
+        const errorMessage = response.message || t('health.deleteError', {
+          defaultValue: 'Không thể xóa dữ liệu',
+        });
+        analytics.trackError('delete_metric_failed', errorMessage);
+        showError(errorMessage);
+      }
+    } catch (error: any) {
+      const errorMessage = error.message || t('health.deleteError', {
+        defaultValue: 'Không thể xóa dữ liệu',
+      });
+      analytics.trackError('delete_metric_exception', errorMessage);
+      showError(errorMessage);
+    } finally {
+      setLoading(false);
+      setDeleteModalVisible(false);
+    }
   };
 
   if (loading && !metric) {
@@ -170,16 +197,21 @@ export default function MetricDetailScreen() {
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <View style={styles.loadingContainer}>
-          <Text
-            style={[
-              Typography.bodyRegular,
-              { color: theme.colors.textSecondary },
-            ]}
+        <View style={styles.header}>
+          <TouchableOpacity
+            style={styles.headerButton}
+            onPress={() => router.back()}
           >
-            Loading metric details...
+            <ArrowLeft size={24} color={theme.colors.text} />
+          </TouchableOpacity>
+          <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
+            {t('health.metricDetail', { defaultValue: 'Chi tiết dữ liệu' })}
           </Text>
         </View>
+        <ScrollView style={styles.content} contentContainerStyle={styles.loadingContainer}>
+          <SkeletonCard />
+          <SkeletonCard />
+        </ScrollView>
       </SafeAreaView>
     );
   }
@@ -189,35 +221,28 @@ export default function MetricDetailScreen() {
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
-        <View style={styles.errorContainer}>
-          <Text style={[Typography.h3, { color: theme.colors.text }]}>
-            Metric Not Found
-          </Text>
-          <Text
-            style={[
-              Typography.bodyRegular,
-              { color: theme.colors.textSecondary, marginTop: 8 },
-            ]}
-          >
-            This metric may have been deleted or doesn't exist.
-          </Text>
+        <View style={styles.header}>
           <TouchableOpacity
-            style={[
-              styles.backButton,
-              { backgroundColor: theme.colors.primary, marginTop: 16 },
-            ]}
+            style={styles.headerButton}
             onPress={() => router.back()}
           >
-            <Text
-              style={[
-                Typography.bodyMedium,
-                { color: theme.colors.textInverse },
-              ]}
-            >
-              Go Back
-            </Text>
+            <ArrowLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
+          <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
+            {t('health.metricDetail', { defaultValue: 'Chi tiết dữ liệu' })}
+          </Text>
         </View>
+        <View style={styles.errorContainer}>
+          <EmptyState
+            title={t('health.metricNotFound', { defaultValue: 'Không tìm thấy dữ liệu' })}
+            message={t('health.metricNotFoundDescription', {
+              defaultValue: 'Dữ liệu này có thể đã bị xóa hoặc không tồn tại.',
+            })}
+            actionLabel={t('common.goBack', { defaultValue: 'Quay lại' })}
+            onAction={() => router.back()}
+          />
+        </View>
+        <ToastComponent />
       </SafeAreaView>
     );
   }
@@ -249,7 +274,13 @@ export default function MetricDetailScreen() {
         </Text>
         {!isEditing ? (
           <>
-            <TouchableOpacity style={styles.headerButton} onPress={handleEdit}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={() => {
+                analytics.trackButtonClick('edit_metric', 'health_metric_detail');
+                handleEdit();
+              }}
+            >
               <Edit2 size={20} color={theme.colors.primary} />
             </TouchableOpacity>
             <TouchableOpacity
@@ -261,14 +292,19 @@ export default function MetricDetailScreen() {
           </>
         ) : (
           <>
-            <TouchableOpacity style={styles.headerButton} onPress={handleSave}>
-              <Save size={20} color={theme.colors.success} />
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={handleSave}
+              disabled={saving}
+            >
+              <Save size={20} color={saving ? theme.colors.textSecondary : theme.colors.success} />
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.headerButton}
               onPress={handleCancelEdit}
+              disabled={saving}
             >
-              <X size={20} color={theme.colors.error} />
+              <X size={20} color={saving ? theme.colors.textSecondary : theme.colors.error} />
             </TouchableOpacity>
           </>
         )}
@@ -437,6 +473,23 @@ export default function MetricDetailScreen() {
           </View>
         )}
       </ScrollView>
+
+      {/* Delete Confirmation Modal */}
+      <AlertModal
+        visible={deleteModalVisible}
+        title={t('health.deleteMetric', { defaultValue: 'Xóa dữ liệu' })}
+        message={t('health.deleteConfirm', {
+          defaultValue: 'Bạn có chắc chắn muốn xóa dữ liệu này? Hành động này không thể hoàn tác.',
+        })}
+        type="error"
+        buttonText={t('common.delete', { defaultValue: 'Xóa' })}
+        showCancel={true}
+        onClose={() => setDeleteModalVisible(false)}
+        onConfirm={confirmDelete}
+      />
+
+      {/* Toast Component */}
+      <ToastComponent />
     </SafeAreaView>
   );
 }

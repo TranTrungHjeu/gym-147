@@ -158,7 +158,44 @@ class RevenueReportService {
       }
     } catch (error) {
       console.error('Generate daily report error:', error);
-      return { success: false, error: error.message };
+      
+      // Handle database connection errors (P1001: Can't reach database server)
+      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+        console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
+        return {
+          success: false,
+          error: 'DATABASE_CONNECTION_ERROR',
+          message: 'Database service temporarily unavailable',
+        };
+      }
+      
+      // Handle timeout errors
+      if (error.code === 'P1008' || error.code === 'P1014' || 
+          error.message?.includes('timeout') || 
+          error.message?.includes('timed out')) {
+        console.error('[ERROR] Database operation timed out in RevenueReportService:', error.message);
+        return {
+          success: false,
+          error: 'DATABASE_TIMEOUT_ERROR',
+          message: 'Database operation timed out',
+        };
+      }
+      
+      // Handle other Prisma errors
+      if (error.code?.startsWith('P')) {
+        console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
+        return {
+          success: false,
+          error: 'DATABASE_ERROR',
+          message: 'Database query failed',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'Failed to generate daily report',
+      };
     }
   }
 
@@ -224,7 +261,32 @@ class RevenueReportService {
       };
     } catch (error) {
       console.error('Get reports error:', error);
-      return { success: false, error: error.message };
+      
+      // Handle database connection errors
+      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+        console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
+        return {
+          success: false,
+          error: 'DATABASE_CONNECTION_ERROR',
+          message: 'Database service temporarily unavailable',
+        };
+      }
+      
+      // Handle other Prisma errors
+      if (error.code?.startsWith('P')) {
+        console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
+        return {
+          success: false,
+          error: 'DATABASE_ERROR',
+          message: 'Database query failed',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'Failed to get reports',
+      };
     }
   }
 
@@ -303,7 +365,44 @@ class RevenueReportService {
       };
     } catch (error) {
       console.error('Forecast revenue error:', error);
-      return { success: false, error: error.message };
+      
+      // Handle database connection errors (P1001: Can't reach database server)
+      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+        console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
+        return {
+          success: false,
+          error: 'DATABASE_CONNECTION_ERROR',
+          message: 'Database service temporarily unavailable',
+        };
+      }
+      
+      // Handle timeout errors
+      if (error.code === 'P1008' || error.code === 'P1014' || 
+          error.message?.includes('timeout') || 
+          error.message?.includes('timed out')) {
+        console.error('[ERROR] Database operation timed out in RevenueReportService:', error.message);
+        return {
+          success: false,
+          error: 'DATABASE_TIMEOUT_ERROR',
+          message: 'Database operation timed out',
+        };
+      }
+      
+      // Handle other Prisma errors
+      if (error.code?.startsWith('P')) {
+        console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
+        return {
+          success: false,
+          error: 'DATABASE_ERROR',
+          message: 'Database query failed',
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: error.message || 'Failed to forecast revenue',
+      };
     }
   }
 

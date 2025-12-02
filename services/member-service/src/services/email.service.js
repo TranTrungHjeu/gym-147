@@ -12,12 +12,12 @@ class EmailService {
     if (apiKey) {
       try {
         this.resend = new Resend(apiKey);
-        console.log('✅ Email service (Resend) initialized');
+        console.log('[SUCCESS] Email service (Resend) initialized');
       } catch (error) {
-        console.error('❌ Failed to initialize Resend:', error);
+        console.error('[ERROR] Failed to initialize Resend:', error);
       }
     } else {
-      console.log('⚠️ RESEND_API_KEY not set, email service will use mock mode');
+      console.log('[WARNING] RESEND_API_KEY not set, email service will use mock mode');
     }
   }
 
@@ -49,21 +49,21 @@ class EmailService {
       });
 
       if (error) {
-        console.error('❌ Resend error:', error);
+        console.error('[ERROR] Resend error:', error);
         return {
           success: false,
           error: error.message || 'Failed to send email',
         };
       }
 
-      console.log(`✅ Email sent to ${to}: ${subject}`);
+      console.log(`[SUCCESS] Email sent to ${to}: ${subject}`);
       return {
         success: true,
         messageId: data.id,
         message: 'Email sent successfully',
       };
     } catch (error) {
-      console.error('❌ Send email error:', error);
+      console.error('[ERROR] Send email error:', error);
       return {
         success: false,
         error: error.message || 'Failed to send email',
@@ -96,35 +96,35 @@ class EmailService {
   getTemplate(templateName, variables = {}) {
     const templates = {
       WORKOUT_REMINDER: {
-        subject: '💪 Nhắc nhở tập luyện - GYM147',
+        subject: '[STRENGTH] Nhắc nhở tập luyện - GYM147',
         html: this.getWorkoutReminderTemplate(variables),
       },
       MEMBERSHIP_ALERT: {
-        subject: '⚠️ Thông báo gói tập - GYM147',
+        subject: '[WARNING] Thông báo gói tập - GYM147',
         html: this.getMembershipAlertTemplate(variables),
       },
       ACHIEVEMENT: {
-        subject: '🏆 Thành tích mới - GYM147',
+        subject: '[TROPHY] Thành tích mới - GYM147',
         html: this.getAchievementTemplate(variables),
       },
       PROMOTIONAL: {
-        subject: '🎉 Ưu đãi đặc biệt - GYM147',
+        subject: '[CELEBRATE] Ưu đãi đặc biệt - GYM147',
         html: this.getPromotionalTemplate(variables),
       },
       EQUIPMENT_MAINTENANCE: {
-        subject: '🔧 Bảo trì thiết bị - GYM147',
+        subject: '[CONFIG] Bảo trì thiết bị - GYM147',
         html: this.getEquipmentMaintenanceTemplate(variables),
       },
       PAYMENT_SUCCESS: {
-        subject: '✅ Thanh toán thành công - GYM147',
+        subject: '[SUCCESS] Thanh toán thành công - GYM147',
         html: this.getPaymentSuccessTemplate(variables),
       },
       PAYMENT_FAILED: {
-        subject: '❌ Thanh toán thất bại - GYM147',
+        subject: '[ERROR] Thanh toán thất bại - GYM147',
         html: this.getPaymentFailedTemplate(variables),
       },
       MEMBERSHIP_EXPIRING: {
-        subject: '⏰ Gói tập sắp hết hạn - GYM147',
+        subject: '[TIMER] Gói tập sắp hết hạn - GYM147',
         html: this.getMembershipExpiringTemplate(variables),
       },
     };
@@ -159,11 +159,11 @@ class EmailService {
     const memberName = variables.member_name || 'Bạn';
     const workoutTime = variables.workout_time || 'hôm nay';
     return this.getBaseEmailTemplate(
-      '💪 Nhắc nhở tập luyện',
+      '[STRENGTH] Nhắc nhở tập luyện',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>Đã đến lúc tập luyện ${workoutTime}! Hãy đến phòng gym và đạt được mục tiêu của bạn.</p>
-        <p style="margin-top: 20px;"><strong>Chúc bạn có một buổi tập hiệu quả! 💪</strong></p>
+        <p style="margin-top: 20px;"><strong>Chúc bạn có một buổi tập hiệu quả! [STRENGTH]</strong></p>
       `
     );
   }
@@ -173,7 +173,7 @@ class EmailService {
     const membershipType = variables.membership_type || 'gói tập';
     const message = variables.message || 'Có thông tin quan trọng về gói tập của bạn.';
     return this.getBaseEmailTemplate(
-      '⚠️ Thông báo gói tập',
+      '[WARNING] Thông báo gói tập',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>${message}</p>
@@ -187,7 +187,7 @@ class EmailService {
     const achievementTitle = variables.achievement_title || 'Thành tích';
     const achievementDescription = variables.achievement_description || '';
     return this.getBaseEmailTemplate(
-      '🏆 Thành tích mới',
+      '[TROPHY] Thành tích mới',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>Chúc mừng! Bạn đã mở khóa thành tích:</p>
@@ -201,7 +201,7 @@ class EmailService {
     const memberName = variables.member_name || 'Bạn';
     const offerContent = variables.offer_content || 'Ưu đãi đặc biệt dành cho bạn!';
     return this.getBaseEmailTemplate(
-      '🎉 Ưu đãi đặc biệt',
+      '[CELEBRATE] Ưu đãi đặc biệt',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>${offerContent}</p>
@@ -213,7 +213,7 @@ class EmailService {
     const memberName = variables.member_name || 'Bạn';
     const equipmentName = variables.equipment_name || 'một số thiết bị';
     return this.getBaseEmailTemplate(
-      '🔧 Bảo trì thiết bị',
+      '[CONFIG] Bảo trì thiết bị',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>${equipmentName} sẽ được bảo trì trong thời gian sắp tới. Chúng tôi xin lỗi vì sự bất tiện này.</p>
@@ -226,7 +226,7 @@ class EmailService {
     const amount = variables.amount || '0';
     const paymentMethod = variables.payment_method || '';
     return this.getBaseEmailTemplate(
-      '✅ Thanh toán thành công',
+      '[SUCCESS] Thanh toán thành công',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>Thanh toán của bạn đã được xử lý thành công!</p>
@@ -240,7 +240,7 @@ class EmailService {
     const memberName = variables.member_name || 'Bạn';
     const reason = variables.reason || 'Vui lòng thử lại sau.';
     return this.getBaseEmailTemplate(
-      '❌ Thanh toán thất bại',
+      '[ERROR] Thanh toán thất bại',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>Thanh toán của bạn không thành công.</p>
@@ -255,7 +255,7 @@ class EmailService {
     const daysLeft = variables.days_left || '7';
     const membershipType = variables.membership_type || 'gói tập';
     return this.getBaseEmailTemplate(
-      '⏰ Gói tập sắp hết hạn',
+      '[TIMER] Gói tập sắp hết hạn',
       `
         <p>Xin chào <strong>${memberName}</strong>,</p>
         <p>Gói tập <strong>${membershipType}</strong> của bạn sẽ hết hạn sau <strong>${daysLeft} ngày</strong>.</p>

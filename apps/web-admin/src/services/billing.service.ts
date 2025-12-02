@@ -180,6 +180,32 @@ class BillingService {
         throw forbiddenError;
       }
 
+      // Check for 503 Service Unavailable (Database unavailable)
+      if (error.response?.status === 503) {
+        const errorData = error.response?.data || {};
+        const serviceError: any = new Error(
+          errorData?.message || 'Dịch vụ tạm thời không khả dụng. Vui lòng thử lại sau.'
+        );
+        serviceError.code = 'ERR_SERVICE_UNAVAILABLE';
+        serviceError.status = 503;
+        serviceError.isServiceUnavailable = true;
+        serviceError.errorCode = errorData?.error || 'SERVICE_UNAVAILABLE';
+        throw serviceError;
+      }
+
+      // Check for 504 Gateway Timeout (Database timeout)
+      if (error.response?.status === 504) {
+        const errorData = error.response?.data || {};
+        const timeoutError: any = new Error(
+          errorData?.message || 'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.'
+        );
+        timeoutError.code = 'ERR_GATEWAY_TIMEOUT';
+        timeoutError.status = 504;
+        timeoutError.isTimeout = true;
+        timeoutError.errorCode = errorData?.error || 'GATEWAY_TIMEOUT';
+        throw timeoutError;
+      }
+
       // Check for real network errors
       if (
         errorCode === 'ERR_NETWORK' ||

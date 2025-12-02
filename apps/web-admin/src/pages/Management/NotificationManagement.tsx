@@ -848,10 +848,10 @@ const NotificationManagement: React.FC = () => {
 
       const response = await notificationService.sendBulkNotificationToMembers(requestData);
 
-      console.log('📊 [NOTIFICATION] Response:', response);
+      console.log('[STATS] [NOTIFICATION] Response:', response);
 
       if (response.success) {
-        console.log('✅ [NOTIFICATION] Success! Setting modal data:', {
+        console.log('[SUCCESS] [NOTIFICATION] Success! Setting modal data:', {
           sentCount: response.data.sent_count || 0,
           failedCount: response.data.failed_count || 0,
           totalTargets: response.data.total_targets || 0,
@@ -866,7 +866,7 @@ const NotificationManagement: React.FC = () => {
         });
         setShowSuccessModal(true);
 
-        console.log('✅ [NOTIFICATION] Modal state set:', {
+        console.log('[SUCCESS] [NOTIFICATION] Modal state set:', {
           showSuccessModal: true,
           successData: {
             sentCount: response.data.sent_count || 0,
@@ -950,10 +950,10 @@ const NotificationManagement: React.FC = () => {
 
       const response = await notificationService.sendBulkNotificationToTrainers(requestData);
 
-      console.log('📊 [NOTIFICATION] Response:', response);
+      console.log('[STATS] [NOTIFICATION] Response:', response);
 
       if (response.success) {
-        console.log('✅ [NOTIFICATION] Success! Setting modal data:', {
+        console.log('[SUCCESS] [NOTIFICATION] Success! Setting modal data:', {
           sentCount: response.data.sent_count || 0,
           failedCount: response.data.failed_count || 0,
           totalTargets: response.data.total_targets || 0,
@@ -968,7 +968,7 @@ const NotificationManagement: React.FC = () => {
         });
         setShowSuccessModal(true);
 
-        console.log('✅ [NOTIFICATION] Modal state set:', {
+        console.log('[SUCCESS] [NOTIFICATION] Modal state set:', {
           showSuccessModal: true,
           successData: {
             sentCount: response.data.sent_count || 0,

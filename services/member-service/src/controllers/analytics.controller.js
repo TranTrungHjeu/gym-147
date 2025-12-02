@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 class AnalyticsController {
   // ==================== PHÂN TÍCH THÀNH VIÊN ====================
@@ -71,7 +71,7 @@ class AnalyticsController {
       SELECT 
         DATE(created_at) as date,
         COUNT(*) as new_members
-      FROM members 
+      FROM member_schema.members 
       WHERE created_at >= ${startDate}
       GROUP BY DATE(created_at)
       ORDER BY date ASC
@@ -298,7 +298,7 @@ class AnalyticsController {
       SELECT 
         HOUR(entry_time) as hour,
         COUNT(*) as session_count
-      FROM gym_sessions 
+      FROM member_schema.gym_sessions 
       WHERE entry_time >= ${startDate}
       GROUP BY HOUR(entry_time)
       ORDER BY session_count DESC
@@ -316,7 +316,7 @@ class AnalyticsController {
         COUNT(*) as sessions,
         AVG(duration) as avg_duration,
         SUM(calories_burned) as total_calories
-      FROM gym_sessions 
+      FROM member_schema.gym_sessions 
       WHERE entry_time >= ${startDate}
       GROUP BY DATE(entry_time)
       ORDER BY date DESC
@@ -386,7 +386,7 @@ class AnalyticsController {
         metric_type,
         DATE(recorded_at) as date,
         AVG(value) as avg_value
-      FROM health_metrics 
+      FROM member_schema.health_metrics 
       WHERE recorded_at >= ${startDate}
       GROUP BY metric_type, DATE(recorded_at)
       ORDER BY date DESC
@@ -486,7 +486,7 @@ class AnalyticsController {
         category,
         DATE(unlocked_at) as date,
         COUNT(*) as achievements_unlocked
-      FROM achievements 
+      FROM member_schema.achievements 
       WHERE unlocked_at >= ${startDate}
       GROUP BY category, DATE(unlocked_at)
       ORDER BY date DESC
@@ -702,7 +702,7 @@ class AnalyticsController {
   }
 
   async getRecentActivityData() {
-    console.log('✅ Sử dụng phiên bản truy vấn đã sửa (không null)');
+    console.log('[SUCCESS] Sử dụng phiên bản truy vấn đã sửa (không null)');
 
     const [recentSessions, recentAchievements, recentMembers] = await Promise.all([
       prisma.gymSession.findMany({

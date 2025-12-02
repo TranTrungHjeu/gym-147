@@ -1,6 +1,5 @@
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.css';
-import { Award, Calendar, Plus, RefreshCw, Target, Trophy, Users } from 'lucide-react';
+import { Award, Plus, RefreshCw, Target, Trophy, Users } from 'lucide-react';
+import DatePicker from '../../components/common/DatePicker';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminButton from '../../components/common/AdminButton';
 import AdminCard from '../../components/common/AdminCard';
@@ -59,10 +58,6 @@ const ChallengeManagement: React.FC = () => {
     max_participants: undefined,
   });
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
-  const startDatePickerRef = useRef<HTMLInputElement>(null);
-  const endDatePickerRef = useRef<HTMLInputElement>(null);
-  const startDateFlatpickrRef = useRef<any>(null);
-  const endDateFlatpickrRef = useRef<any>(null);
 
   // Load challenges only once on mount
   const loadChallenges = useCallback(async () => {
@@ -87,191 +82,6 @@ const ChallengeManagement: React.FC = () => {
     loadChallenges();
   }, [loadChallenges]);
 
-  // Initialize flatpickr for date pickers
-  useEffect(() => {
-    if (!isFormModalOpen) {
-      // Clean up when modal is closed
-      if (startDateFlatpickrRef.current) {
-        startDateFlatpickrRef.current.destroy();
-        startDateFlatpickrRef.current = null;
-      }
-      if (endDateFlatpickrRef.current) {
-        endDateFlatpickrRef.current.destroy();
-        endDateFlatpickrRef.current = null;
-      }
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      // Initialize start_date picker
-      if (startDatePickerRef.current && !startDateFlatpickrRef.current) {
-        const fp = flatpickr(startDatePickerRef.current, {
-          dateFormat: 'd/m/Y H:i',
-          altFormat: 'd/m/Y H:i',
-          altInput: false,
-          allowInput: true,
-          clickOpens: true,
-          static: false,
-          inline: false,
-          appendTo: document.body,
-          enableTime: true,
-          time_24hr: true,
-          defaultDate: formData.start_date || undefined,
-          locale: {
-            firstDayOfWeek: 1,
-            weekdays: {
-              shorthand: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-              longhand: [
-                'Chủ nhật',
-                'Thứ hai',
-                'Thứ ba',
-                'Thứ tư',
-                'Thứ năm',
-                'Thứ sáu',
-                'Thứ bảy',
-              ],
-            },
-            months: {
-              shorthand: [
-                'T1',
-                'T2',
-                'T3',
-                'T4',
-                'T5',
-                'T6',
-                'T7',
-                'T8',
-                'T9',
-                'T10',
-                'T11',
-                'T12',
-              ],
-              longhand: [
-                'Tháng 1',
-                'Tháng 2',
-                'Tháng 3',
-                'Tháng 4',
-                'Tháng 5',
-                'Tháng 6',
-                'Tháng 7',
-                'Tháng 8',
-                'Tháng 9',
-                'Tháng 10',
-                'Tháng 11',
-                'Tháng 12',
-              ],
-            },
-          },
-          onChange: selectedDates => {
-            if (selectedDates.length > 0) {
-              const date = selectedDates[0];
-              const year = date.getFullYear();
-              const month = String(date.getMonth() + 1).padStart(2, '0');
-              const day = String(date.getDate()).padStart(2, '0');
-              const hours = String(date.getHours()).padStart(2, '0');
-              const minutes = String(date.getMinutes()).padStart(2, '0');
-              const selectedDateISO = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-              setFormData(prev => ({ ...prev, start_date: selectedDateISO }));
-            }
-          },
-        });
-        startDateFlatpickrRef.current = Array.isArray(fp) ? fp[0] : fp;
-      } else if (startDateFlatpickrRef.current && formData.start_date) {
-        // Update existing flatpickr instance
-        startDateFlatpickrRef.current.setDate(formData.start_date, false);
-      }
-
-      // Initialize end_date picker
-      if (endDatePickerRef.current && !endDateFlatpickrRef.current) {
-        const fp = flatpickr(endDatePickerRef.current, {
-          dateFormat: 'd/m/Y H:i',
-          altFormat: 'd/m/Y H:i',
-          altInput: false,
-          allowInput: true,
-          clickOpens: true,
-          static: false,
-          inline: false,
-          appendTo: document.body,
-          enableTime: true,
-          time_24hr: true,
-          defaultDate: formData.end_date || undefined,
-          locale: {
-            firstDayOfWeek: 1,
-            weekdays: {
-              shorthand: ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7'],
-              longhand: [
-                'Chủ nhật',
-                'Thứ hai',
-                'Thứ ba',
-                'Thứ tư',
-                'Thứ năm',
-                'Thứ sáu',
-                'Thứ bảy',
-              ],
-            },
-            months: {
-              shorthand: [
-                'T1',
-                'T2',
-                'T3',
-                'T4',
-                'T5',
-                'T6',
-                'T7',
-                'T8',
-                'T9',
-                'T10',
-                'T11',
-                'T12',
-              ],
-              longhand: [
-                'Tháng 1',
-                'Tháng 2',
-                'Tháng 3',
-                'Tháng 4',
-                'Tháng 5',
-                'Tháng 6',
-                'Tháng 7',
-                'Tháng 8',
-                'Tháng 9',
-                'Tháng 10',
-                'Tháng 11',
-                'Tháng 12',
-              ],
-            },
-          },
-          onChange: selectedDates => {
-            if (selectedDates.length > 0) {
-              const date = selectedDates[0];
-              const year = date.getFullYear();
-              const month = String(date.getMonth() + 1).padStart(2, '0');
-              const day = String(date.getDate()).padStart(2, '0');
-              const hours = String(date.getHours()).padStart(2, '0');
-              const minutes = String(date.getMinutes()).padStart(2, '0');
-              const selectedDateISO = `${year}-${month}-${day}T${hours}:${minutes}:00`;
-              setFormData(prev => ({ ...prev, end_date: selectedDateISO }));
-            }
-          },
-        });
-        endDateFlatpickrRef.current = Array.isArray(fp) ? fp[0] : fp;
-      } else if (endDateFlatpickrRef.current && formData.end_date) {
-        // Update existing flatpickr instance
-        endDateFlatpickrRef.current.setDate(formData.end_date, false);
-      }
-    }, 100);
-
-    return () => {
-      clearTimeout(timer);
-      if (startDateFlatpickrRef.current) {
-        startDateFlatpickrRef.current.destroy();
-        startDateFlatpickrRef.current = null;
-      }
-      if (endDateFlatpickrRef.current) {
-        endDateFlatpickrRef.current.destroy();
-        endDateFlatpickrRef.current = null;
-      }
-    };
-  }, [isFormModalOpen, formData.start_date, formData.end_date]);
 
   // Client-side filtering - no API call needed
   const filteredChallenges = useMemo(() => {
@@ -1362,14 +1172,28 @@ const ChallengeManagement: React.FC = () => {
                 Ngày bắt đầu <span className='text-red-500'>*</span>
               </label>
               <div className='relative flex-1'>
-                <input
-                  ref={startDatePickerRef}
-                  type='text'
+                <DatePicker
+                  value={formData.start_date ? formData.start_date.split('T')[0] + ' ' + formData.start_date.split('T')[1]?.substring(0, 5) : undefined}
+                  onChange={(date) => {
+                    if (typeof date === 'string') {
+                      // Parse date string (YYYY-MM-DD HH:mm format)
+                      const [datePart, timePart] = date.split(' ');
+                      if (datePart && timePart) {
+                        const selectedDateISO = `${datePart}T${timePart}:00`;
+                        setFormData(prev => ({ ...prev, start_date: selectedDateISO }));
+                      } else if (datePart) {
+                        // If no time, use 00:00
+                        const selectedDateISO = `${datePart}T00:00:00`;
+                        setFormData(prev => ({ ...prev, start_date: selectedDateISO }));
+                      }
+                    }
+                  }}
                   placeholder='dd/mm/yyyy HH:mm'
-                  readOnly
-                  className='w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer'
+                  mode='single'
+                  enableTime={true}
+                  dateFormat='d/m/Y H:i'
+                  className={formErrors.start_date ? 'border-red-500' : ''}
                 />
-                <Calendar className='absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none' />
               </div>
               {formErrors.start_date && (
                 <p className='mt-1 text-[10px] text-red-600 dark:text-red-400 font-inter'>
@@ -1383,16 +1207,28 @@ const ChallengeManagement: React.FC = () => {
                 Ngày kết thúc <span className='text-red-500'>*</span>
               </label>
               <div className='relative flex-1'>
-                <input
-                  ref={endDatePickerRef}
-                  type='text'
+                <DatePicker
+                  value={formData.end_date ? formData.end_date.split('T')[0] + ' ' + formData.end_date.split('T')[1]?.substring(0, 5) : undefined}
+                  onChange={(date) => {
+                    if (typeof date === 'string') {
+                      // Parse date string (YYYY-MM-DD HH:mm format)
+                      const [datePart, timePart] = date.split(' ');
+                      if (datePart && timePart) {
+                        const selectedDateISO = `${datePart}T${timePart}:00`;
+                        setFormData(prev => ({ ...prev, end_date: selectedDateISO }));
+                      } else if (datePart) {
+                        // If no time, use 23:59
+                        const selectedDateISO = `${datePart}T23:59:00`;
+                        setFormData(prev => ({ ...prev, end_date: selectedDateISO }));
+                      }
+                    }
+                  }}
                   placeholder='dd/mm/yyyy HH:mm'
-                  readOnly
-                  className={`w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer ${
-                    formErrors.end_date ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
-                  }`}
+                  mode='single'
+                  enableTime={true}
+                  dateFormat='d/m/Y H:i'
+                  className={formErrors.end_date ? 'border-red-500' : ''}
                 />
-                <Calendar className='absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 pointer-events-none' />
               </div>
               {formErrors.end_date && (
                 <p className='mt-1 text-[10px] text-red-600 dark:text-red-400 font-inter'>

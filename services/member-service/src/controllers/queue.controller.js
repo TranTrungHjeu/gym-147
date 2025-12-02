@@ -1,9 +1,8 @@
-const { PrismaClient } = require('@prisma/client');
 const { sendPushNotification } = require('../utils/push-notification');
 const notificationService = require('../services/notification.service');
 const cacheService = require('../services/cache.service');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 let distributedLock = null;
 try {
   distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
@@ -11,7 +10,7 @@ try {
   try {
     distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('⚠️ Distributed lock utility not available, queue operations will use database transactions only');
+    console.warn('[WARNING] Distributed lock utility not available, queue operations will use database transactions only');
   }
 }
 
@@ -205,7 +204,7 @@ async function joinQueue(req, res) {
       },
     });
 
-      console.log(`✅ Member ${member.full_name} joined queue at position ${nextPosition}`);
+      console.log(`[SUCCESS] Member ${member.full_name} joined queue at position ${nextPosition}`);
 
       // 7.5. Invalidate queue cache after joining
       await cacheService.invalidateQueueCache(equipment_id);
@@ -274,7 +273,7 @@ async function joinQueue(req, res) {
       if (lockAcquired && distributedLock && lockId) {
         await distributedLock.release('queue', equipment_id, lockId);
       }
-      console.error('❌ Join queue error:', error);
+      console.error('[ERROR] Join queue error:', error);
       return res.status(500).json({
         success: false,
         message: 'Failed to join queue',
@@ -282,7 +281,7 @@ async function joinQueue(req, res) {
       });
     }
   } catch (error) {
-    console.error('❌ Join queue error:', error);
+    console.error('[ERROR] Join queue error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to join queue',
@@ -407,7 +406,7 @@ async function leaveQueue(req, res) {
       throw error;
     }
 
-    console.log(`✅ Member left queue at position ${removedPosition}`);
+    console.log(`[SUCCESS] Member left queue at position ${removedPosition}`);
 
     // 5.5. Invalidate queue cache after leaving
     await cacheService.invalidateQueueCache(equipment_id);
@@ -504,7 +503,7 @@ async function leaveQueue(req, res) {
       message: 'Successfully left the queue',
     });
   } catch (error) {
-    console.error('❌ Leave queue error:', error);
+    console.error('[ERROR] Leave queue error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to leave queue',
@@ -599,7 +598,7 @@ async function getQueuePosition(req, res) {
       },
     });
   } catch (error) {
-    console.error('❌ Get queue position error:', error);
+    console.error('[ERROR] Get queue position error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get queue position',
@@ -648,7 +647,7 @@ async function getEquipmentQueue(req, res) {
       },
     });
   } catch (error) {
-    console.error('❌ Get equipment queue error:', error);
+    console.error('[ERROR] Get equipment queue error:', error);
     return res.status(500).json({
       success: false,
       message: 'Failed to get equipment queue',
@@ -663,7 +662,7 @@ async function getEquipmentQueue(req, res) {
 
 async function notifyNextInQueue(equipment_id, equipment_name) {
   try {
-    console.log(`🔔 Notifying next person in queue for ${equipment_name}`);
+    console.log(`[BELL] Notifying next person in queue for ${equipment_name}`);
 
     // 1. Find next person in WAITING status
     const nextInQueue = await prisma.equipmentQueue.findFirst({
@@ -684,7 +683,7 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
     });
 
     if (!nextInQueue) {
-      console.log('ℹ️ No one in queue');
+      console.log('[INFO] No one in queue');
       return null;
     }
 
@@ -703,13 +702,13 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
     // Invalidate queue cache after status change
     await cacheService.invalidateQueueCache(equipment_id);
 
-    console.log(`✅ Notified ${nextInQueue.member.full_name} (position ${nextInQueue.position})`);
+    console.log(`[SUCCESS] Notified ${nextInQueue.member.full_name} (position ${nextInQueue.position})`);
 
     // 3. Create in-app notification for member
     await notificationService.createQueueNotification({
       memberId: nextInQueue.member.id,
       type: 'QUEUE_YOUR_TURN',
-      title: "🎉 Đến lượt bạn!",
+      title: "[CELEBRATE] Đến lượt bạn!",
       message: `${equipment_name} đã có sẵn. Bạn có ${NOTIFICATION_EXPIRE_MINUTES} phút để sử dụng.`,
       data: {
         equipment_id: equipment_id,
@@ -742,7 +741,7 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
     if (nextInQueue.member.user_id) {
       await sendPushNotification(
         nextInQueue.member.user_id,
-        "🎉 It's Your Turn!",
+        "[CELEBRATE] It's Your Turn!",
         `${equipment_name} is now available. You have ${NOTIFICATION_EXPIRE_MINUTES} minutes to claim it.`,
         {
           type: 'QUEUE_YOUR_TURN',
@@ -756,7 +755,7 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
 
     return nextInQueue;
   } catch (error) {
-    console.error('❌ Notify next in queue error:', error);
+    console.error('[ERROR] Notify next in queue error:', error);
     return null;
   }
 }
@@ -767,7 +766,7 @@ async function notifyNextInQueue(equipment_id, equipment_name) {
 
 async function cleanupExpiredNotifications() {
   try {
-    console.log('🧹 Cleaning up expired queue notifications...');
+    console.log('[CLEANUP] Cleaning up expired queue notifications...');
 
     const now = new Date();
 
@@ -788,11 +787,11 @@ async function cleanupExpiredNotifications() {
     });
 
     if (expiredEntries.length === 0) {
-      console.log('ℹ️ No expired notifications to clean up');
+      console.log('[INFO] No expired notifications to clean up');
       return { expired_count: 0 };
     }
 
-    console.log(`⚠️ Found ${expiredEntries.length} expired notifications`);
+    console.log(`[WARNING] Found ${expiredEntries.length} expired notifications`);
 
     // Process each expired entry
     for (const entry of expiredEntries) {
@@ -827,7 +826,7 @@ async function cleanupExpiredNotifications() {
         });
       }
 
-      console.log(`⏰ Expired: ${entry.member.full_name} for ${entry.equipment.name}`);
+      console.log(`[TIMER] Expired: ${entry.member.full_name} for ${entry.equipment.name}`);
 
       // 3. Notify next person in queue
       await notifyNextInQueue(entry.equipment_id, entry.equipment.name);
@@ -841,7 +840,7 @@ async function cleanupExpiredNotifications() {
       })),
     };
   } catch (error) {
-    console.error('❌ Cleanup expired notifications error:', error);
+    console.error('[ERROR] Cleanup expired notifications error:', error);
     return { error: error.message };
   }
 }

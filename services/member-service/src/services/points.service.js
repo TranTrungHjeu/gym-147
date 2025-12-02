@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 let distributedLock = null;
 try {
   distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
@@ -7,7 +7,7 @@ try {
   try {
     distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('⚠️ Distributed lock utility not available, points transactions will use database transactions only');
+    console.warn('[WARNING] Distributed lock utility not available, points transactions will use database transactions only');
   }
 }
 

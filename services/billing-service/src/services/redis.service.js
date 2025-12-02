@@ -23,7 +23,7 @@ class RedisService {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Redis: Max reconnection attempts reached');
+              console.error('[ERROR] Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -32,29 +32,29 @@ class RedisService {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Redis Client Error:', err);
+        console.error('[ERROR] Redis Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
-        console.log('🔄 Billing Redis: Connecting...');
+        console.log('[SYNC] Billing Redis: Connecting...');
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Billing Redis: Connected and ready');
+        console.log('[SUCCESS] Billing Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Billing Redis: Connection closed');
+        console.log('[SOCKET] Billing Redis: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis:', error.message);
-      console.log('⚠️ Billing service will run without Redis (idempotency disabled)');
+      console.error('[ERROR] Failed to initialize Redis:', error.message);
+      console.log('[WARNING] Billing service will run without Redis (idempotency disabled)');
       this.isConnected = false;
     }
   }
@@ -74,7 +74,7 @@ class RedisService {
       const exists = await this.client.exists(key);
       return exists === 1;
     } catch (error) {
-      console.error('❌ Error checking webhook idempotency:', error);
+      console.error('[ERROR] Error checking webhook idempotency:', error);
       return false; // Fail open - allow processing if check fails
     }
   }
@@ -93,7 +93,7 @@ class RedisService {
       const key = `webhook:processed:${webhookId}`;
       await this.client.setEx(key, ttlSeconds, '1');
     } catch (error) {
-      console.error('❌ Error marking webhook as processed:', error);
+      console.error('[ERROR] Error marking webhook as processed:', error);
     }
   }
 
@@ -105,7 +105,7 @@ class RedisService {
    */
   async storeCompensationTask(taskId, taskData, ttlSeconds = 24 * 60 * 60) {
     if (!this.isConnected || !this.client) {
-      console.warn('⚠️ Redis unavailable, compensation task not stored:', taskId);
+      console.warn('[WARNING] Redis unavailable, compensation task not stored:', taskId);
       return;
     }
 
@@ -113,7 +113,7 @@ class RedisService {
       const key = `compensation:task:${taskId}`;
       await this.client.setEx(key, ttlSeconds, JSON.stringify(taskData));
     } catch (error) {
-      console.error('❌ Error storing compensation task:', error);
+      console.error('[ERROR] Error storing compensation task:', error);
     }
   }
 
@@ -132,7 +132,7 @@ class RedisService {
       const data = await this.client.get(key);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error('❌ Error getting compensation task:', error);
+      console.error('[ERROR] Error getting compensation task:', error);
       return null;
     }
   }
@@ -150,7 +150,7 @@ class RedisService {
       const key = `compensation:task:${taskId}`;
       await this.client.del(key);
     } catch (error) {
-      console.error('❌ Error deleting compensation task:', error);
+      console.error('[ERROR] Error deleting compensation task:', error);
     }
   }
 

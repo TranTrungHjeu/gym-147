@@ -1,3 +1,4 @@
+import AdvancedFiltersModal from '@/components/AdvancedFiltersModal';
 import BookingModal from '@/components/BookingModal';
 import ClassCard from '@/components/ClassCard';
 import ClassRecommendationCard from '@/components/ClassRecommendationCard';
@@ -8,13 +9,15 @@ import {
   classService,
   memberService,
   scheduleService,
+  trainerService,
   type Booking,
   type ClassRecommendation,
   type CreateBookingRequest,
   type Schedule,
   type ScheduleFilters,
+  type Trainer,
 } from '@/services';
-import { ClassCategory } from '@/types/classTypes';
+import { ClassCategory, Difficulty } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -168,16 +171,15 @@ export default function ClassesScreen() {
     new Date().toISOString().split('T')[0]
   );
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showFilters, setShowFilters] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
     null
   );
 
   // Advanced filter states
-  const [selectedDifficulty, setSelectedDifficulty] = useState<string[]>([]);
-  const [selectedTimeOfDay, setSelectedTimeOfDay] = useState<string[]>([]);
-  const [showAvailableOnly, setShowAvailableOnly] = useState(false);
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [trainers, setTrainers] = useState<Trainer[]>([]);
+  const [advancedFilters, setAdvancedFilters] = useState<ScheduleFilters>({});
 
   // Track if initial load has completed
   const [isInitialLoad, setIsInitialLoad] = useState(true);
@@ -208,6 +210,22 @@ export default function ClassesScreen() {
     }
   }, [member?.id]);
 
+  // Load trainers for advanced filters
+  useEffect(() => {
+    loadTrainers();
+  }, []);
+
+  const loadTrainers = async () => {
+    try {
+      const response = await trainerService.getTrainers({ status: 'ACTIVE' });
+      if (response.success && response.data) {
+        setTrainers(response.data);
+      }
+    } catch (error) {
+      // Silent fail - trainers are optional for filters
+    }
+  };
+
   const loadData = async (showFullLoading = true) => {
     try {
       // Only show full loading spinner on initial load or manual refresh
@@ -230,8 +248,12 @@ export default function ClassesScreen() {
 
       // Create filters (only date, category will be filtered client-side)
       const filters: ScheduleFilters = {
-        date_from: selectedDate,
-        date_to: selectedDate,
+        date_from: advancedFilters.date_from || selectedDate,
+        date_to: advancedFilters.date_to || selectedDate,
+        class_category: advancedFilters.class_category,
+        trainer_id: advancedFilters.trainer_id,
+        difficulty: advancedFilters.difficulty,
+        available_only: advancedFilters.available_only,
         // Don't pass category to API - we'll filter client-side for better UX
       };
 
@@ -294,7 +316,7 @@ export default function ClassesScreen() {
         setMemberProfile(profile);
       }
     } catch (err: any) {
-      console.error('❌ Error loading member profile:', err);
+      console.error('[ERROR] Error loading member profile:', err);
     }
   };
 
@@ -311,12 +333,12 @@ export default function ClassesScreen() {
   // Load class recommendations
   const loadClassRecommendations = async (memberId: string) => {
     try {
-      console.log('🔄 [loadClassRecommendations] Starting...', { memberId });
+      console.log('[LOAD] [loadClassRecommendations] Starting...', { memberId });
       setLoadingRecommendations(true);
       // Use vector-based recommendations (new feature) with AI fallback
       const response = await classService.getClassRecommendations(memberId, true, true);
 
-      console.log('📦 [loadClassRecommendations] Response received:', {
+      console.log('[DATA] [loadClassRecommendations] Response received:', {
         success: response.success,
         hasData: !!response.data,
         hasRecommendations: !!response.data?.recommendations,
@@ -328,7 +350,7 @@ export default function ClassesScreen() {
       if (response.success && response.data?.recommendations) {
         const recommendations = response.data.recommendations;
         setClassRecommendations(recommendations);
-        console.log('✅ [loadClassRecommendations] Loaded recommendations:', {
+        console.log('[SUCCESS] [loadClassRecommendations] Loaded recommendations:', {
           count: recommendations.length,
           method: response.data.method || 'unknown',
           firstRec: recommendations[0] ? {
@@ -338,7 +360,7 @@ export default function ClassesScreen() {
           } : null,
         });
       } else {
-        console.warn('⚠️ [loadClassRecommendations] No recommendations found:', {
+        console.warn('[WARN] [loadClassRecommendations] No recommendations found:', {
           success: response.success,
           hasData: !!response.data,
           error: response.error,
@@ -346,7 +368,7 @@ export default function ClassesScreen() {
         setClassRecommendations([]);
       }
     } catch (err: any) {
-      console.error('❌ [loadClassRecommendations] Error loading class recommendations:', {
+      console.error('[ERROR] [loadClassRecommendations] Error loading class recommendations:', {
         message: err.message,
         stack: err.stack,
         memberId,
@@ -354,7 +376,7 @@ export default function ClassesScreen() {
       setClassRecommendations([]);
     } finally {
       setLoadingRecommendations(false);
-      console.log('🏁 [loadClassRecommendations] Finished, loadingRecommendations:', false);
+      console.log('[SUCCESS] [loadClassRecommendations] Finished, loadingRecommendations:', false);
     }
   };
 
@@ -467,21 +489,19 @@ export default function ClassesScreen() {
   };
 
   const filteredSchedules = React.useMemo(() => {
-    console.log('🔍 Filtering schedules:', {
+    console.log('[SEARCH] Filtering schedules:', {
       totalSchedules: schedules?.length || 0,
       selectedDate,
       selectedCategory,
       searchQuery,
-      selectedDifficulty,
-      selectedTimeOfDay,
-      showAvailableOnly,
+      advancedFilters,
     });
 
     return (schedules || []).filter((schedule) => {
       // Date filter (client-side - ensure we only show schedules for selected date)
       // This is a safety check in case API doesn't filter correctly
       const scheduleDate = new Date(schedule.start_time);
-      const selectedDateObj = new Date(selectedDate);
+      const selectedDateObj = new Date(advancedFilters.date_from || selectedDate);
       const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
       const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
 
@@ -492,6 +512,13 @@ export default function ClassesScreen() {
       // Category filter (client-side)
       if (selectedCategory !== 'ALL') {
         if (schedule.gym_class?.category !== selectedCategory) {
+          return false;
+        }
+      }
+
+      // Advanced filter: Category
+      if (advancedFilters.class_category) {
+        if (schedule.gym_class?.category !== advancedFilters.class_category) {
           return false;
         }
       }
@@ -511,32 +538,22 @@ export default function ClassesScreen() {
         if (!matchesSearch) return false;
       }
 
-      // Difficulty filter
-      if (selectedDifficulty.length > 0) {
-        if (
-          !selectedDifficulty.includes(schedule.gym_class?.difficulty || '')
-        ) {
+      // Advanced filter: Difficulty
+      if (advancedFilters.difficulty) {
+        if (schedule.gym_class?.difficulty !== advancedFilters.difficulty) {
           return false;
         }
       }
 
-      // Time of day filter
-      if (selectedTimeOfDay.length > 0) {
-        const startTime = new Date(schedule.start_time);
-        const hour = startTime.getHours();
-        let timeOfDay = '';
-        if (hour >= 6 && hour < 12) timeOfDay = 'morning';
-        else if (hour >= 12 && hour < 17) timeOfDay = 'afternoon';
-        else if (hour >= 17 && hour < 21) timeOfDay = 'evening';
-        else timeOfDay = 'night';
-
-        if (!selectedTimeOfDay.includes(timeOfDay)) {
+      // Advanced filter: Trainer
+      if (advancedFilters.trainer_id) {
+        if (schedule.trainer_id !== advancedFilters.trainer_id) {
           return false;
         }
       }
 
-      // Available spots filter
-      if (showAvailableOnly) {
+      // Advanced filter: Available only
+      if (advancedFilters.available_only) {
         if (schedule.current_bookings >= schedule.max_capacity) {
           return false;
         }
@@ -548,9 +565,8 @@ export default function ClassesScreen() {
     schedules,
     selectedCategory,
     searchQuery,
-    selectedDifficulty,
-    selectedTimeOfDay,
-    showAvailableOnly,
+    selectedDate,
+    advancedFilters,
   ]);
 
   const getUpcomingBookings = () => {
@@ -676,17 +692,17 @@ export default function ClassesScreen() {
           style={[
             themedStyles.filterButton,
             {
-              backgroundColor: showFilters
+              backgroundColor: showAdvancedFilters
                 ? theme.colors.primary
                 : theme.colors.surface,
             },
           ]}
-          onPress={() => setShowFilters(!showFilters)}
+          onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
           activeOpacity={0.7}
         >
           <Filter
             size={20}
-            color={showFilters ? theme.colors.textInverse : theme.colors.text}
+            color={showAdvancedFilters ? theme.colors.textInverse : theme.colors.text}
           />
         </TouchableOpacity>
       </View>
@@ -982,226 +998,19 @@ export default function ClassesScreen() {
         }
       />
 
-      {/* Filter Modal */}
-      {showFilters && (
-        <TouchableOpacity
-          style={themedStyles.filterModal}
-          activeOpacity={1}
-          onPress={() => setShowFilters(false)}
-        >
-          <TouchableOpacity
-            style={themedStyles.filterContent}
-            activeOpacity={1}
-            onPress={(e) => e.stopPropagation()}
-          >
-            <View style={themedStyles.filterHeader}>
-              <Text
-                style={[themedStyles.filterTitle, { color: theme.colors.text }]}
-              >
-                {t('common.filter')}
-              </Text>
-              <TouchableOpacity
-                onPress={() => {
-                  setSelectedDifficulty([]);
-                  setSelectedTimeOfDay([]);
-                  setShowAvailableOnly(false);
-                }}
-                style={themedStyles.resetFilterButton}
-                activeOpacity={0.7}
-              >
-                <Text
-                  style={[
-                    themedStyles.resetFilterText,
-                    { color: theme.colors.error },
-                  ]}
-                >
-                  {t('common.reset')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView
-              style={themedStyles.filterBody}
-              showsVerticalScrollIndicator={false}
-            >
-              {/* Difficulty Filter */}
-              <View style={themedStyles.filterSection}>
-                <Text
-                  style={[
-                    themedStyles.filterSectionTitle,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {t('classes.difficulty.title')}
-                </Text>
-                <View style={themedStyles.filterOptions}>
-                  {['BEGINNER', 'INTERMEDIATE', 'ADVANCED', 'ALL_LEVELS'].map(
-                    (diff) => (
-                      <TouchableOpacity
-                        key={diff}
-                        style={[
-                          themedStyles.filterOption,
-                          {
-                            backgroundColor: selectedDifficulty.includes(diff)
-                              ? theme.colors.primary
-                              : theme.colors.surface,
-                            borderColor: selectedDifficulty.includes(diff)
-                              ? theme.colors.primary
-                              : theme.colors.border,
-                          },
-                        ]}
-                        onPress={() => {
-                          setSelectedDifficulty((prev) =>
-                            prev.includes(diff)
-                              ? prev.filter((d) => d !== diff)
-                              : [...prev, diff]
-                          );
-                        }}
-                        activeOpacity={0.7}
-                      >
-                        <Text
-                          style={[
-                            themedStyles.filterOptionText,
-                            {
-                              color: selectedDifficulty.includes(diff)
-                                ? theme.colors.textInverse
-                                : theme.colors.text,
-                            },
-                          ]}
-                        >
-                          {t(`classes.difficulty.${diff.toLowerCase()}`)}
-                        </Text>
-                      </TouchableOpacity>
-                    )
-                  )}
-                </View>
-              </View>
-
-              {/* Time of Day Filter */}
-              <View style={themedStyles.filterSection}>
-                <Text
-                  style={[
-                    themedStyles.filterSectionTitle,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {t('classes.timeOfDay')}
-                </Text>
-                <View style={themedStyles.filterOptions}>
-                  {['morning', 'afternoon', 'evening', 'night'].map((time) => (
-                    <TouchableOpacity
-                      key={time}
-                      style={[
-                        themedStyles.filterOption,
-                        {
-                          backgroundColor: selectedTimeOfDay.includes(time)
-                            ? theme.colors.primary
-                            : theme.colors.surface,
-                          borderColor: selectedTimeOfDay.includes(time)
-                            ? theme.colors.primary
-                            : theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => {
-                        setSelectedTimeOfDay((prev) =>
-                          prev.includes(time)
-                            ? prev.filter((t) => t !== time)
-                            : [...prev, time]
-                        );
-                      }}
-                      activeOpacity={0.7}
-                    >
-                      <Text
-                        style={[
-                          themedStyles.filterOptionText,
-                          {
-                            color: selectedTimeOfDay.includes(time)
-                              ? theme.colors.textInverse
-                              : theme.colors.text,
-                          },
-                        ]}
-                      >
-                        {t(`classes.times.${time}`)}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-
-              {/* Available Only Toggle */}
-              <View style={themedStyles.filterSection}>
-                <TouchableOpacity
-                  style={themedStyles.toggleRow}
-                  onPress={() => setShowAvailableOnly(!showAvailableOnly)}
-                  activeOpacity={0.7}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text
-                      style={[
-                        themedStyles.toggleTitle,
-                        { color: theme.colors.text },
-                      ]}
-                    >
-                      {t('classes.availableOnly')}
-                    </Text>
-                    <Text
-                      style={[
-                        themedStyles.toggleSubtitle,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {t('classes.showOnlyAvailable')}
-                    </Text>
-                  </View>
-                  <View
-                    style={[
-                      themedStyles.toggle,
-                      {
-                        backgroundColor: showAvailableOnly
-                          ? theme.colors.primary
-                          : theme.colors.border,
-                      },
-                    ]}
-                  >
-                    <View
-                      style={[
-                        themedStyles.toggleThumb,
-                        {
-                          backgroundColor: theme.colors.textInverse,
-                          transform: [
-                            { translateX: showAvailableOnly ? 20 : 0 },
-                          ],
-                        },
-                      ]}
-                    />
-                  </View>
-                </TouchableOpacity>
-              </View>
-            </ScrollView>
-
-            {/* Apply Button */}
-            <View style={themedStyles.filterFooter}>
-              <TouchableOpacity
-                style={[
-                  themedStyles.applyButton,
-                  { backgroundColor: theme.colors.primary },
-                ]}
-                onPress={() => setShowFilters(false)}
-                activeOpacity={0.8}
-              >
-                <Text
-                  style={[
-                    themedStyles.applyButtonText,
-                    { color: theme.colors.textInverse },
-                  ]}
-                >
-                  {t('common.apply')}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      )}
+      {/* Advanced Filters Modal */}
+      <AdvancedFiltersModal
+        visible={showAdvancedFilters}
+        onClose={() => setShowAdvancedFilters(false)}
+        onApply={(filters) => {
+          setAdvancedFilters(filters);
+          setShowAdvancedFilters(false);
+          // Reload data with new filters
+          loadData(true);
+        }}
+        initialFilters={advancedFilters}
+        trainers={trainers}
+      />
 
       {/* Booking Modal */}
       {selectedSchedule && (

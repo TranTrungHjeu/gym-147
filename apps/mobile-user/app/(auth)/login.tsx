@@ -1,23 +1,32 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { authService } from '@/services/identity/auth.service';
 import { LoginCredentials } from '@/types/authTypes';
 import { getFieldError } from '@/utils/auth/validation';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons, SimpleLineIcons } from '@expo/vector-icons';
+import { User } from 'lucide-react-native';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Animated,
   Alert,
   Image,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
+
+// Complete OAuth session for WebBrowser
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -32,6 +41,7 @@ export default function LoginScreen() {
   const [errors, setErrors] = useState<any[]>([]);
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const modalScale = useRef(new Animated.Value(0)).current;
   const modalFade = useRef(new Animated.Value(0)).current;
 
@@ -67,6 +77,80 @@ export default function LoginScreen() {
 
   const handleForgotPassword = () => {
     router.push('/(auth)/forgot-password');
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsGoogleLoading(true);
+
+      // For mobile, we'll use a web-based OAuth flow
+      // In production, you might want to use @react-native-google-signin/google-signin for native experience
+      const redirectUri = AuthSession.makeRedirectUri({
+        scheme: 'gym147',
+        path: 'auth/callback',
+      });
+
+      // Get OAuth URL from backend
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/auth/oauth/google`, {
+        method: 'GET',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get OAuth URL');
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.data?.authUrl) {
+        throw new Error('Invalid OAuth response');
+      }
+
+      // Open OAuth URL in browser
+      const result = await WebBrowser.openAuthSessionAsync(data.data.authUrl, redirectUri);
+
+      if (result.type === 'success' && result.url) {
+        // Parse tokens from callback URL
+        const url = new URL(result.url);
+        const token = url.searchParams.get('token');
+        const refreshToken = url.searchParams.get('refreshToken');
+        const isNewUser = url.searchParams.get('isNewUser') === 'true';
+
+        if (token && refreshToken) {
+          // Store tokens and login
+          const { storeTokens } = await import('@/utils/auth/storage');
+          await storeTokens({
+            token,
+            refreshToken,
+          });
+
+          // Get user profile
+          const profileResponse = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/auth/profile`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          });
+
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            if (profileData.success) {
+              // Login successful
+              router.replace('/(tabs)');
+            }
+          }
+        } else {
+          const error = url.searchParams.get('error');
+          Alert.alert(t('common.error'), error || 'OAuth authentication failed');
+        }
+      } else if (result.type === 'cancel') {
+        // User cancelled
+      } else {
+        Alert.alert(t('common.error'), 'OAuth authentication failed');
+      }
+    } catch (error: any) {
+      console.error('Google OAuth error:', error);
+      Alert.alert(t('common.error'), error.message || 'Failed to login with Google');
+    } finally {
+      setIsGoogleLoading(false);
+    }
   };
 
   const handleLogin = async () => {
@@ -120,7 +204,7 @@ export default function LoginScreen() {
       // Check registration completion status
       const registrationStatus = result.registrationStatus || {};
 
-      console.log('📊 Registration status:', {
+      console.log('[DATA] Registration status:', {
         hasMember: result.hasMember,
         hasSubscription: registrationStatus.hasSubscription,
         hasCompletedProfile: registrationStatus.hasCompletedProfile,
@@ -128,7 +212,7 @@ export default function LoginScreen() {
 
       // Priority: Subscription > Member > Profile
       if (!registrationStatus.hasSubscription) {
-        console.log('⚠️ No subscription - redirecting to plan selection');
+        console.log('[WARN] No subscription - redirecting to plan selection');
         router.replace({
           pathname: '/(auth)/register-plan',
           params: {
@@ -139,7 +223,7 @@ export default function LoginScreen() {
         });
       } else if (!result.hasMember || !registrationStatus.hasCompletedProfile) {
         console.log(
-          '⚠️ Subscription OK but profile incomplete - redirecting to profile'
+          '[WARNING] Subscription OK but profile incomplete - redirecting to profile'
         );
         router.replace({
           pathname: '/(auth)/register-profile',
@@ -151,7 +235,7 @@ export default function LoginScreen() {
           },
         });
       } else {
-        console.log('✅ Complete registration - redirecting to home');
+        console.log('[SUCCESS] Complete registration - redirecting to home');
         router.replace('/(tabs)');
       }
     } catch (error: any) {
@@ -323,6 +407,26 @@ export default function LoginScreen() {
           </Text>
         </TouchableOpacity>
 
+        <TouchableOpacity
+          style={[
+            styles.faceLoginButtonContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
+            isLoading && styles.buttonDisabled,
+          ]}
+          onPress={() => router.push('/(auth)/face-login')}
+          disabled={isLoading}
+        >
+          <User size={20} color={theme.colors.primary} />
+          <Text style={[styles.faceLoginText, { color: theme.colors.text }]}>
+            {t('faceLogin.loginWithFace', {
+              defaultValue: 'Đăng nhập bằng khuôn mặt',
+            })}
+          </Text>
+        </TouchableOpacity>
+
         <Text
           style={[styles.continueText, { color: theme.colors.textSecondary }]}
         >
@@ -336,15 +440,24 @@ export default function LoginScreen() {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.border,
             },
+            isGoogleLoading && styles.buttonDisabled,
           ]}
+          onPress={handleGoogleLogin}
+          disabled={isGoogleLoading || isLoading}
         >
-          <Image
-            source={{ uri: 'https://img.icons8.com/color/48/google-logo.png' }}
-            style={styles.googleImage}
-          />
-          <Text style={[styles.googleText, { color: theme.colors.text }]}>
-            Google
-          </Text>
+          {isGoogleLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : (
+            <>
+              <Image
+                source={{ uri: 'https://img.icons8.com/color/48/google-logo.png' }}
+                style={styles.googleImage}
+              />
+              <Text style={[styles.googleText, { color: theme.colors.text }]}>
+                Google
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <View style={styles.footerContainer}>
@@ -539,6 +652,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     gap: 12,
     marginBottom: 20,
+  },
+  faceLoginButtonContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+    gap: 12,
+  },
+  faceLoginText: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
   },
   googleImage: {
     height: 20,
