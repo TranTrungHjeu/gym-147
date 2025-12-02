@@ -9,9 +9,11 @@ RUN apk add --no-cache gettext
 # Copy nginx configuration template
 COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
-# Copy entrypoint script
-COPY entrypoint.railway.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Copy initialization script to docker-entrypoint.d so it runs before nginx starts
+# This script will process the template and generate nginx.conf
+# Using 00- prefix to ensure it runs FIRST before all other scripts
+COPY entrypoint.railway.sh /docker-entrypoint.d/00-process-template.sh
+RUN chmod +x /docker-entrypoint.d/00-process-template.sh
 
 # Railway will assign PORT dynamically, but we expose 80 as default
 # Railway will map PORT to the exposed port
@@ -21,5 +23,6 @@ EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD wget --no-verbose --tries=1 --spider http://localhost:80/health || exit 1
 
-# Use custom entrypoint
-ENTRYPOINT ["/entrypoint.sh"]
+# Use nginx default entrypoint - it will run scripts in /docker-entrypoint.d/
+# Our script (00-process-template.sh) will be executed FIRST automatically
+# No need to override ENTRYPOINT - let nginx default entrypoint handle it
