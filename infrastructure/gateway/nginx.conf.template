@@ -42,8 +42,8 @@ http {
     upstream billing_service { server ${BILLING_SERVICE_URL}; }
 
     server {
-        listen ${PORT};
-        listen [::]:${PORT};
+        listen ${NGINX_PORT};
+        listen [::]:${NGINX_PORT};
         server_name _;
 
         absolute_redirect off;
