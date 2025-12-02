@@ -287,10 +287,7 @@ http {
             }
             
             # Proxy directly to billing service /plans/active endpoint
-            # Note: billing_service is upstream name, path is /plans/active
             proxy_pass http://billing_service/plans/active;
-
-            # CRITICAL: Disable redirect handling completely
             proxy_redirect off;
 
             # Use upstream host for redirects to avoid loops when upstream enforces HTTPS
@@ -303,9 +300,9 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
-            # CRITICAL: Hide Location header to prevent redirect loops
-            # If billing service redirects, we don't want nginx to follow it
+            # CRITICAL: Hide ALL redirect-related headers
             proxy_hide_header 'Location';
+            proxy_hide_header 'Refresh';
             
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';

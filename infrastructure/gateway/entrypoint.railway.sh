@@ -1,5 +1,5 @@
 #!/bin/sh
-# Entrypoint script for Gateway - substitutes environment variables in nginx.conf
+# Entrypoint script for Gateway on Railway - substitutes environment variables in nginx.conf
 
 set -e
 
@@ -14,6 +14,10 @@ extract_host_port() {
     echo "$url"
 }
 
+# Railway provides PORT environment variable - default to 80 if not set
+NGINX_PORT=${PORT:-80}
+export NGINX_PORT
+
 # Default values if not set
 IDENTITY_SERVICE_URL_INPUT=${IDENTITY_SERVICE_URL:-http://localhost:3001}
 MEMBER_SERVICE_URL_INPUT=${MEMBER_SERVICE_URL:-http://localhost:3002}
@@ -25,10 +29,6 @@ IDENTITY_SERVICE_URL=$(extract_host_port "$IDENTITY_SERVICE_URL_INPUT")
 MEMBER_SERVICE_URL=$(extract_host_port "$MEMBER_SERVICE_URL_INPUT")
 SCHEDULE_SERVICE_URL=$(extract_host_port "$SCHEDULE_SERVICE_URL_INPUT")
 BILLING_SERVICE_URL=$(extract_host_port "$BILLING_SERVICE_URL_INPUT")
-
-# Set NGINX_PORT (default to 80 if not set)
-NGINX_PORT=${NGINX_PORT:-80}
-export NGINX_PORT
 
 # Export for envsubst
 export IDENTITY_SERVICE_URL
