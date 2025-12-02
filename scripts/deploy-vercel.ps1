@@ -60,3 +60,5 @@ Write-Host "   - VITE_WS_SCHEDULE_URL" -ForegroundColor Gray
 Write-Host "3. Đảm bảo backend services cho phép CORS từ Vercel domain" -ForegroundColor White
 Write-Host ""
 
+
+

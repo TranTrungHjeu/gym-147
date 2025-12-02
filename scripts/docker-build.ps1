@@ -52,3 +52,5 @@ Write-Host ""
 Write-Host "📋 Built images:" -ForegroundColor Cyan
 docker images | Select-String "gym-147"
 
+
+
