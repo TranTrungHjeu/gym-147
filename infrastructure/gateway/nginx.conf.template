@@ -61,6 +61,13 @@ http {
         absolute_redirect off;
         merge_slashes off;
 
+        # Disable caching on Railway Edge to ensure CORS headers are forwarded
+        # Railway Edge may cache responses and strip CORS headers
+        add_header 'Cache-Control' 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0' always;
+        add_header 'Pragma' 'no-cache' always;
+        add_header 'Expires' '0' always;
+        add_header 'X-Accel-Buffering' 'no' always;
+
         # Gzip compression
         gzip on;
         gzip_vary on;
@@ -73,6 +80,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             add_header 'Content-Type' 'application/json' always;
             return 503 '{"success":false,"message":"Service temporarily unavailable","data":null}';
         }
@@ -83,6 +91,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             add_header 'Content-Type' 'application/json' always;
             return 500 '{"success":false,"message":"Internal server error: redirect loop detected","data":null}';
         }
@@ -126,6 +135,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             
             # Handle proxy errors with CORS
             proxy_intercept_errors on;
@@ -171,6 +181,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             
             # Handle proxy errors with CORS
             proxy_intercept_errors on;
@@ -217,6 +228,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             
             # Handle proxy errors with CORS
             proxy_intercept_errors on;
@@ -262,6 +274,7 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             
             # Handle proxy errors with CORS
             proxy_intercept_errors on;
@@ -316,6 +329,54 @@ http {
             add_header 'Access-Control-Allow-Credentials' 'true' always;
             add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
             add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
+            
+            # Handle proxy errors with CORS
+            proxy_intercept_errors on;
+            error_page 502 503 504 = @cors_error;
+        }
+
+        # Billing Service
+        location /billing/ {
+            limit_req zone=api burst=500 nodelay;
+            
+            # Handle CORS preflight requests
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' $cors_origin always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 1728000 always;
+                add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+                add_header 'Content-Length' 0 always;
+                return 204;
+            }
+            
+            # Proxy to backend service
+            proxy_pass http://billing_service/;
+            proxy_redirect off;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header Origin $http_origin;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
+
+            # Add CORS headers to all responses (including errors)
+            add_header 'Access-Control-Allow-Origin' $cors_origin always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            add_header 'Vary' 'Origin' always;
             
             # Handle proxy errors with CORS
             proxy_intercept_errors on;
