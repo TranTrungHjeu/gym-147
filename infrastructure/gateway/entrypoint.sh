@@ -3,14 +3,34 @@
 
 set -e
 
-# Default values if not set
-IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL:-http://localhost:3001}
-MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL:-http://localhost:3002}
-SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL:-http://localhost:3003}
-BILLING_SERVICE_URL=${BILLING_SERVICE_URL:-http://localhost:3004}
+# Function to extract hostname:port from URL
+extract_host_port() {
+    local url="$1"
+    url="${url#http://}"
+    url="${url#https://}"
+    echo "$url"
+}
+
+# Default values if not set - using Railway private networking
+IDENTITY_SERVICE_URL=${IDENTITY_SERVICE_URL:-identity-service:3001}
+MEMBER_SERVICE_URL=${MEMBER_SERVICE_URL:-member-service:3002}
+SCHEDULE_SERVICE_URL=${SCHEDULE_SERVICE_URL:-schedule-service:3003}
+BILLING_SERVICE_URL=${BILLING_SERVICE_URL:-billing-service:3004}
+
+# Extract hostname:port (nginx upstream only accepts hostname:port, not full URL)
+IDENTITY_SERVICE_HOST=$(extract_host_port "$IDENTITY_SERVICE_URL")
+MEMBER_SERVICE_HOST=$(extract_host_port "$MEMBER_SERVICE_URL")
+SCHEDULE_SERVICE_HOST=$(extract_host_port "$SCHEDULE_SERVICE_URL")
+BILLING_SERVICE_HOST=$(extract_host_port "$BILLING_SERVICE_URL")
+
+# Export for envsubst
+export IDENTITY_SERVICE_HOST
+export MEMBER_SERVICE_HOST
+export SCHEDULE_SERVICE_HOST
+export BILLING_SERVICE_HOST
 
 # Substitute environment variables in nginx.conf.template
-envsubst '${IDENTITY_SERVICE_URL} ${MEMBER_SERVICE_URL} ${SCHEDULE_SERVICE_URL} ${BILLING_SERVICE_URL}' \
+envsubst '${IDENTITY_SERVICE_HOST} ${MEMBER_SERVICE_HOST} ${SCHEDULE_SERVICE_HOST} ${BILLING_SERVICE_HOST}' \
   < /etc/nginx/templates/nginx.conf.template \
   > /etc/nginx/nginx.conf
 
