@@ -78,7 +78,18 @@ const BookingPaymentScreen = () => {
     try {
       setIsLoading(true);
       const response = await paymentService.getBankTransfer(paymentId);
-      setBankTransfer(response);
+      console.log('[BANK] Bank transfer response:', response);
+      
+      // Handle response structure: { success: true, data: bankTransfer }
+      if (response.success && response.data) {
+        setBankTransfer(response.data);
+      } else if (response.data) {
+        // Fallback: if response.data exists directly
+        setBankTransfer(response.data);
+      } else {
+        // Last fallback: use response itself if it's already the data
+        setBankTransfer(response);
+      }
     } catch (error: any) {
       console.error('Error loading bank transfer:', error);
       Alert.alert(t('common.error'), t('payment.loadError'));
@@ -291,7 +302,7 @@ const BookingPaymentScreen = () => {
             ]}
           >
             <Text style={[styles.warningText, { color: theme.colors.warning }]}>
-              ⚠️ {t('payment.exactAmountWarning')}
+              [WARNING] {t('payment.exactAmountWarning')}
             </Text>
           </View>
         </View>
@@ -389,7 +400,7 @@ const BookingPaymentScreen = () => {
             ]}
           >
             <Text style={[styles.warningText, { color: theme.colors.error }]}>
-              ⚠️ {t('payment.contentWarning')}
+              [WARNING] {t('payment.contentWarning')}
             </Text>
           </View>
         </View>

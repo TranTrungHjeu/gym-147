@@ -31,7 +31,7 @@ class SystemController {
           }
         }
       } catch (cacheError) {
-        console.warn('⚠️ Cache read error (continuing with fresh data):', cacheError.message);
+        console.warn('[WARNING] Cache read error (continuing with fresh data):', cacheError.message);
       }
 
       // Query real data from database
@@ -59,7 +59,7 @@ class SystemController {
           await redisService.client.setEx(cacheKey, 5 * 60, JSON.stringify(stats));
         }
       } catch (cacheError) {
-        console.warn('⚠️ Cache write error:', cacheError.message);
+        console.warn('[WARNING] Cache write error:', cacheError.message);
       }
 
       res.json({
@@ -110,7 +110,7 @@ class SystemController {
           },
         });
       } catch (auditError) {
-        console.error('❌ Error creating audit log:', auditError);
+        console.error('[ERROR] Error creating audit log:', auditError);
       }
 
       res.json({
@@ -150,7 +150,7 @@ class SystemController {
           },
         });
       } catch (auditError) {
-        console.error('❌ Error creating audit log:', auditError);
+        console.error('[ERROR] Error creating audit log:', auditError);
       }
 
       res.json({
@@ -214,7 +214,7 @@ class SystemController {
         healthStatus.services.database = 'DOWN';
         healthStatus.status = 'UNHEALTHY';
         healthStatus.latency.database = 'N/A';
-        console.error('❌ Database health check failed:', dbError.message);
+        console.error('[ERROR] Database health check failed:', dbError.message);
       }
 
       // Check Redis connection
@@ -231,7 +231,7 @@ class SystemController {
         healthStatus.services.redis = 'DOWN';
         healthStatus.latency.redis = 'N/A';
         // Redis is optional, so don't mark as unhealthy
-        console.warn('⚠️ Redis health check failed:', redisError.message);
+        console.warn('[WARNING] Redis health check failed:', redisError.message);
       }
 
       // Check external services (Member Service, Schedule Service, Billing Service)
@@ -261,7 +261,7 @@ class SystemController {
           healthStatus.services[serviceName] = 'DOWN';
           healthStatus.latency[serviceName] = 'N/A';
           healthStatus.status = 'DEGRADED';
-          console.warn(`⚠️ ${serviceName} service health check failed:`, serviceError.message);
+          console.warn(`[WARNING] ${serviceName} service health check failed:`, serviceError.message);
         }
       }
 

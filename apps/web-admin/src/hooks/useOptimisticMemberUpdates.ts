@@ -38,20 +38,20 @@ export function useOptimisticMemberUpdates(
   // Handle member:created event
   const handleMemberCreated = useCallback(
     (data: MemberUpdateEvent) => {
-      console.log('🔔 [OPTIMISTIC_UPDATE] handleMemberCreated called with data:', data);
+      console.log('[BELL] [OPTIMISTIC_UPDATE] handleMemberCreated called with data:', data);
       
       // For member creation, we need user_id (not member_id) because MemberManagement uses User type
       const userId = data.data?.user_id || data.member_id || data.id || data.data?.id;
       if (!userId) {
-        console.warn('⚠️ [OPTIMISTIC_UPDATE] member:created event missing user_id/member_id:', data);
+        console.warn('[WARNING] [OPTIMISTIC_UPDATE] member:created event missing user_id/member_id:', data);
         return;
       }
 
-      console.log('✅ [OPTIMISTIC_UPDATE] Processing member:created for userId:', userId);
+      console.log('[SUCCESS] [OPTIMISTIC_UPDATE] Processing member:created for userId:', userId);
 
       const eventId = `member:created:${userId}:${Date.now()}`;
       if (processedEventsRef.current.has(eventId)) {
-        console.log('⏭️ [OPTIMISTIC_UPDATE] Event already processed, skipping:', eventId);
+        console.log('[SKIP] [OPTIMISTIC_UPDATE] Event already processed, skipping:', eventId);
         return;
       }
       processedEventsRef.current.add(eventId);
@@ -82,7 +82,7 @@ export function useOptimisticMemberUpdates(
           updatedAt: data.data.updatedAt || data.timestamp || new Date().toISOString(),
         };
 
-        console.log('✅ [OPTIMISTIC_UPDATE] Adding new member optimistically:', newMember);
+        console.log('[SUCCESS] [OPTIMISTIC_UPDATE] Adding new member optimistically:', newMember);
         return [newMember, ...prev];
       });
 

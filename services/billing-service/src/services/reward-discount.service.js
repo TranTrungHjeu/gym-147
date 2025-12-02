@@ -96,7 +96,7 @@ class RewardDiscountService {
         redemption,
       };
     } catch (error) {
-      console.error('❌ Verify reward code error:', error.message);
+      console.error('[ERROR] Verify reward code error:', error.message);
       if (error.response) {
         // API error response
         return {
@@ -157,7 +157,7 @@ class RewardDiscountService {
         redemption: response.data.data,
       };
     } catch (error) {
-      console.error('❌ Mark redemption as used error:', error.message);
+      console.error('[ERROR] Mark redemption as used error:', error.message);
       return {
         success: false,
         error: error.message || 'Failed to mark redemption as used',

@@ -5,7 +5,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Share2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   Alert,
@@ -28,6 +28,8 @@ export default function MyQRCodeScreen() {
   const [qrValue, setQrValue] = useState('');
   const [memberProfile, setMemberProfile] = useState<any>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [downloading, setDownloading] = useState(false);
+  const qrCodeRef = useRef<View>(null);
 
   useEffect(() => {
     loadMemberProfile();
@@ -73,10 +75,85 @@ export default function MyQRCodeScreen() {
     }
   };
 
-  const handleDownload = () => {
-    Alert.alert('Download QR Code', 'QR Code download feature coming soon!', [
-      { text: t('common.ok') },
-    ]);
+  const handleDownload = async () => {
+    if (!qrValue) {
+      Alert.alert('Error', 'QR Code not available');
+      return;
+    }
+
+    try {
+      setDownloading(true);
+
+      // Try to use react-native-view-shot if available
+      let captureRef: any;
+      let FileSystem: any;
+      let Sharing: any;
+
+      try {
+        const viewShot = require('react-native-view-shot');
+        captureRef = viewShot.captureRef || viewShot.default?.captureRef;
+        FileSystem = require('expo-file-system').default;
+        Sharing = require('expo-sharing').default;
+      } catch (e) {
+        // Fallback: Share QR code data as text
+        await Share.share({
+          message: `My Gym QR Code: ${qrValue}\n\nScan this code to check in at the gym.`,
+          title: 'Gym147 QR Code',
+        });
+        setDownloading(false);
+        return;
+      }
+
+      if (!captureRef || !qrCodeRef.current) {
+        // Fallback to text sharing
+        await Share.share({
+          message: `My Gym QR Code: ${qrValue}\n\nScan this code to check in at the gym.`,
+          title: 'Gym147 QR Code',
+        });
+        setDownloading(false);
+        return;
+      }
+
+      // Capture the QR code view as an image
+      const uri = await captureRef(qrCodeRef.current, {
+        format: 'png',
+        quality: 1.0,
+      });
+
+      // Create a filename with timestamp
+      const filename = `QRCode_${user?.id || 'user'}_${Date.now()}.png`;
+      const fileUri = `${FileSystem.documentDirectory}${filename}`;
+
+      // Copy the captured image to a permanent location
+      await FileSystem.copyAsync({
+        from: uri,
+        to: fileUri,
+      });
+
+      // Check if sharing is available
+      const isAvailable = await Sharing.isAvailableAsync();
+      if (isAvailable) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'image/png',
+          dialogTitle: 'Share QR Code',
+        });
+      } else {
+        Alert.alert('Success', 'QR Code saved to device');
+      }
+    } catch (error: any) {
+      console.error('Error downloading QR code:', error);
+      // Fallback to text sharing
+      try {
+        await Share.share({
+          message: `My Gym QR Code: ${qrValue}\n\nScan this code to check in at the gym.`,
+          title: 'Gym147 QR Code',
+        });
+      } catch (shareError) {
+        Alert.alert('Error', 'Failed to share QR code. Please try again.');
+      }
+    } finally {
+      setDownloading(false);
+    }
   };
 
   return (
@@ -146,6 +223,7 @@ export default function MyQRCodeScreen() {
         {/* QR Code */}
         <View style={styles.qrContainer}>
           <View
+            ref={qrCodeRef}
             style={[
               styles.qrCodeWrapper,
               { backgroundColor: theme.colors.surface },
@@ -200,7 +278,7 @@ export default function MyQRCodeScreen() {
               },
             ]}
           >
-            🔄 Auto-refreshes every 30 seconds
+            [SYNC] Auto-refreshes every 30 seconds
           </Text>
         </View>
 
@@ -225,6 +303,27 @@ export default function MyQRCodeScreen() {
               Refresh QR Code
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.actionButton,
+              {
+                backgroundColor:
+                  theme.colors.secondary || theme.colors.primary + '80',
+                flex: 1,
+              },
+            ]}
+            onPress={handleDownload}
+            disabled={downloading || !qrValue}
+          >
+            <Text
+              style={[
+                Typography.bodyMedium,
+                { color: theme.colors.textInverse, fontWeight: '600' },
+              ]}
+            >
+              {downloading ? 'Downloading...' : 'Download QR Code'}
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Info Card */}
@@ -235,7 +334,7 @@ export default function MyQRCodeScreen() {
           ]}
         >
           <Text style={[Typography.bodySmall, { color: theme.colors.info }]}>
-            ℹ️ For security, this QR code refreshes automatically every 30
+            [INFO] For security, this QR code refreshes automatically every 30
             seconds. Staff can scan it for quick check-in.
           </Text>
         </View>

@@ -15,11 +15,11 @@ router.get('/debug/database', (req, res) => memberController.debugDatabase(req, 
 // Get member profile statistics (MUST be before /profile route)
 // Support both /profile/stats (via gateway) and /members/profile/stats (direct access)
 router.get('/profile/stats', (req, res) => {
-  console.log('✅ Route matched: GET /profile/stats');
+  console.log('[SUCCESS] Route matched: GET /profile/stats');
   memberController.getProfileStats(req, res);
 });
 router.get('/members/profile/stats', (req, res) => {
-  console.log('✅ Route matched: GET /members/profile/stats');
+  console.log('[SUCCESS] Route matched: GET /members/profile/stats');
   memberController.getProfileStats(req, res);
 });
 
@@ -27,11 +27,11 @@ router.get('/members/profile/stats', (req, res) => {
 // Support both /profile (via gateway) and /members/profile (direct access)
 // IMPORTANT: This route must be registered BEFORE any dynamic routes like /:id
 router.get('/profile', (req, res) => {
-  console.log('✅ Route matched: GET /profile', req.originalUrl, req.path);
+  console.log('[SUCCESS] Route matched: GET /profile', req.originalUrl, req.path);
   memberController.getCurrentMemberProfile(req, res);
 });
 router.get('/members/profile', (req, res) => {
-  console.log('✅ Route matched: GET /members/profile', req.originalUrl, req.path);
+  console.log('[SUCCESS] Route matched: GET /members/profile', req.originalUrl, req.path);
   memberController.getCurrentMemberProfile(req, res);
 });
 
@@ -134,7 +134,9 @@ router.put('/members/:id/access', (req, res) => memberController.toggleAccess(re
 // ==================== ADMIN NOTIFICATION ROUTES ====================
 
 // Send system announcement (Admin only)
-router.post('/admin/announcements', (req, res) => memberController.sendSystemAnnouncement(req, res));
+router.post('/admin/announcements', (req, res) =>
+  memberController.sendSystemAnnouncement(req, res)
+);
 
 // ==================== MEMBER-SCOPED ACHIEVEMENT ROUTES ====================
 

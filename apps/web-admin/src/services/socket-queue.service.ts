@@ -84,7 +84,7 @@ class SocketQueueService {
       try {
         callback(event);
       } catch (error) {
-        console.error(`❌ Error replaying event ${event.eventName}:`, error);
+        console.error(`[ERROR] Error replaying event ${event.eventName}:`, error);
         // Re-queue failed events
         this.enqueue(event.eventName, event.data, event.service, event.priority);
       }
@@ -120,7 +120,7 @@ class SocketQueueService {
       }
       localStorage.setItem('socket_queue_events', JSON.stringify(persisted));
     } catch (error) {
-      console.warn('⚠️ Failed to persist event to localStorage:', error);
+      console.warn('[WARNING] Failed to persist event to localStorage:', error);
     }
   }
 
@@ -133,7 +133,7 @@ class SocketQueueService {
       if (!stored) return [];
       return JSON.parse(stored);
     } catch (error) {
-      console.warn('⚠️ Failed to read persisted events from localStorage:', error);
+      console.warn('[WARNING] Failed to read persisted events from localStorage:', error);
       return [];
     }
   }
@@ -145,7 +145,7 @@ class SocketQueueService {
     try {
       localStorage.removeItem('socket_queue_events');
     } catch (error) {
-      console.warn('⚠️ Failed to clear persisted events from localStorage:', error);
+      console.warn('[WARNING] Failed to clear persisted events from localStorage:', error);
     }
   }
 

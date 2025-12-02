@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '../../hooks/useToast';
-import { personalTrainingService, PersonalTrainingSession, PTSessionStats } from '../../services/personalTraining.service';
+import { personalTrainingService, PersonalTrainingSession, PTSessionStats, CreatePTSessionData } from '../../services/personalTraining.service';
 import { Search, Plus, RefreshCw, Edit, Trash2, Calendar, User, Users, TrendingUp, Award, Clock, DollarSign, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
@@ -32,7 +32,20 @@ const PersonalTrainingManagement: React.FC = () => {
   const [sessionToDelete, setSessionToDelete] = useState<PersonalTrainingSession | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [trainers, setTrainers] = useState<any[]>([]);
+  const [members, setMembers] = useState<any[]>([]);
+  const [isCreating, setIsCreating] = useState(false);
+  const [createFormData, setCreateFormData] = useState<CreatePTSessionData>({
+    member_id: '',
+    trainer_id: '',
+    scheduled_date: '',
+    start_time: '',
+    duration: 60,
+    price: 0,
+    goals: [],
+    notes: '',
+  });
   const prevPageRef = React.useRef(currentPage);
   const isInitialLoadRef = React.useRef(true);
 
@@ -88,6 +101,64 @@ const PersonalTrainingManagement: React.FC = () => {
     }
   }, []);
 
+  const loadMembers = useCallback(async () => {
+    try {
+      const { MemberService } = await import('../../services/member.service');
+      const response = await MemberService.getMembers({ limit: 1000, status: 'ACTIVE' });
+      if (response.members) {
+        setMembers(response.members || []);
+      }
+    } catch (error) {
+      console.error('Error loading members:', error);
+    }
+  }, []);
+
+  const handleCreateSession = async () => {
+    // Validation
+    if (!createFormData.member_id || !createFormData.trainer_id || !createFormData.scheduled_date || !createFormData.start_time) {
+      showToast('Vui lòng điền đầy đủ thông tin bắt buộc', 'error');
+      return;
+    }
+
+    // Validate date is not in the past
+    const selectedDate = new Date(createFormData.scheduled_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (selectedDate < today) {
+      showToast('Ngày tập không được là ngày trong quá khứ', 'error');
+      return;
+    }
+
+    setIsCreating(true);
+    try {
+      const response = await personalTrainingService.createSession(createFormData);
+      if (response.success) {
+        showToast('Tạo buổi tập PT thành công', 'success');
+        setIsCreateModalOpen(false);
+        setCreateFormData({
+          member_id: '',
+          trainer_id: '',
+          scheduled_date: '',
+          start_time: '',
+          duration: 60,
+          price: 0,
+          status: 'SCHEDULED',
+          goals: [],
+          notes: '',
+        });
+        await loadSessions();
+        await loadStats();
+      } else {
+        showToast(response.message || 'Không thể tạo buổi tập PT', 'error');
+      }
+    } catch (error: any) {
+      console.error('Error creating PT session:', error);
+      showToast(error.response?.data?.message || 'Không thể tạo buổi tập PT', 'error');
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
   useEffect(() => {
     const isPageChange = prevPageRef.current !== currentPage && !isInitialLoadRef.current;
     if (isInitialLoadRef.current) {
@@ -99,6 +170,7 @@ const PersonalTrainingManagement: React.FC = () => {
     if (!isPageChange) {
       loadStats();
       loadTrainers();
+      loadMembers();
     }
   }, [loadSessions, loadStats, loadTrainers, currentPage]);
 
@@ -195,8 +267,7 @@ const PersonalTrainingManagement: React.FC = () => {
             size='sm'
             icon={Plus}
             onClick={() => {
-              // TODO: Open create modal
-              showToast('Tính năng tạo buổi tập PT sẽ được triển khai', 'info');
+              setIsCreateModalOpen(true);
             }}
           >
             Tạo buổi tập PT
@@ -557,6 +628,149 @@ const PersonalTrainingManagement: React.FC = () => {
             )}
           </div>
         )}
+      </AdminModal>
+
+      {/* Create Modal */}
+      <AdminModal
+        isOpen={isCreateModalOpen}
+        onClose={() => {
+          setIsCreateModalOpen(false);
+          setCreateFormData({
+            member_id: '',
+            trainer_id: '',
+            scheduled_date: '',
+            start_time: '',
+            duration: 60,
+            price: 0,
+            goals: [],
+            notes: '',
+          });
+        }}
+        title='Tạo buổi tập PT mới'
+        size='lg'
+        footer={
+          <div className='flex justify-end gap-2'>
+            <AdminButton
+              variant='secondary'
+              size='sm'
+              onClick={() => {
+                setIsCreateModalOpen(false);
+                setCreateFormData({
+                  member_id: '',
+                  trainer_id: '',
+                  scheduled_date: '',
+                  start_time: '',
+                  duration: 60,
+                  price: 0,
+                  status: 'SCHEDULED',
+                  goals: [],
+                  notes: '',
+                });
+              }}
+            >
+              Hủy
+            </AdminButton>
+            <AdminButton
+              variant='primary'
+              size='sm'
+              onClick={handleCreateSession}
+              disabled={isCreating}
+            >
+              {isCreating ? 'Đang tạo...' : 'Tạo buổi tập'}
+            </AdminButton>
+          </div>
+        }
+      >
+        <div className='space-y-4'>
+          <div className='grid grid-cols-2 gap-4'>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Thành viên <span className='text-red-500'>*</span>
+              </label>
+              <CustomSelect
+                value={createFormData.member_id}
+                onChange={(value) => setCreateFormData({ ...createFormData, member_id: value })}
+                options={members.map(m => ({ value: m.id, label: m.full_name }))}
+                placeholder='Chọn thành viên'
+                searchable
+              />
+            </div>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Huấn luyện viên <span className='text-red-500'>*</span>
+              </label>
+              <CustomSelect
+                value={createFormData.trainer_id}
+                onChange={(value) => setCreateFormData({ ...createFormData, trainer_id: value })}
+                options={trainers.map(t => ({ value: t.id, label: t.full_name }))}
+                placeholder='Chọn huấn luyện viên'
+                searchable
+              />
+            </div>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Ngày tập <span className='text-red-500'>*</span>
+              </label>
+              <input
+                type='date'
+                value={createFormData.scheduled_date}
+                onChange={(e) => setCreateFormData({ ...createFormData, scheduled_date: e.target.value })}
+                min={new Date().toISOString().split('T')[0]}
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-theme-xs focus:outline-none focus:ring-2 focus:ring-orange-500'
+              />
+            </div>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Giờ bắt đầu <span className='text-red-500'>*</span>
+              </label>
+              <input
+                type='time'
+                value={createFormData.start_time}
+                onChange={(e) => setCreateFormData({ ...createFormData, start_time: e.target.value })}
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-theme-xs focus:outline-none focus:ring-2 focus:ring-orange-500'
+              />
+            </div>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Thời lượng (phút) <span className='text-red-500'>*</span>
+              </label>
+              <input
+                type='number'
+                value={createFormData.duration}
+                onChange={(e) => setCreateFormData({ ...createFormData, duration: parseInt(e.target.value) || 60 })}
+                min={15}
+                max={480}
+                step={15}
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-theme-xs focus:outline-none focus:ring-2 focus:ring-orange-500'
+              />
+            </div>
+            <div>
+              <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+                Giá (VND)
+              </label>
+              <input
+                type='number'
+                value={createFormData.price}
+                onChange={(e) => setCreateFormData({ ...createFormData, price: parseFloat(e.target.value) || 0 })}
+                min={0}
+                step={1000}
+                className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-theme-xs focus:outline-none focus:ring-2 focus:ring-orange-500'
+              />
+            </div>
+          </div>
+          <div>
+            <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 mb-1'>
+              Ghi chú
+            </label>
+            <textarea
+              value={createFormData.notes}
+              onChange={(e) => setCreateFormData({ ...createFormData, notes: e.target.value })}
+              rows={3}
+              className='w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-theme-xs focus:outline-none focus:ring-2 focus:ring-orange-500'
+              placeholder='Nhập ghi chú (nếu có)'
+            />
+          </div>
+        </div>
       </AdminModal>
     </div>
   );

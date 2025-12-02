@@ -64,7 +64,7 @@ class BulkNotificationService {
       }
       return [];
     } catch (error) {
-      console.error('❌ Error getting members by filters:', error.message);
+      console.error('[ERROR] Error getting members by filters:', error.message);
       throw error;
     }
   }
@@ -113,7 +113,7 @@ class BulkNotificationService {
       }
       return [];
     } catch (error) {
-      console.error('❌ Error getting trainers by filters:', error.message);
+      console.error('[ERROR] Error getting trainers by filters:', error.message);
       throw error;
     }
   }
@@ -133,19 +133,22 @@ class BulkNotificationService {
     };
 
     if (!userIds || userIds.length === 0) {
-      console.log('⚠️ [BULK_NOTIFICATION] No user IDs provided');
+      console.log('[WARNING] [BULK_NOTIFICATION] No user IDs provided');
       return results;
     }
 
-    console.log(`📝 [BULK_NOTIFICATION] Creating notifications for ${userIds.length} user(s):`, {
-      userIds: userIds.slice(0, 5), // Log first 5 IDs
-      total: userIds.length,
-      notificationData: {
-        type: notificationData.type,
-        title: notificationData.title,
-        messageLength: notificationData.message?.length || 0,
-      },
-    });
+    console.log(
+      `[PROCESS] [BULK_NOTIFICATION] Creating notifications for ${userIds.length} user(s):`,
+      {
+        userIds: userIds.slice(0, 5), // Log first 5 IDs
+        total: userIds.length,
+        notificationData: {
+          type: notificationData.type,
+          title: notificationData.title,
+          messageLength: notificationData.message?.length || 0,
+        },
+      }
+    );
 
     // Batch create notifications (process in chunks of 50 to avoid overwhelming the database)
     const chunkSize = 50;
@@ -155,12 +158,14 @@ class BulkNotificationService {
       chunks.push(userIds.slice(i, i + chunkSize));
     }
 
-    console.log(`📦 [BULK_NOTIFICATION] Processing in ${chunks.length} chunk(s) of ${chunkSize}`);
+    console.log(
+      `[DATA] [BULK_NOTIFICATION] Processing in ${chunks.length} chunk(s) of ${chunkSize}`
+    );
 
     for (let chunkIndex = 0; chunkIndex < chunks.length; chunkIndex++) {
       const chunk = chunks[chunkIndex];
       console.log(
-        `🔄 [BULK_NOTIFICATION] Processing chunk ${chunkIndex + 1}/${chunks.length} (${
+        `[SYNC] [BULK_NOTIFICATION] Processing chunk ${chunkIndex + 1}/${chunks.length} (${
           chunk.length
         } users)`
       );
@@ -174,7 +179,9 @@ class BulkNotificationService {
           });
 
           if (!userExists) {
-            console.warn(`⚠️ [BULK_NOTIFICATION] User not found in Identity Service: ${userId}`);
+            console.warn(
+              `[WARNING] [BULK_NOTIFICATION] User not found in Identity Service: ${userId}`
+            );
             results.failed++;
             results.errors.push({
               userId,
@@ -185,9 +192,9 @@ class BulkNotificationService {
           }
 
           console.log(
-            `✅ [BULK_NOTIFICATION] User verified: ${userId} (${userExists.email || 'no email'}, ${
-              userExists.role
-            })`
+            `[SUCCESS] [BULK_NOTIFICATION] User verified: ${userId} (${
+              userExists.email || 'no email'
+            }, ${userExists.role})`
           );
 
           // Enqueue notification to Redis queue instead of creating directly
@@ -209,7 +216,7 @@ class BulkNotificationService {
           if (!enqueued) {
             // Fallback: create notification directly if Redis is down
             console.warn(
-              `⚠️ Redis queue unavailable for user ${userId}, creating notification directly`
+              `[WARNING] Redis queue unavailable for user ${userId}, creating notification directly`
             );
             const notification = await prisma.notification.create({
               data: {
@@ -220,35 +227,30 @@ class BulkNotificationService {
                 data: notificationData.data || {},
               },
             });
-            return { userId, success: true, notification };
-          }
 
-          // Return success even though notification is queued (will be processed by worker)
-          return { userId, success: true, queued: true };
-
-          if (notification) {
+            // Update results
             results.success++;
             results.notifications.push({ userId, success: true, notification });
             console.log(
-              `✅ [BULK_NOTIFICATION] Created notification for user ${userId}: ${notification.id}`
+              `[SUCCESS] [BULK_NOTIFICATION] Created notification for user ${userId}: ${notification.id}`
             );
             return { userId, success: true, notification };
-          } else {
-            console.error(
-              `❌ [BULK_NOTIFICATION] Failed to create notification for user ${userId}: No notification returned`
-            );
-            results.failed++;
-            results.errors.push({
-              userId,
-              error: 'Failed to create notification - no notification returned',
-            });
-            return { userId, success: false };
           }
+
+          // Notification was enqueued successfully (will be processed by worker)
+          // Update results even though notification is queued
+          results.success++;
+          // Don't create temporary notification object - worker will create the real one
+          // Return null to indicate notification was enqueued (not yet created)
+          console.log(
+            `[SUCCESS] [BULK_NOTIFICATION] Enqueued notification for user ${userId} (will be processed by worker)`
+          );
+          return { userId, success: true, queued: true, notification: null };
         } catch (error) {
           // Check if it's a foreign key constraint error
           if (error.code === 'P2003' || error.message?.includes('Foreign key constraint')) {
             console.error(
-              `❌ [BULK_NOTIFICATION] Foreign key constraint error for user ${userId}:`,
+              `[ERROR] [BULK_NOTIFICATION] Foreign key constraint error for user ${userId}:`,
               {
                 error: error.message,
                 code: error.code,
@@ -265,7 +267,7 @@ class BulkNotificationService {
             });
           } else {
             console.error(
-              `❌ [BULK_NOTIFICATION] Error creating notification for user ${userId}:`,
+              `[ERROR] [BULK_NOTIFICATION] Error creating notification for user ${userId}:`,
               {
                 error: error.message,
                 code: error.code,
@@ -286,16 +288,28 @@ class BulkNotificationService {
       });
 
       const chunkResults = await Promise.all(promises);
-      console.log(`📊 [BULK_NOTIFICATION] Chunk ${chunkIndex + 1} completed:`, {
+
+      // Update results from chunk results
+      chunkResults.forEach(result => {
+        if (result.success) {
+          // results.success and results.notifications are already updated in the promise
+          // Just verify they match
+        } else {
+          // results.failed and results.errors are already updated in the promise
+        }
+      });
+
+      console.log(`[STATS] [BULK_NOTIFICATION] Chunk ${chunkIndex + 1} completed:`, {
         success: chunkResults.filter(r => r.success).length,
         failed: chunkResults.filter(r => !r.success).length,
       });
     }
 
-    console.log(`📊 [BULK_NOTIFICATION] Final results:`, {
+    console.log(`[STATS] [BULK_NOTIFICATION] Final results:`, {
       total: userIds.length,
       success: results.success,
       failed: results.failed,
+      notificationsCount: results.notifications.length,
       errors: results.errors.slice(0, 10), // Log first 10 errors
     });
 
@@ -317,51 +331,59 @@ class BulkNotificationService {
       // Create a map of userId -> notificationId for quick lookup
       const notificationMap = new Map();
       console.log(
-        `🔍 [BULK_NOTIFICATION] Creating notification map from ${
+        `[SEARCH] [BULK_NOTIFICATION] Creating notification map from ${
           createdNotifications?.length || 0
         } created notifications`
       );
 
       if (createdNotifications && createdNotifications.length > 0) {
-        createdNotifications.forEach((notif, index) => {
-          console.log(`🔍 [BULK_NOTIFICATION] Processing notification ${index}:`, {
+        // Filter out notifications that were enqueued (notification is null)
+        const validNotifications = createdNotifications.filter(
+          notif => notif.userId && notif.notification && notif.notification.id
+        );
+
+        console.log(
+          `[FILTER] [BULK_NOTIFICATION] Filtered notifications: ${createdNotifications.length} total, ${validNotifications.length} with real IDs`
+        );
+
+        validNotifications.forEach((notif, index) => {
+          console.log(`[SEARCH] [BULK_NOTIFICATION] Processing notification ${index}:`, {
             userId: notif.userId,
-            notificationId: notif.notification?.id,
+            notificationId: notif.notification.id,
             hasNotification: !!notif.notification,
-            structure: Object.keys(notif),
           });
 
-          if (notif.userId && notif.notification?.id) {
-            notificationMap.set(notif.userId, notif.notification.id);
-            console.log(
-              `✅ [BULK_NOTIFICATION] Mapped userId ${notif.userId} → notificationId ${notif.notification.id}`
-            );
-          } else {
-            console.warn(
-              `⚠️ [BULK_NOTIFICATION] Skipping notification ${index}: missing userId or notification.id`,
-              notif
-            );
-          }
+          notificationMap.set(notif.userId, notif.notification.id);
+          console.log(
+            `[SUCCESS] [BULK_NOTIFICATION] Mapped userId ${notif.userId} → notificationId ${notif.notification.id}`
+          );
         });
       } else {
-        console.warn(`⚠️ [BULK_NOTIFICATION] No createdNotifications provided or empty array`);
+        console.warn(
+          `[WARNING] [BULK_NOTIFICATION] No createdNotifications provided or empty array`
+        );
       }
 
       console.log(
-        `📊 [BULK_NOTIFICATION] Notification map size: ${notificationMap.size}, Total userIds: ${userIds.length}`
+        `[STATS] [BULK_NOTIFICATION] Notification map size: ${notificationMap.size}, Total userIds: ${userIds.length}`
       );
 
-      // Emit to each user's room with notification_id
+      // Emit to each user's room with notification_id (only if notification was created)
       let emittedCount = 0;
       userIds.forEach(userId => {
         const notificationId = notificationMap.get(userId);
         const roomName = `user:${userId}`;
 
-        // Always include notification_id (use fallback if not found)
-        const finalNotificationId = notificationId || `bulk_${Date.now()}_${userId}`;
+        // Only emit if notification_id exists (notification was created, not just enqueued)
+        if (!notificationId) {
+          console.log(
+            `[SKIP] [BULK_NOTIFICATION] Skipping socket emit for user ${userId} - notification was enqueued (not yet created)`
+          );
+          return;
+        }
 
         const socketPayload = {
-          notification_id: finalNotificationId,
+          notification_id: notificationId,
           type: notificationData.type || 'GENERAL',
           title: notificationData.title,
           message: notificationData.message,
@@ -371,29 +393,25 @@ class BulkNotificationService {
 
         // Log payload before emitting
         console.log(
-          `📡 [BULK_NOTIFICATION] Emitting to user ${userId} in room ${roomName}. Payload:`,
+          `[EMIT] [BULK_NOTIFICATION] Emitting to user ${userId} in room ${roomName}. Payload:`,
           JSON.stringify(socketPayload, null, 2)
         );
 
+        // Emit both notification:new (for compatibility) and admin:bulk:notification (specific event)
         global.io.to(roomName).emit('notification:new', socketPayload);
+        global.io.to(roomName).emit('admin:bulk:notification', socketPayload);
         emittedCount++;
 
-        if (notificationId) {
-          console.log(
-            `✅ [BULK_NOTIFICATION] Emitted notification:new to user ${userId} with notification_id: ${notificationId}`
-          );
-        } else {
-          console.warn(
-            `⚠️ [BULK_NOTIFICATION] Emitted notification:new to user ${userId} without notification_id from map (using fallback: ${finalNotificationId})`
-          );
-        }
+        console.log(
+          `[SUCCESS] [BULK_NOTIFICATION] Emitted notification:new and admin:bulk:notification to user ${userId} with notification_id: ${notificationId}`
+        );
       });
 
       console.log(
-        `📡 [BULK_NOTIFICATION] Emitted socket events to ${emittedCount}/${userIds.length} user(s)`
+        `[EMIT] [BULK_NOTIFICATION] Emitted socket events to ${emittedCount}/${userIds.length} user(s)`
       );
     } catch (error) {
-      console.error('❌ [BULK_NOTIFICATION] Error emitting socket events:', error.message);
+      console.error('[ERROR] [BULK_NOTIFICATION] Error emitting socket events:', error.message);
       // Don't throw - socket emission failure shouldn't fail the whole operation
     }
   }
@@ -425,7 +443,7 @@ class BulkNotificationService {
 
       return history;
     } catch (error) {
-      console.error('❌ Error saving notification history:', error.message);
+      console.error('[ERROR] Error saving notification history:', error.message);
       throw error;
     }
   }
@@ -470,7 +488,7 @@ class BulkNotificationService {
         },
       };
     } catch (error) {
-      console.error('❌ Error getting notification history:', error.message);
+      console.error('[ERROR] Error getting notification history:', error.message);
       throw error;
     }
   }

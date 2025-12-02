@@ -109,7 +109,7 @@ const DeleteCertificationModal: React.FC<DeleteCertificationModalProps> = ({
       },
     });
     window.dispatchEvent(deleteEvent);
-    console.log(`✅ [DELETE_CERT_MODAL] Dispatched optimistic certification:deleted event for ${certification.id}`);
+    console.log(`[SUCCESS] [DELETE_CERT_MODAL] Dispatched optimistic certification:deleted event for ${certification.id}`);
     
     try {
       await certificationService.deleteCertification(certification.id, reason.trim());

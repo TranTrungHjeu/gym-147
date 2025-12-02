@@ -96,7 +96,7 @@ const AdminDashboard: React.FC = () => {
         ]);
 
         if (statsData.success) {
-          console.log('📊 Admin stats data received:', statsData.data);
+          console.log('[STATS] Admin stats data received:', statsData.data);
           const statsDataToSet = {
             totalUsers: 0,
             totalAdmins: 0,
@@ -106,17 +106,17 @@ const AdminDashboard: React.FC = () => {
             activeSessions: statsData.data.activeSessions || 0,
             totalEquipment: statsData.data.totalEquipment || 0,
           };
-          console.log('📊 Setting stats state:', statsDataToSet);
+          console.log('[STATS] Setting stats state:', statsDataToSet);
           setStats(statsDataToSet);
         } else {
           showToast(t('dashboard.admin.errors.loadStatsFailed'), 'error');
         }
 
         if (activitiesData.success && activitiesData.data) {
-          console.log('📥 Recent activities received:', activitiesData.data);
-          console.log('📥 Activities count:', activitiesData.data.length);
+          console.log('[DATA] Recent activities received:', activitiesData.data);
+          console.log('[DATA] Activities count:', activitiesData.data.length);
           activitiesData.data.forEach((activity, index) => {
-            console.log(`📥 Activity ${index}:`, {
+            console.log(`[DATA] Activity ${index}:`, {
               id: activity.id,
               type: activity.type,
               user: activity.user,
@@ -643,7 +643,7 @@ const AdminDashboard: React.FC = () => {
                         const userAvatar = activity.user?.avatar;
 
                         // Debug logging
-                        console.log(`🎨 Frontend Activity ${index}:`, {
+                        console.log(`Frontend Activity ${index}:`, {
                           activityId: activity.id,
                           activityType: activity.type,
                           userRole: activity.user?.role,

@@ -93,6 +93,16 @@ export interface AuthContextType {
       hasCompletedProfile: boolean;
     };
   }>;
+  loginWithFace: (image: string) => Promise<{
+    hasMember: boolean;
+    user: any;
+    accessToken: string;
+    refreshToken?: string;
+    registrationStatus?: {
+      hasSubscription: boolean;
+      hasCompletedProfile: boolean;
+    };
+  }>;
   register: (credentials: RegisterCredentials) => Promise<void>;
   logout: () => Promise<void>;
   forgotPassword: (data: ForgotPasswordData) => Promise<void>;

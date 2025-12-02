@@ -45,6 +45,7 @@ export default function SignInForm({
     title: 'Đăng nhập thất bại',
     message: '',
   });
+  const [isOAuthLoading, setIsOAuthLoading] = useState(false);
 
   useEffect(() => {
     const timer = setTimeout(() => setIsFormLoaded(true), 200);
@@ -289,6 +290,42 @@ export default function SignInForm({
 
     setIsLoading(false);
   };
+
+  const handleGoogleLogin = async () => {
+    try {
+      setIsOAuthLoading(true);
+      const response = await authService.getGoogleAuthUrl();
+      if (response.success && response.data?.authUrl) {
+        // Open OAuth URL in new window
+        window.location.href = response.data.authUrl;
+      } else {
+        showToast('Không thể khởi tạo Google OAuth', 'error');
+      }
+    } catch (error: any) {
+      console.error('Google OAuth error:', error);
+      showToast(error.message || 'Không thể đăng nhập với Google', 'error');
+    } finally {
+      setIsOAuthLoading(false);
+    }
+  };
+
+  const handleFacebookLogin = async () => {
+    try {
+      setIsOAuthLoading(true);
+      const response = await authService.getFacebookAuthUrl();
+      if (response.success && response.data?.authUrl) {
+        window.location.href = response.data.authUrl;
+      } else {
+        showToast('Không thể khởi tạo Facebook OAuth', 'error');
+      }
+    } catch (error: any) {
+      console.error('Facebook OAuth error:', error);
+      showToast(error.message || 'Không thể đăng nhập với Facebook', 'error');
+    } finally {
+      setIsOAuthLoading(false);
+    }
+  };
+
   return (
     <div
       className={`flex flex-col h-full transition-all duration-1000 ${isFormLoaded ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}

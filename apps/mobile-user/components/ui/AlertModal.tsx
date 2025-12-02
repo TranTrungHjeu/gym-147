@@ -2,6 +2,7 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Animated,
   Easing,
@@ -20,6 +21,9 @@ interface AlertModalProps {
   buttonText?: string;
   type?: 'success' | 'error' | 'warning' | 'info';
   onClose: () => void;
+  suggestion?: string;
+  showCancel?: boolean;
+  onConfirm?: () => void;
 }
 
 export const AlertModal: React.FC<AlertModalProps> = ({
@@ -29,8 +33,12 @@ export const AlertModal: React.FC<AlertModalProps> = ({
   buttonText = 'OK',
   type = 'info',
   onClose,
+  suggestion,
+  showCancel = false,
+  onConfirm,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -184,23 +192,56 @@ export const AlertModal: React.FC<AlertModalProps> = ({
               <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
                 {message}
               </Text>
+              {suggestion && (
+                <View style={styles.suggestionContainer}>
+                  <Text style={[styles.suggestion, { color: theme.colors.textSecondary }]}>
+                    💡 {suggestion}
+                  </Text>
+                </View>
+              )}
             </View>
 
-            {/* Button */}
-            <TouchableOpacity
-              style={[
-                styles.button,
-                {
-                  backgroundColor: getButtonColor(),
-                },
-              ]}
-              onPress={onClose}
-              activeOpacity={0.8}
-            >
-              <Text style={[styles.buttonText, { color: '#fff' }]}>
-                {buttonText}
-              </Text>
-            </TouchableOpacity>
+            {/* Buttons */}
+            <View style={styles.buttonContainer}>
+              {showCancel && (
+                <TouchableOpacity
+                  style={[
+                    styles.button,
+                    styles.cancelButton,
+                    {
+                      borderColor: theme.colors.border,
+                    },
+                  ]}
+                  onPress={onClose}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[styles.buttonText, { color: theme.colors.text }]}>
+                    {t('common.cancel', { defaultValue: 'Hủy' })}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={[
+                  styles.button,
+                  {
+                    backgroundColor: getButtonColor(),
+                    flex: showCancel ? 1 : undefined,
+                    width: showCancel ? undefined : '100%',
+                  },
+                ]}
+                onPress={() => {
+                  if (onConfirm) {
+                    onConfirm();
+                  }
+                  onClose();
+                }}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.buttonText, { color: '#fff' }]}>
+                  {buttonText}
+                </Text>
+              </TouchableOpacity>
+            </View>
           </Animated.View>
         </SafeAreaView>
       </Animated.View>
@@ -261,12 +302,32 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
-  button: {
+  suggestionContainer: {
+    marginTop: 16,
+    padding: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+  },
+  suggestion: {
+    ...Typography.bodyMedium,
+    textAlign: 'center',
+    lineHeight: 20,
+    fontStyle: 'italic',
+  },
+  buttonContainer: {
     width: '100%',
+    flexDirection: 'row',
+    gap: 12,
+  },
+  button: {
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  cancelButton: {
+    backgroundColor: 'transparent',
+    borderWidth: 1,
   },
   buttonText: {
     ...Typography.buttonMedium,

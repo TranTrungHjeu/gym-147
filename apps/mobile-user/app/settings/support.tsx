@@ -1,6 +1,7 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 import {
   ArrowLeft,
   ChevronDown,
@@ -40,6 +41,7 @@ export default function SupportScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const router = useRouter();
+  const { user } = useAuth();
 
   const [expandedFAQ, setExpandedFAQ] = useState<string | null>(null);
   const [showContactForm, setShowContactForm] = useState(false);
@@ -122,7 +124,11 @@ export default function SupportScreen() {
       description: 'Available 24/7',
       icon: <MessageCircle size={20} color={theme.colors.primary} />,
       action: () => {
-        Alert.alert(t('common.info'), 'Live chat feature coming soon!');
+        if (user?.id) {
+          router.push('/settings/chat');
+        } else {
+          Alert.alert(t('common.error'), 'Please login to use live chat');
+        }
       },
     },
   ];

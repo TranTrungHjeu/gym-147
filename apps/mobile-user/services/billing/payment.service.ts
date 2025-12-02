@@ -135,7 +135,7 @@ export class PaymentService {
       paramsWithoutStatus.append('reference_id', referenceId);
       paramsWithoutStatus.append('payment_type', paymentType);
 
-      console.log('🔍 Fetching payment by reference_id (all statuses):', {
+      console.log('[SEARCH] Fetching payment by reference_id (all statuses):', {
         referenceId,
         paymentType,
         url: `/payments?${paramsWithoutStatus.toString()}`,
@@ -145,7 +145,7 @@ export class PaymentService {
         `/payments?${paramsWithoutStatus.toString()}`
       );
 
-      console.log('💰 Payment API response:', {
+      console.log('[PAYMENT] Payment API response:', {
         hasData: !!response.data,
         hasSuccess: response.data?.success,
         dataStructure: response.data ? Object.keys(response.data) : [],
@@ -165,7 +165,7 @@ export class PaymentService {
         payments = response.data;
       }
 
-      console.log('💰 Extracted payments:', {
+      console.log('[PAYMENT] Extracted payments:', {
         count: payments.length,
         payments: payments.map((p) => ({
           id: p.id,
@@ -186,14 +186,14 @@ export class PaymentService {
       }
 
       if (payment) {
-        console.log('✅ Found matching payment:', {
+        console.log('[SUCCESS] Found matching payment:', {
           paymentId: payment.id,
           referenceId: (payment as any).reference_id,
           status: payment.status,
           payment_type: (payment as any).payment_type,
         });
       } else {
-        console.log('⚠️ No matching payment found:', {
+        console.log('[WARN] No matching payment found:', {
           referenceId,
           paymentType,
           totalPayments: payments.length,
@@ -203,7 +203,7 @@ export class PaymentService {
 
       return payment || null;
     } catch (error: any) {
-      console.error('❌ Error fetching payment by reference_id:', {
+      console.error('[ERROR] Error fetching payment by reference_id:', {
         error: error?.message || error,
         referenceId,
         paymentType,

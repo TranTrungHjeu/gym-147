@@ -50,10 +50,10 @@ const AppHeader: React.FC = () => {
         const newUserId = userData?.id || userData?.userId || '';
         if (newUserId !== userId) {
           setUserId(newUserId);
-          console.log('🔍 AppHeader: User ID updated:', newUserId);
+          console.log('[SEARCH] AppHeader: User ID updated:', newUserId);
         }
       } catch (error) {
-        console.error('❌ AppHeader: Error parsing user data:', error);
+        console.error('[ERROR] AppHeader: Error parsing user data:', error);
         setUserId('');
       }
     };

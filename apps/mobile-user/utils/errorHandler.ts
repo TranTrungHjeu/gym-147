@@ -10,7 +10,7 @@ const originalHandler = ErrorUtils.getGlobalHandler();
 
 // Enhanced error handler
 const errorHandler = (error, isFatal) => {
-  console.error('🚨 GLOBAL ERROR HANDLER:', {
+  console.error('[ALERT] GLOBAL ERROR HANDLER:', {
     message: error.message,
     stack: error.stack,
     isFatal,
@@ -47,7 +47,7 @@ if (typeof global !== 'undefined' && typeof global.addEventListener === 'functio
     if (firstArg && typeof firstArg === 'string') {
       if (firstArg.includes('Unhandled promise rejection') || 
           firstArg.includes('Uncaught')) {
-        console.error('🚨 UNHANDLED PROMISE REJECTION DETECTED:', args);
+        console.error('[ALERT] UNHANDLED PROMISE REJECTION DETECTED:', args);
       }
     }
     originalConsoleError.apply(console, args);

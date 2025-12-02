@@ -98,26 +98,26 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
 
           // Setup schedule notification listeners for admin/super admin
           scheduleSocket.on('schedule:new', (data: any) => {
-            console.log('📢 schedule:new event received in AppLayout:', data);
+            console.log('[NOTIFY] schedule:new event received in AppLayout:', data);
             eventManager.dispatch('schedule:new', data);
             eventManager.dispatch('schedule:updated', data);
           });
 
           scheduleSocket.on('schedule:updated', (data: any) => {
-            console.log('📢 schedule:updated event received in AppLayout:', data);
+            console.log('[NOTIFY] schedule:updated event received in AppLayout:', data);
             eventManager.dispatch('schedule:updated', data);
           });
 
           scheduleSocket.on('schedule:deleted', (data: any) => {
-            console.log('📢 schedule:deleted event received in AppLayout:', data);
+            console.log('[NOTIFY] schedule:deleted event received in AppLayout:', data);
             eventManager.dispatch('schedule:deleted', data);
           });
 
           // Setup certification notification listeners for admin/super admin
           scheduleSocket.on('certification:upload', (data: any) => {
-            console.log('📢 certification:upload event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:upload event received in AppLayout:', data);
             console.log(
-              '📢 [APPLAYOUT] verification_status:',
+              '[NOTIFY] [APPLAYOUT] verification_status:',
               data?.verification_status || data?.data?.verification_status || 'NOT FOUND'
             );
 
@@ -145,7 +145,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               })
             );
 
-            console.log('✅ [APPLAYOUT] ⭐⭐ Dispatched certification:created event:', {
+            console.log('[SUCCESS] [APPLAYOUT] [STAR] Dispatched certification:created event:', {
               verification_status: eventData.verification_status,
               trainer_id: eventData.trainer_id || eventData.data?.trainer_id,
               certification_id: eventData.certification_id || eventData.data?.certification_id,
@@ -159,9 +159,9 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:pending', (data: any) => {
-            console.log('📢 certification:pending event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:pending event received in AppLayout:', data);
             console.log(
-              '📢 [APPLAYOUT] verification_status:',
+              '[NOTIFY] [APPLAYOUT] verification_status:',
               data?.verification_status || data?.data?.verification_status || 'PENDING'
             );
 
@@ -189,7 +189,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
             );
 
             console.log(
-              '✅ [APPLAYOUT] ⭐⭐ Dispatched certification:created from certification:pending:',
+              '[SUCCESS] [APPLAYOUT] [STAR] Dispatched certification:created from certification:pending:',
               {
                 verification_status: eventData.verification_status,
                 trainer_id: eventData.trainer_id || eventData.data?.trainer_id,
@@ -205,7 +205,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:created', (data: any) => {
-            console.log('📢 ⭐⭐ certification:created event received in AppLayout:', data);
+            console.log('[NOTIFY] [STAR] certification:created event received in AppLayout:', data);
             // Dispatch as both window event and eventManager event for compatibility
             const customEvent = new CustomEvent('certification:created', {
               detail: data,
@@ -223,95 +223,100 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
           });
 
           scheduleSocket.on('certification:verified', (data: any) => {
-            console.log('📢 certification:verified event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:verified event received in AppLayout:', data);
             eventManager.dispatch('certification:verified', data);
             eventManager.dispatch('certification:updated', data);
           });
 
           scheduleSocket.on('certification:rejected', (data: any) => {
-            console.log('📢 certification:rejected event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:rejected event received in AppLayout:', data);
             eventManager.dispatch('certification:rejected', data);
             eventManager.dispatch('certification:updated', data);
           });
 
           scheduleSocket.on('certification:deleted', (data: any) => {
-            console.log('📢 certification:deleted event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:deleted event received in AppLayout:', data);
             eventManager.dispatch('certification:deleted', data);
             eventManager.dispatch('notification:new', data);
           });
 
           // Setup subscription notification listeners for admin/super admin
           scheduleSocket.on('subscription:payment:success', (data: any) => {
-            console.log('📢 subscription:payment:success event received in AppLayout:', data);
+            console.log('[NOTIFY] subscription:payment:success event received in AppLayout:', data);
             eventManager.dispatch('subscription:payment:success', data);
             eventManager.dispatch('notification:new', data);
           });
 
           scheduleSocket.on('subscription:renewal', (data: any) => {
-            console.log('📢 subscription:renewal event received in AppLayout:', data);
+            console.log('[NOTIFY] subscription:renewal event received in AppLayout:', data);
             eventManager.dispatch('subscription:renewal', data);
             eventManager.dispatch('notification:new', data);
           });
 
           scheduleSocket.on('subscription:upgrade', (data: any) => {
-            console.log('📢 subscription:upgrade event received in AppLayout:', data);
+            console.log('[NOTIFY] subscription:upgrade event received in AppLayout:', data);
             eventManager.dispatch('subscription:upgrade', data);
             eventManager.dispatch('notification:new', data);
           });
 
           scheduleSocket.on('certification:status', (data: any) => {
-            console.log('📢 certification:status event received in AppLayout:', data);
+            console.log('[NOTIFY] certification:status event received in AppLayout:', data);
             eventManager.dispatch('certification:status', data);
             eventManager.dispatch('certification:updated', data);
           });
 
           // Listen for notification:new event (primary event for notifications)
           scheduleSocket.on('notification:new', (data: any) => {
-            console.log('📢 notification:new event received in AppLayout:', data);
+            console.log('[NOTIFY] notification:new event received in AppLayout:', data);
             eventManager.dispatch('notification:new', data);
           });
 
           // Setup trainer event listeners
           scheduleSocket.on('trainer:created', (data: any) => {
-            console.log('📢 trainer:created event received in AppLayout:', data);
+            console.log('[NOTIFY] trainer:created event received in AppLayout:', data);
             eventManager.dispatch('trainer:created', data);
           });
 
           scheduleSocket.on('trainer:updated', (data: any) => {
-            console.log('📢 trainer:updated event received in AppLayout:', data);
+            console.log('[NOTIFY] trainer:updated event received in AppLayout:', data);
             eventManager.dispatch('trainer:updated', data);
           });
 
           scheduleSocket.on('trainer:deleted', (data: any) => {
-            console.log('📢 trainer:deleted event received in AppLayout:', data);
+            console.log('[NOTIFY] trainer:deleted event received in AppLayout:', data);
             eventManager.dispatch('trainer:deleted', data);
           });
 
           // Setup member event listeners if member socket is available
           if (memberSocket) {
             memberSocket.on('member:created', (data: any) => {
-              console.log('📢 member:created event received in AppLayout:', data);
+              console.log('[NOTIFY] member:created event received in AppLayout:', data);
               eventManager.dispatch('member:created', data);
             });
 
             memberSocket.on('member:updated', (data: any) => {
-              console.log('📢 member:updated event received in AppLayout:', data);
+              console.log('[NOTIFY] member:updated event received in AppLayout:', data);
               eventManager.dispatch('member:updated', data);
             });
 
             memberSocket.on('member:deleted', (data: any) => {
-              console.log('📢 member:deleted event received in AppLayout:', data);
+              console.log('[NOTIFY] member:deleted event received in AppLayout:', data);
               eventManager.dispatch('member:deleted', data);
             });
 
             memberSocket.on('member:status_changed', (data: any) => {
-              console.log('📢 member:status_changed event received in AppLayout:', data);
+              console.log('[NOTIFY] member:status_changed event received in AppLayout:', data);
               eventManager.dispatch('member:status_changed', data);
+            });
+
+            memberSocket.on('member:registration_completed', (data: any) => {
+              console.log('[NOTIFY] member:registration_completed event received in AppLayout:', data);
+              eventManager.dispatch('member:registration_completed', data);
             });
 
             // Listen for reward redemption events
             memberSocket.on('reward:redemption:new', (data: any) => {
-              console.log('🎁 reward:redemption:new event received in AppLayout:', data);
+              console.log('[GIFT] reward:redemption:new event received in AppLayout:', data);
               eventManager.dispatch('reward:redemption:new', data);
               eventManager.dispatch('notification:new', {
                 type: 'REWARD_REDEMPTION',
@@ -370,6 +375,7 @@ const AppLayout: React.FC<AppLayoutProps> = ({ children }) => {
               memberSocket.off('member:updated');
               memberSocket.off('member:deleted');
               memberSocket.off('member:status_changed');
+              memberSocket.off('member:registration_completed');
               memberSocket.off('reward:redemption:new');
               memberSocket.off('user:deleted');
             }

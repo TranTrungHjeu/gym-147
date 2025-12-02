@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const notificationService = require('../services/notification.service.js');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 // Time validation helpers
 const canCheckIn = schedule => {
@@ -57,7 +56,7 @@ const enableCheckIn = async (req, res) => {
     const { schedule_id } = req.params;
     const { trainer_id } = req.body;
 
-    console.log('🔍 Enable check-in debug:', {
+    console.log('[SEARCH] Enable check-in debug:', {
       schedule_id,
       trainer_id,
       body: req.body,
@@ -107,7 +106,7 @@ const enableCheckIn = async (req, res) => {
       });
     }
 
-    console.log('📋 Schedule data:', {
+    console.log('[LIST] Schedule data:', {
       schedule_id: schedule.id,
       schedule_trainer_id: schedule.trainer_id,
       found_trainer_id: trainer.id,
@@ -125,7 +124,7 @@ const enableCheckIn = async (req, res) => {
 
     // Check if check-in can be enabled
     const canEnable = canEnableCheckIn(schedule);
-    console.log('🔍 Check-in enable validation:', {
+    console.log('[SEARCH] Check-in enable validation:', {
       schedule_id: schedule.id,
       start_time: schedule.start_time,
       end_time: schedule.end_time,

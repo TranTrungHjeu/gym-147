@@ -74,7 +74,7 @@ export default function QRScannerScreen() {
     if (!user?.id || !sessionData) return;
 
     try {
-      console.log('📝 Submitting rating:', rating);
+      console.log('[PROCESS] Submitting rating:', rating);
 
       // Backend will generate accurate notes based on final calculated calories
       // Don't send notes from mobile app to avoid inconsistency
@@ -100,7 +100,7 @@ export default function QRScannerScreen() {
           checkOutResponse.data?.session?.calories_burned ||
           sessionData.calories;
 
-        console.log('🔥 Calories comparison:', {
+        console.log('[CALORIES] Calories comparison:', {
           fromSession: sessionData.calories,
           fromBackend: checkOutResponse.data?.session?.calories_burned,
           usingAccurate: accurateCalories,
@@ -112,7 +112,7 @@ export default function QRScannerScreen() {
           location: scannedQRLocation,
           time: new Date().toLocaleTimeString(),
           duration: sessionData.duration,
-          calories: accurateCalories, // ✅ Use backend's accurate calories
+          calories: accurateCalories, // [SUCCESS] Use backend's accurate calories
         });
         setShowNotification(true);
         setProcessing(false);
@@ -165,14 +165,14 @@ export default function QRScannerScreen() {
 
     // Check if already processing
     if (isProcessingRef.current) {
-      console.log('⏳ Already processing a scan, ignoring...');
+      console.log('[PROCESS] Already processing a scan, ignoring...');
       return;
     }
 
     // Check cooldown period
     if (timeSinceLastScan < SCAN_COOLDOWN) {
       console.log(
-        `⏱️ Cooldown active: ${Math.ceil(
+        `[TIMER] Cooldown active: ${Math.ceil(
           (SCAN_COOLDOWN - timeSinceLastScan) / 1000
         )}s remaining`
       );
@@ -181,7 +181,7 @@ export default function QRScannerScreen() {
 
     // Check if same QR code
     if (lastScanDataRef.current === data && timeSinceLastScan < 10000) {
-      console.log('🔄 Same QR code scanned within 10 seconds, ignoring...');
+      console.log('[RESET] Same QR code scanned within 10 seconds, ignoring...');
       return;
     }
 
@@ -193,7 +193,7 @@ export default function QRScannerScreen() {
     setScanned(true);
     setProcessing(true);
 
-    console.log('✅ QR Scan started:', {
+    console.log('[SUCCESS] QR Scan started:', {
       data: data.substring(0, 30) + '...',
       timestamp: new Date().toISOString(),
     });
@@ -263,7 +263,7 @@ export default function QRScannerScreen() {
       }
       const currentSession = await accessService.getCurrentAccess(member.id);
 
-      console.log('📊 Current session check:', {
+      console.log('[DATA] Current session check:', {
         success: currentSession.success,
         hasData: !!currentSession.data,
         session: currentSession.data?.session,
@@ -301,7 +301,7 @@ export default function QRScannerScreen() {
           console.error('Member ID not available');
           return;
         }
-        console.log('🏋️ Performing CHECK IN...');
+        console.log('[EQUIPMENT] Performing CHECK IN...');
         const checkInResponse = await accessService.checkIn({
           memberId: member.id,
           method: 'QR_CODE',

@@ -16,14 +16,14 @@ class AuthService {
     credentials: LoginCredentials
   ): Promise<ApiResponse<AuthResponse>> {
     try {
-      console.log('🔐 AuthService: Attempting login...');
+      console.log('[AUTH] AuthService: Attempting login...');
       const response = await identityApiService.post(
         '/auth/login',
         credentials
       );
 
       if (response.success && response.data) {
-        console.log('🔐 AuthService response.data:', response.data);
+        console.log('[AUTH] AuthService response.data:', response.data);
 
         // Store tokens securely
         await this.storeTokens(response.data);
@@ -47,20 +47,56 @@ class AuthService {
   }
 
   /**
+   * Login user with face recognition
+   * @param image - Base64 encoded image string
+   */
+  async loginWithFace(image: string): Promise<ApiResponse<AuthResponse>> {
+    try {
+      console.log('[AUTH] AuthService: Attempting face login...');
+      const response = await identityApiService.post('/auth/login/face', {
+        image,
+      });
+
+      if (response.success && response.data) {
+        console.log('[AUTH] AuthService face login response.data:', response.data);
+
+        // Store tokens securely
+        await this.storeTokens(response.data);
+
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || 'Face login failed',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService face login error:', error);
+      return {
+        success: false,
+        message: error.message || 'Face login failed',
+      };
+    }
+  }
+
+  /**
    * Register new user
    */
   async register(
     credentials: RegisterCredentials
   ): Promise<ApiResponse<AuthResponse>> {
     try {
-      console.log('🔐 AuthService: Attempting registration...');
+      console.log('[AUTH] AuthService: Attempting registration...');
       const response = await identityApiService.post(
         '/auth/register',
         credentials
       );
 
       if (response.success && response.data) {
-        console.log('🔐 AuthService registration response:', response.data);
+        console.log('[AUTH] AuthService registration response:', response.data);
 
         // Store tokens securely
         await this.storeTokens(response.data);
@@ -76,7 +112,7 @@ class AuthService {
         message: response.message || 'Registration failed',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService registration error:', error);
+      console.error('[AUTH] AuthService registration error:', error);
       return {
         success: false,
         message: error.message || 'Registration failed',
@@ -89,7 +125,7 @@ class AuthService {
    */
   async logout(): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Attempting logout...');
+      console.log('[AUTH] AuthService: Attempting logout...');
 
       // Get stored token
       const token = await this.getStoredToken();
@@ -106,9 +142,9 @@ class AuthService {
               },
             }
           );
-          console.log('✅ Logout API call successful');
+          console.log('[SUCCESS] Logout API call successful');
         } catch (apiError: any) {
-          console.log('⚠️ Logout API call failed:', apiError.message);
+          console.log('[WARN] Logout API call failed:', apiError.message);
           // Continue to clear tokens locally even if API fails
         }
       }
@@ -121,13 +157,13 @@ class AuthService {
         message: 'Logged out successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService logout error:', error);
+      console.error('[AUTH] AuthService logout error:', error);
 
       // ALWAYS clear tokens even if something fails
       try {
         await this.clearTokens();
       } catch (clearError) {
-        console.error('🔐 Failed to clear tokens:', clearError);
+        console.error('[AUTH] Failed to clear tokens:', clearError);
       }
 
       return {
@@ -142,7 +178,7 @@ class AuthService {
    */
   async getCurrentUser(): Promise<ApiResponse<User>> {
     try {
-      console.log('🔐 AuthService: Getting current user...');
+      console.log('[AUTH] AuthService: Getting current user...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -174,7 +210,7 @@ class AuthService {
         message: response.message || 'Failed to get user profile',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService getCurrentUser error:', error);
+      console.error('[AUTH] AuthService getCurrentUser error:', error);
       return {
         success: false,
         message: error.message || 'Failed to get user profile',
@@ -187,7 +223,7 @@ class AuthService {
    */
   async updateProfile(profileData: Partial<User>): Promise<ApiResponse<User>> {
     try {
-      console.log('🔐 AuthService: Updating profile...');
+      console.log('[AUTH] AuthService: Updating profile...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -219,7 +255,7 @@ class AuthService {
         message: response.message || 'Failed to update profile',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService updateProfile error:', error);
+      console.error('[AUTH] AuthService updateProfile error:', error);
       return {
         success: false,
         message: error.message || 'Failed to update profile',
@@ -235,7 +271,7 @@ class AuthService {
     newPassword: string
   ): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Changing password...');
+      console.log('[AUTH] AuthService: Changing password...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -263,7 +299,7 @@ class AuthService {
         message: response.message || 'Password changed successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService changePassword error:', error);
+      console.error('[AUTH] AuthService changePassword error:', error);
       return {
         success: false,
         message: error.message || 'Failed to change password',
@@ -278,7 +314,7 @@ class AuthService {
     ApiResponse<{ secret: string; qrCodeUrl: string }>
   > {
     try {
-      console.log('🔐 AuthService: Enabling 2FA...');
+      console.log('[AUTH] AuthService: Enabling 2FA...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -310,7 +346,7 @@ class AuthService {
         message: response.message || 'Failed to enable 2FA',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService enable2FA error:', error);
+      console.error('[AUTH] AuthService enable2FA error:', error);
       return {
         success: false,
         message: error.message || 'Failed to enable 2FA',
@@ -323,7 +359,7 @@ class AuthService {
    */
   async verify2FA(token: string): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Verifying 2FA...');
+      console.log('[AUTH] AuthService: Verifying 2FA...');
 
       const authToken = await this.getStoredToken();
       if (!authToken) {
@@ -348,7 +384,7 @@ class AuthService {
         message: response.message || '2FA verified successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService verify2FA error:', error);
+      console.error('[AUTH] AuthService verify2FA error:', error);
       return {
         success: false,
         message: error.message || 'Failed to verify 2FA',
@@ -361,7 +397,7 @@ class AuthService {
    */
   async disable2FA(): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Disabling 2FA...');
+      console.log('[AUTH] AuthService: Disabling 2FA...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -386,10 +422,191 @@ class AuthService {
         message: response.message || '2FA disabled successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService disable2FA error:', error);
+      console.error('[AUTH] AuthService disable2FA error:', error);
       return {
         success: false,
         message: error.message || 'Failed to disable 2FA',
+      };
+    }
+  }
+
+  /**
+   * Get 2FA status
+   */
+  async get2FAStatus(): Promise<
+    ApiResponse<{ enabled: boolean; secret?: string; qrCodeUrl?: string }>
+  > {
+    try {
+      console.log('[AUTH] AuthService: Getting 2FA status...');
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.get(
+        '/security/2fa/status',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || 'Failed to get 2FA status',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService get2FAStatus error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to get 2FA status',
+      };
+    }
+  }
+
+  /**
+   * Get active sessions/devices
+   */
+  async getActiveSessions(): Promise<
+    ApiResponse<{
+      devices: Array<{
+        id: string;
+        device_info: string | null;
+        ip_address: string | null;
+        location: string | null;
+        user_agent: string | null;
+        created_at: string;
+        last_used_at: string;
+        expires_at: string;
+      }>;
+    }>
+  > {
+    try {
+      console.log('[AUTH] AuthService: Getting active sessions...');
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.get(
+        '/devices',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (response.success && response.data) {
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || 'Failed to get active sessions',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService getActiveSessions error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to get active sessions',
+      };
+    }
+  }
+
+  /**
+   * Revoke a specific session
+   */
+  async revokeSession(sessionId: string): Promise<ApiResponse<void>> {
+    try {
+      console.log('[AUTH] AuthService: Revoking session...', sessionId);
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.delete(
+        `/devices/${sessionId}`,
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return {
+        success: response.success,
+        message: response.message || 'Session revoked successfully',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService revokeSession error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to revoke session',
+      };
+    }
+  }
+
+  /**
+   * Revoke all sessions
+   */
+  async revokeAllSessions(): Promise<ApiResponse<void>> {
+    try {
+      console.log('[AUTH] AuthService: Revoking all sessions...');
+
+      const token = await this.getStoredToken();
+      if (!token) {
+        return {
+          success: false,
+          message: 'No authentication token found',
+        };
+      }
+
+      const response = await identityApiService.post(
+        '/devices/revoke-all-sessions',
+        {},
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      return {
+        success: response.success,
+        message: response.message || 'All sessions revoked successfully',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService revokeAllSessions error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to revoke all sessions',
       };
     }
   }
@@ -439,11 +656,55 @@ class AuthService {
   }
 
   /**
+   * Google OAuth login (mobile)
+   */
+  async loginWithGoogle(idToken: string, deviceInfo?: string, platform?: string): Promise<ApiResponse<AuthResponse>> {
+    try {
+      console.log('[AUTH] AuthService: Attempting Google OAuth login...');
+      const response = await identityApiService.post('/auth/oauth/google/mobile', {
+        idToken,
+        deviceInfo: deviceInfo || 'Mobile App',
+        platform: platform || 'MOBILE_IOS',
+      });
+
+      if (response.success && response.data) {
+        // Store tokens securely
+        await this.storeTokens({
+          token: response.data.token,
+          refreshToken: response.data.refreshToken,
+          user: response.data.user,
+        });
+
+        return {
+          success: true,
+          data: {
+            token: response.data.token,
+            refreshToken: response.data.refreshToken,
+            user: response.data.user,
+            isNewUser: response.data.isNewUser || false,
+          },
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || 'Google login failed',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService Google OAuth error:', error);
+      return {
+        success: false,
+        message: error.message || 'Google login failed',
+      };
+    }
+  }
+
+  /**
    * Verify email
    */
   async verifyEmail(token: string): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Verifying email...');
+      console.log('[AUTH] AuthService: Verifying email...');
 
       const response = await identityApiService.post('/auth/verify-email', {
         token,
@@ -454,7 +715,7 @@ class AuthService {
         message: response.message || 'Email verified successfully',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService verifyEmail error:', error);
+      console.error('[AUTH] AuthService verifyEmail error:', error);
       return {
         success: false,
         message: error.message || 'Failed to verify email',
@@ -467,7 +728,7 @@ class AuthService {
    */
   async resendVerification(): Promise<ApiResponse<void>> {
     try {
-      console.log('🔐 AuthService: Resending verification email...');
+      console.log('[AUTH] AuthService: Resending verification email...');
 
       const token = await this.getStoredToken();
       if (!token) {
@@ -492,7 +753,7 @@ class AuthService {
         message: response.message || 'Verification email sent',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService resendVerification error:', error);
+      console.error('[AUTH] AuthService resendVerification error:', error);
       return {
         success: false,
         message: error.message || 'Failed to resend verification email',
@@ -505,7 +766,7 @@ class AuthService {
    */
   async refreshToken(): Promise<ApiResponse<AuthResponse>> {
     try {
-      console.log('🔐 AuthService: Refreshing token...');
+      console.log('[AUTH] AuthService: Refreshing token...');
 
       const refreshToken = await this.getStoredRefreshToken();
       if (!refreshToken) {
@@ -534,7 +795,7 @@ class AuthService {
         message: response.message || 'Failed to refresh token',
       };
     } catch (error: any) {
-      console.error('🔐 AuthService refreshToken error:', error);
+      console.error('[AUTH] AuthService refreshToken error:', error);
       return {
         success: false,
         message: error.message || 'Failed to refresh token',
@@ -564,7 +825,7 @@ class AuthService {
 
       return true;
     } catch (error) {
-      console.error('🔐 AuthService isAuthenticated error:', error);
+      console.error('[AUTH] AuthService isAuthenticated error:', error);
       return false;
     }
   }
@@ -577,7 +838,7 @@ class AuthService {
       const { getToken } = await import('@/utils/auth/storage');
       return await getToken();
     } catch (error) {
-      console.error('🔐 AuthService getStoredToken error:', error);
+      console.error('[AUTH] AuthService getStoredToken error:', error);
       return null;
     }
   }
@@ -590,7 +851,7 @@ class AuthService {
       const { getRefreshToken } = await import('@/utils/auth/storage');
       return await getRefreshToken();
     } catch (error) {
-      console.error('🔐 AuthService getStoredRefreshToken error:', error);
+      console.error('[AUTH] AuthService getStoredRefreshToken error:', error);
       return null;
     }
   }
@@ -602,9 +863,9 @@ class AuthService {
     try {
       const { storeTokens } = await import('@/utils/auth/storage');
       await storeTokens(authData.accessToken, authData.refreshToken);
-      console.log('🔐 Tokens stored successfully');
+      console.log('[AUTH] Tokens stored successfully');
     } catch (error) {
-      console.error('🔐 AuthService storeTokens error:', error);
+      console.error('[AUTH] AuthService storeTokens error:', error);
       throw error;
     }
   }
@@ -616,9 +877,9 @@ class AuthService {
     try {
       const { clearAuthData } = await import('@/utils/auth/storage');
       await clearAuthData();
-      console.log('✅ Tokens cleared successfully');
+      console.log('[SUCCESS] Tokens cleared successfully');
     } catch (error) {
-      console.error('🔐 AuthService clearTokens error:', error);
+      console.error('[AUTH] AuthService clearTokens error:', error);
     }
   }
 }

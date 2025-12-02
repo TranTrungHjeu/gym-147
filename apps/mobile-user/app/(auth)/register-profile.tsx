@@ -273,8 +273,8 @@ const RegisterProfileScreen = () => {
         },
       });
     } catch (error: any) {
-      console.error('❌ Profile update error:', error);
-      console.error('❌ Error details:', {
+      console.error('[ERROR] Profile update error:', error);
+      console.error('[ERROR] Error details:', {
         message: error.message,
         response: error.response?.data,
         stack: error.stack,

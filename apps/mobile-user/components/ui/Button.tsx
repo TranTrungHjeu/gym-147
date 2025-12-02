@@ -14,7 +14,7 @@ interface ButtonProps {
   fullWidth?: boolean;
 }
 
-export const Button: React.FC<ButtonProps> = ({
+export const Button: React.FC<ButtonProps> = React.memo(({
   title,
   onPress,
   variant = 'primary',
@@ -132,6 +132,6 @@ export const Button: React.FC<ButtonProps> = ({
       )}
     </Pressable>
   );
-};
+});
 
 export default Button;

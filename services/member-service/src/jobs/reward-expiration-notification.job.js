@@ -1,16 +1,15 @@
 const cron = require('node-cron');
-const { PrismaClient } = require('@prisma/client');
 const notificationService = require('../services/notification.service.js');
 const rewardSocketHelper = require('../utils/reward-socket.helper.js');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 let notificationJob = null;
 
 function startExpirationNotificationJob() {
   // Run every day at 9 AM
   notificationJob = cron.schedule('0 9 * * *', async () => {
-    console.log('🔔 Running reward expiration notification job...');
+    console.log('[BELL] Running reward expiration notification job...');
     try {
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
@@ -77,20 +76,20 @@ function startExpirationNotificationJob() {
         }
       }
 
-      console.log(`✅ Sent expiration notifications to ${sentCount}/${expiringRedemptions.length} members`);
+      console.log(`[SUCCESS] Sent expiration notifications to ${sentCount}/${expiringRedemptions.length} members`);
     } catch (error) {
-      console.error('❌ Expiration notification job error:', error);
+      console.error('[ERROR] Expiration notification job error:', error);
     }
   });
 
-  console.log('✅ Reward expiration notification job started (runs daily at 9 AM)');
+  console.log('[SUCCESS] Reward expiration notification job started (runs daily at 9 AM)');
 }
 
 function stopExpirationNotificationJob() {
   if (notificationJob) {
     notificationJob.stop();
     notificationJob = null;
-    console.log('🛑 Reward expiration notification job stopped');
+    console.log('[STOP] Reward expiration notification job stopped');
   }
 }
 

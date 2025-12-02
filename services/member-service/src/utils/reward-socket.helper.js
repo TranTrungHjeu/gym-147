@@ -3,6 +3,9 @@
  * Helper functions for emitting reward-related socket events
  */
 
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
+
 /**
  * Emit reward redeemed event to member
  * @param {string} memberId - Member ID
@@ -12,16 +15,12 @@ async function emitRewardRedeemed(memberId, redemptionData) {
   if (!global.io) return;
 
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       select: { user_id: true },
     });
 
     if (!member?.user_id) {
-      await prisma.$disconnect();
       return;
     }
 
@@ -43,8 +42,6 @@ async function emitRewardRedeemed(memberId, redemptionData) {
       change: -redemptionData.points_spent,
       reason: 'reward_redemption',
     });
-
-    await prisma.$disconnect();
   } catch (error) {
     console.error('Error emitting reward:redeemed:', error);
   }
@@ -59,16 +56,12 @@ async function emitRewardRefunded(memberId, refundData) {
   if (!global.io) return;
 
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       select: { user_id: true },
     });
 
     if (!member?.user_id) {
-      await prisma.$disconnect();
       return;
     }
 
@@ -90,8 +83,6 @@ async function emitRewardRefunded(memberId, refundData) {
         reason: 'reward_refund',
       });
     }
-
-    await prisma.$disconnect();
   } catch (error) {
     console.error('Error emitting reward:refunded:', error);
   }
@@ -106,16 +97,12 @@ async function emitRewardUsed(memberId, redemptionData) {
   if (!global.io) return;
 
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       select: { user_id: true },
     });
 
     if (!member?.user_id) {
-      await prisma.$disconnect();
       return;
     }
 
@@ -128,7 +115,6 @@ async function emitRewardUsed(memberId, redemptionData) {
     };
 
     global.io.to(roomName).emit('reward:used', socketPayload);
-    await prisma.$disconnect();
   } catch (error) {
     console.error('Error emitting reward:used:', error);
   }
@@ -143,16 +129,12 @@ async function emitRewardExpired(memberId, redemptionData) {
   if (!global.io) return;
 
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     const member = await prisma.member.findUnique({
       where: { id: memberId },
       select: { user_id: true },
     });
 
     if (!member?.user_id) {
-      await prisma.$disconnect();
       return;
     }
 
@@ -166,7 +148,6 @@ async function emitRewardExpired(memberId, redemptionData) {
     };
 
     global.io.to(roomName).emit('reward:expired', socketPayload);
-    await prisma.$disconnect();
   } catch (error) {
     console.error('Error emitting reward:expired:', error);
   }
@@ -181,9 +162,6 @@ async function emitRewardRedeemedToAdmin(memberId, redemptionData) {
   if (!global.io) return;
 
   try {
-    const { PrismaClient } = require('@prisma/client');
-    const prisma = new PrismaClient();
-
     // Get member info for admin notification
     const member = await prisma.member.findUnique({
       where: { id: memberId },
@@ -197,7 +175,6 @@ async function emitRewardRedeemedToAdmin(memberId, redemptionData) {
     });
 
     if (!member) {
-      await prisma.$disconnect();
       return;
     }
 
@@ -224,9 +201,7 @@ async function emitRewardRedeemedToAdmin(memberId, redemptionData) {
     // Also broadcast to all connected clients (for admins not in room)
     global.io.emit('reward:redemption:new', socketPayload);
 
-    console.log(`📢 Emitted reward:redemption:new to admin for member ${memberId}`);
-
-    await prisma.$disconnect();
+    console.log(`[NOTIFY] Emitted reward:redemption:new to admin for member ${memberId}`);
   } catch (error) {
     console.error('Error emitting reward:redemption:new to admin:', error);
   }

@@ -1,7 +1,6 @@
-const { PrismaClient } = require('@prisma/client');
 const cron = require('node-cron');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Auto Check-out Service
@@ -23,7 +22,7 @@ class AutoCheckoutService {
       return;
     }
 
-    console.log('🕐 Starting auto check-out service...');
+    console.log('[START] Starting auto check-out service...');
 
     // Run every minute
     this.cronJob = cron.schedule(
@@ -38,7 +37,7 @@ class AutoCheckoutService {
     );
 
     this.isRunning = true;
-    console.log('✅ Auto check-out service started successfully');
+    console.log('[SUCCESS] Auto check-out service started successfully');
   }
 
   /**
@@ -56,7 +55,7 @@ class AutoCheckoutService {
     }
 
     this.isRunning = false;
-    console.log('🛑 Auto check-out service stopped');
+    console.log('[STOP] Auto check-out service stopped');
   }
 
   /**
@@ -71,8 +70,8 @@ class AutoCheckoutService {
       const nowUTC = new Date(now.getTime() - 7 * 60 * 60 * 1000);
       const tenMinutesAgoUTC = new Date(nowUTC.getTime() - 10 * 60 * 1000);
 
-      console.log(`🔄 Processing auto check-out at ${now.toISOString()} (GMT+7)`);
-      console.log(`🔄 Processing auto check-out at ${nowUTC.toISOString()} (UTC)`);
+      console.log(`[SYNC] Processing auto check-out at ${now.toISOString()} (GMT+7)`);
+      console.log(`[SYNC] Processing auto check-out at ${nowUTC.toISOString()} (UTC)`);
 
       // Find schedules that ended 10+ minutes ago and haven't been auto-checked-out
       const schedules = await prisma.schedule.findMany({
@@ -93,7 +92,7 @@ class AutoCheckoutService {
         },
       });
 
-      console.log(`📋 Found ${schedules.length} schedules eligible for auto check-out`);
+      console.log(`[LIST] Found ${schedules.length} schedules eligible for auto check-out`);
 
       if (schedules.length === 0) {
         return;
@@ -104,9 +103,9 @@ class AutoCheckoutService {
         await this.autoCheckoutSchedule(schedule);
       }
 
-      console.log(`✅ Auto check-out processing completed for ${schedules.length} schedules`);
+      console.log(`[SUCCESS] Auto check-out processing completed for ${schedules.length} schedules`);
     } catch (error) {
-      console.error('❌ Error in auto check-out processing:', error);
+      console.error('[ERROR] Error in auto check-out processing:', error);
     }
   }
 
@@ -116,10 +115,10 @@ class AutoCheckoutService {
    */
   async autoCheckoutSchedule(schedule) {
     try {
-      console.log(`🔄 Auto check-out for schedule: ${schedule.id} (${schedule.gym_class.name})`);
+      console.log(`[SYNC] Auto check-out for schedule: ${schedule.id} (${schedule.gym_class.name})`);
 
       if (schedule.attendance.length === 0) {
-        console.log(`📝 No checked-in members to auto check-out for schedule ${schedule.id}`);
+        console.log(`[PROCESS] No checked-in members to auto check-out for schedule ${schedule.id}`);
 
         // Mark as completed even if no members
         await prisma.schedule.update({
@@ -159,7 +158,7 @@ class AutoCheckoutService {
       });
 
       console.log(
-        `✅ Auto check-out completed for ${updatedAttendances.length} members in schedule ${schedule.id}`
+        `[SUCCESS] Auto check-out completed for ${updatedAttendances.length} members in schedule ${schedule.id}`
       );
       console.log(`   - Class: ${schedule.gym_class.name}`);
       console.log(`   - Trainer: ${schedule.trainer?.full_name || 'N/A'}`);
@@ -173,7 +172,7 @@ class AutoCheckoutService {
         );
       });
     } catch (error) {
-      console.error(`❌ Error auto check-out for schedule ${schedule.id}:`, error);
+      console.error(`[ERROR] Error auto check-out for schedule ${schedule.id}:`, error);
     }
   }
 
@@ -183,7 +182,7 @@ class AutoCheckoutService {
    */
   async manualAutoCheckout(scheduleId) {
     try {
-      console.log(`🔄 Manual auto check-out for schedule: ${scheduleId}`);
+      console.log(`[SYNC] Manual auto check-out for schedule: ${scheduleId}`);
 
       const schedule = await prisma.schedule.findUnique({
         where: { id: scheduleId },
@@ -218,7 +217,7 @@ class AutoCheckoutService {
         },
       };
     } catch (error) {
-      console.error(`❌ Manual auto check-out error for schedule ${scheduleId}:`, error);
+      console.error(`[ERROR] Manual auto check-out error for schedule ${scheduleId}:`, error);
       throw error;
     }
   }
@@ -267,7 +266,7 @@ class AutoCheckoutService {
         },
       };
     } catch (error) {
-      console.error('❌ Error getting auto check-out stats:', error);
+      console.error('[ERROR] Error getting auto check-out stats:', error);
       throw error;
     }
   }

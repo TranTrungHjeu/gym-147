@@ -1,20 +1,79 @@
+// Ensure dotenv is loaded before Prisma Client initialization
+require('dotenv').config();
+
 const { PrismaClient } = require('@prisma/client');
 const pushNotificationService = require('../utils/push-notification');
 const emailService = require('./email.service');
 const smsService = require('./sms.service');
 
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
+
+/**
+ * Create a PrismaClient instance with a custom DATABASE_URL
+ * Note: This function temporarily modifies process.env.DATABASE_URL
+ * to create the client, then restores it.
+ */
+function createPrismaClientWithUrl(databaseUrl, options = {}) {
+  const originalDatabaseUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = databaseUrl;
+
+  try {
+    const client = new PrismaClient({
+      log: options.log || ['error', 'warn'],
+    });
+    return client;
+  } finally {
+    // Restore original DATABASE_URL
+    process.env.DATABASE_URL = originalDatabaseUrl;
+  }
+}
 
 // Connect to Identity Service database to get user info
-const identityPrisma = new PrismaClient({
-  datasources: {
-    db: {
-      url:
-        process.env.IDENTITY_DATABASE_URL ||
-        'postgresql://postgres:postgres@localhost:5432/identity_db',
-    },
-  },
-});
+// Create a separate PrismaClient instance for identity database
+let identityPrisma = null;
+if (process.env.IDENTITY_DATABASE_URL) {
+  try {
+    identityPrisma = createPrismaClientWithUrl(process.env.IDENTITY_DATABASE_URL, {
+      log: ['error', 'warn'],
+    });
+    console.log('[INFO] Identity PrismaClient initialized successfully');
+
+    // Verify that user model exists
+    if (!identityPrisma.user) {
+      console.error(
+        '[ERROR] Identity PrismaClient initialized but user model is not available. Check Prisma schema.'
+      );
+      identityPrisma = null;
+    } else {
+      // Test connection
+      identityPrisma
+        .$connect()
+        .then(() => {
+          console.log('[INFO] Identity PrismaClient connected successfully');
+          // Verify user model is accessible
+          if (identityPrisma.user) {
+            console.log('[INFO] Identity PrismaClient user model is accessible');
+          } else {
+            console.error(
+              '[ERROR] Identity PrismaClient user model is not accessible after connection'
+            );
+            identityPrisma = null;
+          }
+        })
+        .catch(connectError => {
+          console.error('[ERROR] Identity PrismaClient connection failed:', connectError);
+          identityPrisma = null;
+        });
+    }
+  } catch (error) {
+    console.error('[ERROR] Failed to initialize Identity PrismaClient:', error);
+    identityPrisma = null;
+  }
+} else {
+  console.warn('[WARNING] IDENTITY_DATABASE_URL not set, identity database queries will fail');
+  console.warn('[WARNING] Member event notifications will not be created in database');
+}
 
 class NotificationService {
   /**
@@ -41,6 +100,14 @@ class NotificationService {
     templateVariables = {},
   }) {
     try {
+      // Check if identityPrisma is initialized and has user model
+      if (!identityPrisma || !identityPrisma.user) {
+        console.error(
+          '[ERROR] Identity PrismaClient not initialized or user model not available, cannot get user preferences'
+        );
+        throw new Error('Identity database not available');
+      }
+
       // Get user info and preferences
       const user = await identityPrisma.user.findUnique({
         where: { id: userId },
@@ -92,15 +159,11 @@ class NotificationService {
               break;
 
             case 'EMAIL':
-              if (user.email && (user.email_notifications_enabled !== false)) {
-                const emailResult = await emailService.sendTemplateEmail(
-                  user.email,
-                  type,
-                  {
-                    member_name: user.email.split('@')[0],
-                    ...templateVariables,
-                  }
-                );
+              if (user.email && user.email_notifications_enabled !== false) {
+                const emailResult = await emailService.sendTemplateEmail(user.email, type, {
+                  member_name: user.email.split('@')[0],
+                  ...templateVariables,
+                });
                 results.channels.EMAIL = emailResult;
               } else {
                 results.channels.EMAIL = { skipped: 'Email not available or disabled' };
@@ -108,15 +171,11 @@ class NotificationService {
               break;
 
             case 'SMS':
-              if (user.phone && (user.sms_notifications_enabled !== false)) {
-                const smsResult = await smsService.sendTemplateSMS(
-                  user.phone,
-                  type,
-                  {
-                    member_name: user.email?.split('@')[0] || 'Bạn',
-                    ...templateVariables,
-                  }
-                );
+              if (user.phone && user.sms_notifications_enabled !== false) {
+                const smsResult = await smsService.sendTemplateSMS(user.phone, type, {
+                  member_name: user.email?.split('@')[0] || 'Bạn',
+                  ...templateVariables,
+                });
                 results.channels.SMS = smsResult;
               } else {
                 results.channels.SMS = { skipped: 'Phone not available or disabled' };
@@ -142,7 +201,7 @@ class NotificationService {
               results.errors.push(`Unknown channel: ${channel}`);
           }
         } catch (error) {
-          console.error(`❌ Error sending ${channel} notification:`, error);
+          console.error(`[ERROR] Error sending ${channel} notification:`, error);
           results.channels[channel] = {
             success: false,
             error: error.message,
@@ -162,7 +221,7 @@ class NotificationService {
 
       return results;
     } catch (error) {
-      console.error('❌ Send notification error:', error);
+      console.error('[ERROR] Send notification error:', error);
       return {
         success: false,
         error: error.message || 'Failed to send notification',
@@ -189,20 +248,23 @@ class NotificationService {
       // Enqueue notification to Redis queue
       const { notificationWorker } = require('../workers/notification.worker.js');
       const priority = data?.priority || 'normal';
-      
-      const enqueued = await notificationWorker.enqueueNotification({
-        userId: member.user_id,
-        memberId,
-        type,
-        title,
-        message,
-        data: data || {},
-        channels: ['IN_APP', 'PUSH'],
-      }, priority);
+
+      const enqueued = await notificationWorker.enqueueNotification(
+        {
+          userId: member.user_id,
+          memberId,
+          type,
+          title,
+          message,
+          data: data || {},
+          channels: ['IN_APP', 'PUSH'],
+        },
+        priority
+      );
 
       if (!enqueued) {
         // Fallback: create notification directly via identity service if Redis is down
-        console.warn('⚠️ Redis queue unavailable, creating notification via identity service');
+        console.warn('[WARN] Redis queue unavailable, creating notification via identity service');
         const axios = require('axios');
         const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
 
@@ -213,59 +275,59 @@ class NotificationService {
             type,
             title,
             message,
-          data: {
-            ...(data || {}),
-            member_id: memberId,
-            role: 'MEMBER',
+            data: {
+              ...(data || {}),
+              member_id: memberId,
+              role: 'MEMBER',
+            },
           },
-        },
-        {
-          timeout: 5000,
-        }
-      );
-
-      if (!response.data.success) {
-        throw new Error(response.data.message || 'Failed to create notification');
-      }
-
-      const notification = response.data.data.notification;
-
-      // Emit socket event if socket.io is available
-      if (global.io) {
-        try {
-          const roomName = `user:${member.user_id}`;
-          const socketPayload = {
-            notification_id: notification.id,
-            type: notification.type,
-            title: notification.title,
-            message: notification.message,
-            data: notification.data,
-            created_at: notification.created_at,
-            is_read: notification.is_read,
-          };
-
-          // Map notification types to specific socket events
-          const socketEventMap = {
-            REWARD: 'reward:notification',
-            CHALLENGE: 'challenge:notification',
-            ACHIEVEMENT: 'achievement:notification',
-            STREAK: 'streak:notification',
-            BOOKING: 'booking:notification',
-            QUEUE: 'queue:notification',
-          };
-
-          const specificEvent = socketEventMap[type];
-          if (specificEvent) {
-            global.io.to(roomName).emit(specificEvent, socketPayload);
+          {
+            timeout: 5000,
           }
+        );
 
-          // Always emit general notification:new event for compatibility
-          global.io.to(roomName).emit('notification:new', socketPayload);
-        } catch (socketError) {
-          console.error('❌ Socket emit error:', socketError);
-          // Don't fail notification creation if socket fails
+        if (!response.data.success) {
+          throw new Error(response.data.message || 'Failed to create notification');
         }
-      }
+
+        const notification = response.data.data.notification;
+
+        // Emit socket event if socket.io is available
+        if (global.io) {
+          try {
+            const roomName = `user:${member.user_id}`;
+            const socketPayload = {
+              notification_id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              data: notification.data,
+              created_at: notification.created_at,
+              is_read: notification.is_read,
+            };
+
+            // Map notification types to specific socket events
+            const socketEventMap = {
+              REWARD: 'reward:notification',
+              CHALLENGE: 'challenge:notification',
+              ACHIEVEMENT: 'achievement:notification',
+              STREAK: 'streak:notification',
+              BOOKING: 'booking:notification',
+              QUEUE: 'queue:notification',
+            };
+
+            const specificEvent = socketEventMap[type];
+            if (specificEvent) {
+              global.io.to(roomName).emit(specificEvent, socketPayload);
+            }
+
+            // Always emit general notification:new event for compatibility
+            global.io.to(roomName).emit('notification:new', socketPayload);
+          } catch (socketError) {
+            console.error('[ERROR] Socket emit error:', socketError);
+            // Don't fail notification creation if socket fails
+          }
+        }
 
         return {
           success: true,
@@ -281,7 +343,7 @@ class NotificationService {
         enqueued: true,
       };
     } catch (error) {
-      console.error('❌ Create in-app notification error:', error);
+      console.error('[ERROR] Create in-app notification error:', error);
       return {
         success: false,
         error: error.message,
@@ -348,19 +410,22 @@ class NotificationService {
     return {
       WORKOUT_REMINDER: {
         title: 'Nhắc nhở tập luyện',
-        message: "Hi {{member_name}}! Time for your workout. Let's achieve your fitness goals! 💪",
+        message:
+          "Hi {{member_name}}! Time for your workout. Let's achieve your fitness goals! [STRENGTH]",
         channels: ['IN_APP', 'PUSH', 'EMAIL'],
         variables: ['member_name', 'workout_time'],
       },
       MEMBERSHIP_ALERT: {
         title: 'Thông báo gói tập',
-        message: 'Hi {{member_name}}! Important information about your {{membership_type}} membership.',
+        message:
+          'Hi {{member_name}}! Important information about your {{membership_type}} membership.',
         channels: ['IN_APP', 'PUSH', 'EMAIL', 'SMS'],
         variables: ['member_name', 'membership_type', 'message'],
       },
       ACHIEVEMENT: {
-        title: 'Thành tích mới! 🏆',
-        message: 'Congratulations {{member_name}}! You\'ve unlocked "{{achievement_title}}" - {{achievement_description}}',
+        title: 'Thành tích mới! [TROPHY]',
+        message:
+          'Congratulations {{member_name}}! You\'ve unlocked "{{achievement_title}}" - {{achievement_description}}',
         channels: ['IN_APP', 'PUSH', 'EMAIL'],
         variables: ['member_name', 'achievement_title', 'achievement_description'],
       },
@@ -378,7 +443,8 @@ class NotificationService {
       },
       EQUIPMENT_MAINTENANCE: {
         title: 'Bảo trì thiết bị',
-        message: 'Hi {{member_name}}! Some equipment will be under maintenance. We apologize for any inconvenience.',
+        message:
+          'Hi {{member_name}}! Some equipment will be under maintenance. We apologize for any inconvenience.',
         channels: ['IN_APP', 'PUSH', 'EMAIL'],
         variables: ['member_name', 'equipment_name'],
       },
@@ -432,7 +498,7 @@ class NotificationService {
         },
       };
     } catch (error) {
-      console.error('❌ Get notification preferences error:', error);
+      console.error('[ERROR] Get notification preferences error:', error);
       return {
         success: false,
         error: error.message,
@@ -461,7 +527,7 @@ class NotificationService {
         message: 'Notification preferences updated',
       };
     } catch (error) {
-      console.error('❌ Update notification preferences error:', error);
+      console.error('[ERROR] Update notification preferences error:', error);
       return {
         success: false,
         error: error.message,
@@ -491,7 +557,7 @@ class NotificationService {
         data,
       });
     } catch (error) {
-      console.error('❌ Create queue notification error:', error);
+      console.error('[ERROR] Create queue notification error:', error);
       return {
         success: false,
         error: error.message,
@@ -503,38 +569,60 @@ class NotificationService {
    * Create equipment notification for admin
    * @param {Object} params - { equipmentId, equipmentName, status, action }
    */
-  async createEquipmentNotificationForAdmin({ equipmentId, equipmentName, status, action = 'status_changed' }) {
+  async createEquipmentNotificationForAdmin({
+    equipmentId,
+    equipmentName,
+    status,
+    action = 'status_changed',
+  }) {
     try {
-      // Get all admin users
-      const admins = await identityPrisma.user.findMany({
-        where: {
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-          is_active: true,
-        },
-        select: { id: true },
-      });
-
-      if (admins.length === 0) {
-        console.log('ℹ️ No active admins found for equipment notification');
-        return { success: true, sent: 0 };
-      }
-
       const axios = require('axios');
       const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
 
-      const title = action === 'available'
-        ? 'Thiết bị có sẵn'
-        : action === 'status_changed'
-        ? 'Thay đổi trạng thái thiết bị'
-        : 'Cập nhật thiết bị';
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(
+            `[INFO] Retrieved ${admins.length} admins from Identity Service API for equipment notification`
+          );
+        } else {
+          console.warn(
+            '[WARNING] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] Failed to get admins from Identity Service API:',
+          apiError.message || apiError
+        );
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
 
-      const message = action === 'available'
-        ? `Thiết bị ${equipmentName} đã có sẵn`
-        : `Thiết bị ${equipmentName} đã thay đổi trạng thái thành ${status}`;
+      if (admins.length === 0) {
+        console.log('[INFO] No active admins found for equipment notification');
+        return { success: true, sent: 0 };
+      }
 
-      const notificationType = action === 'available'
-        ? 'EQUIPMENT_AVAILABLE'
-        : 'EQUIPMENT_MAINTENANCE_SCHEDULED';
+      const title =
+        action === 'available'
+          ? 'Thiết bị có sẵn'
+          : action === 'status_changed'
+            ? 'Thay đổi trạng thái thiết bị'
+            : 'Cập nhật thiết bị';
+
+      const message =
+        action === 'available'
+          ? `Thiết bị ${equipmentName} đã có sẵn`
+          : `Thiết bị ${equipmentName} đã thay đổi trạng thái thành ${status}`;
+
+      const notificationType =
+        action === 'available' ? 'EQUIPMENT_AVAILABLE' : 'EQUIPMENT_MAINTENANCE_SCHEDULED';
 
       const results = await Promise.allSettled(
         admins.map(admin =>
@@ -550,7 +638,7 @@ class NotificationService {
                 equipment_name: equipmentName,
                 status,
                 action,
-                role: 'ADMIN',
+                role: 'MEMBER', // Role of the sender (member), not the recipient (admin)
               },
             },
             { timeout: 5000 }
@@ -562,14 +650,29 @@ class NotificationService {
 
       // Emit socket events to admin room
       if (global.io) {
-        admins.forEach(admin => {
-          global.io.to(`user:${admin.id}`).emit('equipment:status:changed', {
-            equipment_id: equipmentId,
-            equipment_name: equipmentName,
-            status,
-            action,
+        try {
+          admins.forEach(admin => {
+            try {
+              global.io.to(`user:${admin.id}`).emit('equipment:status:changed', {
+                equipment_id: equipmentId,
+                equipment_name: equipmentName,
+                status,
+                action,
+              });
+            } catch (emitError) {
+              console.error(
+                `[ERROR] Error emitting equipment:status:changed to user:${admin.id}:`,
+                emitError
+              );
+            }
           });
-        });
+        } catch (socketError) {
+          console.error(
+            '[ERROR] Socket emit error in createEquipmentNotificationForAdmin:',
+            socketError
+          );
+          // Don't fail notification creation if socket fails
+        }
       }
 
       return {
@@ -578,7 +681,7 @@ class NotificationService {
         total: admins.length,
       };
     } catch (error) {
-      console.error('❌ Create equipment notification for admin error:', error);
+      console.error('[ERROR] Create equipment notification for admin error:', error);
       return {
         success: false,
         error: error.message,
@@ -590,36 +693,60 @@ class NotificationService {
    * Create queue notification for admin
    * @param {Object} params - { equipmentId, equipmentName, memberName, position, action }
    */
-  async createQueueNotificationForAdmin({ equipmentId, equipmentName, memberName, position, action = 'joined' }) {
+  async createQueueNotificationForAdmin({
+    equipmentId,
+    equipmentName,
+    memberName,
+    position,
+    action = 'joined',
+  }) {
     try {
-      // Get all admin users
-      const admins = await identityPrisma.user.findMany({
-        where: {
-          role: { in: ['ADMIN', 'SUPER_ADMIN'] },
-          is_active: true,
-        },
-        select: { id: true },
-      });
-
-      if (admins.length === 0) {
-        console.log('ℹ️ No active admins found for queue notification');
-        return { success: true, sent: 0 };
-      }
-
       const axios = require('axios');
       const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
 
-      const title = action === 'joined' 
-        ? 'Thành viên tham gia hàng chờ'
-        : action === 'left'
-        ? 'Thành viên rời hàng chờ'
-        : 'Cập nhật hàng chờ';
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(
+            `[INFO] Retrieved ${admins.length} admins from Identity Service API for queue notification`
+          );
+        } else {
+          console.warn(
+            '[WARNING] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] Failed to get admins from Identity Service API:',
+          apiError.message || apiError
+        );
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
 
-      const message = action === 'joined'
-        ? `${memberName} đã tham gia hàng chờ thiết bị ${equipmentName} ở vị trí ${position}`
-        : action === 'left'
-        ? `${memberName} đã rời hàng chờ thiết bị ${equipmentName}`
-        : `Hàng chờ thiết bị ${equipmentName} đã được cập nhật`;
+      if (admins.length === 0) {
+        console.log('[INFO] No active admins found for queue notification');
+        return { success: true, sent: 0 };
+      }
+
+      const title =
+        action === 'joined'
+          ? 'Thành viên tham gia hàng chờ'
+          : action === 'left'
+            ? 'Thành viên rời hàng chờ'
+            : 'Cập nhật hàng chờ';
+
+      const message =
+        action === 'joined'
+          ? `${memberName} đã tham gia hàng chờ thiết bị ${equipmentName} ở vị trí ${position}`
+          : action === 'left'
+            ? `${memberName} đã rời hàng chờ thiết bị ${equipmentName}`
+            : `Hàng chờ thiết bị ${equipmentName} đã được cập nhật`;
 
       const results = await Promise.allSettled(
         admins.map(admin =>
@@ -636,7 +763,7 @@ class NotificationService {
                 member_name: memberName,
                 position,
                 action,
-                role: 'ADMIN',
+                role: 'MEMBER', // Role of the sender (member), not the recipient (admin)
               },
             },
             { timeout: 5000 }
@@ -648,15 +775,27 @@ class NotificationService {
 
       // Emit socket events to admin room
       if (global.io) {
-        admins.forEach(admin => {
-          global.io.to(`user:${admin.id}`).emit('queue:updated', {
-            equipment_id: equipmentId,
-            equipment_name: equipmentName,
-            member_name: memberName,
-            position,
-            action,
+        try {
+          admins.forEach(admin => {
+            try {
+              global.io.to(`user:${admin.id}`).emit('queue:updated', {
+                equipment_id: equipmentId,
+                equipment_name: equipmentName,
+                member_name: memberName,
+                position,
+                action,
+              });
+            } catch (emitError) {
+              console.error(`[ERROR] Error emitting queue:updated to user:${admin.id}:`, emitError);
+            }
           });
-        });
+        } catch (socketError) {
+          console.error(
+            '[ERROR] Socket emit error in createQueueNotificationForAdmin:',
+            socketError
+          );
+          // Don't fail notification creation if socket fails
+        }
       }
 
       return {
@@ -665,7 +804,259 @@ class NotificationService {
         total: admins.length,
       };
     } catch (error) {
-      console.error('❌ Create queue notification for admin error:', error);
+      console.error('[ERROR] Create queue notification for admin error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create registration completed notification for all admins/super admins
+   * @param {Object} params - { memberId, memberName, memberData }
+   */
+  async createRegistrationCompletedNotificationForAdmin({ memberId, memberName, memberData = {} }) {
+    try {
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(`[INFO] Retrieved ${admins.length} admins from Identity Service API`);
+        } else {
+          console.warn(
+            '[WARNING] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] Failed to get admins from Identity Service API:',
+          apiError.message || apiError
+        );
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
+
+      if (admins.length === 0) {
+        console.log('[INFO] No active admins found for registration completed notification');
+        return { success: true, sent: 0 };
+      }
+
+      const title = 'Thành viên hoàn tất đăng ký';
+      const message = `${memberName || 'Thành viên'} đã hoàn tất đăng ký và sẵn sàng sử dụng dịch vụ`;
+
+      const results = await Promise.allSettled(
+        admins.map(admin =>
+          axios.post(
+            `${IDENTITY_SERVICE_URL}/notifications`,
+            {
+              user_id: admin.id,
+              type: 'MEMBER_REGISTERED', // This is the final notification when registration is completed
+              title,
+              message,
+              data: {
+                member_id: memberId,
+                member_name: memberName,
+                ...memberData,
+                role: 'MEMBER', // Role of the sender (member), not the recipient (admin)
+              },
+              channels: ['IN_APP', 'PUSH'],
+            },
+            { timeout: 5000 }
+          )
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(
+          `[WARNING] Failed to create registration completed notification for ${failedCount} admins`
+        );
+      }
+
+      console.log(
+        `[SUCCESS] Created registration completed notification for ${successCount}/${admins.length} admins`
+      );
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error('[ERROR] Create registration completed notification for admin error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create member event notification for all admins/super admins
+   * @param {Object} params - { memberId, memberName, memberData, eventType, title, message }
+   */
+  async createMemberEventNotificationForAdmin({
+    memberId,
+    memberName,
+    memberData = {},
+    eventType = 'MEMBER_UPDATED',
+    title,
+    message,
+  }) {
+    try {
+      console.log(
+        `[START] [${eventType}] createMemberEventNotificationForAdmin called for member ${memberId}`
+      );
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+      console.log(`[INFO] [${eventType}] Using Identity Service URL: ${IDENTITY_SERVICE_URL}`);
+
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        console.log(
+          `[INFO] [${eventType}] Calling Identity Service API: ${IDENTITY_SERVICE_URL}/auth/users/admins`
+        );
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        console.log(
+          `[INFO] [${eventType}] Identity Service API response status: ${response.status}`
+        );
+        console.log(
+          `[INFO] [${eventType}] Identity Service API response data:`,
+          JSON.stringify(response.data, null, 2)
+        );
+
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(
+            `[SUCCESS] [${eventType}] Retrieved ${admins.length} admins from Identity Service API`
+          );
+        } else {
+          console.warn(
+            `[WARNING] [${eventType}] Invalid response from Identity Service /auth/users/admins:`,
+            JSON.stringify(response.data, null, 2)
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          `[ERROR] [${eventType}] Failed to get admins from Identity Service API:`,
+          apiError.message || apiError
+        );
+        if (apiError.response) {
+          console.error(
+            `[ERROR] [${eventType}] Response status: ${apiError.response.status}`,
+            `Response data:`,
+            JSON.stringify(apiError.response.data, null, 2)
+          );
+        }
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
+
+      if (admins.length === 0) {
+        console.warn(
+          `[WARNING] [${eventType}] No active admins found in Identity Service. Notification will not be created.`
+        );
+        console.warn(
+          `[WARNING] [${eventType}] This might be because there are no ADMIN or SUPER_ADMIN users in the system.`
+        );
+        return { success: true, sent: 0, total: 0 };
+      }
+
+      console.log(
+        `[INFO] [${eventType}] Creating notifications for ${admins.length} admins via Identity Service`
+      );
+
+      const results = await Promise.allSettled(
+        admins.map(admin => {
+          const payload = {
+            user_id: admin.id,
+            type: eventType,
+            title: title || 'Thông báo thành viên',
+            message: message || `${memberName || 'Thành viên'} đã được cập nhật`,
+            data: {
+              member_id: memberId,
+              member_name: memberName,
+              ...memberData,
+              role: 'MEMBER',
+            },
+            channels: ['IN_APP', 'PUSH'],
+          };
+          console.log(
+            `[INFO] [${eventType}] Sending notification to admin ${admin.id}:`,
+            JSON.stringify(payload, null, 2)
+          );
+          return axios.post(`${IDENTITY_SERVICE_URL}/notifications`, payload, { timeout: 10000 });
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(
+          `[WARNING] Failed to create ${eventType} notification for ${failedCount} admins`
+        );
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(
+              `[ERROR] [${eventType}] Failed for admin ${admins[index].id}:`,
+              result.reason?.message || result.reason
+            );
+            if (result.reason?.response) {
+              console.error(
+                `[ERROR] [${eventType}] Response status: ${result.reason.response.status}`,
+                `Response data:`,
+                JSON.stringify(result.reason.response.data, null, 2)
+              );
+            }
+          }
+        });
+      }
+
+      results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const notificationId = result.value?.data?.data?.notification?.id || 'enqueued';
+          console.log(
+            `[SUCCESS] [${eventType}] Notification created for admin ${admins[index].id}: ${notificationId}`
+          );
+        } else {
+          console.error(
+            `[ERROR] [${eventType}] Failed to create notification for admin ${admins[index].id}:`,
+            result.reason?.message || result.reason
+          );
+          if (result.reason?.response) {
+            console.error(
+              `[ERROR] [${eventType}] Response status: ${result.reason.response.status}`,
+              `Response data:`,
+              JSON.stringify(result.reason.response.data, null, 2)
+            );
+          }
+        }
+      });
+
+      console.log(
+        `[SUCCESS] [${eventType}] Created notifications for ${successCount}/${admins.length} admins`
+      );
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error(`[ERROR] Create ${eventType} notification for admin error:`, error);
       return {
         success: false,
         error: error.message,
@@ -688,7 +1079,7 @@ class NotificationService {
       });
 
       if (members.length === 0) {
-        console.log('ℹ️ No active members found for system announcement');
+        console.log('[INFO] No active members found for system announcement');
         return { success: true, sent: 0 };
       }
 
@@ -710,6 +1101,7 @@ class NotificationService {
                   ...data,
                   role: 'MEMBER',
                 },
+                channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications are sent
               },
               { timeout: 5000 }
             )
@@ -718,17 +1110,46 @@ class NotificationService {
 
       const successCount = results.filter(r => r.status === 'fulfilled').length;
 
-      // Emit socket events
+      // Emit socket events to all members
       if (global.io) {
-        members.forEach(member => {
-          if (member.user_id) {
-            global.io.to(`user:${member.user_id}`).emit('system:announcement', {
-              title,
-              message,
-              data,
-            });
-          }
-        });
+        try {
+          const socketPayload = {
+            title,
+            message,
+            data,
+            type: 'SYSTEM_ANNOUNCEMENT',
+            created_at: new Date().toISOString(),
+          };
+
+          // Emit to each member's user room
+          members.forEach(member => {
+            if (member.user_id) {
+              try {
+                const roomName = `user:${member.user_id}`;
+                // Emit both system:announcement (for compatibility) and admin:system:announcement (specific event)
+                global.io.to(roomName).emit('system:announcement', socketPayload);
+                global.io.to(roomName).emit('admin:system:announcement', socketPayload);
+                console.log(
+                  `[EMIT] [SYSTEM_ANNOUNCEMENT] Emitted to user:${member.user_id} in room ${roomName}`
+                );
+              } catch (emitError) {
+                console.error(
+                  `[ERROR] Error emitting system:announcement to user:${member.user_id}:`,
+                  emitError
+                );
+              }
+            }
+          });
+
+          // Also broadcast to all members room (if exists) for real-time updates
+          global.io.emit('admin:system:announcement', socketPayload);
+          console.log(
+            `[EMIT] [SYSTEM_ANNOUNCEMENT] Broadcasted to all connected clients (${members.length} members)`
+          );
+        } catch (socketError) {
+          console.error('[ERROR] Socket emit error in sendSystemAnnouncement:', socketError);
+          // Don't fail notification creation if socket fails
+        }
       }
 
       return {
@@ -737,7 +1158,7 @@ class NotificationService {
         total: members.length,
       };
     } catch (error) {
-      console.error('❌ Send system announcement error:', error);
+      console.error('[ERROR] Send system announcement error:', error);
       return {
         success: false,
         error: error.message,
@@ -760,13 +1181,15 @@ class NotificationService {
         throw new Error(`Member ${memberId} not found or has no user_id`);
       }
 
-      const title = daysUntilExpiry <= 3 
-        ? '⚠️ Gói thành viên sắp hết hạn'
-        : 'Gói thành viên sắp hết hạn';
-      
-      const message = daysUntilExpiry <= 3
-        ? `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn sớm để tiếp tục sử dụng dịch vụ.`
-        : `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ.`;
+      const title =
+        daysUntilExpiry <= 3
+          ? '[WARNING] Gói thành viên sắp hết hạn'
+          : 'Gói thành viên sắp hết hạn';
+
+      const message =
+        daysUntilExpiry <= 3
+          ? `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn sớm để tiếp tục sử dụng dịch vụ.`
+          : `Gói ${membershipType} của bạn sẽ hết hạn sau ${daysUntilExpiry} ngày. Vui lòng gia hạn để tiếp tục sử dụng dịch vụ.`;
 
       return await this.createInAppNotification({
         memberId,
@@ -779,7 +1202,7 @@ class NotificationService {
         },
       });
     } catch (error) {
-      console.error('❌ Send membership expiry warning error:', error);
+      console.error('[ERROR] Send membership expiry warning error:', error);
       return {
         success: false,
         error: error.message,
@@ -817,7 +1240,7 @@ class NotificationService {
         },
       });
     } catch (error) {
-      console.error('❌ Send payment reminder error:', error);
+      console.error('[ERROR] Send payment reminder error:', error);
       return {
         success: false,
         error: error.message,
@@ -829,7 +1252,13 @@ class NotificationService {
    * Send equipment maintenance notification to affected members
    * @param {Object} params - { equipmentId, equipmentName, maintenanceType, scheduledDate, affectedMemberIds? }
    */
-  async sendEquipmentMaintenanceNotification({ equipmentId, equipmentName, maintenanceType, scheduledDate, affectedMemberIds = null }) {
+  async sendEquipmentMaintenanceNotification({
+    equipmentId,
+    equipmentName,
+    maintenanceType,
+    scheduledDate,
+    affectedMemberIds = null,
+  }) {
     try {
       let members = [];
 
@@ -852,7 +1281,7 @@ class NotificationService {
       }
 
       if (members.length === 0) {
-        console.log('ℹ️ No members found for equipment maintenance notification');
+        console.log('[INFO] No members found for equipment maintenance notification');
         return { success: true, sent: 0 };
       }
 
@@ -889,16 +1318,31 @@ class NotificationService {
 
       // Emit socket events
       if (global.io) {
-        members.forEach(member => {
-          if (member.user_id) {
-            global.io.to(`user:${member.user_id}`).emit('equipment:maintenance:scheduled', {
-              equipment_id: equipmentId,
-              equipment_name: equipmentName,
-              maintenance_type: maintenanceType,
-              scheduled_date: scheduledDate,
-            });
-          }
-        });
+        try {
+          members.forEach(member => {
+            if (member.user_id) {
+              try {
+                global.io.to(`user:${member.user_id}`).emit('equipment:maintenance:scheduled', {
+                  equipment_id: equipmentId,
+                  equipment_name: equipmentName,
+                  maintenance_type: maintenanceType,
+                  scheduled_date: scheduledDate,
+                });
+              } catch (emitError) {
+                console.error(
+                  `[ERROR] Error emitting equipment:maintenance:scheduled to user:${member.user_id}:`,
+                  emitError
+                );
+              }
+            }
+          });
+        } catch (socketError) {
+          console.error(
+            '[ERROR] Socket emit error in sendEquipmentMaintenanceNotification:',
+            socketError
+          );
+          // Don't fail notification creation if socket fails
+        }
       }
 
       return {
@@ -907,7 +1351,7 @@ class NotificationService {
         total: members.length,
       };
     } catch (error) {
-      console.error('❌ Send equipment maintenance notification error:', error);
+      console.error('[ERROR] Send equipment maintenance notification error:', error);
       return {
         success: false,
         error: error.message,
@@ -917,4 +1361,3 @@ class NotificationService {
 }
 
 module.exports = new NotificationService();
-

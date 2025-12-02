@@ -16,13 +16,13 @@ class CronService {
    */
   startAutoUpdateCron(intervalMinutes = 1) {
     if (this.intervals.has('autoUpdate')) {
-      console.log('⚠️  Auto-update cron is already running');
+      console.log('[WARNING]  Auto-update cron is already running');
       return;
     }
 
     const intervalMs = intervalMinutes * 60 * 1000; // Convert to milliseconds
     
-    console.log(`🕐 Starting auto-update cron job (every ${intervalMinutes} minute(s))`);
+    console.log(`[START] Starting auto-update cron job (every ${intervalMinutes} minute(s))`);
     
     // Run immediately on start
     this.runAutoUpdate();
@@ -35,7 +35,7 @@ class CronService {
     this.intervals.set('autoUpdate', intervalId);
     this.isRunning = true;
     
-    console.log('✅ Auto-update cron job started successfully');
+    console.log('[SUCCESS] Auto-update cron job started successfully');
   }
 
   /**
@@ -50,9 +50,9 @@ class CronService {
       if (this.intervals.size === 0) {
         this.isRunning = false;
       }
-      console.log('🛑 Auto-update cron job stopped');
+      console.log('[STOP] Auto-update cron job stopped');
     } else {
-      console.log('⚠️  Auto-update cron job is not running');
+      console.log('[WARNING]  Auto-update cron job is not running');
     }
   }
 
@@ -63,7 +63,7 @@ class CronService {
     try {
       await autoStatusUpdateService.runAutoUpdate();
     } catch (error) {
-      console.error('❌ Error in auto-update cron:', error);
+      console.error('[ERROR] Error in auto-update cron:', error);
     }
   }
 
@@ -82,7 +82,7 @@ class CronService {
     intervalSeconds = null
   ) {
     if (this.intervals.has('certificationExpiryWarning')) {
-      console.log('⚠️  Certification expiry warning cron is already running');
+      console.log('[WARNING]  Certification expiry warning cron is already running');
       return;
     }
 
@@ -90,7 +90,7 @@ class CronService {
     if (intervalSeconds !== null && intervalSeconds > 0) {
       const intervalMs = intervalSeconds * 1000;
       console.log(
-        `🕐 Starting certification expiry warning cron job (TEST MODE: every ${intervalSeconds} second(s), ${daysBeforeExpiry} days before expiry)`
+        `[START] Starting certification expiry warning cron job (TEST MODE: every ${intervalSeconds} second(s), ${daysBeforeExpiry} days before expiry)`
       );
 
       // Run immediately on start
@@ -102,13 +102,13 @@ class CronService {
       }, intervalMs);
 
       this.intervals.set('certificationExpiryWarning', intervalId);
-      console.log('✅ Certification expiry warning cron job started successfully (TEST MODE)');
+      console.log('[SUCCESS] Certification expiry warning cron job started successfully (TEST MODE)');
       return;
     }
 
     // Production mode: run daily at specified time
     console.log(
-      `🕐 Starting certification expiry warning cron job (daily at ${hour}:${minutes.toString().padStart(2, '0')}, ${daysBeforeExpiry} days before expiry)`
+      `[START] Starting certification expiry warning cron job (daily at ${hour}:${minutes.toString().padStart(2, '0')}, ${daysBeforeExpiry} days before expiry)`
     );
 
     // Calculate milliseconds until next run
@@ -132,7 +132,7 @@ class CronService {
     const scheduleNextRun = () => {
       const msUntilNextRun = getNextRunTime();
       console.log(
-        `⏰ Next certification expiry check scheduled in ${Math.round(msUntilNextRun / (1000 * 60 * 60))} hour(s)`
+        `[TIMER] Next certification expiry check scheduled in ${Math.round(msUntilNextRun / (1000 * 60 * 60))} hour(s)`
       );
 
       setTimeout(() => {
@@ -148,7 +148,7 @@ class CronService {
 
     scheduleNextRun();
 
-    console.log('✅ Certification expiry warning cron job started successfully');
+    console.log('[SUCCESS] Certification expiry warning cron job started successfully');
   }
 
   /**
@@ -163,9 +163,9 @@ class CronService {
       if (this.intervals.size === 0) {
         this.isRunning = false;
       }
-      console.log('🛑 Certification expiry warning cron job stopped');
+      console.log('[STOP] Certification expiry warning cron job stopped');
     } else {
-      console.log('⚠️  Certification expiry warning cron job is not running');
+      console.log('[WARNING]  Certification expiry warning cron job is not running');
     }
   }
 
@@ -180,7 +180,7 @@ class CronService {
       const isTestMode = !!process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS;
       
       if (isTestMode) {
-        console.log(`🔍 Running certification expiry warning check (${daysBeforeExpiry} days before expiry)...`);
+        console.log(`[SEARCH] Running certification expiry warning check (${daysBeforeExpiry} days before expiry)...`);
       }
       
       const result = await certificationExpiryWarningService.checkExpiringCertifications(daysBeforeExpiry);
@@ -189,15 +189,15 @@ class CronService {
         // Only log if in test mode or if there are expiring certifications
         if (isTestMode || result.expiringCount > 0) {
           console.log(
-            `✅ Expiry warning check completed: ${result.expiringCount} certification(s) expiring, ${result.trainersNotified} trainer(s) notified, admins notified`
+            `[SUCCESS] Expiry warning check completed: ${result.expiringCount} certification(s) expiring, ${result.trainersNotified} trainer(s) notified, admins notified`
           );
         }
         // In production mode with no expiring certifications, log silently (or not at all)
       } else {
-        console.error(`❌ Expiry warning check failed: ${result.error}`);
+        console.error(`[ERROR] Expiry warning check failed: ${result.error}`);
       }
     } catch (error) {
-      console.error('❌ Error in certification expiry warning cron:', error);
+      console.error('[ERROR] Error in certification expiry warning cron:', error);
     }
   }
 
@@ -217,12 +217,12 @@ class CronService {
   stopAll() {
     this.intervals.forEach((intervalId, jobName) => {
       clearInterval(intervalId);
-      console.log(`🛑 Stopped cron job: ${jobName}`);
+      console.log(`[STOP] Stopped cron job: ${jobName}`);
     });
     
     this.intervals.clear();
     this.isRunning = false;
-    console.log('🛑 All cron jobs stopped');
+    console.log('[STOP] All cron jobs stopped');
   }
 }
 

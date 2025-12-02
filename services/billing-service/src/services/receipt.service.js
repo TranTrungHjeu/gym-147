@@ -22,7 +22,7 @@ class ReceiptService {
       });
       this.bucketName = process.env.AWS_S3_BUCKET;
     } else {
-      console.warn('⚠️ AWS S3 credentials not configured. Receipts will be generated but not stored.');
+      console.warn('[WARNING] AWS S3 credentials not configured. Receipts will be generated but not stored.');
       this.s3Client = null;
     }
   }

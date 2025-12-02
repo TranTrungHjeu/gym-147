@@ -259,10 +259,7 @@ export default function CustomSelect({
           >
             <div
               ref={listRef}
-              className='custom-select-scrollbar max-h-60 overflow-y-auto'
-              style={{
-                scrollbarWidth: 'thin',
-              }}
+              className='custom-select-scrollbar max-h-60 overflow-y-auto scrollbar-hide'
             >
               {options.map((option, index) => {
                 const isSelected = option.value === value;

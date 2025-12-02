@@ -41,7 +41,6 @@ services:
     environment:
       - DOCKER_ENV=true
       - IDENTITY_SERVICE_URL=http://identity:3001
-      - IDENTITY_DATABASE_URL=postgresql://gym:secret@postgres:5432/identity_db
       - REDIS_URL=redis://redis:6379
     ports: ["3002:3002"]
     depends_on:

@@ -505,7 +505,7 @@ function YouTubeVideoPlayer({
                     console.error('WebView HTTP error:', error);
                   }}
                   onLoadEnd={() => {
-                    console.log('✅ YouTube video loaded successfully');
+                    console.log('[SUCCESS] YouTube video loaded successfully');
                   }}
                   onMessage={(event) => {
                     console.log('WebView message:', event.nativeEvent.data);

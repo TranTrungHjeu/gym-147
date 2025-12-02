@@ -1,22 +1,13 @@
 import {
   BarChart3,
   Bell,
-  BookOpen,
-  Building2,
   ChevronDown,
-  Clock,
   CreditCard,
   Dumbbell,
-  FolderOpen,
-  Grid3X3,
   LayoutDashboard,
-  PieChart,
-  Send,
   Settings,
-  Shield,
-  Ticket,
   Trophy,
-  UserCheck,
+  Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
@@ -116,6 +107,32 @@ const AppSidebar: React.FC = () => {
         path: '/notifications',
       },
       {
+        icon: <Users className='w-5 h-5' />,
+        name: 'Quản lý người dùng',
+        subItems: [
+          { name: 'Thành viên', path: '/management/users' },
+          { name: 'Khách hàng', path: '/management/members' },
+          { name: 'Huấn luyện viên', path: '/management/trainers' },
+          { name: 'Huấn luyện cá nhân', path: '/management/personal-training' },
+          { name: 'Thẻ Khách', path: '/management/guests' },
+        ],
+      },
+      {
+        icon: <Dumbbell className='w-5 h-5' />,
+        name: 'Dịch vụ & Hoạt động',
+        subItems: [
+          { name: 'Lớp học', path: '/management/classes' },
+          { name: 'Lịch tập', path: '/management/schedules' },
+          { name: 'Phòng tập', path: '/management/rooms' },
+          { name: 'Thiết bị', path: '/management/equipment' },
+        ],
+      },
+      {
+        icon: <CreditCard className='w-5 h-5' />,
+        name: 'Thanh toán',
+        path: '/management/billing',
+      },
+      {
         icon: <Trophy className='w-5 h-5' />,
         name: 'Gamification',
         subItems: [
@@ -126,104 +143,37 @@ const AppSidebar: React.FC = () => {
         ],
       },
       {
-        icon: <FolderOpen className='w-5 h-5' />,
-        name: 'Quản lý',
-        subItems: [
-          { name: 'Thành viên', path: '/management/users' },
-          { name: 'Huấn luyện viên', path: '/management/trainers' },
-          { name: 'Khách hàng', path: '/management/members' },
-          {
-            name: 'Huấn luyện cá nhân',
-            path: '/management/personal-training',
-            icon: <UserCheck className='w-5 h-5' />,
-          },
-          { name: 'Thẻ Khách', path: '/management/guests', icon: <Ticket className='w-5 h-5' /> },
-          { name: 'Thông báo hàng loạt', path: '/management/notifications', icon: <Send className='w-5 h-5' /> },
-        ],
-      },
-      {
-        icon: <Dumbbell className='w-5 h-5' />,
-        name: 'Thiết bị',
-        path: '/management/equipment',
-      },
-      {
-        icon: <BookOpen className='w-5 h-5' />,
-        name: 'Lớp học',
-        path: '/management/classes',
-      },
-      {
-        icon: <Building2 className='w-5 h-5' />,
-        name: 'Phòng tập',
-        path: '/management/rooms',
-      },
-      {
-        icon: <Clock className='w-5 h-5' />,
-        name: 'Lịch tập',
-        path: '/management/schedules',
-      },
-      {
-        icon: <CreditCard className='w-5 h-5' />,
-        name: 'Thanh toán',
-        path: '/management/billing',
-      },
-      {
         icon: <BarChart3 className='w-5 h-5' />,
-        name: 'Báo cáo',
+        name: 'Báo cáo & Phân tích',
         subItems: [
           { name: 'Tổng quan', path: '/management/reports' },
-          { name: 'Người dùng', path: '/management/reports/users' },
-          { name: 'Hệ thống', path: '/management/reports/system' },
-          { name: 'Doanh thu', path: '/management/reports/revenue' },
-          { name: 'Thành viên', path: '/management/reports/members' },
-          { name: 'Lớp học', path: '/management/reports/classes' },
-          { name: 'Thiết bị', path: '/management/reports/equipment' },
-        ],
-      },
-      {
-        icon: <Settings className='w-5 h-5' />,
-        name: 'Cài đặt',
-        subItems: [
-          { name: 'Cài đặt hệ thống', path: '/management/settings' },
-          { name: 'Mẫu Email', path: '/management/email-templates' },
-          { name: 'Mẫu SMS', path: '/management/sms-templates' },
-          { name: 'API Keys', path: '/management/api-keys' },
-          { name: 'Webhooks', path: '/management/webhooks' },
-          { name: 'Audit Logs', path: '/management/audit-logs' },
-          { name: 'Backup & Restore', path: '/management/backup-restore' },
+          { name: 'Báo cáo người dùng', path: '/management/reports/users' },
+          { name: 'Báo cáo thành viên', path: '/management/reports/members' },
+          { name: 'Báo cáo lớp học', path: '/management/reports/classes' },
+          { name: 'Báo cáo doanh thu', path: '/management/reports/revenue' },
+          { name: 'Báo cáo thiết bị', path: '/management/reports/equipment' },
+          { name: 'Báo cáo hệ thống', path: '/management/reports/system' },
           { name: 'Báo cáo đã lên lịch', path: '/management/scheduled-reports' },
         ],
       },
     ];
   }, [getDashboardPathForCurrentUser]);
 
+  // Other items - System settings and development tools
   const othersItems: NavItem[] = useMemo(
     () => [
       {
-        icon: <PieChart className='w-5 h-5' />,
-        name: 'Charts',
+        icon: <Settings className='w-5 h-5' />,
+        name: 'Cài đặt hệ thống',
         subItems: [
-          { name: 'Line Chart', path: '/dashboard/line-chart', pro: false },
-          { name: 'Bar Chart', path: '/dashboard/bar-chart', pro: false },
-        ],
-      },
-      {
-        icon: <Grid3X3 className='w-5 h-5' />,
-        name: 'UI Elements',
-        subItems: [
-          { name: 'Alerts', path: '/dashboard/alerts', pro: false },
-          { name: 'Avatar', path: '/dashboard/avatars', pro: false },
-          { name: 'Badge', path: '/dashboard/badge', pro: false },
-          { name: 'Buttons', path: '/dashboard/buttons', pro: false },
-          { name: 'Images', path: '/dashboard/images', pro: false },
-          { name: 'Videos', path: '/dashboard/videos', pro: false },
-        ],
-      },
-      {
-        icon: <Shield className='w-5 h-5' />,
-        name: 'Authentication',
-        subItems: [
-          { name: 'Sign In', path: '/auth', pro: false },
-          { name: 'Sign Up', path: '/signup', pro: false },
+          { name: 'Cài đặt chung', path: '/management/settings' },
+          { name: 'Mẫu Email', path: '/management/email-templates' },
+          { name: 'Mẫu SMS', path: '/management/sms-templates' },
+          { name: 'API Keys', path: '/management/api-keys' },
+          { name: 'Webhooks', path: '/management/webhooks' },
+          { name: 'Audit Logs', path: '/management/audit-logs' },
+          { name: 'Backup & Restore', path: '/management/backup-restore' },
+          { name: 'Thông báo hàng loạt', path: '/management/notifications' },
         ],
       },
     ],
@@ -544,26 +494,28 @@ const AppSidebar: React.FC = () => {
               </h2>
               {renderMenuItems(navItems, 'main')}
             </div>
-            <div
-              className={`w-full flex flex-col ${
-                !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
-              }`}
-            >
-              <h2
-                className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
-                  !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
-                } w-full`}
+            {othersItems.length > 0 && (
+              <div
+                className={`w-full flex flex-col ${
+                  !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
+                }`}
               >
-                {isExpanded || isHovered || isMobileOpen ? (
-                  'Other'
-                ) : (
-                  <span className='w-5 h-5 flex items-center justify-center text-orange-600 dark:text-orange-400'>
-                    <span className='text-xs font-bold leading-none font-inter'>...</span>
-                  </span>
-                )}
-              </h2>
-              {renderMenuItems(othersItems, 'others')}
-            </div>
+                <h2
+                  className={`mb-3 text-sm font-bold flex items-center leading-6 text-orange-600 dark:text-orange-400 font-space-grotesk ${
+                    !isExpanded && !isHovered && !isMobileOpen ? 'justify-center' : 'justify-start'
+                  } w-full`}
+                >
+                  {isExpanded || isHovered || isMobileOpen ? (
+                    'Other'
+                  ) : (
+                    <span className='w-5 h-5 flex items-center justify-center text-orange-600 dark:text-orange-400'>
+                      <span className='text-xs font-bold leading-none font-inter'>...</span>
+                    </span>
+                  )}
+                </h2>
+                {renderMenuItems(othersItems, 'others')}
+              </div>
+            )}
           </div>
         </nav>
         {isExpanded || isHovered || isMobileOpen ? <SidebarWidget /> : null}

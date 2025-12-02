@@ -28,7 +28,7 @@ async function checkMaintenanceMode(req, res, next) {
 
     next();
   } catch (error) {
-    console.error('❌ Error checking maintenance mode:', error);
+    console.error('[ERROR] Error checking maintenance mode:', error);
     // Fail open - allow requests if check fails
     next();
   }

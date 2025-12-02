@@ -8,7 +8,7 @@ class MemberService {
       );
     }
     this.baseURL = process.env.MEMBER_SERVICE_URL;
-    console.log('🔧 MemberService initialized with baseURL:', this.baseURL);
+    console.log('[INIT] MemberService initialized with baseURL:', this.baseURL);
   }
 
   async updateMember(userId, userData) {
@@ -19,7 +19,7 @@ class MemberService {
         email: userData.email || '', // Ensure string, not undefined
       };
 
-      console.log('🔄 Calling member-service to update member:', {
+      console.log('[CALL] Calling member-service to update member:', {
         url: `${this.baseURL}/members/user/${userId}`,
         data: memberData,
         originalPhone: userData.phone,
@@ -33,14 +33,14 @@ class MemberService {
         timeout: 5000,
       });
 
-      console.log('✅ Member service update successful:', response.data);
+      console.log('[SUCCESS] Member service update successful:', response.data);
 
       return {
         success: true,
         data: response.data,
       };
     } catch (error) {
-      console.error('❌ Member service update error:', {
+      console.error('[ERROR] Member service update error:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,

@@ -12,10 +12,10 @@ class EmbeddingService {
     this.apiUrl = process.env.AI_MODEL_URL || 'https://openrouter.ai/api/v1';
     
     if (!this.apiKey) {
-      console.warn('⚠️ AI_API_KEY not set - embedding generation will fail');
+      console.warn('[WARNING] AI_API_KEY not set - embedding generation will fail');
     }
     
-    console.log('🔧 EmbeddingService initialized:', {
+    console.log('[CONFIG] EmbeddingService initialized:', {
       apiUrl: this.apiUrl,
       hasApiKey: !!this.apiKey,
     });
@@ -63,8 +63,8 @@ class EmbeddingService {
         embeddingsUrl = `${baseUrl}/v1/embeddings`;
       }
       
-      console.log('🔍 Calling embedding API:', embeddingsUrl);
-      console.log('📝 Model:', embeddingModel);
+      console.log('[SEARCH] Calling embedding API:', embeddingsUrl);
+      console.log('[PROCESS] Model:', embeddingModel);
       console.log('📄 Text length:', text.length);
       
       const response = await axios.post(
@@ -89,7 +89,7 @@ class EmbeddingService {
         
         // Validate embedding dimension (should be 1536 for ada-002)
         if (embedding.length !== 1536) {
-          console.warn(`⚠️ Embedding dimension is ${embedding.length}, expected 1536`);
+          console.warn(`[WARNING] Embedding dimension is ${embedding.length}, expected 1536`);
         }
         
         return embedding;
@@ -97,7 +97,7 @@ class EmbeddingService {
         throw new Error('Invalid response from embedding API');
       }
     } catch (error) {
-      console.error('❌ Error generating embedding:', error.message);
+      console.error('[ERROR] Error generating embedding:', error.message);
       if (error.response) {
         console.error('Response data:', error.response.data);
       }

@@ -20,19 +20,19 @@ class MemberService {
         return true;
       }
 
-      console.log('❌ Member not found');
+      console.log('[ERROR] Member not found');
       return false;
     } catch (error: any) {
       // 404 means member doesn't exist (expected for new users)
       if (error.status === 404) {
         console.log(
-          'ℹ️ Member profile not found (404) - user needs to complete registration'
+          '[INFO] Member profile not found (404) - user needs to complete registration'
         );
         return false;
       }
       // Other errors (500, 502, etc.) should be logged but also return false
       console.log(
-        '❌ Error checking member existence:',
+        '[ERROR] Error checking member existence:',
         error.message,
         'Status:',
         error.status
@@ -50,7 +50,7 @@ class MemberService {
     error?: string;
   }> {
     try {
-      console.log('🔑 Fetching member profile from API...');
+      console.log('[AUTH] Fetching member profile from API...');
 
       // No need to check token expiry here - ApiService will auto-refresh if needed
 
@@ -63,7 +63,7 @@ class MemberService {
         const identityResponse = await memberApiService.get('/profile', {
           baseURL: SERVICE_URLS.IDENTITY,
         });
-        console.log('🔑 Identity Service profile response:', identityResponse);
+        console.log('[AUTH] Identity Service profile response:', identityResponse);
 
         // If we get user profile, try to get member data
         if (
@@ -77,7 +77,7 @@ class MemberService {
             const memberResponse = await memberApiService.get(
               `/user/${userData.id}`
             );
-            console.log('🔑 Member Service response:', memberResponse);
+            console.log('[AUTH] Member Service response:', memberResponse);
 
             // Combine user and member data
             const memberData: any =
@@ -94,7 +94,7 @@ class MemberService {
             };
           } catch (memberError: any) {
             console.log(
-              '🔑 Member data not found, throwing error:',
+              '[CONFIG] Member data not found, throwing error:',
               memberError.message
             );
             // Throw error instead of creating mock data
@@ -104,14 +104,14 @@ class MemberService {
           throw new Error('No user data in response');
         }
       } catch (identityError: any) {
-        console.log('🔑 Identity Service failed:', identityError.message);
+        console.log('[AUTH] Identity Service failed:', identityError.message);
 
         // Fallback to Member Service endpoints
         try {
           response = await memberApiService.get('/profile');
-          console.log('🔑 Member Service profile response:', response);
+          console.log('[AUTH] Member Service profile response:', response);
         } catch (memberError: any) {
-          console.log('🔑 Member Service failed:', memberError.message);
+          console.log('[AUTH] Member Service failed:', memberError.message);
 
           // Don't throw - return error response instead
           return {
@@ -126,8 +126,8 @@ class MemberService {
         data: response.data as Member,
       };
     } catch (error: any) {
-      console.error('🔑 Failed to fetch member profile:', error);
-      console.error('🔑 Error details:', {
+      console.error('[AUTH] Failed to fetch member profile:', error);
+      console.error('[AUTH] Error details:', {
         message: error.message,
         status: error.status,
         statusText: error.statusText,
@@ -146,9 +146,9 @@ class MemberService {
         try {
           const { clearAuthData } = await import('@/utils/auth/storage');
           await clearAuthData();
-          console.log('🔑 Cleared auth data due to session expiry');
+          console.log('[AUTH] Cleared auth data due to session expiry');
         } catch (clearError) {
-          console.error('🔑 Failed to clear auth data:', clearError);
+          console.error('[AUTH] Failed to clear auth data:', clearError);
         }
       } else if (error.status === 403) {
         errorMessage = 'Access denied. Please contact support.';

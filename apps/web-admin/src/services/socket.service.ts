@@ -81,7 +81,7 @@ class SocketService {
         throw new Error('WS_SCHEDULE_URL environment variable is required. Please set VITE_WS_SCHEDULE_URL in your .env file.');
       }
       // Member and Identity services are optional, return a dummy socket
-      console.warn(`⚠️ ${service.toUpperCase()} service URL not configured, skipping ${service} service socket connection`);
+      console.warn(`[WARNING] ${service.toUpperCase()} service URL not configured, skipping ${service} service socket connection`);
       return this.createDummySocket();
     }
 
@@ -93,7 +93,7 @@ class SocketService {
       reconnectAttempts: 0,
     });
 
-    console.log(`🔌 Attempting to connect to ${service} service: ${serviceUrl}`);
+    console.log(`[SOCKET] Attempting to connect to ${service} service: ${serviceUrl}`);
 
     try {
       const socket = io(serviceUrl, {
@@ -114,7 +114,7 @@ class SocketService {
 
       return socket;
     } catch (error) {
-      console.error(`❌ Failed to create ${service} socket connection:`, error);
+      console.error(`[ERROR] Failed to create ${service} socket connection:`, error);
       this.updateConnectionState(service, {
         connected: false,
         connecting: false,
@@ -129,7 +129,7 @@ class SocketService {
    */
   private setupSocketListeners(socket: Socket, service: SocketServiceType, userId: string): void {
     socket.on('connect', () => {
-      console.log(`✅ Socket connected to ${service} service`);
+      console.log(`[SUCCESS] Socket connected to ${service} service`);
       this.errorLogged.set(service, false);
       
       this.updateConnectionState(service, {
@@ -142,14 +142,14 @@ class SocketService {
 
       // Subscribe to user room
       if (userId) {
-        console.log(`📡 Subscribing ${service} socket to user room: user:${userId}`);
+        console.log(`[EMIT] Subscribing ${service} socket to user room: user:${userId}`);
         socket.emit('subscribe:user', userId);
       }
 
       // Replay queued events for this service
       const queuedEvents = socketQueueService.getQueue().filter(e => e.service === service);
       if (queuedEvents.length > 0) {
-        console.log(`📦 Replaying ${queuedEvents.length} queued events for ${service} service`);
+        console.log(`[DATA] Replaying ${queuedEvents.length} queued events for ${service} service`);
         socketQueueService.replay((event) => {
           if (event.service === service) {
             socket.emit(event.eventName, event.data);
@@ -164,7 +164,7 @@ class SocketService {
       
       // Throttle error logging - only log once per 30 seconds
       if (!this.errorLogged.get(service) || now - lastError > 30000) {
-        console.warn(`⚠️ ${service} socket service unavailable. Make sure the ${service} service is running.`);
+        console.warn(`[WARNING] ${service} socket service unavailable. Make sure the ${service} service is running.`);
         this.errorLogged.set(service, true);
         this.lastErrorTime.set(service, now);
       }
@@ -181,7 +181,7 @@ class SocketService {
     });
 
     socket.on('disconnect', (reason) => {
-      console.log(`🔌 ${service} socket disconnected, reason:`, reason);
+      console.log(`[SOCKET] ${service} socket disconnected, reason:`, reason);
       
       this.updateConnectionState(service, {
         connected: false,
@@ -190,12 +190,12 @@ class SocketService {
 
       // Queue events if disconnected unexpectedly
       if (reason === 'io server disconnect' || reason === 'transport close') {
-        console.log(`📦 Socket disconnected, events will be queued until reconnection`);
+        console.log(`[DATA] Socket disconnected, events will be queued until reconnection`);
       }
     });
 
     socket.on('error', (error) => {
-      console.error(`❌ ${service} socket error:`, error);
+      console.error(`[ERROR] ${service} socket error:`, error);
     });
 
     // Handle reconnection attempts
@@ -209,7 +209,7 @@ class SocketService {
     });
 
     socket.io.on('reconnect_failed', () => {
-      console.error(`❌ ${service} socket reconnection failed after ${this.maxReconnectAttempts} attempts`);
+      console.error(`[ERROR] ${service} socket reconnection failed after ${this.maxReconnectAttempts} attempts`);
       this.updateConnectionState(service, {
         connected: false,
         connecting: false,
@@ -394,7 +394,7 @@ class SocketService {
       socket.emit(eventName, data);
     } else {
       // Queue event if socket is not connected
-      console.log(`📦 Queueing event ${eventName} for ${service} service (socket not connected)`);
+      console.log(`[DATA] Queueing event ${eventName} for ${service} service (socket not connected)`);
       socketQueueService.enqueue(eventName, data, service, priority);
     }
   }

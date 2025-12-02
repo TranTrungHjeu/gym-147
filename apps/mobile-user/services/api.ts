@@ -49,11 +49,11 @@ class ApiService {
       const refreshToken = await getRefreshToken();
 
       if (!refreshToken) {
-        console.log('❌ No refresh token found');
+        console.log('[ERROR] No refresh token found');
         return null;
       }
 
-      console.log('🔄 Refreshing access token...');
+      console.log('[REFRESH] Refreshing access token...');
 
       const response = await fetch(
         `${SERVICE_URLS.IDENTITY}/auth/refresh-token`,
@@ -62,12 +62,12 @@ class ApiService {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ refreshToken }), 
+          body: JSON.stringify({ refreshToken }),
         }
       );
 
       if (!response.ok) {
-        console.log('❌ Token refresh failed:', response.status);
+        console.log('[ERROR] Token refresh failed:', response.status);
         return null;
       }
 
@@ -79,13 +79,13 @@ class ApiService {
         // Store new tokens
         await storeTokens(accessToken, newRefreshToken);
 
-        console.log('✅ Access token refreshed successfully');
+        console.log('[SUCCESS] Access token refreshed successfully');
         return accessToken;
       }
 
       return null;
     } catch (error) {
-      console.error('❌ Token refresh error:', error);
+      console.error('[ERROR] Token refresh error:', error);
       return null;
     }
   }
@@ -126,9 +126,9 @@ class ApiService {
       const token = await getToken();
       if (token) {
         headers.Authorization = `Bearer ${token}`;
-        console.log('🔑 Token found, added to headers');
+        console.log('[AUTH] Token found, added to headers');
       } else {
-        console.log('⚠️ No token found for protected endpoint:', endpoint);
+        console.log('[WARN] No token found for protected endpoint:', endpoint);
       }
     } else {
       console.log('🔓 Public endpoint, skipping token:', endpoint);
@@ -168,7 +168,8 @@ class ApiService {
       '/auth/refresh-token',
       '/auth/verify-2fa-login',
     ];
-    const isPublicEndpoint = endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));
+    const isPublicEndpoint =
+      endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));
 
     if (response.status === 401 && originalRequest && !isPublicEndpoint) {
       console.log('🔒 Token expired (401), attempting refresh...');
@@ -180,7 +181,11 @@ class ApiService {
             try {
               // Retry original request with new token
               const retryResponse = await originalRequest();
-              const result = await this.handleResponse<T>(retryResponse, undefined, endpoint);
+              const result = await this.handleResponse<T>(
+                retryResponse,
+                undefined,
+                endpoint
+              );
               resolve(result);
             } catch (error) {
               reject(error);
@@ -201,11 +206,15 @@ class ApiService {
 
           // Retry original request with new token
           const retryResponse = await originalRequest();
-          return await this.handleResponse<T>(retryResponse, undefined, endpoint);
+          return await this.handleResponse<T>(
+            retryResponse,
+            undefined,
+            endpoint
+          );
         } else {
           // Refresh failed - clear tokens and redirect to login
           this.isRefreshing = false;
-          console.log('❌ Token refresh failed, please login again');
+          console.log('[ERROR] Token refresh failed, please login again');
 
           // Import and call logout
           const { clearAuthData } = await import('@/utils/auth/storage');
@@ -228,7 +237,7 @@ class ApiService {
       // Special handling for 503 Service Unavailable
       if (response.status === 503) {
         const fullUrl = response.url || `${this.baseURL}${endpoint || ''}`;
-        console.error('❌ Service temporarily unavailable (503):', {
+        console.error('[ERROR] Service temporarily unavailable (503):', {
           endpoint: endpoint || 'unknown',
           fullUrl,
           baseURL: this.baseURL,
@@ -237,9 +246,33 @@ class ApiService {
           message: data?.message || 'Service temporarily unavailable',
           errors: data?.errors,
         });
-        console.error('   → This usually means the backend service is not running or unreachable');
-        console.error('   → Check if the service container is running: docker ps');
+        console.error(
+          '   → This usually means the backend service is not running or unreachable'
+        );
+        console.error(
+          '   → Check if the service container is running: docker ps'
+        );
         console.error('   → Check service logs: docker logs <service-name>');
+      }
+
+      // Special handling for 504 Gateway Timeout
+      if (response.status === 504) {
+        const fullUrl = response.url || `${this.baseURL}${endpoint || ''}`;
+        console.error('[ERROR] Gateway timeout (504):', {
+          endpoint: endpoint || 'unknown',
+          fullUrl,
+          baseURL: this.baseURL,
+          status: response.status,
+          statusText: response.statusText,
+          message: data?.message || 'Request timed out',
+          errors: data?.errors,
+        });
+        console.error(
+          '   → This usually means the database query took too long'
+        );
+        console.error(
+          '   → The request may have timed out but data might still be loading'
+        );
       }
 
       const error: ApiError = {
@@ -269,10 +302,10 @@ class ApiService {
     const makeRequest = async () => {
       const baseURL =
         params && 'baseURL' in params ? params.baseURL : this.baseURL;
-      
+
       // Check if endpoint already has query params
       const [endpointPath, existingQuery] = endpoint.split('?');
-      
+
       const queryParams =
         params && 'baseURL' in params
           ? Object.fromEntries(
@@ -287,7 +320,10 @@ class ApiService {
         existingQuery.split('&').forEach((param) => {
           const [key, value] = param.split('=');
           if (key && value) {
-            url.searchParams.append(decodeURIComponent(key), decodeURIComponent(value));
+            url.searchParams.append(
+              decodeURIComponent(key),
+              decodeURIComponent(value)
+            );
           }
         });
       }
@@ -303,10 +339,12 @@ class ApiService {
 
       const headers = await this.getHeaders(endpointPath);
 
-      console.log('🌐 API GET Request:', url.toString());
-      console.log('🔑 Headers:', {
+      console.log('[API] API GET Request:', url.toString());
+      console.log('[AUTH] Headers:', {
         'Content-Type': headers['Content-Type'],
-        'Authorization': headers.Authorization ? `${headers.Authorization.substring(0, 20)}...` : 'NOT SET',
+        Authorization: headers.Authorization
+          ? `${headers.Authorization.substring(0, 20)}...`
+          : 'NOT SET',
       });
 
       return await fetch(url.toString(), {
@@ -327,9 +365,9 @@ class ApiService {
       const url = `${this.baseURL}${endpoint}`;
       const headers = await this.getHeaders(endpoint);
 
-      console.log('🌐 API POST Request:', url);
+      console.log('[API] API POST Request:', url);
       if (data) {
-        console.log('🌐 API POST Body:', JSON.stringify(data, null, 2));
+        console.log('[API] API POST Body:', JSON.stringify(data, null, 2));
       }
 
       return await fetch(url, {
@@ -346,17 +384,21 @@ class ApiService {
   /**
    * PUT request with auto-refresh
    */
-  async put<T>(endpoint: string, data?: any, options?: { baseURL?: string }): Promise<ApiResponse<T>> {
+  async put<T>(
+    endpoint: string,
+    data?: any,
+    options?: { baseURL?: string }
+  ): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
       const baseURL = options?.baseURL || this.baseURL;
       const url = `${baseURL}${endpoint}`;
       const headers = await this.getHeaders(endpoint);
-      
-      console.log('🌐 API PUT Request:', url);
+
+      console.log('[API] API PUT Request:', url);
       if (data) {
-        console.log('🌐 API PUT Body:', JSON.stringify(data, null, 2));
+        console.log('[API] API PUT Body:', JSON.stringify(data, null, 2));
       }
-      
+
       return await fetch(url, {
         method: 'PUT',
         headers,
@@ -376,14 +418,14 @@ class ApiService {
       const url = `${this.baseURL}${endpoint}`;
       const headers = await this.getHeaders(endpoint);
       const body = data ? JSON.stringify(data) : undefined;
-      
+
       console.log('🔵 PATCH request:', {
         url,
         method: 'PATCH',
         hasBody: !!body,
         endpoint,
       });
-      
+
       return await fetch(url, {
         method: 'PATCH',
         headers,

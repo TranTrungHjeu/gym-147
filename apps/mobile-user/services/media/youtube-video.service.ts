@@ -48,8 +48,8 @@ export class YouTubeVideoService {
     // Don't throw error in constructor - allow service to be created without API key
     // Methods will check and return null if API key is not configured
     if (!this.apiKey || this.apiKey.trim() === '') {
-      console.warn('⚠️ YouTube API key not configured. Video features will be disabled.');
-      console.warn('💡 To enable YouTube videos, set EXPO_PUBLIC_YOUTUBE_API_KEY in your .env file or in app.json extra section.');
+      console.warn('[WARN] YouTube API key not configured. Video features will be disabled.');
+      console.warn('[TIP] To enable YouTube videos, set EXPO_PUBLIC_YOUTUBE_API_KEY in your .env file or in app.json extra section.');
     }
   }
 
@@ -74,21 +74,21 @@ export class YouTubeVideoService {
     try {
       // Get app language preference
       const appLanguage = await getLanguagePreference();
-      console.log('🌍 App language preference:', appLanguage);
+      console.log('[GLOBAL] App language preference:', appLanguage);
 
       // Check if app is set to Vietnamese
       if (appLanguage === 'vi') {
-        console.log('🇻🇳 App language is Vietnamese - using VN region');
+        console.log('[VN] App language is Vietnamese - using VN region');
         return { regionCode: 'VN', language: 'vi' };
       }
 
       // Default to US English
-      console.log('🇺🇸 App language is English - using US region');
+      console.log('[US] App language is English - using US region');
       return { regionCode: 'US', language: 'en' };
     } catch (error) {
       console.warn('Failed to get app language preference:', error);
       // Fallback to US English
-      console.log('🇺🇸 Fallback to English - using US region');
+      console.log('[US] Fallback to English - using US region');
       return { regionCode: 'US', language: 'en' };
     }
   }
@@ -102,13 +102,13 @@ export class YouTubeVideoService {
     try {
       // Check if API key is configured
       if (!this.apiKey) {
-        console.log(`⚠️ YouTube API key not configured for: ${exerciseName}`);
+        console.log(`[WARN] YouTube API key not configured for: ${exerciseName}`);
         return null;
       }
 
       // Check cache first
       if (this.cache.has(exerciseName)) {
-        console.log(`📹 Using cached YouTube video for: ${exerciseName}`);
+        console.log(`[VIDEO] Using cached YouTube video for: ${exerciseName}`);
         return this.cache.get(exerciseName)!;
       }
 
@@ -116,8 +116,8 @@ export class YouTubeVideoService {
       const searchQuery = await this.createSearchQuery(exerciseName);
       const { regionCode, language } = await this.getRegionAndLanguage();
 
-      console.log(`🔍 Searching YouTube for: ${searchQuery}`);
-      console.log(`🌍 Region: ${regionCode}, Language: ${language}`);
+      console.log(`[SEARCH] Searching YouTube for: ${searchQuery}`);
+      console.log(`[GLOBAL] Region: ${regionCode}, Language: ${language}`);
 
       // Make API request with region and language
       const response = await fetch(
@@ -135,7 +135,7 @@ export class YouTubeVideoService {
       }
 
       const data: YouTubeResponse = await response.json();
-      console.log(`📹 YouTube API response:`, data);
+      console.log(`[VIDEO] YouTube API response:`, data);
 
       if (data.items && data.items.length > 0) {
         const video = data.items[0];
@@ -157,17 +157,17 @@ export class YouTubeVideoService {
         this.cache.set(exerciseName, exerciseVideo);
 
         console.log(
-          `✅ Found YouTube video for ${exerciseName}:`,
+          `[SUCCESS] Found YouTube video for ${exerciseName}:`,
           exerciseVideo
         );
         return exerciseVideo;
       }
 
-      console.log(`❌ No YouTube video found for: ${exerciseName}`);
+      console.log(`[ERROR] No YouTube video found for: ${exerciseName}`);
       return null;
     } catch (error) {
       console.error(
-        `❌ Error fetching YouTube video for ${exerciseName}:`,
+        `[ERROR] Error fetching YouTube video for ${exerciseName}:`,
         error
       );
       return null;
@@ -186,7 +186,7 @@ export class YouTubeVideoService {
 
     // Check if API key is configured
     if (!this.apiKey || this.apiKey.trim() === '' || this.apiKey === 'YOUR_YOUTUBE_API_KEY' || this.apiKey === 'your-youtube-api-key') {
-      console.log('⚠️ YouTube API key not configured - skipping video loading');
+      console.log('[WARN] YouTube API key not configured - skipping video loading');
       return videos;
     }
 
@@ -260,17 +260,17 @@ export class YouTubeVideoService {
     const baseQuery =
       searchMappings[exercise] || `${exercise} exercise tutorial how to`;
 
-    console.log(`🔍 Language: ${language}, Exercise: ${exercise}`);
-    console.log(`🔍 Base query: ${baseQuery}`);
+    console.log(`[SEARCH] Language: ${language}, Exercise: ${exercise}`);
+    console.log(`[SEARCH] Base query: ${baseQuery}`);
 
     // Add Vietnamese keywords if Vietnamese locale
     if (language === 'vi') {
       const finalQuery = `${baseQuery} việt nam`;
-      console.log(`🔍 Final Vietnamese query: ${finalQuery}`);
+      console.log(`[SEARCH] Final Vietnamese query: ${finalQuery}`);
       return finalQuery;
     }
 
-    console.log(`🔍 Final English query: ${baseQuery}`);
+    console.log(`[SEARCH] Final English query: ${baseQuery}`);
     return baseQuery;
   }
 
@@ -363,14 +363,14 @@ export class YouTubeVideoService {
    */
   clearCache(): void {
     this.cache.clear();
-    console.log('🗑️ YouTube video cache cleared');
+    console.log('[CACHE] YouTube video cache cleared');
   }
 
   /**
    * Force refresh video (clear cache and reload)
    */
   async forceRefreshVideo(exerciseName: string): Promise<ExerciseVideo | null> {
-    console.log(`🔄 Force refreshing video for: ${exerciseName}`);
+    console.log(`[REFRESH] Force refreshing video for: ${exerciseName}`);
     this.cache.delete(exerciseName);
     return await this.getExerciseVideo(exerciseName);
   }

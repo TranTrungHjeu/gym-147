@@ -257,7 +257,7 @@ export default function SubscriptionPaymentScreen() {
         }
       } else if (action === 'RENEW' && subscriptionId) {
         // Renew subscription - backend creates payment with PENDING status if payment_method provided
-        console.log('🔄 Renewing subscription with payment method:', selectedMethod);
+        console.log('[RENEW] Renewing subscription with payment method:', selectedMethod);
         
         // Note: renewSubscription doesn't support discount_code directly
         // Discount would need to be applied at payment level if supported
@@ -266,7 +266,7 @@ export default function SubscriptionPaymentScreen() {
           selectedMethod
         );
 
-        console.log('✅ Renew response:', renewResponse);
+        console.log('[SUCCESS] Renew response:', renewResponse);
 
         // Backend returns payment info if payment_method was provided
         // We need to initiate payment gateway for the created payment

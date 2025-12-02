@@ -106,6 +106,24 @@ export default function UserDropdown() {
       }
     };
 
+    // Listen for avatar update events (optimistic update)
+    const handleAvatarUpdate = (e: CustomEvent) => {
+      if (e.detail && e.detail.userId && e.detail.role === 'TRAINER') {
+        const userData = localStorage.getItem('user');
+        if (userData) {
+          try {
+            const parsedUser = JSON.parse(userData);
+            if (parsedUser.id === e.detail.userId) {
+              // Optimistically update trainer avatar
+              setTrainer({ profile_photo: e.detail.avatarUrl } as Trainer);
+            }
+          } catch (error) {
+            console.error('Error parsing user data:', error);
+          }
+        }
+      }
+    };
+
     // Listen for language changes
     const handleLanguageChange = () => {
       setCurrentLang(getCurrentLanguage());
@@ -115,12 +133,14 @@ export default function UserDropdown() {
     window.addEventListener('storage', handleStorageChange);
     window.addEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
     window.addEventListener('languageChanged', handleLanguageChange);
+    window.addEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
 
     // Cleanup
     return () => {
       window.removeEventListener('storage', handleStorageChange);
       window.removeEventListener('userDataUpdated', handleUserDataUpdate as EventListener);
       window.removeEventListener('languageChanged', handleLanguageChange);
+      window.removeEventListener('avatarUpdated', handleAvatarUpdate as EventListener);
     };
   }, []);
 
@@ -152,22 +172,18 @@ export default function UserDropdown() {
     closeDropdown();
   };
 
-  // Function to generate avatar based on name
+  // Function to generate avatar based on name - unified orange theme
   const generateAvatar = (firstName: string, lastName: string) => {
     const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
     const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
     const initials = firstInitial + lastInitial;
 
-    // Generate a consistent color based on name
+    // Use only orange colors for consistency
     const colors = [
       'bg-[var(--color-orange-500)]',
       'bg-[var(--color-orange-600)]',
       'bg-[var(--color-orange-700)]',
       'bg-[var(--color-orange-800)]',
-      'bg-[var(--color-gray-600)]',
-      'bg-[var(--color-gray-700)]',
-      'bg-[var(--color-gray-800)]',
-      'bg-[var(--color-gray-900)]',
     ];
     const colorIndex = (firstName + lastName).length % colors.length;
 

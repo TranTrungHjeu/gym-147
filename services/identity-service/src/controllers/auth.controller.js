@@ -8,9 +8,10 @@ const memberService = require('../services/member.service.js');
 const redisService = require('../services/redis.service.js');
 let rateLimiter = null;
 try {
-  rateLimiter = require('../../../packages/shared-middleware/src/rate-limit.middleware.js').rateLimiter;
+  rateLimiter =
+    require('../../../packages/shared-middleware/src/rate-limit.middleware.js').rateLimiter;
 } catch (e) {
-  console.warn('⚠️ Shared rate limiter not available, using fallback');
+  console.warn('[WARNING] Shared rate limiter not available, using fallback');
 }
 
 // Logger (optional - use if available)
@@ -390,7 +391,7 @@ class AuthController {
           },
           data: { push_token: null },
         });
-        console.log(`🔔 Cleared push_token from other users`);
+        console.log(`[BELL] Cleared push_token from other users`);
       }
 
       // Update last login time and push token
@@ -406,7 +407,7 @@ class AuthController {
       });
 
       if (push_token) {
-        console.log(`🔔 Push token registered for user ${user.id}`);
+        console.log(`[BELL] Push token registered for user ${user.id}`);
       }
 
       // Create session
@@ -454,7 +455,10 @@ class AuthController {
           timestamp: new Date().toISOString(),
         });
       } catch (pubSubError) {
-        console.warn('⚠️ Failed to publish user:login event via Pub/Sub:', pubSubError.message);
+        console.warn(
+          '[WARNING] Failed to publish user:login event via Pub/Sub:',
+          pubSubError.message
+        );
         // Don't fail login if Pub/Sub fails
       }
 
@@ -470,7 +474,7 @@ class AuthController {
             timestamp: new Date(),
           },
         });
-        console.log(`✅ Access log created for successful login: user ${user.id}`);
+        console.log(`[SUCCESS] Access log created for successful login: user ${user.id}`);
       } catch (logError) {
         console.error('Failed to create access log:', logError);
         // Don't fail login if logging fails
@@ -507,13 +511,15 @@ class AuthController {
 
           if (trainerResult.success && trainerResult.trainerId) {
             userData.trainerId = trainerResult.trainerId;
-            console.log(`✅ Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`);
+            console.log(
+              `[SUCCESS] Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`
+            );
           } else {
-            console.warn(`⚠️ Trainer not found in schedule-service for user ${user.id}`);
+            console.warn(`[WARNING] Trainer not found in schedule-service for user ${user.id}`);
             // Continue without trainerId - frontend can handle this
           }
         } catch (error) {
-          console.error('❌ Error fetching trainer_id during login:', error.message);
+          console.error('[ERROR] Error fetching trainer_id during login:', error.message);
           // Continue without trainerId - don't fail login
         }
       }
@@ -529,7 +535,11 @@ class AuthController {
         },
       });
 
-      logger.info('Login successful', { userId: user.id, role: user.role, trainerId: userData.trainerId });
+      logger.info('Login successful', {
+        userId: user.id,
+        role: user.role,
+        trainerId: userData.trainerId,
+      });
     } catch (error) {
       logger.errorRequest(req, error, 'Login error');
       res.status(500).json({
@@ -551,7 +561,7 @@ class AuthController {
       if (sessionId) {
         // Delete session from Redis first
         await redisService.deleteSession(sessionId, userId);
-        
+
         // Delete the current session from database
         await prisma.session.delete({
           where: { id: sessionId },
@@ -567,7 +577,7 @@ class AuthController {
             push_platform: null,
           },
         });
-        console.log(`🔔 Push token cleared for user ${userId}`);
+        console.log(`[BELL] Push token cleared for user ${userId}`);
       }
 
       res.json({
@@ -779,10 +789,12 @@ class AuthController {
       try {
         const axios = require('axios');
         if (!process.env.MEMBER_SERVICE_URL) {
-          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          throw new Error(
+            'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+          );
         }
         const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-        console.log('🔧 Using memberServiceUrl:', memberServiceUrl);
+        console.log('[CONFIG] Using memberServiceUrl:', memberServiceUrl);
 
         await axios.put(
           `${memberServiceUrl}/members/user/${newUser.id}`,
@@ -798,9 +810,9 @@ class AuthController {
             timeout: 5000, // 5 second timeout
           }
         );
-        console.log(`✅ Member table updated for user ${newUser.id}`);
+        console.log(`[SUCCESS] Member table updated for user ${newUser.id}`);
       } catch (memberError) {
-        console.error('⚠️ Error updating member table (non-critical):', memberError.message);
+        console.error('[WARNING] Error updating member table (non-critical):', memberError.message);
         // Don't fail the entire request if member update fails
         // Member record will be created when user first accesses member features
       }
@@ -908,10 +920,7 @@ class AuthController {
         const emailLower = identifier.toLowerCase().trim();
         existingUser = await prisma.user.findFirst({
           where: {
-            OR: [
-              { email: identifier },
-              { email: emailLower },
-            ],
+            OR: [{ email: identifier }, { email: emailLower }],
           },
         });
       } else if (type === 'PHONE') {
@@ -928,7 +937,8 @@ class AuthController {
         if (type === 'EMAIL') {
           message = 'Email này đã được sử dụng. Vui lòng thử email khác hoặc đăng nhập.';
         } else if (type === 'PHONE') {
-          message = 'Số điện thoại này đã được sử dụng. Vui lòng thử số điện thoại khác hoặc đăng nhập.';
+          message =
+            'Số điện thoại này đã được sử dụng. Vui lòng thử số điện thoại khác hoặc đăng nhập.';
         } else {
           message = 'Tài khoản với thông tin này đã tồn tại';
         }
@@ -1009,7 +1019,12 @@ class AuthController {
         }
         // Normalize phone to +84 format (same format used when storing OTP)
         normalizedIdentifier = this.normalizePhone(identifier);
-        console.log('🔍 Verifying OTP - Original identifier:', identifier, 'Normalized:', normalizedIdentifier);
+        console.log(
+          '[SEARCH] Verifying OTP - Original identifier:',
+          identifier,
+          'Normalized:',
+          normalizedIdentifier
+        );
       }
 
       const result = await this.otpService.verifyOTP(normalizedIdentifier, otp, type);
@@ -1336,10 +1351,23 @@ class AuthController {
           // Continue to return success even if email fails - security best practice
         }
       } else if (phone) {
-        // TODO: Gửi SMS với reset link
-        // const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
-        // await smsService.sendPasswordResetSMS(user.phone, resetLink);
-        console.log(`Password reset requested for phone: ${phone}`);
+        // Send SMS with reset link
+        try {
+          const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${resetToken}`;
+          const smsResult = await this.otpService.sendPasswordResetSMS(
+            user.phone,
+            resetToken,
+            resetLink
+          );
+
+          if (!smsResult.success) {
+            console.error('Failed to send password reset SMS:', smsResult.error);
+            // Continue to return success even if SMS fails - security best practice
+          }
+        } catch (smsError) {
+          console.error('Failed to send password reset SMS:', smsError);
+          // Continue to return success even if SMS fails - security best practice
+        }
       }
 
       res.json({
@@ -1658,7 +1686,7 @@ class AuthController {
           userId: session.user.id,
           email: session.user.email,
           role: session.user.role,
-          sessionId: session.id, // ✅ Include sessionId for tracking
+          sessionId: session.id, // [SUCCESS] Include sessionId for tracking
         },
         process.env.JWT_SECRET,
         { expiresIn: '15m' }
@@ -1818,12 +1846,14 @@ class AuthController {
 
           if (trainerResult.success && trainerResult.trainerId) {
             userData.trainerId = trainerResult.trainerId;
-            console.log(`✅ Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`);
+            console.log(
+              `[SUCCESS] Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`
+            );
           } else {
-            console.warn(`⚠️ Trainer not found in schedule-service for user ${user.id}`);
+            console.warn(`[WARNING] Trainer not found in schedule-service for user ${user.id}`);
           }
         } catch (error) {
-          console.error('❌ Error fetching trainer_id during 2FA login:', error.message);
+          console.error('[ERROR] Error fetching trainer_id during 2FA login:', error.message);
         }
       }
 
@@ -2006,7 +2036,10 @@ class AuthController {
 
       if (targetRole === 'TRAINER') {
         try {
-          console.log('🔄 Attempting to create trainer in schedule-service for user:', newAdmin.id);
+          console.log(
+            '[SYNC] Attempting to create trainer in schedule-service for user:',
+            newAdmin.id
+          );
           const trainerResult = await scheduleService.createTrainer({
             id: newAdmin.id,
             firstName: newAdmin.first_name,
@@ -2018,7 +2051,7 @@ class AuthController {
           if (!trainerResult.success) {
             scheduleServiceSuccess = false;
             scheduleServiceError = trainerResult.error;
-            console.error('❌ Failed to create trainer in schedule service:', {
+            console.error('[ERROR] Failed to create trainer in schedule service:', {
               error: trainerResult.error,
               status: trainerResult.status,
               responseData: trainerResult.responseData,
@@ -2026,12 +2059,12 @@ class AuthController {
             // Log warning but continue - user is created in identity-service
             // Admin can manually sync later if needed
           } else {
-            console.log('✅ Trainer successfully created in schedule-service');
+            console.log('[SUCCESS] Trainer successfully created in schedule-service');
           }
         } catch (error) {
           scheduleServiceSuccess = false;
           scheduleServiceError = error.message;
-          console.error('❌ Exception while creating trainer in schedule service:', {
+          console.error('[ERROR] Exception while creating trainer in schedule service:', {
             message: error.message,
             stack: error.stack,
           });
@@ -2080,7 +2113,7 @@ class AuthController {
       const { id } = req.params;
       const { firstName, lastName, phone, email, isActive } = req.body;
 
-      console.log('📝 updateUser called:', {
+      console.log('[PROCESS] updateUser called:', {
         id,
         firstName,
         lastName,
@@ -2150,7 +2183,7 @@ class AuthController {
         data: updateData,
       });
 
-      console.log('✅ User updated in identity-service:', {
+      console.log('[SUCCESS] User updated in identity-service:', {
         id: updatedUser.id,
         email: updatedUser.email,
         phone: updatedUser.phone,
@@ -2262,17 +2295,20 @@ class AuthController {
       // If user is TRAINER, delete trainer from schedule service first
       if (existingUser.role === 'TRAINER') {
         try {
-          console.log('🗑️ Deleting trainer from schedule service for user:', id);
+          console.log('[DELETE] Deleting trainer from schedule service for user:', id);
           const trainerResult = await scheduleService.deleteTrainer(id);
 
           if (trainerResult.success) {
-            console.log('✅ Trainer deleted successfully from schedule service');
+            console.log('[SUCCESS] Trainer deleted successfully from schedule service');
           } else {
-            console.warn('⚠️ Failed to delete trainer in schedule service:', trainerResult.error);
+            console.warn(
+              '[WARNING] Failed to delete trainer in schedule service:',
+              trainerResult.error
+            );
             // Continue with user deletion even if schedule service fails
           }
         } catch (error) {
-          console.error('❌ Error deleting trainer in schedule service:', error);
+          console.error('[ERROR] Error deleting trainer in schedule service:', error);
           // Continue with user deletion even if schedule service fails
         }
       }
@@ -2280,17 +2316,20 @@ class AuthController {
       // If user is MEMBER, delete member from member service first
       if (existingUser.role === 'MEMBER') {
         try {
-          console.log('🗑️ Deleting member from member service for user:', id);
+          console.log('[DELETE] Deleting member from member service for user:', id);
           const memberResult = await memberService.deleteMember(id);
 
           if (memberResult.success) {
-            console.log('✅ Member deleted successfully from member service');
+            console.log('[SUCCESS] Member deleted successfully from member service');
           } else {
-            console.warn('⚠️ Failed to delete member in member service:', memberResult.error);
+            console.warn(
+              '[WARNING] Failed to delete member in member service:',
+              memberResult.error
+            );
             // Continue with user deletion even if member service fails
           }
         } catch (error) {
-          console.error('❌ Error deleting member in member service:', error);
+          console.error('[ERROR] Error deleting member in member service:', error);
           // Continue with user deletion even if member service fails
         }
       }
@@ -2301,9 +2340,9 @@ class AuthController {
         await prisma.accessLog.deleteMany({
           where: { user_id: id },
         });
-        console.log('✅ Deleted access logs for user:', id);
+        console.log('[SUCCESS] Deleted access logs for user:', id);
       } catch (error) {
-        console.warn('⚠️ Error deleting access logs (may not exist):', error.message);
+        console.warn('[WARNING] Error deleting access logs (may not exist):', error.message);
       }
 
       try {
@@ -2312,9 +2351,9 @@ class AuthController {
         await prisma.member.deleteMany({
           where: { user_id: id },
         });
-        console.log('✅ Deleted members_ref for user:', id);
+        console.log('[SUCCESS] Deleted members_ref for user:', id);
       } catch (error) {
-        console.warn('⚠️ Error deleting members_ref (may not exist):', error.message);
+        console.warn('[WARNING] Error deleting members_ref (may not exist):', error.message);
       }
 
       try {
@@ -2323,9 +2362,9 @@ class AuthController {
         await prisma.staff.deleteMany({
           where: { user_id: id },
         });
-        console.log('✅ Deleted staff_ref for user:', id);
+        console.log('[SUCCESS] Deleted staff_ref for user:', id);
       } catch (error) {
-        console.warn('⚠️ Error deleting staff_ref (may not exist):', error.message);
+        console.warn('[WARNING] Error deleting staff_ref (may not exist):', error.message);
       }
 
       // Delete user from identity service
@@ -2351,11 +2390,13 @@ class AuthController {
 
           // Emit to user room (if user is currently logged in, they will receive this)
           global.io.to(`user:${id}`).emit('user:deleted', socketPayload);
-          console.log(`📡 Emitted user:deleted event for user ${id} (role: ${existingUser.role})`);
+          console.log(
+            `[EMIT] Emitted user:deleted event for user ${id} (role: ${existingUser.role})`
+          );
         }
       } catch (socketError) {
         // Log socket error but don't fail the deletion
-        console.error('❌ Error emitting user:deleted socket event:', socketError);
+        console.error('[ERROR] Error emitting user:deleted socket event:', socketError);
       }
 
       res.json({
@@ -2424,7 +2465,13 @@ class AuthController {
       const { role, page = 1, limit = 10 } = req.query;
       const parsedLimit = parseInt(limit);
       const parsedPage = parseInt(page);
-      console.log('getAllUsers - Received query params:', { role, page, limit, parsedLimit, parsedPage });
+      console.log('getAllUsers - Received query params:', {
+        role,
+        page,
+        limit,
+        parsedLimit,
+        parsedPage,
+      });
       const skip = (parsedPage - 1) * parsedLimit;
 
       const whereClause = role ? { role: role.toUpperCase() } : {};
@@ -2453,11 +2500,11 @@ class AuthController {
         prisma.user.count({ where: whereClause }),
       ]);
 
-      console.log('getAllUsers - Returning:', { 
-        usersCount: users.length, 
+      console.log('getAllUsers - Returning:', {
+        usersCount: users.length,
         requestedLimit: parsedLimit,
         total,
-        page: parsedPage 
+        page: parsedPage,
       });
 
       res.json({
@@ -2570,12 +2617,14 @@ class AuthController {
         },
       });
 
-      console.log(`✅ Found ${admins.length} admin/super-admin users`);
-      
+      console.log(`[SUCCESS] Found ${admins.length} admin/super-admin users`);
+
       if (admins.length === 0) {
-        console.warn(`⚠️ [GET_ADMINS] WARNING: No admins/super-admins found in database!`);
-        console.warn(`⚠️ [GET_ADMINS] Query conditions: role IN ['ADMIN', 'SUPER_ADMIN'], is_active = true`);
-        
+        console.warn(`[WARNING] [GET_ADMINS] WARNING: No admins/super-admins found in database!`);
+        console.warn(
+          `[WARNING] [GET_ADMINS] Query conditions: role IN ['ADMIN', 'SUPER_ADMIN'], is_active = true`
+        );
+
         // Check if there are any admins with is_active = false
         const inactiveAdmins = await prisma.user.findMany({
           where: {
@@ -2591,11 +2640,14 @@ class AuthController {
             is_active: true,
           },
         });
-        
+
         if (inactiveAdmins.length > 0) {
-          console.warn(`⚠️ [GET_ADMINS] Found ${inactiveAdmins.length} inactive admin(s)/super-admin(s):`, inactiveAdmins);
+          console.warn(
+            `[WARNING] [GET_ADMINS] Found ${inactiveAdmins.length} inactive admin(s)/super-admin(s):`,
+            inactiveAdmins
+          );
         }
-        
+
         // Check total count of admins regardless of is_active
         const totalAdmins = await prisma.user.count({
           where: {
@@ -2604,10 +2656,15 @@ class AuthController {
             },
           },
         });
-        
-        console.warn(`⚠️ [GET_ADMINS] Total admins/super-admins in database (regardless of is_active): ${totalAdmins}`);
+
+        console.warn(
+          `[WARNING] [GET_ADMINS] Total admins/super-admins in database (regardless of is_active): ${totalAdmins}`
+        );
       } else {
-        console.log(`📋 [GET_ADMINS] Admin list:`, admins.map(a => ({ id: a.id, email: a.email, role: a.role, is_active: a.is_active })));
+        console.log(
+          `[LIST] [GET_ADMINS] Admin list:`,
+          admins.map(a => ({ id: a.id, email: a.email, role: a.role, is_active: a.is_active }))
+        );
       }
 
       res.json({
@@ -2618,7 +2675,7 @@ class AuthController {
         },
       });
     } catch (error) {
-      console.error('❌ Get admins error:', error);
+      console.error('[ERROR] Get admins error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -2664,7 +2721,7 @@ class AuthController {
         },
       });
 
-      console.log(`🔔 Push token updated for user ${id}`);
+      console.log(`[BELL] Push token updated for user ${id}`);
 
       res.json({
         success: true,
@@ -2705,7 +2762,7 @@ class AuthController {
         },
       });
 
-      console.log(`🔔 Push preference updated for user ${id}: ${push_enabled}`);
+      console.log(`[BELL] Push preference updated for user ${id}: ${push_enabled}`);
 
       res.json({
         success: true,
@@ -2755,6 +2812,314 @@ class AuthController {
       });
     } catch (error) {
       console.error('Get push settings error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // ==================== FACE LOGIN ====================
+
+  /**
+   * Login using face recognition
+   * POST /auth/login/face
+   */
+  async loginWithFace(req, res) {
+    try {
+      logger.request(req, 'Face login attempt');
+      const { image, push_token, push_platform } = req.body;
+
+      if (!image || typeof image !== 'string') {
+        logger.warn('Face login failed: missing image');
+        return res.status(400).json({
+          success: false,
+          message: 'Image data is required (base64 string)',
+          data: null,
+        });
+      }
+
+      // Import face recognition service
+      const faceRecognitionService = require('../services/face-recognition.service');
+
+      // Extract face encoding from image
+      let faceEncodingResult;
+      try {
+        faceEncodingResult = await faceRecognitionService.extractFaceEncoding(image);
+      } catch (error) {
+        logger.warn('Face login failed: face extraction error', { error: error.message });
+        return res.status(400).json({
+          success: false,
+          message: `Failed to process image: ${error.message}`,
+          data: null,
+        });
+      }
+
+      if (!faceEncodingResult.faceDetected) {
+        logger.warn('Face login failed: no face detected');
+        // Note: Cannot create access log without valid user_id due to foreign key constraint
+        // Failed attempts without user identification are only logged to console
+
+        return res.status(400).json({
+          success: false,
+          message: 'No face detected in image. Please ensure your face is clearly visible.',
+          data: null,
+        });
+      }
+
+      // Get all users with face encodings
+      const usersWithFaces = await prisma.user.findMany({
+        where: {
+          face_encoding: { not: null },
+          is_active: true, // Only active users
+        },
+        select: {
+          id: true,
+          email: true,
+          face_encoding: true,
+          is_active: true,
+          locked_until: true,
+        },
+      });
+
+      if (usersWithFaces.length === 0) {
+        logger.warn('Face login failed: no users with face encodings');
+        return res.status(400).json({
+          success: false,
+          message: 'No users have enrolled face recognition yet.',
+          data: null,
+        });
+      }
+
+      // Verify face and find matching user
+      const verificationResult = await faceRecognitionService.verifyFaceAndFindUser(
+        image,
+        usersWithFaces
+      );
+
+      if (!verificationResult.recognized || !verificationResult.userId) {
+        logger.warn('Face login failed: face not recognized', {
+          confidence: verificationResult.confidence,
+        });
+
+        // Note: Cannot create access log without valid user_id
+        // Failed attempts are only logged to console
+
+        return res.status(401).json({
+          success: false,
+          message:
+            verificationResult.message ||
+            'Face not recognized. Please try again or use password login.',
+          data: {
+            confidence: verificationResult.confidence,
+            requiresPassword: true, // Suggest password login
+          },
+        });
+      }
+
+      // Get user details
+      const user = await prisma.user.findUnique({
+        where: { id: verificationResult.userId },
+        include: {
+          member_profile: true,
+          staff_profile: true,
+        },
+      });
+
+      if (!user) {
+        logger.warn('Face login failed: user not found after recognition', {
+          userId: verificationResult.userId,
+        });
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // Check if account is active
+      if (!user.is_active) {
+        logger.warn('Face login failed: account inactive', { userId: user.id });
+
+        // Log failed attempt
+        try {
+          await prisma.accessLog.create({
+            data: {
+              user_id: user.id,
+              access_type: 'LOGIN',
+              access_method: 'FACE_RECOGNITION',
+              success: false,
+              failure_reason: 'Account is inactive',
+              timestamp: new Date(),
+            },
+          });
+        } catch (logError) {
+          console.error('Failed to create access log:', logError);
+        }
+
+        return res.status(401).json({
+          success: false,
+          message: 'Tài khoản đã bị vô hiệu hóa',
+          data: null,
+        });
+      }
+
+      // Check if account is locked
+      if (user.locked_until && new Date(user.locked_until) > new Date()) {
+        logger.warn('Face login failed: account locked', { userId: user.id });
+        return res.status(401).json({
+          success: false,
+          message: `Tài khoản đã bị khóa đến ${new Date(user.locked_until).toLocaleString(
+            'vi-VN'
+          )}`,
+          data: null,
+        });
+      }
+
+      // Reset failed login attempts on successful login
+      if (user.failed_login_attempts > 0) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { failed_login_attempts: 0, locked_until: null },
+        });
+      }
+
+      // Handle push notification token
+      if (push_token) {
+        // Clear push_token from other users first
+        await prisma.user.updateMany({
+          where: {
+            push_token: push_token,
+            id: { not: user.id },
+          },
+          data: { push_token: null },
+        });
+      }
+
+      // Update last login time and push token
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          last_login_at: new Date(),
+          ...(push_token && {
+            push_token: push_token,
+            push_platform: push_platform || null,
+          }),
+        },
+      });
+
+      // Create session
+      const crypto = require('crypto');
+      const accessToken = crypto.randomBytes(32).toString('hex');
+      const refreshToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+
+      const session = await prisma.session.create({
+        data: {
+          user_id: user.id,
+          token: accessToken,
+          refresh_token: refreshToken,
+          device_info: req.headers['user-agent'] || 'Unknown',
+          platform: req.body.platform || 'MOBILE_IOS',
+          ip_address: req.ip || req.connection.remoteAddress,
+          user_agent: req.headers['user-agent'] || 'Unknown',
+          expires_at: expiresAt,
+        },
+      });
+
+      // Store session in Redis
+      const redisService = require('../services/redis.service');
+      const sessionData = {
+        id: session.id,
+        user_id: user.id,
+        token: accessToken,
+        refresh_token: refreshToken,
+        device_info: session.device_info,
+        ip_address: session.ip_address,
+        user_agent: session.user_agent,
+        expires_at: expiresAt.toISOString(),
+        created_at: session.created_at.toISOString(),
+      };
+      const accessTokenTTL = 30 * 60; // 30 minutes
+      await redisService.setSession(session.id, sessionData, accessTokenTTL);
+
+      // Publish user:login event
+      try {
+        const { redisPubSub } = require('../../../packages/shared-utils/src/redis-pubsub.utils');
+        await redisPubSub.publish('user:login', {
+          user_id: user.id,
+          email: user.email,
+          method: 'FACE_RECOGNITION',
+          timestamp: new Date().toISOString(),
+        });
+      } catch (pubError) {
+        console.warn('Failed to publish login event:', pubError.message);
+      }
+
+      // Create access log
+      try {
+        await prisma.accessLog.create({
+          data: {
+            user_id: user.id,
+            access_type: 'LOGIN',
+            access_method: 'FACE_RECOGNITION',
+            success: true,
+            timestamp: new Date(),
+          },
+        });
+      } catch (logError) {
+        console.error('Failed to create access log:', logError);
+      }
+
+      // Generate JWT token
+      const jwt = require('jsonwebtoken');
+      const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key';
+      const jwtToken = jwt.sign(
+        {
+          userId: user.id,
+          email: user.email,
+          role: user.role,
+        },
+        JWT_SECRET,
+        { expiresIn: '7d' }
+      );
+
+      // Prepare user data (exclude sensitive fields)
+      const userData = {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        phone: user.phone,
+        role: user.role,
+        is_active: user.is_active,
+        email_verified: user.email_verified,
+        phone_verified: user.phone_verified,
+        last_login_at: user.last_login_at,
+        created_at: user.created_at,
+      };
+
+      logger.info('Face login successful', { userId: user.id, email: user.email });
+
+      res.json({
+        success: true,
+        message: 'Đăng nhập bằng khuôn mặt thành công',
+        data: {
+          user: userData,
+          token: jwtToken,
+          accessToken: accessToken,
+          refreshToken: refreshToken,
+          session: {
+            id: session.id,
+            expires_at: expiresAt,
+          },
+          confidence: verificationResult.confidence,
+        },
+      });
+    } catch (error) {
+      logger.error('Face login error:', error);
+      console.error('[ERROR] Face login error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

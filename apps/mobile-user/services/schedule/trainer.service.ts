@@ -36,7 +36,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainers:', error);
+      console.error('[ERROR] Error fetching trainers:', error);
       return { success: false, error: error.message };
     }
   }
@@ -59,7 +59,7 @@ class TrainerService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainer:', error);
+      console.error('[ERROR] Error fetching trainer:', error);
       return { success: false, error: error.message };
     }
   }
@@ -84,7 +84,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainers by specialization:', error);
+      console.error('[ERROR] Error fetching trainers by specialization:', error);
       return { success: false, error: error.message };
     }
   }
@@ -109,7 +109,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching active trainers:', error);
+      console.error('[ERROR] Error fetching active trainers:', error);
       return { success: false, error: error.message };
     }
   }
@@ -134,7 +134,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching top-rated trainers:', error);
+      console.error('[ERROR] Error fetching top-rated trainers:', error);
       return { success: false, error: error.message };
     }
   }
@@ -159,7 +159,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error searching trainers:', error);
+      console.error('[ERROR] Error searching trainers:', error);
       return { success: false, error: error.message };
     }
   }
@@ -190,7 +190,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainer upcoming classes:', error);
+      console.error('[ERROR] Error fetching trainer upcoming classes:', error);
       return { success: false, error: error.message };
     }
   }
@@ -221,7 +221,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainer class history:', error);
+      console.error('[ERROR] Error fetching trainer class history:', error);
       return { success: false, error: error.message };
     }
   }
@@ -253,7 +253,7 @@ class TrainerService {
         data: response.data,
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainer stats:', error);
+      console.error('[ERROR] Error fetching trainer stats:', error);
       return { success: false, error: error.message };
     }
   }
@@ -278,7 +278,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching specializations:', error);
+      console.error('[ERROR] Error fetching specializations:', error);
       return { success: false, error: error.message };
     }
   }
@@ -303,7 +303,7 @@ class TrainerService {
         data: response.data?.data || response.data || [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching trainer certifications:', error);
+      console.error('[ERROR] Error fetching trainer certifications:', error);
       return { success: false, error: error.message };
     }
   }

@@ -9,6 +9,9 @@ const notificationController = new NotificationController();
 const bulkNotificationController = new BulkNotificationController();
 
 // Notification system routes
+router.get('/preferences', authMiddleware, (req, res) =>
+  notificationController.getNotificationPreferences(req, res)
+);
 router.put('/preferences', authMiddleware, (req, res) =>
   notificationController.setNotificationPreferences(req, res)
 );

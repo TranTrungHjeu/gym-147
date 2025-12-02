@@ -70,7 +70,7 @@ class EventManagerService {
    */
   subscribe(eventType: EventType, callback: (data: EventData) => void, once = false): string {
     if (!this.isEnabled) {
-      console.warn(`⚠️ EventManager is disabled, subscription to ${eventType} ignored`);
+      console.warn(`[WARNING] EventManager is disabled, subscription to ${eventType} ignored`);
       return '';
     }
 
@@ -131,13 +131,13 @@ class EventManagerService {
    */
   dispatch(eventType: EventType, data: EventData = {}): void {
     if (!this.isEnabled) {
-      console.warn(`⚠️ EventManager is disabled, dispatch of ${eventType} ignored`);
+      console.warn(`[WARNING] EventManager is disabled, dispatch of ${eventType} ignored`);
       return;
     }
 
     // Validate event data
     if (!this.validateEvent(eventType, data)) {
-      console.warn(`⚠️ Invalid event data for ${eventType}:`, data);
+      console.warn(`[WARNING] Invalid event data for ${eventType}:`, data);
       return;
     }
 
@@ -156,7 +156,7 @@ class EventManagerService {
             subscriptions.delete(subscription);
           }
         } catch (error) {
-          console.error(`❌ Error in event subscription for ${eventType}:`, error);
+          console.error(`[ERROR] Error in event subscription for ${eventType}:`, error);
         }
       });
     }

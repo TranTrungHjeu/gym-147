@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import AdminDashboard from '../pages/Dashboard/AdminDashboard';
-import MemberIntroPage from '../pages/Dashboard/MemberIntroPage';
+import MemberQRPage from '../pages/Dashboard/MemberQRPage';
 import SuperAdminDashboard from '../pages/Dashboard/SuperAdminDashboard';
 
 interface RoleBasedRouterProps {
@@ -17,7 +17,7 @@ const RoleBasedRouter: React.FC<RoleBasedRouterProps> = ({ userRole }) => {
     case 'TRAINER':
       return <Navigate to='/trainerdashboard/homepage' replace />;
     case 'MEMBER':
-      return <MemberIntroPage />;
+      return <MemberQRPage />;
     default:
       return <Navigate to='/auth' replace />;
   }

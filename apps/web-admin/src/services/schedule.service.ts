@@ -1,5 +1,6 @@
-import { scheduleApi } from './api';
 import type { AxiosResponse } from 'axios';
+import { getCurrentUser } from '../utils/auth';
+import { scheduleApi } from './api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -28,6 +29,7 @@ export interface Rating {
   member_name: string;
   rating: number;
   comment: string;
+  trainer_reply?: string | null;
   created_at: string;
   is_public: boolean;
 }
@@ -52,6 +54,7 @@ export interface Feedback {
   priority: string;
   created_at: string;
   response?: string;
+  trainer_reply?: string | null;
   responded_at?: string;
 }
 
@@ -284,9 +287,16 @@ class ScheduleService {
   ): Promise<ApiResponse<T>> {
     try {
       // Fix incorrect endpoint: if GET request to /trainers/user/.../schedules, change to /schedule
-      if (method === 'GET' && endpoint.includes('/trainers/user/') && endpoint.includes('/schedules') && !endpoint.includes('/schedules/')) {
+      if (
+        method === 'GET' &&
+        endpoint.includes('/trainers/user/') &&
+        endpoint.includes('/schedules') &&
+        !endpoint.includes('/schedules/')
+      ) {
         endpoint = endpoint.replace('/schedules', '/schedule');
-        console.warn('⚠️ Fixed incorrect endpoint: changed /schedules to /schedule for GET request');
+        console.warn(
+          '[WARNING] Fixed incorrect endpoint: changed /schedules to /schedule for GET request'
+        );
       }
 
       let response: AxiosResponse<ApiResponse<T>>;
@@ -308,17 +318,17 @@ class ScheduleService {
       return response.data;
     } catch (error: any) {
       const errorData = error.response?.data || { message: error.message || 'Unknown error' };
-      
+
       // Create error with detailed error information
       let errorMessage = errorData?.message || `HTTP error! status: ${error.response?.status}`;
-      
+
       // Include detailed error information if available
       if (errorData?.data?.errors && Array.isArray(errorData.data.errors)) {
         errorMessage += `\nChi tiết: ${errorData.data.errors.join(', ')}`;
       } else if (errorData?.data?.errors && typeof errorData.data.errors === 'string') {
         errorMessage += `\nChi tiết: ${errorData.data.errors}`;
       }
-      
+
       const apiError: any = new Error(errorMessage);
       apiError.status = error.response?.status;
       apiError.response = { data: errorData };
@@ -395,7 +405,9 @@ class ScheduleService {
     });
 
     // Use trainer-specific endpoint that automatically filters by trainer_id
-    const response = await this.request<{ schedules: any[] }>(`/trainers/user/${userId}/schedule?${params}`);
+    const response = await this.request<{ schedules: any[] }>(
+      `/trainers/user/${userId}/schedule?${params}`
+    );
 
     // Transform schedule data to calendar event format
     if (response.success && response.data?.schedules) {
@@ -609,18 +621,18 @@ class ScheduleService {
             id: '1',
             name: 'Tỷ lệ tham gia lớp học',
             value: response.data.attendance_rate || 0,
-            target: 90,
+            target: response.data.attendance_rate || 0,
             unit: '%',
-            trend: 'up' as const,
+            trend: 'neutral' as const,
             change_percentage: 0,
           },
           {
             id: '2',
             name: 'Đánh giá trung bình',
             value: response.data.average_rating || 0,
-            target: 4.5,
+            target: response.data.average_rating || 0,
             unit: '/5',
-            trend: 'up' as const,
+            trend: 'neutral' as const,
             change_percentage: 0,
           },
         ],
@@ -715,7 +727,10 @@ class ScheduleService {
     return this.request<ScheduleItem>('/schedules', 'POST', data);
   }
 
-  async updateSchedule(id: string, data: Partial<ScheduleItem>): Promise<ApiResponse<ScheduleItem>> {
+  async updateSchedule(
+    id: string,
+    data: Partial<ScheduleItem>
+  ): Promise<ApiResponse<ScheduleItem>> {
     return this.request<ScheduleItem>(`/schedules/${id}`, 'PUT', data);
   }
 
@@ -756,7 +771,9 @@ class ScheduleService {
     if (endDate) params.append('end_date', endDate);
     if (viewMode) params.append('viewMode', viewMode);
 
-    const response = await this.request<{ schedules: Schedule[] }>(`/trainers/user/${trainerId}/schedule?${params}`);
+    const response = await this.request<{ schedules: Schedule[] }>(
+      `/trainers/user/${trainerId}/schedule?${params}`
+    );
     // Backend returns { success: true, data: { schedules: [...] } }
     if (response.success && response.data?.schedules) {
       return {
@@ -764,7 +781,12 @@ class ScheduleService {
         data: response.data.schedules,
       };
     }
-    return response as ApiResponse<Schedule[]>;
+    // Return empty array if no schedules found
+    return {
+      success: response.success,
+      message: response.message || 'No schedules found',
+      data: [],
+    };
   }
 
   // Booking APIs
@@ -817,7 +839,9 @@ class ScheduleService {
     if (date) params.append('date', date);
     if (viewMode) params.append('viewMode', viewMode);
 
-    const response = await this.request<{ schedules: ScheduleItem[] }>(`/trainers/user/${userData.id}/schedule?${params}`);
+    const response = await this.request<{ schedules: ScheduleItem[] }>(
+      `/trainers/user/${userData.id}/schedule?${params}`
+    );
     // Backend returns { success: true, data: { schedules: [...] } }
     if (response.success && response.data?.schedules) {
       return {
@@ -825,7 +849,12 @@ class ScheduleService {
         data: response.data.schedules,
       };
     }
-    return response as ApiResponse<ScheduleItem[]>;
+    // Return empty array if no schedules found
+    return {
+      success: response.success,
+      message: response.message || 'No schedules found',
+      data: [],
+    };
   }
 
   async getTrainerAttendanceRecords(date?: string): Promise<ApiResponse<AttendanceRecord[]>> {
@@ -838,7 +867,19 @@ class ScheduleService {
     const params = new URLSearchParams();
     if (date) params.append('date', date);
 
-    return this.request<AttendanceRecord[]>(`/trainers/user/${userData.id}/attendance?${params}`);
+    const response = await this.request<any>(`/trainers/user/${userData.id}/attendance?${params}`);
+
+    // Handle nested response structure
+    if (response.success && response.data) {
+      if (response.data.attendanceRecords) {
+        return {
+          ...response,
+          data: response.data.attendanceRecords,
+        };
+      }
+    }
+
+    return response;
   }
 
   async getTrainerBookingsList(date?: string): Promise<ApiResponse<BookingRecord[]>> {
@@ -932,19 +973,7 @@ class ScheduleService {
     return this.request<any>(`/schedules/check-conflict?${params}`);
   }
 
-  // Check-in/Check-out methods
-  async enableCheckIn(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/enable`, 'POST', {
-      trainer_id: trainerId,
-    });
-  }
-
-  async disableCheckIn(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/disable`, 'POST', {
-      trainer_id: trainerId,
-    });
-  }
-
+  // Member check-in/check-out methods (for mobile app)
   async memberCheckIn(scheduleId: string, memberId: string): Promise<ApiResponse<any>> {
     return this.request<any>(`/attendance/schedules/${scheduleId}/attendance/check-in`, 'POST', {
       member_id: memberId,
@@ -955,40 +984,6 @@ class ScheduleService {
     return this.request<any>(`/attendance/schedules/${scheduleId}/attendance/check-out`, 'POST', {
       member_id: memberId,
     });
-  }
-
-  async trainerCheckInMember(
-    scheduleId: string,
-    memberId: string,
-    trainerId: string
-  ): Promise<ApiResponse<any>> {
-    return this.request<any>(
-      `/attendance/schedules/${scheduleId}/attendance/${memberId}/check-in`,
-      'POST',
-      { trainer_id: trainerId }
-    );
-  }
-
-  async trainerCheckOutMember(
-    scheduleId: string,
-    memberId: string,
-    trainerId: string
-  ): Promise<ApiResponse<any>> {
-    return this.request<any>(
-      `/attendance/schedules/${scheduleId}/attendance/${memberId}/check-out`,
-      'POST',
-      { trainer_id: trainerId }
-    );
-  }
-
-  async trainerCheckOutAll(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/attendance/schedules/${scheduleId}/attendance/checkout-all`, 'POST', {
-      trainer_id: trainerId,
-    });
-  }
-
-  async getCheckInStatus(scheduleId: string): Promise<ApiResponse<any>> {
-    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/status`);
   }
 
   // Notification methods
@@ -1014,7 +1009,10 @@ class ScheduleService {
   /**
    * Reset rate limit for a specific user (Admin only)
    */
-  async resetUserRateLimit(userId: string, operation?: string): Promise<ApiResponse<{ reset: boolean }>> {
+  async resetUserRateLimit(
+    userId: string,
+    operation?: string
+  ): Promise<ApiResponse<{ reset: boolean }>> {
     return this.request<{ reset: boolean }>(`/admin/rate-limits/reset/${userId}`, 'POST', {
       operation: operation || 'create_schedule',
     });
@@ -1069,20 +1067,19 @@ class ScheduleService {
     return this.request<void>(`/classes/${id}`, 'DELETE');
   }
 
-  async getClassAttendanceData(filters?: {
-    from?: string;
-    to?: string;
-  }): Promise<ApiResponse<{
-    classNames: string[];
-    attendance: number[][];
-    dates?: string[];
-  }>> {
+  async getClassAttendanceData(filters?: { from?: string; to?: string }): Promise<
+    ApiResponse<{
+      classNames: string[];
+      attendance: number[][];
+      dates?: string[];
+    }>
+  > {
     const params = new URLSearchParams();
     if (filters?.from) params.append('from', filters.from);
     if (filters?.to) params.append('to', filters.to);
 
     const response = await this.request<any>(`/analytics/class-attendance?${params}`);
-    
+
     // Transform response data to chart format
     if (response.success && response.data) {
       return {
@@ -1094,8 +1091,199 @@ class ScheduleService {
         },
       };
     }
-    
+
     return response;
+  }
+
+  // Attendance Management Methods
+  /**
+   * Enable check-in for a schedule
+   */
+  async enableCheckIn(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/enable`, 'POST', {
+      trainer_id: trainerId,
+    });
+  }
+
+  /**
+   * Disable check-in for a schedule
+   */
+  async disableCheckIn(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/disable`, 'POST', {
+      trainer_id: trainerId,
+    });
+  }
+
+  /**
+   * Trainer checks in a member
+   */
+  async trainerCheckInMember(
+    scheduleId: string,
+    memberId: string,
+    trainerId: string
+  ): Promise<ApiResponse<any>> {
+    return this.request<any>(
+      `/attendance/schedules/${scheduleId}/attendance/${memberId}/check-in`,
+      'POST',
+      {
+        trainer_id: trainerId,
+      }
+    );
+  }
+
+  /**
+   * Trainer checks out a member
+   */
+  async trainerCheckOutMember(
+    scheduleId: string,
+    memberId: string,
+    trainerId: string
+  ): Promise<ApiResponse<any>> {
+    return this.request<any>(
+      `/attendance/schedules/${scheduleId}/attendance/${memberId}/check-out`,
+      'POST',
+      {
+        trainer_id: trainerId,
+      }
+    );
+  }
+
+  /**
+   * Trainer checks out all members
+   */
+  async trainerCheckOutAll(scheduleId: string, trainerId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(
+      `/attendance/schedules/${scheduleId}/attendance/checkout-all`,
+      'POST',
+      {
+        trainer_id: trainerId,
+      }
+    );
+  }
+
+  /**
+   * Get check-in status for a schedule
+   */
+  async getCheckInStatus(scheduleId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/attendance/schedules/${scheduleId}/check-in/status`);
+  }
+
+  /**
+   * Confirm waitlist booking (promote from waitlist)
+   */
+  async confirmWaitlistBooking(bookingId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/bookings/${bookingId}/promote`, 'POST');
+  }
+
+  /**
+   * Get booking by ID
+   */
+  async getBookingById(bookingId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/bookings/${bookingId}`);
+  }
+
+  /**
+   * Reply to a review
+   */
+  async replyToReview(attendanceId: string, replyMessage: string): Promise<ApiResponse<any>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return this.request<any>(`/trainers/user/${user.id}/reviews/${attendanceId}/reply`, 'POST', {
+      reply_message: replyMessage,
+    });
+  }
+
+  /**
+   * Report a review
+   */
+  async reportReview(
+    attendanceId: string,
+    reason: string,
+    additionalNotes?: string
+  ): Promise<ApiResponse<any>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return this.request<any>(`/trainers/user/${user.id}/reviews/${attendanceId}/report`, 'POST', {
+      reason,
+      additional_notes: additionalNotes,
+    });
+  }
+
+  /**
+   * Reply to a feedback
+   */
+  async replyToFeedback(feedbackId: string, replyMessage: string): Promise<ApiResponse<any>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    // Feedbacks are also stored in Attendance, so we use the same endpoint
+    return this.request<any>(`/trainers/user/${user.id}/reviews/${feedbackId}/reply`, 'POST', {
+      reply_message: replyMessage,
+    });
+  }
+
+  /**
+   * Get trainer stats for comparison
+   */
+  async getTrainerStatsForComparison(userId: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/trainers/user/${userId}/stats`);
+  }
+
+  /**
+   * Create a new performance goal
+   */
+  async createGoal(goalData: {
+    title: string;
+    description: string;
+    target_value: number;
+    unit: string;
+    deadline: string;
+  }): Promise<ApiResponse<PerformanceGoal>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return this.request<PerformanceGoal>(`/trainers/user/${user.id}/goals`, 'POST', goalData);
+  }
+
+  /**
+   * Update a performance goal
+   */
+  async updateGoal(
+    goalId: string,
+    goalData: {
+      title?: string;
+      description?: string;
+      target_value?: number;
+      unit?: string;
+      deadline?: string;
+    }
+  ): Promise<ApiResponse<PerformanceGoal>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return this.request<PerformanceGoal>(
+      `/trainers/user/${user.id}/goals/${goalId}`,
+      'PUT',
+      goalData
+    );
+  }
+
+  /**
+   * Delete a performance goal
+   */
+  async deleteGoal(goalId: string): Promise<ApiResponse<void>> {
+    const user = getCurrentUser();
+    if (!user?.id) {
+      throw new Error('User not authenticated');
+    }
+    return this.request<void>(`/trainers/user/${user.id}/goals/${goalId}`, 'DELETE');
   }
 }
 

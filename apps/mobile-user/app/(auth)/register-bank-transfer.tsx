@@ -74,7 +74,18 @@ const RegisterBankTransferScreen = () => {
     try {
       setIsLoading(true);
       const response = await paymentService.getBankTransfer(paymentId);
-      setBankTransfer(response);
+      console.log('[BANK] Bank transfer response:', response);
+
+      // Handle response structure: { success: true, data: bankTransfer }
+      if (response.success && response.data) {
+        setBankTransfer(response.data);
+      } else if (response.data) {
+        // Fallback: if response.data exists directly
+        setBankTransfer(response.data);
+      } else {
+        // Last fallback: use response itself if it's already the data
+        setBankTransfer(response);
+      }
     } catch (error: any) {
       console.error('Error loading bank transfer:', error);
       Alert.alert(t('common.error'), t('payment.loadError'));
@@ -87,39 +98,71 @@ const RegisterBankTransferScreen = () => {
     try {
       if (!silent) setIsVerifying(true);
 
-      console.log('🔍 Verifying bank transfer...', { bankTransferId, silent });
+      console.log('[SEARCH] Verifying bank transfer...', {
+        bankTransferId,
+        silent,
+      });
       const response = await paymentService.verifyBankTransfer(bankTransferId);
-      console.log('📥 Verify response:', response);
+      console.log('[RESPONSE] Verify response:', response);
+
+      // Handle response structure: { success: true, data: { status, payment: {...} } }
+      const responseData = response.data || response;
+      const status =
+        responseData?.status || (responseData as any)?.data?.status;
+      const paymentStatus =
+        responseData?.payment?.status ||
+        (responseData as any)?.data?.payment?.status;
+      const checking = (responseData as any)?.checking || false;
 
       // Check if transfer is verified (status = VERIFIED or COMPLETED)
-      const isVerifiedStatus =
-        response.status === 'VERIFIED' || response.status === 'COMPLETED';
-      const isPaymentCompleted = response.payment?.status === 'COMPLETED';
+      const isVerifiedStatus = status === 'VERIFIED' || status === 'COMPLETED';
+      const isPaymentCompleted = paymentStatus === 'COMPLETED';
 
-      if (isVerifiedStatus || isPaymentCompleted) {
+      console.log('[CHECK] Verification status:', {
+        status,
+        paymentStatus,
+        isVerifiedStatus,
+        isPaymentCompleted,
+        responseSuccess: response.success,
+        checking,
+      });
+
+      if (
+        isVerifiedStatus ||
+        isPaymentCompleted ||
+        (response.success && status === 'VERIFIED')
+      ) {
         // Payment verified!
-        console.log('✅ Payment verified successfully! Redirecting...');
+        console.log('[SUCCESS] Payment verified successfully! Redirecting...');
         setIsVerified(true);
 
         // Small delay to ensure state updates
         setTimeout(() => {
-          console.log('🚀 Navigating to profile screen...');
-          router.replace({
+          console.log('[NAV] Navigating to profile screen...');
+          console.log('[NAV] Current params:', params);
+          console.log('[NAV] Navigation params:', {
+            ...params,
+            paymentVerified: 'true',
+          });
+
+          // Use router.push instead of router.replace for better reliability
+          router.push({
             pathname: '/(auth)/register-profile',
             params: {
               ...params,
               paymentVerified: 'true',
             },
           });
+          console.log('[NAV] Navigation command sent');
         }, 100);
-      } else if (!silent && (response.success === false || response.checking)) {
-        console.log('⏳ Transfer not found yet');
+      } else if (!silent && (response.success === false || checking)) {
+        console.log('[WAIT] Transfer not found yet');
         Alert.alert(t('payment.checking'), t('payment.notFoundYet'));
       } else {
-        console.log('❌ Verification failed:', response);
+        console.log('[ERROR] Verification failed:', response);
       }
     } catch (error: any) {
-      console.error('❌ Error verifying transfer:', error);
+      console.error('[ERROR] Error verifying transfer:', error);
       if (!silent) {
         Alert.alert(t('common.error'), t('payment.verifyError'));
       }
@@ -363,7 +406,7 @@ const RegisterBankTransferScreen = () => {
           </Text>
           <View style={themedStyles.warningBox}>
             <Text style={themedStyles.warningText}>
-              ⚠️ {t('payment.exactAmountWarning')}
+              [WARNING] {t('payment.exactAmountWarning')}
             </Text>
           </View>
         </View>
@@ -465,7 +508,7 @@ const RegisterBankTransferScreen = () => {
 
           <View style={themedStyles.warningBox}>
             <Text style={themedStyles.warningText}>
-              ⚠️ {t('payment.contentWarning')}
+              [WARNING] {t('payment.contentWarning')}
             </Text>
           </View>
         </View>

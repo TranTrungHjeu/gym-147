@@ -321,6 +321,58 @@ class SecurityController {
   }
 
   /**
+   * Get 2FA status
+   */
+  async get2FAStatus(req, res) {
+    try {
+      const userId = req.user.id;
+
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          two_factor_enabled: true,
+          two_factor_secret: true,
+          email: true,
+        },
+      });
+
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // Build response data
+      const responseData = {
+        enabled: user.two_factor_enabled,
+      };
+
+      // If 2FA is not enabled but secret exists, it means setup is pending
+      if (!user.two_factor_enabled && user.two_factor_secret) {
+        const secretKey = `otpauth://totp/Gym147:${user.email}?secret=${user.two_factor_secret}&issuer=Gym147`;
+        responseData.secret = user.two_factor_secret;
+        responseData.qrCodeUrl = secretKey;
+      }
+
+      res.json({
+        success: true,
+        message: '2FA status retrieved successfully',
+        data: responseData,
+      });
+    } catch (error) {
+      console.error('Get 2FA status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Disable 2FA
    */
   async disable2FA(req, res) {

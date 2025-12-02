@@ -19,13 +19,13 @@ class CacheService {
     try {
       // Redis URL from environment or default
       const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      
+
       this.client = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
-              console.error('❌ Redis: Max reconnection attempts reached');
+              console.error('[ERROR] Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -33,30 +33,30 @@ class CacheService {
         },
       });
 
-      this.client.on('error', (err) => {
-        console.error('❌ Redis Client Error:', err);
+      this.client.on('error', err => {
+        console.error('[ERROR] Redis Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
-        console.log('🔄 Redis: Connecting...');
+        console.log('[SYNC] Redis: Connecting...');
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Redis: Connected and ready');
+        console.log('[SUCCESS] Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Redis: Connection closed');
+        console.log('[SOCKET] Redis: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis:', error.message);
-      console.log('⚠️ Cache service will run in fallback mode (no caching)');
+      console.error('[ERROR] Failed to initialize Redis:', error.message);
+      console.log('[WARNING] Cache service will run in fallback mode (no caching)');
       this.isConnected = false;
     }
   }
@@ -69,7 +69,7 @@ class CacheService {
    */
   generateRecommendationKey(memberId, params = {}) {
     const keyParts = ['recommendations', memberId];
-    
+
     if (Object.keys(params).length > 0) {
       const paramString = Object.entries(params)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -77,7 +77,28 @@ class CacheService {
         .join('|');
       keyParts.push(paramString);
     }
-    
+
+    return keyParts.join(':');
+  }
+
+  /**
+   * Generate cache key with prefix and optional parameters
+   * @param {string} prefix - Key prefix (e.g., 'trainer:schedules', 'class')
+   * @param {string} id - Entity ID
+   * @param {Object} params - Additional parameters
+   * @returns {string} - Cache key
+   */
+  generateKey(prefix, id, params = {}) {
+    const keyParts = [prefix, id];
+
+    if (Object.keys(params).length > 0) {
+      const paramString = Object.entries(params)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}:${v}`)
+        .join('|');
+      keyParts.push(paramString);
+    }
+
     return keyParts.join(':');
   }
 
@@ -98,7 +119,7 @@ class CacheService {
       }
       return null;
     } catch (error) {
-      console.error(`❌ Redis GET error for key ${key}:`, error.message);
+      console.error(`[ERROR] Redis GET error for key ${key}:`, error.message);
       return null;
     }
   }
@@ -118,11 +139,11 @@ class CacheService {
     try {
       const serialized = JSON.stringify(value);
       const expireTime = ttl || this.defaultTTL;
-      
+
       await this.client.setEx(key, expireTime, serialized);
       return true;
     } catch (error) {
-      console.error(`❌ Redis SET error for key ${key}:`, error.message);
+      console.error(`[ERROR] Redis SET error for key ${key}:`, error.message);
       return false;
     }
   }
@@ -141,7 +162,7 @@ class CacheService {
       await this.client.del(key);
       return true;
     } catch (error) {
-      console.error(`❌ Redis DELETE error for key ${key}:`, error.message);
+      console.error(`[ERROR] Redis DELETE error for key ${key}:`, error.message);
       return false;
     }
   }
@@ -160,15 +181,15 @@ class CacheService {
       // Use pattern matching to find all recommendation keys for this member
       const pattern = `recommendations:${memberId}:*`;
       const keys = await this.client.keys(pattern);
-      
+
       if (keys.length > 0) {
         await this.client.del(keys);
-        console.log(`🗑️ Invalidated ${keys.length} cache entries for member ${memberId}`);
+        console.log(`[DELETE] Invalidated ${keys.length} cache entries for member ${memberId}`);
       }
-      
+
       return true;
     } catch (error) {
-      console.error(`❌ Redis INVALIDATE error for member ${memberId}:`, error.message);
+      console.error(`[ERROR] Redis INVALIDATE error for member ${memberId}:`, error.message);
       return false;
     }
   }
@@ -196,10 +217,3 @@ class CacheService {
 const cacheService = new CacheService();
 
 module.exports = cacheService;
-
-
-
-
-
-
-

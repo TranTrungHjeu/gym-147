@@ -83,7 +83,7 @@
       }
 
       .card.invalid::before {
-        content: '❌ TEST ERROR';
+        content: '[ERROR] TEST ERROR';
         position: absolute;
         top: -15px;
         left: 50%;
@@ -247,7 +247,7 @@
   </head>
   <body>
     <div class="header">
-      <h1>🏋️ GYM ACCESS QR CODE TEST SUITE</h1>
+      <h1>[GYM] GYM ACCESS QR CODE TEST SUITE</h1>
       <p>Complete Test Cases for Gym Check-In/Out System</p>
     </div>
 
@@ -392,7 +392,7 @@
     </div>
 
     <div class="instructions">
-      <h2>📱 How to Test</h2>
+      <h2>[MOBILE] How to Test</h2>
       <ol>
         <li>Open <strong>Gym147</strong> app on your phone</li>
         <li>Login with your account</li>
@@ -401,7 +401,7 @@
           Scan <strong>Main Entrance QR</strong> to
           <strong>CHECK IN</strong>
         </li>
-        <li>You should see: <strong>"Welcome to the gym! 💪"</strong></li>
+        <li>You should see: <strong>"Welcome to the gym! [STRENGTH]"</strong></li>
         <li>Scan <strong>any QR</strong> again to <strong>CHECK OUT</strong></li>
         <li>
           You should see:
@@ -416,29 +416,29 @@
           <li>
             <strong>Scenario 1 - Normal Flow:</strong>
             <ul>
-              <li>Scan Main Entrance → Check In ✅</li>
-              <li>Scan Main Entrance again → Check Out ✅</li>
+              <li>Scan Main Entrance → Check In [SUCCESS]</li>
+              <li>Scan Main Entrance again → Check Out [SUCCESS]</li>
             </ul>
           </li>
           <li>
             <strong>Scenario 2 - Multiple Gates:</strong>
             <ul>
-              <li>Scan Main Entrance → Check In ✅</li>
-              <li>Scan Side Gate → Check Out ✅ (different gate)</li>
+              <li>Scan Main Entrance → Check In [SUCCESS]</li>
+              <li>Scan Side Gate → Check Out [SUCCESS] (different gate)</li>
             </ul>
           </li>
           <li>
             <strong>Scenario 3 - VIP Access:</strong>
             <ul>
-              <li>Scan VIP Entrance → Check In ✅</li>
-              <li>Scan Emergency Exit → Check Out ✅</li>
+              <li>Scan VIP Entrance → Check In [SUCCESS]</li>
+              <li>Scan Emergency Exit → Check Out [SUCCESS]</li>
             </ul>
           </li>
           <li>
             <strong>Scenario 4 - Error Handling:</strong>
             <ul>
-              <li>Scan Invalid QR → Error ❌ "Invalid gym access QR code"</li>
-              <li>Scan twice without logout → Error ❌ "Already has active session"</li>
+              <li>Scan Invalid QR → Error [ERROR] "Invalid gym access QR code"</li>
+              <li>Scan twice without logout → Error [ERROR] "Already has active session"</li>
             </ul>
           </li>
           <li>
@@ -446,7 +446,7 @@
             <ul>
               <li>Check In at 10:00 AM</li>
               <li>Check Out at 12:30 PM</li>
-              <li>Duration: 150 minutes ⏱️</li>
+              <li>Duration: 150 minutes [TIMER]</li>
               <li>Calories: ~1,125 kcal (7.5 cal/min) 🔥</li>
             </ul>
           </li>
@@ -501,9 +501,9 @@
         });
       });
 
-      console.log('🏋️ Gym Access QR Test Suite Ready!');
-      console.log('📱 Scan any QR code with your Gym147 app');
-      console.log('✅ Generated ' + qrConfigs.length + ' test QR codes');
+      console.log('[GYM] Gym Access QR Test Suite Ready!');
+      console.log('[MOBILE] Scan any QR code with your Gym147 app');
+      console.log('[SUCCESS] Generated ' + qrConfigs.length + ' test QR codes');
       console.log('\nTest QR Codes:');
       qrConfigs.forEach((config, index) => {
         console.log(`${index + 1}. ${config.data} (${config.color})`);

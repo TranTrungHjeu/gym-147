@@ -184,7 +184,7 @@ export default function PaymentHistoryScreen() {
       case 'COMPLETED':
         return '✓';
       case 'PENDING':
-        return '⏳';
+        return '[WAIT]';
       case 'FAILED':
         return '✗';
       case 'CANCELLED':

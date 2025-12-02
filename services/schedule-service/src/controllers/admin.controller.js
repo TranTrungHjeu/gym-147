@@ -548,21 +548,33 @@ class AdminController {
       // Get schedules with attendance in the date range
       const schedules = await prisma.schedule.findMany({
         where: {
-          date: {
+          start_time: {
             gte: startDate,
             lte: endDate,
           },
         },
-        include: {
-          gym_class: true,
+        select: {
+          id: true,
+          start_time: true,
+          class_id: true,
+          gym_class: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
           attendance: {
             where: {
               checked_in_at: { not: null },
             },
+            select: {
+              id: true,
+              checked_in_at: true,
+            },
           },
         },
         orderBy: {
-          date: 'asc',
+          start_time: 'asc',
         },
       });
 
@@ -578,10 +590,10 @@ class AdminController {
       });
 
       schedules.forEach(schedule => {
-        const dateKey = schedule.date.toISOString().split('T')[0];
+        const dateKey = schedule.start_time.toISOString().split('T')[0];
         dateSet.add(dateKey);
 
-        const classId = schedule.gym_class_id;
+        const classId = schedule.class_id;
         if (!attendanceByClass[classId]) {
           attendanceByClass[classId] = {
             className: schedule.gym_class?.name || 'Unknown',
@@ -669,7 +681,7 @@ class AdminController {
         member_email,
       } = req.body;
 
-      console.log('📢 [SUBSCRIPTION_PAYMENT] Received subscription payment success notification:', {
+      console.log('[NOTIFY] [SUBSCRIPTION_PAYMENT] Received subscription payment success notification:', {
         payment_id,
         member_id,
         user_id,
@@ -692,7 +704,7 @@ class AdminController {
       const admins = await notificationService.getAdminsAndSuperAdmins();
 
       if (admins.length === 0) {
-        console.log('⚠️ [SUBSCRIPTION_PAYMENT] No admins found to notify');
+        console.log('[WARNING] [SUBSCRIPTION_PAYMENT] No admins found to notify');
         return res.json({
           success: true,
           message: 'No admins found to notify',
@@ -701,7 +713,7 @@ class AdminController {
       }
 
       console.log(
-        `📋 [SUBSCRIPTION_PAYMENT] Found ${admins.length} admin/super-admin users to notify`
+        `[LIST] [SUBSCRIPTION_PAYMENT] Found ${admins.length} admin/super-admin users to notify`
       );
 
       // Format amount for display
@@ -763,20 +775,20 @@ class AdminController {
             }
           } catch (error) {
             console.error(
-              `❌ [SUBSCRIPTION_PAYMENT] Failed to create notification for user ${notificationData.user_id}:`,
+              `[ERROR] [SUBSCRIPTION_PAYMENT] Failed to create notification for user ${notificationData.user_id}:`,
               error.message
             );
           }
         }
 
         console.log(
-          `✅ [SUBSCRIPTION_PAYMENT] Created ${createdNotifications.length} notifications in identity service`
+          `[SUCCESS] [SUBSCRIPTION_PAYMENT] Created ${createdNotifications.length} notifications in identity service`
         );
 
         // Emit socket events to all admins
         if (global.io) {
           console.log(
-            `📡 [SUBSCRIPTION_PAYMENT] Emitting socket events to ${createdNotifications.length} admin(s)...`
+            `[EMIT] [SUBSCRIPTION_PAYMENT] Emitting socket events to ${createdNotifications.length} admin(s)...`
           );
           createdNotifications.forEach(notification => {
             const roomName = `user:${notification.user_id}`;
@@ -799,7 +811,7 @@ class AdminController {
 
             global.io.to(roomName).emit('subscription:payment:success', socketPayload);
             console.log(
-              `✅ [SUBSCRIPTION_PAYMENT] Socket event subscription:payment:success emitted to ${roomName}`
+              `[SUCCESS] [SUBSCRIPTION_PAYMENT] Socket event subscription:payment:success emitted to ${roomName}`
             );
 
             // Also emit general notification:new event for compatibility
@@ -813,10 +825,10 @@ class AdminController {
               is_read: false,
             });
           });
-          console.log(`✅ [SUBSCRIPTION_PAYMENT] All socket events emitted successfully to admins`);
+          console.log(`[SUCCESS] [SUBSCRIPTION_PAYMENT] All socket events emitted successfully to admins`);
         } else {
           console.warn(
-            '⚠️ [SUBSCRIPTION_PAYMENT] global.io not available - notifications saved to database only'
+            '[WARNING] [SUBSCRIPTION_PAYMENT] global.io not available - notifications saved to database only'
           );
         }
       }
@@ -831,7 +843,7 @@ class AdminController {
       });
     } catch (error) {
       console.error(
-        '❌ [SUBSCRIPTION_PAYMENT] Error handling subscription payment success notification:',
+        '[ERROR] [SUBSCRIPTION_PAYMENT] Error handling subscription payment success notification:',
         error
       );
       res.status(500).json({

@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const streakService = require('../services/streak.service.js');
 const challengeService = require('../services/challenge.service.js');
 
@@ -184,7 +184,7 @@ class SessionController {
         },
       });
 
-      console.log('✅ Gym session created:', {
+      console.log('[SUCCESS] Gym session created:', {
         sessionId: session.id,
         memberId: session.member_id,
         entry_time: session.entry_time,
@@ -254,7 +254,7 @@ class SessionController {
       const exitTime = new Date();
       const duration = Math.floor((exitTime - activeSession.entry_time) / (1000 * 60)); // minutes
 
-      console.log('🔍 Looking for equipment usage in session:', {
+      console.log('[SEARCH] Looking for equipment usage in session:', {
         sessionId: activeSession.id,
         memberId,
         entry_time: activeSession.entry_time,
@@ -285,7 +285,7 @@ class SessionController {
         },
       });
 
-      console.log('📋 Found equipment usages:', {
+      console.log('[LIST] Found equipment usages:', {
         count: equipmentUsages.length,
         usages: equipmentUsages.map(u => ({
           id: u.id,
@@ -341,7 +341,7 @@ class SessionController {
       // Use generated notes if mobile app didn't provide custom notes
       const finalNotes = notes || generatedNotes;
 
-      console.log('📝 Session notes:', {
+      console.log('[PROCESS] Session notes:', {
         fromMobileApp: !!notes,
         generated: !notes,
         finalNotes: finalNotes.substring(0, 100) + '...',
@@ -360,7 +360,7 @@ class SessionController {
         },
       });
 
-      // ✅ Fix: Auto-update FITNESS challenges with total calories from session (async, don't wait)
+      // [SUCCESS] Fix: Auto-update FITNESS challenges with total calories from session (async, don't wait)
       if (calories_burned > 0) {
         challengeService
           .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
@@ -542,7 +542,7 @@ class SessionController {
             COUNT(*) as sessions,
             AVG(duration) as avg_duration,
             SUM(calories_burned) as total_calories
-          FROM gym_sessions 
+          FROM member_schema.gym_sessions 
           WHERE entry_time >= ${startDate}
           GROUP BY DATE(entry_time)
           ORDER BY date DESC
@@ -578,7 +578,7 @@ class SessionController {
       const { id: memberId } = req.params; // Must be Member.id (not user_id)
       const { period = 'week' } = req.query;
 
-      console.log('🔍 getCaloriesData called with:', { memberId, period });
+      console.log('[SEARCH] getCaloriesData called with:', { memberId, period });
 
       if (!memberId) {
         return res.status(400).json({
@@ -694,7 +694,7 @@ class SessionController {
       const { id: memberId } = req.params;
       const { period = 'week' } = req.query;
 
-      console.log('🔍 getWorkoutFrequency called with:', { memberId, period });
+      console.log('[SEARCH] getWorkoutFrequency called with:', { memberId, period });
 
       if (!memberId) {
         return res.status(400).json({
@@ -750,7 +750,7 @@ class SessionController {
         },
       });
 
-      console.log(`📊 Found ${sessions.length} sessions for member ${memberId}`);
+      console.log(`[STATS] Found ${sessions.length} sessions for member ${memberId}`);
 
       // Group sessions by period
       const frequencyMap = {};
@@ -782,7 +782,7 @@ class SessionController {
       // Build data array matching labels
       const data = labels.map(label => frequencyMap[label] || 0);
 
-      console.log('📊 Workout frequency data:', { labels, data });
+      console.log('[STATS] Workout frequency data:', { labels, data });
 
       res.json({
         success: true,

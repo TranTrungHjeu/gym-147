@@ -16,10 +16,10 @@ function logTestData(data, title) {
 }
 
 async function main() {
-  console.log('🚀 Bắt đầu tạo seed data cho Billing Service...');
+  console.log('[START] Bắt đầu tạo seed data cho Billing Service...');
 
   // Xóa dữ liệu cũ theo đúng thứ tự (foreign key constraints)
-  console.log('🗑️  Xóa dữ liệu cũ...');
+  console.log('[DELETE]  Xóa dữ liệu cũ...');
   await prisma.discountUsage.deleteMany();
   await prisma.invoice.deleteMany();
   await prisma.payment.deleteMany();
@@ -28,10 +28,10 @@ async function main() {
   await prisma.planAddon.deleteMany();
   await prisma.memberPaymentMethod.deleteMany();
   await prisma.membershipPlan.deleteMany();
-  console.log('✅ Đã xóa dữ liệu cũ');
+  console.log('[SUCCESS] Đã xóa dữ liệu cũ');
 
   // 1. Tạo 4 gói thành viên chính: BASIC, PREMIUM, VIP, STUDENT
-  console.log('\n💎 Tạo gói thành viên...');
+  console.log('\n[DIAMOND] Tạo gói thành viên...');
   const basicPlan = await prisma.membershipPlan.create({
     data: {
       name: 'Gói Basic',
@@ -157,7 +157,7 @@ async function main() {
   });
 
   const plans = [basicPlan, premiumPlan, vipPlan, studentPlan];
-  console.log(`✅ Đã tạo ${plans.length} gói thành viên`);
+  console.log(`[SUCCESS] Đã tạo ${plans.length} gói thành viên`);
 
   logTestData(
     plans.map(p => ({
@@ -396,7 +396,7 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${discountCodes.length} mã giảm giá`);
+  console.log(`[SUCCESS] Đã tạo ${discountCodes.length} mã giảm giá`);
 
   logTestData(
     discountCodes.map(dc => ({
@@ -418,27 +418,48 @@ async function main() {
   console.log('\n💰 Tạo test subscriptions...');
   const subscriptions = [];
 
-  // Member IDs từ Member Service seed data
+  // Member IDs từ Member Service seed data (đồng bộ với 12 members)
   const testMemberIds = [
     'member_001_nguyen_van_a',
     'member_002_tran_thi_b',
     'member_003_le_van_c',
     'member_004_pham_thi_d',
     'member_005_hoang_van_e',
+    'member_006_vo_thi_f',
+    'member_007_dang_van_g',
+    'member_008_bui_thi_h',
+    'member_009_ly_van_i',
+    'member_010_do_thi_j',
+    'member_011_nguyen_thi_k',
+    'member_012_tran_van_l',
   ];
 
-  // Test Case 1: ACTIVE subscription (PREMIUM)
+  // Ngày tháng gần đây
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const oneMonthAgo = new Date(today);
+  oneMonthAgo.setMonth(today.getMonth() - 1);
+  const oneMonthLater = new Date(today);
+  oneMonthLater.setMonth(today.getMonth() + 1);
+
+  console.log('[DATE] Sử dụng ngày từ:', oneMonthAgo.toISOString().split('T')[0], 'đến', oneMonthLater.toISOString().split('T')[0]);
+
+  // Test Case 1: ACTIVE subscription (PREMIUM) - member_001
+  const startDate1 = new Date(today);
+  startDate1.setDate(today.getDate() - 15); // 15 ngày trước
+  const endDate1 = new Date(startDate1);
+  endDate1.setMonth(endDate1.getMonth() + 1);
   subscriptions.push(
     await prisma.subscription.create({
       data: {
         member_id: testMemberIds[0],
         plan: { connect: { id: premiumPlan.id } },
         status: 'ACTIVE',
-        start_date: new Date('2024-10-01'),
-        end_date: new Date('2024-11-01'),
-        next_billing_date: new Date('2024-11-01'),
-        current_period_start: new Date('2024-10-01'),
-        current_period_end: new Date('2024-11-01'),
+        start_date: startDate1,
+        end_date: endDate1,
+        next_billing_date: endDate1,
+        current_period_start: startDate1,
+        current_period_end: endDate1,
         base_amount: 599000,
         discount_amount: 0,
         total_amount: 599000,
@@ -451,18 +472,22 @@ async function main() {
     })
   );
 
-  // Test Case 2: ACTIVE subscription với discount (BASIC + WELCOME20)
+  // Test Case 2: ACTIVE subscription với discount (BASIC + WELCOME20) - member_002
+  const startDate2 = new Date(today);
+  startDate2.setDate(today.getDate() - 10); // 10 ngày trước
+  const endDate2 = new Date(startDate2);
+  endDate2.setMonth(endDate2.getMonth() + 1);
   subscriptions.push(
     await prisma.subscription.create({
       data: {
         member_id: testMemberIds[1],
         plan: { connect: { id: basicPlan.id } },
         status: 'ACTIVE',
-        start_date: new Date('2024-10-15'),
-        end_date: new Date('2024-11-15'),
-        next_billing_date: new Date('2024-11-15'),
-        current_period_start: new Date('2024-10-15'),
-        current_period_end: new Date('2024-11-15'),
+        start_date: startDate2,
+        end_date: endDate2,
+        next_billing_date: endDate2,
+        current_period_start: startDate2,
+        current_period_end: endDate2,
         base_amount: 299000,
         discount_amount: 59800, // 20% discount
         total_amount: 239200,
@@ -475,18 +500,24 @@ async function main() {
     })
   );
 
-  // Test Case 3: TRIAL subscription (VIP)
+  // Test Case 3: TRIAL subscription (VIP) - member_003
+  const startDate3 = new Date(today);
+  startDate3.setDate(today.getDate() - 5); // 5 ngày trước
+  const trialEndDate3 = new Date(startDate3);
+  trialEndDate3.setDate(trialEndDate3.getDate() + 7); // 7 ngày trial
+  const endDate3 = new Date(startDate3);
+  endDate3.setMonth(endDate3.getMonth() + 1);
   subscriptions.push(
     await prisma.subscription.create({
       data: {
         member_id: testMemberIds[2],
         plan: { connect: { id: vipPlan.id } },
         status: 'TRIAL',
-        start_date: new Date('2024-10-20'),
-        end_date: new Date('2024-11-20'),
-        next_billing_date: new Date('2024-10-27'), // 7 days trial
-        current_period_start: new Date('2024-10-20'),
-        current_period_end: new Date('2024-10-27'),
+        start_date: startDate3,
+        end_date: endDate3,
+        next_billing_date: trialEndDate3, // 7 days trial
+        current_period_start: startDate3,
+        current_period_end: trialEndDate3,
         base_amount: 999000,
         discount_amount: 999000, // 100% free trial
         total_amount: 0,
@@ -494,30 +525,36 @@ async function main() {
         guest_passes_used: 0,
         pt_sessions_used: 0,
         is_trial: true,
-        trial_start: new Date('2024-10-20'),
-        trial_end: new Date('2024-10-27'),
+        trial_start: startDate3,
+        trial_end: trialEndDate3,
         auto_renew: true,
       },
     })
   );
 
-  // Test Case 4: CANCELLED subscription
+  // Test Case 4: CANCELLED subscription - member_004
+  const startDate4 = new Date(today);
+  startDate4.setDate(today.getDate() - 45); // 45 ngày trước
+  const endDate4 = new Date(startDate4);
+  endDate4.setMonth(endDate4.getMonth() + 1);
+  const cancelledAt4 = new Date(startDate4);
+  cancelledAt4.setDate(cancelledAt4.getDate() + 20); // Hủy sau 20 ngày
   subscriptions.push(
     await prisma.subscription.create({
       data: {
         member_id: testMemberIds[3],
         plan: { connect: { id: basicPlan.id } },
         status: 'CANCELLED',
-        start_date: new Date('2024-09-01'),
-        end_date: new Date('2024-10-01'),
-        next_billing_date: new Date('2024-10-01'), // Set to end date for cancelled
-        current_period_start: new Date('2024-09-01'),
-        current_period_end: new Date('2024-10-01'),
+        start_date: startDate4,
+        end_date: endDate4,
+        next_billing_date: endDate4,
+        current_period_start: startDate4,
+        current_period_end: endDate4,
         base_amount: 299000,
         total_amount: 299000,
         classes_used: 4,
         classes_remaining: 0,
-        cancelled_at: new Date('2024-09-25'),
+        cancelled_at: cancelledAt4,
         cancellation_reason: 'Chuyển nhà xa',
         cancelled_by: testMemberIds[3],
         auto_renew: false,
@@ -525,18 +562,22 @@ async function main() {
     })
   );
 
-  // Test Case 5: PAST_DUE subscription (failed payment)
+  // Test Case 5: PAST_DUE subscription (failed payment) - member_005
+  const startDate5 = new Date(today);
+  startDate5.setDate(today.getDate() - 20); // 20 ngày trước
+  const endDate5 = new Date(startDate5);
+  endDate5.setMonth(endDate5.getMonth() + 1);
   subscriptions.push(
     await prisma.subscription.create({
       data: {
         member_id: testMemberIds[4],
         plan: { connect: { id: studentPlan.id } },
         status: 'PAST_DUE',
-        start_date: new Date('2024-09-15'),
-        end_date: new Date('2024-10-15'),
-        next_billing_date: new Date('2024-10-15'),
-        current_period_start: new Date('2024-09-15'),
-        current_period_end: new Date('2024-10-15'),
+        start_date: startDate5,
+        end_date: endDate5,
+        next_billing_date: endDate5,
+        current_period_start: startDate5,
+        current_period_end: endDate5,
         base_amount: 199000,
         total_amount: 199000,
         failed_payments: 2,
@@ -545,13 +586,49 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${subscriptions.length} test subscriptions`);
+  // Test Case 6-12: ACTIVE subscriptions cho các members còn lại
+  const planTypes = [premiumPlan, vipPlan, basicPlan, studentPlan];
+  for (let i = 5; i < testMemberIds.length; i++) {
+    const startDate = new Date(today);
+    startDate.setDate(today.getDate() - (30 - i * 2)); // 20-10 ngày trước
+    const endDate = new Date(startDate);
+    endDate.setMonth(endDate.getMonth() + 1);
+    
+    const selectedPlan = planTypes[i % planTypes.length];
+    
+    subscriptions.push(
+      await prisma.subscription.create({
+        data: {
+          member_id: testMemberIds[i],
+          plan: { connect: { id: selectedPlan.id } },
+          status: 'ACTIVE',
+          start_date: startDate,
+          end_date: endDate,
+          next_billing_date: endDate,
+          current_period_start: startDate,
+          current_period_end: endDate,
+          base_amount: selectedPlan.price,
+          discount_amount: i % 3 === 0 ? Math.floor(selectedPlan.price * 0.1) : 0, // 10% discount cho một số
+          total_amount: selectedPlan.price - (i % 3 === 0 ? Math.floor(selectedPlan.price * 0.1) : 0),
+          classes_used: Math.floor(Math.random() * 10) + 1,
+          classes_remaining: selectedPlan.class_credits ? selectedPlan.class_credits - Math.floor(Math.random() * 3) : null,
+          guest_passes_used: Math.floor(Math.random() * selectedPlan.guest_passes),
+          pt_sessions_used: selectedPlan.personal_training_sessions > 0 ? Math.floor(Math.random() * selectedPlan.personal_training_sessions) : 0,
+          auto_renew: true,
+        },
+      })
+    );
+  }
+
+  console.log(`[SUCCESS] Đã tạo ${subscriptions.length} test subscriptions`);
 
   // ===== TEST DATA: PAYMENTS =====
-  console.log('\n💳 Tạo test payments...');
+  console.log('\n[PAYMENT] Tạo test payments...');
   const payments = [];
 
   // Payment 1: COMPLETED - VNPAY (cho subscription 1)
+  const paymentDate1 = new Date(subscriptions[0].start_date);
+  paymentDate1.setHours(10, 0, 0, 0);
   payments.push(
     await prisma.payment.create({
       data: {
@@ -566,12 +643,14 @@ async function main() {
         gateway_fee: 11980, // 2% fee
         net_amount: 587020,
         payment_type: 'SUBSCRIPTION',
-        processed_at: new Date('2024-10-01T10:00:00'),
+        processed_at: paymentDate1,
       },
     })
   );
 
   // Payment 2: COMPLETED - BANK_TRANSFER với discount (cho subscription 2)
+  const paymentDate2 = new Date(subscriptions[1].start_date);
+  paymentDate2.setHours(14, 30, 0, 0);
   payments.push(
     await prisma.payment.create({
       data: {
@@ -584,7 +663,7 @@ async function main() {
         payment_type: 'SUBSCRIPTION',
         net_amount: 239200,
         description: 'Thanh toán gói Basic với mã WELCOME20',
-        processed_at: new Date('2024-10-15T14:30:00'),
+        processed_at: paymentDate2,
       },
     })
   );
@@ -607,6 +686,8 @@ async function main() {
   );
 
   // Payment 4: FAILED (cho subscription 5 - PAST_DUE)
+  const failedDate = new Date(subscriptions[4].end_date);
+  failedDate.setHours(8, 0, 0, 0);
   payments.push(
     await prisma.payment.create({
       data: {
@@ -618,7 +699,7 @@ async function main() {
         payment_method: 'CREDIT_CARD',
         payment_type: 'SUBSCRIPTION',
         net_amount: 199000,
-        failed_at: new Date('2024-10-15T08:00:00'),
+        failed_at: failedDate,
         failure_reason: 'Thẻ hết hạn',
         retry_count: 2,
       },
@@ -638,41 +719,69 @@ async function main() {
       gateway: 'VNPAY',
       payment_type: 'SUBSCRIPTION',
       net_amount: 299000,
-      processed_at: new Date('2024-09-01T10:00:00'),
+      processed_at: new Date(subscriptions[3].start_date),
       refunded_amount: 149500, // Refund 50% (cancel giữa kỳ)
-      refunded_at: new Date('2024-09-25T15:00:00'),
+      refunded_at: new Date(subscriptions[3].cancelled_at),
       refund_reason: 'Hủy giữa kỳ',
     },
   });
   payments.push(refundedPayment);
 
-  console.log(`✅ Đã tạo ${payments.length} test payments`);
+  // Payments cho các subscriptions còn lại (6-12)
+  for (let i = 5; i < subscriptions.length; i++) {
+    const paymentDate = new Date(subscriptions[i].start_date);
+    paymentDate.setHours(9 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);
+    
+    payments.push(
+      await prisma.payment.create({
+        data: {
+          subscription_id: subscriptions[i].id,
+          member_id: testMemberIds[i],
+          amount: subscriptions[i].total_amount,
+          currency: 'VND',
+          status: 'COMPLETED',
+          payment_method: ['VNPAY', 'MOMO', 'BANK_TRANSFER', 'CREDIT_CARD'][Math.floor(Math.random() * 4)],
+          transaction_id: `TXN_${Date.now()}_${i}`,
+          gateway: ['VNPAY', 'MOMO', 'BANK', 'STRIPE'][Math.floor(Math.random() * 4)],
+          gateway_fee: Math.floor(subscriptions[i].total_amount * 0.02), // 2% fee
+          net_amount: subscriptions[i].total_amount - Math.floor(subscriptions[i].total_amount * 0.02),
+          payment_type: 'SUBSCRIPTION',
+          processed_at: paymentDate,
+        },
+      })
+    );
+  }
+
+  console.log(`[SUCCESS] Đã tạo ${payments.length} test payments`);
 
   // ===== TEST DATA: INVOICES =====
   console.log('\n🧾 Tạo test invoices...');
   const invoices = [];
 
   // Invoice 1: PAID (cho payment 1)
+  const invoiceDate1 = new Date(subscriptions[0].start_date);
+  const dueDate1 = new Date(invoiceDate1);
+  dueDate1.setDate(dueDate1.getDate() + 7);
   invoices.push(
     await prisma.invoice.create({
       data: {
         subscription_id: subscriptions[0].id,
         payment_id: payments[0].id,
         member_id: testMemberIds[0],
-        invoice_number: 'INV-2024-10-001',
+        invoice_number: `INV-${invoiceDate1.getFullYear()}-${String(invoiceDate1.getMonth() + 1).padStart(2, '0')}-001`,
         status: 'PAID',
         type: 'SUBSCRIPTION',
         subtotal: 599000,
         tax_amount: 0,
         discount_amount: 0,
         total_amount: 599000,
-        issued_date: new Date('2024-10-01'),
-        due_date: new Date('2024-10-08'),
-        paid_date: new Date('2024-10-01'),
+        issued_date: invoiceDate1,
+        due_date: dueDate1,
+        paid_date: invoiceDate1,
         line_items: {
           items: [
             {
-              description: 'Gói Premium - Tháng 10/2024',
+              description: `Gói Premium - Tháng ${invoiceDate1.getMonth() + 1}/${invoiceDate1.getFullYear()}`,
               quantity: 1,
               unit_price: 599000,
               total: 599000,
@@ -684,25 +793,28 @@ async function main() {
   );
 
   // Invoice 2: PAID với discount (cho payment 2)
+  const invoiceDate2 = new Date(subscriptions[1].start_date);
+  const dueDate2 = new Date(invoiceDate2);
+  dueDate2.setDate(dueDate2.getDate() + 7);
   invoices.push(
     await prisma.invoice.create({
       data: {
         subscription_id: subscriptions[1].id,
         payment_id: payments[1].id,
         member_id: testMemberIds[1],
-        invoice_number: 'INV-2024-10-002',
+        invoice_number: `INV-${invoiceDate2.getFullYear()}-${String(invoiceDate2.getMonth() + 1).padStart(2, '0')}-002`,
         status: 'PAID',
         type: 'SUBSCRIPTION',
         subtotal: 299000,
         discount_amount: 59800,
         total_amount: 239200,
-        issued_date: new Date('2024-10-15'),
-        due_date: new Date('2024-10-22'),
-        paid_date: new Date('2024-10-15'),
+        issued_date: invoiceDate2,
+        due_date: dueDate2,
+        paid_date: invoiceDate2,
         line_items: {
           items: [
             {
-              description: 'Gói Basic - Tháng 10/2024',
+              description: `Gói Basic - Tháng ${invoiceDate2.getMonth() + 1}/${invoiceDate2.getFullYear()}`,
               quantity: 1,
               unit_price: 299000,
               total: 299000,
@@ -720,23 +832,26 @@ async function main() {
   );
 
   // Invoice 3: OVERDUE (cho payment failed)
+  const invoiceDate3 = new Date(subscriptions[4].end_date);
+  invoiceDate3.setDate(invoiceDate3.getDate() - 7);
+  const dueDate3 = new Date(subscriptions[4].end_date);
   invoices.push(
     await prisma.invoice.create({
       data: {
         subscription_id: subscriptions[4].id,
         payment_id: payments[3].id,
         member_id: testMemberIds[4],
-        invoice_number: 'INV-2024-10-003',
+        invoice_number: `INV-${invoiceDate3.getFullYear()}-${String(invoiceDate3.getMonth() + 1).padStart(2, '0')}-003`,
         status: 'OVERDUE',
         type: 'SUBSCRIPTION',
         subtotal: 199000,
         total_amount: 199000,
-        issued_date: new Date('2024-10-08'),
-        due_date: new Date('2024-10-15'),
+        issued_date: invoiceDate3,
+        due_date: dueDate3,
         line_items: {
           items: [
             {
-              description: 'Gói Student - Tháng 10/2024',
+              description: `Gói Student - Tháng ${invoiceDate3.getMonth() + 1}/${invoiceDate3.getFullYear()}`,
               quantity: 1,
               unit_price: 199000,
               total: 199000,
@@ -747,10 +862,57 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${invoices.length} test invoices`);
+  // Invoices cho các subscriptions còn lại (6-12)
+  for (let i = 5; i < subscriptions.length; i++) {
+    const invoiceDate = new Date(subscriptions[i].start_date);
+    const dueDate = new Date(invoiceDate);
+    dueDate.setDate(dueDate.getDate() + 7);
+    
+    // Lấy plan type từ plan đã tạo
+    const planIndex = i % planTypes.length;
+    const planType = planTypes[planIndex].type;
+    const planName = planTypes[planIndex].name;
+    
+    invoices.push(
+      await prisma.invoice.create({
+        data: {
+          subscription_id: subscriptions[i].id,
+          payment_id: payments[i].id,
+          member_id: testMemberIds[i],
+          invoice_number: `INV-${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}-${String(i + 1).padStart(3, '0')}`,
+          status: 'PAID',
+          type: 'SUBSCRIPTION',
+          subtotal: subscriptions[i].base_amount,
+          discount_amount: subscriptions[i].discount_amount,
+          total_amount: subscriptions[i].total_amount,
+          issued_date: invoiceDate,
+          due_date: dueDate,
+          paid_date: invoiceDate,
+          line_items: {
+            items: [
+              {
+                description: `${planName} - Tháng ${invoiceDate.getMonth() + 1}/${invoiceDate.getFullYear()}`,
+                quantity: 1,
+                unit_price: subscriptions[i].base_amount,
+                total: subscriptions[i].base_amount,
+              },
+              ...(subscriptions[i].discount_amount > 0 ? [{
+                description: 'Discount',
+                quantity: 1,
+                unit_price: -subscriptions[i].discount_amount,
+                total: -subscriptions[i].discount_amount,
+              }] : []),
+            ],
+          },
+        },
+      })
+    );
+  }
+
+  console.log(`[SUCCESS] Đã tạo ${invoices.length} test invoices`);
 
   // ===== TEST DATA: DISCOUNT USAGE =====
-  console.log('\n🎁 Tạo discount usage history...');
+  console.log('\n[GIFT] Tạo discount usage history...');
   const discountUsages = [];
 
   // Usage 1: WELCOME20 được dùng bởi member 2
@@ -782,7 +944,7 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${discountUsages.length} discount usage records`);
+  console.log(`[SUCCESS] Đã tạo ${discountUsages.length} discount usage records`);
 
   // Update discount code usage counts
   await prisma.discountCode.update({
@@ -899,7 +1061,7 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${subscriptionHistories.length} subscription history records`);
+  console.log(`[SUCCESS] Đã tạo ${subscriptionHistories.length} subscription history records`);
 
   // ===== TEST DATA: MEMBER LIFETIME VALUE =====
   console.log('\n💰 Tạo member lifetime value...');
@@ -1010,10 +1172,10 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${memberLTVs.length} member lifetime value records`);
+  console.log(`[SUCCESS] Đã tạo ${memberLTVs.length} member lifetime value records`);
 
   // ===== TEST DATA: REVENUE REPORTS =====
-  console.log('\n📊 Tạo revenue reports...');
+  console.log('\n[STATS] Tạo revenue reports...');
   const revenueReports = [];
 
   // Report 1: 2024-09-01 (tháng 9)
@@ -1121,7 +1283,7 @@ async function main() {
     })
   );
 
-  console.log(`✅ Đã tạo ${revenueReports.length} revenue reports`);
+  console.log(`[SUCCESS] Đã tạo ${revenueReports.length} revenue reports`);
 
   // ===== SUMMARY STATS =====
   const totalRevenue = revenueReports.reduce((sum, r) => sum + Number(r.total_revenue), 0);
@@ -1157,23 +1319,23 @@ async function main() {
     'ANALYTICS SUMMARY'
   );
 
-  console.log('\n🎉 Hoàn thành seed data cho Billing Service!');
+  console.log('\n[CELEBRATE] Hoàn thành seed data cho Billing Service!');
   console.log('='.repeat(60));
 
-  console.log('\n📊 TỔNG QUAN DATA:');
-  console.log(`   ✅ ${plans.length} Gói thành viên`);
-  console.log(`   ✅ ${discountCodes.length} Mã giảm giá`);
-  console.log(`   ✅ ${subscriptions.length} Test subscriptions`);
-  console.log(`   ✅ ${payments.length} Test payments`);
-  console.log(`   ✅ ${invoices.length} Test invoices`);
-  console.log(`   ✅ ${discountUsages.length} Discount usage records`);
-  console.log(`   ✅ ${subscriptionHistories.length} Subscription history records`);
-  console.log(`   ✅ ${memberLTVs.length} Member lifetime value records`);
-  console.log(`   ✅ ${revenueReports.length} Revenue reports`);
+  console.log('\n[STATS] TỔNG QUAN DATA:');
+  console.log(`   [SUCCESS] ${plans.length} Gói thành viên`);
+  console.log(`   [SUCCESS] ${discountCodes.length} Mã giảm giá`);
+  console.log(`   [SUCCESS] ${subscriptions.length} Test subscriptions`);
+  console.log(`   [SUCCESS] ${payments.length} Test payments`);
+  console.log(`   [SUCCESS] ${invoices.length} Test invoices`);
+  console.log(`   [SUCCESS] ${discountUsages.length} Discount usage records`);
+  console.log(`   [SUCCESS] ${subscriptionHistories.length} Subscription history records`);
+  console.log(`   [SUCCESS] ${memberLTVs.length} Member lifetime value records`);
+  console.log(`   [SUCCESS] ${revenueReports.length} Revenue reports`);
 
-  console.log('\n💎 GÓI THÀNH VIÊN:');
+  console.log('\n[DIAMOND] GÓI THÀNH VIÊN:');
   console.log('   - BASIC (299k): Cơ bản, 4 class credits/tháng');
-  console.log('   - PREMIUM (599k): Phổ biến, unlimited classes, 2 PT sessions ⭐ Featured');
+  console.log('   - PREMIUM (599k): Phổ biến, unlimited classes, 2 PT sessions [STAR] Featured');
   console.log('   - VIP (999k): Cao cấp, unlimited PT, 24/7 access');
   console.log('   - STUDENT (199k): Sinh viên, yêu cầu xác minh');
 
@@ -1183,7 +1345,7 @@ async function main() {
   console.log('   - REF_MINH2024: Giảm 10% (max 100k) - Mã giới thiệu');
   console.log('   - PREMIUM30: Giảm 30% (max 300k) - Chỉ Premium & VIP');
 
-  console.log('\n🎁 MÃ GIẢM GIÁ - SPECIAL CASES:');
+  console.log('\n[GIFT] MÃ GIẢM GIÁ - SPECIAL CASES:');
   console.log('   - TRIAL7DAYS: Dùng thử miễn phí 7 ngày gói Basic');
   console.log('   - SENIOR20: Giảm 20% cho người >60 tuổi');
   console.log('   - FAMILY_MEMBER_2: Giảm 30% cho thành viên gia đình thứ 2');
@@ -1200,7 +1362,7 @@ async function main() {
   console.log('   4. CANCELLED (Basic, refund 50%) - member_004');
   console.log('   5. PAST_DUE (Student, failed payment x2) - member_005');
 
-  console.log('\n💳 TEST PAYMENTS:');
+  console.log('\n[PAYMENT] TEST PAYMENTS:');
   console.log('   1. COMPLETED - VNPAY (599k)');
   console.log('   2. COMPLETED - BANK_TRANSFER (239k với discount)');
   console.log('   3. PENDING - MOMO (999k trial → trả phí)');
@@ -1212,7 +1374,7 @@ async function main() {
   console.log('   2. PAID - INV-2024-10-002 (239k với discount)');
   console.log('   3. OVERDUE - INV-2024-10-003 (199k)');
 
-  console.log('\n🎁 DISCOUNT USAGE:');
+  console.log('\n[GIFT] DISCOUNT USAGE:');
   console.log('   1. WELCOME20 → -59.8k (member_002)');
   console.log('   2. REF_VIP_MINH → -149.85k + 7 days, referrer +100k (member_003)');
 
@@ -1230,21 +1392,21 @@ async function main() {
   console.log('   4. member_004: Total 149k, Predicted 0 (churned)');
   console.log('   5. member_005: Total 199k, Predicted 995k (high churn risk)');
 
-  console.log('\n📊 REVENUE REPORTS:');
+  console.log('\n[STATS] REVENUE REPORTS:');
   console.log('   - Sep 01: +498k (2 new members)');
   console.log('   - Sep 25: -149.5k (1 refund)');
   console.log('   - Oct 01: +599k (1 renewal)');
   console.log('   - Oct 15: +239k (1 new, 2 failed payments)');
   console.log('   - Oct 20: 0đ (1 trial start)');
 
-  console.log('\n🔗 API ENDPOINTS:');
+  console.log('\n[LINK] API ENDPOINTS:');
   console.log('   - GET  /plans/active          - Lấy danh sách gói active');
   console.log('   - POST /validate-coupon       - Validate & apply mã giảm giá');
   console.log('   - GET  /subscriptions         - Lấy danh sách subscriptions');
   console.log('   - GET  /payments              - Lấy danh sách payments');
   console.log('   - GET  /invoices              - Lấy danh sách invoices');
 
-  console.log('\n📝 NOTES:');
+  console.log('\n[PROCESS] NOTES:');
   console.log('   - TRIAL, SENIOR, FAMILY, CORPORATE đã được thay thế bằng discount codes');
   console.log('   - DAY_PASS có thể implement qua PlanAddon hoặc one-time Payment');
   console.log('   - Referral system tracking qua DiscountCode + DiscountUsage');
@@ -1255,19 +1417,19 @@ async function main() {
   console.log('   - Member LTV: Churn risk (0.1-1.0), Engagement score (0-1.0)');
   console.log('   - Revenue reports: Daily tracking với refunds');
 
-  console.log('\n💡 BUSINESS INSIGHTS:');
+  console.log('\n[TIP] BUSINESS INSIGHTS:');
   console.log(`   - Total Revenue (Sep-Oct): ${totalRevenue.toLocaleString('vi-VN')}đ`);
   console.log(`   - Avg Predicted LTV: ${avgLTV.toLocaleString('vi-VN')}đ`);
   console.log(`   - Active Subscriptions: ${activeSubscriptions}/${testMemberIds.length}`);
   console.log(`   - Churn Rate: 20% (1/5 members cancelled)`);
   console.log(`   - Failed Payment Rate: 40% (2 failed attempts)`);
 
-  console.log('\n🚀 Sẵn sàng để test END-TO-END!');
+  console.log('\n[START] Sẵn sàng để test END-TO-END!');
 }
 
 main()
   .catch(e => {
-    console.error('❌ Lỗi seed:', e);
+    console.error('[ERROR] Lỗi seed:', e);
     process.exit(1);
   })
   .finally(async () => {

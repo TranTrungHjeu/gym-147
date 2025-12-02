@@ -1,17 +1,24 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { useToast } from '../../hooks/useToast';
-import { guestService, GuestPass, GuestPassStats } from '../../services/guest.service';
-import { Search, Plus, RefreshCw, Trash2, User, Users, TrendingUp, Clock, DollarSign, CheckCircle2, XCircle, Calendar } from 'lucide-react';
-import AdminCard from '../../components/common/AdminCard';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
-import ConfirmDialog from '../../components/common/ConfirmDialog';
-import Pagination from '../../components/common/Pagination';
-import AdvancedFilters from '../../components/common/AdvancedFilters';
-import ExportButton from '../../components/common/ExportButton';
-import { TableLoading } from '../../components/ui/AppLoading';
-import { formatVietnamDateTime } from '../../utils/dateTime';
+import { CheckCircle2, DollarSign, Plus, RefreshCw, Search, Trash2, User } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import AdminButton from '../../components/common/AdminButton';
+import AdminCard from '../../components/common/AdminCard';
 import AdminModal from '../../components/common/AdminModal';
+import {
+  AdminTable,
+  AdminTableBody,
+  AdminTableCell,
+  AdminTableHeader,
+  AdminTableRow,
+} from '../../components/common/AdminTable';
+import AdvancedFilters from '../../components/common/AdvancedFilters';
+import ConfirmDialog from '../../components/common/ConfirmDialog';
+import ExportButton from '../../components/common/ExportButton';
+import Pagination from '../../components/common/Pagination';
+import CreateGuestPassModal from '../../components/modals/CreateGuestPassModal';
+import { TableLoading } from '../../components/ui/AppLoading';
+import { useToast } from '../../hooks/useToast';
+import { GuestPass, GuestPassStats, guestService } from '../../services/guest.service';
+import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const GuestManagement: React.FC = () => {
   const { showToast } = useToast();
@@ -30,34 +37,38 @@ const GuestManagement: React.FC = () => {
   const [passToDelete, setPassToDelete] = useState<GuestPass | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const prevPageRef = React.useRef(currentPage);
   const isInitialLoadRef = React.useRef(true);
 
-  const loadGuestPasses = useCallback(async (isPageChange = false) => {
-    try {
-      // Only show full loading on initial load, not on page changes
-      if (!isPageChange) {
-        setIsLoading(true);
+  const loadGuestPasses = useCallback(
+    async (isPageChange = false) => {
+      try {
+        // Only show full loading on initial load, not on page changes
+        if (!isPageChange) {
+          setIsLoading(true);
+        }
+        const response = await guestService.getAllGuestPasses({
+          page: currentPage,
+          limit: itemsPerPage,
+          status: statusFilter !== 'all' ? statusFilter : undefined,
+          pass_type: passTypeFilter !== 'all' ? passTypeFilter : undefined,
+          search: searchTerm || undefined,
+        });
+        if (response.success) {
+          setGuestPasses(response.data.guest_passes || []);
+          setTotalPages(response.data.totalPages || 1);
+        }
+      } catch (error: any) {
+        showToast('Không thể tải danh sách thẻ khách', 'error');
+        console.error('Error loading guest passes:', error);
+        setGuestPasses([]);
+      } finally {
+        setIsLoading(false);
       }
-      const response = await guestService.getAllGuestPasses({
-        page: currentPage,
-        limit: itemsPerPage,
-        status: statusFilter !== 'all' ? statusFilter : undefined,
-        pass_type: passTypeFilter !== 'all' ? passTypeFilter : undefined,
-        search: searchTerm || undefined,
-      });
-      if (response.success) {
-        setGuestPasses(response.data.guest_passes || []);
-        setTotalPages(response.data.totalPages || 1);
-      }
-    } catch (error: any) {
-      showToast('Không thể tải danh sách thẻ khách', 'error');
-      console.error('Error loading guest passes:', error);
-      setGuestPasses([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [currentPage, itemsPerPage, statusFilter, passTypeFilter, searchTerm, showToast]);
+    },
+    [currentPage, itemsPerPage, statusFilter, passTypeFilter, searchTerm, showToast]
+  );
 
   const loadStats = useCallback(async () => {
     try {
@@ -104,26 +115,26 @@ const GuestManagement: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const statusMap: { [key: string]: string } = {
-      'ACTIVE': 'Đang hoạt động',
-      'USED': 'Đã sử dụng',
-      'EXPIRED': 'Hết hạn',
-      'CANCELLED': 'Đã hủy',
+      ACTIVE: 'Đang hoạt động',
+      USED: 'Đã sử dụng',
+      EXPIRED: 'Hết hạn',
+      CANCELLED: 'Đã hủy',
     };
     return statusMap[status] || status;
   };
 
   const getPassTypeLabel = (type: string) => {
     const typeMap: { [key: string]: string } = {
-      'SINGLE_DAY': '1 ngày',
-      'WEEK': '1 tuần',
-      'MONTH': '1 tháng',
+      SINGLE_DAY: '1 ngày',
+      WEEK: '1 tuần',
+      MONTH: '1 tháng',
     };
     return typeMap[type] || type;
   };
 
   const filteredPasses = useMemo(() => {
     return guestPasses.filter(pass => {
-      const matchesSearch = 
+      const matchesSearch =
         pass.guest_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pass.guest_email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         pass.guest_phone?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -163,10 +174,23 @@ const GuestManagement: React.FC = () => {
           </p>
         </div>
         <div className='flex items-center gap-3'>
-          <AdminButton variant='outline' size='sm' icon={RefreshCw} onClick={() => { loadGuestPasses(); loadStats(); }}>
+          <AdminButton
+            variant='outline'
+            size='sm'
+            icon={RefreshCw}
+            onClick={() => {
+              loadGuestPasses();
+              loadStats();
+            }}
+          >
             Làm mới
           </AdminButton>
-          <AdminButton variant='primary' size='sm' icon={Plus} onClick={() => showToast('Tính năng tạo thẻ khách sẽ được triển khai', 'info')}>
+          <AdminButton
+            variant='primary'
+            size='sm'
+            icon={Plus}
+            onClick={() => setIsCreateModalOpen(true)}
+          >
             Tạo thẻ khách
           </AdminButton>
         </div>
@@ -244,7 +268,9 @@ const GuestManagement: React.FC = () => {
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                  {statsLoading ? '...' : `${(stats?.total_revenue || 0).toLocaleString('vi-VN')} VND`}
+                  {statsLoading
+                    ? '...'
+                    : `${(stats?.total_revenue || 0).toLocaleString('vi-VN')} VND`}
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium mt-0.5'>
                   Doanh thu
@@ -264,7 +290,7 @@ const GuestManagement: React.FC = () => {
             pass_type: passTypeFilter !== 'all' ? passTypeFilter : '',
           },
         }}
-        onFiltersChange={(newFilters) => {
+        onFiltersChange={newFilters => {
           setSearchTerm(newFilters.search || '');
           setStatusFilter(newFilters.status || 'all');
           setPassTypeFilter(newFilters.customFilters?.pass_type || 'all');
@@ -301,7 +327,7 @@ const GuestManagement: React.FC = () => {
           <ExportButton
             data={filteredPasses.map(pass => ({
               'Tên khách': pass.guest_name,
-              'Email': pass.guest_email || '',
+              Email: pass.guest_email || '',
               'Số điện thoại': pass.guest_phone || '',
               'Người phát hành': pass.issuer?.full_name || 'N/A',
               'Loại thẻ': getPassTypeLabel(pass.pass_type),
@@ -309,7 +335,7 @@ const GuestManagement: React.FC = () => {
               'Hiệu lực đến': pass.valid_until ? formatVietnamDateTime(pass.valid_until) : '',
               'Trạng thái': getStatusLabel(pass.status),
               'Số lần sử dụng': `${pass.uses_count}/${pass.max_uses}`,
-              'Giá': pass.price ? `${pass.price.toLocaleString('vi-VN')} VND` : 'Miễn phí',
+              Giá: pass.price ? `${pass.price.toLocaleString('vi-VN')} VND` : 'Miễn phí',
             }))}
             columns={[
               { key: 'Tên khách', label: 'Tên khách' },
@@ -394,7 +420,11 @@ const GuestManagement: React.FC = () => {
                       </div>
                     </AdminTableCell>
                     <AdminTableCell>
-                      <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border ${getStatusColor(pass.status)}`}>
+                      <span
+                        className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border ${getStatusColor(
+                          pass.status
+                        )}`}
+                      >
                         {getStatusLabel(pass.status)}
                       </span>
                     </AdminTableCell>
@@ -435,7 +465,11 @@ const GuestManagement: React.FC = () => {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <Pagination currentPage={currentPage} totalPages={totalPages} onPageChange={setCurrentPage} />
+            <Pagination
+              currentPage={currentPage}
+              totalPages={totalPages}
+              onPageChange={setCurrentPage}
+            />
           )}
         </>
       )}
@@ -449,7 +483,9 @@ const GuestManagement: React.FC = () => {
         }}
         onConfirm={handleDelete}
         title='Xóa thẻ khách'
-        message={`Bạn có chắc chắn muốn xóa thẻ khách của ${passToDelete?.guest_name || 'khách này'}?`}
+        message={`Bạn có chắc chắn muốn xóa thẻ khách của ${
+          passToDelete?.guest_name || 'khách này'
+        }?`}
         confirmText='Xóa'
         cancelText='Hủy'
         isLoading={isDeleting}
@@ -470,68 +506,123 @@ const GuestManagement: React.FC = () => {
           <div className='space-y-4'>
             <div className='grid grid-cols-2 gap-4'>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Tên khách</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.guest_name}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Tên khách
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.guest_name}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Email</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.guest_email || 'N/A'}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Email
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.guest_email || 'N/A'}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Số điện thoại</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.guest_phone || 'N/A'}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Số điện thoại
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.guest_phone || 'N/A'}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Người phát hành</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.issuer?.full_name || 'N/A'}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Người phát hành
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.issuer?.full_name || 'N/A'}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Loại thẻ</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{getPassTypeLabel(selectedPass.pass_type)}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Loại thẻ
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {getPassTypeLabel(selectedPass.pass_type)}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Trạng thái</label>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Trạng thái
+                </label>
                 <div className='mt-1'>
-                  <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold rounded-full border ${getStatusColor(selectedPass.status)}`}>
+                  <span
+                    className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold rounded-full border ${getStatusColor(
+                      selectedPass.status
+                    )}`}
+                  >
                     {getStatusLabel(selectedPass.status)}
                   </span>
                 </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Hiệu lực từ</label>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Hiệu lực từ
+                </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.valid_from ? formatVietnamDateTime(selectedPass.valid_from, 'date') : 'N/A'}
+                  {selectedPass.valid_from
+                    ? formatVietnamDateTime(selectedPass.valid_from, 'date')
+                    : 'N/A'}
                 </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Hiệu lực đến</label>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Hiệu lực đến
+                </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.valid_until ? formatVietnamDateTime(selectedPass.valid_until, 'date') : 'N/A'}
+                  {selectedPass.valid_until
+                    ? formatVietnamDateTime(selectedPass.valid_until, 'date')
+                    : 'N/A'}
                 </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Sử dụng</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.uses_count}/{selectedPass.max_uses}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Sử dụng
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.uses_count}/{selectedPass.max_uses}
+                </div>
               </div>
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Giá</label>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Giá
+                </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.price ? `${selectedPass.price.toLocaleString('vi-VN')} VND` : 'Miễn phí'}
+                  {selectedPass.price
+                    ? `${selectedPass.price.toLocaleString('vi-VN')} VND`
+                    : 'Miễn phí'}
                 </div>
               </div>
             </div>
             {selectedPass.notes && (
               <div>
-                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>Ghi chú</label>
-                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>{selectedPass.notes}</div>
+                <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
+                  Ghi chú
+                </label>
+                <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
+                  {selectedPass.notes}
+                </div>
               </div>
             )}
           </div>
         )}
       </AdminModal>
+
+      {/* Create Guest Pass Modal */}
+      <CreateGuestPassModal
+        isOpen={isCreateModalOpen}
+        onClose={() => setIsCreateModalOpen(false)}
+        onSuccess={() => {
+          loadGuestPasses();
+          loadStats();
+        }}
+      />
     </div>
   );
 };
 
 export default GuestManagement;
-

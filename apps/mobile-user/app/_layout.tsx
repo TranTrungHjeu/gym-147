@@ -3,6 +3,7 @@ import { NotificationProvider } from '@/contexts/NotificationContext';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import '@/locales/i18n'; // Initialize i18n';
 import { ThemeProvider, useTheme } from '@/utils/theme';
+import { AppEvents } from '@/utils/eventEmitter';
 import { AccountDeletedModal } from '@/components/AccountDeletedModal';
 import {
   Inter_400Regular,
@@ -36,17 +37,13 @@ function AppContent() {
 
   // Listen for user:deleted event
   React.useEffect(() => {
-    const handleUserDeleted = (event: CustomEvent) => {
-      console.log('🚨 User account deleted event received in AppContent:', event.detail);
+    const handleUserDeleted = (data: any) => {
+      console.log('[AUTH] User account deleted event received in AppContent:', data);
       setShowDeletedModal(true);
     };
 
-    if (typeof window !== 'undefined') {
-      window.addEventListener('user:deleted', handleUserDeleted as EventListener);
-      return () => {
-        window.removeEventListener('user:deleted', handleUserDeleted as EventListener);
-      };
-    }
+    const unsubscribe = AppEvents.on('user:deleted', handleUserDeleted);
+    return unsubscribe;
   }, []);
 
   const handleLogout = async () => {
@@ -104,14 +101,14 @@ export default function RootLayout() {
     // Listen for user interaction with notifications (when app is in background/closed)
     const responseSubscription =
       Notifications.addNotificationResponseReceivedListener((response) => {
-        console.log('🔔 Notification tapped:', response);
+        console.log('[BELL] Notification tapped:', response);
         const data = response.notification.request.content.data as any;
         const notificationType = data?.type || data?.notificationType;
 
         try {
           // Validate notification data
           if (!validateNotificationData(data)) {
-            console.warn('⚠️ Invalid notification data, navigating to notifications list');
+            console.warn('[WARN] Invalid notification data, navigating to notifications list');
             router.push('/notifications');
             return;
           }
@@ -187,7 +184,7 @@ export default function RootLayout() {
               break;
           }
         } catch (navigationError) {
-          console.error('❌ Error navigating from notification:', navigationError);
+          console.error('[ERROR] Error navigating from notification:', navigationError);
           // Fallback to notifications list
           router.push('/notifications');
         }

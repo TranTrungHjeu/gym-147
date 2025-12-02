@@ -153,7 +153,7 @@ export default function ClassDetailScreen() {
         favoriteCheckPromise,
       ]);
 
-      console.log('📅 Bookings response:', {
+      console.log('[DATE] Bookings response:', {
         success: bookingsResponse.success,
         bookingsCount: bookingsResponse.data?.length || 0,
         bookings: bookingsResponse.data?.map((b) => ({
@@ -171,7 +171,7 @@ export default function ClassDetailScreen() {
           (booking) => booking.schedule_id === id || booking.schedule?.id === id
         );
 
-        console.log('🔍 Found booking check:', {
+        console.log('[SEARCH] Found booking check:', {
           foundBooking: !!foundBooking,
           bookingId: foundBooking?.id,
           bookingScheduleId: foundBooking?.schedule_id,
@@ -216,7 +216,7 @@ export default function ClassDetailScreen() {
                     // If booking doesn't have payment_id, query payment by reference_id
                     if (!bookingPaymentId && fullBooking.id) {
                       console.log(
-                        '🔍 Booking has no payment_id, querying by reference_id:',
+                        '[SEARCH] Booking has no payment_id, querying by reference_id:',
                         fullBooking.id
                       );
                       const payment =
@@ -226,7 +226,7 @@ export default function ClassDetailScreen() {
                         );
                       if (payment?.id) {
                         bookingPaymentId = payment.id;
-                        console.log('✅ Found payment:', {
+                        console.log('[SUCCESS] Found payment:', {
                           paymentId: payment.id,
                           status: payment.status,
                           referenceId: (payment as any).reference_id,
@@ -245,7 +245,7 @@ export default function ClassDetailScreen() {
                           );
                         if (bankTransfer?.id) {
                           setBankTransferId(bankTransfer.id);
-                          console.log('✅ Found bank transfer:', {
+                          console.log('[SUCCESS] Found bank transfer:', {
                             bankTransferId: bankTransfer.id,
                             paymentId: bookingPaymentId,
                           });
@@ -253,24 +253,24 @@ export default function ClassDetailScreen() {
                       } catch (btErr: any) {
                         // Bank transfer might not exist yet, that's okay
                         console.log(
-                          '⚠️ Bank transfer not found or error:',
+                          '[WARNING] Bank transfer not found or error:',
                           btErr?.message || btErr
                         );
                       }
                     } else {
                       console.log(
-                        '⚠️ No payment_id found for booking:',
+                        '[WARNING] No payment_id found for booking:',
                         fullBooking.id
                       );
                     }
                   } catch (paymentErr) {
                     // If fetching payment fails, continue with booking data
-                    console.log('⚠️ Error fetching payment:', paymentErr);
+                    console.log('[WARN] Error fetching payment:', paymentErr);
                   }
                 } else {
                   // Full booking fetch failed or invalid, keep using foundBooking
                   console.log(
-                    '⚠️ Full booking fetch invalid, using foundBooking:',
+                    '[WARNING] Full booking fetch invalid, using foundBooking:',
                     {
                       foundBookingId: foundBooking.id,
                       foundBookingPaymentStatus: foundBooking.payment_status,
@@ -280,7 +280,7 @@ export default function ClassDetailScreen() {
               } catch (err) {
                 // If fetching fails, keep using foundBooking
                 console.log(
-                  '⚠️ Error fetching booking details, keeping foundBooking:',
+                  '[WARNING] Error fetching booking details, keeping foundBooking:',
                   err
                 );
               }
@@ -326,7 +326,7 @@ export default function ClassDetailScreen() {
         }
       }
     } catch (err: any) {
-      console.error('❌ Error loading schedule data:', err);
+      console.error('[ERROR] Error loading schedule data:', err);
       setError(err.message || 'Failed to load class details');
     } finally {
       setLoading(false);
@@ -498,7 +498,7 @@ export default function ClassDetailScreen() {
         );
       }
     } catch (error: any) {
-      console.error('❌ Error creating booking:', error);
+      console.error('[ERROR] Error creating booking:', error);
       Alert.alert(
         t('common.error'),
         error.message || t('classes.booking.bookingFailed'),
@@ -540,7 +540,7 @@ export default function ClassDetailScreen() {
         }
       }
     } catch (error: any) {
-      console.error('❌ Error cancelling booking:', error);
+      console.error('[ERROR] Error cancelling booking:', error);
       Alert.alert('Error', error.message || 'Failed to cancel booking');
     }
   };
@@ -670,7 +670,7 @@ export default function ClassDetailScreen() {
         }
       }
     } catch (error: any) {
-      console.error('❌ Error toggling favorite:', error);
+      console.error('[ERROR] Error toggling favorite:', error);
       // If error is "already favorited", try to remove instead
       if (
         error.message?.includes('Đã được thêm') ||
@@ -702,7 +702,7 @@ export default function ClassDetailScreen() {
               }
             }
           } catch (removeError) {
-            console.error('❌ Error removing favorite:', removeError);
+            console.error('[ERROR] Error removing favorite:', removeError);
           }
         }
       } else {
@@ -733,13 +733,20 @@ export default function ClassDetailScreen() {
       );
       const time = formatTime(schedule.start_time);
 
+      // Create deep link for the class
+      const Linking = require('expo-linking').default;
+      const deepLink = Linking.createURL(`/classes/${id}`, {
+        scheme: 'gym147',
+      });
+
       const message = `${className}${
         trainerName ? ` with ${trainerName}` : ''
-      }\n${date} at ${time}\n\nJoin me for this class!`;
+      }\n${date} at ${time}\n\nJoin me for this class!\n\n${deepLink}`;
 
       const result = await Share.share({
         message: message,
         title: className,
+        url: deepLink, // iOS specific
       });
 
       if (result.action === Share.sharedAction) {
@@ -748,7 +755,7 @@ export default function ClassDetailScreen() {
         // Dismissed
       }
     } catch (error: any) {
-      console.error('❌ Error sharing:', error);
+      console.error('[ERROR] Error sharing:', error);
       Alert.alert(t('common.error'), error.message || 'Failed to share class');
     }
   };
@@ -1501,7 +1508,7 @@ export default function ClassDetailScreen() {
       >
         {(() => {
           // Debug logging
-          console.log('🔍 Button render check:', {
+          console.log('[SEARCH] Button render check:', {
             hasUserBooking: !!userBooking,
             userBookingId: userBooking?.id,
             paymentStatus: userBooking?.payment_status,
@@ -1519,7 +1526,7 @@ export default function ClassDetailScreen() {
           const paymentStatus =
             userBooking.payment_status?.toString().trim().toUpperCase() || '';
 
-          console.log('💳 Payment status normalized:', {
+          console.log('[PAYMENT] Payment status normalized:', {
             original: userBooking.payment_status,
             normalized: paymentStatus,
             matchesPending: paymentStatus === 'PENDING',
@@ -1565,7 +1572,7 @@ export default function ClassDetailScreen() {
                         // If still no payment_id, query by reference_id
                         if (!finalPaymentId && userBooking.id) {
                           console.log(
-                            '🔍 Querying payment by reference_id:',
+                            '[SEARCH] Querying payment by reference_id:',
                             userBooking.id
                           );
                           const payment =
@@ -1576,7 +1583,7 @@ export default function ClassDetailScreen() {
                           if (payment?.id) {
                             finalPaymentId = payment.id;
                             setPaymentId(payment.id);
-                            console.log('✅ Found payment via reference_id:', {
+                            console.log('[SUCCESS] Found payment via reference_id:', {
                               paymentId: payment.id,
                               referenceId: (payment as any).reference_id,
                             });
@@ -1593,20 +1600,20 @@ export default function ClassDetailScreen() {
                             if (bankTransfer?.id) {
                               finalBankTransferId = bankTransfer.id;
                               setBankTransferId(bankTransfer.id);
-                              console.log('✅ Found bank transfer:', {
+                              console.log('[SUCCESS] Found bank transfer:', {
                                 bankTransferId: bankTransfer.id,
                               });
                             }
                           } catch (btErr: any) {
                             // Bank transfer might not exist yet
                             console.log(
-                              '⚠️ Bank transfer not found:',
+                              '[WARNING] Bank transfer not found:',
                               btErr?.message || btErr
                             );
                           }
                         }
                       } catch (err) {
-                        console.log('⚠️ Error fetching payment info:', err);
+                        console.log('[WARN] Error fetching payment info:', err);
                       }
                     }
 

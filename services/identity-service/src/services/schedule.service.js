@@ -6,7 +6,7 @@ class ScheduleService {
       throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
     }
     this.baseURL = process.env.SCHEDULE_SERVICE_URL;
-    console.log('📡 Schedule Service URL configured:', this.baseURL);
+    console.log('[EMIT] Schedule Service URL configured:', this.baseURL);
   }
 
   /**
@@ -58,7 +58,7 @@ class ScheduleService {
   }
 
   async createTrainer(userData) {
-    console.log('🚀 createTrainer called with userData:', {
+    console.log('[START] createTrainer called with userData:', {
       id: userData.id,
       email: userData.email,
       firstName: userData.firstName,
@@ -80,7 +80,7 @@ class ScheduleService {
     };
 
     try {
-      console.log(`🔄 Creating trainer at: ${this.baseURL}/trainers`);
+      console.log(`[SYNC] Creating trainer at: ${this.baseURL}/trainers`);
 
       const response = await axios.post(`${this.baseURL}/trainers`, trainerData, {
         headers: {
@@ -89,14 +89,14 @@ class ScheduleService {
         timeout: 5000,
       });
 
-      console.log('✅ Trainer created successfully in schedule-service:', response.data);
+      console.log('[SUCCESS] Trainer created successfully in schedule-service:', response.data);
 
       return {
         success: true,
         data: response.data,
       };
     } catch (error) {
-      console.error('❌ Failed to create trainer in schedule-service:', {
+      console.error('[ERROR] Failed to create trainer in schedule-service:', {
         message: error.message,
         code: error.code,
         status: error.response?.status,
@@ -121,7 +121,7 @@ class ScheduleService {
         email: userData.email || '', // Ensure string, not undefined
       };
 
-      console.log('🔄 Calling schedule-service to update trainer:', {
+      console.log('[SYNC] Calling schedule-service to update trainer:', {
         url: `${this.baseURL}/trainers/user/${userId}`,
         data: trainerData,
         originalPhone: userData.phone,
@@ -135,14 +135,14 @@ class ScheduleService {
         timeout: 5000,
       });
 
-      console.log('✅ Trainer service update successful:', response.data);
+      console.log('[SUCCESS] Trainer service update successful:', response.data);
 
       return {
         success: true,
         data: response.data,
       };
     } catch (error) {
-      console.error('❌ Schedule service update error:', {
+      console.error('[ERROR] Schedule service update error:', {
         message: error.message,
         status: error.response?.status,
         statusText: error.response?.statusText,
@@ -193,7 +193,7 @@ class ScheduleService {
         };
       }
 
-      console.error('❌ Error getting trainer by user_id:', error.message);
+      console.error('[ERROR] Error getting trainer by user_id:', error.message);
       return {
         success: false,
         trainerId: null,

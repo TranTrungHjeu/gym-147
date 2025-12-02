@@ -68,7 +68,7 @@ const RegisterPaymentScreen = () => {
   useEffect(() => {
     if (!userId || !accessToken || !refreshToken || !planId) {
       console.error(
-        '❌ Missing required params for payment screen, redirecting to login'
+        '[ERROR] Missing required params for payment screen, redirecting to login'
       );
       Alert.alert(
         t('common.warning'),
@@ -128,7 +128,7 @@ const RegisterPaymentScreen = () => {
     setIsProcessing(true);
 
     try {
-      console.log('💳 Payment params:', {
+      console.log('[PAYMENT] Payment params:', {
         userId,
         planId,
         discountCode,
@@ -137,7 +137,7 @@ const RegisterPaymentScreen = () => {
 
       // Validate tokens before proceeding
       if (!accessToken || !refreshToken) {
-        console.error('❌ Missing tokens:', {
+        console.error('[ERROR] Missing tokens:', {
           hasAccess: !!accessToken,
           hasRefresh: !!refreshToken,
         });
@@ -145,11 +145,11 @@ const RegisterPaymentScreen = () => {
       }
 
       // Step 1: Set tokens to authenticate member service calls
-      console.log('🔐 Setting tokens...');
+      console.log('[AUTH] Setting tokens...');
       await setTokens(accessToken, refreshToken);
 
       // Step 2: Create member first (or get existing member)
-      console.log('👤 Creating/getting member...');
+      console.log('[USER] Creating/getting member...');
       const memberResult = await memberService.updateMemberProfile({});
       if (!memberResult.success) {
         throw new Error('Failed to create member');
@@ -158,7 +158,7 @@ const RegisterPaymentScreen = () => {
       if (!memberId) {
         throw new Error('Member ID not found after creation');
       }
-      console.log('✅ Member created/retrieved with ID:', memberId);
+      console.log('[SUCCESS] Member created/retrieved with ID:', memberId);
 
       // Step 3: Create subscription with member.id
       const subscriptionData = {
@@ -168,7 +168,7 @@ const RegisterPaymentScreen = () => {
         bonus_days: bonusDays || undefined,
       };
 
-      console.log('📦 Subscription data to send:', subscriptionData);
+      console.log('[SUBSCRIPTION] Subscription data to send:', subscriptionData);
 
       const subscription = await billingService.createSubscriptionWithDiscount(
         subscriptionData
@@ -184,7 +184,7 @@ const RegisterPaymentScreen = () => {
 
       if (selectedMethod === PaymentMethod.BANK_TRANSFER) {
         // Navigate to bank transfer screen with QR code
-        console.log('🏦 Bank transfer payment initiated:', paymentResponse);
+        console.log('[BANK] Bank transfer payment initiated:', paymentResponse);
 
         router.push({
           pathname: '/(auth)/register-bank-transfer',

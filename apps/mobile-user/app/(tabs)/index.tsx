@@ -1,12 +1,15 @@
 import ActiveGymSessionCard from '@/components/ActiveGymSessionCard';
 import ActivityCard from '@/components/ActivityCard';
+import { FaceEnrollmentSuggestModal } from '@/components/FaceEnrollmentSuggestModal';
 import InfiniteScrollBanner from '@/components/InfiniteScrollBanner';
 import SessionDetailModal from '@/components/SessionDetailModal';
 import WorkoutCard from '@/components/WorkoutCard';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import {
   analyticsService,
   memberService,
+  userService,
   workoutPlanService,
   type Member,
   type WorkoutPlan,
@@ -15,8 +18,9 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
 import { Bell, CreditCard, QrCode, Search, User } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
   ActivityIndicator,
   Image,
@@ -31,6 +35,7 @@ import {
 
 export default function HomeScreen() {
   const { theme } = useTheme();
+  const { unreadCount } = useNotifications();
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user, member } = useAuth();
@@ -54,10 +59,58 @@ export default function HomeScreen() {
   const [loadingSessionDetails, setLoadingSessionDetails] = useState(false);
   const [showAccessModal, setShowAccessModal] = useState(false);
 
+  // Face enrollment suggest modal
+  const [showFaceSuggestModal, setShowFaceSuggestModal] = useState(false);
+  const faceCheckRef = useRef(false);
+
   // Load data on component mount
   useEffect(() => {
     loadData();
+    checkFaceEncodingStatus();
   }, []);
+
+  const checkFaceEncodingStatus = async () => {
+    // Only check once per session
+    if (faceCheckRef.current || !user?.id) return;
+
+    try {
+      faceCheckRef.current = true;
+      const response = await userService.getFaceEncodingStatus();
+
+      if (response.success && response.data) {
+        const hasFaceEncoding =
+          response.data.enrolled || response.data.hasFaceEncoding;
+
+        // Check if user dismissed modal in this session
+        const dismissedKey = `faceSuggestDismissed_${user.id}`;
+        const dismissed = await AsyncStorage.getItem(dismissedKey);
+
+        if (!hasFaceEncoding && !dismissed) {
+          // Wait a bit before showing modal
+          setTimeout(() => {
+            setShowFaceSuggestModal(true);
+          }, 1500);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking face encoding status:', error);
+      // Silent fail - don't show modal if check fails
+    }
+  };
+
+  const handleEnrollFace = () => {
+    setShowFaceSuggestModal(false);
+    router.push('/settings/face-enrollment');
+  };
+
+  const handleSkipFaceEnrollment = async () => {
+    setShowFaceSuggestModal(false);
+    if (user?.id) {
+      // Mark as dismissed for this session
+      const dismissedKey = `faceSuggestDismissed_${user.id}`;
+      await AsyncStorage.setItem(dismissedKey, 'true');
+    }
+  };
 
   const loadData = async () => {
     try {
@@ -88,7 +141,7 @@ export default function HomeScreen() {
           dashboardResponse.success &&
           dashboardResponse.data?.dashboard?.member
         ) {
-          console.log('🔑 Using dashboard data as profile fallback');
+          console.log('[AUTH] Using dashboard data as profile fallback');
           const memberData = dashboardResponse.data.dashboard.member;
           const healthData = dashboardResponse.data.dashboard.healthMetrics;
 
@@ -123,7 +176,7 @@ export default function HomeScreen() {
           };
 
           setUserProfile(profileData as any);
-          console.log('🔑 Profile data created from dashboard:', profileData);
+          console.log('[AUTH] Profile data created from dashboard:', profileData);
         } else {
           // If authentication error, check remember me before redirecting
           if (
@@ -131,25 +184,25 @@ export default function HomeScreen() {
             profileResponse.error?.includes('login')
           ) {
             console.log(
-              '🔑 Authentication error, checking remember me preference...'
+              '[CONFIG] Authentication error, checking remember me preference...'
             );
             try {
               const authStorage = require('@/utils/auth/storage');
               const rememberMe = await authStorage.getRememberMe();
 
               if (!rememberMe) {
-                console.log('🔑 Remember me = false, redirecting to login');
+                console.log('[AUTH] Remember me = false, redirecting to login');
                 router.replace('/(auth)/login');
                 return;
               } else {
-                console.log('🔑 Remember me = true, keeping session');
+                console.log('[AUTH] Remember me = true, keeping session');
                 // Don't redirect, just show error
                 setError('Authentication error. Please try again.');
               }
             } catch (error) {
-              console.log(
-                '🔑 Failed to check remember me, redirecting to login'
-              );
+                console.log(
+                  '[AUTH] Failed to check remember me, redirecting to login'
+                );
               router.replace('/(auth)/login');
               return;
             }
@@ -202,9 +255,20 @@ export default function HomeScreen() {
 
       // Load workouts after getting member data
       setWorkoutsLoading(true);
-      // Get member ID from user profile or dashboard
+      // Get member ID from profile response (directly from API, not from state)
+      // This ensures we have the ID immediately after Promise.all completes
       const memberId =
-        userProfile?.id || dashboardResponse.data?.dashboard?.member?.id;
+        profileResponse.data?.id ||
+        dashboardResponse.data?.dashboard?.member?.id ||
+        member?.id; // Fallback to member from AuthContext
+      
+      console.log('[WORKOUTS] Member ID for workouts:', {
+        fromProfile: profileResponse.data?.id,
+        fromDashboard: dashboardResponse.data?.dashboard?.member?.id,
+        fromAuthContext: member?.id,
+        finalMemberId: memberId,
+      });
+
       if (memberId) {
         const workoutsResponse = await workoutPlanService.getWorkoutPlans(
           memberId,
@@ -253,8 +317,15 @@ export default function HomeScreen() {
     setWorkoutsError(null);
 
     try {
-      // Get member ID from current user profile or dashboard
-      const memberId = userProfile?.id;
+      // Get member ID from multiple sources with priority
+      const memberId = userProfile?.id || member?.id;
+      
+      console.log('[WORKOUTS] Retry - Member ID:', {
+        fromUserProfile: userProfile?.id,
+        fromAuthContext: member?.id,
+        finalMemberId: memberId,
+      });
+
       if (memberId) {
         const workoutsResponse = await workoutPlanService.getWorkoutPlans(
           memberId,
@@ -417,8 +488,42 @@ export default function HomeScreen() {
                   styles.iconButton,
                   { backgroundColor: theme.colors.gray },
                 ]}
+                onPress={() => router.push('/notifications')}
               >
                 <Bell size={24} color={theme.colors.text} />
+                {unreadCount > 0 && (
+                  <View
+                    style={[
+                      {
+                        position: 'absolute',
+                        top: -4,
+                        right: -4,
+                        minWidth: 18,
+                        height: 18,
+                        borderRadius: 9,
+                        backgroundColor: theme.colors.error,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        paddingHorizontal: 4,
+                        borderWidth: 2,
+                        borderColor: theme.colors.background,
+                      },
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        Typography.caption,
+                        {
+                          color: theme.colors.textInverse,
+                          fontWeight: '700',
+                          fontSize: 10,
+                        },
+                      ]}
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </Text>
+                  </View>
+                )}
               </TouchableOpacity>
               <TouchableOpacity style={styles.profileImageContainer}>
                 {userProfile?.profile_photo ? (
@@ -426,7 +531,7 @@ export default function HomeScreen() {
                     source={{ uri: userProfile.profile_photo }}
                     style={styles.profileImage}
                     onError={() => {
-                      console.log('🖼️ Profile image failed to load');
+                      console.log('[IMAGE] Profile image failed to load');
                     }}
                   />
                 ) : (
@@ -686,6 +791,13 @@ export default function HomeScreen() {
         session={sessionDetails}
         onClose={handleCloseSessionModal}
         loading={loadingSessionDetails}
+      />
+
+      {/* Face Enrollment Suggest Modal */}
+      <FaceEnrollmentSuggestModal
+        visible={showFaceSuggestModal}
+        onEnroll={handleEnrollFace}
+        onSkip={handleSkipFaceEnrollment}
       />
     </SafeAreaView>
   );

@@ -201,7 +201,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   title: {
-    ...Typography.heading.h3,
+    ...Typography.h3,
     textAlign: 'center',
     fontWeight: '700',
   },
@@ -209,7 +209,7 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   message: {
-    ...Typography.body.medium,
+    ...Typography.bodyMedium,
     textAlign: 'center',
     lineHeight: 22,
   },
@@ -221,11 +221,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   buttonText: {
-    ...Typography.button.medium,
+    ...Typography.buttonMedium,
     color: '#fff',
     fontWeight: '600',
   },
 });
+
+
 
 
 

@@ -1,5 +1,5 @@
 import { ConfirmLogoutModal } from '@/components/ConfirmLogoutModal';
-import { PlanCard } from '@/components/PlanCard';
+import PlanCard from '@/components/PlanCard';
 import { useAuth } from '@/contexts/AuthContext';
 import { billingService } from '@/services/billing/billing.service';
 import { MembershipPlan } from '@/types/billingTypes';
@@ -268,6 +268,8 @@ const RegisterPlanScreen = () => {
             <PlanCard
               key={plan.id}
               plan={plan}
+              isCurrentPlan={false}
+              canUpgrade={true}
               isSelected={selectedPlan?.id === plan.id}
               onSelect={() => setSelectedPlan(plan)}
             />

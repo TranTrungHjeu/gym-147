@@ -1,7 +1,6 @@
 const autoStatusUpdateService = require('../services/auto-status-update.service.js');
-const { PrismaClient } = require('@prisma/client');
-
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Controller for auto-update functionality

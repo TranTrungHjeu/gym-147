@@ -63,7 +63,7 @@ const SuperAdminDashboard: React.FC = () => {
         ]);
 
         if (statsData.success && statsData.data) {
-          console.log('📊 SuperAdmin stats data received:', statsData.data);
+          console.log('[STATS] SuperAdmin stats data received:', statsData.data);
           const statsDataToSet = {
             totalUsers: statsData.data.totalUsers || 0,
             totalAdmins: statsData.data.totalAdmins || 0,
@@ -72,21 +72,21 @@ const SuperAdminDashboard: React.FC = () => {
             recentRegistrations: statsData.data.recentRegistrations || 0,
             activeSessions: statsData.data.activeSessions || 0,
           };
-          console.log('📊 Setting stats state:', statsDataToSet);
+          console.log('[STATS] Setting stats state:', statsDataToSet);
           setStats(statsDataToSet);
         } else if (!statsData.success && statsData.message?.includes('temporarily unavailable')) {
           // Don't show error toast for service unavailable - it's expected during development
-          console.warn('⚠️ Service temporarily unavailable, using default stats');
+          console.warn('[WARNING] Service temporarily unavailable, using default stats');
         } else if (!statsData.success) {
           // Only show error for unexpected failures
           showToast(t('dashboard.superAdmin.errors.loadStatsFailed'), 'error');
         }
 
         if (activitiesData.success && activitiesData.data) {
-          console.log('📥 Recent activities received (SuperAdmin):', activitiesData.data);
-          console.log('📥 Activities count:', activitiesData.data.length);
+          console.log('[DATA] Recent activities received (SuperAdmin):', activitiesData.data);
+          console.log('[DATA] Activities count:', activitiesData.data.length);
           activitiesData.data.forEach((activity, index) => {
-            console.log(`📥 Activity ${index}:`, {
+            console.log(`[DATA] Activity ${index}:`, {
               id: activity.id,
               type: activity.type,
               user: activity.user,

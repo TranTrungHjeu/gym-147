@@ -275,12 +275,12 @@ export default function WorkoutsScreen() {
       setLoading(true);
       setError(null);
 
-      console.log('🔄 Loading workouts data...');
-      console.log('👤 User:', user);
+      console.log('[LOAD] Loading workouts data...');
+      console.log('[USER] User:', user);
 
       // Check if user is authenticated
       if (!user?.id) {
-        console.log('❌ No user ID found');
+        console.log('[ERROR] No user ID found');
         setError('Please login to view workouts');
         return;
       }
@@ -310,7 +310,7 @@ export default function WorkoutsScreen() {
       // Handle profile (for membership type and AI settings)
       if (profileResponse.success && profileResponse.data) {
         console.log(
-          '✅ Profile loaded, membership type:',
+          '[SUCCESS] Profile loaded, membership type:',
           profileResponse.data.membership_type
         );
         const membership =
@@ -331,13 +331,13 @@ export default function WorkoutsScreen() {
           setAiRecommendationsEnabled(false);
         }
       } else {
-        console.log('❌ Failed to load profile:', profileResponse.error);
+        console.log('[ERROR] Failed to load profile:', profileResponse.error);
         setMembershipType(MembershipType.BASIC);
         setMemberProfile(null);
         setAiRecommendationsEnabled(false);
       }
     } catch (err: any) {
-      console.error('❌ Error loading workouts data:', err);
+      console.error('[ERROR] Error loading workouts data:', err);
       setError(err.message || 'Failed to load workouts data');
     } finally {
       setLoading(false);
@@ -366,7 +366,7 @@ export default function WorkoutsScreen() {
         setRecommendations([]);
       }
     } catch (err: any) {
-      console.error('❌ Error loading recommendations:', err);
+      console.error('[ERROR] Error loading recommendations:', err);
       setRecommendations([]);
     } finally {
       setLoadingRecommendations(false);
@@ -393,7 +393,7 @@ export default function WorkoutsScreen() {
       const memberId = memberResponse.data?.id || user.id;
       await loadRecommendations(memberId);
     } catch (error: any) {
-      console.error('❌ Error toggling AI recommendations:', error);
+      console.error('[ERROR] Error toggling AI recommendations:', error);
       // Revert on error
       setAiRecommendationsEnabled(!value);
       Alert.alert(
@@ -508,7 +508,7 @@ export default function WorkoutsScreen() {
       setGeneratingAI(false);
       setAIGenerationStatus('preparing');
 
-      console.error('❌ AI Generation Exception:', error);
+      console.error('[ERROR] AI Generation Exception:', error);
 
         Alert.alert(
           t('common.error'),

@@ -4,7 +4,7 @@ const { createHttpClient } = require('./http-client.js');
 class MemberService {
   constructor() {
     const serviceUrl = MEMBER_SERVICE_URL || 'http://member:3002';
-    console.log('🔗 MemberService initialized:', {
+    console.log('[LINK] MemberService initialized:', {
       url: serviceUrl,
       DOCKER_ENV: process.env.DOCKER_ENV,
       MEMBER_SERVICE_URL: process.env.MEMBER_SERVICE_URL,
@@ -16,12 +16,12 @@ class MemberService {
 
   async getMemberById(memberId) {
     if (!memberId) {
-      console.warn('⚠️ getMemberById called with null/undefined memberId');
+      console.warn('[WARNING] getMemberById called with null/undefined memberId');
       return null;
     }
 
     const serviceUrl = this.client.defaults?.baseURL || MEMBER_SERVICE_URL;
-    console.log(`🔍 Fetching member ${memberId} from: ${serviceUrl}`, {
+    console.log(`[SEARCH] Fetching member ${memberId} from: ${serviceUrl}`, {
       'client.baseURL': this.client.defaults?.baseURL,
       'MEMBER_SERVICE_URL': MEMBER_SERVICE_URL,
       'DOCKER_ENV': process.env.DOCKER_ENV,
@@ -32,7 +32,7 @@ class MemberService {
       const response = await this.client.get(`/members/${memberId}`);
       const memberData = response.data?.data?.member || response.data?.data || response.data;
       
-      console.log(`✅ Successfully fetched member ${memberId}`, {
+      console.log(`[SUCCESS] Successfully fetched member ${memberId}`, {
         hasProfileEmbedding: !!memberData?.profile_embedding,
         profileEmbeddingType: memberData?.profile_embedding ? typeof memberData.profile_embedding : 'none',
         profileEmbeddingLength: memberData?.profile_embedding?.length || 0,
@@ -42,7 +42,7 @@ class MemberService {
       return memberData;
     } catch (error) {
       if (error.status === 404) {
-        console.warn(`⚠️ Member ${memberId} not found (404)`);
+        console.warn(`[WARNING] Member ${memberId} not found (404)`);
         return null;
       }
 
@@ -59,19 +59,19 @@ class MemberService {
 
       // Check connection errors
       if (error.code === 'ECONNREFUSED') {
-        console.error('❌ Connection refused to member-service:', errorDetails);
+        console.error('[ERROR] Connection refused to member-service:', errorDetails);
         console.error('   → Check if member-service is running');
         console.error('   → Check MEMBER_SERVICE_URL:', serviceUrl);
       } else if (error.code === 'ETIMEDOUT') {
-        console.error('❌ Timeout connecting to member-service:', errorDetails);
+        console.error('[ERROR] Timeout connecting to member-service:', errorDetails);
       } else if (error.response) {
-        console.error('❌ Member-service HTTP error:', {
+        console.error('[ERROR] Member-service HTTP error:', {
           ...errorDetails,
           responseStatus: error.response.status,
           responseData: error.response.data,
         });
       } else {
-        console.error('❌ Member-service error:', errorDetails);
+        console.error('[ERROR] Member-service error:', errorDetails);
         console.error('   Error stack:', error.stack);
       }
 

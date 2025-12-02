@@ -67,7 +67,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
   useEffect(() => {
     const handleCertificationCreated = (event: CustomEvent) => {
       console.log(
-        '📢 certification:created event received in ViewTrainerCertificationsModal:',
+        '[NOTIFY] certification:created event received in ViewTrainerCertificationsModal:',
         event.detail
       );
       const data = event.detail;
@@ -195,7 +195,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
           updated.splice(insertIndex, 0, newCert);
 
           console.log(
-            `✅ [VIEW_CERTS_MODAL] Added certification ${certId} optimistically at position ${insertIndex}`
+            `[SUCCESS] [VIEW_CERTS_MODAL] Added certification ${certId} optimistically at position ${insertIndex}`
           );
           return updated;
         });
@@ -206,7 +206,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
 
     const handleCertificationUpdated = (event: CustomEvent) => {
       console.log(
-        '📢 certification:updated event received in ViewTrainerCertificationsModal:',
+        '[NOTIFY] certification:updated event received in ViewTrainerCertificationsModal:',
         event.detail
       );
       const data = event.detail;
@@ -219,7 +219,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
           const index = prev.findIndex(cert => cert.id === certId);
           if (index === -1) {
             console.log(
-              `ℹ️ [VIEW_CERTS_MODAL] Certification ${certId} not found in list, skipping optimistic update`
+              `[INFO] [VIEW_CERTS_MODAL] Certification ${certId} not found in list, skipping optimistic update`
             );
             return prev;
           }
@@ -234,7 +234,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
             rejection_reason: data.rejection_reason || updated[index].rejection_reason,
             updated_at: data.updated_at || new Date().toISOString(),
           };
-          console.log(`✅ [VIEW_CERTS_MODAL] Updated certification ${certId} optimistically`);
+          console.log(`[SUCCESS] [VIEW_CERTS_MODAL] Updated certification ${certId} optimistically`);
           return updated;
         });
 
@@ -244,7 +244,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
 
     const handleCertificationDeleted = (event: CustomEvent) => {
       console.log(
-        '📢 certification:deleted event received in ViewTrainerCertificationsModal:',
+        '[NOTIFY] certification:deleted event received in ViewTrainerCertificationsModal:',
         event.detail
       );
       const data = event.detail;
@@ -265,7 +265,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
           setCertifications(prev => {
             const filtered = prev.filter(cert => cert.id !== certId);
             console.log(
-              `✅ [VIEW_CERTS_MODAL] Removed certification ${certId} after animation. Remaining: ${filtered.length}`
+              `[SUCCESS] [VIEW_CERTS_MODAL] Removed certification ${certId} after animation. Remaining: ${filtered.length}`
             );
             return filtered;
           });
@@ -415,7 +415,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
       setCertifications(prev => {
         const filtered = prev.filter(cert => cert.id !== certToDelete.id);
         console.log(
-          `✅ [VIEW_CERTS_MODAL] Removed certification ${certToDelete.id} optimistically. Remaining: ${filtered.length}`
+          `[SUCCESS] [VIEW_CERTS_MODAL] Removed certification ${certToDelete.id} optimistically. Remaining: ${filtered.length}`
         );
         return filtered;
       });

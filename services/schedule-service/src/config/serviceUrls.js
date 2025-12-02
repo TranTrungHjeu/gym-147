@@ -22,7 +22,7 @@ if (!MEMBER_SERVICE_URL) {
   // If in Docker but URL contains localhost or 127.0.0.1,
   // replace with host.docker.internal to access host machine services
   console.warn(
-    '⚠️ MEMBER_SERVICE_URL contains localhost/127.0.0.1 but DOCKER_ENV=true, replacing with host.docker.internal'
+    '[WARNING] MEMBER_SERVICE_URL contains localhost/127.0.0.1 but DOCKER_ENV=true, replacing with host.docker.internal'
   );
   // Use host.docker.internal for Windows/Mac Docker Desktop
   // For Linux, might need to use host machine IP
@@ -47,7 +47,7 @@ if (!IDENTITY_SERVICE_URL) {
   // If in Docker but URL contains localhost or 127.0.0.1,
   // replace with host.docker.internal to access host machine services
   console.warn(
-    '⚠️ IDENTITY_SERVICE_URL contains localhost/127.0.0.1 but DOCKER_ENV=true, replacing with host.docker.internal'
+    '[WARNING] IDENTITY_SERVICE_URL contains localhost/127.0.0.1 but DOCKER_ENV=true, replacing with host.docker.internal'
   );
   IDENTITY_SERVICE_URL = IDENTITY_SERVICE_URL.replace(
     /localhost:3001/g,
@@ -59,7 +59,7 @@ if (!IDENTITY_SERVICE_URL) {
   );
 }
 
-console.log('🔧 Service URLs configured:', {
+console.log('[CONFIG] Service URLs configured:', {
   DOCKER_ENV: process.env.DOCKER_ENV,
   isDocker,
   MEMBER_SERVICE_URL,

@@ -54,8 +54,8 @@ export default function StatsScreen() {
         healthService.getHealthTrends(member.id, 'weekly'),
       ]);
 
-      console.log('📊 Health metrics data:', metrics);
-      console.log('📊 Health trends data:', trends);
+      console.log('[DATA] Health metrics data:', metrics);
+      console.log('[DATA] Health trends data:', trends);
 
       setHealthMetrics(metrics);
       setHealthTrends(trends);

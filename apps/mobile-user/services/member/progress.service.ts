@@ -19,7 +19,7 @@ export interface ProgressData {
 export class ProgressService {
   async getProgressData(memberId: string): Promise<ProgressData | null> {
     try {
-      console.log('📊 Fetching progress data for member:', memberId);
+      console.log('[DATA] Fetching progress data for member:', memberId);
 
       if (!memberId) {
         console.error('Member ID is required');
@@ -30,7 +30,7 @@ export class ProgressService {
       const profileResponse = await memberService.getMemberProfile();
       const profile = profileResponse?.data;
 
-      console.log('👤 Member profile:', {
+      console.log('[USER] Member profile:', {
         weight: profile?.weight,
         body_fat: profile?.body_fat_percent,
       });
@@ -72,12 +72,12 @@ export class ProgressService {
       const currentMonth = new Date().toISOString().substring(0, 7);
       if (profile?.weight && !weightMap[currentMonth]) {
         weightMap[currentMonth] = [profile.weight];
-        console.log('✅ Added current weight from profile:', profile.weight);
+        console.log('[SUCCESS] Added current weight from profile:', profile.weight);
       }
       if (profile?.body_fat_percent && !bodyFatMap[currentMonth]) {
         bodyFatMap[currentMonth] = [profile.body_fat_percent];
         console.log(
-          '✅ Added current body fat from profile:',
+          '[SUCCESS] Added current body fat from profile:',
           profile.body_fat_percent
         );
       }
@@ -105,7 +105,7 @@ export class ProgressService {
           : 0;
       });
 
-      console.log('📊 Progress data:', {
+      console.log('[DATA] Progress data:', {
         weightData,
         bodyFatData,
       });

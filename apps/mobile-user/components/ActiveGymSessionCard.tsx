@@ -166,7 +166,7 @@ export default function ActiveGymSessionCard({
           0
         );
         setTotalCalories(total);
-        console.log('🔥 Total calories from equipment usage:', total);
+        console.log('[CALORIES] Total calories from equipment usage:', total);
       } else {
         setTotalCalories(0);
       }

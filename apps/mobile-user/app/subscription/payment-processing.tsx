@@ -351,7 +351,7 @@ export default function SubscriptionPaymentProcessingScreen() {
                 { color: theme.colors.warning },
               ]}
             >
-              ⚠️ {t('payment.exactAmountWarning') ||
+              [WARNING] {t('payment.exactAmountWarning') ||
                 'Please transfer the exact amount shown above'}
             </Text>
           </View>

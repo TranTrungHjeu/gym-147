@@ -59,5 +59,5 @@ class A4FSearchService {
   }
 }
 
-// 👉 Export instance để dùng ở ngoài
+// Export instance để dùng ở ngoài
 export const a4fSearchService = A4FSearchService.getInstance();

@@ -1,8 +1,8 @@
 import { environment } from '@/config/environment';
 
 export const testApiConnection = async () => {
-  console.log('🔍 Testing API connection...');
-  console.log('📍 API URL:', environment.API_URL);
+  console.log('[SEARCH] Testing API connection...');
+  console.log('[LOCATION] API URL:', environment.API_URL);
 
   try {
     // Test basic connectivity
@@ -17,29 +17,29 @@ export const testApiConnection = async () => {
       }),
     });
 
-    console.log('📊 Response status:', response.status);
+    console.log('[DATA] Response status:', response.status);
     console.log(
-      '📊 Response headers:',
+      '[STATS] Response headers:',
       Object.fromEntries(response.headers.entries())
     );
 
     const responseText = await response.text();
-    console.log('📄 Response body:', responseText);
+    console.log('[DATA] Response body:', responseText);
 
     if (response.ok) {
-      console.log('✅ API connection successful!');
+      console.log('[SUCCESS] API connection successful!');
       return { success: true, message: 'API connection successful' };
     } else {
       console.log(
-        '❌ API returned error:',
+        '[ERROR] API returned error:',
         response.status,
         response.statusText
       );
       return { success: false, message: `API error: ${response.status}` };
     }
   } catch (error: any) {
-    console.log('❌ Connection failed:', error.message);
-    console.log('🔧 Troubleshooting:');
+    console.log('[ERROR] Connection failed:', error.message);
+    console.log('[DEBUG] Troubleshooting:');
     console.log('1. Make sure Identity Service is running on port 3001');
     console.log('2. Check if emulator can reach host machine');
     console.log('3. Try: adb shell ping 10.0.2.2');
@@ -50,7 +50,7 @@ export const testApiConnection = async () => {
 };
 
 export const testNetworkConnectivity = async () => {
-  console.log('🌐 Testing network connectivity...');
+  console.log('[NETWORK] Testing network connectivity...');
 
   try {
     // Test if we can reach the host machine
@@ -63,10 +63,10 @@ export const testNetworkConnectivity = async () => {
     });
 
     clearTimeout(timeoutId);
-    console.log('✅ Network connectivity OK');
+    console.log('[SUCCESS] Network connectivity OK');
     return true;
   } catch (error: any) {
-    console.log('❌ Network connectivity failed:', error.message);
+    console.log('[ERROR] Network connectivity failed:', error.message);
     return false;
   }
 };

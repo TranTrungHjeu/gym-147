@@ -24,7 +24,7 @@ class RedisRateLimiter {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Redis Rate Limiter: Max reconnection attempts reached');
+              console.error('[ERROR] Redis Rate Limiter: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -33,25 +33,25 @@ class RedisRateLimiter {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Redis Rate Limiter Error:', err);
+        console.error('[ERROR] Redis Rate Limiter Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Redis Rate Limiter: Connected and ready');
+        console.log('[SUCCESS] Redis Rate Limiter: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Redis Rate Limiter: Connection closed');
+        console.log('[SOCKET] Redis Rate Limiter: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis Rate Limiter:', error.message);
-      console.log('⚠️ Rate limiter will use in-memory fallback');
+      console.error('[ERROR] Failed to initialize Redis Rate Limiter:', error.message);
+      console.log('[WARNING] Rate limiter will use in-memory fallback');
       this.isConnected = false;
     }
   }
@@ -97,7 +97,7 @@ class RedisRateLimiter {
 
         return { allowed, remaining, resetAt, resetIn: windowSeconds };
       } catch (error) {
-        console.error('❌ Redis rate limit error, falling back to in-memory:', error);
+        console.error('[ERROR] Redis rate limit error, falling back to in-memory:', error);
         this.isConnected = false;
         // Fall through to in-memory fallback
       }
@@ -171,7 +171,7 @@ class RedisRateLimiter {
 
         return { allowed, count, remaining };
       } catch (error) {
-        console.error('❌ Redis increment error, falling back:', error);
+        console.error('[ERROR] Redis increment error, falling back:', error);
         this.isConnected = false;
         // Fall through to fallback
       }
@@ -198,7 +198,7 @@ class RedisRateLimiter {
       try {
         await this.client.del(redisKey);
       } catch (error) {
-        console.error('❌ Redis reset error:', error);
+        console.error('[ERROR] Redis reset error:', error);
       }
     }
 

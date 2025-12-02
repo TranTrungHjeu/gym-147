@@ -12,9 +12,16 @@ const RewardAnalytics: React.FC = () => {
   const { showToast } = useToast();
   const [stats, setStats] = useState<RewardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [redemptionTrendData, setRedemptionTrendData] = useState<{
+    dates: string[];
+    redemptions: number[];
+    points_spent: number[];
+  } | null>(null);
+  const [trendLoading, setTrendLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
+    loadRedemptionTrend();
   }, []);
 
   const loadStats = async () => {
@@ -29,6 +36,22 @@ const RewardAnalytics: React.FC = () => {
       console.error('Error loading stats:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadRedemptionTrend = async () => {
+    try {
+      setTrendLoading(true);
+      const response = await rewardService.getRedemptionTrend({ period: 'monthly' });
+      if (response.success && response.data) {
+        setRedemptionTrendData(response.data);
+      }
+    } catch (error: any) {
+      console.error('Error loading redemption trend:', error);
+      // Don't show toast for trend data - it's not critical
+      setRedemptionTrendData(null);
+    } finally {
+      setTrendLoading(false);
     }
   };
 
@@ -146,8 +169,8 @@ const RewardAnalytics: React.FC = () => {
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
         {/* Redemption Trend Chart */}
         <RedemptionTrendChart
-          data={undefined} // TODO: Add redemption trend data from API
-          loading={loading}
+          data={redemptionTrendData || undefined}
+          loading={trendLoading || loading}
           height={400}
         />
 

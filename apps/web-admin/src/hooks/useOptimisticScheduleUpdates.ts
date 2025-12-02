@@ -272,7 +272,7 @@ export function useOptimisticScheduleUpdates(
   useEffect(() => {
     const handleBookingUpdated = (event: CustomEvent) => {
       const data = event.detail as BookingUpdateEvent;
-      console.log('📢 [OPTIMISTIC_UPDATE] booking:updated event received:', data);
+      console.log('[NOTIFY] [OPTIMISTIC_UPDATE] booking:updated event received:', data);
 
       // Determine which handler to use based on data
       if (data.cancelled_at || data.cancellation_reason) {
@@ -296,25 +296,25 @@ export function useOptimisticScheduleUpdates(
 
     const handleBookingNewEvent = (event: CustomEvent) => {
       const data = event.detail as BookingUpdateEvent;
-      console.log('📢 [OPTIMISTIC_UPDATE] booking:new event received:', data);
+      console.log('[NOTIFY] [OPTIMISTIC_UPDATE] booking:new event received:', data);
       handleBookingNew(data);
     };
 
     const handleBookingConfirmedEvent = (event: CustomEvent) => {
       const data = event.detail as BookingUpdateEvent;
-      console.log('📢 [OPTIMISTIC_UPDATE] booking:confirmed event received:', data);
+      console.log('[NOTIFY] [OPTIMISTIC_UPDATE] booking:confirmed event received:', data);
       handleBookingConfirmed(data);
     };
 
     const handleBookingCancelledEvent = (event: CustomEvent) => {
       const data = event.detail as BookingUpdateEvent;
-      console.log('📢 [OPTIMISTIC_UPDATE] booking:cancelled event received:', data);
+      console.log('[NOTIFY] [OPTIMISTIC_UPDATE] booking:cancelled event received:', data);
       handleBookingCancelled(data);
     };
 
     const handleMemberCheckedInEvent = (event: CustomEvent) => {
       const data = event.detail as { schedule_id: string; member_id: string; member_name?: string };
-      console.log('📢 [OPTIMISTIC_UPDATE] member:checked_in event received:', data);
+      console.log('[NOTIFY] [OPTIMISTIC_UPDATE] member:checked_in event received:', data);
       handleMemberCheckedIn(data);
     };
 

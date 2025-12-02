@@ -1,11 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useState } from 'react';
 import { Filter, X } from 'lucide-react';
-import flatpickr from 'flatpickr';
-import 'flatpickr/dist/flatpickr.css';
 import AdminCard from './AdminCard';
 import AdminButton from './AdminButton';
 import AdminInput from './AdminInput';
 import CustomSelect from './CustomSelect';
+import DatePicker from './DatePicker';
 
 interface AdvancedFiltersProps {
   filters: {
@@ -47,10 +46,6 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   customFilterFields = [],
 }) => {
   const [localFilters, setLocalFilters] = useState(filters);
-  const fromDatePickerRef = useRef<HTMLInputElement>(null);
-  const toDatePickerRef = useRef<HTMLInputElement>(null);
-  const fromDateFlatpickrRef = useRef<any>(null);
-  const toDateFlatpickrRef = useRef<any>(null);
 
   const handleFilterChange = (key: string, value: any) => {
     const newFilters = { ...localFilters };
@@ -76,14 +71,6 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   };
 
   const handleReset = () => {
-    // Clear flatpickr instances
-    if (fromDateFlatpickrRef.current) {
-      fromDateFlatpickrRef.current.clear();
-    }
-    if (toDateFlatpickrRef.current) {
-      toDateFlatpickrRef.current.clear();
-    }
-    
     const resetFilters: any = {
       dateRange: { from: '', to: '' },
       status: '',
@@ -114,7 +101,9 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     return hasDateRange || hasStatus || hasCategory || hasSearch || hasCustomFilters;
   };
 
-  // Initialize flatpickr for date pickers
+  // Date pickers are now handled by DatePicker component
+  // Removed flatpickr initialization
+  /*
   useEffect(() => {
     if (!showDateRange) {
       // Clean up when date range is not shown
@@ -303,6 +292,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
       }
     };
   }, [showDateRange]);
+  */
 
   return (
     <>
@@ -668,24 +658,34 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 <label className='text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
                   Từ ngày
                 </label>
-                <input
-                  ref={fromDatePickerRef}
-                  type='text'
+                <DatePicker
+                  value={localFilters.dateRange?.from}
+                  onChange={(date) => {
+                    if (typeof date === 'string') {
+                      handleFilterChange('dateRange.from', date);
+                    } else {
+                      handleFilterChange('dateRange.from', '');
+                    }
+                  }}
                   placeholder='dd/mm/yyyy'
-                  readOnly
-                  className='h-[30px] px-3 py-1.5 text-[11px] font-inter border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer'
+                  mode='single'
                 />
               </div>
               <div className='w-[140px] flex flex-col flex-shrink-0'>
                 <label className='text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
                   Đến ngày
                 </label>
-                <input
-                  ref={toDatePickerRef}
-                  type='text'
+                <DatePicker
+                  value={localFilters.dateRange?.to}
+                  onChange={(date) => {
+                    if (typeof date === 'string') {
+                      handleFilterChange('dateRange.to', date);
+                    } else {
+                      handleFilterChange('dateRange.to', '');
+                    }
+                  }}
                   placeholder='dd/mm/yyyy'
-                  readOnly
-                  className='h-[30px] px-3 py-1.5 text-[11px] font-inter border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200 shadow-sm hover:shadow-md cursor-pointer'
+                  mode='single'
                 />
               </div>
             </>

@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 
 /**
  * Specialization Sync Service
@@ -14,7 +14,7 @@ class SpecializationSyncService {
    */
   async updateTrainerSpecializations(trainerId) {
     try {
-      console.log(`🔄 Syncing specializations for trainer: ${trainerId}`);
+      console.log(`[SYNC] Syncing specializations for trainer: ${trainerId}`);
 
       // Verify trainer exists first
       const trainer = await prisma.trainer.findUnique({
@@ -23,15 +23,15 @@ class SpecializationSyncService {
       });
 
       if (!trainer) {
-        console.error(`❌ Trainer not found: ${trainerId}`);
+        console.error(`[ERROR] Trainer not found: ${trainerId}`);
         return {
           success: false,
           error: `Trainer not found: ${trainerId}`,
         };
       }
 
-      console.log(`✅ Trainer found: ${trainer.full_name} (${trainerId})`);
-      console.log(`📊 Current specializations:`, trainer.specializations || []);
+      console.log(`[SUCCESS] Trainer found: ${trainer.full_name} (${trainerId})`);
+      console.log(`[DATA] Current specializations:`, trainer.specializations || []);
 
       // Get ALL verified certifications first (including expired ones) for logging
       const allVerifiedCerts = await prisma.trainerCertification.findMany({
@@ -50,12 +50,12 @@ class SpecializationSyncService {
         },
       });
 
-      console.log(`📋 Found ${allVerifiedCerts.length} total verified certifications for trainer ${trainer.full_name}`);
+      console.log(`[DATA] Found ${allVerifiedCerts.length} total verified certifications for trainer ${trainer.full_name}`);
       if (allVerifiedCerts.length > 0) {
         const now = new Date();
         allVerifiedCerts.forEach(cert => {
           const isExpired = cert.expiration_date && new Date(cert.expiration_date) < now;
-          const status = isExpired ? '❌ EXPIRED' : '✅ ACTIVE';
+          const status = isExpired ? '[ERROR] EXPIRED' : '[SUCCESS] ACTIVE';
           console.log(
             `   ${status} - ${cert.category} (${cert.certification_level})${cert.expiration_date ? ` - Expires: ${cert.expiration_date.toISOString().split('T')[0]}` : ' - No expiration'}`
           );
@@ -78,10 +78,10 @@ class SpecializationSyncService {
         },
       });
 
-      console.log(`✅ Found ${certifications.length} non-expired verified certifications eligible for specialization sync`);
+      console.log(`[SUCCESS] Found ${certifications.length} non-expired verified certifications eligible for specialization sync`);
       if (certifications.length !== allVerifiedCerts.length) {
         const expiredCount = allVerifiedCerts.length - certifications.length;
-        console.log(`⚠️  ${expiredCount} certification(s) excluded due to expiration`);
+        console.log(`[WARN] ${expiredCount} certification(s) excluded due to expiration`);
       }
 
       // Extract unique categories and get the highest level for each
@@ -156,21 +156,21 @@ class SpecializationSyncService {
       const specsChanged = JSON.stringify(currentSpecs.sort()) !== JSON.stringify(newSpecializations.sort());
       
       if (newSpecializations.length === 0) {
-        console.log(`⚠️  WARNING: No valid certifications found for trainer ${trainer.full_name} (${trainerId})`);
+        console.log(`[WARN] WARNING: No valid certifications found for trainer ${trainer.full_name} (${trainerId})`);
         console.log(`   Current specializations: ${currentSpecs.length > 0 ? currentSpecs.join(', ') : 'NONE'}`);
         console.log(`   This could be because:`);
         console.log(`   - All certifications have expired`);
         console.log(`   - No certifications are VERIFIED`);
         console.log(`   - No certifications are active`);
-        console.log(`   ⚠️  SPECIALIZATIONS WILL BE CLEARED (set to empty array)`);
+        console.log(`   [WARN] SPECIALIZATIONS WILL BE CLEARED (set to empty array)`);
         
         // Only update if there's a change to avoid unnecessary database writes
         if (currentSpecs.length > 0) {
-          console.log(`   ⚠️  This will REMOVE ${currentSpecs.length} specialization(s): ${currentSpecs.join(', ')}`);
+          console.log(`   [WARN] This will REMOVE ${currentSpecs.length} specialization(s): ${currentSpecs.join(', ')}`);
         }
       } else {
         console.log(
-          `🎯 Specializations to sync:`,
+          `[SYNC] Specializations to sync:`,
           newSpecializations.map(cat => {
             const cert = categoryLevels[cat];
             return `${cat} (${cert.certification_level})`;
@@ -182,13 +182,13 @@ class SpecializationSyncService {
           const removed = currentSpecs.filter(s => !newSpecializations.includes(s));
           
           if (added.length > 0) {
-            console.log(`   ➕ Added: ${added.join(', ')}`);
+            console.log(`   [ADD] Added: ${added.join(', ')}`);
           }
           if (removed.length > 0) {
-            console.log(`   ➖ Removed: ${removed.join(', ')}`);
+            console.log(`   [REMOVE] Removed: ${removed.join(', ')}`);
           }
         } else {
-          console.log(`   ℹ️  No changes detected - specializations unchanged`);
+          console.log(`   [INFO] No changes detected - specializations unchanged`);
         }
       }
 
@@ -207,11 +207,11 @@ class SpecializationSyncService {
           },
         });
 
-        console.log(`✅ Specializations updated for trainer ${updatedTrainer.full_name}`);
-        console.log(`📊 Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
-        console.log(`📊 After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
+        console.log(`[SUCCESS] Specializations updated for trainer ${updatedTrainer.full_name}`);
+        console.log(`[DATA] Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
+        console.log(`[DATA] After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
       } else {
-        console.log(`ℹ️  No update needed - specializations unchanged for trainer ${trainer.full_name}`);
+        console.log(`[INFO] No update needed - specializations unchanged for trainer ${trainer.full_name}`);
         updatedTrainer = trainer;
       }
 
@@ -228,7 +228,7 @@ class SpecializationSyncService {
         after: newSpecializations,
       };
     } catch (error) {
-      console.error('❌ Error updating trainer specializations:', error);
+      console.error('[ERROR] Error updating trainer specializations:', error);
       return {
         success: false,
         error: error.message,
@@ -303,7 +303,7 @@ class SpecializationSyncService {
         specializationsWithDetails: Object.values(specializationsWithDetails),
       };
     } catch (error) {
-      console.error('❌ Error getting trainer specializations with details:', error);
+      console.error('[ERROR] Error getting trainer specializations with details:', error);
       return {
         success: false,
         error: error.message,
@@ -377,7 +377,7 @@ class SpecializationSyncService {
         warning,
       };
     } catch (error) {
-      console.error('❌ Error validating trainer can teach:', error);
+      console.error('[ERROR] Error validating trainer can teach:', error);
       return {
         canTeach: false,
         reason: 'Error validating certification',
@@ -430,7 +430,7 @@ class SpecializationSyncService {
         qualifiedTrainers,
       };
     } catch (error) {
-      console.error('❌ Error getting qualified trainers:', error);
+      console.error('[ERROR] Error getting qualified trainers:', error);
       return {
         success: false,
         error: error.message,
@@ -444,7 +444,7 @@ class SpecializationSyncService {
    */
   async syncAllTrainersSpecializations() {
     try {
-      console.log('🔄 Starting bulk sync of all trainers specializations...');
+      console.log('[SYNC] Starting bulk sync of all trainers specializations...');
 
       const trainers = await prisma.trainer.findMany({
         select: { id: true, full_name: true },
@@ -465,7 +465,7 @@ class SpecializationSyncService {
       const successCount = results.filter(r => r.success).length;
       const failureCount = results.filter(r => !r.success).length;
 
-      console.log(`✅ Bulk sync completed: ${successCount} success, ${failureCount} failures`);
+      console.log(`[SUCCESS] Bulk sync completed: ${successCount} success, ${failureCount} failures`);
 
       return {
         success: true,
@@ -475,7 +475,7 @@ class SpecializationSyncService {
         results,
       };
     } catch (error) {
-      console.error('❌ Error in bulk sync:', error);
+      console.error('[ERROR] Error in bulk sync:', error);
       return {
         success: false,
         error: error.message,
@@ -498,7 +498,7 @@ class SpecializationSyncService {
    */
   async removeSpecialization(trainerId, category, excludeCertificationId = null) {
     try {
-      console.log(`🗑️  Removing specialization ${category} from trainer: ${trainerId}${excludeCertificationId ? ` (excluding cert ${excludeCertificationId})` : ''}`);
+      console.log(`[DELETE] Removing specialization ${category} from trainer: ${trainerId}${excludeCertificationId ? ` (excluding cert ${excludeCertificationId})` : ''}`);
 
       // Verify trainer exists
       const trainer = await prisma.trainer.findUnique({
@@ -507,20 +507,20 @@ class SpecializationSyncService {
       });
 
       if (!trainer) {
-        console.error(`❌ Trainer not found: ${trainerId}`);
+        console.error(`[ERROR] Trainer not found: ${trainerId}`);
         return {
           success: false,
           error: `Trainer not found: ${trainerId}`,
         };
       }
 
-      console.log(`✅ Trainer found: ${trainer.full_name} (${trainerId})`);
-      console.log(`📊 Current specializations:`, trainer.specializations || []);
+      console.log(`[SUCCESS] Trainer found: ${trainer.full_name} (${trainerId})`);
+      console.log(`[DATA] Current specializations:`, trainer.specializations || []);
 
       // Check if trainer has this specialization
       const currentSpecs = trainer.specializations || [];
       if (!currentSpecs.includes(category)) {
-        console.log(`ℹ️  Trainer ${trainer.full_name} does not have specialization ${category} - no action needed`);
+        console.log(`[INFO] Trainer ${trainer.full_name} does not have specialization ${category} - no action needed`);
         return {
           success: true,
           trainerId,
@@ -553,7 +553,7 @@ class SpecializationSyncService {
       });
 
       if (otherCerts.length > 0) {
-        console.log(`ℹ️  Trainer ${trainer.full_name} still has ${otherCerts.length} valid certification(s) for ${category} - keeping specialization`);
+        console.log(`[INFO] Trainer ${trainer.full_name} still has ${otherCerts.length} valid certification(s) for ${category} - keeping specialization`);
         console.log(`   Certifications:`, otherCerts.map(c => `${c.category} (${c.certification_level})`));
         return {
           success: true,
@@ -580,9 +580,9 @@ class SpecializationSyncService {
         },
       });
 
-      console.log(`✅ Removed specialization ${category} from trainer ${updatedTrainer.full_name}`);
-      console.log(`📊 Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
-      console.log(`📊 After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
+      console.log(`[SUCCESS] Removed specialization ${category} from trainer ${updatedTrainer.full_name}`);
+      console.log(`[DATA] Before: ${currentSpecs.length} specializations - [${currentSpecs.join(', ')}]`);
+      console.log(`[DATA] After: ${updatedTrainer.specializations.length} specializations - [${updatedTrainer.specializations.join(', ')}]`);
 
       return {
         success: true,
@@ -594,7 +594,7 @@ class SpecializationSyncService {
         after: updatedSpecs,
       };
     } catch (error) {
-      console.error('❌ Error removing specialization:', error);
+      console.error('[ERROR] Error removing specialization:', error);
       return {
         success: false,
         error: error.message,

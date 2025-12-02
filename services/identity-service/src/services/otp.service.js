@@ -153,7 +153,7 @@ class OTPService {
                 data: { verified_at: new Date() },
               });
 
-              console.log('✅ OTP verified successfully for:', identifier);
+              console.log('[SUCCESS] OTP verified successfully for:', identifier);
               return {
                 success: true,
                 message: 'Xác thực thành công',
@@ -176,7 +176,7 @@ class OTPService {
                 data: { attempts: newAttempts },
               });
 
-              console.log('❌ OTP verification failed for:', identifier, '- Attempts:', newAttempts);
+              console.log('[ERROR] OTP verification failed for:', identifier, '- Attempts:', newAttempts);
               return {
                 success: false,
                 message: 'Mã OTP không đúng',
@@ -250,7 +250,7 @@ class OTPService {
           data: { verified_at: new Date() },
         });
 
-        console.log('✅ OTP verified successfully for:', identifier);
+        console.log('[SUCCESS] OTP verified successfully for:', identifier);
         return {
           success: true,
           message: 'Xác thực thành công',
@@ -263,7 +263,7 @@ class OTPService {
         });
 
         console.log(
-          '❌ OTP verification failed for:',
+          '[ERROR] OTP verification failed for:',
           identifier,
           '- Attempts:',
           otpRecord.attempts + 1
@@ -277,6 +277,101 @@ class OTPService {
     } catch (error) {
       console.error('Error verifying OTP:', error);
       throw new Error('Failed to verify OTP');
+    }
+  }
+
+  // Send password reset SMS
+  async sendPasswordResetSMS(phoneNumber, resetToken, resetLink) {
+    try {
+      const message = `Mã đặt lại mật khẩu của bạn: ${resetToken}. Link: ${resetLink}. Mã có hiệu lực 5 phút.`;
+      
+      // Reuse sendSMSOTP logic but with custom message
+      if (config.sms.provider === 'speedsms') {
+        if (!config.sms.speedsms.accessToken) {
+          console.warn('SpeedSMS access token is not configured. Falling back to mock mode.');
+          console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+          return {
+            success: true,
+            message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
+          };
+        }
+
+        const sender = config.sms.speedsms.brandname || '';
+
+        // Format phone number
+        let formattedPhone = phoneNumber.trim();
+        formattedPhone = formattedPhone.replace(/\s+/g, '');
+        if (formattedPhone.startsWith('+84')) {
+          formattedPhone = formattedPhone.replace('+84', '84');
+        } else if (formattedPhone.startsWith('0')) {
+          formattedPhone = '84' + formattedPhone.substring(1);
+        } else if (!formattedPhone.startsWith('84')) {
+          formattedPhone = '84' + formattedPhone;
+        }
+
+        const basicAuth = Buffer.from(`${config.sms.speedsms.accessToken}:x`).toString('base64');
+        const requestData = {
+          to: [formattedPhone],
+          content: message,
+          sms_type: 2,
+        };
+
+        if (sender) {
+          requestData.sender = sender;
+        }
+
+        const response = await axios.post(
+          'https://api.speedsms.vn/index.php/sms/send',
+          requestData,
+          {
+            headers: {
+              Authorization: `Basic ${basicAuth}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (response.data.status === 'success') {
+          return {
+            success: true,
+            message: 'Mã đặt lại mật khẩu đã được gửi qua SMS',
+          };
+        } else {
+          throw new Error(response.data.message || 'Failed to send SMS');
+        }
+      } else if (config.sms.provider === 'esms') {
+        // ESMS implementation
+        if (!config.sms.esms.apiKey || !config.sms.esms.secretKey) {
+          console.warn('ESMS credentials are not configured. Falling back to mock mode.');
+          console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+          return {
+            success: true,
+            message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
+          };
+        }
+
+        // ESMS implementation would go here
+        // For now, return mock
+        return {
+          success: true,
+          message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock - ESMS)',
+        };
+      } else {
+        // Mock mode
+        console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+        return {
+          success: true,
+          message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
+        };
+      }
+    } catch (error) {
+      console.error('Error sending password reset SMS:', error);
+      // Log error but don't throw - security best practice
+      return {
+        success: false,
+        message: 'Failed to send password reset SMS',
+        error: error.message,
+      };
     }
   }
 
@@ -913,7 +1008,7 @@ class OTPService {
             </p>
             <p style="margin: 0; margin-top: 10px; color: #499fb6; font-size: 12px; word-break: break-all; background: #e9ecef; padding: 10px; border-radius: 4px; font-family: 'Inter', sans-serif;">${resetUrl}</p>
             <p style="margin: 0; margin-top: 30px; font-weight: 500; color: #d32f2f; font-family: 'Inter', sans-serif;">
-              ⚠️ Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
+              [WARNING] Nếu bạn không yêu cầu đặt lại mật khẩu, vui lòng bỏ qua email này.
             </p>
           </div>
         </div>

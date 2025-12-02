@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const dayjs = require('dayjs');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
@@ -12,20 +12,24 @@ class AutoStatusUpdateService {
    */
   async updateScheduledToInProgress() {
     try {
+      // Get current time in Vietnam timezone
       const vnTime = dayjs().tz('Asia/Ho_Chi_Minh');
-      // Create Vietnam time manually for comparison
-      const now = new Date(vnTime.format('YYYY-MM-DD HH:mm:ss'));
+      // Convert to UTC for database comparison (PostgreSQL stores DateTime as UTC)
+      // Use .toDate() which returns a JavaScript Date object in UTC
+      const now = vnTime.utc().toDate();
 
       console.log(
-        `🔄 Auto Status Update: Checking SCHEDULED -> IN_PROGRESS at ${vnTime.format('YYYY-MM-DD HH:mm:ss')}`
+        `[SYNC] Auto Status Update: Checking SCHEDULED -> IN_PROGRESS at ${vnTime.format(
+          'YYYY-MM-DD HH:mm:ss'
+        )} (GMT+7)`
       );
-      console.log(`🔄 Now object: ${now.toISOString()}`);
+      console.log(`[SYNC] Now UTC: ${now.toISOString()}`);
 
       // Debug: Check how many SCHEDULED schedules exist
       const scheduledCount = await prisma.schedule.count({
         where: { status: 'SCHEDULED' },
       });
-      console.log(`🔄 Found ${scheduledCount} SCHEDULED schedules`);
+      console.log(`[SYNC] Found ${scheduledCount} SCHEDULED schedules`);
 
       // Debug: Check specific schedule
       const testSchedule = await prisma.schedule.findFirst({
@@ -33,8 +37,13 @@ class AutoStatusUpdateService {
         select: { id: true, start_time: true, end_time: true },
       });
       if (testSchedule) {
+        const startTimeVN = dayjs(testSchedule.start_time).tz('Asia/Ho_Chi_Minh');
         console.log(
-          `🔄 Test schedule: ${testSchedule.id}, start: ${testSchedule.start_time}, now: ${now}, comparison: ${testSchedule.start_time <= now}`
+          `[SYNC] Test schedule: ${
+            testSchedule.id
+          }, start (UTC): ${testSchedule.start_time.toISOString()}, start (GMT+7): ${startTimeVN.format(
+            'YYYY-MM-DD HH:mm:ss'
+          )}, now (UTC): ${now.toISOString()}, comparison: ${testSchedule.start_time <= now}`
         );
       }
 
@@ -47,7 +56,7 @@ class AutoStatusUpdateService {
       });
 
       if (result.count > 0) {
-        console.log(`✅ Updated ${result.count} schedules from SCHEDULED to IN_PROGRESS`);
+        console.log(`[SUCCESS] Updated ${result.count} schedules from SCHEDULED to IN_PROGRESS`);
       }
 
       return result.count;
@@ -62,13 +71,18 @@ class AutoStatusUpdateService {
    */
   async updateInProgressToCompleted() {
     try {
+      // Get current time in Vietnam timezone
       const vnTime = dayjs().tz('Asia/Ho_Chi_Minh');
-      // Create Vietnam time manually for comparison
-      const now = new Date(vnTime.format('YYYY-MM-DD HH:mm:ss'));
+      // Convert to UTC for database comparison (PostgreSQL stores DateTime as UTC)
+      // Use .toDate() which returns a JavaScript Date object in UTC
+      const now = vnTime.utc().toDate();
 
       console.log(
-        `🔄 Auto Status Update: Checking IN_PROGRESS -> COMPLETED at ${vnTime.format('YYYY-MM-DD HH:mm:ss')}`
+        `[SYNC] Auto Status Update: Checking IN_PROGRESS -> COMPLETED at ${vnTime.format(
+          'YYYY-MM-DD HH:mm:ss'
+        )} (GMT+7)`
       );
+      console.log(`[SYNC] Now UTC: ${now.toISOString()}`);
 
       const result = await prisma.schedule.updateMany({
         where: {
@@ -79,7 +93,7 @@ class AutoStatusUpdateService {
       });
 
       if (result.count > 0) {
-        console.log(`✅ Updated ${result.count} schedules from IN_PROGRESS to COMPLETED`);
+        console.log(`[SUCCESS] Updated ${result.count} schedules from IN_PROGRESS to COMPLETED`);
       }
 
       return result.count;
@@ -94,12 +108,14 @@ class AutoStatusUpdateService {
    */
   async runAutoUpdate() {
     console.log(
-      `🚀 Auto Status Update: Starting at ${dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD HH:mm:ss')}`
+      `[START] Auto Status Update: Starting at ${dayjs()
+        .tz('Asia/Ho_Chi_Minh')
+        .format('YYYY-MM-DD HH:mm:ss')}`
     );
     const scheduledToInProgress = await this.updateScheduledToInProgress();
     const inProgressToCompleted = await this.updateInProgressToCompleted();
     const total = scheduledToInProgress + inProgressToCompleted;
-    console.log(`🏁 Auto Status Update: Completed. Total updates: ${total}`);
+    console.log(`[SUCCESS] Auto Status Update: Completed. Total updates: ${total}`);
     return total;
   }
 }

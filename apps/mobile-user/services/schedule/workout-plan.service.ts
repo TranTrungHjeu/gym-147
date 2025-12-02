@@ -76,7 +76,7 @@ class WorkoutPlanService {
         data: Array.isArray(workoutPlans) ? workoutPlans : [],
       };
     } catch (error: any) {
-      console.error('❌ Error fetching workout plans:', error);
+      console.error('[ERROR] Error fetching workout plans:', error);
       return { success: false, error: error.message };
     }
   }
@@ -99,7 +99,7 @@ class WorkoutPlanService {
       const response = await memberApiService.get(`/workout-plans/${id}`);
       return { success: true, data: response.data };
     } catch (error: any) {
-      console.error('❌ Error fetching workout plan by ID:', error);
+      console.error('[ERROR] Error fetching workout plan by ID:', error);
       return { success: false, error: error.message };
     }
   }
@@ -201,7 +201,7 @@ class WorkoutPlanService {
         }
       }
       
-      console.error('❌ AI Workout Plan Generation Error:', {
+      console.error('[ERROR] AI Workout Plan Generation Error:', {
         error: errorMessage,
         originalError: error.message,
         response: error.response?.data,
@@ -254,7 +254,7 @@ class WorkoutPlanService {
         },
       };
     } catch (error: any) {
-      console.error('❌ Error fetching workout recommendations:', error);
+      console.error('[ERROR] Error fetching workout recommendations:', error);
       return {
         success: false,
         error: error.message || 'Failed to fetch recommendations',

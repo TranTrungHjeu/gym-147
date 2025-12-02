@@ -3,12 +3,27 @@ import { notificationService } from '@/services/member/notification.service';
 import type { Notification } from '@/types/notificationTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Clock, Trash2 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  CreditCard,
+  Dumbbell,
+  PartyPopper,
+  Settings,
+  Trash2,
+  Trophy,
+  Wrench,
+} from 'lucide-react-native';
+import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
   Alert,
+  Animated,
+  Easing,
   RefreshControl,
   ScrollView,
   StyleSheet,
@@ -16,6 +31,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 export default function NotificationDetailScreen() {
   const router = useRouter();
@@ -27,6 +43,39 @@ export default function NotificationDetailScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [notification, setNotification] = useState<Notification | null>(null);
 
+  // Animation refs
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const cardScale = useRef(new Animated.Value(0.95)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
+  const contentOpacity = useRef(new Animated.Value(0)).current;
+  const contentTranslateY = useRef(new Animated.Value(20)).current;
+  const metadataOpacity = useRef(new Animated.Value(0)).current;
+
+  // Map API response (snake_case) to Notification interface (camelCase)
+  const mapNotificationFromAPI = (apiNotification: any): Notification => {
+    return {
+      id: apiNotification.id,
+      type: apiNotification.type || 'GENERAL',
+      title: apiNotification.title || '',
+      message: apiNotification.message || '',
+      status:
+        apiNotification.is_read === false || apiNotification.is_read === 0
+          ? 'UNREAD'
+          : apiNotification.is_read === true || apiNotification.is_read === 1
+          ? 'READ'
+          : (apiNotification.status as any) || 'UNREAD',
+      priority: apiNotification.priority || 'NORMAL',
+      createdAt:
+        apiNotification.created_at ||
+        apiNotification.createdAt ||
+        new Date().toISOString(),
+      readAt: apiNotification.read_at || apiNotification.readAt || null,
+      metadata: apiNotification.data || apiNotification.metadata || {},
+      userId: apiNotification.user_id || apiNotification.userId,
+      memberId: apiNotification.member_id || apiNotification.memberId,
+    };
+  };
+
   const loadNotification = async () => {
     if (!id) return;
 
@@ -34,11 +83,67 @@ export default function NotificationDetailScreen() {
       const notificationData = await notificationService.getNotificationById(
         id
       );
-      setNotification(notificationData);
+
+      // Map API response to Notification interface
+      const mappedNotification = mapNotificationFromAPI(notificationData);
+      setNotification(mappedNotification);
 
       // Mark as read if unread
-      if (notificationData.status === 'UNREAD') {
+      if (mappedNotification.status === 'UNREAD') {
         await notificationService.markAsRead(id);
+      }
+
+      // Start animations
+      Animated.parallel([
+        Animated.timing(headerOpacity, {
+          toValue: 1,
+          duration: 300,
+          easing: Easing.out(Easing.ease),
+          useNativeDriver: true,
+        }),
+        Animated.parallel([
+          Animated.spring(cardScale, {
+            toValue: 1,
+            tension: 50,
+            friction: 7,
+            useNativeDriver: true,
+          }),
+          Animated.timing(cardOpacity, {
+            toValue: 1,
+            duration: 400,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+        ]),
+        Animated.parallel([
+          Animated.timing(contentOpacity, {
+            toValue: 1,
+            duration: 500,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }),
+          Animated.spring(contentTranslateY, {
+            toValue: 0,
+            tension: 50,
+            friction: 8,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]).start();
+
+      // Animate metadata if exists
+      if (
+        mappedNotification.metadata &&
+        Object.keys(mappedNotification.metadata).length > 0
+      ) {
+        Animated.delay(300).start(() => {
+          Animated.timing(metadataOpacity, {
+            toValue: 1,
+            duration: 400,
+            easing: Easing.out(Easing.ease),
+            useNativeDriver: true,
+          }).start();
+        });
       }
     } catch (error) {
       console.error('Error loading notification:', error);
@@ -83,36 +188,60 @@ export default function NotificationDetailScreen() {
   };
 
   const getNotificationIcon = (type: string) => {
+    const iconProps = { size: 32, color: '#FFFFFF' };
     switch (type) {
       case 'WORKOUT_REMINDER':
-        return '💪';
+        return <Dumbbell {...iconProps} />;
       case 'MEMBERSHIP_EXPIRY':
-        return '⏰';
+        return <Clock {...iconProps} />;
       case 'PAYMENT_DUE':
-        return '💳';
+        return <CreditCard {...iconProps} />;
       case 'CLASS_BOOKING':
-        return '📅';
+        return <Calendar {...iconProps} />;
       case 'ACHIEVEMENT':
-        return '🏆';
+        return <Trophy {...iconProps} />;
       case 'MAINTENANCE':
-        return '🔧';
+        return <Wrench {...iconProps} />;
       case 'PROMOTION':
-        return '🎉';
+        return <PartyPopper {...iconProps} />;
       case 'SYSTEM':
-        return '⚙️';
+        return <Settings {...iconProps} />;
       default:
-        return '🔔';
+        return <Settings {...iconProps} />;
+    }
+  };
+
+  const getNotificationGradient = (type: string): [string, string] => {
+    switch (type) {
+      case 'WORKOUT_REMINDER':
+        return ['#FF6B6B', '#FF8E8E'];
+      case 'MEMBERSHIP_EXPIRY':
+        return ['#FFA726', '#FFB74D'];
+      case 'PAYMENT_DUE':
+        return ['#42A5F5', '#64B5F6'];
+      case 'CLASS_BOOKING':
+        return ['#66BB6A', '#81C784'];
+      case 'ACHIEVEMENT':
+        return ['#FFD54F', '#FFE082'];
+      case 'MAINTENANCE':
+        return ['#78909C', '#90A4AE'];
+      case 'PROMOTION':
+        return ['#AB47BC', '#BA68C8'];
+      case 'SYSTEM':
+        return ['#26A69A', '#4DB6AC'];
+      default:
+        return ['#78909C', '#90A4AE'];
     }
   };
 
   const getPriorityColor = (priority: string) => {
     switch (priority) {
       case 'URGENT':
-        return theme.colors.error;
+        return '#EF5350';
       case 'HIGH':
-        return theme.colors.warning;
+        return '#FF9800';
       case 'MEDIUM':
-        return theme.colors.info;
+        return '#42A5F5';
       case 'LOW':
         return theme.colors.textSecondary;
       default:
@@ -126,18 +255,89 @@ export default function NotificationDetailScreen() {
   };
 
   const getRelativeTime = (dateString: string) => {
-    const date = new Date(dateString);
-    const now = new Date();
-    const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
+    if (!dateString) {
+      return t('notifications.justNow', { defaultValue: 'Vừa xong' });
+    }
 
-    if (diffInHours < 1) {
-      return 'Just now';
-    } else if (diffInHours < 24) {
-      return `${Math.floor(diffInHours)}h ago`;
-    } else if (diffInHours < 168) {
-      return `${Math.floor(diffInHours / 24)}d ago`;
-    } else {
-      return date.toLocaleDateString(i18n.language);
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) {
+        return t('notifications.justNow', { defaultValue: 'Vừa xong' });
+      }
+
+      const now = new Date();
+      const diffInMs = now.getTime() - date.getTime();
+      const diffInHours = diffInMs / (1000 * 60 * 60);
+      const diffInMinutes = diffInMs / (1000 * 60);
+
+      if (diffInMs < 0) {
+        return t('notifications.justNow', { defaultValue: 'Vừa xong' });
+      }
+
+      if (diffInMinutes < 1) {
+        return t('notifications.justNow', { defaultValue: 'Vừa xong' });
+      } else if (diffInMinutes < 60) {
+        const minutes = Math.floor(diffInMinutes);
+        return t('notifications.minutesAgo', {
+          defaultValue: '{{count}} phút trước',
+          count: minutes,
+        });
+      } else if (diffInHours < 24) {
+        const hours = Math.floor(diffInHours);
+        return t('notifications.hoursAgo', {
+          defaultValue: '{{count}} giờ trước',
+          count: hours,
+        });
+      } else if (diffInHours < 168) {
+        const days = Math.floor(diffInHours / 24);
+        return t('notifications.daysAgo', {
+          defaultValue: '{{count}} ngày trước',
+          count: days,
+        });
+      } else {
+        const options: Intl.DateTimeFormatOptions = {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        };
+        return date.toLocaleDateString(i18n.language || 'vi', options);
+      }
+    } catch (error) {
+      return t('notifications.justNow', { defaultValue: 'Vừa xong' });
+    }
+  };
+
+  const getPriorityLabel = (priority: string) => {
+    switch (priority) {
+      case 'URGENT':
+        return t('notifications.priority.urgent', { defaultValue: 'Khẩn cấp' });
+      case 'HIGH':
+        return t('notifications.priority.high', { defaultValue: 'Cao' });
+      case 'MEDIUM':
+        return t('notifications.priority.medium', {
+          defaultValue: 'Trung bình',
+        });
+      case 'LOW':
+        return t('notifications.priority.low', { defaultValue: 'Thấp' });
+      case 'NORMAL':
+        return t('notifications.priority.normal', {
+          defaultValue: 'Bình thường',
+        });
+      default:
+        return priority;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'UNREAD':
+        return t('notifications.unread', { defaultValue: 'Chưa đọc' });
+      case 'READ':
+        return t('notifications.read', { defaultValue: 'Đã đọc' });
+      case 'ARCHIVED':
+        return t('notifications.archived', { defaultValue: 'Đã lưu trữ' });
+      default:
+        return status;
     }
   };
 
@@ -147,167 +347,292 @@ export default function NotificationDetailScreen() {
 
   if (loading) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      <SafeAreaView
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
+        edges={['top']}
       >
-        <View style={styles.loadingContainer}>
+        <View style={themedStyles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text
             style={[
               Typography.bodyLarge,
-              { color: theme.colors.textSecondary },
+              {
+                color: theme.colors.textSecondary,
+                marginTop: theme.spacing.md,
+              },
             ]}
           >
-            Loading notification...
+            {t('notifications.loadingDetail', {
+              defaultValue: 'Đang tải thông báo...',
+            })}
           </Text>
         </View>
-      </View>
+      </SafeAreaView>
     );
   }
 
   if (!notification) {
     return (
-      <View
-        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      <SafeAreaView
+        style={[
+          themedStyles.container,
+          { backgroundColor: theme.colors.background },
+        ]}
+        edges={['top']}
       >
-        <View style={styles.errorContainer}>
+        <Animated.View
+          style={[themedStyles.errorContainer, { opacity: headerOpacity }]}
+        >
           <Text style={[Typography.h3, { color: theme.colors.text }]}>
-            Notification not found
+            {t('notifications.notFound', {
+              defaultValue: 'Không tìm thấy thông báo',
+            })}
           </Text>
           <Text
             style={[
               Typography.bodyLarge,
-              { color: theme.colors.textSecondary },
+              {
+                color: theme.colors.textSecondary,
+                marginTop: theme.spacing.md,
+              },
             ]}
           >
-            This notification may have been deleted or doesn't exist.
+            {t('notifications.notFoundMessage', {
+              defaultValue:
+                'Thông báo này có thể đã bị xóa hoặc không tồn tại.',
+            })}
           </Text>
           <TouchableOpacity
             style={[
-              styles.backButton,
-              { backgroundColor: theme.colors.primary },
+              themedStyles.backButton,
+              {
+                backgroundColor: theme.colors.primary,
+                marginTop: theme.spacing.xl,
+              },
             ]}
             onPress={() => router.back()}
           >
             <Text
-              style={[styles.backButtonText, { color: theme.colors.surface }]}
+              style={[
+                themedStyles.backButtonText,
+                { color: theme.colors.surface },
+              ]}
             >
-              Go Back
+              {t('common.goBack', { defaultValue: 'Quay lại' })}
             </Text>
           </TouchableOpacity>
-        </View>
-      </View>
+        </Animated.View>
+      </SafeAreaView>
     );
   }
 
+  const gradientColors = getNotificationGradient(notification.type);
+
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    <SafeAreaView
+      style={[
+        themedStyles.container,
+        { backgroundColor: theme.colors.background },
+      ]}
+      edges={['top']}
     >
-      <View style={styles.header}>
+      {/* Header */}
+      <Animated.View
+        style={[
+          themedStyles.header,
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomColor: theme.colors.border,
+            opacity: headerOpacity,
+          },
+        ]}
+      >
         <TouchableOpacity
-          style={styles.backButton}
+          style={themedStyles.headerButton}
           onPress={() => router.back()}
         >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={[Typography.h2, { color: theme.colors.text }]}>
-          Notification
+        <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
+          {t('notifications.detail', { defaultValue: 'Chi tiết thông báo' })}
         </Text>
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+        <TouchableOpacity
+          style={themedStyles.headerButton}
+          onPress={handleDelete}
+        >
           <Trash2 size={24} color={theme.colors.error} />
         </TouchableOpacity>
-      </View>
+      </Animated.View>
 
       <ScrollView
-        style={styles.scrollView}
+        style={themedStyles.scrollView}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
         }
       >
-        <View
+        {/* Notification Card */}
+        <Animated.View
           style={[
-            styles.notificationCard,
+            themedStyles.notificationCard,
             {
               backgroundColor: theme.colors.surface,
               borderColor: theme.colors.border,
+              transform: [{ scale: cardScale }],
+              opacity: cardOpacity,
             },
           ]}
         >
-          <View style={styles.notificationHeader}>
-            <Text style={styles.notificationIcon}>
+          {/* Icon Header */}
+          <View style={themedStyles.iconHeader}>
+            <LinearGradient
+              colors={gradientColors}
+              style={themedStyles.iconContainer}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
               {getNotificationIcon(notification.type)}
+            </LinearGradient>
+          </View>
+
+          {/* Title and Badges */}
+          <Animated.View
+            style={[
+              themedStyles.contentSection,
+              {
+                opacity: contentOpacity,
+                transform: [{ translateY: contentTranslateY }],
+              },
+            ]}
+          >
+            <Text
+              style={[
+                Typography.h3,
+                {
+                  color: theme.colors.text,
+                  marginBottom: theme.spacing.md,
+                  lineHeight: 32,
+                  fontWeight: '700',
+                },
+              ]}
+            >
+              {notification.title}
             </Text>
-            <View style={styles.notificationInfo}>
-              <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                {notification.title}
-              </Text>
-              <View style={styles.notificationMeta}>
-                <View
+
+            <View style={themedStyles.badgesContainer}>
+              <View
+                style={[
+                  themedStyles.priorityBadge,
+                  {
+                    backgroundColor: `${getPriorityColor(
+                      notification.priority
+                    )}20`,
+                    borderColor: getPriorityColor(notification.priority),
+                  },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.priorityBadge,
+                    Typography.caption,
                     {
-                      backgroundColor: getPriorityColor(notification.priority),
+                      color: getPriorityColor(notification.priority),
+                      fontWeight: '600',
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.surface },
-                    ]}
-                  >
-                    {notification.priority}
-                  </Text>
-                </View>
-                <View
+                  {getPriorityLabel(notification.priority)}
+                </Text>
+              </View>
+              <View
+                style={[
+                  themedStyles.statusBadge,
+                  {
+                    backgroundColor:
+                      notification.status === 'UNREAD'
+                        ? `${theme.colors.primary}20`
+                        : `${theme.colors.textSecondary}20`,
+                    borderColor:
+                      notification.status === 'UNREAD'
+                        ? theme.colors.primary
+                        : theme.colors.textSecondary,
+                  },
+                ]}
+              >
+                <Text
                   style={[
-                    styles.statusBadge,
+                    Typography.caption,
                     {
-                      backgroundColor:
+                      color:
                         notification.status === 'UNREAD'
                           ? theme.colors.primary
                           : theme.colors.textSecondary,
+                      fontWeight: '600',
                     },
                   ]}
                 >
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.surface },
-                    ]}
-                  >
-                    {notification.status}
-                  </Text>
-                </View>
+                  {getStatusLabel(notification.status)}
+                </Text>
               </View>
             </View>
-          </View>
+          </Animated.View>
 
-          <View style={styles.notificationContent}>
-            <Text style={[Typography.bodyLarge, { color: theme.colors.text }]}>
+          {/* Message Content */}
+          <Animated.View
+            style={[
+              themedStyles.contentSection,
+              {
+                opacity: contentOpacity,
+                transform: [{ translateY: contentTranslateY }],
+              },
+            ]}
+          >
+            <Text
+              style={[
+                Typography.bodyLarge,
+                {
+                  color: theme.colors.text,
+                  lineHeight: 26,
+                  opacity: 0.9,
+                },
+              ]}
+            >
               {notification.message}
             </Text>
-          </View>
+          </Animated.View>
 
-          <View style={styles.notificationFooter}>
-            <View style={styles.timeInfo}>
-              <Clock size={16} color={theme.colors.textSecondary} />
+          {/* Footer Info */}
+          <View
+            style={[
+              themedStyles.footer,
+              { borderTopColor: theme.colors.border },
+            ]}
+          >
+            <View style={themedStyles.timeInfo}>
+              <Clock size={18} color={theme.colors.textSecondary} />
               <Text
                 style={[
                   Typography.caption,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: theme.colors.textSecondary,
+                    marginLeft: theme.spacing.xs,
+                  },
                 ]}
               >
                 {getRelativeTime(notification.createdAt)}
               </Text>
             </View>
-            <View style={styles.dateInfo}>
-              <Calendar size={16} color={theme.colors.textSecondary} />
+            <View style={themedStyles.dateInfo}>
+              <Calendar size={18} color={theme.colors.textSecondary} />
               <Text
                 style={[
                   Typography.caption,
-                  { color: theme.colors.textSecondary },
+                  {
+                    color: theme.colors.textSecondary,
+                    marginLeft: theme.spacing.xs,
+                  },
                 ]}
               >
                 {formatDate(notification.createdAt)}
@@ -315,43 +640,84 @@ export default function NotificationDetailScreen() {
             </View>
           </View>
 
+          {/* Metadata Section */}
           {notification.metadata &&
             Object.keys(notification.metadata).length > 0 && (
-              <View style={styles.metadataSection}>
-                <Text style={[Typography.h4, { color: theme.colors.text }]}>
-                  Additional Information
+              <Animated.View
+                style={[
+                  themedStyles.metadataSection,
+                  {
+                    borderTopColor: theme.colors.border,
+                    opacity: metadataOpacity,
+                  },
+                ]}
+              >
+                <Text
+                  style={[
+                    Typography.h4,
+                    {
+                      color: theme.colors.text,
+                      marginBottom: theme.spacing.md,
+                    },
+                  ]}
+                >
+                  {t('notifications.additionalInfo', {
+                    defaultValue: 'Thông tin bổ sung',
+                  })}
                 </Text>
-                <View style={styles.metadataContent}>
-                  {Object.entries(notification.metadata).map(([key, value]) => (
-                    <View key={key} style={styles.metadataItem}>
-                      <Text
+                <View style={themedStyles.metadataContent}>
+                  {Object.entries(notification.metadata).map(
+                    ([key, value], index) => (
+                      <View
+                        key={key}
                         style={[
-                          Typography.caption,
-                          { color: theme.colors.textSecondary },
+                          themedStyles.metadataItem,
+                          {
+                            borderBottomColor: theme.colors.border,
+                            backgroundColor:
+                              index % 2 === 0
+                                ? 'transparent'
+                                : `${theme.colors.primary}05`,
+                          },
                         ]}
                       >
-                        {key}:
-                      </Text>
-                      <Text
-                        style={[
-                          Typography.bodyLarge,
-                          { color: theme.colors.text },
-                        ]}
-                      >
-                        {String(value)}
-                      </Text>
-                    </View>
-                  ))}
+                        <Text
+                          style={[
+                            Typography.caption,
+                            {
+                              color: theme.colors.textSecondary,
+                              fontWeight: '600',
+                              textTransform: 'uppercase',
+                              letterSpacing: 0.5,
+                            },
+                          ]}
+                        >
+                          {key}:
+                        </Text>
+                        <Text
+                          style={[
+                            Typography.bodyMedium,
+                            {
+                              color: theme.colors.text,
+                              marginTop: theme.spacing.xs,
+                            },
+                          ]}
+                        >
+                          {String(value)}
+                        </Text>
+                      </View>
+                    )
+                  )}
                 </View>
-              </View>
+              </Animated.View>
             )}
-        </View>
+        </Animated.View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
 
-const styles = StyleSheet.create({
+const themedStyles = StyleSheet.create({
   container: {
     flex: 1,
   },
@@ -370,95 +736,119 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    padding: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerButton: {
+    padding: 8,
+    borderRadius: 8,
   },
   backButton: {
-    paddingHorizontal: 20,
-    paddingVertical: 10,
-    borderRadius: 8,
-    marginTop: 16,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: 'center',
   },
   backButtonText: {
     ...Typography.bodyMedium,
     fontWeight: '600',
-  },
-  deleteButton: {
-    padding: 8,
   },
   scrollView: {
     flex: 1,
   },
   notificationCard: {
     margin: 16,
-    padding: 20,
-    borderRadius: 12,
+    padding: 24,
+    borderRadius: 24,
     borderWidth: 1,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  notificationHeader: {
+  iconHeader: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  iconContainer: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 10,
+    elevation: 8,
+  },
+  contentSection: {
+    marginBottom: 24,
+  },
+  badgesContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
-    marginBottom: 16,
-  },
-  notificationIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  notificationInfo: {
-    flex: 1,
-  },
-  notificationMeta: {
-    flexDirection: 'row',
-    marginTop: 8,
-    gap: 8,
+    gap: 10,
+    marginTop: 16,
+    flexWrap: 'wrap',
   },
   priorityBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 12,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
   statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 12,
+    borderWidth: 1.5,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 2,
+    elevation: 1,
   },
-  notificationContent: {
-    marginBottom: 16,
-  },
-  notificationFooter: {
+  footer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: 16,
+    paddingTop: 20,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    marginTop: 8,
   },
   timeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   dateInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
   },
   metadataSection: {
-    marginTop: 20,
-    paddingTop: 16,
+    marginTop: 28,
+    paddingTop: 24,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(0, 0, 0, 0.1)',
   },
   metadataContent: {
-    marginTop: 12,
+    marginTop: 16,
+    borderRadius: 16,
+    overflow: 'hidden',
+    borderWidth: 1,
   },
   metadataItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 8,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.05)',
+    padding: 18,
+    borderBottomWidth: 0.5,
   },
 });

@@ -69,7 +69,7 @@ const EquipmentManagement: React.FC = () => {
           // Log to debug usage_logs
           if (eq.usage_logs && eq.usage_logs.length > 0) {
             console.log(
-              `📊 Equipment ${eq.name} has ${eq.usage_logs.length} usage log(s)`,
+              `[STATS] Equipment ${eq.name} has ${eq.usage_logs.length} usage log(s)`,
               eq.usage_logs[0]
             );
           }
@@ -169,23 +169,23 @@ const EquipmentManagement: React.FC = () => {
     setIsLoadingUsers(true);
     try {
       // Fetch equipment by ID to get usage logs with member info
-      console.log('🔍 Fetching equipment users for:', eq.id);
+      console.log('[SEARCH] Fetching equipment users for:', eq.id);
       const response = await equipmentService.getEquipmentById(eq.id);
-      console.log('📦 Response:', response);
+      console.log('[DATA] Response:', response);
       if (response.success) {
         // Response can be { equipment: Equipment } or Equipment directly
         const equipmentData = (response.data as any)?.equipment || response.data;
-        console.log('📋 Equipment data:', equipmentData);
-        console.log('📊 Usage logs:', equipmentData?.usage_logs);
+        console.log('[LIST] Equipment data:', equipmentData);
+        console.log('[STATS] Usage logs:', equipmentData?.usage_logs);
         if (equipmentData?.usage_logs && equipmentData.usage_logs.length > 0) {
-          console.log('✅ Found usage logs:', equipmentData.usage_logs.length);
+          console.log('[SUCCESS] Found usage logs:', equipmentData.usage_logs.length);
           setEquipmentUsers(equipmentData.usage_logs || []);
         } else {
-          console.log('⚠️ No usage logs found');
+          console.log('[WARNING] No usage logs found');
           setEquipmentUsers([]);
         }
       } else {
-        console.log('❌ Response not successful');
+        console.log('[ERROR] Response not successful');
         setEquipmentUsers([]);
       }
     } catch (error) {

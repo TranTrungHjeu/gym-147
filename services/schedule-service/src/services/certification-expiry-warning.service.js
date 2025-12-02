@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const notificationService = require('./notification.service.js');
 
 /**
@@ -18,7 +18,7 @@ class CertificationExpiryWarningService {
       const isTestMode = process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS;
       
       if (isTestMode) {
-        console.log(`🔍 Checking for certifications expiring within ${daysBeforeExpiry} days...`);
+        console.log(`[SEARCH] Checking for certifications expiring within ${daysBeforeExpiry} days...`);
       }
 
       const now = new Date();
@@ -52,7 +52,7 @@ class CertificationExpiryWarningService {
 
       // Only log if in test mode or if there are expiring certifications
       if (isTestMode || expiringCerts.length > 0) {
-        console.log(`📋 Found ${expiringCerts.length} certification(s) expiring within ${daysBeforeExpiry} days`);
+        console.log(`[LIST] Found ${expiringCerts.length} certification(s) expiring within ${daysBeforeExpiry} days`);
       }
 
       if (expiringCerts.length === 0) {
@@ -104,11 +104,11 @@ class CertificationExpiryWarningService {
 
           trainersNotified++;
           console.log(
-            `✅ Sent expiry warning to trainer ${data.trainer.full_name} (${data.certifications.length} certification(s))`
+            `[SUCCESS] Sent expiry warning to trainer ${data.trainer.full_name} (${data.certifications.length} certification(s))`
           );
         } catch (error) {
           console.error(
-            `❌ Error sending expiry warning to trainer ${data.trainer.full_name}:`,
+            `[ERROR] Error sending expiry warning to trainer ${data.trainer.full_name}:`,
             error
           );
         }
@@ -129,9 +129,9 @@ class CertificationExpiryWarningService {
           })),
         });
         adminsNotified = 1; // One notification to all admins
-        console.log(`✅ Sent expiry summary to admins`);
+        console.log(`[SUCCESS] Sent expiry summary to admins`);
       } catch (error) {
-        console.error('❌ Error sending expiry summary to admins:', error);
+        console.error('[ERROR] Error sending expiry summary to admins:', error);
       }
 
       return {
@@ -143,7 +143,7 @@ class CertificationExpiryWarningService {
         message: `Checked ${expiringCerts.length} expiring certification(s), notified ${trainersNotified} trainer(s) and admins`,
       };
     } catch (error) {
-      console.error('❌ Error checking expiring certifications:', error);
+      console.error('[ERROR] Error checking expiring certifications:', error);
       return {
         success: false,
         error: error.message,
@@ -158,7 +158,7 @@ class CertificationExpiryWarningService {
    */
   async checkExpiredCertifications() {
     try {
-      console.log('🔍 Checking for expired certifications...');
+      console.log('[SEARCH] Checking for expired certifications...');
 
       const now = new Date();
 
@@ -186,7 +186,7 @@ class CertificationExpiryWarningService {
         },
       });
 
-      console.log(`📋 Found ${expiredCerts.length} expired certification(s)`);
+      console.log(`[LIST] Found ${expiredCerts.length} expired certification(s)`);
 
       if (expiredCerts.length === 0) {
         return {
@@ -222,11 +222,11 @@ class CertificationExpiryWarningService {
           });
           trainersNotified++;
           console.log(
-            `✅ Sent expired certification notification to trainer ${data.trainer.full_name} for category ${data.category}`
+            `[SUCCESS] Sent expired certification notification to trainer ${data.trainer.full_name} for category ${data.category}`
           );
         } catch (error) {
           console.error(
-            `❌ Error sending expired certification notification to trainer ${data.trainer.full_name}:`,
+            `[ERROR] Error sending expired certification notification to trainer ${data.trainer.full_name}:`,
             error
           );
         }
@@ -240,7 +240,7 @@ class CertificationExpiryWarningService {
         message: `Found ${expiredCerts.length} expired certification(s), notified ${trainersNotified} trainer(s)`,
       };
     } catch (error) {
-      console.error('❌ Error checking expired certifications:', error);
+      console.error('[ERROR] Error checking expired certifications:', error);
       return {
         success: false,
         error: error.message,

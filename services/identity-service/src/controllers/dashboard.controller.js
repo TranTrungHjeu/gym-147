@@ -86,7 +86,7 @@ class DashboardController {
    */
   async getAdminStats(req, res) {
     try {
-      console.log('📊 Getting Admin dashboard stats...');
+      console.log('[STATS] Getting Admin dashboard stats...');
 
       // Get trainer count
       const totalTrainers = await prisma.user.count({
@@ -94,7 +94,7 @@ class DashboardController {
           role: 'TRAINER',
         },
       });
-      console.log(`✅ Total trainers: ${totalTrainers}`);
+      console.log(`[SUCCESS] Total trainers: ${totalTrainers}`);
 
       // Get member count
       const totalMembers = await prisma.user.count({
@@ -102,7 +102,7 @@ class DashboardController {
           role: 'MEMBER',
         },
       });
-      console.log(`✅ Total members: ${totalMembers}`);
+      console.log(`[SUCCESS] Total members: ${totalMembers}`);
 
       // Get recent member registrations (last 30 days)
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
@@ -114,7 +114,7 @@ class DashboardController {
           },
         },
       });
-      console.log(`✅ Recent registrations (30 days): ${recentRegistrations}`);
+      console.log(`[SUCCESS] Recent registrations (30 days): ${recentRegistrations}`);
 
       // Get active sessions (last 24 hours) - all users, not just members
       const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -125,7 +125,7 @@ class DashboardController {
           },
         },
       });
-      console.log(`✅ Active sessions (24h): ${activeSessions}`);
+      console.log(`[SUCCESS] Active sessions (24h): ${activeSessions}`);
 
       // Get equipment count from member service
       let totalEquipment = 0;
@@ -152,11 +152,11 @@ class DashboardController {
             ? equipmentResponse.data.data
             : equipmentResponse.data.data.equipment || [];
           totalEquipment = equipmentList.length;
-          console.log(`✅ Total equipment: ${totalEquipment}`);
+          console.log(`[SUCCESS] Total equipment: ${totalEquipment}`);
         }
       } catch (equipmentError) {
         console.warn(
-          '⚠️ Could not fetch equipment count from member service:',
+          '[WARNING] Could not fetch equipment count from member service:',
           equipmentError.message
         );
         // Continue with default value of 0
@@ -170,7 +170,7 @@ class DashboardController {
         totalEquipment,
       };
 
-      console.log('📊 Admin stats response:', stats);
+      console.log('[STATS] Admin stats response:', stats);
 
       res.json({
         success: true,
@@ -178,7 +178,7 @@ class DashboardController {
         data: stats,
       });
     } catch (error) {
-      console.error('❌ Get Admin stats error:', error);
+      console.error('[ERROR] Get Admin stats error:', error);
       console.error('Error stack:', error.stack);
       res.status(500).json({
         success: false,
@@ -472,7 +472,7 @@ class DashboardController {
         .filter(user => user.role === 'TRAINER')
         .map(user => user.id);
 
-      console.log(`🔍 Fetching profile photos:`, {
+      console.log(`[SEARCH] Fetching profile photos:`, {
         memberUserIds,
         trainerUserIds,
         memberCount: memberUserIds.length,
@@ -487,11 +487,11 @@ class DashboardController {
           const profilePhotosResponse = await Promise.allSettled(
             memberUserIds.map(async userId => {
               try {
-                console.log(`🔍 Fetching member profile photo for user: ${userId}`);
+                console.log(`[SEARCH] Fetching member profile photo for user: ${userId}`);
                 const response = await axios.get(`${memberServiceUrl}/members/user/${userId}`, {
                   timeout: 2000,
                 });
-                console.log(`📥 Member service response for ${userId}:`, {
+                console.log(`[DATA] Member service response for ${userId}:`, {
                   success: response.data.success,
                   hasData: !!response.data.data,
                   hasMember: !!response.data.data?.member,
@@ -512,7 +512,7 @@ class DashboardController {
                     ? 'ETIMEDOUT'
                     : 'OTHER_ERROR';
 
-                console.log(`⚠️ Member profile photo fetch error for ${userId}:`, {
+                console.log(`[WARNING] Member profile photo fetch error for ${userId}:`, {
                   errorType,
                   status: error.response?.status,
                   code: error.code,
@@ -542,23 +542,23 @@ class DashboardController {
             if (result.status === 'fulfilled' && result.value) {
               profilePhotosMap[result.value.userId] = result.value.profilePhoto;
               console.log(
-                `✅ Member profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
+                `[SUCCESS] Member profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
               );
             } else if (result.status === 'rejected') {
               console.warn(
-                `❌ Member profile photo fetch rejected for ${memberUserIds[index]}:`,
+                `[ERROR] Member profile photo fetch rejected for ${memberUserIds[index]}:`,
                 result.reason?.message || result.reason
               );
             } else if (result.status === 'fulfilled' && !result.value) {
               console.warn(
-                `⚠️ Member profile photo fetch returned null for ${memberUserIds[index]}`
+                `[WARNING] Member profile photo fetch returned null for ${memberUserIds[index]}`
               );
             }
           });
 
-          console.log(`📊 Member profile photos map after fetch:`, profilePhotosMap);
-          console.log(`📊 Member profile photos map keys:`, Object.keys(profilePhotosMap));
-          console.log(`📊 Member profile photos map size:`, Object.keys(profilePhotosMap).length);
+          console.log(`[STATS] Member profile photos map after fetch:`, profilePhotosMap);
+          console.log(`[STATS] Member profile photos map keys:`, Object.keys(profilePhotosMap));
+          console.log(`[STATS] Member profile photos map size:`, Object.keys(profilePhotosMap).length);
         } catch (error) {
           console.warn('Failed to fetch profile photos from member-service:', error.message);
         }
@@ -570,11 +570,11 @@ class DashboardController {
           const trainerPhotosResponse = await Promise.allSettled(
             trainerUserIds.map(async userId => {
               try {
-                console.log(`🔍 Fetching trainer profile photo for user: ${userId}`);
+                console.log(`[SEARCH] Fetching trainer profile photo for user: ${userId}`);
                 const response = await axios.get(`${scheduleServiceUrl}/trainers/user/${userId}`, {
                   timeout: 2000,
                 });
-                console.log(`📥 Schedule service response for ${userId}:`, {
+                console.log(`[DATA] Schedule service response for ${userId}:`, {
                   success: response.data.success,
                   hasData: !!response.data.data,
                   hasTrainer: !!response.data.data?.trainer,
@@ -595,7 +595,7 @@ class DashboardController {
                     ? 'ETIMEDOUT'
                     : 'OTHER_ERROR';
 
-                console.log(`⚠️ Trainer profile photo fetch error for ${userId}:`, {
+                console.log(`[WARNING] Trainer profile photo fetch error for ${userId}:`, {
                   errorType,
                   status: error.response?.status,
                   code: error.code,
@@ -625,24 +625,24 @@ class DashboardController {
             if (result.status === 'fulfilled' && result.value) {
               profilePhotosMap[result.value.userId] = result.value.profilePhoto;
               console.log(
-                `✅ Trainer profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
+                `[SUCCESS] Trainer profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
               );
             }
           });
 
-          console.log(`📊 Trainer profile photos map:`, profilePhotosMap);
+          console.log(`[STATS] Trainer profile photos map:`, profilePhotosMap);
         } catch (error) {
           console.warn('Failed to fetch profile photos from schedule-service:', error.message);
         }
       }
 
       // Format registration activities
-      console.log(`🔄 Formatting ${recentRegistrations.length} registration activities...`);
+      console.log(`[SYNC] Formatting ${recentRegistrations.length} registration activities...`);
       console.log(
-        `📊 Profile photos map before formatting:`,
+        `[STATS] Profile photos map before formatting:`,
         JSON.stringify(profilePhotosMap, null, 2)
       );
-      console.log(`📊 Profile photos map keys:`, Object.keys(profilePhotosMap));
+      console.log(`[STATS] Profile photos map keys:`, Object.keys(profilePhotosMap));
 
       const registrationActivities = recentRegistrations.map(user => {
         // Avatar logic based on role:
@@ -654,7 +654,7 @@ class DashboardController {
         if (user.role === 'ADMIN' || user.role === 'SUPER_ADMIN') {
           // For admin and super admin: use face_photo_url from user table
           avatar = user.face_photo_url || null;
-          console.log(`🔍 Admin/SuperAdmin avatar for ${user.email} (${user.id}):`, {
+          console.log(`[SEARCH] Admin/SuperAdmin avatar for ${user.email} (${user.id}):`, {
             role: user.role,
             face_photo_url: user.face_photo_url,
             final_avatar: avatar,
@@ -663,7 +663,7 @@ class DashboardController {
           // For trainer and member: use profile_photo from their respective services
           const profilePhotoFromService = profilePhotosMap[user.id];
           avatar = profilePhotoFromService || null;
-          console.log(`🔍 Trainer/Member avatar for ${user.role} ${user.email} (${user.id}):`, {
+          console.log(`[SEARCH] Trainer/Member avatar for ${user.role} ${user.email} (${user.id}):`, {
             hasInMap: profilePhotosMap.hasOwnProperty(user.id),
             mapValue: profilePhotoFromService,
             final_avatar: avatar,
@@ -671,7 +671,7 @@ class DashboardController {
         } else {
           // Fallback for other roles: use face_photo_url
           avatar = user.face_photo_url || null;
-          console.log(`🔍 Fallback avatar for ${user.role} ${user.email} (${user.id}):`, {
+          console.log(`[SEARCH] Fallback avatar for ${user.role} ${user.email} (${user.id}):`, {
             face_photo_url: user.face_photo_url,
             final_avatar: avatar,
           });
@@ -701,7 +701,7 @@ class DashboardController {
 
         // Verify avatar is set
         if (!activity.user.avatar) {
-          console.warn(`⚠️ Avatar is null for ${user.role} ${user.email}:`, {
+          console.warn(`[WARNING] Avatar is null for ${user.role} ${user.email}:`, {
             userId: user.id,
             role: user.role,
             face_photo_url: user.face_photo_url,
@@ -797,12 +797,12 @@ class DashboardController {
               if (result.status === 'fulfilled' && result.value) {
                 loginProfilePhotosMap[result.value.userId] = result.value.profilePhoto;
                 console.log(
-                  `✅ Login member profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
+                  `[SUCCESS] Login member profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
                 );
               }
             });
 
-            console.log(`📊 Login member profile photos map:`, loginProfilePhotosMap);
+            console.log(`[STATS] Login member profile photos map:`, loginProfilePhotosMap);
           } catch (error) {
             console.warn(
               'Failed to fetch profile photos for logins from member-service:',
@@ -853,12 +853,12 @@ class DashboardController {
               if (result.status === 'fulfilled' && result.value) {
                 loginProfilePhotosMap[result.value.userId] = result.value.profilePhoto;
                 console.log(
-                  `✅ Login trainer profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
+                  `[SUCCESS] Login trainer profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
                 );
               }
             });
 
-            console.log(`📊 Login trainer profile photos map:`, loginProfilePhotosMap);
+            console.log(`[STATS] Login trainer profile photos map:`, loginProfilePhotosMap);
           } catch (error) {
             console.warn(
               'Failed to fetch profile photos for logins from schedule-service:',
@@ -880,7 +880,7 @@ class DashboardController {
               // For admin and super admin: use face_photo_url from user table
               avatar = login.user.face_photo_url || null;
               console.log(
-                `🔍 Admin/SuperAdmin login avatar for ${login.user.email} (${login.user_id}):`,
+                `[SEARCH] Admin/SuperAdmin login avatar for ${login.user.email} (${login.user_id}):`,
                 {
                   role: login.user.role,
                   face_photo_url: login.user.face_photo_url,
@@ -891,7 +891,7 @@ class DashboardController {
               // For trainer and member: use profile_photo from their respective services
               avatar = loginProfilePhotosMap[login.user_id] || null;
               console.log(
-                `🔍 Trainer/Member login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
+                `[SEARCH] Trainer/Member login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
                 {
                   hasInMap: loginProfilePhotosMap.hasOwnProperty(login.user_id),
                   mapValue: loginProfilePhotosMap[login.user_id],
@@ -902,7 +902,7 @@ class DashboardController {
               // Fallback for other roles: use face_photo_url
               avatar = login.user.face_photo_url || null;
               console.log(
-                `🔍 Fallback login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
+                `[SEARCH] Fallback login avatar for ${login.user.role} ${login.user.email} (${login.user_id}):`,
                 {
                   face_photo_url: login.user.face_photo_url,
                   final_avatar: avatar,
@@ -1009,7 +1009,7 @@ class DashboardController {
           startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       }
 
-      console.log(`📊 Fetching system activity data for period: ${period}, daysCount: ${daysCount}, startDate: ${startDate.toISOString()}`);
+      console.log(`[STATS] Fetching system activity data for period: ${period}, daysCount: ${daysCount}, startDate: ${startDate.toISOString()}`);
 
       // First, check total count of access logs (for debugging)
       const totalCount = await prisma.accessLog.count();
@@ -1029,7 +1029,7 @@ class DashboardController {
         },
       });
 
-      console.log(`📊 Access logs stats:`, {
+      console.log(`[STATS] Access logs stats:`, {
         total: totalCount,
         recent: recentCount,
         recentSuccess: successCount,
@@ -1052,7 +1052,7 @@ class DashboardController {
         },
         take: 5,
       });
-      console.log(`📊 Sample recent logs:`, sampleLogs);
+      console.log(`[STATS] Sample recent logs:`, sampleLogs);
 
       // Get all access logs grouped by date (include both success and failed for now)
       const accessLogs = await prisma.accessLog.findMany({
@@ -1071,7 +1071,7 @@ class DashboardController {
         },
       });
 
-      console.log(`📊 Found ${accessLogs.length} successful access logs`);
+      console.log(`[STATS] Found ${accessLogs.length} successful access logs`);
 
       // Group by date (using UTC date string to match database timezone)
       const activityByDate = {};
@@ -1090,8 +1090,8 @@ class DashboardController {
         activityByDate[dateKey] += 1;
       });
 
-      console.log(`📊 Activity by date (UTC):`, activityByDate);
-      console.log(`📊 Total unique dates: ${Object.keys(activityByDate).length}`);
+      console.log(`[STATS] Activity by date (UTC):`, activityByDate);
+      console.log(`[STATS] Total unique dates: ${Object.keys(activityByDate).length}`);
 
       // Generate all dates in the period (to ensure continuity)
       // Use UTC to match database timezone
@@ -1099,8 +1099,8 @@ class DashboardController {
       const allActivities = [];
       const today = new Date();
       
-      console.log(`📊 Generating dates for ${daysCount} days, starting from today: ${today.toISOString()}`);
-      console.log(`📊 daysCount value: ${daysCount}, type: ${typeof daysCount}`);
+      console.log(`[STATS] Generating dates for ${daysCount} days, starting from today: ${today.toISOString()}`);
+      console.log(`[STATS] daysCount value: ${daysCount}, type: ${typeof daysCount}`);
       
       for (let i = daysCount - 1; i >= 0; i--) {
         const date = new Date(today);
@@ -1113,9 +1113,9 @@ class DashboardController {
         allActivities.push(activityByDate[dateKey] || 0);
       }
       
-      console.log(`📊 Generated ${allDates.length} dates, first: ${allDates[0]}, last: ${allDates[allDates.length - 1]}`);
-      console.log(`📊 All dates array length: ${allDates.length}, first 5:`, allDates.slice(0, 5));
-      console.log(`📊 All activities array length: ${allActivities.length}, first 5:`, allActivities.slice(0, 5));
+      console.log(`[STATS] Generated ${allDates.length} dates, first: ${allDates[0]}, last: ${allDates[allDates.length - 1]}`);
+      console.log(`[STATS] All dates array length: ${allDates.length}, first 5:`, allDates.slice(0, 5));
+      console.log(`[STATS] All activities array length: ${allActivities.length}, first 5:`, allActivities.slice(0, 5));
 
       // Format dates for display (short format)
       const formattedDates = allDates.map(dateKey => {
@@ -1134,7 +1134,7 @@ class DashboardController {
         },
       };
 
-      console.log(`📊 Response data:`, {
+      console.log(`[STATS] Response data:`, {
         datesCount: formattedDates.length,
         activitiesCount: allActivities.length,
         totalActivities: allActivities.reduce((sum, val) => sum + val, 0),

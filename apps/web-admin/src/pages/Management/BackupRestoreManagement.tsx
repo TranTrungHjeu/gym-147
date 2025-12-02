@@ -299,7 +299,7 @@ const BackupRestoreManagement: React.FC = () => {
           </div>
           <div className='p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg'>
             <p className='text-sm text-blue-800 dark:text-blue-300'>
-              ⚠️ Quá trình backup có thể mất vài phút. Vui lòng không đóng trang này.
+              [WARNING] Quá trình backup có thể mất vài phút. Vui lòng không đóng trang này.
             </p>
           </div>
           <div className='flex justify-end gap-2 pt-4 border-t'>
@@ -323,7 +323,7 @@ const BackupRestoreManagement: React.FC = () => {
         <div className='space-y-4'>
           <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
             <p className='text-sm text-red-800 dark:text-red-300 font-medium mb-2'>
-              ⚠️ Cảnh báo
+              [WARNING] Cảnh báo
             </p>
             <p className='text-sm text-red-700 dark:text-red-400'>
               Khôi phục backup sẽ ghi đè dữ liệu hiện tại. Hãy đảm bảo bạn đã tạo backup trước khi khôi phục.

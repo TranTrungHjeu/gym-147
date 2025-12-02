@@ -19,7 +19,7 @@ class NotificationService {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Billing Notification Service Redis: Max reconnection attempts reached');
+              console.error('[ERROR] Billing Notification Service Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -28,23 +28,23 @@ class NotificationService {
       });
 
       this.redisClient.on('error', (err) => {
-        console.error('❌ Billing Notification Service Redis Error:', err);
+        console.error('[ERROR] Billing Notification Service Redis Error:', err);
         this.isConnected = false;
       });
 
       this.redisClient.on('ready', () => {
-        console.log('✅ Billing Notification Service Redis: Connected and ready');
+        console.log('[SUCCESS] Billing Notification Service Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.redisClient.on('end', () => {
-        console.log('🔌 Billing Notification Service Redis: Connection closed');
+        console.log('[SOCKET] Billing Notification Service Redis: Connection closed');
         this.isConnected = false;
       });
 
       await this.redisClient.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Billing Notification Service Redis:', error.message);
+      console.error('[ERROR] Failed to initialize Billing Notification Service Redis:', error.message);
       this.isConnected = false;
     }
   }
@@ -57,7 +57,7 @@ class NotificationService {
    */
   async enqueueNotification(notificationData, priority = 'normal') {
     if (!this.isConnected || !this.redisClient) {
-      console.warn('⚠️ Redis not connected, notification will not be queued');
+      console.warn('[WARNING] Redis not connected, notification will not be queued');
       return false;
     }
 
@@ -81,10 +81,10 @@ class NotificationService {
       };
 
       await this.redisClient.rPush(queueKey, JSON.stringify(notificationPayload));
-      console.log(`✅ [BILLING NOTIFICATION] Enqueued notification to Redis: ${type} for user ${user_id} (priority: ${priority})`);
+      console.log(`[SUCCESS] [BILLING NOTIFICATION] Enqueued notification to Redis: ${type} for user ${user_id} (priority: ${priority})`);
       return true;
     } catch (error) {
-      console.error('❌ [BILLING NOTIFICATION] Error enqueueing notification:', error);
+      console.error('[ERROR] [BILLING NOTIFICATION] Error enqueueing notification:', error);
       return false;
     }
   }
@@ -126,7 +126,7 @@ class NotificationService {
         };
       }
     } catch (error) {
-      console.error('❌ Create in-app notification error:', error.message);
+      console.error('[ERROR] Create in-app notification error:', error.message);
       return {
         success: false,
         error: error.message,

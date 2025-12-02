@@ -24,7 +24,7 @@ class RedisService {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Redis: Max reconnection attempts reached');
+              console.error('[ERROR] Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -33,29 +33,29 @@ class RedisService {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Identity Redis Client Error:', err);
+        console.error('[ERROR] Identity Redis Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
-        console.log('🔄 Identity Redis: Connecting...');
+        console.log('[SYNC] Identity Redis: Connecting...');
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Identity Redis: Connected and ready');
+        console.log('[SUCCESS] Identity Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Identity Redis: Connection closed');
+        console.log('[SOCKET] Identity Redis: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis:', error.message);
-      console.log('⚠️ Identity service will run without Redis (maintenance mode disabled)');
+      console.error('[ERROR] Failed to initialize Redis:', error.message);
+      console.log('[WARNING] Identity service will run without Redis (maintenance mode disabled)');
       this.isConnected = false;
     }
   }
@@ -72,7 +72,7 @@ class RedisService {
       const result = await this.client.ping();
       return result === 'PONG';
     } catch (error) {
-      console.error('❌ Redis ping error:', error);
+      console.error('[ERROR] Redis ping error:', error);
       this.isConnected = false;
       return false;
     }
@@ -93,7 +93,7 @@ class RedisService {
       }
       return JSON.parse(data);
     } catch (error) {
-      console.error('❌ Error getting maintenance mode:', error);
+      console.error('[ERROR] Error getting maintenance mode:', error);
       return { enabled: false };
     }
   }
@@ -124,7 +124,7 @@ class RedisService {
 
       return data;
     } catch (error) {
-      console.error('❌ Error setting maintenance mode:', error);
+      console.error('[ERROR] Error setting maintenance mode:', error);
       throw error;
     }
   }
@@ -167,7 +167,7 @@ class RedisService {
    */
   async setSession(sessionId, sessionData, ttlSeconds) {
     if (!this.isConnected || !this.client) {
-      console.warn('⚠️ Redis not connected, skipping session storage');
+      console.warn('[WARNING] Redis not connected, skipping session storage');
       return false;
     }
 
@@ -185,7 +185,7 @@ class RedisService {
 
       return true;
     } catch (error) {
-      console.error('❌ Error setting session in Redis:', error);
+      console.error('[ERROR] Error setting session in Redis:', error);
       return false;
     }
   }
@@ -205,7 +205,7 @@ class RedisService {
       const data = await this.client.get(key);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error('❌ Error getting session from Redis:', error);
+      console.error('[ERROR] Error getting session from Redis:', error);
       return null;
     }
   }
@@ -235,7 +235,7 @@ class RedisService {
 
       return true;
     } catch (error) {
-      console.error('❌ Error deleting session from Redis:', error);
+      console.error('[ERROR] Error deleting session from Redis:', error);
       return false;
     }
   }
@@ -255,7 +255,7 @@ class RedisService {
       const sessionIds = await this.client.sMembers(userSessionsKey);
       return sessionIds || [];
     } catch (error) {
-      console.error('❌ Error getting user sessions from Redis:', error);
+      console.error('[ERROR] Error getting user sessions from Redis:', error);
       return [];
     }
   }
@@ -289,7 +289,7 @@ class RedisService {
 
       return sessionIds.length;
     } catch (error) {
-      console.error('❌ Error revoking user sessions from Redis:', error);
+      console.error('[ERROR] Error revoking user sessions from Redis:', error);
       return 0;
     }
   }
@@ -316,7 +316,73 @@ class RedisService {
       
       return false;
     } catch (error) {
-      console.error('❌ Error refreshing session TTL in Redis:', error);
+      console.error('[ERROR] Error refreshing session TTL in Redis:', error);
+      return false;
+    }
+  }
+
+  // ==================== GENERIC REDIS OPERATIONS ====================
+
+  /**
+   * Set a key-value pair with optional TTL
+   * @param {string} key - Redis key
+   * @param {string} value - Value to store
+   * @param {number} ttlSeconds - Time to live in seconds (optional)
+   * @returns {boolean} - True if set successfully
+   */
+  async set(key, value, ttlSeconds = null) {
+    if (!this.isConnected || !this.client) {
+      console.warn('[WARNING] Redis not connected, skipping set operation');
+      return false;
+    }
+
+    try {
+      if (ttlSeconds !== null && ttlSeconds > 0) {
+        await this.client.setEx(key, ttlSeconds, value);
+      } else {
+        await this.client.set(key, value);
+      }
+      return true;
+    } catch (error) {
+      console.error('[ERROR] Error setting key in Redis:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get a value by key
+   * @param {string} key - Redis key
+   * @returns {string|null} - Value or null if not found
+   */
+  async get(key) {
+    if (!this.isConnected || !this.client) {
+      return null;
+    }
+
+    try {
+      const data = await this.client.get(key);
+      return data;
+    } catch (error) {
+      console.error('[ERROR] Error getting key from Redis:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Delete a key
+   * @param {string} key - Redis key
+   * @returns {boolean} - True if deleted successfully
+   */
+  async delete(key) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      await this.client.del(key);
+      return true;
+    } catch (error) {
+      console.error('[ERROR] Error deleting key from Redis:', error);
       return false;
     }
   }
@@ -331,7 +397,7 @@ class RedisService {
    */
   async addToBlacklist(tokenHash, ttlSeconds) {
     if (!this.isConnected || !this.client) {
-      console.warn('⚠️ Redis not connected, skipping token blacklist');
+      console.warn('[WARNING] Redis not connected, skipping token blacklist');
       return false;
     }
 
@@ -340,7 +406,7 @@ class RedisService {
       await this.client.setEx(key, ttlSeconds, '1');
       return true;
     } catch (error) {
-      console.error('❌ Error adding token to blacklist:', error);
+      console.error('[ERROR] Error adding token to blacklist:', error);
       return false;
     }
   }
@@ -360,7 +426,7 @@ class RedisService {
       const exists = await this.client.exists(key);
       return exists === 1;
     } catch (error) {
-      console.error('❌ Error checking token blacklist:', error);
+      console.error('[ERROR] Error checking token blacklist:', error);
       return false;
     }
   }
@@ -420,7 +486,7 @@ class RedisService {
 
       return blacklistedCount;
     } catch (error) {
-      console.error('❌ Error revoking all tokens:', error);
+      console.error('[ERROR] Error revoking all tokens:', error);
       return 0;
     }
   }

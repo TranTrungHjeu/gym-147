@@ -4,7 +4,9 @@ const waitlistService = require('../services/waitlist.service.js');
 const axios = require('axios');
 
 if (!process.env.BILLING_SERVICE_URL) {
-  throw new Error('BILLING_SERVICE_URL environment variable is required. Please set it in your .env file.');
+  throw new Error(
+    'BILLING_SERVICE_URL environment variable is required. Please set it in your .env file.'
+  );
 }
 const BILLING_SERVICE_URL = process.env.BILLING_SERVICE_URL;
 
@@ -408,83 +410,83 @@ class BookingController {
       }
 
       try {
-        booking = await prisma.$transaction(async (tx) => {
-        // 1. Lock schedule row (using findUnique with select for row-level lock)
-        const lockedSchedule = await tx.schedule.findUnique({
-          where: { id: schedule_id },
-          select: {
-            id: true,
-            current_bookings: true,
-            max_capacity: true,
-            status: true,
-            end_time: true,
-          },
-        });
-
-        if (!lockedSchedule) {
-          throw new Error('SCHEDULE_NOT_FOUND');
-        }
-
-        // 2. Check capacity again in transaction (with lock)
-        const confirmedBookingsCount = await tx.booking.count({
-          where: {
-            schedule_id,
-            status: 'CONFIRMED',
-            payment_status: { in: ['PAID', 'PENDING'] }, // Count both paid and pending
-          },
-        });
-
-        // Also check waitlist count
-        const waitlistCount = await tx.booking.count({
-          where: {
-            schedule_id,
-            is_waitlist: true,
-            status: 'CONFIRMED',
-          },
-        });
-
-        const totalBookings = confirmedBookingsCount + waitlistCount;
-
-        // Check if full (including waitlist)
-        if (totalBookings >= lockedSchedule.max_capacity) {
-          throw new Error('FULL');
-        }
-
-        // 3. Create booking (with PENDING payment status if price > 0)
-        const newBooking = await tx.booking.create({
-          data: {
-            schedule_id,
-            member_id: actualMemberId,
-            special_needs,
-            notes,
-            payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
-            amount_paid: bookingPrice > 0 ? null : 0,
-            is_waitlist: false, // Not waitlist since we checked capacity
-          },
-          include: {
-            schedule: {
-              include: {
-                gym_class: true,
-                trainer: true,
-                room: true,
-              },
-            },
-          },
-        });
-
-        // 4. If booking is free, update schedule capacity immediately
-        if (bookingPrice === 0) {
-          await tx.schedule.update({
+        booking = await prisma.$transaction(async tx => {
+          // 1. Lock schedule row (using findUnique with select for row-level lock)
+          const lockedSchedule = await tx.schedule.findUnique({
             where: { id: schedule_id },
+            select: {
+              id: true,
+              current_bookings: true,
+              max_capacity: true,
+              status: true,
+              end_time: true,
+            },
+          });
+
+          if (!lockedSchedule) {
+            throw new Error('SCHEDULE_NOT_FOUND');
+          }
+
+          // 2. Check capacity again in transaction (with lock)
+          const confirmedBookingsCount = await tx.booking.count({
+            where: {
+              schedule_id,
+              status: 'CONFIRMED',
+              payment_status: { in: ['PAID', 'PENDING'] }, // Count both paid and pending
+            },
+          });
+
+          // Also check waitlist count
+          const waitlistCount = await tx.booking.count({
+            where: {
+              schedule_id,
+              is_waitlist: true,
+              status: 'CONFIRMED',
+            },
+          });
+
+          const totalBookings = confirmedBookingsCount + waitlistCount;
+
+          // Check if full (including waitlist)
+          if (totalBookings >= lockedSchedule.max_capacity) {
+            throw new Error('FULL');
+          }
+
+          // 3. Create booking (with PENDING payment status if price > 0)
+          const newBooking = await tx.booking.create({
             data: {
-              current_bookings: {
-                increment: 1,
+              schedule_id,
+              member_id: actualMemberId,
+              special_needs,
+              notes,
+              payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+              amount_paid: bookingPrice > 0 ? null : 0,
+              is_waitlist: false, // Not waitlist since we checked capacity
+            },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: true,
+                  trainer: true,
+                  room: true,
+                },
               },
             },
           });
-        }
 
-        return newBooking;
+          // 4. If booking is free, update schedule capacity immediately
+          if (bookingPrice === 0) {
+            await tx.schedule.update({
+              where: { id: schedule_id },
+              data: {
+                current_bookings: {
+                  increment: 1,
+                },
+              },
+            });
+          }
+
+          return newBooking;
         });
 
         // Release lock after successful transaction
@@ -537,7 +539,8 @@ class BookingController {
             console.error('Add to waitlist error:', waitlistError);
             return res.status(400).json({
               success: false,
-              message: waitlistError.message || 'Lớp học đã đầy và không thể thêm vào danh sách chờ',
+              message:
+                waitlistError.message || 'Lớp học đã đầy và không thể thêm vào danh sách chờ',
               data: null,
             });
           }
@@ -563,7 +566,7 @@ class BookingController {
 
       // If booking is free (price === 0), return immediately
       if (bookingPrice === 0) {
-      const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
+        const [bookingWithMember] = await attachMemberDetails([booking], { strict: false });
 
         if (bookingWithMember && member) {
           bookingWithMember.member = member;
@@ -607,15 +610,22 @@ class BookingController {
             max_capacity: booking.schedule.max_capacity,
           };
 
-          console.log(`📡 Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`, socketPayload);
-          global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', socketPayload);
-          console.log(`✅ Socket event booking:new emitted successfully to trainer (free booking)`);
+          console.log(
+            `[EMIT] Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`,
+            socketPayload
+          );
+          global.io
+            .to(`user:${booking.schedule.trainer.user_id}`)
+            .emit('booking:new', socketPayload);
+          console.log(
+            `[SUCCESS] Socket event booking:new emitted successfully to trainer (free booking)`
+          );
         } else {
           if (!booking.schedule?.trainer?.user_id) {
-            console.log('⚠️ No trainer user_id found for booking notification');
+            console.log('[WARNING] No trainer user_id found for booking notification');
           }
           if (!global.io) {
-            console.log('⚠️ Socket.io not available for booking notification');
+            console.log('[WARNING] Socket.io not available for booking notification');
           }
         }
 
@@ -670,7 +680,7 @@ class BookingController {
           payment = paymentResponse.data.data.payment;
           paymentInitiationData = paymentResponse.data.data;
 
-          console.log('✅ Payment created successfully:', {
+          console.log('[SUCCESS] Payment created successfully:', {
             paymentId: payment.id,
             paymentType: payment.payment_type,
             referenceId: payment.reference_id,
@@ -713,7 +723,10 @@ class BookingController {
           timestamp: new Date().toISOString(),
         });
       } catch (pubSubError) {
-        console.warn('⚠️ Failed to publish booking:created event via Pub/Sub:', pubSubError.message);
+        console.warn(
+          '[WARNING] Failed to publish booking:created event via Pub/Sub:',
+          pubSubError.message
+        );
         // Don't fail booking creation if Pub/Sub fails
       }
 
@@ -722,7 +735,7 @@ class BookingController {
       if (booking.schedule?.trainer?.user_id && global.io) {
         const notificationService = require('../services/notification.service.js');
 
-        // Create notification in database
+        // Create notification in database with push notification
         try {
           await notificationService.sendNotification({
             user_id: booking.schedule.trainer.user_id,
@@ -741,11 +754,14 @@ class BookingController {
               payment_amount: bookingPrice,
               payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
               role: 'MEMBER', // Add role to identify notification source
+              channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
             },
           });
-          console.log('✅ Notification created for trainer when booking created (pending payment)');
+          console.log(
+            '[SUCCESS] Notification created for trainer when booking created (pending payment)'
+          );
         } catch (notifError) {
-          console.error('❌ Error creating booking notification:', notifError);
+          console.error('[ERROR] Error creating booking notification:', notifError);
         }
 
         // Emit socket event - use same event name as free booking for consistency
@@ -762,7 +778,10 @@ class BookingController {
           max_capacity: schedule.max_capacity,
         };
 
-        console.log(`📡 Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`, socketPayload);
+        console.log(
+          `[EMIT] Emitting booking:new to trainer user:${booking.schedule.trainer.user_id}`,
+          socketPayload
+        );
         global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:new', socketPayload);
         // Also emit booking:updated for consistency
         global.io.to(`user:${booking.schedule.trainer.user_id}`).emit('booking:updated', {
@@ -771,13 +790,15 @@ class BookingController {
           payment_status: 'PENDING',
           status: 'PENDING',
         });
-        console.log(`✅ Socket event booking:new emitted successfully to trainer (pending payment)`);
+        console.log(
+          `[SUCCESS] Socket event booking:new emitted successfully to trainer (pending payment)`
+        );
       } else {
         if (!booking.schedule?.trainer?.user_id) {
-          console.log('⚠️ No trainer user_id found for booking notification');
+          console.log('[WARNING] No trainer user_id found for booking notification');
         }
         if (!global.io) {
-          console.log('⚠️ Socket.io not available for booking notification');
+          console.log('[WARNING] Socket.io not available for booking notification');
         }
       }
 
@@ -811,10 +832,10 @@ class BookingController {
       const { id } = req.params; // booking id
       const { payment_id, amount } = req.body;
 
-      console.log(`🔔 confirmBookingPayment called for booking: ${id}`, { payment_id, amount });
+      console.log(`[BELL] confirmBookingPayment called for booking: ${id}`, { payment_id, amount });
 
       if (!payment_id || !amount) {
-        console.error('❌ confirmBookingPayment: Missing payment_id or amount');
+        console.error('[ERROR] confirmBookingPayment: Missing payment_id or amount');
         return res.status(400).json({
           success: false,
           message: 'payment_id và amount là bắt buộc',
@@ -835,7 +856,7 @@ class BookingController {
       });
 
       if (!booking) {
-        console.error(`❌ confirmBookingPayment: Booking not found: ${id}`);
+        console.error(`[ERROR] confirmBookingPayment: Booking not found: ${id}`);
         return res.status(404).json({
           success: false,
           message: 'Booking not found',
@@ -843,7 +864,7 @@ class BookingController {
         });
       }
 
-      console.log(`✅ confirmBookingPayment: Found booking ${id}`, {
+      console.log(`[SUCCESS] confirmBookingPayment: Found booking ${id}`, {
         current_payment_status: booking.payment_status,
         booking_amount: booking.amount_paid,
       });
@@ -875,7 +896,10 @@ class BookingController {
         },
       });
 
-      console.log(`✅ Booking ${id} payment_status updated to:`, updatedBooking.payment_status);
+      console.log(
+        `[SUCCESS] Booking ${id} payment_status updated to:`,
+        updatedBooking.payment_status
+      );
 
       // Update schedule current_bookings (only if not already updated)
       // This handles the case where booking was created with payment pending
@@ -923,10 +947,11 @@ class BookingController {
                 booked_at: updatedBooking.booked_at,
                 payment_amount: amount,
               },
+              channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
             });
-            console.log('✅ Notification created successfully for payment confirmation');
+            console.log('[SUCCESS] Notification created successfully for payment confirmation');
           } catch (notifError) {
-            console.error('❌ Error creating booking confirmation notification:', notifError);
+            console.error('[ERROR] Error creating booking confirmation notification:', notifError);
           }
 
           // Emit socket event to trainer
@@ -958,32 +983,33 @@ class BookingController {
             new_status: 'CONFIRMED',
             payment_status: 'PAID',
           });
-          console.log(`✅ Socket event booking:confirmed emitted successfully to trainer`);
+          console.log(`[SUCCESS] Socket event booking:confirmed emitted successfully to trainer`);
         } else {
           if (!trainerUserId) {
-            console.log('⚠️ No trainer user_id found for booking payment confirmation');
+            console.log('[WARNING] No trainer user_id found for booking payment confirmation');
           }
           if (!global.io) {
-            console.log('⚠️ Socket.io not available for booking payment confirmation');
+            console.log('[WARNING] Socket.io not available for booking payment confirmation');
           }
         }
 
         // Notify admins about successful payment
         try {
-          console.log('📢 Notifying admins about booking payment success...');
+          console.log('[NOTIFY] Notifying admins about booking payment success...');
           const admins = await notificationService.getAdminsAndSuperAdmins();
-          
+
           if (admins.length > 0) {
-            console.log(`📋 Found ${admins.length} admin/super-admin users to notify`);
+            console.log(`[LIST] Found ${admins.length} admin/super-admin users to notify`);
 
             // Create notifications for all admins
             const adminNotifications = admins.map(admin => ({
               user_id: admin.user_id,
               type: 'CLASS_BOOKING',
               title: 'Thanh toán lớp học thành công',
-              message: `${member?.full_name || 'Thành viên'} đã thanh toán ${new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(amount)} cho lớp ${
-                booking.schedule.gym_class?.name || 'Lớp học'
-              }`,
+              message: `${member?.full_name || 'Thành viên'} đã thanh toán ${new Intl.NumberFormat(
+                'vi-VN',
+                { style: 'currency', currency: 'VND' }
+              ).format(amount)} cho lớp ${booking.schedule.gym_class?.name || 'Lớp học'}`,
               data: {
                 booking_id: updatedBooking.id,
                 schedule_id: updatedBooking.schedule_id,
@@ -1003,11 +1029,11 @@ class BookingController {
             // Save notifications to database and emit socket events
             if (adminNotifications.length > 0) {
               console.log(`💾 Saving ${adminNotifications.length} notifications to database...`);
-              
+
               // Create notifications in identity service
               const { IDENTITY_SERVICE_URL } = require('../config/serviceUrls.js');
               const axios = require('axios');
-              
+
               const createdNotifications = [];
               for (const notificationData of adminNotifications) {
                 try {
@@ -1026,15 +1052,22 @@ class BookingController {
                     createdNotifications.push(response.data.data.notification);
                   }
                 } catch (error) {
-                  console.error(`❌ Failed to create notification for user ${notificationData.user_id}:`, error.message);
+                  console.error(
+                    `[ERROR] Failed to create notification for user ${notificationData.user_id}:`,
+                    error.message
+                  );
                 }
               }
-              
-              console.log(`✅ Created ${createdNotifications.length} notifications in identity service`);
+
+              console.log(
+                `[SUCCESS] Created ${createdNotifications.length} notifications in identity service`
+              );
 
               // Emit socket events to all admins
               if (global.io) {
-                console.log(`📡 Emitting socket events to ${createdNotifications.length} admin(s)...`);
+                console.log(
+                  `[EMIT] Emitting socket events to ${createdNotifications.length} admin(s)...`
+                );
                 createdNotifications.forEach(notification => {
                   const roomName = `user:${notification.user_id}`;
                   const socketPayload = {
@@ -1053,25 +1086,29 @@ class BookingController {
                   };
 
                   global.io.to(roomName).emit('booking:payment:success', socketPayload);
-                  console.log(`✅ Socket event booking:payment:success emitted to ${roomName}`);
+                  console.log(
+                    `[SUCCESS] Socket event booking:payment:success emitted to ${roomName}`
+                  );
                 });
-                console.log(`✅ All socket events emitted successfully to admins`);
+                console.log(`[SUCCESS] All socket events emitted successfully to admins`);
               }
             }
           } else {
-            console.log('⚠️ No admins found to notify');
+            console.log('[WARNING] No admins found to notify');
           }
         } catch (adminNotifError) {
-          console.error('❌ Error notifying admins about booking payment:', adminNotifError);
+          console.error('[ERROR] Error notifying admins about booking payment:', adminNotifError);
           // Don't fail the request if admin notification fails
         }
       }
 
       const [bookingWithMember] = await attachMemberDetails([updatedBooking], { strict: false });
 
-      console.log(`✅ confirmBookingPayment: Successfully confirmed payment for booking ${id}`);
       console.log(
-        `✅ confirmBookingPayment: Final payment_status: ${updatedBooking.payment_status}`
+        `[SUCCESS] confirmBookingPayment: Successfully confirmed payment for booking ${id}`
+      );
+      console.log(
+        `[SUCCESS] confirmBookingPayment: Final payment_status: ${updatedBooking.payment_status}`
       );
 
       res.json({
@@ -1080,9 +1117,9 @@ class BookingController {
         data: { booking: bookingWithMember },
       });
     } catch (error) {
-      console.error('❌ confirmBookingPayment error:', error);
-      console.error('❌ Error stack:', error.stack);
-      console.error('❌ Error details:', {
+      console.error('[ERROR] confirmBookingPayment error:', error);
+      console.error('[ERROR] Error stack:', error.stack);
+      console.error('[ERROR] Error details:', {
         bookingId: req.params.id,
         payment_id: req.body.payment_id,
         amount: req.body.amount,
@@ -1167,13 +1204,15 @@ class BookingController {
         try {
           const member = bookingWithMember?.member || null;
           const memberName = member?.full_name || 'Thành viên';
-          
+
           const notificationService = require('../services/notification.service.js');
           await notificationService.sendNotification({
             user_id: scheduleWithTrainer.trainer.user_id,
             type: 'CLASS_BOOKING',
             title: 'Hủy đặt lớp',
-            message: `${memberName} đã hủy đặt lớp ${scheduleWithTrainer.gym_class?.name || 'Lớp học'}`,
+            message: `${memberName} đã hủy đặt lớp ${
+              scheduleWithTrainer.gym_class?.name || 'Lớp học'
+            }`,
             data: {
               booking_id: booking.id,
               schedule_id: booking.schedule_id,
@@ -1184,6 +1223,7 @@ class BookingController {
               cancelled_at: updatedBooking.cancelled_at,
               role: 'MEMBER',
             },
+            channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
           });
 
           // Also emit socket event directly for real-time update
@@ -1197,11 +1237,15 @@ class BookingController {
             cancellation_reason: cancellation_reason || null,
           };
 
-          console.log(`📡 Emitting booking:cancelled to trainer user:${scheduleWithTrainer.trainer.user_id}`);
-          global.io.to(`user:${scheduleWithTrainer.trainer.user_id}`).emit('booking:cancelled', socketPayload);
-          console.log(`✅ Socket event booking:cancelled emitted successfully to trainer`);
+          console.log(
+            `[EMIT] Emitting booking:cancelled to trainer user:${scheduleWithTrainer.trainer.user_id}`
+          );
+          global.io
+            .to(`user:${scheduleWithTrainer.trainer.user_id}`)
+            .emit('booking:cancelled', socketPayload);
+          console.log(`[SUCCESS] Socket event booking:cancelled emitted successfully to trainer`);
         } catch (notifError) {
-          console.error('❌ Error notifying trainer about booking cancellation:', notifError);
+          console.error('[ERROR] Error notifying trainer about booking cancellation:', notifError);
           // Don't fail the cancellation if notification fails
         }
       }
@@ -1458,7 +1502,10 @@ class BookingController {
       try {
         bookingsWithMembers = await attachMemberDetails(bookings, { strict: false });
       } catch (memberError) {
-        console.warn('⚠️ Failed to attach member details (non-critical):', memberError.message);
+        console.warn(
+          '[WARNING] Failed to attach member details (non-critical):',
+          memberError.message
+        );
         // Return bookings without member details rather than failing
         bookingsWithMembers = bookings.map(booking => ({ ...booking, member: null }));
       }

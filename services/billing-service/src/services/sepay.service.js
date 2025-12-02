@@ -39,11 +39,11 @@ class SepayService {
 
     // Log để verify (chỉ hiện 10 ký tự đầu để bảo mật)
     console.log(
-      '🔑 Sepay API Key loaded:',
+      '[CONFIG] Sepay API Key loaded:',
       this.apiKey ? this.apiKey.substring(0, 15) + '...' : 'NOT SET'
     );
-    console.log('🆔 Sepay Merchant ID:', this.merchantId || 'NOT SET');
-    console.log('🏦 Bank Account:', this.accountNumber, '-', this.bankName);
+    console.log('[CONFIG] Sepay Merchant ID:', this.merchantId || 'NOT SET');
+    console.log('[BANK] Bank Account:', this.accountNumber, '-', this.bankName);
   }
 
   /**
@@ -66,7 +66,7 @@ class SepayService {
         this.bankName
       )}&amount=${amount}&des=${encodeURIComponent(transferContent)}`;
 
-      console.log('🏦 Sepay QR URL:', sepayQRUrl);
+      console.log('[BANK] Sepay QR URL:', sepayQRUrl);
 
       // Download QR image từ Sepay và convert sang base64
       let qrCodeDataURL = '';
@@ -74,16 +74,16 @@ class SepayService {
         const response = await axios.get(sepayQRUrl, { responseType: 'arraybuffer' });
         const base64 = Buffer.from(response.data, 'binary').toString('base64');
         qrCodeDataURL = `data:image/png;base64,${base64}`;
-        console.log('✅ Sepay QR code generated successfully');
+        console.log('[SUCCESS] Sepay QR code generated successfully');
       } catch (err) {
-        console.error('⚠️ Error downloading QR from Sepay:', err.message);
+        console.error('[WARNING] Error downloading QR from Sepay:', err.message);
         // Fallback: Generate simple QR with bank info
         const fallbackData = `Bank: ${this.bankName}\nAccount: ${this.accountNumber}\nName: ${this.accountName}\nAmount: ${amount}\nContent: ${transferContent}`;
         qrCodeDataURL = await QRCode.toDataURL(fallbackData, {
           errorCorrectionLevel: 'H',
           width: 300,
         });
-        console.log('⚠️ Using fallback QR generation');
+        console.log('[WARNING] Using fallback QR generation');
       }
 
       return {
@@ -100,7 +100,7 @@ class SepayService {
         },
       };
     } catch (error) {
-      console.error('❌ Error generating QR code:', error);
+      console.error('[ERROR] Error generating QR code:', error);
       throw new Error('Failed to generate QR code');
     }
   }
@@ -160,11 +160,11 @@ class SepayService {
         params: queryParams,
       });
 
-      console.log('📥 Sepay response structure:', JSON.stringify(response.data).substring(0, 500));
+      console.log('[DATA] Sepay response structure:', JSON.stringify(response.data).substring(0, 500));
 
       // Log first transaction structure for debugging
       if (response.data?.transactions?.[0]) {
-        console.log('📋 First transaction fields:', Object.keys(response.data.transactions[0]));
+        console.log('[LIST] First transaction fields:', Object.keys(response.data.transactions[0]));
         console.log('📄 First transaction sample:', JSON.stringify(response.data.transactions[0]));
       }
 
@@ -176,7 +176,7 @@ class SepayService {
       } else if (response.data?.data) {
         return response.data.data;
       } else {
-        console.warn('⚠️ Unexpected Sepay response structure:', response.data);
+        console.warn('[WARNING] Unexpected Sepay response structure:', response.data);
         return [];
       }
     } catch (error) {
@@ -198,13 +198,13 @@ class SepayService {
 
       const transactions = await this.getTransactions(params);
 
-      console.log(`📊 Found ${transactions.length} transactions from Sepay`);
+      console.log(`[STATS] Found ${transactions.length} transactions from Sepay`);
 
       // Extract transfer code for flexible matching
       const codeMatch = transferContent.match(/GYMFIT\s+([A-Z0-9]+)/i);
       const transferCode = codeMatch ? codeMatch[1] : transferContent;
 
-      console.log('🔍 Matching with code:', transferCode);
+      console.log('[SEARCH] Matching with code:', transferCode);
 
       // Filter by content (flexible) and amount
       const matchingTransaction = transactions.find(tx => {
@@ -232,9 +232,9 @@ class SepayService {
       });
 
       if (matchingTransaction) {
-        console.log('✅ Found matching transaction:', matchingTransaction.id);
+        console.log('[SUCCESS] Found matching transaction:', matchingTransaction.id);
       } else {
-        console.log('❌ No matching transaction found');
+        console.log('[ERROR] No matching transaction found');
       }
 
       return matchingTransaction || null;
@@ -250,7 +250,7 @@ class SepayService {
    */
   async verifyTransfer(transferContent, expectedAmount, transactionDate) {
     try {
-      console.log('🔍 Verifying transfer:', {
+      console.log('[SEARCH] Verifying transfer:', {
         transferContent,
         expectedAmount,
         transactionDate,
@@ -264,21 +264,21 @@ class SepayService {
       );
 
       if (!transaction) {
-        console.log('❌ Transaction not found');
+        console.log('[ERROR] Transaction not found');
         return {
           verified: false,
           message: 'Transaction not found',
         };
       }
 
-      console.log('✅ Transaction found:', transaction);
+      console.log('[SUCCESS] Transaction found:', transaction);
 
       // Verify amount matches
       const receivedAmount = parseFloat(transaction.amount_in);
       const amountMatch = Math.abs(receivedAmount - expectedAmount) < 0.01;
 
       if (!amountMatch) {
-        console.log('❌ Amount mismatch:', {
+        console.log('[ERROR] Amount mismatch:', {
           expected: expectedAmount,
           received: receivedAmount,
         });
@@ -319,7 +319,7 @@ class SepayService {
   verifyWebhookSignature(webhookData, signature) {
     try {
       if (!signature) {
-        console.warn('⚠️ No signature provided in webhook');
+        console.warn('[WARNING] No signature provided in webhook');
         // In development, allow without signature; in production, require it
         if (process.env.NODE_ENV === 'production') {
           return false;
@@ -328,7 +328,7 @@ class SepayService {
       }
 
       if (!this.apiKey) {
-        console.error('❌ SEPAY_API_KEY not configured');
+        console.error('[ERROR] SEPAY_API_KEY not configured');
         return false;
       }
 
@@ -347,14 +347,14 @@ class SepayService {
       );
 
       if (!isValid) {
-        console.error('❌ Invalid webhook signature');
+        console.error('[ERROR] Invalid webhook signature');
         console.log('Expected:', expectedSignature.substring(0, 20) + '...');
         console.log('Received:', signature.substring(0, 20) + '...');
       }
 
       return isValid;
     } catch (error) {
-      console.error('❌ Error verifying webhook signature:', error);
+      console.error('[ERROR] Error verifying webhook signature:', error);
       return false;
     }
   }

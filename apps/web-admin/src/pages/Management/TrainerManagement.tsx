@@ -78,7 +78,7 @@ const TrainerManagement: React.FC = () => {
 
     if (certificationId && trainerId) {
       console.log(
-        `🔗 [TRAINER_MGMT] Opening certification modal from query params: certification_id=${certificationId}, trainer_id=${trainerId}`
+        `[LINK] [TRAINER_MGMT] Opening certification modal from query params: certification_id=${certificationId}, trainer_id=${trainerId}`
       );
 
       // Find trainer in the list
@@ -107,7 +107,7 @@ const TrainerManagement: React.FC = () => {
       } else {
         // Trainer not loaded yet, wait for trainers to load
         console.log(
-          `⏳ [TRAINER_MGMT] Trainer ${trainerId} not found yet, waiting for trainers to load...`
+          `[WAIT] [TRAINER_MGMT] Trainer ${trainerId} not found yet, waiting for trainers to load...`
         );
       }
     }
@@ -155,7 +155,7 @@ const TrainerManagement: React.FC = () => {
       // If trainerId is not found, try to find trainer by matching with trainers list
       if (!trainerId) {
         console.warn(
-          '⚠️ [TRAINER_MGMT] Cannot find trainer_id in certData, attempting to find trainer in list',
+          '[WARNING] [TRAINER_MGMT] Cannot find trainer_id in certData, attempting to find trainer in list',
           certData
         );
         // Try to find trainer by other means (e.g., by user_id if available)
@@ -179,12 +179,12 @@ const TrainerManagement: React.FC = () => {
         if (trainer) {
           normalizedTrainerId = trainer.id;
           console.log(
-            `✅ [TRAINER_MGMT] Normalized trainerId: ${trainerId} -> ${normalizedTrainerId} (trainer: ${trainer.full_name})`
+            `[SUCCESS] [TRAINER_MGMT] Normalized trainerId: ${trainerId} -> ${normalizedTrainerId} (trainer: ${trainer.full_name})`
           );
         } else {
           // If not found, use original trainerId (might be from a different source)
           console.warn(
-            `⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers), using as-is. Available IDs:`,
+            `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers), using as-is. Available IDs:`,
             trainers.slice(0, 5).map(t => ({ id: t.id, user_id: t.user_id, name: t.full_name }))
           );
         }
@@ -201,9 +201,9 @@ const TrainerManagement: React.FC = () => {
 
       setTrainerPendingCerts(prev => {
         console.log(
-          `🔄 [TRAINER_MGMT] updatePendingCertsOptimistically - action: ${action}, trainerId: ${trainerId}, certId: ${certId}`
+          `[SYNC] [TRAINER_MGMT] updatePendingCertsOptimistically - action: ${action}, trainerId: ${trainerId}, certId: ${certId}`
         );
-        console.log(`🔄 [TRAINER_MGMT] Current trainerPendingCerts keys:`, Object.keys(prev));
+        console.log(`[SYNC] [TRAINER_MGMT] Current trainerPendingCerts keys:`, Object.keys(prev));
         const updated = { ...prev };
 
         if (action === 'add') {
@@ -218,7 +218,7 @@ const TrainerManagement: React.FC = () => {
           const exists = updated[trainerId].some(cert => cert.id === certId);
           if (exists) {
             console.log(
-              `ℹ️ [TRAINER_MGMT] Certification ${certId} already in pending list for trainer ${trainerId}`
+              `[INFO] [TRAINER_MGMT] Certification ${certId} already in pending list for trainer ${trainerId}`
             );
             return prev;
           }
@@ -271,18 +271,18 @@ const TrainerManagement: React.FC = () => {
           // Create new array to ensure React detects the change
           updated[trainerId] = [newCert, ...(updated[trainerId] || [])];
           console.log(
-            `✅ [TRAINER_MGMT] Added pending certification ${certId} for trainer ${trainerId} optimistically. Total pending: ${updated[trainerId].length}`
+            `[SUCCESS] [TRAINER_MGMT] Added pending certification ${certId} for trainer ${trainerId} optimistically. Total pending: ${updated[trainerId].length}`
           );
           console.log(
-            `📊 [TRAINER_MGMT] Updated trainerPendingCerts for trainer ${trainerId}:`,
+            `[STATS] [TRAINER_MGMT] Updated trainerPendingCerts for trainer ${trainerId}:`,
             updated[trainerId].map(c => ({ id: c.id, name: c.certification_name }))
           );
           console.log(
-            `🔑 [TRAINER_MGMT] trainerPendingCerts keys after update:`,
+            `[CONFIG] [TRAINER_MGMT] trainerPendingCerts keys after update:`,
             Object.keys(updated)
           );
           console.log(
-            `🔍 [TRAINER_MGMT] Checking if trainer ${trainerId} exists in trainers list:`,
+            `[SEARCH] [TRAINER_MGMT] Checking if trainer ${trainerId} exists in trainers list:`,
             trainers.find(t => t.id === trainerId)?.full_name || 'NOT FOUND'
           );
 
@@ -293,9 +293,9 @@ const TrainerManagement: React.FC = () => {
           Object.keys(newState).forEach(key => {
             newState[key] = [...newState[key]];
           });
-          console.log(`✅ [TRAINER_MGMT] Returning new state with keys:`, Object.keys(newState));
+          console.log(`[SUCCESS] [TRAINER_MGMT] Returning new state with keys:`, Object.keys(newState));
           console.log(
-            `✅ [TRAINER_MGMT] New state for trainer ${trainerId}:`,
+            `[SUCCESS] [TRAINER_MGMT] New state for trainer ${trainerId}:`,
             newState[trainerId]?.length || 0,
             'certs'
           );
@@ -305,7 +305,7 @@ const TrainerManagement: React.FC = () => {
           if (updated[trainerId]) {
             updated[trainerId] = updated[trainerId].filter(cert => cert.id !== certId);
             console.log(
-              `✅ [TRAINER_MGMT] Removed pending certification ${certId} for trainer ${trainerId} optimistically`
+              `[SUCCESS] [TRAINER_MGMT] Removed pending certification ${certId} for trainer ${trainerId} optimistically`
             );
           }
         } else if (action === 'update') {
@@ -319,7 +319,7 @@ const TrainerManagement: React.FC = () => {
                 updated_at: new Date().toISOString(),
               };
               console.log(
-                `✅ [TRAINER_MGMT] Updated pending certification ${certId} for trainer ${trainerId} optimistically`
+                `[SUCCESS] [TRAINER_MGMT] Updated pending certification ${certId} for trainer ${trainerId} optimistically`
               );
             }
           }
@@ -330,7 +330,7 @@ const TrainerManagement: React.FC = () => {
     };
 
     const handleCertificationUpdated = (event: CustomEvent) => {
-      console.log('📢 certification:updated event received in TrainerManagement:', event.detail);
+      console.log('[NOTIFY] certification:updated event received in TrainerManagement:', event.detail);
       const data = event.detail;
 
       // Clear any pending reload
@@ -357,7 +357,7 @@ const TrainerManagement: React.FC = () => {
           // Update trainer optimistically (specializations may have changed)
           // Fetch only the specific trainer to update, not reload entire list
           console.log(
-            `🔄 [TRAINER_MGMT] Certification ${status} - updating trainer ${trainerId} optimistically (no full reload)`
+            `[SYNC] [TRAINER_MGMT] Certification ${status} - updating trainer ${trainerId} optimistically (no full reload)`
           );
 
           // For VERIFIED status, specializations may have changed
@@ -365,13 +365,13 @@ const TrainerManagement: React.FC = () => {
           if (status === 'VERIFIED') {
             // Trigger specialization sync - the endpoint returns the updated trainer with specializations
             console.log(
-              `🔄 [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId}`
+              `[SYNC] [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId}`
             );
 
             trainerService
               .syncTrainerSpecializations(trainerId)
               .then(syncResponse => {
-                console.log(`✅ [TRAINER_MGMT] Specialization sync response:`, syncResponse);
+                console.log(`[SUCCESS] [TRAINER_MGMT] Specialization sync response:`, syncResponse);
 
                 if (syncResponse.success && syncResponse.data?.trainer) {
                   // Sync endpoint returns { success: true, data: { trainer } } with updated specializations
@@ -391,7 +391,7 @@ const TrainerManagement: React.FC = () => {
                       : [],
                   };
 
-                  console.log(`📋 [TRAINER_MGMT] Trainer data from sync:`, {
+                  console.log(`[LIST] [TRAINER_MGMT] Trainer data from sync:`, {
                     id: normalizedTrainer.id,
                     full_name: normalizedTrainer.full_name,
                     specializations: normalizedTrainer.specializations,
@@ -400,7 +400,7 @@ const TrainerManagement: React.FC = () => {
                   // Check if specializations are still empty after sync
                   if (normalizedTrainer.specializations.length === 0) {
                     console.warn(
-                      `⚠️ [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`
+                      `[WARNING] [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`
                     );
                   }
 
@@ -417,14 +417,14 @@ const TrainerManagement: React.FC = () => {
                         specializations: normalizedTrainer.specializations,
                       };
                       console.log(
-                        `✅ [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`,
+                        `[SUCCESS] [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`,
                         normalizedTrainer.specializations,
                         ')'
                       );
                       return updated;
                     }
                     console.warn(
-                      `⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list`
+                      `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list`
                     );
                     return prev;
                   });
@@ -458,7 +458,7 @@ const TrainerManagement: React.FC = () => {
                                 JSON.stringify(newSpecializations)
                               ) {
                                 console.log(
-                                  `🔄 [TRAINER_MGMT] Specializations changed after fetch, updating:`,
+                                  `[SYNC] [TRAINER_MGMT] Specializations changed after fetch, updating:`,
                                   newSpecializations
                                 );
                                 const updated = [...prev];
@@ -475,13 +475,13 @@ const TrainerManagement: React.FC = () => {
                         }
                       })
                       .catch(error => {
-                        console.error(`❌ [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                        console.error(`[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`, error);
                         // Ignore error - we already updated from sync response
                       });
                   }, 500);
                 } else {
                   console.warn(
-                    `⚠️ [TRAINER_MGMT] Specialization sync returned invalid response:`,
+                    `[WARNING] [TRAINER_MGMT] Specialization sync returned invalid response:`,
                     syncResponse
                   );
                   // Fallback: fetch trainer directly
@@ -516,7 +516,7 @@ const TrainerManagement: React.FC = () => {
                       })
                       .catch(error => {
                         console.error(
-                          `❌ [TRAINER_MGMT] Error fetching trainer after sync failure:`,
+                          `[ERROR] [TRAINER_MGMT] Error fetching trainer after sync failure:`,
                           error
                         );
                         // Final fallback: reload entire list
@@ -530,7 +530,7 @@ const TrainerManagement: React.FC = () => {
                 }
               })
               .catch(syncError => {
-                console.error(`❌ [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+                console.error(`[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
                 // Fallback: fetch trainer directly (backend may have already synced)
                 setTimeout(() => {
                   trainerService
@@ -563,7 +563,7 @@ const TrainerManagement: React.FC = () => {
                     })
                     .catch(error => {
                       console.error(
-                        `❌ [TRAINER_MGMT] Error fetching trainer after sync error:`,
+                        `[ERROR] [TRAINER_MGMT] Error fetching trainer after sync error:`,
                         error
                       );
                       // Final fallback: reload entire list
@@ -578,7 +578,7 @@ const TrainerManagement: React.FC = () => {
           } else {
             // For REJECTED, specializations shouldn't change
             console.log(
-              `✅ [TRAINER_MGMT] Certification REJECTED - no specialization change needed`
+              `[SUCCESS] [TRAINER_MGMT] Certification REJECTED - no specialization change needed`
             );
           }
 
@@ -591,7 +591,7 @@ const TrainerManagement: React.FC = () => {
             data?.certification_id || data?.id || data?.data?.certification_id || data?.data?.id;
           updatePendingCertsOptimistically(data, certId ? 'update' : 'add');
           console.log(
-            `✅ [TRAINER_MGMT] Certification PENDING - updated pending certs optimistically (no reload)`
+            `[SUCCESS] [TRAINER_MGMT] Certification PENDING - updated pending certs optimistically (no reload)`
           );
 
           // No background reload - user can manually refresh if needed
@@ -599,7 +599,7 @@ const TrainerManagement: React.FC = () => {
       } else {
         // No trainer_id in data - fallback to reload (shouldn't happen often)
         console.warn(
-          `⚠️ [TRAINER_MGMT] No trainer_id in certification:updated event. Cannot update optimistically.`,
+          `[WARNING] [TRAINER_MGMT] No trainer_id in certification:updated event. Cannot update optimistically.`,
           data
         );
       }
@@ -608,15 +608,15 @@ const TrainerManagement: React.FC = () => {
     const handleCertificationCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
       console.log(
-        '📢 [TRAINER_MGMT] ⭐⭐ certification:created event received:',
+        '[NOTIFY] [TRAINER_MGMT] certification:created event received:',
         customEvent.detail
       );
-      console.log('📢 [TRAINER_MGMT] Current trainers count:', trainers.length);
+      console.log('[NOTIFY] [TRAINER_MGMT] Current trainers count:', trainers.length);
       const data = customEvent.detail;
 
       // Verify event has required data
       if (!data) {
-        console.error('❌ [TRAINER_MGMT] certification:created event has no data!');
+        console.error('[ERROR] [TRAINER_MGMT] certification:created event has no data!');
         return;
       }
 
@@ -638,10 +638,10 @@ const TrainerManagement: React.FC = () => {
         'PENDING'; // Default to PENDING for new certifications
 
       console.log(
-        `🔍 [TRAINER_MGMT] Processing certification:created - trainerId: ${trainerId}, status: ${status}`
+        `[SEARCH] [TRAINER_MGMT] Processing certification:created - trainerId: ${trainerId}, status: ${status}`
       );
       console.log(
-        `📋 [TRAINER_MGMT] Current trainers list (${trainers.length} trainers):`,
+        `[LIST] [TRAINER_MGMT] Current trainers list (${trainers.length} trainers):`,
         trainers.map(t => ({ id: t.id, user_id: t.user_id, name: t.full_name }))
       );
 
@@ -649,7 +649,7 @@ const TrainerManagement: React.FC = () => {
         // Find trainer in current list to normalize trainerId to trainer.id
         // This ensures trainerPendingCerts is keyed by the same ID used in the UI
         console.log(
-          `🔍 [TRAINER_MGMT] Searching for trainer with trainerId: ${trainerId} in ${trainers.length} trainers`
+          `[SEARCH] [TRAINER_MGMT] Searching for trainer with trainerId: ${trainerId} in ${trainers.length} trainers`
         );
 
         const trainer = trainers.find(t => t.id === trainerId || t.user_id === trainerId);
@@ -659,11 +659,11 @@ const TrainerManagement: React.FC = () => {
           // Use trainer.id to ensure consistency with UI lookup
           normalizedTrainerId = trainer.id;
           console.log(
-            `✅ [TRAINER_MGMT] Found trainer ${trainer.full_name} (id: ${trainer.id}, user_id: ${trainer.user_id}), normalizing trainerId: ${trainerId} -> ${normalizedTrainerId}`
+            `[SUCCESS] [TRAINER_MGMT] Found trainer ${trainer.full_name} (id: ${trainer.id}, user_id: ${trainer.user_id}), normalizing trainerId: ${trainerId} -> ${normalizedTrainerId}`
           );
         } else {
           console.warn(
-            `⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers). Available IDs:`,
+            `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers). Available IDs:`,
             trainers.map(t => ({ id: t.id, user_id: t.user_id, name: t.full_name }))
           );
           // Try to find by user_id if trainerId is actually a user_id
@@ -671,11 +671,11 @@ const TrainerManagement: React.FC = () => {
           if (trainerByUserId) {
             normalizedTrainerId = trainerByUserId.id;
             console.log(
-              `✅ [TRAINER_MGMT] Found trainer by user_id: ${trainerByUserId.full_name} (id: ${trainerByUserId.id}), using trainer.id: ${normalizedTrainerId}`
+              `[SUCCESS] [TRAINER_MGMT] Found trainer by user_id: ${trainerByUserId.full_name} (id: ${trainerByUserId.id}), using trainer.id: ${normalizedTrainerId}`
             );
           } else {
             console.error(
-              `❌ [TRAINER_MGMT] Trainer not found by user_id either. Will use original trainerId: ${trainerId}. This may cause badge not to update!`
+              `[ERROR] [TRAINER_MGMT] Trainer not found by user_id either. Will use original trainerId: ${trainerId}. This may cause badge not to update!`
             );
           }
         }
@@ -690,7 +690,7 @@ const TrainerManagement: React.FC = () => {
 
           // Update pending certs optimistically - this will update the badge immediately
           console.log(
-            `🔄 [TRAINER_MGMT] Calling updatePendingCertsOptimistically with normalized trainerId: ${normalizedTrainerId}, data:`,
+            `[SYNC] [TRAINER_MGMT] Calling updatePendingCertsOptimistically with normalized trainerId: ${normalizedTrainerId}, data:`,
             {
               certification_id: normalizedData?.certification_id || normalizedData?.id,
               trainer_id: normalizedData?.trainer_id,
@@ -703,14 +703,14 @@ const TrainerManagement: React.FC = () => {
           updatePendingCertsOptimistically(normalizedData, 'add');
 
           console.log(
-            `✅ [TRAINER_MGMT] Certification created (PENDING) - added to pending certs optimistically (no reload)`
+            `[SUCCESS] [TRAINER_MGMT] Certification created (PENDING) - added to pending certs optimistically (no reload)`
           );
 
           // Log current state to verify update (after a short delay to allow state to update)
           setTimeout(() => {
             setTrainerPendingCerts(prev => {
               console.log(
-                `📊 [TRAINER_MGMT] State verification - trainerPendingCerts keys:`,
+                `[STATS] [TRAINER_MGMT] State verification - trainerPendingCerts keys:`,
                 Object.keys(prev),
                 `Count for ${normalizedTrainerId}:`,
                 prev[normalizedTrainerId]?.length || 0,
@@ -729,19 +729,19 @@ const TrainerManagement: React.FC = () => {
           // AI auto-verified - specializations may have changed, update only this trainer
           // Backend already syncs specializations when creating with VERIFIED status
           console.log(
-            `🔄 [TRAINER_MGMT] Certification created (VERIFIED) - updating trainer ${trainerId} optimistically (no full reload)`
+            `[SYNC] [TRAINER_MGMT] Certification created (VERIFIED) - updating trainer ${trainerId} optimistically (no full reload)`
           );
 
           // Trigger specialization sync - the endpoint returns the updated trainer with specializations
           console.log(
-            `🔄 [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId} (from created event)`
+            `[SYNC] [TRAINER_MGMT] Triggering specialization sync for trainer ${trainerId} (from created event)`
           );
 
           trainerService
             .syncTrainerSpecializations(trainerId)
             .then(syncResponse => {
               console.log(
-                `✅ [TRAINER_MGMT] Specialization sync response (from created):`,
+                `[SUCCESS] [TRAINER_MGMT] Specialization sync response (from created):`,
                 syncResponse
               );
 
@@ -763,7 +763,7 @@ const TrainerManagement: React.FC = () => {
                     : [],
                 };
 
-                console.log(`📋 [TRAINER_MGMT] Trainer data from sync (from created):`, {
+                console.log(`[LIST] [TRAINER_MGMT] Trainer data from sync (from created):`, {
                   id: normalizedTrainer.id,
                   full_name: normalizedTrainer.full_name,
                   specializations: normalizedTrainer.specializations,
@@ -772,7 +772,7 @@ const TrainerManagement: React.FC = () => {
                 // Check if specializations are still empty after sync
                 if (normalizedTrainer.specializations.length === 0) {
                   console.warn(
-                    `⚠️ [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`
+                    `[WARNING] [TRAINER_MGMT] Specializations are still empty after sync for trainer ${trainerId}. This might indicate no valid certifications.`
                   );
                 }
 
@@ -789,13 +789,13 @@ const TrainerManagement: React.FC = () => {
                       specializations: normalizedTrainer.specializations,
                     };
                     console.log(
-                      `✅ [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`,
+                      `[SUCCESS] [TRAINER_MGMT] Updated trainer ${trainerId} in state with synced data (specializations:`,
                       normalizedTrainer.specializations,
                       ')'
                     );
                     return updated;
                   }
-                  console.warn(`⚠️ [TRAINER_MGMT] Trainer ${trainerId} not found in current list`);
+                  console.warn(`[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list`);
                   return prev;
                 });
 
@@ -828,7 +828,7 @@ const TrainerManagement: React.FC = () => {
                               JSON.stringify(newSpecializations)
                             ) {
                               console.log(
-                                `🔄 [TRAINER_MGMT] Specializations changed after fetch, updating:`,
+                                `[SYNC] [TRAINER_MGMT] Specializations changed after fetch, updating:`,
                                 newSpecializations
                               );
                               const updated = [...prev];
@@ -845,13 +845,13 @@ const TrainerManagement: React.FC = () => {
                       }
                     })
                     .catch(error => {
-                      console.error(`❌ [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                      console.error(`[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`, error);
                       // Ignore error - we already updated from sync response
                     });
                 }, 500);
               } else {
                 console.warn(
-                  `⚠️ [TRAINER_MGMT] Specialization sync returned invalid response:`,
+                  `[WARNING] [TRAINER_MGMT] Specialization sync returned invalid response:`,
                   syncResponse
                 );
                 // Fallback: fetch trainer directly
@@ -886,7 +886,7 @@ const TrainerManagement: React.FC = () => {
                     })
                     .catch(error => {
                       console.error(
-                        `❌ [TRAINER_MGMT] Error fetching trainer after sync failure:`,
+                        `[ERROR] [TRAINER_MGMT] Error fetching trainer after sync failure:`,
                         error
                       );
                       // Final fallback: reload entire list
@@ -900,7 +900,7 @@ const TrainerManagement: React.FC = () => {
               }
             })
             .catch(syncError => {
-              console.error(`❌ [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+              console.error(`[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
               // Fallback: fetch trainer directly (backend may have already synced)
               setTimeout(() => {
                 trainerService
@@ -933,7 +933,7 @@ const TrainerManagement: React.FC = () => {
                   })
                   .catch(error => {
                     console.error(
-                      `❌ [TRAINER_MGMT] Error fetching trainer after sync error:`,
+                      `[ERROR] [TRAINER_MGMT] Error fetching trainer after sync error:`,
                       error
                     );
                     // Final fallback: reload entire list
@@ -955,20 +955,20 @@ const TrainerManagement: React.FC = () => {
       } else {
         // No trainer_id in data - try to find trainer by user_id or other means
         console.warn(
-          `⚠️ [TRAINER_MGMT] No trainer_id in certification:created event. Event data:`,
+          `[WARNING] [TRAINER_MGMT] No trainer_id in certification:created event. Event data:`,
           data
         );
 
         // No trainer_id found - log warning but don't reload
         // Optimistic update may still work if trainer can be found by other means
         console.warn(
-          `⚠️ [TRAINER_MGMT] No trainer_id in certification:created event. Cannot update badge optimistically.`
+          `[WARNING] [TRAINER_MGMT] No trainer_id in certification:created event. Cannot update badge optimistically.`
         );
       }
     };
 
     const handleCertificationDeleted = (event: CustomEvent) => {
-      console.log('📢 certification:deleted event received in TrainerManagement:', event.detail);
+      console.log('[NOTIFY] certification:deleted event received in TrainerManagement:', event.detail);
       const data = event.detail;
 
       // Remove certification from pending list optimistically (no reload)
@@ -984,7 +984,7 @@ const TrainerManagement: React.FC = () => {
 
     // Listen to custom events (dispatched by AppLayout from socket events)
     // This is more reliable than accessing socket directly
-    console.log('🔧 [TRAINER_MGMT] Registering event listeners for certification events');
+    console.log('[CONFIG] [TRAINER_MGMT] Registering event listeners for certification events');
 
     // Add listeners to both window and document for better compatibility
     const handleCreated = handleCertificationCreated as EventListener;
@@ -1000,7 +1000,7 @@ const TrainerManagement: React.FC = () => {
     document.addEventListener('certification:deleted', handleDeleted);
 
     console.log(
-      '✅ [TRAINER_MGMT] Event listeners registered successfully on both window and document'
+      '[SUCCESS] [TRAINER_MGMT] Event listeners registered successfully on both window and document'
     );
 
     return () => {
@@ -1046,8 +1046,8 @@ const TrainerManagement: React.FC = () => {
             : [],
         }));
 
-        console.log('📋 Loaded trainers:', trainersList.length);
-        console.log('📋 Sample trainer specializations:', trainersList[0]?.specializations);
+        console.log('[LIST] Loaded trainers:', trainersList.length);
+        console.log('[LIST] Sample trainer specializations:', trainersList[0]?.specializations);
 
         setTrainers(trainersList);
 
@@ -1558,7 +1558,7 @@ const TrainerManagement: React.FC = () => {
                   // Debug logging for all trainers with pending certs or first trainer
                   if ((hasPendingCerts || index === 0) && index < 3) {
                     console.log(
-                      `🔍 [TRAINER_MGMT] Render - Trainer ${trainer.full_name} (id: ${trainer.id}, user_id: ${trainer.user_id})`,
+                      `[SEARCH] [TRAINER_MGMT] Render - Trainer ${trainer.full_name} (id: ${trainer.id}, user_id: ${trainer.user_id})`,
                       `hasPendingCerts: ${hasPendingCerts}, pendingCertsCount: ${pendingCertsCount}`,
                       `certsById: ${certsById.length}, certsByUserId: ${certsByUserId.length}, unique: ${allPendingCerts.size}`,
                       `trainerPendingCerts keys:`,

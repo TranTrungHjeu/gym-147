@@ -74,7 +74,7 @@ export default function QRScannerScreen() {
 
   // Helper function to fully reset for new scan
   const allowNewScan = useCallback(() => {
-    console.log('🔄 Resetting scanner for new scan...');
+    console.log('[RESET] Resetting scanner for new scan...');
 
     // Clear any pending timeouts
     if (navigationTimeoutRef.current) {
@@ -94,7 +94,7 @@ export default function QRScannerScreen() {
     lastScannedData.current = null;
     // Don't reset lastScanTime to prevent immediate re-scan
 
-    console.log('✅ Scanner ready for new scan');
+    console.log('[SUCCESS] Scanner ready for new scan');
   }, []);
 
   // Cleanup on unmount
@@ -112,11 +112,11 @@ export default function QRScannerScreen() {
   // Reset scanner when screen is focused (e.g., when navigating back)
   useFocusEffect(
     useCallback(() => {
-      console.log('📍 QR Scanner screen focused - resetting state');
+      console.log('[NAV] QR Scanner screen focused - resetting state');
       // Reset all states when screen becomes focused
       allowNewScan();
       return () => {
-        console.log('📍 QR Scanner screen unfocused');
+        console.log('[NAV] QR Scanner screen unfocused');
       };
     }, [allowNewScan])
   );
@@ -138,19 +138,19 @@ export default function QRScannerScreen() {
     if (timeSinceLastScan < cooldownTime) {
       const remaining = Math.ceil((cooldownTime - timeSinceLastScan) / 1000);
       console.log(
-        `⏱️ Cooldown: ${remaining}s remaining (${lastResultType.current})`
+        `[TIMER] Cooldown: ${remaining}s remaining (${lastResultType.current})`
       );
       return;
     }
 
     // Prevent scanning while processing
     if (isProcessing.current) {
-      console.log('⏳ Already processing a scan');
+      console.log('[PROCESS] Already processing a scan');
       return;
     }
 
     if (scanned || scanning) {
-      console.log('📷 Camera already scanned');
+      console.log('[CAMERA] Camera already scanned');
       return;
     }
 
@@ -159,7 +159,7 @@ export default function QRScannerScreen() {
     lastScannedData.current = data;
     lastScanTime.current = now;
 
-    console.log('✅ QR Scan started:', data.substring(0, 20) + '...');
+    console.log('[SUCCESS] QR Scan started:', data.substring(0, 20) + '...');
 
     setScanned(true);
     setScanning(true);
@@ -187,7 +187,7 @@ export default function QRScannerScreen() {
 
       setLoading(false);
 
-      console.log('✅ QR Validation Response:', {
+      console.log('[SUCCESS] QR Validation Response:', {
         success: response.success,
         data: response.data,
         message: response.message,
@@ -196,7 +196,7 @@ export default function QRScannerScreen() {
       if (response.success && response.data) {
         const { equipment, canUse, canQueue, reason } = response.data;
 
-        console.log('✅ QR Scan Result:', {
+        console.log('[SUCCESS] QR Scan Result:', {
           equipment: equipment?.name,
           canUse,
           canQueue,
@@ -236,7 +236,7 @@ export default function QRScannerScreen() {
           // Auto reset after 1.5s (info cooldown)
           navigationTimeoutRef.current = setTimeout(() => {
             console.log(
-              '⏰ Auto-reset timeout triggered (MAINTENANCE/OUT_OF_ORDER)'
+              '[TIMER] Auto-reset timeout triggered (MAINTENANCE/OUT_OF_ORDER)'
             );
             setShowModal(false);
             allowNewScan();
@@ -272,7 +272,7 @@ export default function QRScannerScreen() {
 
           // Auto reset after 1.5s (info cooldown)
           navigationTimeoutRef.current = setTimeout(() => {
-            console.log('⏰ Auto-reset timeout triggered (RESERVED)');
+            console.log('[TIMER] Auto-reset timeout triggered (RESERVED)');
             setShowModal(false);
             allowNewScan();
           }, 1500);
@@ -308,7 +308,7 @@ export default function QRScannerScreen() {
           // Auto navigate after 1 second
           navigationTimeoutRef.current = setTimeout(() => {
             console.log(
-              '⏰ Auto-navigate timeout triggered (AVAILABLE) →',
+              '[TIMER] Auto-navigate timeout triggered (AVAILABLE) →',
               equipment.id
             );
             setShowModal(false);
@@ -345,7 +345,7 @@ export default function QRScannerScreen() {
 
           // Auto reset after 1.5s (info cooldown)
           navigationTimeoutRef.current = setTimeout(() => {
-            console.log('⏰ Auto-reset timeout triggered (IN_USE)');
+            console.log('[TIMER] Auto-reset timeout triggered (IN_USE)');
             setShowModal(false);
             allowNewScan();
           }, 1500);
@@ -353,7 +353,7 @@ export default function QRScannerScreen() {
         }
 
         // Fallback: No condition matched - unexpected state
-        console.warn('⚠️ Unexpected QR scan state:', {
+        console.warn('[WARN] Unexpected QR scan state:', {
           equipment: equipment?.name,
           canUse,
           canQueue,
@@ -387,7 +387,7 @@ export default function QRScannerScreen() {
 
         // Auto reset after 1.5s
         navigationTimeoutRef.current = setTimeout(() => {
-          console.log('⏰ Auto-reset timeout triggered (FALLBACK)');
+          console.log('[TIMER] Auto-reset timeout triggered (FALLBACK)');
           setShowModal(false);
           allowNewScan();
         }, 1500);
@@ -408,7 +408,7 @@ export default function QRScannerScreen() {
 
         // Auto reset after 1s (error cooldown - faster retry)
         navigationTimeoutRef.current = setTimeout(() => {
-          console.log('⏰ Auto-reset timeout triggered (ERROR)');
+          console.log('[TIMER] Auto-reset timeout triggered (ERROR)');
           setShowModal(false);
           allowNewScan();
         }, 1000);
@@ -419,7 +419,7 @@ export default function QRScannerScreen() {
       lastResultType.current = 'error'; // Set result type
 
       setLoading(false);
-      console.error('❌ QR Scan Error:', {
+      console.error('[ERROR] QR Scan Error:', {
         error: error.message,
         qrData: data.substring(0, 50), // Log first 50 chars for debugging
         timestamp: new Date().toISOString(),
@@ -436,7 +436,7 @@ export default function QRScannerScreen() {
 
       // Auto reset after 1s (error cooldown - faster retry)
       navigationTimeoutRef.current = setTimeout(() => {
-        console.log('⏰ Auto-reset timeout triggered (CATCH ERROR)');
+        console.log('[TIMER] Auto-reset timeout triggered (CATCH ERROR)');
         setShowModal(false);
         allowNewScan();
       }, 1000);

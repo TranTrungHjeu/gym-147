@@ -1,6 +1,122 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import ExportButton from '../../components/common/ExportButton';
+import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import Button from '../../components/ui/Button/Button';
 import { CalendarEvent, scheduleService } from '../../services/schedule.service';
+import { getCurrentUser } from '../../utils/auth';
+
+// Calendar Sync Buttons Component
+const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
+  const handleGoogleCalendarSync = () => {
+    if (!events || events.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    const iCalEvents = events
+      .filter(e => e.start && e.end)
+      .map(event => ({
+        title: event.class_name || event.title || 'Lớp học',
+        description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${event.attendees || 0}/${
+          event.max_capacity || 0
+        }`,
+        start: event.start,
+        end: event.end,
+        location: event.room || '',
+      }));
+
+    if (iCalEvents.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện hợp lệ để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    const filename = `trainer-calendar-${new Date().toISOString().split('T')[0]}`;
+    ExportUtils.exportToiCal(iCalEvents, filename);
+
+    if (window.showToast) {
+      window.showToast({
+        type: 'success',
+        message: 'Đã tải file iCal. Bạn có thể import vào Google Calendar hoặc Outlook.',
+        duration: 5000,
+      });
+    }
+  };
+
+  const handleOutlookSync = () => {
+    if (!events || events.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    const iCalEvents = events
+      .filter(e => e.start && e.end)
+      .map(event => ({
+        title: event.class_name || event.title || 'Lớp học',
+        description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${event.attendees || 0}/${
+          event.max_capacity || 0
+        }`,
+        start: event.start,
+        end: event.end,
+        location: event.room || '',
+      }));
+
+    if (iCalEvents.length === 0) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'info',
+          message: 'Không có sự kiện hợp lệ để đồng bộ',
+          duration: 3000,
+        });
+      }
+      return;
+    }
+
+    const filename = `trainer-calendar-${new Date().toISOString().split('T')[0]}`;
+    ExportUtils.exportToiCal(iCalEvents, filename);
+
+    if (window.showToast) {
+      window.showToast({
+        type: 'success',
+        message: 'Đã tải file iCal. Bạn có thể import vào Outlook.',
+        duration: 5000,
+      });
+    }
+  };
+
+  return (
+    <div className='flex gap-2'>
+      <AdminButton
+        variant='outline'
+        size='sm'
+        icon={ExternalLink}
+        onClick={handleGoogleCalendarSync}
+      >
+        Sync Google
+      </AdminButton>
+      <AdminButton variant='outline' size='sm' icon={ExternalLink} onClick={handleOutlookSync}>
+        Sync Outlook
+      </AdminButton>
+    </div>
+  );
+};
 
 export default function TrainerCalendar() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -12,9 +128,16 @@ export default function TrainerCalendar() {
     classType: '',
     room: '',
   });
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [userId, setUserId] = useState<string>('');
 
   useEffect(() => {
     fetchEvents();
+    // Get current user ID
+    const user = getCurrentUser();
+    if (user?.id) {
+      setUserId(user.id);
+    }
   }, [currentDate, viewMode, filters]);
 
   const fetchEvents = async () => {
@@ -79,6 +202,19 @@ export default function TrainerCalendar() {
     });
   };
 
+  // Filter events based on filters
+  const filteredEvents = useMemo(() => {
+    return events.filter(event => {
+      const matchesStatus = !filters.status || event.status === filters.status;
+      const matchesClassType =
+        !filters.classType ||
+        event.class_name?.toLowerCase().includes(filters.classType.toLowerCase());
+      const matchesRoom =
+        !filters.room || event.room?.toLowerCase().includes(filters.room.toLowerCase());
+      return matchesStatus && matchesClassType && matchesRoom;
+    });
+  }, [events, filters]);
+
   if (loading) {
     return (
       <div className='flex items-center justify-center min-h-screen'>
@@ -100,33 +236,66 @@ export default function TrainerCalendar() {
             <p className='text-gray-600 dark:text-gray-400'>Xem và quản lý lịch dạy của bạn</p>
           </div>
           <div className='flex gap-2'>
-            <Button
-              size='sm'
-              variant='outline'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng xuất lịch đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
-            >
-              Xuất lịch
-            </Button>
-            <Button
-              size='sm'
-              onClick={() => {
-                if (window.showToast) {
-                  window.showToast({
-                    type: 'info',
-                    message: 'Chức năng tạo lịch mới đang được phát triển',
-                    duration: 3000,
-                  });
-                }
-              }}
-            >
+            {filteredEvents && filteredEvents.length > 0 ? (
+              <>
+                <ExportButton
+                  data={filteredEvents.map(event => ({
+                    'Lớp học': event.class_name || 'N/A',
+                    'Ngày bắt đầu': event.start
+                      ? new Date(event.start).toLocaleDateString('vi-VN')
+                      : 'N/A',
+                    'Thời gian bắt đầu': event.start
+                      ? new Date(event.start).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    'Thời gian kết thúc': event.end
+                      ? new Date(event.end).toLocaleTimeString('vi-VN', {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'N/A',
+                    Phòng: event.room || 'N/A',
+                    'Trạng thái': event.status || 'N/A',
+                    'Số người tham gia': event.attendees || 0,
+                    'Sức chứa tối đa': event.max_capacity || 0,
+                  }))}
+                  columns={[
+                    { key: 'Lớp học', label: 'Lớp học' },
+                    { key: 'Ngày bắt đầu', label: 'Ngày bắt đầu' },
+                    { key: 'Thời gian bắt đầu', label: 'Thời gian bắt đầu' },
+                    { key: 'Thời gian kết thúc', label: 'Thời gian kết thúc' },
+                    { key: 'Phòng', label: 'Phòng' },
+                    { key: 'Trạng thái', label: 'Trạng thái' },
+                    { key: 'Số người tham gia', label: 'Số người tham gia' },
+                    { key: 'Sức chứa tối đa', label: 'Sức chứa tối đa' },
+                  ]}
+                  filename={`trainer-calendar-${currentDate.toISOString().split('T')[0]}`}
+                  title='Lịch dạy'
+                  variant='outline'
+                  size='sm'
+                  showiCal={true}
+                  iCalEvents={filteredEvents
+                    .filter(e => e.start && e.end)
+                    .map(event => ({
+                      title: event.class_name || event.title || 'Lớp học',
+                      description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${
+                        event.attendees || 0
+                      }/${event.max_capacity || 0}`,
+                      start: event.start,
+                      end: event.end,
+                      location: event.room || '',
+                    }))}
+                />
+                <CalendarSyncButtons events={filteredEvents} />
+              </>
+            ) : (
+              <Button size='sm' variant='outline' disabled>
+                Xuất lịch
+              </Button>
+            )}
+            <Button size='sm' onClick={() => setIsCreateModalOpen(true)}>
               Tạo lịch mới
             </Button>
           </div>
@@ -323,6 +492,19 @@ export default function TrainerCalendar() {
           </div>
         )}
       </div>
+
+      {/* Create Schedule Modal */}
+      {userId && (
+        <CreateScheduleModal
+          isOpen={isCreateModalOpen}
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            setIsCreateModalOpen(false);
+            fetchEvents(); // Refresh events after creating schedule
+          }}
+          userId={userId}
+        />
+      )}
     </div>
   );
 }

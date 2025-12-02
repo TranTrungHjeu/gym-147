@@ -346,21 +346,21 @@ export default function TrainerClasses() {
       {/* Filters */}
       <div className='px-6'>
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
-          <div className='grid grid-cols-1 md:grid-cols-4 gap-3 mb-3'>
+          <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-3'>
             {/* Search Input */}
-            <div className='md:col-span-2 group relative'>
+            <div className='group relative w-full'>
               <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
               <input
                 type='text'
                 placeholder='Tìm kiếm lớp học...'
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
 
             {/* Category Filter */}
-            <div>
+            <div className='w-full'>
               <CustomSelect
                 options={[
                   { value: '', label: 'Tất cả danh mục' },
@@ -378,12 +378,12 @@ export default function TrainerClasses() {
                 value={categoryFilter}
                 onChange={setCategoryFilter}
                 placeholder='Tất cả danh mục'
-                className='font-inter'
+                className='font-inter w-full'
               />
             </div>
 
             {/* Difficulty Filter */}
-            <div>
+            <div className='w-full'>
               <CustomSelect
                 options={[
                   { value: '', label: 'Tất cả độ khó' },
@@ -395,7 +395,7 @@ export default function TrainerClasses() {
                 value={difficultyFilter}
                 onChange={setDifficultyFilter}
                 placeholder='Tất cả độ khó'
-                className='font-inter'
+                className='font-inter w-full'
               />
             </div>
           </div>

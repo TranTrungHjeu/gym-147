@@ -103,26 +103,8 @@ CREATE INDEX "memberships_end_date_idx" ON "memberships"("end_date");
 -- CreateIndex
 CREATE INDEX "memberships_created_at_idx" ON "memberships"("created_at");
 
--- CreateIndex
-CREATE INDEX "notifications_member_id_idx" ON "notifications"("member_id");
-
--- CreateIndex
-CREATE INDEX "notifications_member_id_is_read_idx" ON "notifications"("member_id", "is_read");
-
--- CreateIndex
-CREATE INDEX "notifications_member_id_type_idx" ON "notifications"("member_id", "type");
-
--- CreateIndex
-CREATE INDEX "notifications_is_read_idx" ON "notifications"("is_read");
-
--- CreateIndex
-CREATE INDEX "notifications_type_idx" ON "notifications"("type");
-
--- CreateIndex
-CREATE INDEX "notifications_created_at_idx" ON "notifications"("created_at");
-
--- CreateIndex
-CREATE INDEX "notifications_send_at_idx" ON "notifications"("send_at");
+-- Note: notifications table was removed in migration 20250101000001_remove_notifications
+-- Skipping notification indexes
 
 -- CreateIndex
 CREATE INDEX "workout_plans_member_id_idx" ON "workout_plans"("member_id");

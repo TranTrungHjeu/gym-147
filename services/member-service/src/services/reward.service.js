@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 let distributedLock = null;
 try {
   distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
@@ -7,7 +7,7 @@ try {
   try {
     distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('⚠️ Distributed lock utility not available, reward redemption will use database transactions only');
+    console.warn('[WARNING] Distributed lock utility not available, reward redemption will use database transactions only');
   }
 }
 const pointsService = require('./points.service.js');
@@ -368,7 +368,7 @@ class RewardService {
     }
 
     try {
-      // ✅ Use transaction to prevent race condition
+      // [SUCCESS] Use transaction to prevent race condition
       const result = await prisma.$transaction(async (tx) => {
         // 1. Get reward with redemption count (lock for update)
         const reward = await tx.reward.findUnique({
@@ -813,6 +813,114 @@ class RewardService {
       };
     } catch (error) {
       console.error('Get all redemptions error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Get redemption trend data
+   * @param {string} period - Period type: 'daily', 'weekly', 'monthly'
+   * @param {string} startDate - Start date (ISO string)
+   * @param {string} endDate - End date (ISO string)
+   * @returns {Promise<Object>} Trend data with dates, redemptions, and points_spent
+   */
+  async getRedemptionTrend(period = 'monthly', startDate = null, endDate = null) {
+    try {
+      // Default to last 12 months if no dates provided
+      const end = endDate ? new Date(endDate) : new Date();
+      const start = startDate ? new Date(startDate) : new Date();
+      
+      if (period === 'monthly') {
+        start.setMonth(start.getMonth() - 12);
+      } else if (period === 'weekly') {
+        start.setDate(start.getDate() - 84); // 12 weeks
+      } else {
+        start.setDate(start.getDate() - 30); // 30 days
+      }
+
+      // Query redemptions in date range
+      const redemptions = await prisma.rewardRedemption.findMany({
+        where: {
+          redeemed_at: {
+            gte: start,
+            lte: end,
+          },
+        },
+        select: {
+          redeemed_at: true,
+          points_spent: true,
+        },
+        orderBy: {
+          redeemed_at: 'asc',
+        },
+      });
+
+      // Group by period
+      const grouped = {};
+      const dates = [];
+      const redemptionsCount = [];
+      const pointsSpent = [];
+
+      redemptions.forEach((redemption) => {
+        const date = new Date(redemption.redeemed_at);
+        let key;
+
+        if (period === 'monthly') {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        } else if (period === 'weekly') {
+          const weekStart = new Date(date);
+          weekStart.setDate(date.getDate() - date.getDay()); // Start of week (Sunday)
+          const weekNum = Math.ceil((date.getDate() + 6 - date.getDay()) / 7);
+          key = `${weekStart.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+        } else {
+          key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+        }
+
+        if (!grouped[key]) {
+          grouped[key] = { count: 0, points: 0 };
+        }
+        grouped[key].count += 1;
+        grouped[key].points += redemption.points_spent;
+      });
+
+      // Generate all periods in range
+      const current = new Date(start);
+      while (current <= end) {
+        let key;
+        let label;
+
+        if (period === 'monthly') {
+          key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}`;
+          label = `T${current.getMonth() + 1}/${current.getFullYear()}`;
+          current.setMonth(current.getMonth() + 1);
+        } else if (period === 'weekly') {
+          const weekStart = new Date(current);
+          weekStart.setDate(current.getDate() - current.getDay());
+          const weekNum = Math.ceil((current.getDate() + 6 - current.getDay()) / 7);
+          key = `${weekStart.getFullYear()}-W${String(weekNum).padStart(2, '0')}`;
+          label = `Tuần ${weekNum}/${weekStart.getMonth() + 1}`;
+          current.setDate(current.getDate() + 7);
+        } else {
+          key = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, '0')}-${String(current.getDate()).padStart(2, '0')}`;
+          label = `${String(current.getDate()).padStart(2, '0')}/${String(current.getMonth() + 1).padStart(2, '0')}`;
+          current.setDate(current.getDate() + 1);
+        }
+
+        dates.push(label);
+        redemptionsCount.push(grouped[key]?.count || 0);
+        pointsSpent.push(grouped[key]?.points || 0);
+      }
+
+      return {
+        success: true,
+        data: {
+          dates,
+          redemptions: redemptionsCount,
+          points_spent: pointsSpent,
+        },
+      };
+    } catch (error) {
+      console.error('Get redemption trend error:', error);
       return { success: false, error: error.message };
     }
   }

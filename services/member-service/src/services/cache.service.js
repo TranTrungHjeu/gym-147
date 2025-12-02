@@ -27,7 +27,7 @@ class CacheService {
         socket: {
           reconnectStrategy: (retries) => {
             if (retries > 10) {
-              console.error('❌ Redis: Max reconnection attempts reached');
+              console.error('[ERROR] Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -36,29 +36,29 @@ class CacheService {
       });
 
       this.client.on('error', (err) => {
-        console.error('❌ Redis Client Error:', err);
+        console.error('[ERROR] Redis Client Error:', err);
         this.isConnected = false;
       });
 
       this.client.on('connect', () => {
-        console.log('🔄 Redis: Connecting...');
+        console.log('[SYNC] Redis: Connecting...');
       });
 
       this.client.on('ready', () => {
-        console.log('✅ Redis: Connected and ready');
+        console.log('[SUCCESS] Redis: Connected and ready');
         this.isConnected = true;
       });
 
       this.client.on('end', () => {
-        console.log('🔌 Redis: Connection closed');
+        console.log('[SOCKET] Redis: Connection closed');
         this.isConnected = false;
       });
 
       // Connect to Redis
       await this.client.connect();
     } catch (error) {
-      console.error('❌ Failed to initialize Redis:', error);
-      console.log('⚠️ Cache service will run in fallback mode (no caching)');
+      console.error('[ERROR] Failed to initialize Redis:', error);
+      console.log('[WARNING] Cache service will run in fallback mode (no caching)');
       this.isConnected = false;
     }
   }
@@ -101,7 +101,7 @@ class CacheService {
       }
       return null;
     } catch (error) {
-      console.error(`❌ Redis GET error for key ${key}:`, error);
+      console.error(`[ERROR] Redis GET error for key ${key}:`, error);
       return null;
     }
   }
@@ -125,7 +125,7 @@ class CacheService {
       await this.client.setEx(key, expireTime, serialized);
       return true;
     } catch (error) {
-      console.error(`❌ Redis SET error for key ${key}:`, error);
+      console.error(`[ERROR] Redis SET error for key ${key}:`, error);
       return false;
     }
   }
@@ -144,7 +144,7 @@ class CacheService {
       await this.client.del(key);
       return true;
     } catch (error) {
-      console.error(`❌ Redis DELETE error for key ${key}:`, error);
+      console.error(`[ERROR] Redis DELETE error for key ${key}:`, error);
       return false;
     }
   }
@@ -168,7 +168,7 @@ class CacheService {
       await this.client.del(keys);
       return keys.length;
     } catch (error) {
-      console.error(`❌ Redis DELETE BY PATTERN error for ${pattern}:`, error);
+      console.error(`[ERROR] Redis DELETE BY PATTERN error for ${pattern}:`, error);
       return 0;
     }
   }
@@ -187,7 +187,7 @@ class CacheService {
       const result = await this.client.exists(key);
       return result === 1;
     } catch (error) {
-      console.error(`❌ Redis EXISTS error for key ${key}:`, error);
+      console.error(`[ERROR] Redis EXISTS error for key ${key}:`, error);
       return false;
     }
   }
@@ -251,7 +251,7 @@ class CacheService {
 
       return true;
     } catch (error) {
-      console.error(`❌ Redis SET WITH TAGS error:`, error);
+      console.error(`[ERROR] Redis SET WITH TAGS error:`, error);
       return false;
     }
   }
@@ -295,7 +295,7 @@ class CacheService {
 
       return totalDeleted;
     } catch (error) {
-      console.error(`❌ Redis INVALIDATE BY TAGS error:`, error);
+      console.error(`[ERROR] Redis INVALIDATE BY TAGS error:`, error);
       return totalDeleted;
     }
   }
@@ -319,7 +319,7 @@ class CacheService {
         info,
       };
     } catch (error) {
-      console.error('❌ Redis STATS error:', error);
+      console.error('[ERROR] Redis STATS error:', error);
       return {
         connected: false,
         error: error.message,
@@ -457,7 +457,7 @@ class CacheService {
       });
       return true;
     } catch (error) {
-      console.error(`❌ Redis ZADD error for leaderboard ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis ZADD error for leaderboard ${leaderboardKey}:`, error);
       return false;
     }
   }
@@ -493,7 +493,7 @@ class CacheService {
 
       return leaderboard;
     } catch (error) {
-      console.error(`❌ Redis leaderboard GET error for ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis leaderboard GET error for ${leaderboardKey}:`, error);
       return [];
     }
   }
@@ -516,7 +516,7 @@ class CacheService {
       const rank = await this.client[rankMethod](leaderboardKey, memberId);
       return rank !== null ? rank + 1 : null; // Convert 0-based to 1-based
     } catch (error) {
-      console.error(`❌ Redis rank GET error for ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis rank GET error for ${leaderboardKey}:`, error);
       return null;
     }
   }
@@ -536,7 +536,7 @@ class CacheService {
       const score = await this.client.zScore(leaderboardKey, memberId);
       return score !== null ? score : null;
     } catch (error) {
-      console.error(`❌ Redis score GET error for ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis score GET error for ${leaderboardKey}:`, error);
       return null;
     }
   }
@@ -556,7 +556,7 @@ class CacheService {
       await this.client.zRem(leaderboardKey, memberId);
       return true;
     } catch (error) {
-      console.error(`❌ Redis ZREM error for leaderboard ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis ZREM error for leaderboard ${leaderboardKey}:`, error);
       return false;
     }
   }
@@ -575,7 +575,7 @@ class CacheService {
       await this.client.del(leaderboardKey);
       return true;
     } catch (error) {
-      console.error(`❌ Redis DEL error for leaderboard ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis DEL error for leaderboard ${leaderboardKey}:`, error);
       return false;
     }
   }
@@ -595,7 +595,7 @@ class CacheService {
       await this.client.expire(leaderboardKey, ttl);
       return true;
     } catch (error) {
-      console.error(`❌ Redis EXPIRE error for leaderboard ${leaderboardKey}:`, error);
+      console.error(`[ERROR] Redis EXPIRE error for leaderboard ${leaderboardKey}:`, error);
       return false;
     }
   }

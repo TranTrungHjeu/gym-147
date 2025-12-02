@@ -73,6 +73,16 @@ export default function PlanCard({
   // Animation for badge entrance
   const badgeScale = React.useRef(new Animated.Value(0)).current;
   const badgeRotation = React.useRef(new Animated.Value(0)).current;
+  
+  // Animation for card selection
+  const cardScale = React.useRef(new Animated.Value(1)).current;
+  const cardOpacity = React.useRef(new Animated.Value(1)).current;
+  // Use state for borderWidth instead of Animated.Value to avoid native driver conflict
+  const [borderWidth, setBorderWidth] = React.useState(2);
+  
+  // Animation for button state change
+  const buttonScale = React.useRef(new Animated.Value(1)).current;
+  const buttonOpacity = React.useRef(new Animated.Value(1)).current;
 
   React.useEffect(() => {
     // Badge entrance animation
@@ -100,6 +110,71 @@ export default function PlanCard({
         })
       ).start();
     }
+  }, [isSelected]);
+
+  // Animation when card is selected
+  React.useEffect(() => {
+    if (isSelected) {
+      // Scale up (native driver)
+      Animated.spring(cardScale, {
+        toValue: 1.02,
+        tension: 100,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+      
+      // Update border width with a simple timeout (no animation to avoid conflict)
+      const timer = setTimeout(() => {
+        setBorderWidth(3);
+      }, 50);
+      return () => clearTimeout(timer);
+    } else {
+      // Scale back to normal (native driver)
+      Animated.spring(cardScale, {
+        toValue: 1,
+        tension: 100,
+        friction: 7,
+        useNativeDriver: true,
+      }).start();
+      
+      // Reset border width
+      const timer = setTimeout(() => {
+        setBorderWidth(2);
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isSelected, cardScale]);
+
+  // Animation for button state change
+  React.useEffect(() => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.spring(buttonScale, {
+          toValue: 0.95,
+          tension: 200,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonOpacity, {
+          toValue: 0.7,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
+      Animated.parallel([
+        Animated.spring(buttonScale, {
+          toValue: 1,
+          tension: 200,
+          friction: 3,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonOpacity, {
+          toValue: 1,
+          duration: 150,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
   }, [isSelected]);
 
   const badgeRotationInterpolate = badgeRotation.interpolate({
@@ -134,16 +209,19 @@ export default function PlanCard({
   };
 
   return (
-    <View
+    <Animated.View
       style={[
         styles.card,
         {
           borderColor: '#050505',
           backgroundColor: theme.colors.surface,
           shadowColor: '#000000',
-        },
-        isSelected && {
-          transform: [{ translateX: -4 }, { translateY: -4 }],
+          borderWidth: borderWidth,
+          transform: [
+            { scale: cardScale },
+            { translateX: isSelected ? -4 : 0 },
+            { translateY: isSelected ? -4 : 0 },
+          ],
         },
       ]}
     >
@@ -400,7 +478,7 @@ export default function PlanCard({
                 },
               ]}
               onPress={() => {
-                console.log('🔄 Renew button pressed');
+                console.log('[RENEW] Renew button pressed');
                 onRenew?.();
               }}
               disabled={upgrading}
@@ -421,43 +499,59 @@ export default function PlanCard({
               </Text>
             </TouchableOpacity>
           ) : canUpgrade ? (
-            <TouchableOpacity
-              style={[
-                styles.cardButton,
-                {
-                  backgroundColor: secondaryColor,
-                  borderColor: '#050505',
-                  shadowColor: '#000000',
-                },
-              ]}
-              onPress={() => {
-                console.log('⬆️ Upgrade/Subscribe button pressed', {
-                  hasOnUpgrade: !!onUpgrade,
-                  hasOnSelect: !!onSelect,
-                });
-                if (onUpgrade) {
-                  onUpgrade();
-                } else if (onSelect) {
-                  onSelect();
-                }
+            <Animated.View
+              style={{
+                transform: [{ scale: buttonScale }],
+                opacity: buttonOpacity,
               }}
-              disabled={upgrading}
             >
-              <Text
+              <TouchableOpacity
                 style={[
-                  Typography.bodyMedium,
+                  styles.cardButton,
                   {
-                    color: theme.colors.surface,
-                    fontWeight: '700',
-                    textTransform: 'uppercase',
+                    backgroundColor: isSelected ? accentColor : secondaryColor,
+                    borderColor: '#050505',
+                    shadowColor: '#000000',
                   },
                 ]}
+                onPress={() => {
+                  console.log('[UPGRADE] Upgrade/Subscribe button pressed', {
+                    hasOnUpgrade: !!onUpgrade,
+                    hasOnSelect: !!onSelect,
+                    canUpgrade,
+                    isCurrentPlan,
+                    isSelected,
+                  });
+                  if (onUpgrade) {
+                    console.log('[UPGRADE] Calling onUpgrade callback');
+                    onUpgrade();
+                  } else if (onSelect) {
+                    console.log('[UPGRADE] Fallback to onSelect');
+                    onSelect();
+                  } else {
+                    console.warn('[UPGRADE] No callback available!');
+                  }
+                }}
+                disabled={upgrading}
               >
-                {upgrading
-                  ? t('subscription.plans.processing')
-                  : t('subscription.plans.subscribe')}
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    {
+                      color: theme.colors.surface,
+                      fontWeight: '700',
+                      textTransform: 'uppercase',
+                    },
+                  ]}
+                >
+                  {upgrading
+                    ? t('subscription.plans.processing')
+                    : isSelected
+                    ? t('subscription.plans.selected', { defaultValue: 'Đã chọn' })
+                    : t('subscription.plans.subscribe')}
+                </Text>
+              </TouchableOpacity>
+            </Animated.View>
           ) : (
             <TouchableOpacity
               style={[
@@ -530,7 +624,7 @@ export default function PlanCard({
           </Text>
         </View>
       )}
-    </View>
+    </Animated.View>
   );
 }
 
@@ -538,6 +632,7 @@ const styles = StyleSheet.create({
   card: {
     position: 'relative',
     width: SCREEN_WIDTH - 32,
+    alignSelf: 'center',
     borderWidth: 3.5,
     borderRadius: 6,
     marginBottom: 24,

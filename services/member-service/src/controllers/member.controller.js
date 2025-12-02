@@ -1,5 +1,5 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('../lib/prisma');
 const s3UploadService = require('../services/s3-upload.service');
 const cacheService = require('../services/cache.service');
 
@@ -180,9 +180,24 @@ class MemberController {
               achievements: {
                 orderBy: { unlocked_at: 'desc' },
               },
-              notifications: {
-                where: { is_read: false },
+              equipment_reports: {
                 orderBy: { created_at: 'desc' },
+                take: 10,
+              },
+              daily_streaks: {
+                orderBy: { last_updated: 'desc' },
+              },
+              challenge_progress: {
+                orderBy: { updated_at: 'desc' },
+                take: 10,
+              },
+              points_transactions: {
+                orderBy: { created_at: 'desc' },
+                take: 20,
+              },
+              reward_redemptions: {
+                orderBy: { redeemed_at: 'desc' },
+                take: 10,
               },
             },
           });
@@ -192,7 +207,7 @@ class MemberController {
           if (memberData) {
             const embeddingResult = await prisma.$queryRaw`
               SELECT profile_embedding::text as profile_embedding
-              FROM members
+              FROM member_schema.members
               WHERE id = ${id}
             `;
             if (embeddingResult && embeddingResult[0]?.profile_embedding) {
@@ -202,24 +217,31 @@ class MemberController {
               try {
                 // Parse the vector string to array
                 memberData.profile_embedding = JSON.parse(embeddingString);
-                console.log(`✅ [getMemberById] Added profile_embedding to member ${id}`, {
+                console.log(`[SUCCESS] [getMemberById] Added profile_embedding to member ${id}`, {
                   embeddingLength: memberData.profile_embedding?.length || 0,
                   embeddingType: typeof memberData.profile_embedding,
                   isArray: Array.isArray(memberData.profile_embedding),
                 });
               } catch (e) {
-                console.warn(`⚠️ [getMemberById] Could not parse embedding string for member ${id}:`, e.message);
+                console.warn(
+                  `[WARNING] [getMemberById] Could not parse embedding string for member ${id}:`,
+                  e.message
+                );
                 // If parsing fails, try to extract numbers from string
                 const numbers = embeddingString.match(/[\d.]+/g);
                 if (numbers && numbers.length > 0) {
                   memberData.profile_embedding = numbers.map(Number);
-                  console.log(`✅ [getMemberById] Parsed embedding from string (${memberData.profile_embedding.length} dimensions)`);
+                  console.log(
+                    `[SUCCESS] [getMemberById] Parsed embedding from string (${memberData.profile_embedding.length} dimensions)`
+                  );
                 } else {
-                  console.warn(`⚠️ [getMemberById] Could not extract embedding values from string`);
+                  console.warn(
+                    `[WARNING] [getMemberById] Could not extract embedding values from string`
+                  );
                 }
               }
             } else {
-              console.log(`⚠️ [getMemberById] No profile_embedding found for member ${id}`);
+              console.log(`[WARNING] [getMemberById] No profile_embedding found for member ${id}`);
             }
           }
 
@@ -301,11 +323,11 @@ class MemberController {
   // Debug endpoint to check database and create test member
   async debugDatabase(req, res) {
     try {
-      console.log('🔍 Debug: Checking database...');
+      console.log('[SEARCH] Debug: Checking database...');
 
       // Check total member count
       const totalMembers = await prisma.member.count();
-      console.log('📊 Total members in database:', totalMembers);
+      console.log('[STATS] Total members in database:', totalMembers);
 
       // Get all members
       const allMembers = await prisma.member.findMany({
@@ -318,7 +340,7 @@ class MemberController {
         take: 10,
       });
 
-      console.log('📋 All members:', allMembers);
+      console.log('[LIST] All members:', allMembers);
 
       // Check if specific member exists
       const testUserId = 'member_001_nguyen_van_a';
@@ -326,7 +348,7 @@ class MemberController {
         where: { user_id: testUserId },
       });
 
-      console.log('🔍 Member with user_id "member_001_nguyen_van_a":', existingMember);
+      console.log('[SEARCH] Member with user_id "member_001_nguyen_van_a":', existingMember);
 
       res.json({
         success: true,
@@ -394,9 +416,12 @@ class MemberController {
               benefits: [],
             },
           });
-          console.log(`✅ Membership record created for member ${existingMember.id}`);
+          console.log(`[SUCCESS] Membership record created for member ${existingMember.id}`);
         } catch (membershipError) {
-          console.error('⚠️ Failed to create membership record (non-critical):', membershipError.message);
+          console.error(
+            '[WARNING] Failed to create membership record (non-critical):',
+            membershipError.message
+          );
           // Don't fail the update if membership record creation fails
         }
 
@@ -404,7 +429,9 @@ class MemberController {
         const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
         await cacheService.delete(cacheKey);
 
-        console.log(`✅ Member membership updated: ${existingMember.id} -> ${membership_type} (${startDate} to ${endDate})`);
+        console.log(
+          `[SUCCESS] Member membership updated: ${existingMember.id} -> ${membership_type} (${startDate} to ${endDate})`
+        );
 
         return res.json({
           success: true,
@@ -416,7 +443,7 @@ class MemberController {
       // Fetch user info from Identity Service
       const axios = require('axios');
       const identityServiceUrl = this.getIdentityServiceUrl();
-      console.log('🔧 Calling Identity Service with URL:', identityServiceUrl);
+      console.log('[CONFIG] Calling Identity Service with URL:', identityServiceUrl);
 
       let userData = null;
       try {
@@ -465,9 +492,12 @@ class MemberController {
             benefits: [],
           },
         });
-        console.log(`✅ Membership record created for new member ${newMember.id}`);
+        console.log(`[SUCCESS] Membership record created for new member ${newMember.id}`);
       } catch (membershipError) {
-        console.error('⚠️ Failed to create membership record (non-critical):', membershipError.message);
+        console.error(
+          '[WARNING] Failed to create membership record (non-critical):',
+          membershipError.message
+        );
         // Don't fail member creation if membership record creation fails
       }
 
@@ -494,7 +524,7 @@ class MemberController {
   async getCurrentMemberProfile(req, res) {
     try {
       // Debug: Log headers
-      console.log('🔍 Request headers:', {
+      console.log('[SEARCH] Request headers:', {
         authorization: req.headers.authorization
           ? `${req.headers.authorization.substring(0, 20)}...`
           : 'NOT SET',
@@ -505,7 +535,7 @@ class MemberController {
       const userId = this.getUserIdFromToken(req);
       if (!userId) {
         console.log(
-          '❌ No userId extracted from token. Auth header:',
+          '[ERROR] No userId extracted from token. Auth header:',
           req.headers.authorization ? 'EXISTS' : 'MISSING'
         );
         return res.status(401).json({
@@ -515,8 +545,8 @@ class MemberController {
         });
       }
 
-      console.log('🔑 Extracted userId:', userId);
-      console.log('🔍 Searching for member with user_id:', userId);
+      console.log('[CONFIG] Extracted userId:', userId);
+      console.log('[SEARCH] Searching for member with user_id:', userId);
 
       const member = await prisma.member.findUnique({
         where: { user_id: userId },
@@ -529,9 +559,9 @@ class MemberController {
         },
       });
 
-      console.log('🔍 Member found:', member ? 'YES' : 'NO');
+      console.log('[SEARCH] Member found:', member ? 'YES' : 'NO');
       if (member) {
-        console.log('🔍 Member details:', {
+        console.log('[SEARCH] Member details:', {
           id: member.id,
           user_id: member.user_id,
           full_name: member.full_name,
@@ -541,7 +571,7 @@ class MemberController {
 
       if (!member) {
         console.log(
-          'ℹ️ Member not found for user_id:',
+          '[INFO] Member not found for user_id:',
           userId,
           '- User needs to complete registration'
         );
@@ -629,14 +659,17 @@ class MemberController {
       });
 
       if (!existingMember) {
-        console.log('⚠️ Member not found for user_id:', userId);
+        console.log('[WARNING] Member not found for user_id:', userId);
         console.log('🆕 Creating new member record...');
 
         // Get user info from Identity Service
         try {
           const axios = require('axios');
           const identityServiceUrl = this.getIdentityServiceUrl();
-          console.log('🔧 Calling Identity Service to get user info, URL:', identityServiceUrl);
+          console.log(
+            '[CONFIG] Calling Identity Service to get user info, URL:',
+            identityServiceUrl
+          );
 
           const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
             headers: {
@@ -661,7 +694,7 @@ class MemberController {
           const email = userData.email || updateData.email || `member_${userId}@temp.com`;
           const phone = userData.phone || updateData.phone || undefined; // Allow null phone
 
-          console.log('📋 Creating member with:', {
+          console.log('[LIST] Creating member with:', {
             user_id: userId,
             full_name: fullName,
             email,
@@ -681,10 +714,10 @@ class MemberController {
             },
           });
 
-          console.log('✅ Member record created:', existingMember.id);
+          console.log('[SUCCESS] Member record created:', existingMember.id);
         } catch (createError) {
-          console.error('❌ Failed to create member:', createError);
-          
+          console.error('[ERROR] Failed to create member:', createError);
+
           // Check if it's an authentication error from Identity Service
           if (createError.response && createError.response.status === 401) {
             return res.status(401).json({
@@ -693,7 +726,7 @@ class MemberController {
               data: null,
             });
           }
-          
+
           return res.status(500).json({
             success: false,
             message: 'Failed to create member profile',
@@ -743,7 +776,7 @@ class MemberController {
         try {
           const axios = require('axios');
           const identityServiceUrl = this.getIdentityServiceUrl();
-          console.log('🔧 Calling Identity Service to update user, URL:', identityServiceUrl);
+          console.log('[CONFIG] Calling Identity Service to update user, URL:', identityServiceUrl);
 
           const userUpdateData = {};
 
@@ -766,18 +799,21 @@ class MemberController {
 
           // Call Identity Service to update user
           if (Object.keys(userUpdateData).length > 0) {
-            console.log('🔄 Updating user in Identity Service:', userUpdateData);
+            console.log('[SYNC] Updating user in Identity Service:', userUpdateData);
             await axios.put(`${identityServiceUrl}/profile`, userUpdateData, {
               headers: {
                 Authorization: authHeader,
                 'Content-Type': 'application/json',
               },
             });
-            console.log('✅ User updated in Identity Service');
+            console.log('[SUCCESS] User updated in Identity Service');
           }
         } catch (identityError) {
-          console.error('⚠️ Failed to update user in Identity Service:', identityError.message);
-          
+          console.error(
+            '[WARNING] Failed to update user in Identity Service:',
+            identityError.message
+          );
+
           // If it's an authentication error, return 401 instead of continuing
           if (identityError.response && identityError.response.status === 401) {
             return res.status(401).json({
@@ -786,19 +822,36 @@ class MemberController {
               data: null,
             });
           }
-          
+
           // For other errors, don't fail the whole request
           // Just log the error and continue with member update
         }
       }
 
+      // Check if profile is being completed (has date_of_birth, height, weight)
+      const hasDateOfBirth = updateData.date_of_birth || existingMember.date_of_birth;
+      const hasHeight = updateData.height || existingMember.height;
+      const hasWeight = updateData.weight || existingMember.weight;
+      const isCompletingProfile = hasDateOfBirth && hasHeight && hasWeight;
+      const wasAlreadyCompleted = existingMember.onboarding_completed;
+
+      // Update member with onboarding completion if profile is complete
+      const finalUpdateData = {
+        ...updateData,
+        updated_at: new Date(),
+      };
+
+      // Auto-complete onboarding if profile has all required fields
+      if (isCompletingProfile && !wasAlreadyCompleted) {
+        finalUpdateData.onboarding_completed = true;
+        finalUpdateData.onboarding_completed_at = new Date();
+        console.log('[SUCCESS] Member profile completed - marking onboarding as complete');
+      }
+
       // Update member
       const member = await prisma.member.update({
         where: { user_id: userId },
-        data: {
-          ...updateData,
-          updated_at: new Date(),
-        },
+        data: finalUpdateData,
         include: {
           memberships: {
             orderBy: { created_at: 'desc' },
@@ -907,6 +960,136 @@ class MemberController {
         } catch (healthMetricError) {
           console.error('Failed to create health metrics:', healthMetricError);
           // Don't fail the whole request, just log the error
+        }
+      }
+
+      // Invalidate cache for this member
+      await cacheService.delete(cacheService.generateKey('member', member.id, { full: true }));
+      if (member.user_id) {
+        await cacheService.delete(cacheService.generateKey('member', `user:${member.user_id}`));
+      }
+
+      // Emit socket event for member update
+      if (global.io && member.user_id) {
+        const socketPayload = {
+          member_id: member.id,
+          id: member.id,
+          action: 'updated',
+          data: {
+            id: member.id,
+            user_id: member.user_id,
+            email: member.email,
+            phone: member.phone,
+            full_name: member.full_name,
+            membership_status: member.membership_status,
+            membership_type: member.membership_type,
+            isActive: member.membership_status === 'ACTIVE',
+            onboarding_completed: member.onboarding_completed,
+            updatedAt: member.updated_at?.toISOString(),
+          },
+          timestamp: new Date().toISOString(),
+        };
+
+        // Emit to all admins (broadcast)
+        global.io.emit('member:updated', socketPayload);
+        console.log(`[EMIT] Emitted member:updated event for member ${member.id}`);
+
+        // If registration was just completed, emit special event and create notifications
+        // Skip MEMBER_UPDATED notification when registration is completed to avoid duplicates
+        if (isCompletingProfile && !wasAlreadyCompleted && member.onboarding_completed) {
+          const registrationCompletedPayload = {
+            member_id: member.id,
+            id: member.id,
+            action: 'registration_completed',
+            data: {
+              id: member.id,
+              user_id: member.user_id,
+              email: member.email,
+              phone: member.phone,
+              full_name: member.full_name,
+              membership_status: member.membership_status,
+              membership_type: member.membership_type,
+              onboarding_completed: true,
+              onboarding_completed_at: member.onboarding_completed_at?.toISOString(),
+              completedAt: member.updated_at?.toISOString(),
+            },
+            timestamp: new Date().toISOString(),
+          };
+
+          // Create notifications in database for all admins/super admins
+          const notificationService = require('../services/notification.service');
+          try {
+            await notificationService.createRegistrationCompletedNotificationForAdmin({
+              memberId: member.id,
+              memberName: member.full_name,
+              memberData: {
+                user_id: member.user_id,
+                email: member.email,
+                phone: member.phone,
+                membership_status: member.membership_status,
+                membership_type: member.membership_type,
+                onboarding_completed: true,
+                onboarding_completed_at: member.onboarding_completed_at?.toISOString(),
+                completedAt: member.updated_at?.toISOString(),
+              },
+            });
+            console.log(
+              `[SUCCESS] [REGISTRATION_COMPLETE] Created notifications in database for member ${member.id}`
+            );
+          } catch (notificationError) {
+            console.error(
+              '[ERROR] [REGISTRATION_COMPLETE] Failed to create notifications:',
+              notificationError
+            );
+            // Don't fail the update if notification creation fails
+          }
+
+          // Emit to all admins (broadcast)
+          global.io.emit('member:registration_completed', registrationCompletedPayload);
+          console.log(
+            `[EMIT] [REGISTRATION_COMPLETE] Emitted member:registration_completed event for member ${member.id}`
+          );
+        } else {
+          // For regular updates (not registration completion), create MEMBER_UPDATED notification
+          const notificationService = require('../services/notification.service');
+          try {
+            console.log(
+              `[INFO] [MEMBER_UPDATED] [updateCurrentMemberProfile] Calling createMemberEventNotificationForAdmin for member ${member.id}`
+            );
+            const result = await notificationService.createMemberEventNotificationForAdmin({
+              memberId: member.id,
+              memberName: member.full_name,
+              memberData: {
+                id: member.id,
+                user_id: member.user_id,
+                email: member.email,
+                phone: member.phone,
+                full_name: member.full_name,
+                membership_status: member.membership_status,
+                membership_type: member.membership_type,
+                isActive: member.membership_status === 'ACTIVE',
+                onboarding_completed: member.onboarding_completed,
+                updatedAt: member.updated_at?.toISOString(),
+              },
+              eventType: 'MEMBER_UPDATED',
+              title: 'Cập nhật thông tin thành viên',
+              message: `Thông tin của ${member.full_name || 'thành viên'} đã được cập nhật`,
+            });
+            console.log(
+              `[SUCCESS] [MEMBER_UPDATED] [updateCurrentMemberProfile] Notification creation result:`,
+              JSON.stringify(result, null, 2)
+            );
+          } catch (notificationError) {
+            console.error(
+              '[ERROR] [MEMBER_UPDATED] [updateCurrentMemberProfile] Failed to create notifications:',
+              notificationError
+            );
+            console.error(
+              '[ERROR] [MEMBER_UPDATED] [updateCurrentMemberProfile] Error stack:',
+              notificationError.stack
+            );
+            // Don't fail the update if notification creation fails
+          }
         }
       }
 
@@ -1040,12 +1223,22 @@ class MemberController {
           timestamp: new Date().toISOString(),
         };
 
-        // Emit to user room for admin/trainer notifications
-        global.io.to(`user:${member.user_id}`).emit('member:created', socketPayload);
-        // Also emit to all admins (broadcast) - this is important for admin pages
+        // Emit to all admins (broadcast)
         global.io.emit('member:created', socketPayload);
-        console.log(`📡 [MEMBER_SERVICE] Emitted member:created event for member ${member.id}, user_id: ${member.user_id}`);
-        console.log(`📡 [MEMBER_SERVICE] Socket payload:`, JSON.stringify(socketPayload, null, 2));
+        console.log(
+          `[EMIT] [MEMBER_SERVICE] Emitted member:created event for member ${member.id}, user_id: ${member.user_id}`
+        );
+        console.log(
+          `[EMIT] [MEMBER_SERVICE] Socket payload:`,
+          JSON.stringify(socketPayload, null, 2)
+        );
+
+        // NOTE: Do NOT create notification here when member is first created
+        // Notification will be created when member completes registration (onboarding_completed = true)
+        // This prevents duplicate notifications during the registration flow
+        console.log(
+          `[INFO] [MEMBER_CREATED] Skipping notification creation - will be created when registration is completed`
+        );
       }
 
       res.status(201).json({
@@ -1104,8 +1297,8 @@ class MemberController {
       });
 
       // Check if membership_status changed
-      const statusChanged = 
-        updateData.membership_status && 
+      const statusChanged =
+        updateData.membership_status &&
         oldMember?.membership_status !== updateData.membership_status;
 
       // Invalidate cache for this member
@@ -1134,11 +1327,47 @@ class MemberController {
           timestamp: new Date().toISOString(),
         };
 
-        // Emit to user room
-        global.io.to(`user:${member.user_id}`).emit('member:updated', socketPayload);
-        // Also emit to all admins (broadcast)
+        // Emit to all admins (broadcast)
         global.io.emit('member:updated', socketPayload);
-        console.log(`📡 Emitted member:updated event for member ${member.id}`);
+        console.log(`[EMIT] Emitted member:updated event for member ${member.id}`);
+
+        // Create notifications in database for all admins/super admins
+        const notificationService = require('../services/notification.service');
+        try {
+          console.log(
+            `[INFO] [MEMBER_UPDATED] Calling createMemberEventNotificationForAdmin for member ${member.id}`
+          );
+          const result = await notificationService.createMemberEventNotificationForAdmin({
+            memberId: member.id,
+            memberName: member.full_name,
+            memberData: {
+              id: member.id,
+              user_id: member.user_id,
+              email: member.email,
+              phone: member.phone,
+              full_name: member.full_name,
+              membership_status: member.membership_status,
+              membership_type: member.membership_type,
+              isActive: member.membership_status === 'ACTIVE',
+              onboarding_completed: member.onboarding_completed,
+              updatedAt: member.updated_at?.toISOString(),
+            },
+            eventType: 'MEMBER_UPDATED',
+            title: 'Cập nhật thông tin thành viên',
+            message: `Thông tin của ${member.full_name || 'thành viên'} đã được cập nhật`,
+          });
+          console.log(
+            `[SUCCESS] [MEMBER_UPDATED] Notification creation result:`,
+            JSON.stringify(result, null, 2)
+          );
+        } catch (notificationError) {
+          console.error(
+            '[ERROR] [MEMBER_UPDATED] Failed to create notifications:',
+            notificationError
+          );
+          console.error('[ERROR] [MEMBER_UPDATED] Error stack:', notificationError.stack);
+          // Don't fail the update if notification creation fails
+        }
 
         // If status changed, also emit status_changed event
         if (statusChanged) {
@@ -1158,9 +1387,40 @@ class MemberController {
             timestamp: new Date().toISOString(),
           };
 
-          global.io.to(`user:${member.user_id}`).emit('member:status_changed', statusPayload);
+          // Emit to all admins (broadcast)
           global.io.emit('member:status_changed', statusPayload);
-          console.log(`📡 Emitted member:status_changed event for member ${member.id}`);
+          console.log(`[EMIT] Emitted member:status_changed event for member ${member.id}`);
+
+          // Create notifications in database for all admins/super admins
+          const notificationService = require('../services/notification.service');
+          try {
+            await notificationService.createMemberEventNotificationForAdmin({
+              memberId: member.id,
+              memberName: member.full_name,
+              memberData: {
+                user_id: member.user_id,
+                email: member.email,
+                phone: member.phone,
+                membership_status: member.membership_status,
+                membership_type: member.membership_type,
+                oldStatus: oldMember?.membership_status,
+                newStatus: member.membership_status,
+                updatedAt: member.updated_at?.toISOString(),
+              },
+              eventType: 'MEMBER_UPDATED',
+              title: 'Thay đổi trạng thái thành viên',
+              message: `Trạng thái của ${member.full_name || 'thành viên'} đã thay đổi từ ${oldMember?.membership_status || 'N/A'} sang ${member.membership_status}`,
+            });
+            console.log(
+              `[SUCCESS] [MEMBER_STATUS_CHANGED] Created notifications in database for member ${member.id}`
+            );
+          } catch (notificationError) {
+            console.error(
+              '[ERROR] [MEMBER_STATUS_CHANGED] Failed to create notifications:',
+              notificationError
+            );
+            // Don't fail the update if notification creation fails
+          }
         }
       }
 
@@ -1185,7 +1445,7 @@ class MemberController {
       const { user_id } = req.params;
       const { full_name, phone, email } = req.body;
 
-      console.log('📝 updateMemberByUserId called:', {
+      console.log('[PROCESS] updateMemberByUserId called:', {
         user_id,
         full_name,
         phone,
@@ -1217,7 +1477,7 @@ class MemberController {
         },
       });
 
-      console.log('✅ Member updated successfully:', {
+      console.log('[SUCCESS] Member updated successfully:', {
         memberId: member.id,
         full_name: member.full_name,
         phone: member.phone,
@@ -1280,9 +1540,9 @@ class MemberController {
           timestamp: new Date().toISOString(),
         };
 
-        // Emit to user room
-        global.io.to(`user:${member.user_id}`).emit('member:deleted', socketPayload);
-        // Also emit user:deleted event (for account deletion notification)
+        // Emit to all admins (broadcast)
+        global.io.emit('member:deleted', socketPayload);
+        // Also emit user:deleted event for account deletion notification
         global.io.to(`user:${member.user_id}`).emit('user:deleted', {
           user_id: member.user_id,
           id: member.user_id,
@@ -1294,9 +1554,35 @@ class MemberController {
           },
           timestamp: new Date().toISOString(),
         });
-        // Also emit to all admins (broadcast)
-        global.io.emit('member:deleted', socketPayload);
-        console.log(`📡 Emitted member:deleted and user:deleted events for member ${id}`);
+        console.log(`[EMIT] Emitted member:deleted and user:deleted events for member ${id}`);
+
+        // Create notifications in database for all admins/super admins
+        const notificationService = require('../services/notification.service');
+        try {
+          await notificationService.createMemberEventNotificationForAdmin({
+            memberId: id,
+            memberName: member.full_name,
+            memberData: {
+              user_id: member.user_id,
+              email: member.email,
+              phone: member.phone,
+              membership_status: member.membership_status,
+              membership_type: member.membership_type,
+            },
+            eventType: 'MEMBER_DELETED',
+            title: 'Xóa thành viên',
+            message: `Thành viên ${member.full_name || 'N/A'} đã bị xóa khỏi hệ thống`,
+          });
+          console.log(
+            `[SUCCESS] [MEMBER_DELETED] Created notifications in database for member ${id}`
+          );
+        } catch (notificationError) {
+          console.error(
+            '[ERROR] [MEMBER_DELETED] Failed to create notifications:',
+            notificationError
+          );
+          // Don't fail the deletion if notification creation fails
+        }
       }
 
       res.json({
@@ -1425,7 +1711,7 @@ class MemberController {
         },
       });
 
-      console.log(`✅ Membership created for member ${member.id} (user_id: ${user_id})`);
+      console.log(`[SUCCESS] Membership created for member ${member.id} (user_id: ${user_id})`);
 
       res.status(201).json({
         success: true,
@@ -2258,13 +2544,16 @@ class MemberController {
       });
 
       if (!member) {
-        console.log('⚠️ Member not found, creating new member for avatar upload...');
+        console.log('[WARNING] Member not found, creating new member for avatar upload...');
 
         // Get user info from Identity Service
         try {
           const axios = require('axios');
           const identityServiceUrl = this.getIdentityServiceUrl();
-          console.log('🔧 Calling Identity Service to get user info, URL:', identityServiceUrl);
+          console.log(
+            '[CONFIG] Calling Identity Service to get user info, URL:',
+            identityServiceUrl
+          );
 
           const userResponse = await axios.get(`${identityServiceUrl}/profile`, {
             headers: {
@@ -2302,9 +2591,9 @@ class MemberController {
             },
           });
 
-          console.log('✅ Member record created for avatar upload:', member.id);
+          console.log('[SUCCESS] Member record created for avatar upload:', member.id);
         } catch (createError) {
-          console.error('❌ Failed to create member:', createError);
+          console.error('[ERROR] Failed to create member:', createError);
           return res.status(500).json({
             success: false,
             message: 'Failed to create member profile',
@@ -2367,22 +2656,17 @@ class MemberController {
       console.log(`📄 MIME type: ${mimeType}`);
 
       // Upload to S3
-      console.log('🚀 Starting S3 upload...');
+      console.log('[START] Starting S3 upload...');
       let uploadResult;
       try {
-        uploadResult = await s3UploadService.uploadFile(
-          imageBuffer,
-          filename,
-          mimeType,
-          userId
-        );
-        console.log('📦 S3 upload result:', {
+        uploadResult = await s3UploadService.uploadFile(imageBuffer, filename, mimeType, userId);
+        console.log('[DATA] S3 upload result:', {
           success: uploadResult.success,
           error: uploadResult.error,
           url: uploadResult.url,
         });
       } catch (uploadError) {
-        console.error('❌ S3 upload exception:', uploadError);
+        console.error('[ERROR] S3 upload exception:', uploadError);
         return res.status(500).json({
           success: false,
           message: 'Failed to upload avatar',
@@ -2391,7 +2675,7 @@ class MemberController {
       }
 
       if (!uploadResult.success) {
-        console.error('❌ S3 upload failed:', uploadResult.error);
+        console.error('[ERROR] S3 upload failed:', uploadResult.error);
         return res.status(500).json({
           success: false,
           message: 'Failed to upload avatar',
@@ -2404,14 +2688,17 @@ class MemberController {
         try {
           const oldKey = s3UploadService.extractKeyFromUrl(member.profile_photo);
           if (oldKey) {
-            console.log(`🗑️ Deleting old avatar: ${oldKey}`);
+            console.log(`[DELETE] Deleting old avatar: ${oldKey}`);
             const deleteResult = await s3UploadService.deleteFile(oldKey);
             if (!deleteResult.success) {
-              console.warn('⚠️ Failed to delete old avatar (non-critical):', deleteResult.error);
+              console.warn(
+                '[WARNING] Failed to delete old avatar (non-critical):',
+                deleteResult.error
+              );
             }
           }
         } catch (deleteError) {
-          console.warn('⚠️ Error deleting old avatar (non-critical):', deleteError.message);
+          console.warn('[WARNING] Error deleting old avatar (non-critical):', deleteError.message);
           // Don't fail the request if old avatar deletion fails
         }
       }
@@ -2427,9 +2714,9 @@ class MemberController {
             updated_at: new Date(),
           },
         });
-        console.log('✅ Member record updated successfully');
+        console.log('[SUCCESS] Member record updated successfully');
       } catch (updateError) {
-        console.error('❌ Failed to update member record:', updateError);
+        console.error('[ERROR] Failed to update member record:', updateError);
         return res.status(500).json({
           success: false,
           message: 'Avatar uploaded but failed to update member record',
@@ -2445,13 +2732,13 @@ class MemberController {
             cacheService.generateKey('member', updatedMember.id, { full: true })
           );
         }
-        console.log('✅ Cache invalidated');
+        console.log('[SUCCESS] Cache invalidated');
       } catch (cacheError) {
-        console.warn('⚠️ Failed to invalidate cache (non-critical):', cacheError.message);
+        console.warn('[WARNING] Failed to invalidate cache (non-critical):', cacheError.message);
         // Don't fail the request if cache invalidation fails
       }
 
-      console.log(`✅ Avatar uploaded successfully: ${uploadResult.url}`);
+      console.log(`[SUCCESS] Avatar uploaded successfully: ${uploadResult.url}`);
 
       res.json({
         success: true,
@@ -2466,7 +2753,7 @@ class MemberController {
         },
       });
     } catch (error) {
-      console.error('❌ Upload avatar error:', error);
+      console.error('[ERROR] Upload avatar error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -2633,7 +2920,7 @@ class MemberController {
         },
       });
     } catch (error) {
-      console.error('❌ Validate access QR error:', error);
+      console.error('[ERROR] Validate access QR error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to validate QR code',
@@ -2676,43 +2963,10 @@ class MemberController {
         },
       });
     } catch (error) {
-      console.error('❌ Validate RFID tag error:', error);
+      console.error('[ERROR] Validate RFID tag error:', error);
       res.status(500).json({
         success: false,
         error: 'Failed to validate RFID tag',
-      });
-    }
-  }
-
-  /**
-   * Process face recognition for gym access
-   * Note: This is a stub for future implementation
-   */
-  async processFaceRecognition(req, res) {
-    try {
-      const { image } = req.body;
-
-      if (!image || typeof image !== 'string') {
-        return res.status(400).json({
-          success: false,
-          error: 'Image data is required',
-        });
-      }
-
-      // Stub: Always return not implemented
-      res.json({
-        success: true,
-        data: {
-          recognized: false,
-          face_detected: false,
-          message: 'Face recognition is not yet implemented',
-        },
-      });
-    } catch (error) {
-      console.error('❌ Face recognition error:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to process face recognition',
       });
     }
   }
@@ -2826,7 +3080,7 @@ class MemberController {
         },
       });
     } catch (error) {
-      console.error('❌ Toggle AI Class Recommendations error:', {
+      console.error('[ERROR] Toggle AI Class Recommendations error:', {
         message: error.message,
         code: error.code,
         meta: error.meta,
@@ -2889,7 +3143,7 @@ class MemberController {
 
       res.json({
         success: result.success,
-        message: result.success 
+        message: result.success
           ? `System announcement sent to ${result.sent} members`
           : 'Failed to send system announcement',
         data: result,

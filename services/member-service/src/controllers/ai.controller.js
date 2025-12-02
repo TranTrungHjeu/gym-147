@@ -30,7 +30,7 @@ class AIController {
         },
       });
     } catch (error) {
-      console.error('❌ Error generating embedding:', error);
+      console.error('[ERROR] Error generating embedding:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to generate embedding',

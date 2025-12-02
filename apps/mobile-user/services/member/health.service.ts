@@ -42,7 +42,7 @@ export class HealthService {
         metrics = response.data.data;
       }
 
-      console.log('📊 Extracted health metrics:', metrics.length, 'metrics');
+      console.log('[DATA] Extracted health metrics:', metrics.length, 'metrics');
       return metrics as HealthMetric[];
     } catch (error) {
       console.error('Error fetching health metrics:', error);
@@ -155,7 +155,7 @@ export class HealthService {
         trends = response.data.data;
       }
 
-      console.log('📊 Extracted health trends:', trends.length, 'trends');
+      console.log('[DATA] Extracted health trends:', trends.length, 'trends');
       return trends as HealthTrend[];
     } catch (error) {
       console.error('Error fetching health trends:', error);

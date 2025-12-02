@@ -5,13 +5,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const { PrismaClient } = require('@prisma/client');
-
 // Import routes
 const routes = require('./routes');
 
-// Initialize Prisma
-const prisma = new PrismaClient();
+// Use the shared Prisma client from lib/prisma.js
+const { prisma } = require('./lib/prisma');
 
 // Create Express app
 const app = express();
@@ -34,26 +32,27 @@ const server = http.createServer(app);
 // CORS configuration for Socket.IO
 // Allow all origins in development, including web platform
 // Use '*' directly in development for better compatibility
-const socketCorsConfig = process.env.NODE_ENV === 'production' 
-  ? {
-      origin: (origin, callback) => {
-        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-        if (allowedOrigins.includes(origin) || !origin) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    }
-  : {
-      origin: '*', // Allow all origins in development
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    };
+const socketCorsConfig =
+  process.env.NODE_ENV === 'production'
+    ? {
+        origin: (origin, callback) => {
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+          if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      }
+    : {
+        origin: '*', // Allow all origins in development
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      };
 
 const io = new Server(server, {
   cors: socketCorsConfig,
@@ -84,9 +83,9 @@ global.io = io;
 // Add middleware to handle CORS headers for Socket.IO requests
 io.engine.on('headers', (headers, req) => {
   const origin = req.headers.origin;
-  
+
   let corsOrigin = '*';
-  
+
   if (process.env.NODE_ENV === 'production') {
     const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
     if (origin && allowedOrigins.includes(origin)) {
@@ -103,7 +102,7 @@ io.engine.on('headers', (headers, req) => {
       corsOrigin = '*';
     }
   }
-  
+
   // Always set CORS headers
   headers['Access-Control-Allow-Origin'] = corsOrigin;
   headers['Access-Control-Allow-Credentials'] = 'false';
@@ -111,10 +110,10 @@ io.engine.on('headers', (headers, req) => {
   headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With';
   headers['Access-Control-Expose-Headers'] = '*';
   headers['Access-Control-Max-Age'] = '86400'; // 24 hours
-  
+
   // Log for debugging in development
   if (process.env.NODE_ENV !== 'production') {
-    console.log('🔌 Socket.IO engine headers:', {
+    console.log('[SOCKET] Socket.IO engine headers:', {
       origin: origin || 'none',
       setOrigin: corsOrigin,
     });
@@ -123,46 +122,46 @@ io.engine.on('headers', (headers, req) => {
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log('✅ Client connected:', socket.id);
+  console.log('[SUCCESS] Client connected:', socket.id);
 
   // Subscribe to user-specific notifications (for queue, etc.)
   socket.on('subscribe:user', user_id => {
     socket.join(`user:${user_id}`);
-    console.log(`👤 Client ${socket.id} subscribed to user:${user_id}`);
+    console.log(`[USER] Client ${socket.id} subscribed to user:${user_id}`);
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`👤 Client ${socket.id} unsubscribed from user:${user_id}`);
+    console.log(`[USER] Client ${socket.id} unsubscribed from user:${user_id}`);
   });
 
   // Subscribe to equipment updates
   socket.on('subscribe:equipment', equipment_id => {
     socket.join(`equipment:${equipment_id}`);
-    console.log(`📡 Client ${socket.id} subscribed to equipment:${equipment_id}`);
+    console.log(`[SOCKET] Client ${socket.id} subscribed to equipment:${equipment_id}`);
   });
 
   // Unsubscribe from equipment updates
   socket.on('unsubscribe:equipment', equipment_id => {
     socket.leave(`equipment:${equipment_id}`);
-    console.log(`📡 Client ${socket.id} unsubscribed from equipment:${equipment_id}`);
+    console.log(`[SOCKET] Client ${socket.id} unsubscribed from equipment:${equipment_id}`);
   });
 
   // Subscribe to admin notifications (for admin/super admin users)
   socket.on('subscribe:admin', () => {
     socket.join('admin');
-    console.log(`👑 Client ${socket.id} subscribed to admin room`);
+    console.log(`[ADMIN] Client ${socket.id} subscribed to admin room`);
   });
 
   // Unsubscribe from admin notifications
   socket.on('unsubscribe:admin', () => {
     socket.leave('admin');
-    console.log(`👑 Client ${socket.id} unsubscribed from admin room`);
+    console.log(`[ADMIN] Client ${socket.id} unsubscribed from admin room`);
   });
 
   socket.on('disconnect', () => {
-    console.log('❌ Client disconnected:', socket.id);
+    console.log('[ERROR] Client disconnected:', socket.id);
   });
 });
 
@@ -177,27 +176,29 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-    'Please set it in your .env file (comma-separated list of allowed origins).'
+      'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning
-  console.warn('⚠️  ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.');
+  console.warn(
+    '[WARN] ALLOWED_ORIGINS not set, using development defaults. Set ALLOWED_ORIGINS in .env for production.'
+  );
   allowedOrigins = [
-        'http://localhost:3000',
-        'http://localhost:5173',
-        'http://localhost:8080',
-        'http://localhost:8081',
-      ];
+    'http://localhost:3000',
+    'http://localhost:5173',
+    'http://localhost:8080',
+    'http://localhost:8081',
+  ];
 }
 
 // Handle CORS for Socket.IO polling requests (MUST be before helmet)
 // This middleware ensures CORS headers are set for all Socket.IO requests
 app.use('/socket.io', (req, res, next) => {
   const origin = req.headers.origin;
-  
+
   // Always set CORS headers for Socket.IO requests
   let corsOrigin = '*';
-  
+
   if (process.env.NODE_ENV === 'production') {
     // In production, only allow specific origins
     if (origin && allowedOrigins.includes(origin)) {
@@ -214,7 +215,7 @@ app.use('/socket.io', (req, res, next) => {
       corsOrigin = '*';
     }
   }
-  
+
   // Always set CORS headers
   res.setHeader('Access-Control-Allow-Origin', corsOrigin);
   res.setHeader('Access-Control-Allow-Credentials', 'false');
@@ -222,17 +223,17 @@ app.use('/socket.io', (req, res, next) => {
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
   res.setHeader('Access-Control-Expose-Headers', '*');
   res.setHeader('Access-Control-Max-Age', '86400'); // 24 hours
-  
+
   // Log for debugging in development
   if (process.env.NODE_ENV !== 'production') {
-    console.log('🔌 Socket.IO CORS:', {
+    console.log('[SOCKET] Socket.IO CORS:', {
       origin: origin || 'none',
       setOrigin: corsOrigin,
       method: req.method,
       path: req.path,
     });
   }
-  
+
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -242,17 +243,19 @@ app.use('/socket.io', (req, res, next) => {
 
 // Security middleware
 // Configure helmet to allow CORS for Socket.IO
-app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false,
-  // Allow CORS for Socket.IO
-  contentSecurityPolicy: {
-    directives: {
-      defaultSrc: ["'self'"],
-      connectSrc: ["'self'", "*"], // Allow Socket.IO connections
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+    crossOriginEmbedderPolicy: false,
+    // Allow CORS for Socket.IO
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        connectSrc: ["'self'", '*'], // Allow Socket.IO connections
+      },
     },
-  },
-}));
+  })
+);
 
 // CORS configuration for Express API routes
 app.use(
@@ -421,45 +424,45 @@ startExpirationNotificationJob();
 
 // ==================== GRACEFUL SHUTDOWN ====================
 
-       // Graceful shutdown handler
-       const gracefulShutdown = async signal => {
-         console.log(`\n${signal} received. Starting graceful shutdown...`);
+// Graceful shutdown handler
+const gracefulShutdown = async signal => {
+  console.log(`\n${signal} received. Starting graceful shutdown...`);
 
-         try {
-           // Stop notification worker
-           const { notificationWorker } = require('./workers/notification.worker.js');
-           await notificationWorker.stop();
-           console.log('Notification worker stopped.');
+  try {
+    // Stop notification worker
+    const { notificationWorker } = require('./workers/notification.worker.js');
+    await notificationWorker.stop();
+    console.log('Notification worker stopped.');
 
-           // Stop queue cleanup cron job
-           const { stopQueueCleanupJob } = require('./jobs/queue-cleanup.job');
-           stopQueueCleanupJob();
-           console.log('Queue cleanup cron job stopped.');
+    // Stop queue cleanup cron job
+    const { stopQueueCleanupJob } = require('./jobs/queue-cleanup.job');
+    stopQueueCleanupJob();
+    console.log('Queue cleanup cron job stopped.');
 
-           // Stop reward expiration jobs
-           stopExpireJob();
-           stopExpirationNotificationJob();
+    // Stop reward expiration jobs
+    stopExpireJob();
+    stopExpirationNotificationJob();
 
-           // Close Prisma connection
-           await prisma.$disconnect();
-           console.log('Prisma connection closed.');
+    // Close Prisma connection
+    await prisma.$disconnect();
+    console.log('Prisma connection closed.');
 
-           // Close server
-           server.close(() => {
-             console.log('HTTP server closed.');
-             process.exit(0);
-           });
+    // Close server
+    server.close(() => {
+      console.log('HTTP server closed.');
+      process.exit(0);
+    });
 
-           // Force close after 10 seconds
-           setTimeout(() => {
-             console.error('Could not close connections in time, forcefully shutting down');
-             process.exit(1);
-           }, 10000);
-         } catch (error) {
-           console.error('Error during graceful shutdown:', error);
-           process.exit(1);
-         }
-       };
+    // Force close after 10 seconds
+    setTimeout(() => {
+      console.error('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+    }, 10000);
+  } catch (error) {
+    console.error('Error during graceful shutdown:', error);
+    process.exit(1);
+  }
+};
 
 // Listen for termination signals
 process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
@@ -473,26 +476,26 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
     const { notificationWorker } = require('./workers/notification.worker.js');
     await notificationWorker.start();
   } catch (error) {
-    console.error('❌ Failed to start notification worker:', error);
+    console.error('[ERROR] Failed to start notification worker:', error);
   }
 })();
 
-       // ==================== SERVER STARTUP ====================
+// ==================== SERVER STARTUP ====================
 
-       const PORT = process.env.PORT || 3002;
-       const HOST = process.env.HOST || '0.0.0.0';
+const PORT = process.env.PORT || 3002;
+const HOST = process.env.HOST || '0.0.0.0';
 
-       server.listen(PORT, HOST, () => {
-         console.log(`
-       🚀 Member Service is running!
-       📍 Server: http://${HOST}:${PORT}
-       🔌 WebSocket: ws://${HOST}:${PORT}
-       🌍 Environment: ${process.env.NODE_ENV || 'development'}
-       📊 Health Check: http://${HOST}:${PORT}/health
-       📚 API Docs: http://${HOST}:${PORT}/api-docs
-       ⏰ Started at: ${new Date().toISOString()}
+server.listen(PORT, HOST, () => {
+  console.log(`
+       Member Service is running!
+       Server: http://${HOST}:${PORT}
+       WebSocket: ws://${HOST}:${PORT}
+       Environment: ${process.env.NODE_ENV || 'development'}
+       Health Check: http://${HOST}:${PORT}/health
+       API Docs: http://${HOST}:${PORT}/api-docs
+       Started at: ${new Date().toISOString()}
          `);
-       });
+});
 
 // ==================== DATABASE CONNECTION TEST ====================
 
@@ -500,13 +503,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 async function testDatabaseConnection() {
   try {
     await prisma.$connect();
-    console.log('✅ Database connection established successfully');
+    console.log('[SUCCESS] Database connection established successfully');
 
     // Test a simple query
     const memberCount = await prisma.member.count();
-    console.log(`📊 Current member count: ${memberCount}`);
+    console.log(`[DATA] Current member count: ${memberCount}`);
   } catch (error) {
-    console.error('❌ Database connection failed:', error);
+    console.error('[ERROR] Database connection failed:', error);
     process.exit(1);
   }
 }
@@ -522,14 +525,14 @@ const AUTO_STOP_INTERVAL = 10 * 60 * 1000; // 10 minutes
 
 setInterval(async () => {
   try {
-    console.log('🔍 Checking for expired equipment usage sessions...');
+    console.log('[SEARCH] Checking for expired equipment usage sessions...');
 
     // Create mock req/res objects for internal call
     const mockReq = {};
     const mockRes = {
       json: data => {
         if (data.data && data.data.stopped > 0) {
-          console.log(`⏱️ Auto-stopped ${data.data.stopped} expired session(s)`);
+          console.log(`[TIMER] Auto-stopped ${data.data.stopped} expired session(s)`);
         }
       },
       status: () => mockRes,
@@ -537,11 +540,11 @@ setInterval(async () => {
 
     await equipmentController.autoStopExpiredSessions(mockReq, mockRes);
   } catch (error) {
-    console.error('❌ Error in auto-stop interval:', error);
+    console.error('[ERROR] Error in auto-stop interval:', error);
   }
 }, AUTO_STOP_INTERVAL);
 
-console.log(`⏰ Auto-stop service started (interval: ${AUTO_STOP_INTERVAL / 60000} minutes)`);
+console.log(`[TIMER] Auto-stop service started (interval: ${AUTO_STOP_INTERVAL / 60000} minutes)`);
 
 // ==================== QUEUE CLEANUP CRON JOB ====================
 

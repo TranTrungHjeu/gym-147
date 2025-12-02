@@ -265,30 +265,30 @@ export default function MemberManagement() {
       // Connect to member service socket
       const { member: memberSocket } = socketService.connect(userId);
       if (!memberSocket) {
-        console.warn('⚠️ [MEMBER_MGMT] Member service socket not available (member service may not be configured)');
+        console.warn('[WARNING] [MEMBER_MGMT] Member service socket not available (member service may not be configured)');
         return;
       }
 
-      console.log('✅ [MEMBER_MGMT] Member socket connected, setting up listeners');
+      console.log('[SUCCESS] [MEMBER_MGMT] Member socket connected, setting up listeners');
 
       // Listen for member events and dispatch via event manager
       const handleMemberCreated = (data: any) => {
-        console.log('📢 [MEMBER_MGMT] member:created socket event received:', JSON.stringify(data, null, 2));
+        console.log('[NOTIFY] [MEMBER_MGMT] member:created socket event received:', JSON.stringify(data, null, 2));
         eventManager.dispatch('member:created', data);
       };
 
       const handleMemberUpdated = (data: any) => {
-        console.log('📢 member:updated socket event received:', data);
+        console.log('[NOTIFY] member:updated socket event received:', data);
         eventManager.dispatch('member:updated', data);
       };
 
       const handleMemberDeleted = (data: any) => {
-        console.log('📢 member:deleted socket event received:', data);
+        console.log('[NOTIFY] member:deleted socket event received:', data);
         eventManager.dispatch('member:deleted', data);
       };
 
       const handleMemberStatusChanged = (data: any) => {
-        console.log('📢 member:status_changed socket event received:', data);
+        console.log('[NOTIFY] member:status_changed socket event received:', data);
         eventManager.dispatch('member:status_changed', data);
       };
 

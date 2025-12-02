@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { pointsService, rewardService, type Reward } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { AppEvents } from '@/utils/eventEmitter';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -57,21 +58,21 @@ export default function RewardDetailScreen() {
 
   // Listen for socket events for real-time updates
   useEffect(() => {
-    if (typeof window === 'undefined' || !member?.id) return;
+    if (!member?.id) return;
 
-    const handleRewardRedeemed = (event: any) => {
-      console.log('🎁 Reward redeemed event received:', event.detail);
+    const handleRewardRedeemed = (data: any) => {
+      console.log('[GIFT] Reward redeemed event received:', data);
       // Refresh reward and points balance
       if (params.id && member?.id) {
         loadReward();
       }
     };
 
-    const handlePointsUpdated = (event: any) => {
-      console.log('💎 Points updated event received:', event.detail);
+    const handlePointsUpdated = (data: any) => {
+      console.log('[POINTS] Points updated event received:', data);
       // Update points balance immediately
-      if (event.detail?.new_balance !== undefined) {
-        setPointsBalance(event.detail.new_balance);
+      if (data?.new_balance !== undefined) {
+        setPointsBalance(data.new_balance);
       } else {
         // Refresh balance
         if (member?.id) {
@@ -84,12 +85,12 @@ export default function RewardDetailScreen() {
       }
     };
 
-    window.addEventListener('reward:redeemed', handleRewardRedeemed);
-    window.addEventListener('points:updated', handlePointsUpdated);
+    const unsubscribe1 = AppEvents.on('reward:redeemed', handleRewardRedeemed);
+    const unsubscribe2 = AppEvents.on('points:updated', handlePointsUpdated);
 
     return () => {
-      window.removeEventListener('reward:redeemed', handleRewardRedeemed);
-      window.removeEventListener('points:updated', handlePointsUpdated);
+      unsubscribe1();
+      unsubscribe2();
     };
   }, [member?.id, params.id]);
 

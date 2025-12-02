@@ -14,7 +14,6 @@ import {
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import UserInfoCard from '../components/UserProfile/UserInfoCard';
 import AdminCard from '../components/common/AdminCard';
 import AdminModal from '../components/common/AdminModal';
@@ -56,8 +55,6 @@ interface UserStats {
 }
 
 export default function UserManagement() {
-  const [searchParams, setSearchParams] = useSearchParams();
-
   // State management
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -75,130 +72,19 @@ export default function UserManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
 
-  // Refs to prevent infinite loops and track changes
-  const isUpdatingFromURL = useRef(false);
-  const prevFiltersRef = useRef<{ page: number; role: string; limit: number } | null>(null);
-  const isInitialLoadRef = useRef(true);
-  const fetchUsersRef = useRef<((isPageChange?: boolean) => Promise<void>) | null>(null);
-
-  // Initialize filters from URL params (only once on mount)
-  const [filters, setFilters] = useState<UserManagementFilters>(() => {
-    const search = searchParams.get('search') || '';
-    const role = searchParams.get('role') || '';
-    const status = searchParams.get('status') || '';
-    const sortBy =
-      (searchParams.get('sortBy') as 'name' | 'role' | 'status' | 'date' | 'email') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
-
-    return {
-      search,
-      role,
-      status,
-      sortBy,
-      sortOrder,
-      page,
-      limit,
-    };
+  // Filters state - no URL params, just local state
+  const [filters, setFilters] = useState<UserManagementFilters>({
+    search: '',
+    role: '',
+    status: '',
+    sortBy: 'name',
+    sortOrder: 'asc',
+    page: 1,
+    limit: 10,
   });
 
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalUsers, setTotalUsers] = useState(0);
-
-  // Update filters when URL params change from external sources (e.g., browser back/forward)
-  useEffect(() => {
-    if (isUpdatingFromURL.current) {
-      // Reset flag after a delay to allow fetchUsers effect to skip
-      setTimeout(() => {
-        isUpdatingFromURL.current = false;
-      }, 100);
-      return;
-    }
-
-    const search = searchParams.get('search') || '';
-    const role = searchParams.get('role') || '';
-    const status = searchParams.get('status') || '';
-    const sortBy =
-      (searchParams.get('sortBy') as 'name' | 'role' | 'status' | 'date' | 'email') || 'name';
-    const sortOrder = (searchParams.get('sortOrder') as 'asc' | 'desc') || 'asc';
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
-
-    setFilters(prev => {
-      if (
-        prev.search !== search ||
-        prev.role !== role ||
-        prev.status !== status ||
-        prev.sortBy !== sortBy ||
-        prev.sortOrder !== sortOrder ||
-        prev.page !== page ||
-        prev.limit !== limit
-      ) {
-        isUpdatingFromURL.current = true;
-        return {
-          search,
-          role,
-          status,
-          sortBy,
-          sortOrder,
-          page,
-          limit,
-        };
-      }
-      return prev;
-    });
-  }, [searchParams]);
-
-  // Sync URL params when filters change (only from user interactions)
-  // Note: Page and limit are NOT synced to URL to avoid loading state
-  useEffect(() => {
-    if (isUpdatingFromURL.current) {
-      return;
-    }
-
-    // Skip URL update if only page or limit changed (pagination)
-    const prev = prevFiltersRef.current;
-    const onlyPageOrLimitChanged =
-      prev &&
-      prev.page !== filters.page &&
-      prev.role === filters.role &&
-      prev.limit === filters.limit &&
-      filters.search === (searchParams.get('search') || '') &&
-      filters.status === (searchParams.get('status') || '') &&
-      filters.sortBy === ((searchParams.get('sortBy') as any) || 'name') &&
-      filters.sortOrder === ((searchParams.get('sortOrder') as any) || 'asc');
-
-    if (onlyPageOrLimitChanged) {
-      // Don't update URL for pagination, just update the ref
-      prevFiltersRef.current = {
-        page: filters.page,
-        role: filters.role,
-        limit: filters.limit,
-      };
-      return;
-    }
-
-    const params = new URLSearchParams();
-    if (filters.search) params.set('search', filters.search);
-    if (filters.role) params.set('role', filters.role);
-    if (filters.status) params.set('status', filters.status);
-    if (filters.sortBy !== 'name') params.set('sortBy', filters.sortBy);
-    if (filters.sortOrder !== 'asc') params.set('sortOrder', filters.sortOrder);
-    // Note: page and limit are NOT added to URL to avoid loading state
-
-    const newParams = params.toString();
-    const currentParams = searchParams.toString();
-
-    if (currentParams !== newParams) {
-      isUpdatingFromURL.current = true;
-      setSearchParams(params, { replace: true });
-      // Reset flag after URL update completes
-      setTimeout(() => {
-        isUpdatingFromURL.current = false;
-      }, 50);
-    }
-  }, [filters, setSearchParams, searchParams]);
+  // Refs to track changes
+  const isInitialLoadRef = useRef(true);
 
   // Fetch user statistics from API
   const fetchUserStats = useCallback(async () => {
@@ -276,18 +162,19 @@ export default function UserManagement() {
     });
   }, []);
 
-  // Fetch users - simplified logic
+  // Fetch all users once (no pagination from API, pagination is client-side)
   const fetchUsers = useCallback(
     async (isPageChange = false) => {
       try {
-        // Only show loading if not a page change AND not currently transitioning
+        // Only show loading on initial load, not on page changes (page changes are client-side)
         if (!isPageChange && !isPageTransitioning) {
           setLoading(true);
         }
+        // Load all users with a large limit (or load all pages)
+        // For now, load first 1000 users - if more needed, can implement pagination
         const response = await userService.getAllUsers({
-          role: filters.role || undefined,
-          page: filters.page,
-          limit: filters.limit,
+          page: 1,
+          limit: 1000, // Load many users at once for client-side filtering
         });
 
         if (response.success) {
@@ -301,8 +188,7 @@ export default function UserManagement() {
             updatedAt: user.updated_at || user.updatedAt || null,
           }));
           setUsers(mappedUsers);
-          setTotalPages(response.data.pagination?.pages || 1);
-          setTotalUsers(response.data.pagination?.total || 0);
+          // Note: totalPages and totalUsers will be calculated from filtered results
           calculateStatsFromUsers(mappedUsers);
           fetchUserAvatars(mappedUsers).catch(() => {});
         }
@@ -330,13 +216,8 @@ export default function UserManagement() {
         setLoading(false);
       }
     },
-    [filters.role, filters.page, filters.limit, calculateStatsFromUsers]
+    [filters.page, filters.limit, calculateStatsFromUsers]
   );
-
-  // Update ref whenever fetchUsers changes
-  useEffect(() => {
-    fetchUsersRef.current = fetchUsers;
-  }, [fetchUsers]);
 
   // Fetch user avatars
   const fetchUserAvatars = async (usersList: User[]) => {
@@ -390,67 +271,24 @@ export default function UserManagement() {
     fetchUserStats();
   }, [fetchUserStats]);
 
-  // Fetch users when filters change - simplified and optimized
+  // Fetch all users once on mount (all filtering and pagination is client-side)
   useEffect(() => {
-    // Skip if updating from URL (external source)
-    if (isUpdatingFromURL.current) {
-      // Update prevFiltersRef to keep in sync
-      if (prevFiltersRef.current) {
-        prevFiltersRef.current = {
-          page: filters.page,
-          role: filters.role,
-          limit: filters.limit,
-        };
-      }
-      return;
-    }
-
-    // Initialize prevFiltersRef on first run
-    if (!prevFiltersRef.current) {
-      prevFiltersRef.current = {
-        page: filters.page,
-        role: filters.role,
-        limit: filters.limit,
-      };
-      isInitialLoadRef.current = true;
-    }
-
-    // Check what changed BEFORE updating refs
-    const prev = prevFiltersRef.current;
-    const pageChanged = prev.page !== filters.page;
-    const roleChanged = prev.role !== filters.role;
-    const limitChanged = prev.limit !== filters.limit;
-
-    // Skip if nothing changed (prevents unnecessary fetches when fetchUsers is recreated)
-    if (!pageChanged && !roleChanged && !limitChanged && !isInitialLoadRef.current) {
-      return;
-    }
-
-    // Determine if this is only a page change
-    const onlyPageChanged =
-      pageChanged && !roleChanged && !limitChanged && !isInitialLoadRef.current;
-
-    // Update refs AFTER checking but BEFORE fetching
-    prevFiltersRef.current = {
-      page: filters.page,
-      role: filters.role,
-      limit: filters.limit,
-    };
-
     if (isInitialLoadRef.current) {
+      fetchUsers(false);
       isInitialLoadRef.current = false;
     }
+  }, [fetchUsers]);
 
-    // Fetch users using ref to avoid dependency on fetchUsers function
-    if (fetchUsersRef.current) {
-      fetchUsersRef.current(onlyPageChanged);
-    }
-  }, [filters.page, filters.role, filters.limit]);
-
-  // Filter and sort users
+  // Filter and sort users (all filters are client-side)
   const filteredAndSortedUsers = useMemo(() => {
     let filtered = [...users];
 
+    // Role filter
+    if (filters.role) {
+      filtered = filtered.filter(user => user.role === filters.role);
+    }
+
+    // Search filter
     if (filters.search) {
       const searchLower = filters.search.toLowerCase();
       filtered = filtered.filter(user => {
@@ -467,6 +305,7 @@ export default function UserManagement() {
       });
     }
 
+    // Status filter
     if (filters.status) {
       if (filters.status === 'active') {
         filtered = filtered.filter(user => user.isActive);
@@ -654,10 +493,21 @@ export default function UserManagement() {
     }
   };
 
-  // Display users (already paginated from API, just slice to match limit)
+  // Calculate pagination from filtered results
+  const totalFilteredUsers = useMemo(() => {
+    return filteredAndSortedUsers.length;
+  }, [filteredAndSortedUsers]);
+
+  const totalPagesFiltered = useMemo(() => {
+    return Math.ceil(totalFilteredUsers / filters.limit);
+  }, [totalFilteredUsers, filters.limit]);
+
+  // Display users with client-side pagination
   const displayUsers = useMemo(() => {
-    return filteredAndSortedUsers.slice(0, filters.limit);
-  }, [filteredAndSortedUsers, filters.limit]);
+    const startIndex = (filters.page - 1) * filters.limit;
+    const endIndex = startIndex + filters.limit;
+    return filteredAndSortedUsers.slice(startIndex, endIndex);
+  }, [filteredAndSortedUsers, filters.page, filters.limit]);
 
   return (
     <div className='p-6 space-y-6'>
@@ -707,7 +557,7 @@ export default function UserManagement() {
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
                   <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                    {statsLoading ? '...' : stats?.total || totalUsers || 0}
+                    {statsLoading ? '...' : stats?.total || 0}
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
@@ -816,7 +666,12 @@ export default function UserManagement() {
                 { value: 'MEMBER', label: 'Member' },
               ]}
               value={filters.role}
-              onChange={value => setFilters(prev => ({ ...prev, role: value, page: 1 }))}
+              onChange={value => {
+                // Only update if value actually changed to avoid unnecessary reloads
+                if (value !== filters.role) {
+                  setFilters(prev => ({ ...prev, role: value, page: 1 }));
+                }
+              }}
               placeholder='Tất cả vai trò'
               className='font-inter'
             />
@@ -831,7 +686,12 @@ export default function UserManagement() {
                 { value: 'inactive', label: 'Không hoạt động' },
               ]}
               value={filters.status}
-              onChange={value => setFilters(prev => ({ ...prev, status: value, page: 1 }))}
+              onChange={value => {
+                // Only update if value actually changed to avoid unnecessary reloads
+                if (value !== filters.status) {
+                  setFilters(prev => ({ ...prev, status: value, page: 1 }));
+                }
+              }}
               placeholder='Tất cả trạng thái'
               className='font-inter'
             />
@@ -1014,11 +874,13 @@ export default function UserManagement() {
             </AdminCard>
           </motion.div>
 
-          {totalPages > 1 && (
+          {/* Pagination - only show if there are multiple pages */}
+          {/* Client-side pagination based on filtered results */}
+          {totalPagesFiltered > 1 && (
             <Pagination
               currentPage={filters.page}
-              totalPages={totalPages}
-              totalItems={totalUsers}
+              totalPages={totalPagesFiltered}
+              totalItems={totalFilteredUsers}
               itemsPerPage={filters.limit}
               onPageChange={page => {
                 setIsPageTransitioning(true);

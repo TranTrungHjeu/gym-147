@@ -132,7 +132,7 @@ class AccessService {
         `/members/${memberId}/sessions/current`
       );
 
-      console.log('📊 getCurrentAccess API response:', {
+      console.log('[DATA] getCurrentAccess API response:', {
         success: response.success,
         hasData: !!response.data,
         session: response.data?.session,
@@ -143,7 +143,7 @@ class AccessService {
         data: response.data, // Backend returns { session: {...} }
       };
     } catch (error: any) {
-      console.log('⚠️ getCurrentAccess error:', {
+      console.log('[WARN] getCurrentAccess error:', {
         status: error.response?.status,
         message: error.message,
       });

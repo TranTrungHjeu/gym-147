@@ -1,11 +1,11 @@
 import { Button } from '@/components/ui/Button';
-import { useAuth } from '@/contexts/AuthContext';
 import { paymentService } from '@/services/billing/payment.service';
 import type { Payment } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
+  AlertCircle,
   ArrowLeft,
   Calendar,
   CheckCircle,
@@ -13,7 +13,6 @@ import {
   CreditCard,
   Download,
   XCircle,
-  AlertCircle,
 } from 'lucide-react-native';
 // Note: expo-file-system and expo-sharing need to be installed
 // For now, using a simpler approach with Linking
@@ -85,9 +84,32 @@ export default function PaymentDetailScreen() {
       }
     } catch (err: any) {
       console.error('Error downloading receipt:', err);
-      Alert.alert('Error', err.message || 'Failed to download receipt. Please try again.');
+      Alert.alert(
+        'Error',
+        err.message || 'Failed to download receipt. Please try again.'
+      );
     } finally {
       setDownloading(false);
+    }
+  };
+
+  const handleRetryPayment = async () => {
+    if (!payment || payment.status !== 'FAILED') return;
+
+    try {
+      await paymentService.retryPayment(payment.id);
+      Alert.alert(
+        'Success',
+        'Payment retry initiated. Please check your payment status.'
+      );
+      // Reload payment details
+      await loadPayment();
+    } catch (err: any) {
+      console.error('Error retrying payment:', err);
+      Alert.alert(
+        'Error',
+        err.message || 'Failed to retry payment. Please try again.'
+      );
     }
   };
 
@@ -230,10 +252,7 @@ export default function PaymentDetailScreen() {
             </Text>
           </View>
           <Text
-            style={[
-              Typography.h1,
-              { color: theme.colors.text, marginTop: 16 },
-            ]}
+            style={[Typography.h1, { color: theme.colors.text, marginTop: 16 }]}
           >
             {formatCurrency(payment.amount, payment.currency)}
           </Text>
@@ -267,9 +286,7 @@ export default function PaymentDetailScreen() {
             >
               Payment ID
             </Text>
-            <Text
-              style={[Typography.bodyMedium, { color: theme.colors.text }]}
-            >
+            <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
               {payment.id.substring(0, 8).toUpperCase()}
             </Text>
           </View>
@@ -388,10 +405,7 @@ export default function PaymentDetailScreen() {
           {payment.status === 'FAILED' && (
             <Button
               title="Retry Payment"
-              onPress={() => {
-                // Navigate to payment retry
-                Alert.alert('Info', 'Retry payment feature coming soon');
-              }}
+              onPress={handleRetryPayment}
               style={styles.retryButton}
             />
           )}
@@ -472,4 +486,3 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
 });
-
