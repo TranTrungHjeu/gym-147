@@ -6,7 +6,16 @@ Gateway service sử dụng Nginx làm reverse proxy cho các microservices.
 
 ### Root Directory
 
-Trong Railway, set **Root Directory** là: `infrastructure/gateway`
+**QUAN TRỌNG:** Trong Railway dashboard, bạn **PHẢI** set **Root Directory** là: `infrastructure/gateway`
+
+Nếu không set Root Directory, Railway sẽ tìm Dockerfile ở root của repo và sẽ báo lỗi "Dockerfile does not exist".
+
+**Cách set Root Directory trong Railway:**
+
+1. Vào service settings trong Railway dashboard
+2. Tìm phần "Root Directory" hoặc "Source"
+3. Nhập: `infrastructure/gateway`
+4. Save và redeploy
 
 ### Environment Variables
 
@@ -16,10 +25,19 @@ Gateway cần các environment variables sau để kết nối với các servic
 
 Railway tự động tạo các service URLs. Bạn có thể reference chúng trong Railway dashboard:
 
-- `IDENTITY_SERVICE_URL` - URL của identity service (ví dụ: `http://identity-service.up.railway.app` hoặc private URL)
-- `MEMBER_SERVICE_URL` - URL của member service
-- `SCHEDULE_SERVICE_URL` - URL của schedule service
-- `BILLING_SERVICE_URL` - URL của billing service
+**Lưu ý quan trọng:** Railway URLs thường không có port trong URL (ví dụ: `https://billing-service-production-6ef9.up.railway.app`). Gateway sẽ tự động detect và sử dụng port 80 cho HTTP hoặc 443 cho HTTPS.
+
+- `IDENTITY_SERVICE_URL` - URL của identity service (ví dụ: `https://identity-service-production-xxxx.up.railway.app`)
+- `MEMBER_SERVICE_URL` - URL của member service (ví dụ: `https://member-service-production-xxxx.up.railway.app`)
+- `SCHEDULE_SERVICE_URL` - URL của schedule service (ví dụ: `https://schedule-service-production-xxxx.up.railway.app`)
+- `BILLING_SERVICE_URL` - URL của billing service (ví dụ: `https://billing-service-production-6ef9.up.railway.app`)
+
+**Cách lấy Service URLs trong Railway:**
+
+1. Vào Railway dashboard
+2. Click vào từng service (identity, member, schedule, billing)
+3. Copy **Public Domain** hoặc **Private Network URL**
+4. Paste vào environment variables của gateway service
 
 #### Option 2: Sử dụng Host và Port riêng biệt
 
