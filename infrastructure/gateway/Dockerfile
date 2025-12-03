@@ -6,7 +6,7 @@ FROM nginx:alpine
 RUN apk add --no-cache gettext
 
 # Copy nginx configuration template (relative path - assuming Root Directory is infrastructure/gateway)
-COPY nginx.conf.template /etc/nginx/templates/nginx.conf.template
+COPY nginx/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
 # Copy entrypoint script (relative path)
 COPY entrypoint.sh /entrypoint.sh
