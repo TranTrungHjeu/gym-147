@@ -27,10 +27,17 @@ extract_host() {
 extract_port() {
     local url=$1
     local default=$2
+    local original_url="$1"
     
     if [ -z "$url" ]; then
         echo "$default"
         return
+    fi
+    
+    # Check if URL contains protocol to determine default port
+    local is_https=false
+    if echo "$original_url" | grep -q '^https://'; then
+        is_https=true
     fi
     
     # Remove protocol
@@ -41,7 +48,16 @@ extract_port() {
     if echo "$url" | grep -q ':'; then
         echo "$url" | cut -d: -f2
     else
-        echo "$default"
+        # No port specified - use default based on protocol
+        # For Railway, public URLs are usually HTTPS (443) or HTTP (80)
+        # For private networking, use the service's internal port
+        if [ "$is_https" = true ]; then
+            # HTTPS URL without port - Railway uses 443, but we'll use 80 for internal proxy
+            echo "80"
+        else
+            # HTTP URL without port - use 80
+            echo "80"
+        fi
     fi
 }
 
@@ -110,10 +126,29 @@ echo "BILLING_SERVICE: ${BILLING_SERVICE_HOST}:${BILLING_SERVICE_PORT}"
 echo "============================="
 
 # Generate nginx.conf from template
+echo "Generating nginx.conf from template..."
 envsubst '${PORT} ${IDENTITY_SERVICE_HOST} ${IDENTITY_SERVICE_PORT} ${MEMBER_SERVICE_HOST} ${MEMBER_SERVICE_PORT} ${SCHEDULE_SERVICE_HOST} ${SCHEDULE_SERVICE_PORT} ${BILLING_SERVICE_HOST} ${BILLING_SERVICE_PORT}' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf
 
+# Verify nginx.conf was generated
+if [ ! -f /etc/nginx/nginx.conf ]; then
+    echo "ERROR: Failed to generate nginx.conf!" >&2
+    exit 1
+fi
+
+# Show generated nginx.conf (first 50 lines for debugging)
+echo "=== Generated nginx.conf (first 50 lines) ==="
+head -n 50 /etc/nginx/nginx.conf
+echo "=============================================="
+
 # Test nginx configuration
+echo "Testing nginx configuration..."
 nginx -t
 
+if [ $? -ne 0 ]; then
+    echo "ERROR: nginx configuration test failed!" >&2
+    exit 1
+fi
+
 # Start nginx
+echo "Starting nginx..."
 exec nginx -g 'daemon off;'
