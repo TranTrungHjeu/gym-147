@@ -307,5 +307,12 @@ http {
             return 200 "healthy\n";
             add_header Content-Type text/plain;
         }
+
+        # Debug endpoint to check gateway configuration
+        location /debug {
+            access_log off;
+            add_header Content-Type application/json;
+            return 200 '{"status":"ok","port":"${PORT}","identity_service":"${IDENTITY_SERVICE_HOST}:${IDENTITY_SERVICE_PORT}","member_service":"${MEMBER_SERVICE_HOST}:${MEMBER_SERVICE_PORT}","schedule_service":"${SCHEDULE_SERVICE_HOST}:${SCHEDULE_SERVICE_PORT}","billing_service":"${BILLING_SERVICE_HOST}:${BILLING_SERVICE_PORT}"}';
+        }
     }
 }

@@ -96,8 +96,10 @@ fi
 BILLING_SERVICE_HOST=${BILLING_SERVICE_HOST:-billing}
 
 if [ -z "$BILLING_SERVICE_PORT" ] && [ -n "$BILLING_SERVICE_URL" ]; then
+    # Extract port from URL, but if no port in URL, use default 3004 for billing service
     BILLING_SERVICE_PORT=$(extract_port "$BILLING_SERVICE_URL" "3004")
 fi
+# Default to 3004 if not set (billing service runs on port 3004)
 BILLING_SERVICE_PORT=${BILLING_SERVICE_PORT:-3004}
 
 # Default PORT to 80 if not set (Railway provides this automatically)
@@ -155,6 +157,38 @@ echo "=============================" >&2
 # Generate nginx.conf from template
 echo "Generating nginx.conf from template..." >&2
 envsubst '${PORT} ${IDENTITY_SERVICE_HOST} ${IDENTITY_SERVICE_PORT} ${IDENTITY_SERVICE_PROTOCOL} ${MEMBER_SERVICE_HOST} ${MEMBER_SERVICE_PORT} ${MEMBER_SERVICE_PROTOCOL} ${SCHEDULE_SERVICE_HOST} ${SCHEDULE_SERVICE_PORT} ${SCHEDULE_SERVICE_PROTOCOL} ${BILLING_SERVICE_HOST} ${BILLING_SERVICE_PORT} ${BILLING_SERVICE_PROTOCOL}' < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf
+
+# Also write config to a file for debugging
+cat > /tmp/gateway-config.json <<EOF
+{
+  "port": "$PORT",
+  "identity_service": {
+    "host": "$IDENTITY_SERVICE_HOST",
+    "port": "$IDENTITY_SERVICE_PORT",
+    "protocol": "$IDENTITY_SERVICE_PROTOCOL",
+    "url": "${IDENTITY_SERVICE_URL:-not set}"
+  },
+  "member_service": {
+    "host": "$MEMBER_SERVICE_HOST",
+    "port": "$MEMBER_SERVICE_PORT",
+    "protocol": "$MEMBER_SERVICE_PROTOCOL",
+    "url": "${MEMBER_SERVICE_URL:-not set}"
+  },
+  "schedule_service": {
+    "host": "$SCHEDULE_SERVICE_HOST",
+    "port": "$SCHEDULE_SERVICE_PORT",
+    "protocol": "$SCHEDULE_SERVICE_PROTOCOL",
+    "url": "${SCHEDULE_SERVICE_URL:-not set}"
+  },
+  "billing_service": {
+    "host": "$BILLING_SERVICE_HOST",
+    "port": "$BILLING_SERVICE_PORT",
+    "protocol": "$BILLING_SERVICE_PROTOCOL",
+    "url": "${BILLING_SERVICE_URL:-not set}"
+  }
+}
+EOF
+echo "Configuration saved to /tmp/gateway-config.json" >&2
 
 # Verify nginx.conf was generated
 if [ ! -f /etc/nginx/nginx.conf ]; then
