@@ -209,7 +209,7 @@ http {
             proxy_set_header Connection "";
             
             # Timeout settings
-            proxy_connect_timeout 30s
+            proxy_connect_timeout 30s;
             proxy_send_timeout 30s;
             proxy_read_timeout 30s;
             proxy_buffering off;
