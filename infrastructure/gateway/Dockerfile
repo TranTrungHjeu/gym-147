@@ -5,6 +5,9 @@ FROM nginx:alpine
 # Install gettext for envsubst
 RUN apk add --no-cache gettext
 
+# Remove default nginx config to avoid conflicts
+RUN rm -f /etc/nginx/conf.d/default.conf
+
 # Copy nginx configuration template (relative path - assuming Root Directory is infrastructure/gateway)
 COPY nginx/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
