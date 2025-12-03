@@ -10,6 +10,10 @@ http {
     include /etc/nginx/mime.types;
     default_type application/octet-stream;
 
+    # DNS resolver for Railway
+    resolver 8.8.8.8 8.8.4.4 valid=300s;
+    resolver_timeout 5s;
+
     log_format main '$remote_addr - $remote_user [$time_local] "$request" '
                     '$status $body_bytes_sent "$http_referer" '
                     '"$http_user_agent" "$http_x_forwarded_for"';
@@ -30,19 +34,23 @@ http {
 
     # Upstream services - using environment variables for Railway
     upstream identity_service {
-        server ${IDENTITY_SERVICE_HOST}:${IDENTITY_SERVICE_PORT};
+        server ${IDENTITY_SERVICE_HOST}:${IDENTITY_SERVICE_PORT} max_fails=3 fail_timeout=30s;
+        keepalive 32;
     }
 
     upstream member_service {
-        server ${MEMBER_SERVICE_HOST}:${MEMBER_SERVICE_PORT};
+        server ${MEMBER_SERVICE_HOST}:${MEMBER_SERVICE_PORT} max_fails=3 fail_timeout=30s;
+        keepalive 32;
     }
 
     upstream schedule_service {
-        server ${SCHEDULE_SERVICE_HOST}:${SCHEDULE_SERVICE_PORT};
+        server ${SCHEDULE_SERVICE_HOST}:${SCHEDULE_SERVICE_PORT} max_fails=3 fail_timeout=30s;
+        keepalive 32;
     }
 
     upstream billing_service {
-        server ${BILLING_SERVICE_HOST}:${BILLING_SERVICE_PORT};
+        server ${BILLING_SERVICE_HOST}:${BILLING_SERVICE_PORT} max_fails=3 fail_timeout=30s;
+        keepalive 32;
     }
 
     server {
@@ -97,6 +105,12 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Timeout settings
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            proxy_buffering off;
+            
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
@@ -141,6 +155,12 @@ http {
             proxy_set_header Origin $http_origin;
             proxy_http_version 1.1;
             proxy_set_header Connection "";
+            
+            # Timeout settings
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            proxy_buffering off;
             
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
@@ -188,6 +208,12 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Timeout settings
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            proxy_buffering off;
+            
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
@@ -233,6 +259,12 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
+            # Timeout settings
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            proxy_buffering off;
+            
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
             proxy_hide_header 'Access-Control-Allow-Credentials';
@@ -277,6 +309,12 @@ http {
             proxy_set_header Origin $http_origin;
             proxy_http_version 1.1;
             proxy_set_header Connection "";
+            
+            # Timeout settings
+            proxy_connect_timeout 10s;
+            proxy_send_timeout 30s;
+            proxy_read_timeout 30s;
+            proxy_buffering off;
             
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
