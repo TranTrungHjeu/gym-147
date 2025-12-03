@@ -73,7 +73,7 @@ const WelcomeScreen = () => {
 
       handleRedirect();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line  react-hooks/exhaustive-deps
   }, [isLoading, isAuthenticated, user?.id, hasChecked]);
 
   const handleLogin = () => {
