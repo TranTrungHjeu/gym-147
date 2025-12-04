@@ -1,5 +1,6 @@
 const rewardService = require('../services/reward.service.js');
 const s3UploadService = require('../services/s3-upload.service');
+const { handleDatabaseError } = require('../utils/database-error-handler.js');
 
 class RewardController {
   /**
@@ -38,13 +39,13 @@ class RewardController {
   async createReward(req, res) {
     try {
       const rewardData = req.body;
-      
+
       // Get userId from token and set created_by
       const userId = this.getUserIdFromToken(req);
       if (userId) {
         rewardData.created_by = userId;
       }
-      
+
       const result = await rewardService.createReward(rewardData);
 
       if (!result.success) {
@@ -270,9 +271,12 @@ class RewardController {
     try {
       const { id } = req.params;
       const updateData = req.body;
-      
-      console.log(`[PROCESS] Updating reward ${id} with data:`, JSON.stringify(updateData, null, 2));
-      
+
+      console.log(
+        `[PROCESS] Updating reward ${id} with data:`,
+        JSON.stringify(updateData, null, 2)
+      );
+
       const result = await rewardService.updateReward(id, updateData);
 
       if (!result.success) {
@@ -430,6 +434,13 @@ class RewardController {
       });
     } catch (error) {
       console.error('Get reward stats error:', error);
+
+      // Try to handle database errors
+      const dbErrorResponse = handleDatabaseError(error, res, 'Get reward stats');
+      if (dbErrorResponse) {
+        return dbErrorResponse;
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -461,6 +472,13 @@ class RewardController {
       });
     } catch (error) {
       console.error('Get redemption trend error:', error);
+
+      // Try to handle database errors
+      const dbErrorResponse = handleDatabaseError(error, res, 'Get redemption trend');
+      if (dbErrorResponse) {
+        return dbErrorResponse;
+      }
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -615,10 +633,16 @@ class RewardController {
       }
 
       // Upload to S3 with folder 'rewards'
-      const uploadResult = await s3UploadService.uploadFile(fileBuffer, originalName, mimeType, userId, {
-        folder: 'rewards',
-        optimize: true, // Optimize reward images
-      });
+      const uploadResult = await s3UploadService.uploadFile(
+        fileBuffer,
+        originalName,
+        mimeType,
+        userId,
+        {
+          folder: 'rewards',
+          optimize: true, // Optimize reward images
+        }
+      );
 
       if (!uploadResult.success) {
         return res.status(500).json({
@@ -648,4 +672,3 @@ class RewardController {
 }
 
 module.exports = new RewardController();
-
