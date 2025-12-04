@@ -150,27 +150,46 @@ class BillingController {
   // Membership Plans Management
   async getAllPlans(req, res) {
     try {
-      const plans = await prisma.membershipPlan.findMany({
-        include: {
-          plan_addons: {
-            where: { is_active: true },
+      const { limit = 100, offset = 0, is_active } = req.query;
+
+      // Parse and limit pagination parameters
+      const parsedLimit = Math.min(parseInt(limit) || 100, 200); // Max 200 per page
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const where = {};
+      if (is_active !== undefined) {
+        where.is_active = is_active === 'true' || is_active === true;
+      }
+
+      const [plans, total] = await Promise.all([
+        prisma.membershipPlan.findMany({
+          where,
+          include: {
+            plan_addons: {
+              where: { is_active: true },
+            },
           },
-        },
-        orderBy: { created_at: 'desc' },
-      });
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+        }),
+        prisma.membershipPlan.count({ where }),
+      ]);
 
       res.json({
         success: true,
         message: 'Membership plans retrieved successfully',
         data: plans,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
       });
     } catch (error) {
       console.error('Get plans error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve membership plans',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get all plans');
     }
   }
 
@@ -274,24 +293,33 @@ class BillingController {
   // Subscriptions Management
   async getAllSubscriptions(req, res) {
     try {
-      const { status, member_id } = req.query;
+      const { status, member_id, limit = 50, offset = 0 } = req.query;
 
       const where = {};
       if (status) where.status = status;
       if (member_id) where.member_id = member_id;
 
-      const subscriptions = await prisma.subscription.findMany({
-        where,
-        include: {
-          plan: true,
-          subscription_addons: true,
-          payments: {
-            orderBy: { created_at: 'desc' },
-            take: 1, // Get latest payment
+      // Parse limit and offset, ensure they're reasonable
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per page
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const [subscriptions, total] = await Promise.all([
+        prisma.subscription.findMany({
+          where,
+          include: {
+            plan: true,
+            subscription_addons: true,
+            payments: {
+              orderBy: { created_at: 'desc' },
+              take: 1, // Get latest payment
+            },
           },
-        },
-        orderBy: { created_at: 'desc' },
-      });
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+        }),
+        prisma.subscription.count({ where }),
+      ]);
 
       // Fetch member information for each subscription
       const subscriptionsWithMembers = await Promise.all(
@@ -358,6 +386,12 @@ class BillingController {
         success: true,
         message: 'Subscriptions retrieved successfully',
         data: subscriptionsWithMembers,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
       });
     } catch (error) {
       console.error('Get subscriptions error:', error);
@@ -1005,7 +1039,7 @@ class BillingController {
   // Payments Management
   async getAllPayments(req, res) {
     try {
-      const { member_id, status, payment_type, reference_id } = req.query;
+      const { member_id, status, payment_type, reference_id, limit = 50, offset = 0 } = req.query;
 
       const where = {};
       if (member_id) where.member_id = member_id;
@@ -1013,18 +1047,27 @@ class BillingController {
       if (payment_type) where.payment_type = payment_type;
       if (reference_id) where.reference_id = reference_id;
 
-      const payments = await prisma.payment.findMany({
-        where,
-        include: {
-          subscription: {
-            include: {
-              plan: true,
+      // Parse limit and offset, ensure they're reasonable
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per page
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const [payments, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          include: {
+            subscription: {
+              include: {
+                plan: true,
+              },
             },
+            bank_transfer: true, // Include bank transfer if exists
           },
-          bank_transfer: true, // Include bank transfer if exists
-        },
-        orderBy: { created_at: 'desc' },
-      });
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+        }),
+        prisma.payment.count({ where }),
+      ]);
 
       // Fetch member information for each payment
       const paymentsWithMembers = await Promise.all(
@@ -1095,6 +1138,12 @@ class BillingController {
         success: true,
         message: 'Payments retrieved successfully',
         data: paymentsWithMembers,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
       });
     } catch (error) {
       console.error('Get payments error:', error);
@@ -1250,38 +1299,49 @@ class BillingController {
   // Invoices Management
   async getAllInvoices(req, res) {
     try {
-      const { member_id, status, type } = req.query;
+      const { member_id, status, type, limit = 50, offset = 0 } = req.query;
 
       const where = {};
       if (member_id) where.member_id = member_id;
       if (status) where.status = status;
       if (type) where.type = type;
 
-      const invoices = await prisma.invoice.findMany({
-        where,
-        include: {
-          subscription: {
-            include: {
-              plan: true,
+      // Parse and limit pagination parameters
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per page
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const [invoices, total] = await Promise.all([
+        prisma.invoice.findMany({
+          where,
+          include: {
+            subscription: {
+              include: {
+                plan: true,
+              },
             },
+            payment: true,
           },
-          payment: true,
-        },
-        orderBy: { created_at: 'desc' },
-      });
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+        }),
+        prisma.invoice.count({ where }),
+      ]);
 
       res.json({
         success: true,
         message: 'Invoices retrieved successfully',
         data: invoices,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
       });
     } catch (error) {
       console.error('Get invoices error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to retrieve invoices',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get all invoices');
     }
   }
 
@@ -2325,6 +2385,10 @@ class BillingController {
   // Get active plans for registration
   async getActivePlans(req, res) {
     try {
+      // For active plans, we usually want all of them, but add limit for safety
+      const { limit = 50 } = req.query;
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 plans
+
       const plans = await prisma.membershipPlan.findMany({
         where: { is_active: true },
         select: {
@@ -2347,6 +2411,7 @@ class BillingController {
           is_featured: true,
         },
         orderBy: [{ is_featured: 'desc' }, { price: 'asc' }],
+        take: parsedLimit, // Add limit for safety
       });
 
       res.json({
@@ -2356,11 +2421,7 @@ class BillingController {
       });
     } catch (error) {
       console.error('Get active plans error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Lỗi khi lấy danh sách gói',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get active plans');
     }
   }
 

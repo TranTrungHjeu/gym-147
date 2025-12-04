@@ -746,6 +746,8 @@ class AnalyticsController {
       console.log('[DATE] Date range:', { startDate, endDate });
 
       // Get daily revenue data
+      // Limit to prevent loading too much data for large date ranges
+      // For analytics, we can use aggregation instead of loading all records
       const payments = await prisma.payment.findMany({
         where: {
           status: 'COMPLETED', // PaymentStatus enum: PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED
@@ -761,6 +763,7 @@ class AnalyticsController {
         orderBy: {
           created_at: 'asc',
         },
+        take: 10000, // Max 10k records for trend analysis
       });
 
       console.log(`[STATS] Found ${payments.length} payments`);
@@ -883,6 +886,7 @@ class AnalyticsController {
               orderBy: {
                 created_at: 'desc',
               },
+              take: 5000, // Limit to prevent loading too much data
             }),
           20000, // 20 seconds timeout for complex query with joins
           'Get revenue by plan payments',
