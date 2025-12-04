@@ -21,12 +21,16 @@ class NotificationWorker {
    */
   async initialize() {
     try {
-      const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      
+      // Use REDIS_URL from env, or fallback to localhost
+      // When running in Docker, use 'redis:6379', when running locally, try 'localhost:6380' (Docker exposed port)
+      const redisUrl =
+        process.env.REDIS_URL ||
+        (process.env.DOCKER_ENV === 'true' ? 'redis://redis:6379' : 'redis://localhost:6380');
+
       this.client = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
               console.error('[ERROR] Notification Worker: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
@@ -36,7 +40,7 @@ class NotificationWorker {
         },
       });
 
-      this.client.on('error', (err) => {
+      this.client.on('error', err => {
         console.error('[ERROR] Notification Worker Redis Error:', err);
         this.isConnected = false;
       });
@@ -63,14 +67,14 @@ class NotificationWorker {
    */
   async processNotification(notificationData) {
     try {
-      const { 
-        userId, 
-        memberId, 
-        type, 
-        title, 
-        message, 
-        data, 
-        channels = ['IN_APP'] 
+      const {
+        userId,
+        memberId,
+        type,
+        title,
+        message,
+        data,
+        channels = ['IN_APP'],
       } = notificationData;
 
       // Get user_id from member_id if needed
@@ -133,7 +137,7 @@ class NotificationWorker {
 
     try {
       const queueKey = `notifications:queue:${priority}`;
-      
+
       // Get notification from queue (blocking pop with timeout)
       // In redis v4+, blPop takes key and timeout as separate arguments
       const result = await this.client.blPop(
@@ -155,23 +159,28 @@ class NotificationWorker {
       if (!result_process.success) {
         // Retry logic
         const retryCount = (notificationData._retryCount || 0) + 1;
-        
+
         if (retryCount < this.maxRetries) {
           console.log(`[SYNC] Retrying notification (attempt ${retryCount}/${this.maxRetries})`);
           notificationData._retryCount = retryCount;
-          
+
           // Add back to queue with delay
           setTimeout(async () => {
             await this.enqueueNotification(notificationData, priority);
           }, this.retryDelay * retryCount);
         } else {
           // Move to dead letter queue
-          console.error(`[ERROR] Notification failed after ${this.maxRetries} retries, moving to DLQ`);
-          await this.client.lPush('notifications:dlq', JSON.stringify({
-            ...notificationData,
-            failed_at: new Date().toISOString(),
-            error: result_process.error,
-          }));
+          console.error(
+            `[ERROR] Notification failed after ${this.maxRetries} retries, moving to DLQ`
+          );
+          await this.client.lPush(
+            'notifications:dlq',
+            JSON.stringify({
+              ...notificationData,
+              failed_at: new Date().toISOString(),
+              error: result_process.error,
+            })
+          );
         }
       }
     } catch (error) {
@@ -260,4 +269,3 @@ if (require.main === module) {
 }
 
 module.exports = { NotificationWorker, notificationWorker };
-

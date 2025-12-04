@@ -17,7 +17,9 @@ services:
         condition: service_started
     restart: unless-stopped
   identity:
-    build: ../../services/identity-service
+    build:
+      context: ../../
+      dockerfile: services/identity-service/Dockerfile
     container_name: identity-service
     env_file: ../../services/identity-service/.env
     environment:
@@ -35,7 +37,9 @@ services:
       - ../../packages:/packages:ro
     restart: unless-stopped
   member:
-    build: ../../services/member-service
+    build:
+      context: ../../
+      dockerfile: services/member-service/Dockerfile
     container_name: member-service
     env_file: ../../services/member-service/.env
     environment:
@@ -52,7 +56,9 @@ services:
       - ../../packages:/packages:ro
     restart: unless-stopped
   schedule:
-    build: ../../services/schedule-service
+    build:
+      context: ../../
+      dockerfile: services/schedule-service/Dockerfile
     container_name: schedule-service
     env_file: ../../services/schedule-service/.env
     environment:
@@ -68,7 +74,9 @@ services:
       - ../../packages:/packages:ro
     restart: unless-stopped
   billing:
-    build: ../../services/billing-service
+    build:
+      context: ../../
+      dockerfile: services/billing-service/Dockerfile
     container_name: billing-service
     env_file: ../../services/billing-service/.env
     environment:

@@ -17,15 +17,16 @@ class CacheService {
    */
   async initialize() {
     try {
-      if (!process.env.REDIS_URL) {
-        throw new Error('REDIS_URL environment variable is required. Please set it in your .env file.');
-      }
-      const redisUrl = process.env.REDIS_URL;
-      
+      // Use REDIS_URL from env, or fallback to localhost
+      // When running in Docker, use 'redis:6379', when running locally, try 'localhost:6380' (Docker exposed port) or 'localhost:6379' (local Redis)
+      const redisUrl =
+        process.env.REDIS_URL ||
+        (process.env.DOCKER_ENV === 'true' ? 'redis://redis:6379' : 'redis://localhost:6380');
+
       this.client = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
               console.error('[ERROR] Redis: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
@@ -35,7 +36,7 @@ class CacheService {
         },
       });
 
-      this.client.on('error', (err) => {
+      this.client.on('error', err => {
         console.error('[ERROR] Redis Client Error:', err);
         this.isConnected = false;
       });
@@ -72,7 +73,7 @@ class CacheService {
    */
   generateKey(prefix, identifier, params = {}) {
     const keyParts = [prefix, identifier];
-    
+
     if (Object.keys(params).length > 0) {
       const paramString = Object.entries(params)
         .sort(([a], [b]) => a.localeCompare(b))
@@ -80,7 +81,7 @@ class CacheService {
         .join('|');
       keyParts.push(paramString);
     }
-    
+
     return keyParts.join(':');
   }
 
@@ -121,7 +122,7 @@ class CacheService {
     try {
       const serialized = JSON.stringify(value);
       const expireTime = ttl || this.defaultTTL;
-      
+
       await this.client.setEx(key, expireTime, serialized);
       return true;
     } catch (error) {
@@ -164,7 +165,7 @@ class CacheService {
       if (keys.length === 0) {
         return 0;
       }
-      
+
       await this.client.del(keys);
       return keys.length;
     } catch (error) {
@@ -208,7 +209,7 @@ class CacheService {
 
     // Fetch fresh data
     const freshData = await fetchFunction();
-    
+
     // Cache the fresh data
     if (freshData !== null && freshData !== undefined) {
       await this.set(key, freshData, ttl);
@@ -272,11 +273,11 @@ class CacheService {
       for (const tag of tags) {
         const pattern = `tag:${tag}:*`;
         const tagKeys = await this.client.keys(pattern);
-        
+
         if (tagKeys.length > 0) {
           // Get all keys associated with this tag
           const keys = await Promise.all(
-            tagKeys.map(async (tagKey) => {
+            tagKeys.map(async tagKey => {
               return await this.client.get(tagKey);
             })
           );
@@ -388,7 +389,7 @@ class CacheService {
       `queue:list:${equipmentId}`,
       `queue:position:${equipmentId}:*`,
     ];
-    
+
     let totalDeleted = 0;
     for (const pattern of patterns) {
       if (pattern.includes('*')) {
@@ -398,7 +399,7 @@ class CacheService {
         if (deleted) totalDeleted += 1;
       }
     }
-    
+
     return totalDeleted;
   }
 
@@ -410,11 +411,7 @@ class CacheService {
    * @returns {Promise<number>} - Queue length
    */
   async getOrSetQueueLength(equipmentId, fetchFunction, ttl = 300) {
-    return await this.getOrSet(
-      `queue:length:${equipmentId}`,
-      fetchFunction,
-      ttl
-    );
+    return await this.getOrSet(`queue:length:${equipmentId}`, fetchFunction, ttl);
   }
 
   /**
@@ -425,11 +422,7 @@ class CacheService {
    * @returns {Promise<Array>} - Queue list
    */
   async getOrSetQueueList(equipmentId, fetchFunction, ttl = 300) {
-    return await this.getOrSet(
-      `queue:list:${equipmentId}`,
-      fetchFunction,
-      ttl
-    );
+    return await this.getOrSet(`queue:list:${equipmentId}`, fetchFunction, ttl);
   }
 
   /**
@@ -624,4 +617,3 @@ process.on('SIGINT', async () => {
 });
 
 module.exports = cacheService;
-

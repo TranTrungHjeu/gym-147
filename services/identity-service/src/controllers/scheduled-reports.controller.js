@@ -1,4 +1,8 @@
 const prisma = require('../lib/prisma.js').prisma;
+const reportDataService = require('../services/report-data.service.js');
+const reportGenerationService = require('../services/report-generation.service.js');
+const reportStorageService = require('../services/report-storage.service.js');
+const reportEmailService = require('../services/report-email.service.js');
 
 class ScheduledReportsController {
   /**
@@ -85,6 +89,31 @@ class ScheduledReportsController {
         });
       }
 
+      // Calculate next_run_at based on schedule
+      let nextRunAt = null;
+      if (schedule && schedule.frequency) {
+        const now = new Date();
+        nextRunAt = new Date();
+
+        switch (schedule.frequency.toUpperCase()) {
+          case 'DAILY':
+            nextRunAt.setDate(now.getDate() + 1);
+            break;
+          case 'WEEKLY':
+            nextRunAt.setDate(now.getDate() + 7);
+            break;
+          case 'MONTHLY':
+            nextRunAt.setMonth(now.getMonth() + 1);
+            break;
+        }
+
+        // Set time if specified
+        if (schedule.time) {
+          const [hours, minutes] = schedule.time.split(':').map(Number);
+          nextRunAt.setHours(hours || 0, minutes || 0, 0, 0);
+        }
+      }
+
       const scheduledReport = await prisma.scheduledReport.create({
         data: {
           name,
@@ -94,6 +123,7 @@ class ScheduledReportsController {
           recipients,
           filters,
           is_active,
+          next_run_at: nextRunAt,
         },
       });
 
@@ -234,34 +264,186 @@ class ScheduledReportsController {
 
   /**
    * Generate report (async)
+   * Full implementation with data fetching, generation, storage, and email sending
    */
   async generateReport(scheduledReport) {
+    const startTime = Date.now();
+    console.log(
+      `[REPORT] Starting report generation: ${scheduledReport.name} (${scheduledReport.report_type}, ${scheduledReport.format})`
+    );
+    console.log(`[REPORT] Recipients: ${scheduledReport.recipients.join(', ')}`);
+
     try {
-      // This is a placeholder implementation
-      // In production, this would:
-      // 1. Fetch data based on report_type and filters
-      // 2. Generate report in the specified format (PDF, EXCEL, CSV)
-      // 3. Send report to recipients via email
-      // 4. Store report file for download
+      // Step 1: Fetch data based on report_type and filters
+      console.log('[REPORT] Step 1: Fetching data...');
+      const filters = scheduledReport.filters || {};
+      const reportData = await reportDataService.fetchReportData(
+        scheduledReport.report_type,
+        filters
+      );
+      console.log(
+        `[REPORT] Data fetched successfully (${
+          Array.isArray(reportData) ? reportData.length : 'object'
+        } items)`
+      );
 
-      console.log(`Generating ${scheduledReport.report_type} report in ${scheduledReport.format} format`);
-      console.log(`Recipients: ${scheduledReport.recipients.join(', ')}`);
+      // Step 2: Generate report in the specified format
+      console.log(`[REPORT] Step 2: Generating ${scheduledReport.format} report...`);
+      let fileBuffer;
+      const format = scheduledReport.format.toUpperCase();
 
-      // Simulate report generation delay
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      switch (format) {
+        case 'PDF':
+          fileBuffer = await reportGenerationService.generatePDF(
+            scheduledReport.report_type,
+            reportData,
+            {
+              title: scheduledReport.name,
+              filters,
+            }
+          );
+          break;
+        case 'EXCEL':
+          fileBuffer = await reportGenerationService.generateExcel(
+            scheduledReport.report_type,
+            reportData,
+            {
+              title: scheduledReport.name,
+              filters,
+            }
+          );
+          break;
+        case 'CSV':
+          fileBuffer = await reportGenerationService.generateCSV(
+            scheduledReport.report_type,
+            reportData,
+            {
+              title: scheduledReport.name,
+              filters,
+            }
+          );
+          break;
+        default:
+          throw new Error(`Unsupported format: ${format}`);
+      }
 
-      // In production, integrate with:
-      // - Report generation service/library (e.g., PDFKit, ExcelJS, csv-writer)
-      // - Email service to send reports
-      // - File storage service to store generated reports
+      console.log(
+        `[REPORT] Report generated successfully (${(fileBuffer.length / 1024).toFixed(2)} KB)`
+      );
 
-      console.log('Report generation completed (placeholder)');
+      // Step 3: Store report file in S3
+      console.log('[REPORT] Step 3: Uploading to S3...');
+      let downloadUrl = null;
+      try {
+        downloadUrl = await reportStorageService.uploadReport(
+          fileBuffer,
+          scheduledReport.id,
+          format,
+          scheduledReport.report_type
+        );
+        if (downloadUrl) {
+          console.log(`[REPORT] Report uploaded to S3: ${downloadUrl.substring(0, 50)}...`);
+        } else {
+          console.warn('[REPORT] S3 not configured, skipping upload');
+        }
+      } catch (storageError) {
+        console.error('[REPORT] S3 upload failed (non-critical):', storageError.message);
+        // Continue even if S3 upload fails
+      }
+
+      // Step 4: Send report to recipients via email
+      console.log('[REPORT] Step 4: Sending email to recipients...');
+      const emailResult = await reportEmailService.sendReport(
+        scheduledReport.recipients,
+        scheduledReport.name,
+        scheduledReport.report_type,
+        format,
+        fileBuffer,
+        downloadUrl
+      );
+
+      if (emailResult.success) {
+        console.log(`[REPORT] Email sent successfully to ${emailResult.recipients} recipient(s)`);
+      } else {
+        console.error('[REPORT] Email sending failed:', emailResult.error);
+        // Don't throw - log error but don't fail the entire process
+      }
+
+      // Update next_run_at based on schedule
+      await this.updateNextRunAt(scheduledReport);
+
+      const duration = ((Date.now() - startTime) / 1000).toFixed(2);
+      console.log(`[REPORT] Report generation completed successfully in ${duration}s`);
+
+      return {
+        success: true,
+        reportId: scheduledReport.id,
+        format,
+        size: fileBuffer.length,
+        downloadUrl,
+        emailSent: emailResult.success,
+        duration: `${duration}s`,
+      };
     } catch (error) {
-      console.error('Report generation error:', error);
+      console.error('[REPORT] Report generation error:', error);
+      console.error('[REPORT] Stack:', error.stack);
+
+      // Update next_run_at even on error (to prevent retry loops)
+      try {
+        await this.updateNextRunAt(scheduledReport);
+      } catch (updateError) {
+        console.error('[REPORT] Failed to update next_run_at:', updateError);
+      }
+
       throw error;
+    }
+  }
+
+  /**
+   * Calculate and update next_run_at based on schedule
+   * @param {Object} scheduledReport - Scheduled report
+   */
+  async updateNextRunAt(scheduledReport) {
+    try {
+      const schedule = scheduledReport.schedule;
+      if (!schedule || !schedule.frequency) {
+        return;
+      }
+
+      const now = new Date();
+      let nextRun = new Date();
+
+      switch (schedule.frequency.toUpperCase()) {
+        case 'DAILY':
+          nextRun.setDate(now.getDate() + 1);
+          break;
+        case 'WEEKLY':
+          nextRun.setDate(now.getDate() + 7);
+          break;
+        case 'MONTHLY':
+          nextRun.setMonth(now.getMonth() + 1);
+          break;
+        default:
+          // Don't update if frequency is unknown
+          return;
+      }
+
+      // Set time if specified
+      if (schedule.time) {
+        const [hours, minutes] = schedule.time.split(':').map(Number);
+        nextRun.setHours(hours || 0, minutes || 0, 0, 0);
+      }
+
+      await prisma.scheduledReport.update({
+        where: { id: scheduledReport.id },
+        data: { next_run_at: nextRun },
+      });
+
+      console.log(`[REPORT] Next run scheduled for: ${nextRun.toLocaleString('vi-VN')}`);
+    } catch (error) {
+      console.error('[REPORT] Error updating next_run_at:', error);
     }
   }
 }
 
 module.exports = new ScheduledReportsController();
-

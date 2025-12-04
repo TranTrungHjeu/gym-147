@@ -1,4 +1,4 @@
-﻿require('dotenv').config();
+require('dotenv').config();
 const cors = require('cors');
 const express = require('express');
 const http = require('http');
@@ -19,9 +19,8 @@ const server = http.createServer(app);
 // Initialize Socket.IO
 const io = new Server(server, {
   cors: {
-    origin: process.env.NODE_ENV === 'production' 
-      ? (process.env.ALLOWED_ORIGINS?.split(',') || [])
-      : '*',
+    origin:
+      process.env.NODE_ENV === 'production' ? process.env.ALLOWED_ORIGINS?.split(',') || [] : '*',
     methods: ['GET', 'POST', 'OPTIONS'],
     credentials: false,
   },
@@ -168,17 +167,22 @@ async function startServer() {
       errorHandler,
       notFoundHandler,
     } = require('../../../packages/shared-middleware/src/error.middleware.js');
-          app.use(notFoundHandler);
-          app.use(errorHandler);
+    app.use(notFoundHandler);
+    app.use(errorHandler);
 
-          // Start notification worker
-          await notificationWorker.start();
+    // Start notification worker
+    await notificationWorker.start();
 
-          const port = process.env.PORT || 3001;
-          const host = process.env.HOST || '0.0.0.0';
-          server.listen(port, host, () => {
-            console.log(`identity-service listening on port ${port}`);
-          });
+    // Start scheduled reports job
+    const scheduledReportsJob = require('./jobs/scheduled-reports.job.js');
+    scheduledReportsJob.start();
+    console.log('[SUCCESS] Scheduled reports job started');
+
+    const port = process.env.PORT || 3001;
+    const host = process.env.HOST || '0.0.0.0';
+    server.listen(port, host, () => {
+      console.log(`identity-service listening on port ${port}`);
+    });
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);
@@ -197,6 +201,11 @@ process.on('SIGINT', async () => {
     authController.stopPasswordResetCleanupJob();
   }
   await notificationWorker.stop();
+
+  // Stop scheduled reports job
+  const scheduledReportsJob = require('./jobs/scheduled-reports.job.js');
+  scheduledReportsJob.stop();
+
   process.exit(0);
 });
 
@@ -209,5 +218,10 @@ process.on('SIGTERM', async () => {
     authController.stopPasswordResetCleanupJob();
   }
   await notificationWorker.stop();
+
+  // Stop scheduled reports job
+  const scheduledReportsJob = require('./jobs/scheduled-reports.job.js');
+  scheduledReportsJob.stop();
+
   process.exit(0);
 });
