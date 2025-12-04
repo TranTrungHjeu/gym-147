@@ -18,3 +18,5 @@ infrastructure/docker/docker-compose.prod.yml
 infrastructure/docker/docker-compose.yml
 services/identity-service/.dockerignore
 services/billing-service/.dockerignore
+infrastructure/gateway/entrypoint.sh
+infrastructure/gateway/run-local.sh

@@ -58,42 +58,65 @@ is_https_url() {
     fi
 }
 
-# Set defaults if not provided
-# Priority: HOST/PORT env vars > URL env var > defaults
-if [ -z "$IDENTITY_SERVICE_HOST" ] && [ -n "$IDENTITY_SERVICE_URL" ]; then
-    IDENTITY_SERVICE_HOST=$(extract_host "$IDENTITY_SERVICE_URL" "identity")
+# Detect if running locally (not in Docker network)
+# If DOCKER_ENV is not set or false, use host.docker.internal for services
+# host.docker.internal allows Docker container to access services on host machine
+if [ "$DOCKER_ENV" != "true" ]; then
+    # Running locally - use host.docker.internal (for Docker container accessing host)
+    # or localhost (if gateway runs natively, not in Docker)
+    IDENTITY_SERVICE_HOST=${IDENTITY_SERVICE_HOST:-host.docker.internal}
+    MEMBER_SERVICE_HOST=${MEMBER_SERVICE_HOST:-host.docker.internal}
+    SCHEDULE_SERVICE_HOST=${SCHEDULE_SERVICE_HOST:-host.docker.internal}
+    BILLING_SERVICE_HOST=${BILLING_SERVICE_HOST:-host.docker.internal}
+else
+    # Running in Docker - use service names
+    # Set defaults if not provided
+    # Priority: HOST/PORT env vars > URL env var > defaults
+    if [ -z "$IDENTITY_SERVICE_HOST" ] && [ -n "$IDENTITY_SERVICE_URL" ]; then
+        IDENTITY_SERVICE_HOST=$(extract_host "$IDENTITY_SERVICE_URL" "identity")
+    fi
+    IDENTITY_SERVICE_HOST=${IDENTITY_SERVICE_HOST:-identity}
 fi
-IDENTITY_SERVICE_HOST=${IDENTITY_SERVICE_HOST:-identity}
 
+# Port configuration (same for both local and Docker)
 if [ -z "$IDENTITY_SERVICE_PORT" ] && [ -n "$IDENTITY_SERVICE_URL" ]; then
     IDENTITY_SERVICE_PORT=$(extract_port "$IDENTITY_SERVICE_URL" "3001")
 fi
 IDENTITY_SERVICE_PORT=${IDENTITY_SERVICE_PORT:-3001}
 
-if [ -z "$MEMBER_SERVICE_HOST" ] && [ -n "$MEMBER_SERVICE_URL" ]; then
-    MEMBER_SERVICE_HOST=$(extract_host "$MEMBER_SERVICE_URL" "member")
+# Member service host (only set if in Docker mode and not already set)
+if [ "$DOCKER_ENV" = "true" ]; then
+    if [ -z "$MEMBER_SERVICE_HOST" ] && [ -n "$MEMBER_SERVICE_URL" ]; then
+        MEMBER_SERVICE_HOST=$(extract_host "$MEMBER_SERVICE_URL" "member")
+    fi
+    MEMBER_SERVICE_HOST=${MEMBER_SERVICE_HOST:-member}
 fi
-MEMBER_SERVICE_HOST=${MEMBER_SERVICE_HOST:-member}
 
 if [ -z "$MEMBER_SERVICE_PORT" ] && [ -n "$MEMBER_SERVICE_URL" ]; then
     MEMBER_SERVICE_PORT=$(extract_port "$MEMBER_SERVICE_URL" "3002")
 fi
 MEMBER_SERVICE_PORT=${MEMBER_SERVICE_PORT:-3002}
 
-if [ -z "$SCHEDULE_SERVICE_HOST" ] && [ -n "$SCHEDULE_SERVICE_URL" ]; then
-    SCHEDULE_SERVICE_HOST=$(extract_host "$SCHEDULE_SERVICE_URL" "schedule")
+# Schedule service host (only set if in Docker mode and not already set)
+if [ "$DOCKER_ENV" = "true" ]; then
+    if [ -z "$SCHEDULE_SERVICE_HOST" ] && [ -n "$SCHEDULE_SERVICE_URL" ]; then
+        SCHEDULE_SERVICE_HOST=$(extract_host "$SCHEDULE_SERVICE_URL" "schedule")
+    fi
+    SCHEDULE_SERVICE_HOST=${SCHEDULE_SERVICE_HOST:-schedule}
 fi
-SCHEDULE_SERVICE_HOST=${SCHEDULE_SERVICE_HOST:-schedule}
 
 if [ -z "$SCHEDULE_SERVICE_PORT" ] && [ -n "$SCHEDULE_SERVICE_URL" ]; then
     SCHEDULE_SERVICE_PORT=$(extract_port "$SCHEDULE_SERVICE_URL" "3003")
 fi
 SCHEDULE_SERVICE_PORT=${SCHEDULE_SERVICE_PORT:-3003}
 
-if [ -z "$BILLING_SERVICE_HOST" ] && [ -n "$BILLING_SERVICE_URL" ]; then
-    BILLING_SERVICE_HOST=$(extract_host "$BILLING_SERVICE_URL" "billing")
+# Billing service host (only set if in Docker mode and not already set)
+if [ "$DOCKER_ENV" = "true" ]; then
+    if [ -z "$BILLING_SERVICE_HOST" ] && [ -n "$BILLING_SERVICE_URL" ]; then
+        BILLING_SERVICE_HOST=$(extract_host "$BILLING_SERVICE_URL" "billing")
+    fi
+    BILLING_SERVICE_HOST=${BILLING_SERVICE_HOST:-billing}
 fi
-BILLING_SERVICE_HOST=${BILLING_SERVICE_HOST:-billing}
 
 if [ -z "$BILLING_SERVICE_PORT" ] && [ -n "$BILLING_SERVICE_URL" ]; then
     # Extract port from URL, but if no port in URL, use default 3004 for billing service

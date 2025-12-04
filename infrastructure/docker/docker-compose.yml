@@ -1,9 +1,21 @@
 services:
   gateway:
-    image: nginx:stable
+    build:
+      context: ../gateway
+      dockerfile: Dockerfile
     container_name: api-gateway
+    environment:
+      - PORT=80
+      - IDENTITY_SERVICE_HOST=identity
+      - IDENTITY_SERVICE_PORT=3001
+      - MEMBER_SERVICE_HOST=member
+      - MEMBER_SERVICE_PORT=3002
+      - SCHEDULE_SERVICE_HOST=schedule
+      - SCHEDULE_SERVICE_PORT=3003
+      - BILLING_SERVICE_HOST=billing
+      - BILLING_SERVICE_PORT=3004
+      - DOCKER_ENV=true
     volumes:
-      - ../gateway/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ../../apps/web-admin/dist:/usr/share/nginx/html:ro
     ports: ["8080:80"]
     depends_on:
