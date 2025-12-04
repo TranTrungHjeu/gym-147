@@ -422,6 +422,9 @@ model RewardRedemption {
   @@index([member_id, status])
   @@index([code])
   @@index([redeemed_at])
+  @@index([status, redeemed_at]) // Composite for trend queries with status filter
+  @@index([member_id, redeemed_at]) // Composite for member redemption history
+  @@index([reward_id, redeemed_at]) // Composite for reward analytics
   @@map("reward_redemptions")
 }
 
