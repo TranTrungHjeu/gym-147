@@ -18,6 +18,7 @@ class RevenueReportService {
       endOfDay.setHours(23, 59, 59, 999);
 
       // Get all payments for the day
+      // Add limit for safety (unlikely to have > 10k payments in one day, but be safe)
       const payments = await prisma.payment.findMany({
         where: {
           created_at: {
@@ -33,6 +34,7 @@ class RevenueReportService {
             },
           },
         },
+        take: 10000, // Safety limit (very unlikely to exceed for daily report)
       });
 
       // Calculate revenue by type
@@ -43,7 +45,7 @@ class RevenueReportService {
 
       payments.forEach(payment => {
         const amount = Number(payment.amount);
-        
+
         if (payment.subscription_id) {
           // Subscription payment
           subscription_revenue += amount;
@@ -158,9 +160,9 @@ class RevenueReportService {
       }
     } catch (error) {
       console.error('Generate daily report error:', error);
-      
+
       // Handle database connection errors (P1001: Can't reach database server)
-      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
         console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
         return {
           success: false,
@@ -168,19 +170,25 @@ class RevenueReportService {
           message: 'Database service temporarily unavailable',
         };
       }
-      
+
       // Handle timeout errors
-      if (error.code === 'P1008' || error.code === 'P1014' || 
-          error.message?.includes('timeout') || 
-          error.message?.includes('timed out')) {
-        console.error('[ERROR] Database operation timed out in RevenueReportService:', error.message);
+      if (
+        error.code === 'P1008' ||
+        error.code === 'P1014' ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('timed out')
+      ) {
+        console.error(
+          '[ERROR] Database operation timed out in RevenueReportService:',
+          error.message
+        );
         return {
           success: false,
           error: 'DATABASE_TIMEOUT_ERROR',
           message: 'Database operation timed out',
         };
       }
-      
+
       // Handle other Prisma errors
       if (error.code?.startsWith('P')) {
         console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
@@ -190,7 +198,7 @@ class RevenueReportService {
           message: 'Database query failed',
         };
       }
-      
+
       return {
         success: false,
         error: 'INTERNAL_ERROR',
@@ -261,9 +269,9 @@ class RevenueReportService {
       };
     } catch (error) {
       console.error('Get reports error:', error);
-      
+
       // Handle database connection errors
-      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
         console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
         return {
           success: false,
@@ -271,7 +279,7 @@ class RevenueReportService {
           message: 'Database service temporarily unavailable',
         };
       }
-      
+
       // Handle other Prisma errors
       if (error.code?.startsWith('P')) {
         console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
@@ -281,7 +289,7 @@ class RevenueReportService {
           message: 'Database query failed',
         };
       }
-      
+
       return {
         success: false,
         error: 'INTERNAL_ERROR',
@@ -322,10 +330,8 @@ class RevenueReportService {
       }
 
       // Calculate daily average
-      const dailyAvg = reports.reduce(
-        (sum, report) => sum + Number(report.total_revenue),
-        0
-      ) / reports.length;
+      const dailyAvg =
+        reports.reduce((sum, report) => sum + Number(report.total_revenue), 0) / reports.length;
 
       // Calculate growth rate (simple linear regression)
       const growthRate = this.calculateGrowthRate(reports);
@@ -340,7 +346,7 @@ class RevenueReportService {
         forecastDate.setDate(forecastDate.getDate() + i);
 
         // Simple forecast: average + growth
-        const forecastedRevenue = dailyAvg * (1 + growthRate * i / 30);
+        const forecastedRevenue = dailyAvg * (1 + (growthRate * i) / 30);
 
         forecast.push({
           date: forecastDate,
@@ -348,10 +354,7 @@ class RevenueReportService {
         });
       }
 
-      const totalForecast = forecast.reduce(
-        (sum, item) => sum + item.forecasted_revenue,
-        0
-      );
+      const totalForecast = forecast.reduce((sum, item) => sum + item.forecasted_revenue, 0);
 
       return {
         success: true,
@@ -365,9 +368,9 @@ class RevenueReportService {
       };
     } catch (error) {
       console.error('Forecast revenue error:', error);
-      
+
       // Handle database connection errors (P1001: Can't reach database server)
-      if (error.code === 'P1001' || error.message?.includes('Can\'t reach database server')) {
+      if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
         console.error('[ERROR] Database connection failed in RevenueReportService:', error.message);
         return {
           success: false,
@@ -375,19 +378,25 @@ class RevenueReportService {
           message: 'Database service temporarily unavailable',
         };
       }
-      
+
       // Handle timeout errors
-      if (error.code === 'P1008' || error.code === 'P1014' || 
-          error.message?.includes('timeout') || 
-          error.message?.includes('timed out')) {
-        console.error('[ERROR] Database operation timed out in RevenueReportService:', error.message);
+      if (
+        error.code === 'P1008' ||
+        error.code === 'P1014' ||
+        error.message?.includes('timeout') ||
+        error.message?.includes('timed out')
+      ) {
+        console.error(
+          '[ERROR] Database operation timed out in RevenueReportService:',
+          error.message
+        );
         return {
           success: false,
           error: 'DATABASE_TIMEOUT_ERROR',
           message: 'Database operation timed out',
         };
       }
-      
+
       // Handle other Prisma errors
       if (error.code?.startsWith('P')) {
         console.error('[ERROR] Prisma error in RevenueReportService:', error.code, error.message);
@@ -397,7 +406,7 @@ class RevenueReportService {
           message: 'Database query failed',
         };
       }
-      
+
       return {
         success: false,
         error: 'INTERNAL_ERROR',
@@ -438,4 +447,3 @@ class RevenueReportService {
 }
 
 module.exports = new RevenueReportService();
-

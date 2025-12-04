@@ -1867,7 +1867,10 @@ class MemberController {
     try {
       // Support both GET (query params) and POST (body with member_ids)
       const member_ids = req.body?.member_ids || req.query?.member_ids;
-      const { membership_type, status, search, limit = 10000 } = req.query;
+      const { membership_type, status, search, limit = 1000 } = req.query;
+
+      // Parse and limit pagination parameters
+      const parsedLimit = Math.min(parseInt(limit) || 1000, 5000); // Max 5000 for notifications
 
       let where = {};
 
@@ -1900,7 +1903,7 @@ class MemberController {
           membership_status: true,
           membership_type: true,
         },
-        take: parseInt(limit),
+        take: parsedLimit,
         orderBy: { created_at: 'desc' },
       });
 

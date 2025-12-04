@@ -2,12 +2,16 @@
 const { prisma } = require('../lib/prisma');
 let distributedLock = null;
 try {
-  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+  distributedLock =
+    require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
 } catch (e) {
   try {
-    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+    distributedLock =
+      require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('[WARNING] Distributed lock utility not available, reward redemption will use database transactions only');
+    console.warn(
+      '[WARNING] Distributed lock utility not available, reward redemption will use database transactions only'
+    );
   }
 }
 const pointsService = require('./points.service.js');
@@ -44,11 +48,16 @@ class RewardService {
       } = rewardData;
 
       // Validate: chỉ được có một trong hai (discount_percent hoặc discount_amount)
-      const hasPercent = discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
-      const hasAmount = discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
-      
+      const hasPercent =
+        discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
+      const hasAmount =
+        discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
+
       if (hasPercent && hasAmount) {
-        return { success: false, error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai' };
+        return {
+          success: false,
+          error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai',
+        };
       }
 
       const reward = await prisma.reward.create({
@@ -113,11 +122,16 @@ class RewardService {
       } = updateData;
 
       // Validate: chỉ được có một trong hai (discount_percent hoặc discount_amount)
-      const hasPercent = discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
-      const hasAmount = discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
-      
+      const hasPercent =
+        discount_percent !== undefined && discount_percent !== null && discount_percent !== '';
+      const hasAmount =
+        discount_amount !== undefined && discount_amount !== null && discount_amount !== '';
+
       if (hasPercent && hasAmount) {
-        return { success: false, error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai' };
+        return {
+          success: false,
+          error: 'Chỉ được chọn một loại giảm giá: phần trăm HOẶC số tiền, không được có cả hai',
+        };
       }
 
       const dataToUpdate = {};
@@ -127,7 +141,7 @@ class RewardService {
       if (category !== undefined) dataToUpdate.category = category;
       if (points_cost !== undefined) dataToUpdate.points_cost = points_cost;
       if (image_url !== undefined) dataToUpdate.image_url = image_url;
-      
+
       // Handle discount fields: clear one when the other is set
       if (discount_percent !== undefined) {
         if (discount_percent !== null && discount_percent !== '') {
@@ -148,22 +162,18 @@ class RewardService {
       }
       if (reward_type !== undefined) dataToUpdate.reward_type = reward_type;
       if (stock_quantity !== undefined) {
-        dataToUpdate.stock_quantity = stock_quantity !== null && stock_quantity !== '' 
-          ? parseInt(stock_quantity) 
-          : null;
+        dataToUpdate.stock_quantity =
+          stock_quantity !== null && stock_quantity !== '' ? parseInt(stock_quantity) : null;
       }
       if (redemption_limit !== undefined) {
-        dataToUpdate.redemption_limit = redemption_limit !== null && redemption_limit !== '' 
-          ? parseInt(redemption_limit) 
-          : null;
+        dataToUpdate.redemption_limit =
+          redemption_limit !== null && redemption_limit !== '' ? parseInt(redemption_limit) : null;
       }
       if (valid_from !== undefined) {
         dataToUpdate.valid_from = valid_from ? new Date(valid_from) : new Date();
       }
       if (valid_until !== undefined) {
-        dataToUpdate.valid_until = valid_until && valid_until !== '' 
-          ? new Date(valid_until) 
-          : null;
+        dataToUpdate.valid_until = valid_until && valid_until !== '' ? new Date(valid_until) : null;
       }
       if (terms_conditions !== undefined) dataToUpdate.terms_conditions = terms_conditions;
       if (is_active !== undefined) dataToUpdate.is_active = is_active;
@@ -231,10 +241,17 @@ class RewardService {
    */
   async getRewards(filters = {}) {
     try {
-      const { category, is_active = true, min_points, max_points } = filters;
+      const {
+        category,
+        is_active = true,
+        min_points,
+        max_points,
+        limit = 100,
+        offset = 0,
+      } = filters;
 
       const now = new Date();
-      
+
       // Build base conditions
       const baseConditions = {
         is_active: true,
@@ -259,7 +276,7 @@ class RewardService {
 
       // Add category filter if provided
       if (category) where.category = category;
-      
+
       // Add points cost filter if provided
       if (min_points !== undefined || max_points !== undefined) {
         where.points_cost = {};
@@ -267,8 +284,13 @@ class RewardService {
         if (max_points !== undefined) where.points_cost.lte = max_points;
       }
 
+      // Parse and limit pagination parameters
+      const parsedLimit = Math.min(parseInt(limit) || 100, 200); // Max 200 per page
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
       // Query rewards first, then filter valid_until in JavaScript
       // This avoids Prisma OR complexity with nullable fields
+      // Add pagination to prevent loading too many records
       const allRewards = await prisma.reward.findMany({
         where,
         include: {
@@ -281,22 +303,36 @@ class RewardService {
         orderBy: {
           points_cost: 'asc',
         },
+        take: parsedLimit,
+        skip: parsedOffset,
       });
 
       // Filter by valid_until: valid_until >= now OR valid_until IS NULL
-      const validRewards = allRewards.filter((reward) => {
+      const validRewards = allRewards.filter(reward => {
         if (reward.valid_until === null) return true; // No expiration
         return new Date(reward.valid_until) >= now; // Not expired
       });
 
       // Filter out rewards with no stock
-      const availableRewards = validRewards.filter((reward) => {
+      const availableRewards = validRewards.filter(reward => {
         if (reward.stock_quantity === null) return true; // Unlimited
         const redeemedCount = reward._count.redemptions || 0;
         return redeemedCount < reward.stock_quantity;
       });
 
-      return { success: true, rewards: availableRewards };
+      // Get total count for pagination (before filtering)
+      const total = await prisma.reward.count({ where });
+
+      return {
+        success: true,
+        rewards: availableRewards,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
+      };
     } catch (error) {
       console.error('Get rewards error:', error);
       return { success: false, error: error.message };
@@ -369,7 +405,7 @@ class RewardService {
 
     try {
       // [SUCCESS] Use transaction to prevent race condition
-      const result = await prisma.$transaction(async (tx) => {
+      const result = await prisma.$transaction(async tx => {
         // 1. Get reward with redemption count (lock for update)
         const reward = await tx.reward.findUnique({
           where: { id: rewardId },
@@ -511,7 +547,7 @@ class RewardService {
             },
             channels: ['IN_APP', 'PUSH'],
           })
-          .catch((err) => console.error('Notification error:', err));
+          .catch(err => console.error('Notification error:', err));
 
         // 11. Emit socket event for real-time update (async, don't wait)
         rewardSocketHelper
@@ -529,7 +565,7 @@ class RewardService {
             expires_at: expiresAt,
             redeemed_at: redemption.redeemed_at,
           })
-          .catch((err) => console.error('Socket emit error:', err));
+          .catch(err => console.error('Socket emit error:', err));
 
         // 12. Emit socket event to admin/super admin (async, don't wait)
         rewardSocketHelper
@@ -547,7 +583,7 @@ class RewardService {
             code,
             redeemed_at: redemption.redeemed_at,
           })
-          .catch((err) => console.error('Socket emit to admin error:', err));
+          .catch(err => console.error('Socket emit to admin error:', err));
 
         return {
           success: true,
@@ -703,7 +739,7 @@ class RewardService {
   async expireOldRedemptions() {
     try {
       const now = new Date();
-      
+
       // Get redemptions that will be expired (before updating)
       const redemptionsToExpire = await prisma.rewardRedemption.findMany({
         where: {
@@ -737,7 +773,7 @@ class RewardService {
 
       // Emit socket events for all expired redemptions (async)
       if (redemptionsToExpire.length > 0) {
-        redemptionsToExpire.forEach((redemption) => {
+        redemptionsToExpire.forEach(redemption => {
           rewardSocketHelper
             .emitRewardExpired(redemption.member_id, {
               id: redemption.id,
@@ -749,7 +785,7 @@ class RewardService {
               code: redemption.code,
               expires_at: redemption.expires_at,
             })
-            .catch((err) => console.error(`Socket emit error for redemption ${redemption.id}:`, err));
+            .catch(err => console.error(`Socket emit error for redemption ${redemption.id}:`, err));
         });
       }
 
@@ -829,7 +865,7 @@ class RewardService {
       // Default to last 12 months if no dates provided
       const end = endDate ? new Date(endDate) : new Date();
       const start = startDate ? new Date(startDate) : new Date();
-      
+
       if (period === 'monthly') {
         start.setMonth(start.getMonth() - 12);
       } else if (period === 'weekly') {
@@ -839,6 +875,8 @@ class RewardService {
       }
 
       // Query redemptions in date range
+      // Limit to prevent loading too much data at once
+      // For analytics, we can aggregate in the database instead of loading all records
       const redemptions = await prisma.rewardRedemption.findMany({
         where: {
           redeemed_at: {
@@ -853,6 +891,9 @@ class RewardService {
         orderBy: {
           redeemed_at: 'asc',
         },
+        // Add reasonable limit to prevent timeout
+        // For large datasets, consider using database aggregation instead
+        take: 10000, // Max 10k records for trend analysis
       });
 
       // Group by period
@@ -861,7 +902,7 @@ class RewardService {
       const redemptionsCount = [];
       const pointsSpent = [];
 
-      redemptions.forEach((redemption) => {
+      redemptions.forEach(redemption => {
         const date = new Date(redemption.redeemed_at);
         let key;
 
@@ -956,10 +997,10 @@ class RewardService {
         }
 
         const redemptions = reward.redemptions;
-        const activeCount = redemptions.filter((r) => r.status === 'ACTIVE').length;
-        const usedCount = redemptions.filter((r) => r.status === 'USED').length;
-        const expiredCount = redemptions.filter((r) => r.status === 'EXPIRED').length;
-        const refundedCount = redemptions.filter((r) => r.status === 'REFUNDED').length;
+        const activeCount = redemptions.filter(r => r.status === 'ACTIVE').length;
+        const usedCount = redemptions.filter(r => r.status === 'USED').length;
+        const expiredCount = redemptions.filter(r => r.status === 'EXPIRED').length;
+        const refundedCount = redemptions.filter(r => r.status === 'REFUNDED').length;
         const totalPointsSpent = redemptions.reduce((sum, r) => sum + r.points_spent, 0);
 
         return {
@@ -979,20 +1020,21 @@ class RewardService {
         };
       } else {
         // Global stats
-        const [totalRewards, activeRewards, totalRedemptions, popularRewardsData] = await Promise.all([
-          prisma.reward.count(),
-          prisma.reward.count({ where: { is_active: true } }),
-          prisma.rewardRedemption.count(),
-          prisma.rewardRedemption.groupBy({
-            by: ['reward_id'],
-            _count: { id: true },
-            orderBy: { _count: { id: 'desc' } },
-            take: 10,
-          }),
-        ]);
+        const [totalRewards, activeRewards, totalRedemptions, popularRewardsData] =
+          await Promise.all([
+            prisma.reward.count(),
+            prisma.reward.count({ where: { is_active: true } }),
+            prisma.rewardRedemption.count(),
+            prisma.rewardRedemption.groupBy({
+              by: ['reward_id'],
+              _count: { id: true },
+              orderBy: { _count: { id: 'desc' } },
+              take: 10,
+            }),
+          ]);
 
         // Get reward details for popular rewards
-        const popularRewardIds = popularRewardsData.map((r) => r.reward_id);
+        const popularRewardIds = popularRewardsData.map(r => r.reward_id);
         const popularRewardDetails = await prisma.reward.findMany({
           where: { id: { in: popularRewardIds } },
           select: {
@@ -1002,8 +1044,8 @@ class RewardService {
           },
         });
 
-        const popularRewards = popularRewardsData.map((r) => {
-          const reward = popularRewardDetails.find((rd) => rd.id === r.reward_id);
+        const popularRewards = popularRewardsData.map(r => {
+          const reward = popularRewardDetails.find(rd => rd.id === r.reward_id);
           return {
             reward_id: r.reward_id,
             title: reward?.title || 'Unknown',
@@ -1030,4 +1072,3 @@ class RewardService {
 }
 
 module.exports = new RewardService();
-
