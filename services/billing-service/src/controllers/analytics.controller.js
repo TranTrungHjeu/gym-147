@@ -22,12 +22,9 @@ class AnalyticsController {
 
     const executeQuery = async (attempt = 0) => {
       try {
-        // Check connection health before query
-        const isHealthy = await checkConnectionHealth();
-        if (!isHealthy) {
-          console.log(`[INFO] Connection unhealthy, attempting reconnect before ${queryName}...`);
-          await reconnectDatabase();
-        }
+        // Don't check connection health before every query - Prisma manages its own pool
+        // Only reconnect if we get a connection error
+        // This prevents creating unnecessary connections
 
         // Create fresh query promise for each attempt
         const queryPromise = queryFn();
@@ -49,18 +46,22 @@ class AnalyticsController {
           error.message?.includes('connection') ||
           error.message?.includes('ECONNREFUSED') ||
           error.message?.includes('ETIMEDOUT') ||
-          error.message?.includes('ENOTFOUND');
+          error.message?.includes('ENOTFOUND') ||
+          error.message?.includes('MaxClientsInSessionMode') ||
+          error.message?.includes('max clients reached') ||
+          error.message?.includes('pool_size');
 
         if (isConnectionError && attempt < maxRetries) {
-          const retryDelay = 1000 * (attempt + 1); // Exponential backoff: 1s, 2s, 3s...
+          const retryDelay = 2000 * (attempt + 1); // Exponential backoff: 2s, 4s, 6s...
           console.log(
             `[RETRY] Retrying ${queryName} after connection error (attempt ${
               attempt + 1
             }/${maxRetries}, delay ${retryDelay}ms): ${error.message}`
           );
 
-          // Attempt to reconnect before retry
-          await reconnectDatabase();
+          // Don't force reconnect - Prisma will handle connection pool automatically
+          // Forcing reconnect creates more connections
+          // Just wait and retry, Prisma connection pool will recover
 
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return executeQuery(attempt + 1);
@@ -78,6 +79,22 @@ class AnalyticsController {
    */
   handleDatabaseError(error, res, context = 'Operation') {
     console.error(`[ERROR] ${context} error:`, error);
+
+    // Handle max clients error (Railway/Supabase Session mode limit)
+    if (
+      error.message?.includes('MaxClientsInSessionMode') ||
+      error.message?.includes('max clients reached') ||
+      error.message?.includes('pool_size')
+    ) {
+      console.error('[ERROR] Database connection pool exhausted:', error.message);
+      console.log('[INFO] Returning 503 Service Unavailable response');
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection pool is full. Please try again in a moment.',
+        error: 'DATABASE_POOL_EXHAUSTED',
+        data: null,
+      });
+    }
 
     // Handle database connection errors (P1001: Can't reach database server)
     if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {

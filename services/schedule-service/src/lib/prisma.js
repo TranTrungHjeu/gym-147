@@ -11,13 +11,30 @@ if (process.env.DATABASE_URL) {
   console.warn('[WARNING] DATABASE_URL is not set!');
 }
 
-// Modify DATABASE_URL to include search_path if not already present
+// Modify DATABASE_URL to include search_path and connection pool parameters
 let databaseUrl = process.env.DATABASE_URL;
-if (databaseUrl && !databaseUrl.includes('search_path')) {
+if (databaseUrl) {
   const separator = databaseUrl.includes('?') ? '&' : '?';
-  databaseUrl = `${databaseUrl}${separator}search_path=schedule_schema,public`;
-  // Update process.env for this process
-  process.env.DATABASE_URL = databaseUrl;
+  const params = [];
+
+  // Add search_path if not present
+  if (!databaseUrl.includes('search_path')) {
+    params.push('search_path=schedule_schema,public');
+  }
+
+  // Add connection pool parameters if not present
+  if (!databaseUrl.includes('connection_limit')) {
+    params.push('connection_limit=5');
+    params.push('pool_timeout=20');
+    params.push('connect_timeout=10');
+  }
+
+  if (params.length > 0) {
+    databaseUrl = `${databaseUrl}${separator}${params.join('&')}`;
+    // Update process.env for this process
+    process.env.DATABASE_URL = databaseUrl;
+    console.log('[INFO] Added connection pool and search_path parameters to DATABASE_URL');
+  }
 }
 
 // Create base Prisma client

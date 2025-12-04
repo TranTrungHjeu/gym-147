@@ -3,15 +3,35 @@ require('dotenv').config();
 
 const { PrismaClient } = require('@prisma/client');
 
+// Parse DATABASE_URL to add connection pool parameters if not present
+let databaseUrl = process.env.DATABASE_URL;
+if (databaseUrl && !databaseUrl.includes('connection_limit')) {
+  try {
+    const url = new URL(databaseUrl);
+    // Set connection limit to 5 to prevent max clients error
+    // This is conservative but safe for Railway/Supabase Session mode
+    url.searchParams.set('connection_limit', '5');
+    url.searchParams.set('pool_timeout', '20');
+    url.searchParams.set('connect_timeout', '10');
+    databaseUrl = url.toString();
+    console.log('[INFO] Added connection pool parameters to DATABASE_URL');
+  } catch (error) {
+    // If URL parsing fails, append parameters manually
+    const separator = databaseUrl.includes('?') ? '&' : '?';
+    databaseUrl = `${databaseUrl}${separator}connection_limit=5&pool_timeout=20&connect_timeout=10`;
+    console.log('[INFO] Appended connection pool parameters to DATABASE_URL');
+  }
+}
+
 // Prisma Client with connection pool configuration
 // Connection pool settings are configured via DATABASE_URL connection string parameters:
-// ?connection_limit=10&pool_timeout=20&connect_timeout=10
+// ?connection_limit=5&pool_timeout=20&connect_timeout=10
 const prisma = new PrismaClient({
   log:
     process.env.NODE_ENV === 'development' ? ['query', 'info', 'warn', 'error'] : ['warn', 'error'],
   datasources: {
     db: {
-      url: process.env.DATABASE_URL,
+      url: databaseUrl,
     },
   },
 });
@@ -55,10 +75,21 @@ async function connectDatabase() {
 
 /**
  * Check database connection health
+ * Uses a lightweight check that doesn't create new connections
  */
 async function checkConnectionHealth() {
+  // Skip health check if we're already connected to avoid unnecessary queries
+  if (isConnected) {
+    return true;
+  }
+
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    // Use a simple query with timeout to check connection
+    await Promise.race([
+      prisma.$queryRaw`SELECT 1`,
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 2000)),
+    ]);
+
     if (!isConnected) {
       console.log('[INFO] Database connection restored');
       isConnected = true;
@@ -66,28 +97,59 @@ async function checkConnectionHealth() {
     }
     return true;
   } catch (error) {
-    isConnected = false;
-    console.warn('[WARNING] Database connection health check failed:', error.message);
+    // Only log if it's a real connection error, not timeout
+    if (!error.message.includes('timeout')) {
+      isConnected = false;
+      console.warn('[WARNING] Database connection health check failed:', error.message);
+    }
     return false;
   }
 }
 
 /**
  * Reconnect to database if connection is lost
+ * IMPORTANT: Do NOT disconnect/reconnect as it creates new connections
+ * Instead, just try to use the existing connection pool
  */
+let isReconnecting = false;
+
 async function reconnectDatabase() {
+  // Prevent multiple simultaneous reconnection attempts
+  if (isReconnecting) {
+    return false;
+  }
+
   if (isConnected) {
     return true;
   }
 
+  isReconnecting = true;
+
   try {
     console.log('[INFO] Attempting to reconnect to database...');
-    await prisma.$disconnect();
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    await connectDatabase();
-    return true;
+
+    // Don't disconnect - Prisma manages its own connection pool
+    // Just try to use the connection
+    try {
+      await prisma.$queryRaw`SELECT 1`;
+      isConnected = true;
+      connectionRetries = 0;
+      console.log('[SUCCESS] Database connection restored');
+      isReconnecting = false;
+      return true;
+    } catch (error) {
+      // If query fails, the connection pool will handle reconnection automatically
+      // Don't force disconnect/connect as it creates more connections
+      console.warn(
+        '[WARNING] Connection check failed, Prisma will handle reconnection:',
+        error.message
+      );
+      isReconnecting = false;
+      return false;
+    }
   } catch (error) {
     console.error('[ERROR] Failed to reconnect to database:', error.message);
+    isReconnecting = false;
     return false;
   }
 }
@@ -117,11 +179,16 @@ process.on('SIGTERM', async () => {
   process.exit(0);
 });
 
-// Periodic health check (every 30 seconds)
+// Periodic health check (every 60 seconds to reduce connection overhead)
+// Only check if we think we're disconnected
 if (process.env.NODE_ENV !== 'test') {
   setInterval(async () => {
-    await checkConnectionHealth();
-  }, 30000);
+    // Only run health check if we think we're disconnected
+    // This prevents creating unnecessary connections
+    if (!isConnected) {
+      await checkConnectionHealth();
+    }
+  }, 60000); // Increased to 60 seconds to reduce overhead
 }
 
 module.exports = {

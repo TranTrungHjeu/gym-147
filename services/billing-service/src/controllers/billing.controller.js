@@ -39,11 +39,20 @@ class BillingController {
 
         return await Promise.race([queryPromise, timeoutPromise]);
       } catch (error) {
-        // Retry on connection errors (P1001)
+        // Retry on connection errors (P1001, P1008, P1014, etc.)
         const isConnectionError =
-          error.code === 'P1001' ||
+          error.code === 'P1001' || // Can't reach database server
+          error.code === 'P1008' || // Operations timed out
+          error.code === 'P1014' || // The database server is not available
+          error.code === 'P1017' || // Server has closed the connection
           error.message?.includes("Can't reach database server") ||
-          error.message?.includes('connection');
+          error.message?.includes('connection') ||
+          error.message?.includes('ECONNREFUSED') ||
+          error.message?.includes('ETIMEDOUT') ||
+          error.message?.includes('ENOTFOUND') ||
+          error.message?.includes('MaxClientsInSessionMode') ||
+          error.message?.includes('max clients reached') ||
+          error.message?.includes('pool_size');
 
         if (isConnectionError && attempt < maxRetries) {
           const retryDelay = 1000 * (attempt + 1); // Exponential backoff: 1s, 2s, 3s...
@@ -68,6 +77,22 @@ class BillingController {
    */
   handleDatabaseError(error, res, context = 'Operation') {
     console.error(`[ERROR] ${context} error:`, error);
+
+    // Handle max clients error (Railway/Supabase Session mode limit)
+    if (
+      error.message?.includes('MaxClientsInSessionMode') ||
+      error.message?.includes('max clients reached') ||
+      error.message?.includes('pool_size')
+    ) {
+      console.error('[ERROR] Database connection pool exhausted:', error.message);
+      console.log('[INFO] Returning 503 Service Unavailable response');
+      return res.status(503).json({
+        success: false,
+        message: 'Database connection pool is full. Please try again in a moment.',
+        error: 'DATABASE_POOL_EXHAUSTED',
+        data: null,
+      });
+    }
 
     // Handle database connection errors (P1001: Can't reach database server)
     if (error.code === 'P1001' || error.message?.includes("Can't reach database server")) {
@@ -1493,7 +1518,9 @@ class BillingController {
 
       // Validate subscription_id if payment_type is SUBSCRIPTION
       if (payment_type === 'SUBSCRIPTION' && !subscription_id) {
-        console.warn('[WARNING] [INITIATE_PAYMENT] subscription_id is missing for SUBSCRIPTION payment type');
+        console.warn(
+          '[WARNING] [INITIATE_PAYMENT] subscription_id is missing for SUBSCRIPTION payment type'
+        );
       }
 
       // Create pending payment record
