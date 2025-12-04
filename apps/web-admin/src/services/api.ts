@@ -17,13 +17,13 @@ export const api = axios.create({
 export const identityApi = axios.create({
   baseURL: SERVICES.IDENTITY,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 20000, // 20 seconds for notification queries that may be slow
 });
 
 export const memberApi = axios.create({
   baseURL: SERVICES.MEMBER,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 20000, // 20 seconds for reward/redemption queries that may be slow
 });
 
 export const scheduleApi = axios.create({
@@ -35,7 +35,7 @@ export const scheduleApi = axios.create({
 export const billingApi = axios.create({
   baseURL: SERVICES.BILLING,
   headers: { 'Content-Type': 'application/json' },
-  timeout: 10000,
+  timeout: 30000, // 30 seconds for complex analytics queries
 });
 
 // Add auth token to all service requests
@@ -61,7 +61,7 @@ const addAuthInterceptor = (apiInstance: any) => {
       const errorMessage = (error.message || '').toLowerCase();
       const requestUrl = error.config?.url || '';
       const isBillingEndpoint = requestUrl.includes('/billing/') || requestUrl.includes('/plans/');
-      
+
       // Check if it's blocked by client
       const isBlockedByClient =
         errorCode === 'ERR_BLOCKED_BY_CLIENT' ||
@@ -70,10 +70,10 @@ const addAuthInterceptor = (apiInstance: any) => {
         errorMessage.includes('net::err_blocked_by_client') ||
         // Network error on billing/plans endpoint without response is likely blocked
         (errorCode === 'ERR_NETWORK' &&
-         !error.response &&
-         isBillingEndpoint &&
-         errorMessage === 'network error');
-      
+          !error.response &&
+          isBillingEndpoint &&
+          errorMessage === 'network error');
+
       if (isBlockedByClient) {
         const blockedError: any = new Error(
           'Request bị chặn bởi trình chặn quảng cáo hoặc extension trình duyệt. Vui lòng tắt ad blocker cho localhost:8080 hoặc thử lại.'
@@ -87,9 +87,10 @@ const addAuthInterceptor = (apiInstance: any) => {
         // Don't redirect if already on auth/login page or if it's a login request
         const currentPath = window.location.pathname;
         const isAuthPage = currentPath.includes('/auth') || currentPath.includes('/login');
-        const isLoginRequest = error.config?.url?.includes('/auth/login') || 
-                               error.config?.url?.includes('/auth/register');
-        
+        const isLoginRequest =
+          error.config?.url?.includes('/auth/login') ||
+          error.config?.url?.includes('/auth/register');
+
         // Only redirect if not on auth page and not a login/register request
         if (!isAuthPage && !isLoginRequest) {
           localStorage.removeItem('accessToken');
