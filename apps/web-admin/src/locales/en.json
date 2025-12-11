@@ -1,26 +1,4 @@
 {
-  "common": {
-    "logout": "Logout",
-    "cancel": "Cancel",
-    "confirm": "Confirm",
-    "reset": "Reset",
-    "dashboard": "Dashboard",
-    "loading": "Loading...",
-    "error": "Error",
-    "success": "Success",
-    "noData": "No data",
-    "close": "Close",
-    "justNow": "Just now",
-    "minutesAgo": "{{count}} minutes ago",
-    "hoursAgo": "{{count}} hours ago",
-    "daysAgo": "{{count}} days ago",
-    "user": "User",
-    "defaultUserName": "User",
-    "prev": "Prev",
-    "next": "Next",
-    "page": "Page",
-    "of": "of"
-  },
   "user": {
     "menu": {
       "editProfile": "Edit profile",
@@ -66,6 +44,7 @@
           "newMemberRegistered": "New member registered",
           "newAdminRegistered": "New admin registered",
           "loggedIn": "Logged in using",
+          "loginAction": "logged in",
           "at": "at"
         },
         "roles": {
@@ -132,6 +111,7 @@
           "newAdminRegistered": "New admin registered",
           "newSuperAdminRegistered": "New super admin registered",
           "loggedIn": "Logged in using",
+          "loginAction": "logged in",
           "at": "at"
         },
         "roles": {
@@ -243,7 +223,8 @@
     "actions": {
       "edit": "Edit",
       "delete": "Delete",
-      "view": "View"
+      "view": "View",
+      "generateQR": "Generate QR Code"
     },
     "empty": {
       "noEquipment": "No equipment found",
@@ -331,6 +312,17 @@
       "updateSuccess": "Equipment updated successfully",
       "loadError": "Failed to load equipment list",
       "saveError": "Failed to save equipment"
+    },
+    "qrCode": {
+      "title": "Equipment QR Code",
+      "loading": "Generating QR code...",
+      "error": "Failed to generate QR code",
+      "sensorId": "Sensor ID",
+      "download": "Download",
+      "instructions": {
+        "title": "Instructions",
+        "description": "Print this QR code and attach it to the equipment. Members can scan the QR code using the mobile app to use the equipment."
+      }
     }
   },
   "homepage": {
@@ -627,6 +619,2039 @@
       "span": "Map",
       "title": "OUR LOCATION",
       "placeholder": "Map will be displayed here"
+    }
+  },
+  "sidebar": {
+    "menu": {
+      "userManagement": "User Management",
+      "allAccounts": "All Accounts",
+      "members": "Members",
+      "trainers": "Trainers",
+      "personalTraining": "Personal Training",
+      "guestPasses": "Guest Passes",
+      "servicesActivities": "Services & Activities",
+      "classes": "Classes",
+      "schedules": "Schedules",
+      "rooms": "Rooms",
+      "equipment": "Equipment",
+      "billing": "Billing",
+      "gamification": "Gamification",
+      "challenges": "Challenges",
+      "rewards": "Rewards",
+      "redemptions": "Redemptions",
+      "analytics": "Analytics",
+      "reportsAnalytics": "Reports & Analytics",
+      "overview": "Overview",
+      "userReports": "User Reports",
+      "memberReports": "Member Reports",
+      "classReports": "Class Reports",
+      "revenueReports": "Revenue Reports",
+      "equipmentReports": "Equipment Reports",
+      "systemReports": "System Reports",
+      "scheduledReports": "Scheduled Reports",
+      "systemSettings": "System Settings",
+      "generalSettings": "General Settings",
+      "emailTemplates": "Email Templates",
+      "smsTemplates": "SMS Templates",
+      "apiKeys": "API Keys",
+      "webhooks": "Webhooks",
+      "auditLogs": "Audit Logs",
+      "backupRestore": "Backup & Restore",
+      "bulkNotifications": "Bulk Notifications"
+    }
+  },
+  "common": {
+    "logout": "Logout",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "reset": "Reset",
+    "dashboard": "Dashboard",
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "noData": "No data",
+    "close": "Close",
+    "justNow": "Just now",
+    "minutesAgo": "{{count}} minutes ago",
+    "hoursAgo": "{{count}} hours ago",
+    "daysAgo": "{{count}} days ago",
+    "user": "User",
+    "defaultUserName": "User",
+    "prev": "Prev",
+    "next": "Next",
+    "page": "Page",
+    "of": "of",
+    "processing": "Processing...",
+    "enterToConfirm": "Enter \"{{text}}\" to confirm",
+    "pleaseEnterCorrect": "Please enter the correct \"{{text}}\"",
+    "actions": {
+      "create": "Create",
+      "edit": "Edit",
+      "delete": "Delete",
+      "save": "Save",
+      "update": "Update",
+      "view": "View",
+      "search": "Search",
+      "filter": "Filter",
+      "refresh": "Refresh",
+      "export": "Export",
+      "import": "Import",
+      "download": "Download",
+      "upload": "Upload",
+      "back": "Back",
+      "submit": "Submit",
+      "clear": "Clear",
+      "apply": "Apply",
+      "select": "Select",
+      "selectAll": "Select All",
+      "deselectAll": "Deselect All",
+      "add": "Add",
+      "remove": "Remove",
+      "copy": "Copy",
+      "generate": "Generate",
+      "markAsRead": "Mark as Read",
+      "markAsUnread": "Mark as Unread"
+    },
+    "messages": {
+      "createSuccess": "Created successfully",
+      "updateSuccess": "Updated successfully",
+      "deleteSuccess": "Deleted successfully",
+      "saveSuccess": "Saved successfully",
+      "loadError": "Failed to load data",
+      "saveError": "Failed to save",
+      "deleteError": "Failed to delete",
+      "networkError": "Network error. Please check your connection.",
+      "unauthorized": "Unauthorized access",
+      "forbidden": "Access forbidden",
+      "notFound": "Resource not found",
+      "serverError": "Server error. Please try again later.",
+      "validationError": "Validation error",
+      "noData": "No data available",
+      "noResults": "No results found",
+      "loading": "Loading...",
+      "processing": "Processing...",
+      "pleaseWait": "Please wait...",
+      "confirmDelete": "Are you sure you want to delete this item?",
+      "confirmDeleteMessage": "This action cannot be undone.",
+      "cannotUndo": "This action cannot be undone"
+    },
+    "table": {
+      "actions": "Actions",
+      "noData": "No data available",
+      "loading": "Loading data...",
+      "itemsPerPage": "Items per page",
+      "showing": "Showing",
+      "to": "to",
+      "of": "of",
+      "results": "results"
+    },
+    "filters": {
+      "all": "All",
+      "allCategories": "All categories",
+      "allStatuses": "All statuses",
+      "allTypes": "All types",
+      "searchPlaceholder": "Search...",
+      "selectCategory": "Select category",
+      "selectStatus": "Select status",
+      "selectType": "Select type",
+      "dateFrom": "From date",
+      "dateTo": "To date",
+      "clearFilters": "Clear filters",
+      "applyFilters": "Apply filters"
+    },
+    "form": {
+      "required": "This field is required",
+      "invalid": "Invalid value",
+      "maxLength": "Maximum {{count}} characters",
+      "minLength": "Minimum {{count}} characters",
+      "invalidEmail": "Invalid email address",
+      "invalidPhone": "Invalid phone number",
+      "invalidUrl": "Invalid URL",
+      "invalidDate": "Invalid date",
+      "save": "Save",
+      "cancel": "Cancel",
+      "submit": "Submit",
+      "reset": "Reset"
+    },
+    "status": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "pending": "Pending",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "processing": "Processing",
+      "failed": "Failed",
+      "success": "Success",
+      "error": "Error"
+    }
+  },
+  "personalTraining": {
+    "title": "Personal Training",
+    "subtitle": "Manage personal training sessions"
+  },
+  "certification": {
+    "deleteReasons": {
+      "invalid": "Invalid certificate",
+      "expired": "Certificate expired",
+      "not_meet_requirements": "Does not meet requirements",
+      "duplicate": "Duplicate certificate",
+      "other": "Other reason"
+    },
+    "categories": {
+      "CARDIO": "Cardio",
+      "STRENGTH": "Strength",
+      "YOGA": "Yoga",
+      "PILATES": "Pilates",
+      "DANCE": "Dance",
+      "MARTIAL_ARTS": "Martial Arts",
+      "AQUA": "Aqua",
+      "FUNCTIONAL": "Functional",
+      "RECOVERY": "Recovery",
+      "SPECIALIZED": "Specialized"
+    }
+  },
+  "goals": {
+    "types": {
+      "classes": "Number of Classes",
+      "students": "Number of Students",
+      "rating": "Average Rating",
+      "revenue": "Revenue",
+      "attendance": "Attendance Rate",
+      "sessions": "Completed Sessions"
+    },
+    "units": {
+      "classes": "classes",
+      "students": "students",
+      "rating": "stars",
+      "revenue": "VND",
+      "attendance": "%",
+      "sessions": "sessions"
+    }
+  },
+  "schedule": {
+    "categories": {
+      "CARDIO": "Cardio",
+      "STRENGTH": "Strength",
+      "YOGA": "Yoga",
+      "PILATES": "Pilates",
+      "DANCE": "Dance",
+      "MARTIAL_ARTS": "Martial Arts",
+      "AQUA": "Aqua",
+      "FUNCTIONAL": "Functional",
+      "RECOVERY": "Recovery",
+      "SPECIALIZED": "Specialized"
+    },
+    "difficulty": {
+      "BEGINNER": "Beginner",
+      "INTERMEDIATE": "Intermediate",
+      "ADVANCED": "Advanced",
+      "ALL_LEVELS": "All Levels"
+    }
+  },
+  "enum": {
+    "role": {
+      "superAdmin": "Super Admin",
+      "admin": "Admin",
+      "trainer": "Trainer",
+      "member": "Member"
+    },
+    "equipmentStatus": {
+      "available": "Available",
+      "inUse": "In Use",
+      "maintenance": "Maintenance",
+      "outOfOrder": "Out of Order",
+      "reserved": "Reserved"
+    },
+    "equipmentCategory": {
+      "cardio": "Cardio",
+      "strength": "Strength",
+      "freeWeights": "Free Weights",
+      "functional": "Functional",
+      "stretching": "Stretching",
+      "recovery": "Recovery",
+      "specialized": "Specialized"
+    },
+    "membershipStatus": {
+      "active": "Active",
+      "expired": "Expired",
+      "suspended": "Suspended",
+      "cancelled": "Cancelled",
+      "pending": "Pending",
+      "inactive": "Inactive"
+    },
+    "membershipType": {
+      "basic": "Basic",
+      "premium": "Premium",
+      "vip": "VIP",
+      "student": "Student"
+    },
+    "trainerStatus": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "onLeave": "On Leave",
+      "terminated": "Terminated"
+    },
+    "classCategory": {
+      "cardio": "Cardio",
+      "strength": "Strength",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Dance",
+      "martialArts": "Martial Arts",
+      "aqua": "Aqua",
+      "functional": "Functional",
+      "recovery": "Recovery",
+      "specialized": "Specialized"
+    },
+    "bookingStatus": {
+      "confirmed": "Confirmed",
+      "cancelled": "Cancelled",
+      "waitlist": "Waitlist",
+      "noShow": "No Show",
+      "completed": "Completed"
+    },
+    "scheduleStatus": {
+      "scheduled": "Scheduled",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled",
+      "postponed": "Postponed"
+    },
+    "paymentStatus": {
+      "pending": "Pending",
+      "processing": "Processing",
+      "completed": "Completed",
+      "failed": "Failed",
+      "cancelled": "Cancelled",
+      "refunded": "Refunded",
+      "partiallyRefunded": "Partially Refunded"
+    },
+    "refundStatus": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "processed": "Processed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "refundReason": {
+      "cancellation": "Booking Cancellation",
+      "downgrade": "Plan Downgrade",
+      "other": "Other"
+    },
+    "paymentMethod": {
+      "creditCard": "Credit Card",
+      "debitCard": "Debit Card",
+      "bankTransfer": "Bank Transfer",
+      "vnpay": "VNPay",
+      "momo": "MoMo",
+      "zaloPay": "ZaloPay",
+      "cash": "Cash",
+      "crypto": "Crypto"
+    },
+    "subscriptionStatus": {
+      "trial": "Trial",
+      "active": "Active",
+      "pastDue": "Past Due",
+      "cancelled": "Cancelled",
+      "expired": "Expired",
+      "suspended": "Suspended",
+      "pending": "Pending"
+    },
+    "queueStatus": {
+      "waiting": "Waiting",
+      "notified": "Notified",
+      "expired": "Expired",
+      "cancelled": "Cancelled",
+      "completed": "Completed"
+    },
+    "issueType": {
+      "broken": "Broken",
+      "damaged": "Damaged",
+      "dirty": "Dirty",
+      "missingParts": "Missing Parts",
+      "unsafe": "Unsafe",
+      "other": "Other"
+    },
+    "severity": {
+      "low": "Low",
+      "medium": "Medium",
+      "high": "High",
+      "critical": "Critical"
+    },
+    "reportStatus": {
+      "pending": "Pending",
+      "inProgress": "In Progress",
+      "resolved": "Resolved",
+      "closed": "Closed",
+      "rejected": "Rejected"
+    },
+    "certificationLevel": {
+      "basic": "Basic",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Expert"
+    },
+    "verificationStatus": {
+      "pending": "Pending",
+      "verified": "Verified",
+      "rejected": "Rejected",
+      "expired": "Expired",
+      "suspended": "Suspended"
+    },
+    "difficulty": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "allLevels": "All Levels",
+      "expert": "Expert"
+    },
+    "gender": {
+      "male": "Male",
+      "female": "Female",
+      "other": "Other"
+    },
+    "accessMethod": {
+      "rfid": "RFID",
+      "qrCode": "QR Code",
+      "faceRecognition": "Face Recognition",
+      "manual": "Manual",
+      "mobileApp": "Mobile App"
+    }
+  },
+  "memberManagement": {
+    "title": "Member Management",
+    "subtitle": "Manage all members in the system",
+    "stats": {
+      "total": "Total Members",
+      "active": "Active",
+      "inactive": "Inactive",
+      "newThisMonth": "New This Month"
+    },
+    "search": {
+      "placeholder": "Search members by name, email..."
+    },
+    "filter": {
+      "allStatuses": "All statuses",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "membershipType": "Membership Type",
+      "status": "Status",
+      "createdAt": "Created At",
+      "actions": "Actions"
+    },
+    "actions": {
+      "view": "View",
+      "edit": "Edit",
+      "delete": "Delete",
+      "export": "Export Data",
+      "bulkActivate": "Activate",
+      "bulkDeactivate": "Deactivate",
+      "bulkEmail": "Send Email"
+    },
+    "empty": {
+      "noMembers": "No members found",
+      "noResults": "No members match your search criteria",
+      "noMembersDescription": "No members in the system yet"
+    },
+    "messages": {
+      "loadError": "Failed to load member list",
+      "loading": "Loading member list...",
+      "deleteSuccess": "Member deleted successfully",
+      "deleteError": "Failed to delete member",
+      "exportSuccess": "Members exported successfully",
+      "confirmDelete": "Are you sure you want to delete {{count}} member(s)?",
+      "bulkDeleteSuccess": "Deleted {{count}} member(s) successfully",
+      "bulkDeleteError": "Failed to delete some members",
+      "bulkActivateSuccess": "Activated {{count}} member(s)",
+      "bulkActivateError": "Failed to activate some members",
+      "bulkDeactivateSuccess": "Deactivated {{count}} member(s)",
+      "bulkDeactivateError": "Failed to deactivate some members",
+      "bulkEmailSuccess": "Opened email client with {{count}} recipient(s)",
+      "bulkEmailError": "No emails available to send"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Member",
+      "confirmMessage": "Are you sure you want to delete member \"{{name}}\"? This action cannot be undone."
+    },
+    "details": {
+      "title": "Member Details"
+    },
+    "export": {
+      "title": "Member List"
+    }
+  },
+  "trainerManagement": {
+    "title": "Trainer Management",
+    "subtitle": "Manage all trainers in the system",
+    "stats": {
+      "total": "Total Trainers",
+      "active": "Active",
+      "inactive": "Inactive",
+      "pendingCertifications": "Pending Certifications",
+      "totalClasses": "Total Classes"
+    },
+    "search": {
+      "placeholder": "Search trainers by name, email..."
+    },
+    "filter": {
+      "allStatuses": "All statuses",
+      "allSpecializations": "All specializations",
+      "active": "Active",
+      "inactive": "Inactive"
+    },
+    "table": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "contact": "Contact",
+      "specializations": "Specializations",
+      "status": "Status",
+      "certifications": "Certifications",
+      "actions": "Actions",
+      "experience": "Experience",
+      "rating": "Rating",
+      "classes": "Classes",
+      "hourlyRate": "Rate/Hour"
+    },
+    "actions": {
+      "view": "View",
+      "edit": "Edit",
+      "delete": "Delete",
+      "viewCertifications": "View Certifications",
+      "reviewCertification": "Review Certification"
+    },
+    "form": {
+      "addTitle": "Add New Trainer",
+      "editTitle": "Edit Trainer",
+      "fullName": "Full Name",
+      "email": "Email",
+      "phone": "Phone",
+      "bio": "Bio",
+      "experienceYears": "Years of Experience",
+      "hourlyRate": "Hourly Rate",
+      "status": "Status",
+      "specializations": "Specializations"
+    },
+    "empty": {
+      "noTrainers": "No trainers found",
+      "noResults": "No trainers match your search criteria",
+      "noTrainersDescription": "Create a new trainer account to start managing trainers"
+    },
+    "messages": {
+      "loadError": "Failed to load trainer list",
+      "loading": "Loading trainer list...",
+      "createSuccess": "Trainer created successfully",
+      "updateSuccess": "Trainer updated successfully",
+      "deleteSuccess": "Trainer deleted successfully",
+      "deleteError": "Failed to delete trainer"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Trainer",
+      "confirmMessage": "Are you sure you want to delete trainer \"{{name}}\"? This action cannot be undone."
+    },
+    "total": "Total: {{count}} trainers",
+    "export": {
+      "filename": "trainer-list",
+      "title": "Trainer List"
+    }
+  },
+  "classManagement": {
+    "title": "Class Management",
+    "subtitle": "Manage all gym classes",
+    "addClass": "Add Class",
+    "stats": {
+      "totalClasses": "Total Classes",
+      "activeClasses": "Active Classes",
+      "totalCapacity": "Total Capacity",
+      "differentCategories": "Different Categories"
+    },
+    "search": {
+      "placeholder": "Search classes..."
+    },
+    "filter": {
+      "allCategories": "All categories",
+      "allDifficulties": "All difficulties",
+      "allStatuses": "All statuses",
+      "difficulty": "Difficulty",
+      "status": "Status"
+    },
+    "table": {
+      "name": "Name",
+      "category": "Category",
+      "difficulty": "Difficulty",
+      "duration": "Duration",
+      "maxCapacity": "Max Capacity",
+      "price": "Price",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Add New Class",
+      "editTitle": "Edit Class",
+      "name": "Class Name",
+      "nameRequired": "Class name is required",
+      "nameMaxLength": "Class name cannot exceed 100 characters",
+      "description": "Description",
+      "category": "Category",
+      "categoryRequired": "Category is required",
+      "difficulty": "Difficulty",
+      "difficultyRequired": "Difficulty is required",
+      "duration": "Duration (minutes)",
+      "durationRequired": "Duration is required",
+      "durationMin": "Duration must be at least 15 minutes",
+      "durationMax": "Duration cannot exceed 180 minutes",
+      "maxCapacity": "Max Capacity",
+      "maxCapacityRequired": "Max capacity is required",
+      "price": "Price",
+      "isActive": "Active"
+    },
+    "difficulty": {
+      "beginner": "Beginner",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "allLevels": "All Levels"
+    },
+    "status": {
+      "paused": "Paused"
+    },
+    "people": "people",
+    "minutes": "minutes",
+    "vnd": "VND",
+    "free": "Free",
+    "empty": {
+      "noClasses": "No classes found",
+      "noResults": "No classes match your search criteria"
+    },
+    "messages": {
+      "loadError": "Failed to load class list",
+      "loading": "Loading class list...",
+      "createSuccess": "Class created successfully",
+      "updateSuccess": "Class updated successfully",
+      "deleteSuccess": "Class deleted successfully",
+      "deleteError": "Failed to delete class",
+      "saveError": "Failed to save class"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Class",
+      "confirmMessage": "Are you sure you want to delete class \"{{name}}\"? This action cannot be undone."
+    },
+    "total": "Total: {{count}} classes",
+    "export": {
+      "filename": "class-list",
+      "title": "Class List"
+    },
+    "actions": {
+      "view": "View Class",
+      "edit": "Edit",
+      "delete": "Delete"
+    }
+  },
+  "scheduleManagement": {
+    "title": "Schedule Management",
+    "subtitle": "Manage class schedules and member bookings",
+    "createSchedule": "Create New Schedule",
+    "stats": {
+      "totalSchedules": "Total Schedules",
+      "scheduled": "Scheduled",
+      "inProgress": "In Progress",
+      "completed": "Completed",
+      "cancelled": "Cancelled"
+    },
+    "search": {
+      "placeholder": "Search classes, rooms..."
+    },
+    "filter": {
+      "allStatuses": "All statuses",
+      "allClassTypes": "All class types",
+      "selectDate": "Select date",
+      "clearDateFilter": "Clear date filter"
+    },
+    "table": {
+      "class": "Class",
+      "room": "Room",
+      "dateTime": "Date & Time",
+      "capacity": "Capacity",
+      "status": "Status"
+    },
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "IN_PROGRESS": "In Progress",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "POSTPONED": "Postponed"
+    },
+    "empty": {
+      "noSchedules": "No schedules found",
+      "createNew": "Create a new schedule to get started"
+    },
+    "messages": {
+      "loadError": "Failed to load schedule list",
+      "createSuccess": "Schedule created successfully",
+      "updateSuccess": "Schedule updated successfully",
+      "deleteSuccess": "Schedule deleted successfully",
+      "deleteError": "Failed to delete schedule"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Schedule",
+      "confirmMessage": "Are you sure you want to delete schedule \"{{name}}\"? This action cannot be undone."
+    }
+  },
+  "roomManagement": {
+    "title": "Room Management",
+    "subtitle": "Manage all training rooms",
+    "addRoom": "Add Room",
+    "stats": {
+      "totalRooms": "Total Rooms",
+      "availableRooms": "Available",
+      "occupiedRooms": "Occupied",
+      "totalCapacity": "Total Capacity"
+    },
+    "search": {
+      "placeholder": "Search rooms..."
+    },
+    "filter": {
+      "allStatuses": "All statuses"
+    },
+    "status": {
+      "AVAILABLE": "Available",
+      "OCCUPIED": "Occupied",
+      "MAINTENANCE": "Maintenance",
+      "CLEANING": "Cleaning",
+      "RESERVED": "Reserved"
+    },
+    "table": {
+      "name": "Room Name",
+      "capacity": "Capacity",
+      "area": "Area (m²)",
+      "status": "Status",
+      "equipment": "Equipment",
+      "amenities": "Amenities",
+      "actions": "Actions"
+    },
+    "capacityUnit": "people",
+    "form": {
+      "addTitle": "Add New Room",
+      "editTitle": "Edit Room",
+      "name": "Room Name",
+      "nameRequired": "Room name is required",
+      "capacity": "Capacity",
+      "capacityRequired": "Capacity is required",
+      "area": "Area (m²)",
+      "status": "Status",
+      "equipment": "Equipment",
+      "amenities": "Amenities"
+    },
+    "empty": {
+      "noRooms": "No rooms found",
+      "noResults": "No rooms match your search criteria"
+    },
+    "messages": {
+      "loadError": "Failed to load room list",
+      "createSuccess": "Room created successfully",
+      "updateSuccess": "Room updated successfully",
+      "deleteSuccess": "Room deleted successfully",
+      "deleteError": "Failed to delete room",
+      "exportSuccess": "Room list exported successfully",
+      "importError": "Failed to read CSV file",
+      "importSuccess": "Rooms imported successfully"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Room",
+      "confirmMessage": "Are you sure you want to delete room \"{{name}}\"? This action cannot be undone."
+    },
+    "export": {
+      "filename": "room-list",
+      "title": "Room List",
+      "exportExcel": "Export Excel"
+    },
+    "import": {
+      "title": "Import Rooms",
+      "selectFile": "Select CSV file",
+      "preview": "Import Preview",
+      "validateErrors": "Validation errors in CSV file",
+      "row": "Row {{index}}",
+      "importCSV": "Import CSV",
+      "invalidFile": "Invalid file format. Please select a CSV file.",
+      "csvErrors": "CSV file contains {{count}} error(s)",
+      "readError": "Failed to read CSV file",
+      "complete": "Import complete: {{success}} successful, {{error}} failed",
+      "importError": "Failed to import rooms",
+      "previewTitle": "Import Preview",
+      "importing": "Importing...",
+      "importButton": "Import {{count}} Room(s)",
+      "previewMessage": "{{count}} room(s) ready to import",
+      "errors": "Errors"
+    },
+    "actions": {
+      "viewDetails": "View Details",
+      "edit": "Edit",
+      "delete": "Delete"
+    },
+    "empty": {
+      "noRooms": "No rooms found",
+      "noResults": "No rooms match your search criteria",
+      "addFirstRoom": "Add First Room"
+    }
+  },
+  "billingManagement": {
+    "title": "Billing Management",
+    "subtitle": "Manage subscriptions, plans, and payments",
+    "tabs": {
+      "overview": "Overview",
+      "plans": "Plans",
+      "subscriptions": "Subscriptions",
+      "payments": "Payments"
+    },
+    "overview": {
+      "totalRevenue": "Total Revenue",
+      "monthlyRevenue": "Monthly Revenue",
+      "activeSubscriptions": "Active Subscriptions",
+      "pendingPayments": "Pending Payments"
+    },
+    "plans": {
+      "title": "Membership Plans",
+      "addPlan": "Add Plan",
+      "table": {
+        "name": "Plan Name",
+        "type": "Type",
+        "duration": "Duration",
+        "price": "Price",
+        "features": "Features",
+        "status": "Status",
+        "actions": "Actions"
+      }
+    },
+    "subscriptions": {
+      "title": "Subscriptions",
+      "table": {
+        "member": "Member",
+        "plan": "Plan",
+        "startDate": "Start Date",
+        "endDate": "End Date",
+        "status": "Status",
+        "actions": "Actions"
+      }
+    },
+    "payments": {
+      "title": "Payments",
+      "table": {
+        "member": "Member",
+        "amount": "Amount",
+        "method": "Payment Method",
+        "status": "Status",
+        "date": "Date",
+        "actions": "Actions"
+      }
+    },
+    "messages": {
+      "loadError": "Failed to load billing data",
+      "loadAnalyticsError": "Failed to load analytics data",
+      "exportSuccess": "Report exported successfully"
+    }
+  },
+  "refundManagement": {
+    "title": "Refund Management",
+    "subtitle": "Approve and process refund requests",
+    "search": {
+      "placeholder": "Search refunds..."
+    },
+    "filter": {
+      "all": "All",
+      "status": "Filter by status",
+      "reason": "Filter by reason"
+    },
+    "status": {
+      "pending": "Pending",
+      "approved": "Approved",
+      "processed": "Processed",
+      "failed": "Failed",
+      "cancelled": "Cancelled"
+    },
+    "reason": {
+      "cancellation": "Booking Cancellation",
+      "downgrade": "Plan Downgrade",
+      "other": "Other"
+    },
+    "stats": {
+      "total": "Total",
+      "pending": "Pending",
+      "approved": "Approved",
+      "processed": "Processed"
+    },
+    "actions": {
+      "approve": "Approve",
+      "process": "Process",
+      "view": "View Details"
+    },
+    "messages": {
+      "loading": "Loading refunds...",
+      "noRefunds": "No refund requests found",
+      "approveSuccess": "Refund approved successfully",
+      "processSuccess": "Refund processed successfully"
+    },
+    "errors": {
+      "loadDataError": "Failed to load refund data",
+      "approveError": "Failed to approve refund",
+      "processError": "Failed to process refund"
+    },
+    "confirm": {
+      "approveTitle": "Confirm Approve Refund",
+      "processTitle": "Confirm Process Refund",
+      "approve": "Are you sure you want to approve refund {{amount}}?",
+      "process": "Are you sure you want to process refund {{amount}}?"
+    },
+    "detail": {
+      "title": "Refund Details",
+      "memberInfo": "Member Information",
+      "memberName": "Full Name",
+      "memberEmail": "Email",
+      "refundInfo": "Refund Information",
+      "amount": "Amount",
+      "reason": "Reason",
+      "requestedBy": "Requested By",
+      "approvedBy": "Approved By",
+      "processedBy": "Processed By",
+      "transactionId": "Transaction ID",
+      "createdAt": "Created At",
+      "processedAt": "Processed At",
+      "notes": "Notes",
+      "timeline": "Timeline",
+      "by": "By",
+      "paymentInfo": "Payment Information",
+      "paymentId": "Payment ID",
+      "paymentAmount": "Payment Amount"
+    }
+  },
+  "challengeManagement": {
+    "title": "Challenge Management",
+    "subtitle": "Manage gamification challenges",
+    "addChallenge": "Add Challenge",
+    "search": {
+      "placeholder": "Search challenges..."
+    },
+    "filter": {
+      "allTypes": "All types",
+      "allCategories": "All categories",
+      "allStatuses": "All statuses"
+    },
+    "table": {
+      "title": "Title",
+      "type": "Type",
+      "category": "Category",
+      "target": "Target",
+      "reward": "Reward Points",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Add New Challenge",
+      "editTitle": "Edit Challenge",
+      "title": "Challenge Title",
+      "description": "Description",
+      "type": "Type",
+      "category": "Category",
+      "targetValue": "Target Value",
+      "targetUnit": "Target Unit",
+      "rewardPoints": "Reward Points",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "isPublic": "Public",
+      "maxParticipants": "Max Participants"
+    },
+    "empty": {
+      "noChallenges": "No challenges found"
+    },
+    "messages": {
+      "loadError": "Failed to load challenge list",
+      "createSuccess": "Challenge created successfully",
+      "updateSuccess": "Challenge updated successfully",
+      "deleteSuccess": "Challenge deleted successfully",
+      "deleteError": "Failed to delete challenge"
+    }
+  },
+  "rewardManagement": {
+    "title": "Reward Management",
+    "subtitle": "Manage rewards and redemption options",
+    "addReward": "Add Reward",
+    "search": {
+      "placeholder": "Search rewards..."
+    },
+    "filter": {
+      "allCategories": "All categories",
+      "allStatuses": "All statuses",
+      "minPoints": "Min Points",
+      "maxPoints": "Max Points"
+    },
+    "table": {
+      "title": "Title",
+      "category": "Category",
+      "pointsCost": "Points Cost",
+      "stock": "Stock",
+      "validFrom": "Valid From",
+      "validUntil": "Valid Until",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Add New Reward",
+      "editTitle": "Edit Reward",
+      "title": "Reward Title",
+      "description": "Description",
+      "category": "Category",
+      "pointsCost": "Points Cost",
+      "image": "Image",
+      "discountPercent": "Discount %",
+      "discountAmount": "Discount Amount",
+      "rewardType": "Reward Type",
+      "stockQuantity": "Stock Quantity",
+      "redemptionLimit": "Redemption Limit",
+      "validFrom": "Valid From",
+      "validUntil": "Valid Until",
+      "termsConditions": "Terms & Conditions"
+    },
+    "empty": {
+      "noRewards": "No rewards found"
+    },
+    "messages": {
+      "loadError": "Failed to load reward list",
+      "createSuccess": "Reward created successfully",
+      "updateSuccess": "Reward updated successfully",
+      "deleteSuccess": "Reward deleted successfully",
+      "deleteError": "Failed to delete reward"
+    }
+  },
+  "redemptionManagement": {
+    "title": "Redemption Management",
+    "subtitle": "Manage reward redemptions",
+    "search": {
+      "placeholder": "Search by code, member, reward..."
+    },
+    "filter": {
+      "allStatuses": "All statuses"
+    },
+    "table": {
+      "code": "Code",
+      "member": "Member",
+      "reward": "Reward",
+      "pointsSpent": "Points Spent",
+      "redeemedAt": "Redeemed At",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "ACTIVE": "Active",
+      "USED": "Used",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled",
+      "REFUNDED": "Refunded"
+    },
+    "actions": {
+      "viewDetails": "View Details",
+      "refund": "Refund"
+    },
+    "empty": {
+      "noRedemptions": "No redemptions found"
+    },
+    "messages": {
+      "loadError": "Failed to load redemption list",
+      "refundSuccess": "Refunded {{points}} points successfully",
+      "refundError": "Failed to refund redemption"
+    },
+    "refund": {
+      "title": "Refund Redemption",
+      "reason": "Refund Reason",
+      "reasonRequired": "Refund reason is required"
+    }
+  },
+  "guestManagement": {
+    "title": "Guest Pass Management",
+    "subtitle": "Manage guest passes and visitors",
+    "addGuestPass": "Create Guest Pass",
+    "stats": {
+      "total": "Total Passes",
+      "active": "Active",
+      "used": "Used",
+      "expired": "Expired"
+    },
+    "search": {
+      "placeholder": "Search by guest name, email, phone..."
+    },
+    "filter": {
+      "allStatuses": "All statuses",
+      "allTypes": "All types"
+    },
+    "status": {
+      "ACTIVE": "Active",
+      "USED": "Used",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "passType": {
+      "SINGLE_DAY": "1 Day",
+      "WEEK": "1 Week",
+      "MONTH": "1 Month"
+    },
+    "table": {
+      "guestName": "Guest Name",
+      "guestEmail": "Email",
+      "guestPhone": "Phone",
+      "passType": "Pass Type",
+      "issuedBy": "Issued By",
+      "issuedAt": "Issued At",
+      "expiresAt": "Expires At",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "empty": {
+      "noPasses": "No guest passes found"
+    },
+    "messages": {
+      "loadError": "Failed to load guest pass list",
+      "createSuccess": "Guest pass created successfully",
+      "deleteSuccess": "Guest pass deleted successfully",
+      "deleteError": "Failed to delete guest pass"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete Guest Pass",
+      "confirmMessage": "Are you sure you want to delete this guest pass? This action cannot be undone."
+    }
+  },
+  "personalTrainingManagement": {
+    "title": "Personal Training Management",
+    "subtitle": "Manage all personal training sessions",
+    "createSession": "Create PT Session",
+    "stats": {
+      "total": "Total Sessions",
+      "completed": "Completed",
+      "scheduled": "Scheduled",
+      "revenue": "Revenue"
+    },
+    "search": {
+      "placeholder": "Search by member, trainer..."
+    },
+    "filter": {
+      "allStatuses": "All statuses",
+      "allTrainers": "All trainers"
+    },
+    "status": {
+      "SCHEDULED": "Scheduled",
+      "CONFIRMED": "Confirmed",
+      "IN_PROGRESS": "In Progress",
+      "COMPLETED": "Completed",
+      "CANCELLED": "Cancelled",
+      "NO_SHOW": "No Show"
+    },
+    "table": {
+      "member": "Member",
+      "trainer": "Trainer",
+      "sessionDate": "Session Date",
+      "duration": "Duration",
+      "price": "Price",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "empty": {
+      "noSessions": "No PT sessions found"
+    },
+    "messages": {
+      "loadError": "Failed to load PT session list",
+      "createSuccess": "PT session created successfully",
+      "deleteSuccess": "PT session deleted successfully",
+      "deleteError": "Failed to delete PT session"
+    },
+    "delete": {
+      "confirmTitle": "Confirm Delete PT Session",
+      "confirmMessage": "Are you sure you want to delete this PT session? This action cannot be undone."
+    }
+  },
+  "notificationManagement": {
+    "title": "Notification Management",
+    "subtitle": "Send notifications to members and trainers",
+    "tabs": {
+      "members": "Members",
+      "trainers": "Trainers",
+      "history": "History"
+    },
+    "members": {
+      "title": "Send to Members",
+      "form": {
+        "title": "Title",
+        "message": "Message",
+        "type": "Type",
+        "sendTo": "Send To",
+        "all": "All Members",
+        "filter": "Filtered Members",
+        "specific": "Specific Members"
+      },
+      "filters": {
+        "membershipType": "Membership Type",
+        "membershipStatus": "Membership Status",
+        "search": "Search"
+      },
+      "preview": {
+        "title": "Preview Recipients",
+        "count": "{{count}} members will receive this notification"
+      }
+    },
+    "trainers": {
+      "title": "Send to Trainers",
+      "form": {
+        "title": "Title",
+        "message": "Message",
+        "type": "Type",
+        "sendTo": "Send To",
+        "all": "All Trainers",
+        "filter": "Filtered Trainers",
+        "specific": "Specific Trainers"
+      },
+      "filters": {
+        "status": "Status",
+        "specialization": "Specialization",
+        "search": "Search"
+      },
+      "preview": {
+        "title": "Preview Recipients",
+        "count": "{{count}} trainers will receive this notification"
+      }
+    },
+    "history": {
+      "title": "Notification History",
+      "table": {
+        "title": "Title",
+        "targetType": "Target Type",
+        "sentCount": "Sent",
+        "failedCount": "Failed",
+        "totalTargets": "Total",
+        "createdAt": "Created At",
+        "actions": "Actions"
+      },
+      "filters": {
+        "targetType": "Target Type",
+        "startDate": "Start Date",
+        "endDate": "End Date"
+      }
+    },
+    "actions": {
+      "send": "Send Notification",
+      "preview": "Preview Recipients",
+      "viewDetails": "View Details"
+    },
+    "messages": {
+      "sendSuccess": "Notification sent successfully to {{sent}} recipients",
+      "sendError": "Failed to send notification",
+      "loadError": "Failed to load notification history",
+      "previewError": "Failed to load preview list"
+    },
+    "success": {
+      "title": "Notification Sent",
+      "sentCount": "Sent: {{count}}",
+      "failedCount": "Failed: {{count}}",
+      "totalTargets": "Total: {{count}}"
+    }
+  },
+  "emailTemplatesManagement": {
+    "title": "Email Templates Management",
+    "subtitle": "Create and manage email templates",
+    "createTemplate": "Create New Template",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "subject": "Subject",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Create New Email Template",
+      "editTitle": "Edit Email Template",
+      "name": "Template Name",
+      "subject": "Subject",
+      "body": "Body",
+      "type": "Type",
+      "isActive": "Active"
+    },
+    "types": {
+      "WELCOME": "Welcome",
+      "PASSWORD_RESET": "Password Reset",
+      "MEMBERSHIP_EXPIRY": "Membership Expiry",
+      "CLASS_REMINDER": "Class Reminder",
+      "PAYMENT_RECEIPT": "Payment Receipt",
+      "CUSTOM": "Custom"
+    },
+    "empty": {
+      "noTemplates": "No email templates found"
+    },
+    "messages": {
+      "loadError": "Failed to load email template list",
+      "createSuccess": "Email template created successfully",
+      "updateSuccess": "Email template updated successfully",
+      "deleteSuccess": "Email template deleted successfully",
+      "deleteError": "Failed to delete email template"
+    },
+    "delete": {
+      "confirmTitle": "Delete Email Template",
+      "confirmMessage": "Are you sure you want to delete this email template?"
+    }
+  },
+  "smsTemplatesManagement": {
+    "title": "SMS Templates Management",
+    "subtitle": "Create and manage SMS templates",
+    "createTemplate": "Create New Template",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "message": "Message",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Create New SMS Template",
+      "editTitle": "Edit SMS Template",
+      "name": "Template Name",
+      "message": "Message",
+      "type": "Type",
+      "isActive": "Active",
+      "characterCount": "{{count}} characters"
+    },
+    "types": {
+      "OTP": "OTP Code",
+      "REMINDER": "Reminder",
+      "NOTIFICATION": "Notification",
+      "CUSTOM": "Custom"
+    },
+    "empty": {
+      "noTemplates": "No SMS templates found"
+    },
+    "messages": {
+      "loadError": "Failed to load SMS template list",
+      "createSuccess": "SMS template created successfully",
+      "updateSuccess": "SMS template updated successfully",
+      "deleteSuccess": "SMS template deleted successfully",
+      "deleteError": "Failed to delete SMS template"
+    },
+    "delete": {
+      "confirmTitle": "Delete SMS Template",
+      "confirmMessage": "Are you sure you want to delete this SMS template?"
+    }
+  },
+  "apiKeysManagement": {
+    "title": "API Keys Management",
+    "subtitle": "Manage API keys for external integrations",
+    "createKey": "Create API Key",
+    "table": {
+      "name": "Name",
+      "key": "Key",
+      "expiresAt": "Expires At",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Create New API Key",
+      "editTitle": "Edit API Key",
+      "name": "Key Name",
+      "expiresAt": "Expires At"
+    },
+    "actions": {
+      "revoke": "Revoke",
+      "copy": "Copy Key"
+    },
+    "empty": {
+      "noKeys": "No API keys found"
+    },
+    "messages": {
+      "loadError": "Failed to load API key list",
+      "createSuccess": "API key created successfully. Please save this key now!",
+      "updateSuccess": "API key updated successfully",
+      "deleteSuccess": "API key deleted successfully",
+      "deleteError": "Failed to delete API key",
+      "revokeError": "Failed to revoke API key",
+      "copySuccess": "API key copied to clipboard"
+    },
+    "delete": {
+      "confirmTitle": "Delete API Key",
+      "confirmMessage": "Are you sure you want to delete this API key?"
+    }
+  },
+  "webhooksManagement": {
+    "title": "Webhooks Management",
+    "subtitle": "Manage webhook endpoints for system events",
+    "createWebhook": "Create Webhook",
+    "table": {
+      "name": "Name",
+      "url": "URL",
+      "events": "Events",
+      "status": "Status",
+      "lastTriggered": "Last Triggered",
+      "actions": "Actions"
+    },
+    "form": {
+      "addTitle": "Create New Webhook",
+      "editTitle": "Edit Webhook",
+      "name": "Webhook Name",
+      "url": "Webhook URL",
+      "events": "Events",
+      "secret": "Secret",
+      "isActive": "Active"
+    },
+    "events": {
+      "member.created": "Member Created",
+      "member.updated": "Member Updated",
+      "member.deleted": "Member Deleted",
+      "class.booked": "Class Booked",
+      "class.cancelled": "Class Cancelled",
+      "payment.completed": "Payment Completed",
+      "payment.failed": "Payment Failed",
+      "subscription.created": "Subscription Created",
+      "subscription.expired": "Subscription Expired"
+    },
+    "actions": {
+      "viewEvents": "View Events",
+      "test": "Test Webhook"
+    },
+    "empty": {
+      "noWebhooks": "No webhooks found"
+    },
+    "messages": {
+      "loadError": "Failed to load webhook list",
+      "createSuccess": "Webhook created successfully",
+      "updateSuccess": "Webhook updated successfully",
+      "deleteSuccess": "Webhook deleted successfully",
+      "deleteError": "Failed to delete webhook",
+      "loadEventsError": "Failed to load event history"
+    },
+    "delete": {
+      "confirmTitle": "Delete Webhook",
+      "confirmMessage": "Are you sure you want to delete this webhook?"
+    }
+  },
+  "auditLogsManagement": {
+    "title": "Audit Logs",
+    "subtitle": "Track all system activities",
+    "export": "Export CSV",
+    "table": {
+      "timestamp": "Timestamp",
+      "user": "User",
+      "action": "Action",
+      "resourceType": "Resource Type",
+      "resourceId": "Resource ID",
+      "details": "Details"
+    },
+    "filters": {
+      "userId": "User ID",
+      "action": "Action",
+      "resourceType": "Resource Type",
+      "dateFrom": "From Date",
+      "dateTo": "To Date"
+    },
+    "empty": {
+      "noLogs": "No audit logs found",
+      "total": "Total: {{count}} records"
+    },
+    "messages": {
+      "loadError": "Failed to load audit logs",
+      "exportSuccess": "Audit logs exported successfully",
+      "exportError": "Failed to export audit logs"
+    }
+  },
+  "backupRestoreManagement": {
+    "title": "Backup & Restore Management",
+    "subtitle": "Manage system backups and restorations",
+    "createBackup": "Create New Backup",
+    "table": {
+      "name": "Name",
+      "type": "Type",
+      "size": "Size",
+      "status": "Status",
+      "createdAt": "Created At",
+      "actions": "Actions"
+    },
+    "form": {
+      "createTitle": "Create New Backup",
+      "name": "Backup Name",
+      "type": "Backup Type"
+    },
+    "restore": {
+      "title": "Restore Backup",
+      "selectBackup": "Select Backup",
+      "restoreType": "Restore Type",
+      "tables": "Select Tables"
+    },
+    "types": {
+      "FULL": "Full Backup",
+      "INCREMENTAL": "Incremental Backup"
+    },
+    "status": {
+      "PENDING": "Pending",
+      "IN_PROGRESS": "In Progress",
+      "COMPLETED": "Completed",
+      "FAILED": "Failed"
+    },
+    "actions": {
+      "download": "Download",
+      "restore": "Restore",
+      "delete": "Delete"
+    },
+    "empty": {
+      "noBackups": "No backups found"
+    },
+    "messages": {
+      "loadError": "Failed to load backup list",
+      "createSuccess": "Backup creation started",
+      "createError": "Failed to create backup",
+      "downloadSuccess": "Backup download started",
+      "downloadError": "Failed to download backup",
+      "restoreSuccess": "Backup restoration started",
+      "restoreError": "Failed to restore backup",
+      "deleteSuccess": "Backup deleted successfully",
+      "deleteError": "Failed to delete backup"
+    },
+    "delete": {
+      "confirmTitle": "Delete Backup",
+      "confirmMessage": "Are you sure you want to delete this backup?"
+    }
+  },
+  "settingsManagement": {
+    "title": "System Settings",
+    "subtitle": "Configure system settings",
+    "tabs": {
+      "general": "General",
+      "notifications": "Notifications",
+      "security": "Security",
+      "integrations": "Integrations"
+    },
+    "general": {
+      "title": "Gym Information",
+      "gymName": "Gym Name",
+      "gymPhone": "Phone",
+      "gymAddress": "Address",
+      "gymEmail": "Email",
+      "timezone": "Timezone",
+      "selectTimezone": "Select timezone",
+      "currency": "Currency",
+      "selectCurrency": "Select currency",
+      "language": "Language",
+      "selectLanguage": "Select language"
+    },
+    "notifications": {
+      "title": "Notification Settings",
+      "enableNotifications": "Enable Notifications",
+      "enableNotificationsDesc": "Allow system to send notifications",
+      "enableEmailNotifications": "Email Notifications",
+      "enableEmailNotificationsDesc": "Send notifications via email",
+      "enableSMSNotifications": "SMS Notifications",
+      "enableSMSNotificationsDesc": "Send notifications via SMS"
+    },
+    "security": {
+      "title": "Security Settings",
+      "require2FA": "Require 2FA",
+      "require2FADesc": "Require two-factor authentication for all accounts",
+      "sessionTimeout": "Session Timeout (minutes)",
+      "maxLoginAttempts": "Max Login Attempts"
+    },
+    "integrations": {
+      "title": "System Integrations",
+      "enableAPI": "Enable API",
+      "enableAPIDesc": "Allow external API access",
+      "enableWebhook": "Enable Webhook",
+      "enableWebhookDesc": "Allow sending webhook events"
+    },
+    "messages": {
+      "loadError": "Failed to load settings",
+      "saveSuccess": "Settings saved successfully",
+      "saveError": "Failed to save settings"
+    }
+  },
+  "verifyCode": {
+    "title": "Verify Redemption Code",
+    "subtitle": "Verify member redemption codes",
+    "input": {
+      "placeholder": "Enter redemption code",
+      "verify": "Verify Code"
+    },
+    "result": {
+      "code": "Code",
+      "member": "Member",
+      "reward": "Reward",
+      "pointsSpent": "Points Spent",
+      "redeemedAt": "Redeemed At",
+      "status": "Status",
+      "usedAt": "Used At"
+    },
+    "actions": {
+      "copyCode": "Copy Code",
+      "generateQR": "Generate QR Code",
+      "markAsUsed": "Mark as Used"
+    },
+    "messages": {
+      "codeRequired": "Please enter redemption code",
+      "invalidCode": "Invalid code",
+      "verifyError": "Failed to verify code",
+      "copySuccess": "Code copied!",
+      "qrSuccess": "QR code generated!",
+      "qrError": "Failed to generate QR code",
+      "markSuccess": "Marked as used",
+      "markError": "Failed to mark as used"
+    }
+  },
+  "calendar": {
+    "title": "Calendar",
+    "addEvent": "Add Event",
+    "editEvent": "Edit Event",
+    "form": {
+      "title": "Event Title",
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "level": "Level"
+    },
+    "levels": {
+      "Danger": "Danger",
+      "Success": "Success",
+      "Primary": "Primary",
+      "Warning": "Warning"
+    },
+    "messages": {
+      "addSuccess": "Event added successfully",
+      "updateSuccess": "Event updated successfully",
+      "deleteSuccess": "Event deleted successfully"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "conversations": "Conversations",
+    "noConversations": "No conversations",
+    "selectConversation": "Select a conversation to start chatting",
+    "input": {
+      "placeholder": "Type a message...",
+      "send": "Send"
+    },
+    "typing": "Typing...",
+    "messages": {
+      "loadError": "Failed to load conversations",
+      "sendError": "Failed to send message"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "markAllRead": "Mark All as Read",
+    "noNotifications": "No notifications",
+    "newNotification": "New notification",
+    "markAsRead": "Mark as Read",
+    "deleteNotification": "Delete Notification",
+    "marking": "Marking...",
+    "empty": "No notifications yet"
+  },
+  "userProfiles": {
+    "title": "User Profiles",
+    "editProfile": "Edit Profile",
+    "updateSuccess": "Profile updated successfully!",
+    "deleteSuccess": "User deleted successfully!",
+    "loadError": "Failed to load user information"
+  },
+  "unauthorized": {
+    "title": "Unauthorized",
+    "message": "You do not have permission to access this page",
+    "back": "Go Back"
+  },
+  "notFound": {
+    "title": "Page Not Found",
+    "message": "The page you are looking for does not exist",
+    "back": "Go Back"
+  },
+  "modals": {
+    "confirmDialog": {
+      "defaultConfirm": "Confirm",
+      "defaultCancel": "Cancel",
+      "enterToConfirm": "Enter \"{{text}}\" to confirm",
+      "pleaseEnterCorrect": "Please enter the correct \"{{text}}\""
+    }
+  },
+  "chartTab": {
+    "monthly": "Monthly",
+    "quarterly": "Quarterly",
+    "annually": "Annually"
+  },
+  "setSalaryModal": {
+    "title": "Set Salary for Trainer",
+    "currentSalary": "Current salary: {{amount}} VND/hour",
+    "setSalary": "Set Salary",
+    "form": {
+      "hourlyRate": "Hourly Rate (VND)",
+      "hourlyRatePlaceholder": "Enter hourly rate",
+      "example": "Example: 100000 (equivalent to 100,000 VND/hour)",
+      "notes": "Notes (optional)",
+      "notesPlaceholder": "Add notes about salary setting..."
+    },
+    "messages": {
+      "setSuccess": "Salary has been set successfully"
+    },
+    "errors": {
+      "invalidRate": "Hourly rate must be a positive number",
+      "setFailed": "Unable to set salary"
+    }
+  },
+  "auth": {
+    "features": {
+      "professionalTraining": "PROFESSIONAL TRAINING",
+      "physicalUpgrade": "PHYSICAL UPGRADE",
+      "professionalCurriculum": "PROFESSIONAL CURRICULUM"
+    },
+    "quote": {
+      "text": "\"Your body can do it. It's your mind that you have to convince.\"",
+      "author": "TRUNG HIEU TRAN"
+    },
+    "signIn": {
+      "title": "SIGN IN",
+      "welcome": "Welcome back to Gym 147!",
+      "email": "Email",
+      "phone": "Phone Number",
+      "password": "Password",
+      "adminLogin": "Sign in as administrator",
+      "rememberMe": "Remember me",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign In",
+      "noAccount": "Don't have an account?",
+      "signUpNow": "Sign up now",
+      "messages": {
+        "autoFillSuccess": "Login information has been pre-filled!"
+      },
+      "validation": {
+        "emailRequired": "Email cannot be empty",
+        "phoneRequired": "Phone number cannot be empty",
+        "emailInvalid": "Invalid email",
+        "phoneInvalid": "Phone number must have 10-11 digits",
+        "passwordRequired": "Password cannot be empty",
+        "adminLoginRequired": "Please check \"Sign in as administrator\" to sign in with admin account"
+      },
+      "errors": {
+        "loginFailed": "Login failed",
+        "genericError": "An error occurred during login. Please try again.",
+        "invalidCredentials": "Invalid login credentials",
+        "invalidCredentialsMessage": "The email or password you entered is incorrect. Please check and try again.",
+        "accountLocked": "Account locked",
+        "accountLockedMessage": "Your account has been locked. Please contact administrator for support.",
+        "requires2FA": "2FA authentication required",
+        "requires2FAMessage": "Your account requires two-factor authentication. Please enter the code from your authenticator app.",
+        "googleOAuthFailed": "Unable to initialize Google OAuth",
+        "googleLoginFailed": "Unable to sign in with Google",
+        "facebookOAuthFailed": "Unable to initialize Facebook OAuth",
+        "facebookLoginFailed": "Unable to sign in with Facebook"
+      }
+    }
+  },
+  "addCertificationModal": {
+    "title": "Add New Certification",
+    "edit": "Edit",
+    "create": "Create Certification",
+    "creating": "Creating...",
+    "tabs": {
+      "aiScan": "AI Scan",
+      "manual": "Manual Entry"
+    },
+    "categories": {
+      "cardio": "Cardio",
+      "strength": "Strength",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Dance",
+      "martialArts": "Martial Arts",
+      "aqua": "Aqua",
+      "functional": "Functional",
+      "recovery": "Recovery",
+      "specialized": "Specialized"
+    },
+    "levels": {
+      "basic": "Basic",
+      "intermediate": "Intermediate",
+      "advanced": "Advanced",
+      "expert": "Expert"
+    },
+    "form": {
+      "category": "Category",
+      "categoryPlaceholder": "Select category",
+      "level": "Certification Level",
+      "levelPlaceholder": "Select level",
+      "name": "Certification Name",
+      "namePlaceholder": "Example: Yoga Alliance RYT-500",
+      "issuer": "Certification Issuer",
+      "issuerPlaceholder": "Example: Yoga Alliance International",
+      "issuedDate": "Issued Date",
+      "expirationDate": "Expiration Date",
+      "upload": "Upload Certification"
+    },
+    "validation": {
+      "categoryRequired": "Category is required",
+      "nameRequired": "Certification name is required",
+      "nameMinLength": "Certification name must be at least 3 characters",
+      "issuerRequired": "Certification issuer is required",
+      "issuedDateRequired": "Issued date is required",
+      "issuedDateInvalid": "Invalid issued date. Please enter in correct format (DD/MM/YYYY or YYYY-MM-DD)",
+      "issuedDateFuture": "Issued date ({{issuedDate}}) cannot be in the future (today is {{today}} in Vietnam time)",
+      "expirationDateInvalid": "Invalid expiration date. Please enter in correct format (DD/MM/YYYY or YYYY-MM-DD)",
+      "expirationDateBeforeIssued": "Expiration date ({{expirationDate}}) must be after issued date ({{issuedDate}})",
+      "expirationDateExpired": "Certification has expired. Expiration date ({{expirationDate}}) has passed (today is {{today}} in Vietnam time)"
+    },
+    "messages": {
+      "uploadSuccess": "Certification uploaded successfully",
+      "autoFillSuccess": "Information has been auto-filled from certification. Fields have been locked to ensure accuracy.",
+      "scanSuccess": "Certification scanned successfully",
+      "createSuccess": "Certification created successfully",
+      "fieldsUnlocked": "Fields have been unlocked. You can now edit the information."
+    },
+    "autoFill": {
+      "title": "Information auto-filled from certification",
+      "message": "Please review and edit if necessary"
+    },
+    "verification": {
+      "autoVerified": "Will be automatically verified",
+      "manualReview": "Requires manual review"
+    },
+    "errors": {
+      "createFailed": "An error occurred while creating certification. Please try again."
+    }
+  },
+  "salaryRequestManagement": {
+    "title": "Salary Request Management",
+    "subtitle": "View and process salary requests from trainers",
+    "searchPlaceholder": "Search by trainer name, email...",
+    "empty": "No salary requests found",
+    "status": {
+      "pending": "Pending"
+    },
+    "table": {
+      "trainer": "Trainer",
+      "email": "Email",
+      "requestTime": "Request Time",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "actions": {
+      "setSalary": "Set Salary"
+    },
+    "messages": {
+      "setSuccess": "Salary has been set successfully"
+    },
+    "errors": {
+      "loadFailed": "Unable to load salary requests"
+    }
+  },
+  "reports": {
+    "system": {
+      "title": "System Report",
+      "subtitle": "System statistics and activity overview",
+      "stats": {
+        "totalUsers": "Total Users",
+        "activeSessions": "Active Sessions",
+        "recentRegistrations": "Recent Registrations"
+      },
+      "systemActivity": {
+        "title": "System Activity",
+        "subtitle": "Activity trends over the last 30 days",
+        "loading": "Loading system activity data..."
+      }
+    },
+    "users": {
+      "title": "User Reports",
+      "subtitle": "User statistics and analytics",
+      "roles": {
+        "superAdmin": "Super Admin",
+        "admin": "Admin",
+        "trainer": "Trainer",
+        "member": "Member"
+      },
+      "roleDistribution": {
+        "title": "Role Distribution",
+        "subtitle": "Distribution of users by role",
+        "noData": "No data available"
+      },
+      "growthByRole": {
+        "title": "User Growth by Role",
+        "subtitle": "New user registrations by role over time"
+      }
+    },
+    "equipment": {
+      "title": "Equipment Report",
+      "subtitle": "Equipment statistics and usage analytics",
+      "loading": "Loading equipment data...",
+      "stats": {
+        "total": "Total Equipment",
+        "available": "Available",
+        "ofTotal": "of Total",
+        "inUse": "In Use",
+        "utilizationRate": "Utilization Rate",
+        "needsMaintenance": "Needs Maintenance",
+        "maintenance": "Maintenance",
+        "broken": "Broken",
+        "availabilityRate": "Availability Rate",
+        "equipment": "Equipment",
+        "maintenanceOrBroken": "Maintenance or Broken"
+      },
+      "status": {
+        "available": "Available",
+        "inUse": "In Use",
+        "maintenance": "Maintenance",
+        "outOfOrder": "Out of Order"
+      },
+      "statusBreakdown": {
+        "title": "Status Breakdown",
+        "subtitle": "Equipment distribution by status",
+        "noData": "No equipment data available"
+      }
+    }
+  },
+  "reportsManagement": {
+    "title": "Reports & Analytics",
+    "subtitle": "View system reports and analytics",
+    "tabs": {
+      "revenue": "Revenue",
+      "members": "Members",
+      "classes": "Classes",
+      "equipment": "Equipment"
+    },
+    "stats": {
+      "totalRevenue": "Total Revenue",
+      "averageRevenue": "Average Revenue",
+      "totalTransactions": "Total Transactions"
+    },
+    "filters": {
+      "fromDate": "From Date",
+      "toDate": "To Date"
+    },
+    "actions": {
+      "exportPDF": "Export PDF",
+      "exportExcel": "Export Excel",
+      "filter": "Filter"
+    },
+    "export": {
+      "title": "{{type}} Report",
+      "columns": {
+        "date": "Date",
+        "revenue": "Revenue",
+        "transactions": "Transactions",
+        "newUsers": "New Users",
+        "activeUsers": "Active Users",
+        "className": "Class Name",
+        "totalAttendance": "Total Attendance",
+        "averageAttendance": "Average Attendance",
+        "status": "Status",
+        "count": "Count"
+      }
+    },
+    "messages": {
+      "loadError": "Failed to load {{tab}} data",
+      "exporting": "Exporting report...",
+      "noData": "No data available to export",
+      "exportExcelSuccess": "Report exported successfully",
+      "exportError": "Failed to export report",
+      "loadingRevenue": "Loading revenue data..."
+    }
+  },
+  "successModal": {
+    "accountActivated": "Account has been successfully activated",
+    "email": "Email",
+    "fullName": "Full Name",
+    "phone": "Phone",
+    "status": "Status",
+    "activated": "Activated"
+  },
+  "createAdmin": {
+    "title": "Create Admin Account",
+    "subtitle": "Create a new administrator account",
+    "form": {
+      "email": "Email",
+      "emailPlaceholder": "Enter email address",
+      "firstName": "First Name",
+      "firstNamePlaceholder": "Enter first name",
+      "lastName": "Last Name",
+      "lastNamePlaceholder": "Enter last name",
+      "phone": "Phone",
+      "phonePlaceholder": "Enter phone number",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password",
+      "creating": "Creating...",
+      "submit": "Create Admin"
+    },
+    "validation": {
+      "emailRequired": "Email is required",
+      "emailInvalid": "Invalid email format",
+      "emailMaxLength": "Email cannot exceed 100 characters",
+      "passwordRequired": "Password is required",
+      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordMaxLength": "Password cannot exceed 50 characters",
+      "passwordLowercase": "Password must contain at least one lowercase letter",
+      "passwordUppercase": "Password must contain at least one uppercase letter",
+      "passwordNumber": "Password must contain at least one number",
+      "passwordSpecial": "Password must contain at least one special character",
+      "firstNameRequired": "First name is required",
+      "firstNameMinLength": "First name must be at least 2 characters",
+      "firstNameMaxLength": "First name cannot exceed 50 characters",
+      "firstNameInvalid": "First name can only contain letters, spaces, and hyphens",
+      "lastNameRequired": "Last name is required",
+      "lastNameMinLength": "Last name must be at least 2 characters",
+      "lastNameMaxLength": "Last name cannot exceed 50 characters",
+      "lastNameInvalid": "Last name can only contain letters, spaces, and hyphens",
+      "phoneInvalid": "Invalid phone number format"
+    },
+    "messages": {
+      "createSuccess": "Admin account created successfully",
+      "createError": "Failed to create admin account",
+      "createErrorRetry": "An error occurred. Please try again."
+    },
+    "successModal": {
+      "title": "Admin Account Created"
+    }
+  },
+  "createTrainer": {
+    "title": "Create Trainer Account",
+    "subtitle": "Create a new trainer account",
+    "form": {
+      "email": "Email",
+      "emailPlaceholder": "Enter email address",
+      "firstName": "First Name",
+      "firstNamePlaceholder": "Enter first name",
+      "lastName": "Last Name",
+      "lastNamePlaceholder": "Enter last name",
+      "phone": "Phone",
+      "phonePlaceholder": "Enter phone number",
+      "password": "Password",
+      "passwordPlaceholder": "Enter password",
+      "creating": "Creating...",
+      "submit": "Create Trainer"
+    },
+    "validation": {
+      "emailRequired": "Email is required",
+      "emailInvalid": "Invalid email format",
+      "emailMaxLength": "Email cannot exceed 100 characters",
+      "passwordRequired": "Password is required",
+      "passwordMinLength": "Password must be at least 8 characters",
+      "passwordMaxLength": "Password cannot exceed 50 characters",
+      "passwordLowercase": "Password must contain at least one lowercase letter",
+      "passwordUppercase": "Password must contain at least one uppercase letter",
+      "passwordNumber": "Password must contain at least one number",
+      "passwordSpecial": "Password must contain at least one special character",
+      "firstNameRequired": "First name is required",
+      "firstNameMinLength": "First name must be at least 2 characters",
+      "firstNameMaxLength": "First name cannot exceed 50 characters",
+      "firstNameInvalid": "First name can only contain letters, spaces, and hyphens",
+      "lastNameRequired": "Last name is required",
+      "lastNameMinLength": "Last name must be at least 2 characters",
+      "lastNameMaxLength": "Last name cannot exceed 50 characters",
+      "lastNameInvalid": "Last name can only contain letters, spaces, and hyphens",
+      "phoneInvalid": "Invalid phone number format"
+    },
+    "messages": {
+      "createSuccess": "Trainer account created successfully",
+      "createError": "Failed to create trainer account",
+      "createErrorRetry": "An error occurred. Please try again."
+    },
+    "successModal": {
+      "title": "Trainer Account Created"
     }
   }
 }

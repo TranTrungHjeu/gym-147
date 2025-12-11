@@ -28,11 +28,6 @@ class CacheWarmingJob {
         where: {
           is_active: true,
         },
-        include: {
-          plan_addons: {
-            where: { is_active: true },
-          },
-        },
         orderBy: { created_at: 'desc' },
       });
 
@@ -104,11 +99,6 @@ class CacheWarmingJob {
         where: {
           id: { in: planIds },
           is_active: true,
-        },
-        include: {
-          plan_addons: {
-            where: { is_active: true },
-          },
         },
       });
 

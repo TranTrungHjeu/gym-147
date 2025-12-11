@@ -6,15 +6,17 @@
     "dev": "node src/main.js",
     "start": "node src/main.js",
     "build": "echo 'No build needed for JS'",
-    "type-check": "echo 'No type check needed for JS'"
+    "type-check": "echo 'No type check needed for JS'",
+    "job:expire-subscriptions": "node scripts/run-subscription-expiration.js"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.490.0",
     "@aws-sdk/s3-request-presigner": "^3.490.0",
-    "@prisma/client": "^6.16.2",
+    "@prisma/client": "^6.18.0",
     "axios": "^1.13.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
     "express": "^4.19.2",
     "helmet": "^7.1.0",
     "http": "^0.0.1-security",
@@ -23,8 +25,7 @@
     "pdfkit": "^0.14.0",
     "prisma": "^6.16.2",
     "qrcode": "^1.5.4",
-    "exceljs": "^4.4.0",
-    "socket.io": "^4.8.1",
-    "redis": "^5.9.0"
+    "redis": "^5.9.0",
+    "socket.io": "^4.8.1"
   }
 }

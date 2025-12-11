@@ -38,18 +38,30 @@ class BookingService {
         }
       );
 
-      console.log('[DATE] Bookings API response:', response);
+      console.log('[DATE] Bookings API response:', {
+        hasData: !!response.data,
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        fullResponse: JSON.stringify(response.data, null, 2),
+      });
 
       // Handle different response structures
+      // Backend returns: { success: true, data: { bookings: [...], pagination: {...} } }
       let bookings = [];
-      if (response.data?.bookings) {
-        bookings = response.data.bookings;
-      } else if (response.data?.data?.bookings) {
+      if (response.data?.data?.bookings) {
+        // Standard backend format: { success: true, data: { bookings: [...] } }
         bookings = response.data.data.bookings;
-      } else if (Array.isArray(response.data)) {
-        bookings = response.data;
+      } else if (response.data?.bookings) {
+        // Alternative format: { bookings: [...] }
+        bookings = response.data.bookings;
       } else if (Array.isArray(response.data?.data)) {
+        // Direct array in data.data
         bookings = response.data.data;
+      } else if (Array.isArray(response.data)) {
+        // Direct array in data
+        bookings = response.data;
+      } else {
+        console.warn('[WARNING] Unexpected response structure:', response.data);
+        bookings = [];
       }
 
       console.log('[DATE] Extracted bookings:', bookings.length, 'bookings');
@@ -153,6 +165,7 @@ class BookingService {
   ): Promise<{
     success: boolean;
     data?: Booking;
+    refund?: any; // Refund info if available
     error?: string;
   }> {
     try {
@@ -166,13 +179,43 @@ class BookingService {
 
       console.log('[DATE] Booking cancelled successfully:', response.data);
 
+      // Handle different response structures
+      const responseData = response.data?.data || response.data;
+      const booking = responseData?.booking || responseData;
+      const refund = responseData?.refund || null;
+
       return {
         success: true,
-        data: response.data,
+        data: booking,
+        refund: refund, // Include refund info in response
       };
     } catch (error: any) {
-      console.error('[ERROR] Error cancelling booking:', error);
-      return { success: false, error: error.message };
+      console.error('[ERROR] Error cancelling booking:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        statusText: error.response?.statusText,
+        fullError: error,
+      });
+
+      // Extract error message from response if available
+      let errorMessage = error.message || 'Không thể hủy đặt lớp';
+      
+      if (error.response?.data) {
+        // Backend returns structured error response
+        if (error.response.data.message) {
+          errorMessage = error.response.data.message;
+        } else if (error.response.data.error) {
+          errorMessage = error.response.data.error;
+        } else if (typeof error.response.data === 'string') {
+          errorMessage = error.response.data;
+        }
+      }
+
+      return { 
+        success: false, 
+        error: errorMessage 
+      };
     }
   }
 
@@ -392,6 +435,78 @@ class BookingService {
     } catch (error: any) {
       console.error('[ERROR] Error fetching past bookings:', error);
       return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Initiate payment for waitlist booking
+   * POST /bookings/:id/initiate-payment
+   */
+  async initiateWaitlistPayment(bookingId: string, memberId?: string): Promise<{
+    success: boolean;
+    data?: {
+      booking: Booking;
+      payment?: any;
+      paymentInitiation?: any;
+      paymentRequired?: boolean;
+    };
+    error?: string;
+  }> {
+    try {
+      console.log('[DATE] Initiating payment for waitlist booking:', bookingId);
+
+      const response = await scheduleApiService.post(
+        `/bookings/${bookingId}/initiate-payment`,
+        memberId ? { member_id: memberId } : {}
+      );
+
+      return {
+        success: true,
+        data: response.data?.data || response.data,
+      };
+    } catch (error: any) {
+      console.error('[ERROR] Error initiating payment for waitlist booking:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * IMPROVEMENT: Get cancellation history for a member
+   * GET /bookings/members/:member_id/cancellation-history
+   */
+  async getCancellationHistory(
+    memberId: string,
+    limit: number = 20
+  ): Promise<{
+    success: boolean;
+    data?: Array<{
+      booking_id: string;
+      schedule_id: string;
+      class_name: string;
+      cancelled_at: string;
+      cancellation_reason: string;
+      refund_amount: number;
+    }>;
+    error?: string;
+  }> {
+    try {
+      const response = await scheduleApiService.get(
+        `/bookings/members/${memberId}/cancellation-history`,
+        {
+          params: { limit },
+        }
+      );
+
+      return {
+        success: response.success || true,
+        data: response.data,
+      };
+    } catch (error: any) {
+      console.error('[BOOKING] Get cancellation history error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to get cancellation history',
+      };
     }
   }
 }

@@ -1,4 +1,5 @@
 import React from 'react';
+import useTranslation from '../../hooks/useTranslation';
 
 interface SuccessModalProps {
   isOpen: boolean;
@@ -14,6 +15,7 @@ interface SuccessModalProps {
 }
 
 const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, user }) => {
+  const { t } = useTranslation();
   if (!isOpen) return null;
 
   return (
@@ -37,7 +39,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
             </svg>
           </div>
           <h3 className='text-xl font-semibold text-gray-900 mb-2'>{title}</h3>
-          <p className='text-gray-600'>Tài khoản đã được kích hoạt và có thể đăng nhập ngay</p>
+          <p className='text-gray-600'>{t('successModal.accountActivated')}</p>
         </div>
 
         {/* User Info */}
@@ -58,7 +60,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
                 />
               </svg>
               <div>
-                <p className='text-sm text-gray-600'>Email</p>
+                <p className='text-sm text-gray-600'>{t('successModal.email')}</p>
                 <p className='font-medium text-gray-900'>{user.email}</p>
               </div>
             </div>
@@ -78,7 +80,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
                 />
               </svg>
               <div>
-                <p className='text-sm text-gray-600'>Họ tên</p>
+                <p className='text-sm text-gray-600'>{t('successModal.fullName')}</p>
                 <p className='font-medium text-gray-900'>
                   {user.firstName} {user.lastName}
                 </p>
@@ -101,7 +103,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
                   />
                 </svg>
                 <div>
-                  <p className='text-sm text-gray-600'>Số điện thoại</p>
+                  <p className='text-sm text-gray-600'>{t('successModal.phone')}</p>
                   <p className='font-medium text-gray-900'>{user.phone}</p>
                 </div>
               </div>
@@ -122,8 +124,8 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
                 />
               </svg>
               <div>
-                <p className='text-sm text-gray-600'>Trạng thái</p>
-                <p className='font-medium text-green-600'>Đã kích hoạt</p>
+                <p className='text-sm text-gray-600'>{t('successModal.status')}</p>
+                <p className='font-medium text-green-600'>{t('successModal.activated')}</p>
               </div>
             </div>
           </div>
@@ -135,7 +137,7 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ isOpen, onClose, title, use
             onClick={onClose}
             className='bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded transition-colors duration-200'
           >
-            Đóng
+            {t('common.close')}
           </button>
         </div>
       </div>

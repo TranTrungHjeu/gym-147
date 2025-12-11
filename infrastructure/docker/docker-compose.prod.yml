@@ -29,8 +29,8 @@ services:
   # Identity Service
   identity:
     build:
-      context: ../../services/identity-service
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: services/identity-service/Dockerfile
     container_name: identity-service
     environment:
       - NODE_ENV=production
@@ -64,8 +64,8 @@ services:
   # Member Service
   member:
     build:
-      context: ../../services/member-service
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: services/member-service/Dockerfile
     container_name: member-service
     environment:
       - NODE_ENV=production
@@ -99,8 +99,8 @@ services:
   # Schedule Service
   schedule:
     build:
-      context: ../../services/schedule-service
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: services/schedule-service/Dockerfile
     container_name: schedule-service
     environment:
       - NODE_ENV=production
@@ -109,6 +109,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - MEMBER_SERVICE_URL=http://member:3002
+      - BILLING_SERVICE_URL=http://billing:3004
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - DOCKER_ENV=true
     ports:
@@ -116,6 +117,7 @@ services:
     depends_on:
       - redis
       - member
+      - billing
     restart: unless-stopped
     networks:
       - gym-network
@@ -134,8 +136,8 @@ services:
   # Billing Service
   billing:
     build:
-      context: ../../services/billing-service
-      dockerfile: Dockerfile
+      context: ../../
+      dockerfile: services/billing-service/Dockerfile
     container_name: billing-service
     environment:
       - NODE_ENV=production
@@ -212,8 +214,3 @@ volumes:
 networks:
   gym-network:
     driver: bridge
-
-
-
-
-

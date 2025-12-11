@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { rewardService, type RewardRedemption } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { useFocusEffect } from '@react-navigation/native';
 import { useRouter } from 'expo-router';
 import {
   ArrowLeft,
@@ -14,7 +15,7 @@ import {
   X,
   XCircle,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -41,7 +42,8 @@ export default function RewardHistoryScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
   const [showQRModal, setShowQRModal] = useState(false);
-  const [selectedRedemption, setSelectedRedemption] = useState<RewardRedemption | null>(null);
+  const [selectedRedemption, setSelectedRedemption] =
+    useState<RewardRedemption | null>(null);
   const [codeCopied, setCodeCopied] = useState(false);
 
   const themedStyles = styles(theme);
@@ -51,6 +53,15 @@ export default function RewardHistoryScreen() {
       loadHistory();
     }
   }, [member?.id]);
+
+  // Refresh when screen is focused (e.g., after redeeming a reward)
+  useFocusEffect(
+    useCallback(() => {
+      if (member?.id) {
+        loadHistory();
+      }
+    }, [member?.id])
+  );
 
   const loadHistory = async () => {
     if (!member?.id) return;
@@ -62,7 +73,9 @@ export default function RewardHistoryScreen() {
       if (response.success && response.data) {
         // Sort by redeemed_at descending (newest first)
         const sorted = [...response.data].sort(
-          (a, b) => new Date(b.redeemed_at).getTime() - new Date(a.redeemed_at).getTime()
+          (a, b) =>
+            new Date(b.redeemed_at).getTime() -
+            new Date(a.redeemed_at).getTime()
         );
         setRedemptions(sorted);
       }
@@ -132,7 +145,9 @@ export default function RewardHistoryScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -142,7 +157,10 @@ export default function RewardHistoryScreen() {
     <SafeAreaView style={themedStyles.container}>
       {/* Header */}
       <View style={themedStyles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={themedStyles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={themedStyles.backButton}
+        >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
@@ -153,22 +171,46 @@ export default function RewardHistoryScreen() {
       <ScrollView
         style={themedStyles.scrollView}
         showsVerticalScrollIndicator={false}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {redemptions.length === 0 ? (
           <View style={themedStyles.emptyState}>
             <Gift size={64} color={theme.colors.textSecondary} />
-            <Text style={[Typography.h4, { color: theme.colors.text, marginTop: 16 }]}>
+            <Text
+              style={[
+                Typography.h4,
+                { color: theme.colors.text, marginTop: 16 },
+              ]}
+            >
               {t('rewards.noHistory')}
             </Text>
-            <Text style={[Typography.body, { color: theme.colors.textSecondary, marginTop: 8, textAlign: 'center' }]}>
+            <Text
+              style={[
+                Typography.body,
+                {
+                  color: theme.colors.textSecondary,
+                  marginTop: 8,
+                  textAlign: 'center',
+                },
+              ]}
+            >
               {t('rewards.noHistoryMessage')}
             </Text>
             <TouchableOpacity
-              style={[themedStyles.exploreButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                themedStyles.exploreButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
               onPress={() => router.push('/rewards')}
             >
-              <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse }]}>
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  { color: theme.colors.textInverse },
+                ]}
+              >
                 {t('rewards.title')}
               </Text>
             </TouchableOpacity>
@@ -182,21 +224,43 @@ export default function RewardHistoryScreen() {
                   <View style={themedStyles.rewardInfo}>
                     {redemption.reward?.image_url ? (
                       <View style={themedStyles.rewardImageContainer}>
-                        <View style={[themedStyles.rewardImage, { backgroundColor: theme.colors.surface }]}>
+                        <View
+                          style={[
+                            themedStyles.rewardImage,
+                            { backgroundColor: theme.colors.surface },
+                          ]}
+                        >
                           <Gift size={24} color={theme.colors.primary} />
                         </View>
                       </View>
                     ) : (
-                      <View style={[themedStyles.rewardImage, { backgroundColor: theme.colors.surface }]}>
+                      <View
+                        style={[
+                          themedStyles.rewardImage,
+                          { backgroundColor: theme.colors.surface },
+                        ]}
+                      >
                         <Gift size={24} color={theme.colors.primary} />
                       </View>
                     )}
                     <View style={themedStyles.rewardDetails}>
-                      <Text style={[Typography.bodyMedium, { color: theme.colors.text }]} numberOfLines={2}>
+                      <Text
+                        style={[
+                          Typography.bodyMedium,
+                          { color: theme.colors.text },
+                        ]}
+                        numberOfLines={2}
+                      >
                         {redemption.reward?.title || t('rewards.title')}
                       </Text>
-                      <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginTop: 4 }]}>
-                        {redemption.points_spent.toLocaleString()} {t('rewards.points')}
+                      <Text
+                        style={[
+                          Typography.bodySmall,
+                          { color: theme.colors.textSecondary, marginTop: 4 },
+                        ]}
+                      >
+                        {redemption.points_spent.toLocaleString()}{' '}
+                        {t('rewards.points')}
                       </Text>
                     </View>
                   </View>
@@ -204,14 +268,20 @@ export default function RewardHistoryScreen() {
                   <View
                     style={[
                       themedStyles.statusBadge,
-                      { backgroundColor: getStatusColor(redemption.status) + '15' },
+                      {
+                        backgroundColor:
+                          getStatusColor(redemption.status) + '15',
+                      },
                     ]}
                   >
                     {getStatusIcon(redemption.status)}
                     <Text
                       style={[
                         Typography.caption,
-                        { color: getStatusColor(redemption.status), marginLeft: 4 },
+                        {
+                          color: getStatusColor(redemption.status),
+                          marginLeft: 4,
+                        },
                       ]}
                     >
                       {getStatusLabel(redemption.status)}
@@ -224,10 +294,25 @@ export default function RewardHistoryScreen() {
                   <View style={themedStyles.codeContainer}>
                     <View style={themedStyles.codeRow}>
                       <View style={themedStyles.codeInfo}>
-                        <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
+                        <Text
+                          style={[
+                            Typography.bodySmall,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
                           {t('rewards.redemptionCode')}:
                         </Text>
-                        <Text style={[Typography.bodyMedium, { color: theme.colors.text, fontFamily: 'SpaceGrotesk-Bold', marginTop: 4, letterSpacing: 1 }]}>
+                        <Text
+                          style={[
+                            Typography.bodyMedium,
+                            {
+                              color: theme.colors.text,
+                              fontFamily: 'SpaceGrotesk-Bold',
+                              marginTop: 4,
+                              letterSpacing: 1,
+                            },
+                          ]}
+                        >
                           {redemption.code}
                         </Text>
                       </View>
@@ -237,7 +322,10 @@ export default function RewardHistoryScreen() {
                           onPress={() => handleCopyCode(redemption.code!)}
                         >
                           {codeCopied ? (
-                            <CheckCircle size={20} color={theme.colors.success} />
+                            <CheckCircle
+                              size={20}
+                              color={theme.colors.success}
+                            />
                           ) : (
                             <Copy size={20} color={theme.colors.primary} />
                           )}
@@ -251,7 +339,16 @@ export default function RewardHistoryScreen() {
                       </View>
                     </View>
                     {codeCopied && (
-                      <Text style={[Typography.caption, { color: theme.colors.success, marginTop: 8, textAlign: 'center' }]}>
+                      <Text
+                        style={[
+                          Typography.caption,
+                          {
+                            color: theme.colors.success,
+                            marginTop: 8,
+                            textAlign: 'center',
+                          },
+                        ]}
+                      >
                         {t('rewards.codeCopied')}
                       </Text>
                     )}
@@ -262,14 +359,25 @@ export default function RewardHistoryScreen() {
                 <View style={themedStyles.datesContainer}>
                   <View style={themedStyles.dateRow}>
                     <Calendar size={14} color={theme.colors.textSecondary} />
-                    <Text style={[Typography.caption, { color: theme.colors.textSecondary, marginLeft: 6 }]}>
-                      {t('rewards.redeemedAt')}: {formatDate(redemption.redeemed_at)}
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: theme.colors.textSecondary, marginLeft: 6 },
+                      ]}
+                    >
+                      {t('rewards.redeemedAt')}:{' '}
+                      {formatDate(redemption.redeemed_at)}
                     </Text>
                   </View>
                   {redemption.used_at && (
                     <View style={[themedStyles.dateRow, { marginTop: 4 }]}>
                       <CheckCircle size={14} color={theme.colors.success} />
-                      <Text style={[Typography.caption, { color: theme.colors.success, marginLeft: 6 }]}>
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: theme.colors.success, marginLeft: 6 },
+                        ]}
+                      >
                         {t('rewards.usedAt')}: {formatDate(redemption.used_at)}
                       </Text>
                     </View>
@@ -277,8 +385,14 @@ export default function RewardHistoryScreen() {
                   {redemption.expires_at && (
                     <View style={[themedStyles.dateRow, { marginTop: 4 }]}>
                       <Clock size={14} color={theme.colors.warning} />
-                      <Text style={[Typography.caption, { color: theme.colors.warning, marginLeft: 6 }]}>
-                        {t('rewards.expiresAt')}: {formatDate(redemption.expires_at)}
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: theme.colors.warning, marginLeft: 6 },
+                        ]}
+                      >
+                        {t('rewards.expiresAt')}:{' '}
+                        {formatDate(redemption.expires_at)}
                       </Text>
                     </View>
                   )}
@@ -287,7 +401,12 @@ export default function RewardHistoryScreen() {
                 {/* Notes */}
                 {redemption.notes && (
                   <View style={themedStyles.notesContainer}>
-                    <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
+                    <Text
+                      style={[
+                        Typography.bodySmall,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
                       {redemption.notes}
                     </Text>
                   </View>
@@ -328,29 +447,60 @@ export default function RewardHistoryScreen() {
                     backgroundColor={theme.colors.background}
                   />
                 </View>
-                <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginTop: 16, textAlign: 'center' }]}>
+                <Text
+                  style={[
+                    Typography.bodySmall,
+                    {
+                      color: theme.colors.textSecondary,
+                      marginTop: 16,
+                      textAlign: 'center',
+                    },
+                  ]}
+                >
                   {t('rewards.qrCodeDescription')}
                 </Text>
                 <View style={themedStyles.qrCodeContainer}>
-                  <Text style={[Typography.bodyMedium, { color: theme.colors.text, fontFamily: 'SpaceGrotesk-Bold', letterSpacing: 2 }]}>
+                  <Text
+                    style={[
+                      Typography.bodyMedium,
+                      {
+                        color: theme.colors.text,
+                        fontFamily: 'SpaceGrotesk-Bold',
+                        letterSpacing: 2,
+                      },
+                    ]}
+                  >
                     {selectedRedemption.code}
                   </Text>
                 </View>
                 <TouchableOpacity
-                  style={[themedStyles.copyCodeButton, { backgroundColor: theme.colors.primary }]}
+                  style={[
+                    themedStyles.copyCodeButton,
+                    { backgroundColor: theme.colors.primary },
+                  ]}
                   onPress={() => handleCopyCode(selectedRedemption.code!)}
                 >
                   {codeCopied ? (
                     <>
                       <CheckCircle size={20} color={theme.colors.textInverse} />
-                      <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
+                      <Text
+                        style={[
+                          Typography.bodyMedium,
+                          { color: theme.colors.textInverse, marginLeft: 8 },
+                        ]}
+                      >
                         {t('rewards.codeCopied')}
                       </Text>
                     </>
                   ) : (
                     <>
                       <Copy size={20} color={theme.colors.textInverse} />
-                      <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
+                      <Text
+                        style={[
+                          Typography.bodyMedium,
+                          { color: theme.colors.textInverse, marginLeft: 8 },
+                        ]}
+                      >
                         {t('rewards.copyCode')}
                       </Text>
                     </>
@@ -532,4 +682,3 @@ const styles = (theme: any) =>
       width: '100%',
     },
   });
-

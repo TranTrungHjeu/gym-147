@@ -66,7 +66,8 @@ class ChallengeService {
       const params = new URLSearchParams();
       if (filters?.type) params.append('type', filters.type);
       if (filters?.category) params.append('category', filters.category);
-      if (filters?.is_active !== undefined) params.append('is_active', String(filters.is_active));
+      if (filters?.is_active !== undefined)
+        params.append('is_active', String(filters.is_active));
 
       const queryString = params.toString();
       const url = queryString ? `/challenges?${queryString}` : '/challenges';
@@ -122,19 +123,35 @@ class ChallengeService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.post(`/challenges/${challengeId}/join`, {
-        memberId,
-      });
+      const response = await memberApiService.post(
+        `/challenges/${challengeId}/join`,
+        {
+          memberId,
+        }
+      );
       return {
         success: response.success,
         data: response.data,
         error: response.message,
       };
     } catch (error: any) {
-      console.error('Join challenge error:', error);
+      // Log error but don't throw - return error response instead
+      // Use console.log instead of console.error to avoid triggering alerts
+      console.log('[CHALLENGE] Join challenge error:', error);
+
+      // Extract error message from response if available
+      let errorMessage = 'Failed to join challenge';
+      if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+
       return {
         success: false,
-        error: error.message || 'Failed to join challenge',
+        error: errorMessage,
       };
     }
   }
@@ -156,10 +173,13 @@ class ChallengeService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.post(`/challenges/${challengeId}/progress`, {
-        memberId,
-        increment,
-      });
+      const response = await memberApiService.post(
+        `/challenges/${challengeId}/progress`,
+        {
+          memberId,
+          increment,
+        }
+      );
       return {
         success: response.success,
         data: response.data,
@@ -187,7 +207,9 @@ class ChallengeService {
   }> {
     try {
       const params = status ? `?status=${status}` : '';
-      const response = await memberApiService.get(`/members/${memberId}/challenges${params}`);
+      const response = await memberApiService.get(
+        `/members/${memberId}/challenges${params}`
+      );
       return {
         success: response.success,
         data: response.data,
@@ -243,4 +265,3 @@ class ChallengeService {
 }
 
 export const challengeService = new ChallengeService();
-

@@ -1,6 +1,7 @@
 import type { EChartsOption } from 'echarts';
 import ReactECharts from 'echarts-for-react';
 import { useEffect, useState } from 'react';
+import useTranslation from '../../hooks/useTranslation';
 import { useTheme } from '../../context/ThemeContext';
 import { scheduleService } from '../../services/schedule.service';
 import { Trainer, trainerService } from '../../services/trainer.service';
@@ -31,6 +32,7 @@ interface ComparisonModalProps {
 }
 
 export default function ComparisonModal({ isOpen, onClose, currentUserId }: ComparisonModalProps) {
+  const { t } = useTranslation();
   const { theme } = useTheme();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [selectedTrainerIds, setSelectedTrainerIds] = useState<string[]>([]);
@@ -59,7 +61,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Lỗi tải danh sách trainers',
+          message: t('comparisonModal.errors.loadTrainersFailed'),
           duration: 3000,
         });
       }
@@ -73,7 +75,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Vui lòng chọn ít nhất một trainer để so sánh',
+          message: t('comparisonModal.errors.selectAtLeastOne'),
           duration: 3000,
         });
       }
@@ -132,7 +134,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Lỗi khi so sánh trainers',
+          message: t('comparisonModal.errors.comparisonFailed'),
           duration: 3000,
         });
       }
@@ -160,7 +162,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
       },
     },
     legend: {
-      data: ['Tổng lớp', 'Học viên', 'Đánh giá', 'Hoàn thành'],
+      data: [t('comparisonModal.chart.totalClasses'), t('comparisonModal.chart.students'), t('comparisonModal.chart.rating'), t('comparisonModal.chart.completed')],
       bottom: 0,
     },
     grid: {
@@ -180,7 +182,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
     yAxis: [
       {
         type: 'value',
-        name: 'Số lượng',
+        name: t('comparisonModal.chart.quantity'),
         position: 'left',
       },
       {
@@ -191,13 +193,13 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
     ],
     series: [
       {
-        name: 'Tổng lớp',
+        name: t('comparisonModal.chart.totalClasses'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.totalClasses),
         itemStyle: { color: '#3b82f6' },
       },
       {
-        name: 'Học viên',
+        name: t('comparisonModal.chart.students'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.totalStudents),
         itemStyle: { color: '#10b981' },
@@ -212,7 +214,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         symbolSize: 8,
       },
       {
-        name: 'Hoàn thành',
+        name: t('comparisonModal.chart.completed'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.completedSessions),
         itemStyle: { color: '#8b5cf6' },
@@ -227,20 +229,20 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         {/* Trainer Selection */}
         <div>
           <label className='block text-xs font-semibold font-heading text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] mb-2'>
-            Chọn trainers để so sánh
+            {t('comparisonModal.selectTrainers')}
           </label>
           {loadingTrainers ? (
             <div className='text-center py-6'>
               <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-orange-600)] mx-auto mb-2'></div>
               <p className='text-xs text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>
-                Đang tải danh sách trainers...
+                {t('comparisonModal.loadingTrainers')}
               </p>
             </div>
           ) : (
             <div className='max-h-40 overflow-y-auto border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-lg p-2 bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)]'>
               {trainers.length === 0 ? (
                 <p className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] text-center py-4 font-sans'>
-                  Không có trainer nào để so sánh
+                  {t('comparisonModal.noTrainers')}
                 </p>
               ) : (
                 trainers.map(trainer => (
@@ -268,7 +270,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                       </p>
                       {trainer.rating_average && (
                         <p className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] font-sans'>
-                          ⭐ {trainer.rating_average.toFixed(1)} • {trainer.total_classes || 0} lớp
+                          ⭐ {trainer.rating_average.toFixed(1)} • {trainer.total_classes || 0} {t('comparisonModal.classes')}
                         </p>
                       )}
                     </div>
@@ -282,17 +284,17 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         {/* Time Period Selection */}
         <div>
           <label className='block text-xs font-semibold font-heading text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] mb-2'>
-            Khoảng thời gian
+            {t('comparisonModal.timePeriod')}
           </label>
           <CustomSelect
             options={[
-              { value: 'month', label: 'Tháng này' },
-              { value: 'quarter', label: 'Quý này' },
-              { value: 'year', label: 'Năm nay' },
+              { value: 'month', label: t('comparisonModal.periods.month') },
+              { value: 'quarter', label: t('comparisonModal.periods.quarter') },
+              { value: 'year', label: t('comparisonModal.periods.year') },
             ]}
             value={timePeriod}
             onChange={value => setTimePeriod(value as 'month' | 'quarter' | 'year')}
-            placeholder='Chọn khoảng thời gian'
+            placeholder={t('comparisonModal.selectTimePeriod')}
             className='w-full'
           />
         </div>
@@ -305,7 +307,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
             onClick={handleCompare}
             disabled={loading || selectedTrainerIds.length === 0}
           >
-            {loading ? 'Đang so sánh...' : 'So sánh'}
+            {loading ? t('comparisonModal.comparing') : t('comparisonModal.compare')}
           </Button>
         </div>
 
@@ -315,7 +317,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
             {/* Chart */}
             <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-lg p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <h3 className='text-base font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'>
-                Biểu đồ so sánh
+                {t('comparisonModal.chartTitle')}
               </h3>
               <ReactECharts option={chartOption} style={{ height: '350px', width: '100%' }} />
             </div>
@@ -323,31 +325,31 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
             {/* Comparison Table */}
             <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-lg p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] overflow-x-auto'>
               <h3 className='text-base font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'>
-                Bảng so sánh chi tiết
+                {t('comparisonModal.tableTitle')}
               </h3>
               <table className='w-full text-xs'>
                 <thead>
                   <tr className='border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
                     <th className='text-left py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Trainer
+                      {t('comparisonModal.table.trainer')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Tổng lớp
+                      {t('comparisonModal.table.totalClasses')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Học viên
+                      {t('comparisonModal.table.students')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Đánh giá
+                      {t('comparisonModal.table.rating')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Hoàn thành
+                      {t('comparisonModal.table.completed')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Sắp tới
+                      {t('comparisonModal.table.upcoming')}
                     </th>
                     <th className='text-right py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
-                      Doanh thu
+                      {t('comparisonModal.table.revenue')}
                     </th>
                   </tr>
                 </thead>
@@ -367,7 +369,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                             {item.trainer.full_name}
                             {index === 0 && (
                               <span className='ml-1.5 text-xs text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] font-sans'>
-                                (Bạn)
+                                ({t('comparisonModal.you')})
                               </span>
                             )}
                           </p>

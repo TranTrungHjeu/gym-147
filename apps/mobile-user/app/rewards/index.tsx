@@ -4,11 +4,12 @@ import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { AppEvents } from '@/utils/eventEmitter';
 import { useRouter } from 'expo-router';
-import { Coins, Gift, Sparkles, Tag } from 'lucide-react-native';
+import { Coins, Gift, Sparkles, Tag, History } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  FlatList,
   Image,
   RefreshControl,
   SafeAreaView,
@@ -18,6 +19,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import PointsEarnedModal from '@/components/PointsEarnedModal';
+import type { PointsTransaction } from '@/services/member/points.service';
 
 export default function RewardsScreen() {
   const router = useRouter();
@@ -32,6 +35,16 @@ export default function RewardsScreen() {
   const [pointsBalance, setPointsBalance] = useState<number>(0);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const [pointsModalData, setPointsModalData] = useState<{
+    points: number;
+    source?: string;
+    description?: string;
+    newBalance?: number;
+  } | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const [pointsHistory, setPointsHistory] = useState<PointsTransaction[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const categories = [
     'DISCOUNT',
@@ -75,6 +88,17 @@ export default function RewardsScreen() {
             }
           });
         }
+      }
+
+      // Show modal if points were earned (positive change)
+      if (data?.points_earned && data.points_earned > 0) {
+        setPointsModalData({
+          points: data.points_earned,
+          source: data.source,
+          description: data.description,
+          newBalance: data.new_balance,
+        });
+        setShowPointsModal(true);
       }
     };
 
@@ -131,6 +155,31 @@ export default function RewardsScreen() {
     router.push(`/rewards/${rewardId}`);
   };
 
+  const loadPointsHistory = async () => {
+    if (!member?.id) return;
+
+    try {
+      setLoadingHistory(true);
+      const response = await pointsService.getHistory(member.id, {
+        limit: 50,
+      });
+
+      if (response.success && response.data) {
+        setPointsHistory(response.data);
+      }
+    } catch (error) {
+      console.error('Error loading points history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showHistory && member?.id) {
+      loadPointsHistory();
+    }
+  }, [showHistory, member?.id]);
+
   const getCategoryLabel = (category: string) => {
     return t(`rewards.category.${category}` as any) || category;
   };
@@ -164,8 +213,86 @@ export default function RewardsScreen() {
               {pointsBalance.toLocaleString()} {t('rewards.points')}
             </Text>
           </View>
+          <TouchableOpacity
+            style={themedStyles.historyButton}
+            onPress={() => setShowHistory(!showHistory)}
+          >
+            <History size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
         </View>
       </View>
+
+      {/* Points History Section */}
+      {showHistory && (
+        <View style={themedStyles.historySection}>
+          <View style={themedStyles.historyHeader}>
+            <Text style={themedStyles.historyTitle}>
+              {t('points.history.title') || 'Lịch sử điểm'}
+            </Text>
+            {loadingHistory ? (
+              <ActivityIndicator size="small" color={theme.colors.primary} />
+            ) : null}
+          </View>
+          {pointsHistory.length > 0 ? (
+            <FlatList
+              data={pointsHistory}
+              keyExtractor={(item) => item.id}
+              renderItem={({ item }) => (
+                <View style={themedStyles.historyItem}>
+                  <View style={themedStyles.historyItemLeft}>
+                    <View style={themedStyles.historyItemIcon}>
+                      {item.type === 'EARNED' ? (
+                        <Coins size={20} color="#FFD700" />
+                      ) : (
+                        <Coins size={20} color={theme.colors.error} />
+                      )}
+                    </View>
+                    <View style={themedStyles.historyItemContent}>
+                      <Text style={themedStyles.historyItemDescription}>
+                        {item.description || t('points.history.noDescription')}
+                      </Text>
+                      <Text style={themedStyles.historyItemDate}>
+                        {new Date(item.created_at).toLocaleString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={themedStyles.historyItemRight}>
+                    <Text
+                      style={[
+                        themedStyles.historyItemPoints,
+                        item.type === 'EARNED'
+                          ? { color: '#4CAF50' }
+                          : { color: theme.colors.error },
+                      ]}
+                    >
+                      {item.type === 'EARNED' ? '+' : '-'}
+                      {Math.abs(item.points).toLocaleString()}
+                    </Text>
+                    <Text style={themedStyles.historyItemBalance}>
+                      {t('points.history.balance') || 'Số dư'}: {item.balance_after.toLocaleString()}
+                    </Text>
+                  </View>
+                </View>
+              )}
+              style={themedStyles.historyList}
+              contentContainerStyle={themedStyles.historyListContent}
+            />
+          ) : (
+            <View style={themedStyles.historyEmpty}>
+              <History size={48} color={theme.colors.textSecondary} />
+              <Text style={themedStyles.historyEmptyText}>
+                {t('points.history.empty') || 'Chưa có lịch sử điểm'}
+              </Text>
+            </View>
+          )}
+        </View>
+      )}
 
       {/* Category Filter */}
       <View style={themedStyles.categoryContainer}>
@@ -364,6 +491,19 @@ export default function RewardsScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Points Earned Modal */}
+      <PointsEarnedModal
+        visible={showPointsModal}
+        onClose={() => {
+          setShowPointsModal(false);
+          setPointsModalData(null);
+        }}
+        points={pointsModalData?.points || 0}
+        source={pointsModalData?.source}
+        description={pointsModalData?.description}
+        newBalance={pointsModalData?.newBalance}
+      />
     </SafeAreaView>
   );
 }
@@ -541,15 +681,96 @@ const styles = (theme: any) =>
       textAlign: 'center',
     },
     historyButton: {
-      margin: 16,
-      padding: 16,
-      backgroundColor: theme.colors.primary,
-      borderRadius: 12,
-      alignItems: 'center',
+      padding: 8,
+      marginLeft: 12,
     },
     historyButtonText: {
       ...Typography.body,
       color: '#FFFFFF',
       fontFamily: 'SpaceGrotesk-SemiBold',
+    },
+    historySection: {
+      backgroundColor: theme.colors.card,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      maxHeight: 400,
+    },
+    historyHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    historyTitle: {
+      ...Typography.h6,
+      color: theme.colors.text,
+      fontFamily: 'SpaceGrotesk-SemiBold',
+    },
+    historyList: {
+      maxHeight: 300,
+    },
+    historyListContent: {
+      padding: 16,
+    },
+    historyItem: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      paddingVertical: 12,
+      paddingHorizontal: 16,
+      backgroundColor: theme.colors.background,
+      borderRadius: 12,
+      marginBottom: 8,
+    },
+    historyItemLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      flex: 1,
+    },
+    historyItemIcon: {
+      marginRight: 12,
+    },
+    historyItemContent: {
+      flex: 1,
+    },
+    historyItemDescription: {
+      ...Typography.body,
+      color: theme.colors.text,
+      marginBottom: 4,
+    },
+    historyItemDate: {
+      ...Typography.caption,
+      color: theme.colors.textSecondary,
+    },
+    historyItemRight: {
+      alignItems: 'flex-end',
+    },
+    historyItemPoints: {
+      ...Typography.h6,
+      fontFamily: 'SpaceGrotesk-Bold',
+      marginBottom: 4,
+    },
+    historyItemBalance: {
+      ...Typography.caption,
+      color: theme.colors.textSecondary,
+    },
+    historyEmpty: {
+      padding: 48,
+      alignItems: 'center',
+    },
+    historyEmptyText: {
+      ...Typography.body,
+      color: theme.colors.textSecondary,
+      marginTop: 16,
+      textAlign: 'center',
+    },
+    redemptionHistoryButton: {
+      margin: 16,
+      padding: 16,
+      backgroundColor: theme.colors.primary,
+      borderRadius: 12,
+      alignItems: 'center',
     },
   });

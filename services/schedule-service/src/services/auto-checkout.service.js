@@ -73,6 +73,10 @@ class AutoCheckoutService {
       console.log(`[SYNC] Processing auto check-out at ${now.toISOString()} (GMT+7)`);
       console.log(`[SYNC] Processing auto check-out at ${nowUTC.toISOString()} (UTC)`);
 
+      // IMPROVEMENT: Also find schedules ending in 5 minutes (for reminder notification)
+      const fiveMinutesFromNowUTC = new Date(nowUTC.getTime() + 5 * 60 * 1000);
+      const fiveMinutesFromNowEndUTC = new Date(nowUTC.getTime() + 6 * 60 * 1000);
+
       // Find schedules that ended 10+ minutes ago and haven't been auto-checked-out
       const schedules = await prisma.schedule.findMany({
         where: {
@@ -91,6 +95,61 @@ class AutoCheckoutService {
           trainer: true,
         },
       });
+
+      // IMPROVEMENT: Find schedules ending in 5 minutes (for reminder notification)
+      const schedulesForReminder = await prisma.schedule.findMany({
+        where: {
+          end_time: {
+            gte: fiveMinutesFromNowUTC,
+            lte: fiveMinutesFromNowEndUTC,
+          },
+          status: 'IN_PROGRESS',
+          check_in_enabled: true,
+        },
+        include: {
+          attendance: {
+            where: {
+              checked_in_at: { not: null },
+              checked_out_at: null,
+            },
+          },
+          gym_class: true,
+        },
+      });
+
+      // IMPROVEMENT: Send reminder notifications
+      if (schedulesForReminder.length > 0) {
+        const notificationService = require('./notification.service.js');
+        for (const schedule of schedulesForReminder) {
+          try {
+            for (const attendance of schedule.attendance) {
+              // Get member info
+              const memberService = require('./member.service.js');
+              const member = await memberService.getMemberById(attendance.member_id);
+              
+              if (member?.user_id) {
+                await notificationService.sendNotification({
+                  user_id: member.user_id,
+                  type: 'CHECKOUT_REMINDER',
+                  title: 'Nhắc nhở check-out',
+                  message: `Lớp ${schedule.gym_class.name} sẽ kết thúc trong 5 phút. Vui lòng check-out!`,
+                  data: {
+                    schedule_id: schedule.id,
+                    attendance_id: attendance.id,
+                    class_name: schedule.gym_class.name,
+                    end_time: schedule.end_time,
+                  },
+                  channels: ['IN_APP', 'PUSH'],
+                });
+              }
+            }
+
+            // Note: We don't track reminder_sent to allow multiple reminders if needed
+          } catch (error) {
+            console.error(`[ERROR] Failed to send reminder for schedule ${schedule.id}:`, error);
+          }
+        }
+      }
 
       console.log(`[LIST] Found ${schedules.length} schedules eligible for auto check-out`);
 
@@ -134,18 +193,59 @@ class AutoCheckoutService {
       // Calculate auto check-out time (10 minutes after class end)
       const autoCheckoutTime = new Date(schedule.end_time.getTime() + 10 * 60 * 1000);
 
-      // Auto check-out all members who haven't checked out
+      // IMPROVEMENT: Checkout confirmation - Only auto-checkout if not confirmed manually
       const updatedAttendances = await Promise.all(
-        schedule.attendance.map(attendance =>
-          prisma.attendance.update({
+        schedule.attendance.map(async attendance => {
+          // Check if member has confirmed checkout (manual checkout takes precedence)
+          if (attendance.checked_out_at) {
+            // Already checked out manually
+            return attendance;
+          }
+
+          // IMPROVEMENT: Send confirmation notification before auto-checkout
+          // If member doesn't confirm within 5 minutes, proceed with auto-checkout
+          const confirmationDeadline = new Date(schedule.end_time.getTime() + 5 * 60 * 1000);
+          const now = new Date();
+
+          if (now < confirmationDeadline) {
+            // Still within confirmation window, send reminder
+            try {
+              const memberService = require('./member.service.js');
+              const member = await memberService.getMemberById(attendance.member_id);
+              
+              if (member?.user_id) {
+                await notificationService.sendNotification({
+                  user_id: member.user_id,
+                  type: 'CHECKOUT_CONFIRMATION',
+                  title: 'Xác nhận check-out',
+                  message: `Lớp ${schedule.gym_class.name} đã kết thúc. Bạn có muốn check-out ngay bây giờ không? Nếu không, hệ thống sẽ tự động check-out sau 5 phút.`,
+                  data: {
+                    schedule_id: schedule.id,
+                    attendance_id: attendance.id,
+                    class_name: schedule.gym_class.name,
+                    end_time: schedule.end_time,
+                    confirmation_deadline: confirmationDeadline,
+                    action_url: `/schedules/${schedule.id}/checkout/confirm`,
+                  },
+                  channels: ['IN_APP', 'PUSH'],
+                });
+              }
+            } catch (notifError) {
+              console.error(`[ERROR] Failed to send checkout confirmation for attendance ${attendance.id}:`, notifError);
+              // Continue with auto-checkout even if notification fails
+            }
+          }
+
+          // Proceed with auto-checkout
+          return await prisma.attendance.update({
             where: { id: attendance.id },
             data: {
               checked_out_at: autoCheckoutTime,
               check_out_method: 'AUTO',
               is_auto_checkout: true,
             },
-          })
-        )
+          });
+        })
       );
 
       // Mark schedule as auto check-out completed

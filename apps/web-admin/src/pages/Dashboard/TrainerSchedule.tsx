@@ -5,6 +5,8 @@ import {
   Edit,
   Eye,
   MoreVertical,
+  QrCode,
+  RefreshCw,
   Search,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -14,6 +16,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import DatePicker from '../../components/common/DatePicker';
 import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import EditScheduleModal from '../../components/trainer/EditScheduleModal';
+import ScheduleQRCodeModal from '../../components/trainer/ScheduleQRCodeModal';
 import Button from '../../components/ui/Button/Button';
 import { Dropdown } from '../../components/ui/dropdown/Dropdown';
 import { DropdownItem } from '../../components/ui/dropdown/DropdownItem';
@@ -112,7 +115,7 @@ interface ScheduleItem {
 }
 
 // Separate Header Component - Memoized to prevent re-renders
-const ScheduleHeader = React.memo(() => {
+const ScheduleHeader = React.memo(({ onRefresh, isLoading }: { onRefresh: () => void; isLoading: boolean }) => {
   return (
     <div className='p-6 pb-0'>
       <div className='flex justify-between items-start'>
@@ -124,6 +127,16 @@ const ScheduleHeader = React.memo(() => {
             Xem và quản lý lịch dạy của bạn
           </p>
         </div>
+        <Button
+          onClick={onRefresh}
+          disabled={isLoading}
+          variant='outline'
+          size='sm'
+          className='flex items-center gap-2'
+        >
+          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+          <span>Làm mới</span>
+        </Button>
       </div>
     </div>
   );
@@ -470,28 +483,75 @@ const ScheduleTable = ({
   // Use the global getStatusColor function defined outside the component
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    if (!dateString) return 'N/A';
+    try {
+      // Handle both date strings (YYYY-MM-DD) and datetime strings
+      let date: Date;
+      
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // This is just a date string (YYYY-MM-DD), parse it as UTC to avoid timezone issues
+        const [year, month, day] = dateString.split('-').map(Number);
+        date = new Date(Date.UTC(year, month - 1, day));
+      } else {
+        // It's a full datetime string
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) {
+        console.warn('[WARNING] Invalid date string:', dateString);
+        return dateString || 'N/A';
+      }
+      
+      return date.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+    } catch (error) {
+      console.error('[ERROR] Error formatting date:', error, 'Input:', dateString);
+      return dateString || 'N/A';
+    }
   };
 
   const formatTime = (timeString: string) => {
+    if (!timeString) return 'N/A';
     try {
-      // Parse as UTC to avoid timezone conversion
-      const date = new Date(timeString);
-      return date.toLocaleTimeString('vi-VN', {
+      // Handle both ISO datetime strings and time-only strings (HH:mm)
+      let date: Date;
+      
+      // Check if it's an ISO datetime string (contains 'T' or is a full datetime)
+      if (typeof timeString === 'string' && (timeString.includes('T') || timeString.includes('Z') || timeString.includes('+'))) {
+        // It's a full ISO datetime string - parse it directly
+        date = new Date(timeString);
+      } else if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
+        // This is just a time string (HH:mm or HH:mm:ss), use today's date as reference
+        const [hours, minutes] = timeString.split(':').map(Number);
+        date = new Date();
+        date.setHours(hours, minutes || 0, 0, 0);
+      } else {
+        // Try to parse as datetime
+        date = new Date(timeString);
+      }
+      
+      if (isNaN(date.getTime())) {
+        console.warn('[WARNING] Invalid time string:', timeString);
+        return timeString; // Fallback: return original string if can't parse
+      }
+      
+      // Format with Vietnam timezone
+      const formatted = date.toLocaleTimeString('vi-VN', {
         hour: '2-digit',
         minute: '2-digit',
         hour12: false,
-        timeZone: 'UTC',
+        timeZone: 'Asia/Ho_Chi_Minh',
       });
+      
+      return formatted || timeString; // Fallback to original if formatting fails
     } catch (error) {
-      console.error('Error formatting time:', error);
-      return timeString;
+      console.error('[ERROR] Error formatting time:', error, 'Input:', timeString);
+      return timeString || 'N/A'; // Fallback: return original string or 'N/A'
     }
   };
 
@@ -834,6 +894,68 @@ const getVietnamDate = (): string => {
   return `${year}-${month}-${day}`;
 };
 
+// Helper function to get current time in Vietnam timezone
+// Returns a Date object representing current VN time (for comparison purposes)
+const getVietnamTime = (): Date => {
+  const now = new Date();
+  // Get current time components in Vietnam timezone
+  const vnTimeString = now.toLocaleString('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  
+  // Parse: "MM/DD/YYYY, HH:mm:ss"
+  const [datePart, timePart] = vnTimeString.split(', ');
+  const [month, day, year] = datePart.split('/');
+  const [hours, minutes, seconds] = timePart.split(':');
+  
+  // Create a Date object in local timezone with VN time components
+  // This will be used for comparison after converting schedule times to VN timezone
+  return new Date(
+    parseInt(year),
+    parseInt(month) - 1,
+    parseInt(day),
+    parseInt(hours),
+    parseInt(minutes),
+    parseInt(seconds || '0')
+  );
+};
+
+// Helper function to convert UTC time (from database) to Vietnam timezone Date
+const convertUTCToVietnamTime = (utcDate: Date): Date => {
+  // Get VN timezone representation of the UTC date
+  const vnTimeString = utcDate.toLocaleString('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  
+  // Parse and create Date in local timezone
+  const [datePart, timePart] = vnTimeString.split(', ');
+  const [month, day, year] = datePart.split('/');
+  const [hours, minutes, seconds] = timePart.split(':');
+  
+  return new Date(
+    parseInt(year),
+    parseInt(month) - 1,
+    parseInt(day),
+    parseInt(hours),
+    parseInt(minutes),
+    parseInt(seconds || '0')
+  );
+};
+
 // Helper function to get status color classes (used in both table and modal)
 const getStatusColor = (status: string): string => {
   switch (status) {
@@ -893,6 +1015,10 @@ export default function TrainerSchedule() {
   const [showAttendanceModal, setShowAttendanceModal] = useState(false);
   const [memberData, setMemberData] = useState<{ [key: string]: any }>({});
   const [loadingMembers, setLoadingMembers] = useState(false);
+
+  // QR Code modal state
+  const [showQRCodeModal, setShowQRCodeModal] = useState(false);
+  const [qrCodeType, setQrCodeType] = useState<'check-in' | 'check-out'>('check-in');
 
   // Modal filters
   const [modalSearchTerm, setModalSearchTerm] = useState('');
@@ -1248,13 +1374,36 @@ export default function TrainerSchedule() {
   };
 
   const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('vi-VN', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    });
+    if (!dateString) return 'N/A';
+    try {
+      // Handle both date strings (YYYY-MM-DD) and datetime strings
+      let date: Date;
+      
+      if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+        // This is just a date string (YYYY-MM-DD), parse it as UTC to avoid timezone issues
+        const [year, month, day] = dateString.split('-').map(Number);
+        date = new Date(Date.UTC(year, month - 1, day));
+      } else {
+        // It's a full datetime string
+        date = new Date(dateString);
+      }
+      
+      if (isNaN(date.getTime())) {
+        console.warn('[WARNING] Invalid date string:', dateString);
+        return dateString || 'N/A';
+      }
+      
+      return date.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+    } catch (error) {
+      console.error('[ERROR] Error formatting date:', error, 'Input:', dateString);
+      return dateString || 'N/A';
+    }
   };
 
   // Function to get attendance status based on check-in/check-out times
@@ -1665,16 +1814,32 @@ export default function TrainerSchedule() {
   // Must be defined after handlers to use them in dependencies
   const getCheckInButton = useCallback(
     (schedule: ScheduleItem) => {
-      // Use Vietnam time for comparison (same as database)
-      // Convert UTC to Vietnam time by adding 7 hours
-      const nowUTC = new Date();
-      const nowVN = new Date(nowUTC.getTime() + 7 * 60 * 60 * 1000);
-      const startTime = new Date(schedule.start_time);
-      const endTime = new Date(schedule.end_time);
+      // Get current time in Vietnam timezone
+      const nowVN = getVietnamTime();
+      
+      // Schedule times from database are in UTC, convert to Vietnam timezone for comparison
+      const startTimeUTC = new Date(schedule.start_time);
+      const endTimeUTC = new Date(schedule.end_time);
+      const startTime = convertUTCToVietnamTime(startTimeUTC);
+      const endTime = convertUTCToVietnamTime(endTimeUTC);
       const tenMinBefore = new Date(startTime.getTime() - 10 * 60 * 1000);
       const tenMinAfter = new Date(endTime.getTime() + 10 * 60 * 1000);
 
-      // Check if schedule is in the past
+      // Check if schedule status is COMPLETED - always show disabled button
+      if (schedule.status === 'COMPLETED') {
+        return (
+          <Button
+            size='sm'
+            variant='outline'
+            disabled
+            className='text-[11px] px-2 py-1 font-inter text-gray-400'
+          >
+            Đã kết thúc
+          </Button>
+        );
+      }
+
+      // Check if schedule is in the past (compare in Vietnam timezone)
       if (nowVN > tenMinAfter) {
         return (
           <Button
@@ -1705,7 +1870,8 @@ export default function TrainerSchedule() {
       // Check if check-in is enabled
       if (schedule.check_in_enabled) {
         // Check if we can check out (after class ends)
-        if (nowVN >= endTime && nowVN <= tenMinAfter) {
+        // But only if status is not COMPLETED
+        if (nowVN >= endTime && nowVN <= tenMinAfter && schedule.status !== 'COMPLETED') {
           return (
             <Button
               size='sm'
@@ -1713,6 +1879,21 @@ export default function TrainerSchedule() {
               className='bg-red-500 hover:bg-red-600 text-white text-[11px] px-2 py-1 font-inter'
             >
               Kết thúc lớp
+            </Button>
+          );
+        }
+        
+        // If class has ended but status is not COMPLETED yet, still show button but check time
+        // If time window has passed, show disabled
+        if (nowVN > tenMinAfter && schedule.status !== 'COMPLETED') {
+          return (
+            <Button
+              size='sm'
+              variant='outline'
+              disabled
+              className='text-[11px] px-2 py-1 font-inter text-gray-400'
+            >
+              Đã kết thúc
             </Button>
           );
         }
@@ -1882,14 +2063,19 @@ export default function TrainerSchedule() {
   const getMemberCheckInButton = (record: any, attendance: any, schedule: ScheduleItem | null) => {
     if (!schedule) return null;
 
-    const now = new Date();
-    const startTime = new Date(schedule.start_time);
-    const endTime = new Date(schedule.end_time);
+    // Get current time in Vietnam timezone
+    const nowVN = getVietnamTime();
+    
+    // Schedule times from database are in UTC, convert to Vietnam timezone for comparison
+    const startTimeUTC = new Date(schedule.start_time);
+    const endTimeUTC = new Date(schedule.end_time);
+    const startTime = convertUTCToVietnamTime(startTimeUTC);
+    const endTime = convertUTCToVietnamTime(endTimeUTC);
     const tenMinBefore = new Date(startTime.getTime() - 10 * 60 * 1000);
     const tenMinAfter = new Date(endTime.getTime() + 10 * 60 * 1000);
 
     // Check if check-in is enabled and we're in the time window
-    if (!schedule.check_in_enabled || now < tenMinBefore || now > tenMinAfter) {
+    if (!schedule.check_in_enabled || nowVN < tenMinBefore || nowVN > tenMinAfter) {
       return null;
     }
 
@@ -1905,7 +2091,7 @@ export default function TrainerSchedule() {
       }
 
       // If we can check out (after class ends)
-      if (now >= endTime && now <= tenMinAfter) {
+      if (nowVN >= endTime && nowVN <= tenMinAfter) {
         return (
           <Button
             size='sm'
@@ -1926,7 +2112,7 @@ export default function TrainerSchedule() {
     }
 
     // Member is not checked in yet
-    if (now >= tenMinBefore && now <= endTime) {
+    if (nowVN >= tenMinBefore && nowVN <= endTime) {
       return (
         <Button
           size='sm'
@@ -1989,10 +2175,15 @@ export default function TrainerSchedule() {
   // Modal filtering logic - prioritize attendance records over bookings
   const filteredMembers = (() => {
     // Use attendance records if available, otherwise fallback to bookings
-    const dataSource =
+    let dataSource =
       selectedSchedule?.attendance && selectedSchedule.attendance.length > 0
         ? selectedSchedule.attendance
         : selectedSchedule?.bookings || [];
+
+    // Filter out CANCELLED bookings if using bookings as data source
+    if (!selectedSchedule?.attendance || selectedSchedule.attendance.length === 0) {
+      dataSource = dataSource.filter((booking: any) => booking.status !== 'CANCELLED');
+    }
 
     const filtered = dataSource.filter((record: any) => {
       const member = memberData[record.member_id];
@@ -2018,10 +2209,15 @@ export default function TrainerSchedule() {
 
         return matchesSearch && matchesStatus;
       } else {
-        // For bookings, use booking status
+        // For bookings, use booking status (already filtered CANCELLED above)
         const booking = record as any;
+        const isWaitlist = booking.is_waitlist === true || booking.status === 'WAITLIST';
+        const isConfirmed = !isWaitlist && booking.status === 'CONFIRMED';
+        
         const matchesStatus =
           modalStatusFilter === 'all' ||
+          (modalStatusFilter === 'confirmed' && isConfirmed) ||
+          (modalStatusFilter === 'waitlist' && isWaitlist) ||
           (modalStatusFilter === 'present' && booking.status === 'CONFIRMED') ||
           (modalStatusFilter === 'absent' && booking.status === 'CANCELLED') ||
           (modalStatusFilter === 'late' && booking.status === 'LATE');
@@ -2087,7 +2283,10 @@ export default function TrainerSchedule() {
   return (
     <>
       {/* Header */}
-      <ScheduleHeader />
+      <ScheduleHeader 
+        onRefresh={() => fetchSchedules(false)} 
+        isLoading={tableLoading || initialLoading}
+      />
 
       {/* Controls */}
       <ScheduleControls
@@ -2147,7 +2346,31 @@ export default function TrainerSchedule() {
         }
         size='xl'
         footer={
-          <div className='flex justify-end'>
+          <div className='flex justify-between items-center'>
+            <div className='flex gap-2'>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setQrCodeType('check-in');
+                  setShowQRCodeModal(true);
+                }}
+                className='text-sm font-inter flex items-center gap-2'
+              >
+                <QrCode className='w-4 h-4' />
+                QR Check-in
+              </Button>
+              <Button
+                variant='outline'
+                onClick={() => {
+                  setQrCodeType('check-out');
+                  setShowQRCodeModal(true);
+                }}
+                className='text-sm font-inter flex items-center gap-2'
+              >
+                <QrCode className='w-4 h-4' />
+                QR Check-out
+              </Button>
+            </div>
             <Button variant='outline' onClick={closeAttendanceModal} className='text-sm font-inter'>
               Đóng
             </Button>
@@ -2178,12 +2401,22 @@ export default function TrainerSchedule() {
                 </div>
                 <div className='w-40'>
                   <CustomSelect
-                    options={[
-                      { value: 'all', label: 'Tất cả' },
-                      { value: 'present', label: 'Có mặt' },
-                      { value: 'absent', label: 'Vắng mặt' },
-                      { value: 'late', label: 'Đi muộn' },
-                    ]}
+                    options={
+                      selectedSchedule?.attendance && selectedSchedule.attendance.length > 0
+                        ? [
+                            { value: 'all', label: 'Tất cả' },
+                            { value: 'present', label: 'Có mặt' },
+                            { value: 'absent', label: 'Vắng mặt' },
+                            { value: 'late', label: 'Đi muộn' },
+                          ]
+                        : [
+                            { value: 'all', label: 'Tất cả' },
+                            { value: 'confirmed', label: 'Đang tham gia' },
+                            { value: 'waitlist', label: 'Danh sách chờ' },
+                            { value: 'present', label: 'Có mặt' },
+                            { value: 'absent', label: 'Vắng mặt' },
+                          ]
+                    }
                     value={modalStatusFilter}
                     onChange={setModalStatusFilter}
                     placeholder='Lọc trạng thái'
@@ -2217,7 +2450,7 @@ export default function TrainerSchedule() {
                       {/* Summary */}
                       <div className='bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3'>
                         <div className='flex items-center justify-between'>
-                          <div className='flex items-center gap-4'>
+                          <div className='flex items-center gap-4 flex-wrap'>
                             <div className='flex items-center gap-2'>
                               <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                 Tổng:
@@ -2226,6 +2459,45 @@ export default function TrainerSchedule() {
                                 {filteredMembers.length}
                               </span>
                             </div>
+                            {(() => {
+                              // Check if we're using attendance records or bookings
+                              const hasAttendance = selectedSchedule?.attendance && selectedSchedule.attendance.length > 0;
+                              
+                              // Calculate confirmed vs waitlist counts
+                              const confirmedCount = filteredMembers.filter((record: any) => {
+                                if (hasAttendance) return true; // All attendance records are confirmed
+                                const booking = record as any;
+                                return !booking.is_waitlist && booking.status === 'CONFIRMED';
+                              }).length;
+                              const waitlistCount = filteredMembers.filter((record: any) => {
+                                if (hasAttendance) return false; // Attendance records are not waitlist
+                                const booking = record as any;
+                                return booking.is_waitlist === true || booking.status === 'WAITLIST';
+                              }).length;
+                              
+                              return (
+                                <>
+                                  <div className='flex items-center gap-2'>
+                                    <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
+                                      Đang tham gia:
+                                    </span>
+                                    <span className='px-2 py-0.5 bg-green-500 dark:bg-green-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                      {confirmedCount}
+                                    </span>
+                                  </div>
+                                  {waitlistCount > 0 && (
+                                    <div className='flex items-center gap-2'>
+                                      <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
+                                        Danh sách chờ:
+                                      </span>
+                                      <span className='px-2 py-0.5 bg-yellow-500 dark:bg-yellow-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                        {waitlistCount}
+                                      </span>
+                                    </div>
+                                  )}
+                                </>
+                              );
+                            })()}
                             <div className='flex items-center gap-2'>
                               <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                 Lớp:
@@ -2256,10 +2528,22 @@ export default function TrainerSchedule() {
                             : null;
                           const booking = !isAttendanceRecord ? (record as any) : null;
 
+                          // Check if member is on waitlist
+                          const isWaitlist = booking?.is_waitlist === true || booking?.status === 'WAITLIST';
+                          const waitlistPosition = booking?.waitlist_position;
+
                           return (
                             <div
                               key={record.id}
-                              className='relative overflow-hidden rounded-lg border-l-4 border-l-transparent hover:border-l-orange-500 border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 group'
+                              className={`relative overflow-hidden rounded-lg border-l-4 ${
+                                isWaitlist
+                                  ? 'border-l-yellow-500 dark:border-l-yellow-600'
+                                  : 'border-l-transparent hover:border-l-orange-500'
+                              } border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 group ${
+                                isWaitlist
+                                  ? 'bg-yellow-50/30 dark:bg-yellow-900/10'
+                                  : ''
+                              }`}
                             >
                               {/* Content */}
                               <div className='relative p-3 z-10'>
@@ -2354,7 +2638,21 @@ export default function TrainerSchedule() {
                                     </div>
 
                                     {/* Tier Badge & Details */}
-                                    <div className='flex items-center gap-2 mb-1'>
+                                    <div className='flex items-center gap-2 mb-1 flex-wrap'>
+                                      {/* Waitlist Badge */}
+                                      {isWaitlist && (
+                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700'>
+                                          {waitlistPosition
+                                            ? `Danh sách chờ #${waitlistPosition}`
+                                            : 'Danh sách chờ'}
+                                        </span>
+                                      )}
+                                      {/* Confirmed Badge */}
+                                      {!isWaitlist && booking && booking.status === 'CONFIRMED' && (
+                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700'>
+                                          Đang tham gia
+                                        </span>
+                                      )}
                                       <span className='text-[9px] font-heading font-medium text-gray-600 dark:text-gray-400 leading-tight px-1.5 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700'>
                                         {member?.membership_type || 'BASIC'}
                                       </span>
@@ -2368,6 +2666,8 @@ export default function TrainerSchedule() {
                                               {
                                                 hour: '2-digit',
                                                 minute: '2-digit',
+                                                hour12: false,
+                                                timeZone: 'Asia/Ho_Chi_Minh',
                                               }
                                             )}
                                           </span>
@@ -2486,6 +2786,18 @@ export default function TrainerSchedule() {
         schedule={selectedScheduleForEdit}
         userId={userId}
       />
+
+      {/* QR Code Modal */}
+      {selectedSchedule && (
+        <ScheduleQRCodeModal
+          isOpen={showQRCodeModal}
+          onClose={() => setShowQRCodeModal(false)}
+          scheduleId={selectedSchedule.id}
+          scheduleName={selectedSchedule.gym_class?.name || 'Lớp học'}
+          type={qrCodeType}
+          trainerId={userId || ''}
+        />
+      )}
     </>
   );
 }

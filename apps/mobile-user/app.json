@@ -19,18 +19,21 @@
         "UIBackgroundModes": ["remote-notification"],
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": true
-        }
+        },
+        "NSMotionUsageDescription": "We need access to motion sensors to track your workout activity and calculate accurate calories."
       }
     },
     "android": {
       "package": "com.gym147.mobile",
       "permissions": [
         "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE",
-        "android.permission.POST_NOTIFICATIONS"
+        "VIBRATE"
       ],
-      "useNextNotificationsApi": true,
-      "usesCleartextTraffic": true
+      "usesCleartextTraffic": true,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/icon.png",
+        "backgroundColor": "#000000"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -57,7 +60,15 @@
       "expo-localization",
       "expo-router",
       "expo-web-browser",
-      "expo-notifications"
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#000000",
+          "sounds": ["default"],
+          "mode": "production"
+        }
+      ]
     ],
     "notification": {
       "icon": "./assets/images/icon.png",

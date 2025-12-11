@@ -48,39 +48,102 @@ class ChatService {
 
   /**
    * Initialize Socket.IO connection
+   * Similar to NotificationContext - no auth token in handshake, just connect and subscribe
    */
   async connect(userId: string): Promise<Socket> {
     if (this.socket?.connected) {
       return this.socket;
     }
 
-    const token = await getToken();
-    if (!token) {
-      throw new Error('No authentication token found');
-    }
+    // Log the URL being used for debugging
+    console.log('[CHAT] Connecting to Socket.IO at:', this.baseUrl);
+    console.log('[CHAT] SERVICE_URLS.IDENTITY:', this.baseUrl);
 
-    this.socket = io(this.baseUrl, {
-      auth: {
-        token: token,
-      },
-      transports: ['websocket', 'polling'],
+    // Extract base URL (without /identity path) for Socket.IO
+    // Socket.IO will append the path to the base URL
+    // If baseUrl is http://192.168.2.19:8080/identity, we need to:
+    // - Use http://192.168.2.19:8080 as base URL
+    // - Use /identity/socket.io/ as path
+    const url = new URL(this.baseUrl);
+    const socketBaseUrl = `${url.protocol}//${url.host}`;
+    const socketPath = '/identity/socket.io/';
+
+    console.log('[CHAT] Socket.IO base URL:', socketBaseUrl);
+    console.log('[CHAT] Socket.IO path:', socketPath);
+
+    // Create socket connection without auth token in handshake
+    // Backend will handle authentication via middleware if needed
+    this.socket = io(socketBaseUrl, {
+      // Explicitly set path to ensure /identity/socket.io/ is used
+      path: socketPath,
+      // Prioritize polling for React Native compatibility (same as NotificationContext)
+      transports: ['polling', 'websocket'],
+      reconnection: true,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+      reconnectionAttempts: Infinity, // Keep trying to reconnect
+      timeout: 20000,
+      withCredentials: false,
+      forceNew: false,
+      autoConnect: true,
     });
 
-    // Subscribe to user notifications
-    this.socket.on('connect', () => {
-      console.log('[SUCCESS] Chat: Socket connected');
-      this.socket?.emit('subscribe:user', userId);
-    });
+    // Wait for socket to connect before resolving
+    return new Promise((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        console.error('[ERROR] Chat: Connection timeout after 20 seconds');
+        reject(new Error('Socket connection timeout'));
+      }, 20000); // 20 second timeout to allow polling retry
 
-    this.socket.on('disconnect', () => {
-      console.log('[ERROR] Chat: Socket disconnected');
-    });
+      this.socket!.on('connect', () => {
+        clearTimeout(timeout);
+        console.log(
+          '[SUCCESS] Chat: Socket connected, socket.id:',
+          this.socket?.id
+        );
+        // Subscribe to user-specific room after connection (same as NotificationContext)
+        this.socket?.emit('subscribe:user', userId);
+        console.log('[CHAT] Emitted subscribe:user for userId:', userId);
+        resolve(this.socket!);
+      });
 
-    this.socket.on('error', (error) => {
-      console.error('[ERROR] Chat: Socket error:', error);
-    });
+      this.socket!.on('connect_error', (error) => {
+        console.error('[ERROR] Chat: Socket connection error:', error);
+        // Don't reject immediately, let it retry with polling
+        // Only reject after timeout
+      });
 
-    return this.socket;
+      this.socket!.on('reconnect', (attemptNumber) => {
+        console.log(
+          `[CHAT] Socket reconnected after ${attemptNumber} attempts`
+        );
+        // Re-subscribe to user room after reconnection (same as NotificationContext)
+        if (userId) {
+          this.socket?.emit('subscribe:user', userId);
+          console.log('[CHAT] Re-subscribed to user room:', userId);
+        }
+      });
+
+      this.socket!.on('reconnect_attempt', (attemptNumber) => {
+        console.log(`[CHAT] Reconnection attempt ${attemptNumber}...`);
+      });
+
+      this.socket!.on('reconnect_error', (error) => {
+        console.warn('[CHAT] Reconnection error:', error.message);
+      });
+
+      this.socket!.on('reconnect_failed', () => {
+        console.error('[CHAT] Failed to reconnect after all attempts');
+      });
+
+      this.socket!.on('disconnect', (reason) => {
+        console.log('[ERROR] Chat: Socket disconnected, reason:', reason);
+      });
+
+      this.socket!.on('error', (error) => {
+        console.error('[ERROR] Chat: Socket error:', error);
+      });
+    });
   }
 
   /**
@@ -96,7 +159,10 @@ class ChatService {
   /**
    * Send a message
    */
-  async sendMessage(receiverId: string | null, message: string): Promise<ChatMessage> {
+  async sendMessage(
+    receiverId: string | null,
+    message: string
+  ): Promise<ChatMessage> {
     const token = await getToken();
     const response = await fetch(`${this.baseUrl}/chat/messages`, {
       method: 'POST',
@@ -121,7 +187,11 @@ class ChatService {
   /**
    * Get chat history
    */
-  async getChatHistory(otherUserId: string | null = null, limit = 50, offset = 0): Promise<ChatMessage[]> {
+  async getChatHistory(
+    otherUserId: string | null = null,
+    limit = 50,
+    offset = 0
+  ): Promise<ChatMessage[]> {
     const token = await getToken();
     const params = new URLSearchParams({
       limit: limit.toString(),
@@ -131,11 +201,14 @@ class ChatService {
       params.append('other_user_id', otherUserId);
     }
 
-    const response = await fetch(`${this.baseUrl}/chat/messages?${params.toString()}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-    });
+    const response = await fetch(
+      `${this.baseUrl}/chat/messages?${params.toString()}`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      }
+    );
 
     const data = await response.json();
     if (!data.success) {
@@ -214,17 +287,51 @@ class ChatService {
       return () => {};
     }
 
-    this.socket.on('chat:message', callback);
+    // Create wrapper functions to maintain reference for cleanup
+    const messageHandler = (message: ChatMessage) => {
+      console.log(
+        '[CHAT] Received chat:message:',
+        message.id,
+        'sender_id:',
+        message.sender_id,
+        'receiver_id:',
+        message.receiver_id
+      );
+      callback(message);
+    };
+
+    const sentMessageHandler = (message: ChatMessage) => {
+      console.log(
+        '[CHAT] Received chat:message:sent:',
+        message.id,
+        'sender_id:',
+        message.sender_id,
+        'receiver_id:',
+        message.receiver_id
+      );
+      callback(message);
+    };
+
+    // Listen for regular messages (admin replies to member: receiver_id = user.id)
+    this.socket.on('chat:message', messageHandler);
+
+    // Listen for message sent confirmation (when member sends support message)
+    this.socket.on('chat:message:sent', sentMessageHandler);
+
+    // Note: chat:support:message is only emitted to admin room, members should not listen to it
 
     return () => {
-      this.socket?.off('chat:message', callback);
+      this.socket?.off('chat:message', messageHandler);
+      this.socket?.off('chat:message:sent', sentMessageHandler);
     };
   }
 
   /**
    * Listen for typing indicators
    */
-  onTyping(callback: (data: { sender_id: string; is_typing: boolean }) => void) {
+  onTyping(
+    callback: (data: { sender_id: string; is_typing: boolean }) => void
+  ) {
     if (!this.socket) {
       return () => {};
     }
@@ -252,5 +359,3 @@ class ChatService {
 }
 
 export const chatService = new ChatService();
-
-

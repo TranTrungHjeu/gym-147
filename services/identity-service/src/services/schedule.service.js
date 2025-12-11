@@ -233,6 +233,51 @@ class ScheduleService {
       };
     }
   }
+
+  /**
+   * Get trainer salary status
+   * Returns hasSalary and hourly_rate
+   */
+  async getTrainerSalaryStatus(trainerId) {
+    try {
+      const response = await axios.get(`${this.baseURL}/trainers/${trainerId}/salary-status`, {
+        timeout: 5000,
+      });
+
+      if (response.data && response.data.success && response.data.data) {
+        return {
+          success: true,
+          hasSalary: response.data.data.hasSalary,
+          hourly_rate: response.data.data.hourly_rate,
+        };
+      }
+
+      return {
+        success: false,
+        hasSalary: false,
+        hourly_rate: null,
+        error: 'Invalid response from schedule service',
+      };
+    } catch (error) {
+      // If 404, trainer doesn't exist
+      if (error.response?.status === 404) {
+        return {
+          success: false,
+          hasSalary: false,
+          hourly_rate: null,
+          error: 'Trainer not found',
+        };
+      }
+
+      console.error('[ERROR] Error getting trainer salary status:', error.message);
+      return {
+        success: false,
+        hasSalary: false,
+        hourly_rate: null,
+        error: error.message,
+      };
+    }
+  }
 }
 
 module.exports = new ScheduleService();

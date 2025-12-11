@@ -104,6 +104,63 @@ class MemberService {
       throw new Error('Failed to fetch member list');
     }
   }
+
+  /**
+   * Award points to member
+   * @param {string} memberId - Member ID
+   * @param {number} points - Points to award
+   * @param {string} source - Source type (e.g., 'ATTENDANCE', 'PAYMENT')
+   * @param {string} sourceId - Source ID (optional)
+   * @param {string} description - Description (optional)
+   * @returns {Promise<Object>} Result with success status
+   */
+  async awardPoints(memberId, points, source, sourceId = null, description = null) {
+    if (!memberId || !points || !source) {
+      console.warn('[WARNING] awardPoints called with invalid parameters:', {
+        memberId,
+        points,
+        source,
+      });
+      return { success: false, error: 'Invalid parameters' };
+    }
+
+    try {
+      const response = await this.client.post(`/members/${memberId}/points/award`, {
+        points,
+        source,
+        source_id: sourceId,
+        description,
+      });
+
+      if (response.data?.success) {
+        console.log(`[SUCCESS] Awarded ${points} points to member ${memberId} from ${source}`);
+        return {
+          success: true,
+          transaction: response.data.data?.transaction,
+          newBalance: response.data.data?.new_balance,
+        };
+      }
+
+      return {
+        success: false,
+        error: response.data?.message || 'Failed to award points',
+      };
+    } catch (error) {
+      console.error('[ERROR] Failed to award points via member-service:', {
+        memberId,
+        points,
+        source,
+        message: error.message,
+        status: error.status,
+      });
+
+      // Don't throw error, just return failure so attendance/payment can continue
+      return {
+        success: false,
+        error: error.message || 'Member service unavailable',
+      };
+    }
+  }
 }
 
 module.exports = new MemberService();

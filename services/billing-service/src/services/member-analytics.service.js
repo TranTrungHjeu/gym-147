@@ -193,7 +193,6 @@ class MemberAnalyticsService {
         predicted_ltv: ltv.predicted_ltv,
         engagement_score: ltv.engagement_score,
         churn_risk_score: ltv.churn_risk_score,
-        last_calculated_at: new Date(),
       };
 
       if (existingLTV) {

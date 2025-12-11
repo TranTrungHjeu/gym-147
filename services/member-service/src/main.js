@@ -29,6 +29,12 @@ if (process.env.TRUST_PROXY === 'true' || process.env.NODE_ENV === 'production')
 // Create HTTP server for Socket.IO
 const server = http.createServer(app);
 
+// Increase server timeout for long-running AI requests (10 minutes)
+// This prevents the server from closing connections during AI processing
+server.timeout = 600000; // 10 minutes in milliseconds
+server.keepAliveTimeout = 65000; // 65 seconds (must be > server.timeout)
+server.headersTimeout = 66000; // 66 seconds (must be > keepAliveTimeout)
+
 // CORS configuration for Socket.IO
 // Allow all origins in development, including web platform
 // Use '*' directly in development for better compatibility

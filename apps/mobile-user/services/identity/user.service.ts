@@ -423,6 +423,69 @@ class UserService {
       };
     }
   }
+
+  /**
+   * Send OTP for email/phone change
+   */
+  async sendOTPForEmailPhoneChange(
+    verificationMethod: 'EMAIL' | 'PHONE',
+    newEmail?: string,
+    newPhone?: string
+  ): Promise<
+    ApiResponse<{
+      identifier: string;
+      retryAfter?: number;
+    }>
+  > {
+    try {
+      const response = await identityApiService.post(
+        '/profile/send-otp-email-phone-change',
+        {
+          verificationMethod,
+          newEmail,
+          newPhone,
+        }
+      );
+      return {
+        success: true,
+        data: response.data?.data || response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to send OTP',
+        data: error.response?.data?.data,
+      };
+    }
+  }
+
+  /**
+   * Update email/phone with OTP verification
+   */
+  async updateEmailPhoneWithOTP(data: {
+    verificationMethod: 'EMAIL' | 'PHONE';
+    otp: string;
+    newEmail?: string;
+    newPhone?: string;
+    firstName?: string;
+    lastName?: string;
+  }): Promise<ApiResponse<User>> {
+    try {
+      const response = await identityApiService.post(
+        '/profile/update-email-phone-otp',
+        data
+      );
+      return {
+        success: true,
+        data: response.data?.data?.user || response.data?.user || response.data,
+      };
+    } catch (error: any) {
+      return {
+        success: false,
+        message: error.message || 'Failed to update email/phone',
+      };
+    }
+  }
 }
 
 export const userService = new UserService();

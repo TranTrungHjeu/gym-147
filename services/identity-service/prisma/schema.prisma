@@ -56,9 +56,6 @@ model User {
   notifications          Notification[]
   chat_messages_sent     ChatMessage[]     @relation("MessageSender")
   chat_messages_received ChatMessage[]     @relation("MessageReceiver")
-  member_profile         Member? // One-to-one with member service
-  staff_profile          Staff? // One-to-one for staff members
-  gym_membership         GymMembership? // One-to-one gym membership
 
   // Indexes for performance
   @@index([email])
@@ -219,42 +216,12 @@ model AuditLog {
 
 // EmailVerification model removed - using OTPVerification for all verification
 
-// Cross-service references
-model Member {
-  id      String @id
-  user_id String @unique
-  user    User   @relation(fields: [user_id], references: [id])
+// Cross-service references removed - not needed
+// Member and Staff services have their own databases
+// No need for reference tables in identity service
 
-  @@map("members_ref")
-}
-
-model Staff {
-  id      String @id
-  user_id String @unique
-  user    User   @relation(fields: [user_id], references: [id])
-
-  @@map("staff_ref")
-}
-
-// Gym Membership - Track user's gym membership (single gym system)
-model GymMembership {
-  id         String    @id @default(cuid())
-  user_id    String    @unique
-  gym_id     String // Single gym ID (hardcoded to 'gym-147' in code)
-  gym_name   String // Single gym name (hardcoded to 'Gym 147' in code)
-  status     String    @default("ACTIVE") // ACTIVE, INACTIVE
-  role       Role      @default(MEMBER)
-  joined_at  DateTime  @default(now())
-  left_at    DateTime?
-  is_primary Boolean   @default(true) // Always true for single gym
-
-  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id])
-  @@index([status])
-  @@index([gym_id])
-  @@map("gym_memberships")
-}
+// Gym Membership - REMOVED: Not needed for single gym system
+// User role and Member.membership_status already handle this
 
 enum Role {
   SUPER_ADMIN
@@ -361,6 +328,7 @@ enum NotificationType {
   CLASS_BOOKING
   CLASS_CANCELLED
   CLASS_REMINDER
+  CLASS_RATING
   WAITLIST_ADDED
   WAITLIST_PROMOTED
   SCHEDULE_CANCELLED
@@ -413,6 +381,9 @@ enum NotificationType {
   // Trainer related (for ADMIN, MEMBER)
   TRAINER_DELETED
 
+  // Issue reporting (for ADMIN, SUPER_ADMIN)
+  ISSUE_REPORT
+
   // System
   SYSTEM_ANNOUNCEMENT
   GENERAL
@@ -438,142 +409,4 @@ model ChatMessage {
   @@index([is_read])
   @@index([created_at])
   @@map("chat_messages")
-}
-
-// Scheduled Reports - Automated report generation
-model ScheduledReport {
-  id          String    @id @default(cuid())
-  name        String
-  report_type String // MEMBERS, REVENUE, CLASSES, EQUIPMENT, SYSTEM, CUSTOM
-  format      String // PDF, EXCEL, CSV
-  schedule    Json // { frequency, day_of_week?, day_of_month?, time, timezone }
-  recipients  String[] // Array of email addresses
-  filters     Json? // Optional filters for the report
-  is_active   Boolean   @default(true)
-  last_run_at DateTime?
-  next_run_at DateTime?
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
-
-  @@index([is_active])
-  @@index([next_run_at])
-  @@index([created_at])
-  @@map("scheduled_reports")
-}
-
-// Backup & Restore
-model Backup {
-  id            String    @id @default(cuid())
-  name          String
-  type          String // FULL, INCREMENTAL, DATABASE_ONLY, FILES_ONLY
-  size          Int       @default(0) // Size in bytes
-  status        String    @default("PENDING") // PENDING, IN_PROGRESS, COMPLETED, FAILED
-  file_path     String? // Path to backup file
-  error_message String?
-  created_at    DateTime  @default(now())
-  completed_at  DateTime?
-
-  @@index([status])
-  @@index([created_at])
-  @@index([type])
-  @@map("backups")
-}
-
-// Webhooks
-model Webhook {
-  id               String         @id @default(cuid())
-  name             String
-  url              String
-  events           String[] // Array of event types
-  secret           String? // Secret for webhook signature
-  is_active        Boolean         @default(true)
-  retry_count      Int             @default(3)
-  last_triggered_at DateTime?
-  last_success_at   DateTime?
-  last_failure_at   DateTime?
-  created_at       DateTime        @default(now())
-  updated_at       DateTime        @updatedAt
-
-  events_history WebhookEvent[]
-
-  @@index([is_active])
-  @@index([last_triggered_at])
-  @@map("webhooks")
-}
-
-model WebhookEvent {
-  id            String    @id @default(cuid())
-  webhook_id    String
-  event_type    String
-  payload       Json
-  status        String    @default("PENDING") // PENDING, SUCCESS, FAILED
-  response_code Int?
-  response_body String?
-  attempts      Int       @default(0)
-  created_at    DateTime  @default(now())
-  updated_at    DateTime  @updatedAt
-
-  webhook Webhook @relation(fields: [webhook_id], references: [id], onDelete: Cascade)
-
-  @@index([webhook_id])
-  @@index([status])
-  @@index([created_at])
-  @@index([webhook_id, created_at])
-  @@map("webhook_events")
-}
-
-// API Keys
-model APIKey {
-  id          String    @id @default(cuid())
-  name        String
-  key         String    @unique // Hashed API key
-  key_prefix  String // First 8 characters for display
-  permissions String[] // Array of permission strings
-  rate_limit  Int? // Requests per hour
-  expires_at  DateTime?
-  last_used_at DateTime?
-  is_active   Boolean   @default(true)
-  created_at  DateTime  @default(now())
-  updated_at  DateTime  @updatedAt
-
-  @@index([is_active])
-  @@index([key_prefix])
-  @@index([expires_at])
-  @@index([last_used_at])
-  @@map("api_keys")
-}
-
-// Email Templates
-model EmailTemplate {
-  id         String    @id @default(cuid())
-  name       String
-  subject    String
-  body       String
-  variables  String[] // Available variables like {{name}}, {{email}}
-  type       String // WELCOME, PASSWORD_RESET, MEMBERSHIP_EXPIRY, CLASS_REMINDER, PAYMENT_RECEIPT, CUSTOM
-  is_active  Boolean   @default(true)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-
-  @@index([type])
-  @@index([is_active])
-  @@index([created_at])
-  @@map("email_templates")
-}
-
-// SMS Templates
-model SMSTemplate {
-  id         String    @id @default(cuid())
-  name       String
-  message    String
-  variables  String[] // Available variables like {{name}}, {{code}}
-  type       String // OTP, REMINDER, NOTIFICATION, CUSTOM
-  is_active  Boolean   @default(true)
-  created_at DateTime  @default(now())
-  updated_at DateTime  @updatedAt
-
-  @@index([type])
-  @@index([is_active])
-  @@index([created_at])
-  @@map("sms_templates")
 }

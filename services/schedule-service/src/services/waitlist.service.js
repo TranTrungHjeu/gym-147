@@ -17,75 +17,189 @@ class WaitlistService {
    */
   async addToWaitlist(scheduleId, memberId, specialNeeds = null, notes = null) {
     try {
-      // Check if member is already in waitlist
-      const existingWaitlist = await prisma.booking.findFirst({
-        where: {
-          schedule_id: scheduleId,
-          member_id: memberId,
-          is_waitlist: true,
-          status: 'CONFIRMED',
+      // Get schedule with gym_class to calculate price
+      const scheduleWithDetails = await prisma.schedule.findUnique({
+        where: { id: scheduleId },
+        include: {
+          gym_class: true,
         },
       });
 
-      if (existingWaitlist) {
-        throw new Error('Member is already in waitlist for this schedule');
+      if (!scheduleWithDetails) {
+        throw new Error('Schedule not found');
       }
 
-      // Get current waitlist count to determine position
-      const waitlistCount = await prisma.booking.count({
-        where: {
-          schedule_id: scheduleId,
-          is_waitlist: true,
-          status: 'CONFIRMED',
-        },
-      });
+      // Calculate booking price
+      let bookingPrice = parseFloat(
+        scheduleWithDetails.price_override || scheduleWithDetails.gym_class?.price || 0
+      );
 
-      const waitlistPosition = waitlistCount + 1;
+      // Validate booking price >= 0 (prevent negative prices)
+      if (isNaN(bookingPrice) || bookingPrice < 0) {
+        console.error(
+          `[ERROR] Invalid booking price calculated: ${bookingPrice} for schedule ${scheduleId}`
+        );
+        bookingPrice = 0; // Set to 0 if invalid or negative
+      }
 
-      // Create waitlist booking
-      const waitlistBooking = await prisma.booking.create({
-        data: {
-          schedule_id: scheduleId,
-          member_id: memberId,
-          status: 'CONFIRMED',
-          is_waitlist: true,
-          waitlist_position: waitlistPosition,
-          special_needs: specialNeeds,
-          notes: notes,
-        },
-        include: {
-          schedule: {
-            include: {
-              gym_class: true,
-              trainer: true,
-              room: true,
+      // TC-BOOK-007: Use transaction to prevent race condition in waitlist position calculation
+      const result = await prisma.$transaction(
+        async tx => {
+          // Check if member already has ANY booking for this schedule (including cancelled)
+          // This is necessary because of the unique constraint on (schedule_id, member_id)
+          const existingBooking = await tx.booking.findFirst({
+            where: {
+              schedule_id: scheduleId,
+              member_id: memberId,
             },
-          },
-        },
-      });
+          });
 
-      // Update schedule waitlist count
-      await prisma.schedule.update({
-        where: { id: scheduleId },
-        data: {
-          waitlist_count: {
-            increment: 1,
-          },
-        },
-      });
+          if (existingBooking) {
+            // If there's an existing non-cancelled booking, check if it's already a waitlist
+            if (existingBooking.status !== 'CANCELLED') {
+              if (existingBooking.is_waitlist && existingBooking.status === 'CONFIRMED') {
+                throw new Error('Member is already in waitlist for this schedule');
+              }
+              // If it's a regular confirmed booking, they shouldn't be added to waitlist
+              throw new Error('Member already has a booking for this schedule');
+            }
 
-      // Send notification to member
-      await notificationService.sendNotification({
-        type: 'WAITLIST_ADDED',
-        member_id: memberId,
-        schedule_id: scheduleId,
-        data: {
-          class_name: waitlistBooking.schedule.gym_class.name,
-          trainer_name: waitlistBooking.schedule.trainer?.full_name,
-          waitlist_position: waitlistPosition,
-          start_time: waitlistBooking.schedule.start_time,
+            // If booking is cancelled, update it to waitlist instead of creating new one
+            // This respects the unique constraint while allowing re-booking after cancellation
+            const wasWaitlist = existingBooking.is_waitlist;
+
+            const waitlistCount = await tx.booking.count({
+              where: {
+                schedule_id: scheduleId,
+                is_waitlist: true,
+                status: 'CONFIRMED',
+              },
+            });
+
+            const waitlistPosition = waitlistCount + 1;
+
+            const waitlistBooking = await tx.booking.update({
+              where: { id: existingBooking.id },
+              data: {
+                status: 'CONFIRMED',
+                is_waitlist: true,
+                waitlist_position: waitlistPosition,
+                special_needs: specialNeeds,
+                notes: notes,
+                cancelled_at: null,
+                cancellation_reason: null,
+                booked_at: new Date(), // Update booked_at to current time
+                // Reset payment_status based on booking price
+                payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+                amount_paid: bookingPrice > 0 ? null : 0,
+              },
+              include: {
+                schedule: {
+                  include: {
+                    gym_class: true,
+                    trainer: true,
+                    room: true,
+                  },
+                },
+              },
+            });
+
+            // Update schedule waitlist count (atomic in transaction)
+            // Only increment if it wasn't already a waitlist booking
+            if (!wasWaitlist) {
+              await tx.schedule.update({
+                where: { id: scheduleId },
+                data: {
+                  waitlist_count: {
+                    increment: 1,
+                  },
+                },
+              });
+            }
+
+            return {
+              booking: waitlistBooking,
+              waitlist_position: waitlistPosition,
+            };
+          }
+
+          // No existing booking, create new waitlist booking
+          // Get current waitlist count to determine position (atomic operation in transaction)
+          const waitlistCount = await tx.booking.count({
+            where: {
+              schedule_id: scheduleId,
+              is_waitlist: true,
+              status: 'CONFIRMED',
+            },
+          });
+
+          const waitlistPosition = waitlistCount + 1;
+
+          // Create waitlist booking with correct payment_status based on price
+          const waitlistBooking = await tx.booking.create({
+            data: {
+              schedule_id: scheduleId,
+              member_id: memberId,
+              status: 'CONFIRMED',
+              is_waitlist: true,
+              waitlist_position: waitlistPosition,
+              special_needs: specialNeeds,
+              notes: notes,
+              // Set payment_status based on booking price (same logic as regular booking)
+              payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
+              amount_paid: bookingPrice > 0 ? null : 0,
+            },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: true,
+                  trainer: true,
+                  room: true,
+                },
+              },
+            },
+          });
+
+          // Update schedule waitlist count (atomic in transaction)
+          await tx.schedule.update({
+            where: { id: scheduleId },
+            data: {
+              waitlist_count: {
+                increment: 1,
+              },
+            },
+          });
+
+          return {
+            booking: waitlistBooking,
+            waitlist_position: waitlistPosition,
+          };
         },
-      });
+        {
+          isolationLevel: 'Serializable', // Highest isolation to prevent race conditions
+          timeout: 30000, // 30 seconds timeout
+        }
+      );
+
+      const { booking: waitlistBooking, waitlist_position: waitlistPosition } = result;
+
+      // Send notification to member (outside transaction to avoid blocking)
+      try {
+        await notificationService.sendNotification({
+          type: 'WAITLIST_ADDED',
+          member_id: memberId,
+          schedule_id: scheduleId,
+          data: {
+            class_name: waitlistBooking.schedule.gym_class.name,
+            trainer_name: waitlistBooking.schedule.trainer?.full_name,
+            waitlist_position: waitlistPosition,
+            start_time: waitlistBooking.schedule.start_time,
+          },
+        });
+      } catch (notifError) {
+        console.error('Failed to send waitlist notification:', notifError);
+        // Don't fail the whole operation if notification fails
+      }
 
       return {
         booking: waitlistBooking,
@@ -99,14 +213,29 @@ class WaitlistService {
   }
 
   /**
-   * Promote member from waitlist when space becomes available
+   * Notify waitlist members when slots become available
+   * Sends notification to all waitlist members so they can pay to join
    * @param {string} scheduleId - Schedule ID
-   * @returns {Object|null} Promoted booking or null if no one in waitlist
+   * @param {number} availableSlots - Number of available slots
+   * @returns {Object} Notification result
    */
-  async promoteFromWaitlist(scheduleId) {
+  async notifyWaitlistMembersAvailability(scheduleId, availableSlots = 1) {
     try {
-      // Get the first member in waitlist (lowest position)
-      const nextInWaitlist = await prisma.booking.findFirst({
+      const schedule = await prisma.schedule.findUnique({
+        where: { id: scheduleId },
+        include: {
+          gym_class: true,
+          trainer: true,
+          room: true,
+        },
+      });
+
+      if (!schedule) {
+        return { success: false, message: 'Schedule not found' };
+      }
+
+      // Get all waitlist members
+      const waitlistMembers = await prisma.booking.findMany({
         where: {
           schedule_id: scheduleId,
           is_waitlist: true,
@@ -115,76 +244,180 @@ class WaitlistService {
         orderBy: {
           waitlist_position: 'asc',
         },
-        include: {
-          schedule: {
-            include: {
-              gym_class: true,
-              trainer: true,
-              room: true,
-            },
-          },
-        },
       });
 
-      if (!nextInWaitlist) {
-        return null; // No one in waitlist
+      if (waitlistMembers.length === 0) {
+        return { success: true, notified: 0, message: 'No waitlist members to notify' };
       }
 
-      // Check if schedule still has capacity
-      const schedule = await prisma.schedule.findUnique({
-        where: { id: scheduleId },
-        select: { current_bookings: true, max_capacity: true },
+      // Notify up to availableSlots number of waitlist members
+      const membersToNotify = waitlistMembers.slice(0, availableSlots);
+      const notificationService = require('./notification.service.js');
+      const memberService = require('./member.service.js');
+
+      let notifiedCount = 0;
+      const notificationPromises = membersToNotify.map(async booking => {
+        try {
+          const member = await memberService.getMemberById(booking.member_id);
+          if (member?.user_id) {
+            await notificationService.sendNotification({
+              user_id: member.user_id,
+              type: 'WAITLIST_PROMOTED',
+              title: 'Có slot trống! Thanh toán để tham gia lớp',
+              message: `Lớp ${
+                schedule.gym_class?.name || 'Lớp học'
+              } có slot trống. Vui lòng thanh toán để được tham gia lớp.`,
+              data: {
+                booking_id: booking.id,
+                schedule_id: scheduleId,
+                class_name: schedule.gym_class?.name || 'Lớp học',
+                start_time: schedule.start_time,
+                available_slots: availableSlots,
+                waitlist_position: booking.waitlist_position,
+                requires_payment: true,
+              },
+              channels: ['IN_APP', 'PUSH'],
+            });
+            notifiedCount++;
+          }
+        } catch (error) {
+          console.error(`[ERROR] Failed to notify waitlist member ${booking.member_id}:`, error);
+        }
       });
 
-      if (schedule.current_bookings >= schedule.max_capacity) {
-        return null; // Schedule is still full
+      await Promise.all(notificationPromises);
+
+      console.log(
+        `[WAITLIST] Notified ${notifiedCount} waitlist members about availability for schedule ${scheduleId}`
+      );
+
+      return {
+        success: true,
+        notified: notifiedCount,
+        total_waitlist: waitlistMembers.length,
+        available_slots: availableSlots,
+        message: `Notified ${notifiedCount} waitlist members`,
+      };
+    } catch (error) {
+      console.error('[ERROR] Failed to notify waitlist members:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Promote member from waitlist when space becomes available
+   * TC-WAITLIST-001: Use transaction to prevent race condition and overbooking
+   * @param {string} scheduleId - Schedule ID
+   * @returns {Object|null} Promoted booking or null if no one in waitlist
+   */
+  async promoteFromWaitlist(scheduleId) {
+    try {
+      // TC-WAITLIST-001: Use transaction to prevent race condition
+      const result = await prisma.$transaction(
+        async tx => {
+          // Lock schedule và check capacity atomically
+          const schedule = await tx.schedule.findUnique({
+            where: { id: scheduleId },
+            select: {
+              id: true,
+              current_bookings: true,
+              max_capacity: true,
+              status: true,
+            },
+          });
+
+          if (!schedule) {
+            return null; // Schedule not found
+          }
+
+          if (schedule.current_bookings >= schedule.max_capacity) {
+            return null; // Schedule is still full
+          }
+
+          // Get next in waitlist (with lock)
+          const nextInWaitlist = await tx.booking.findFirst({
+            where: {
+              schedule_id: scheduleId,
+              is_waitlist: true,
+              status: 'CONFIRMED',
+            },
+            orderBy: {
+              waitlist_position: 'asc',
+            },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: true,
+                  trainer: true,
+                  room: true,
+                },
+              },
+            },
+          });
+
+          if (!nextInWaitlist) {
+            return null; // No one in waitlist
+          }
+
+          // Promote atomically
+          const promotedBooking = await tx.booking.update({
+            where: { id: nextInWaitlist.id },
+            data: {
+              is_waitlist: false,
+              waitlist_position: null,
+            },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: true,
+                  trainer: true,
+                  room: true,
+                },
+              },
+            },
+          });
+
+          // Update schedule counts atomically
+          await tx.schedule.update({
+            where: { id: scheduleId },
+            data: {
+              current_bookings: {
+                increment: 1,
+              },
+              waitlist_count: {
+                decrement: 1,
+              },
+            },
+          });
+
+          return { promotedBooking };
+        },
+        {
+          isolationLevel: 'Serializable', // Highest isolation to prevent race conditions
+          timeout: 30000, // 30 seconds timeout
+        }
+      );
+
+      if (!result || !result.promotedBooking) {
+        return null; // No one to promote or schedule full
       }
 
-      // Promote the member (remove from waitlist, add as regular booking)
-      const promotedBooking = await prisma.booking.update({
-        where: { id: nextInWaitlist.id },
-        data: {
-          is_waitlist: false,
-          waitlist_position: null,
-        },
-        include: {
-          schedule: {
-            include: {
-              gym_class: true,
-              trainer: true,
-              room: true,
-            },
-          },
-        },
-      });
+      const { promotedBooking } = result;
 
-      // Update schedule bookings count
-      await prisma.schedule.update({
-        where: { id: scheduleId },
-        data: {
-          current_bookings: {
-            increment: 1,
-          },
-          waitlist_count: {
-            decrement: 1,
-          },
-        },
-      });
-
-      // Update waitlist positions for remaining members
+      // Update waitlist positions for remaining members (outside transaction)
       await this.updateWaitlistPositions(scheduleId);
 
-      // Send notification to promoted member
-      await notificationService.sendNotification({
-        type: 'WAITLIST_PROMOTED',
-        member_id: promotedBooking.member_id,
-        schedule_id: scheduleId,
-        data: {
-          class_name: promotedBooking.schedule.gym_class.name,
-          trainer_name: promotedBooking.schedule.trainer?.full_name,
-          start_time: promotedBooking.schedule.start_time,
-        },
-      });
+      // IMPROVEMENT: Send waitlist auto-promote notification using booking improvements service
+      try {
+        const bookingImprovementsService = require('./booking-improvements.service.js');
+        await bookingImprovementsService.sendWaitlistPromoteNotification(
+          promotedBooking,
+          promotedBooking.schedule
+        );
+      } catch (notifError) {
+        console.error('[ERROR] Failed to send waitlist promotion notification:', notifError);
+        // Don't fail the whole operation if notification fails
+      }
 
       return {
         booking: promotedBooking,
@@ -198,30 +431,40 @@ class WaitlistService {
 
   /**
    * Update waitlist positions after promotion or removal
+   * TC-BOOK-007: Use transaction to ensure atomic position updates
    * @param {string} scheduleId - Schedule ID
    */
   async updateWaitlistPositions(scheduleId) {
     try {
-      const waitlistMembers = await prisma.booking.findMany({
-        where: {
-          schedule_id: scheduleId,
-          is_waitlist: true,
-          status: 'CONFIRMED',
-        },
-        orderBy: {
-          created_at: 'asc', // First come, first served
-        },
-      });
+      // Use transaction to ensure all positions are updated atomically
+      await prisma.$transaction(
+        async tx => {
+          const waitlistMembers = await tx.booking.findMany({
+            where: {
+              schedule_id: scheduleId,
+              is_waitlist: true,
+              status: 'CONFIRMED',
+            },
+            orderBy: {
+              created_at: 'asc', // First come, first served
+            },
+          });
 
-      // Update positions
-      for (let i = 0; i < waitlistMembers.length; i++) {
-        await prisma.booking.update({
-          where: { id: waitlistMembers[i].id },
-          data: {
-            waitlist_position: i + 1,
-          },
-        });
-      }
+          // Update positions atomically
+          for (let i = 0; i < waitlistMembers.length; i++) {
+            await tx.booking.update({
+              where: { id: waitlistMembers[i].id },
+              data: {
+                waitlist_position: i + 1,
+              },
+            });
+          }
+        },
+        {
+          isolationLevel: 'Serializable',
+          timeout: 30000,
+        }
+      );
     } catch (error) {
       console.error('Update waitlist positions error:', error);
       throw error;
@@ -235,38 +478,53 @@ class WaitlistService {
    */
   async removeFromWaitlist(bookingId) {
     try {
-      const booking = await prisma.booking.findUnique({
-        where: { id: bookingId },
-        include: {
-          schedule: true,
+      let scheduleId;
+
+      // TC-BOOK-007: Use transaction to ensure atomic removal and position update
+      await prisma.$transaction(
+        async tx => {
+          const booking = await tx.booking.findUnique({
+            where: { id: bookingId },
+            include: {
+              schedule: true,
+            },
+          });
+
+          if (!booking) {
+            throw new Error('Booking not found');
+          }
+
+          if (!booking.is_waitlist) {
+            throw new Error('Booking is not in waitlist');
+          }
+
+          scheduleId = booking.schedule_id; // Store for later use
+
+          // Delete the waitlist booking
+          await tx.booking.delete({
+            where: { id: bookingId },
+          });
+
+          // Update schedule waitlist count
+          await tx.schedule.update({
+            where: { id: booking.schedule_id },
+            data: {
+              waitlist_count: {
+                decrement: 1,
+              },
+            },
+          });
         },
-      });
+        {
+          isolationLevel: 'Serializable',
+          timeout: 30000,
+        }
+      );
 
-      if (!booking) {
-        throw new Error('Booking not found');
+      // Update positions for remaining waitlist members (after transaction)
+      if (scheduleId) {
+        await this.updateWaitlistPositions(scheduleId);
       }
-
-      if (!booking.is_waitlist) {
-        throw new Error('Booking is not in waitlist');
-      }
-
-      // Delete the waitlist booking
-      await prisma.booking.delete({
-        where: { id: bookingId },
-      });
-
-      // Update schedule waitlist count
-      await prisma.schedule.update({
-        where: { id: booking.schedule_id },
-        data: {
-          waitlist_count: {
-            decrement: 1,
-          },
-        },
-      });
-
-      // Update positions for remaining waitlist members
-      await this.updateWaitlistPositions(booking.schedule_id);
 
       return {
         success: true,

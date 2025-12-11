@@ -19,6 +19,10 @@ interface SuccessModalProps {
   message: string;
   countdown?: number; // Countdown in seconds before auto-close
   onCountdownComplete?: () => void;
+  actionButton?: {
+    label: string;
+    onPress: () => void;
+  };
 }
 
 export const SuccessModal: React.FC<SuccessModalProps> = ({
@@ -28,6 +32,7 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
   message,
   countdown,
   onCountdownComplete,
+  actionButton,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -140,24 +145,55 @@ export const SuccessModal: React.FC<SuccessModalProps> = ({
             {message}
           </Text>
 
-          {/* Button */}
-          <TouchableOpacity
-            style={[
-              themedStyles.button,
-              { backgroundColor: theme.colors.success },
-            ]}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <Text
+          {/* Action Buttons */}
+          <View style={themedStyles.buttonContainer}>
+            {actionButton && (
+              <TouchableOpacity
+                style={[
+                  themedStyles.button,
+                  themedStyles.actionButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={actionButton.onPress}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    { color: theme.colors.textInverse, fontWeight: '600' },
+                  ]}
+                >
+                  {actionButton.label}
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
               style={[
-                Typography.bodyMedium,
-                { color: theme.colors.textInverse },
+                themedStyles.button,
+                actionButton
+                  ? [
+                      themedStyles.secondaryButton,
+                      { borderColor: theme.colors.border },
+                    ]
+                  : { backgroundColor: theme.colors.success },
               ]}
+              onPress={onClose}
+              activeOpacity={0.8}
             >
-              {t('common.ok')}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: actionButton
+                      ? theme.colors.text
+                      : theme.colors.textInverse,
+                  },
+                ]}
+              >
+                {t('common.ok')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -205,6 +241,10 @@ const styles = (theme: any) =>
       marginBottom: theme.spacing.xl,
       lineHeight: 20,
     },
+    buttonContainer: {
+      width: '100%',
+      gap: theme.spacing.sm,
+    },
     button: {
       width: '100%',
       paddingVertical: theme.spacing.sm + 2,
@@ -216,6 +256,16 @@ const styles = (theme: any) =>
       shadowOpacity: 0.3,
       shadowRadius: 4,
       elevation: 3,
+    },
+    actionButton: {
+      shadowColor: theme.colors.primary,
+    },
+    secondaryButton: {
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      shadowColor: 'transparent',
+      elevation: 0,
     },
   });
 

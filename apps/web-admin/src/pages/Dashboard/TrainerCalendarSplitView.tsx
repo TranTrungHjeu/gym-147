@@ -4,7 +4,9 @@ import interactionPlugin from '@fullcalendar/interaction';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import { AnimatePresence, motion } from 'framer-motion';
+import { ExternalLink } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import AdminButton from '../../components/common/AdminButton';
 import CustomSelect from '../../components/common/CustomSelect';
 import Button from '../../components/ui/Button/Button';
 // Removed SVG icon imports - using colored dots instead
@@ -258,18 +260,31 @@ export default function TrainerCalendarSplitView() {
       console.log('[CLASS] Class types response:', classTypesResponse);
 
       // Handle different response structures
+      // Response structure: { success: true, data: { classes: [...] } }
       let classTypesData = [];
-      if (classTypesResponse && classTypesResponse.data && Array.isArray(classTypesResponse.data)) {
-        classTypesData = classTypesResponse.data;
+      if (classTypesResponse?.success && classTypesResponse?.data) {
+        // Check if data.classes exists (standard structure)
+        if (classTypesResponse.data.classes && Array.isArray(classTypesResponse.data.classes)) {
+          classTypesData = classTypesResponse.data.classes;
+        }
+        // Check if data is directly an array
+        else if (Array.isArray(classTypesResponse.data)) {
+          classTypesData = classTypesResponse.data;
+        }
       } else if (classTypesResponse && Array.isArray(classTypesResponse)) {
         classTypesData = classTypesResponse;
       }
+
+      console.log('[CLASS] Extracted class types data:', {
+        count: classTypesData.length,
+        firstItem: classTypesData[0],
+      });
 
       if (Array.isArray(classTypesData) && classTypesData.length > 0) {
         const uniqueClassTypes = [
           ...new Set(
             classTypesData
-              .map((cls: any) => cls.class_type || cls.class_name || cls.name || cls.title)
+              .map((cls: any) => cls.name || cls.class_name || cls.class_type || cls.title)
               .filter(Boolean)
           ),
         ];
@@ -278,10 +293,13 @@ export default function TrainerCalendarSplitView() {
           setClassTypes(uniqueClassTypes);
         } else {
           setClassTypes([]);
-          console.warn('[WARNING] No class types found');
+          console.warn('[WARNING] No class types found after mapping');
         }
       } else {
-        console.warn('[WARNING] No class types data from API');
+        console.warn('[WARNING] No class types data from API', {
+          response: classTypesResponse,
+          extractedData: classTypesData,
+        });
         setClassTypes([]);
       }
 
@@ -360,12 +378,21 @@ export default function TrainerCalendarSplitView() {
 
       const response = await scheduleService.getTrainerCalendar(currentDate, viewMode, filters);
 
+      console.log('TrainerCalendarSplitView - Calendar response:', {
+        success: response.success,
+        dataLength: response.data?.length || 0,
+        data: response.data,
+        message: response.message,
+        fullResponse: response,
+      });
+
       if (response.success) {
         console.log('Received events:', response.data.length);
         console.log('Sample event:', response.data[0]);
-        setEvents(response.data);
+        setEvents(response.data || []);
         // filteredEvents will be computed automatically via useMemo
       } else {
+        console.error('TrainerCalendarSplitView - Calendar fetch failed:', response.message);
         throw new Error(response.message || 'Lỗi tải lịch dạy');
       }
     } catch (error) {
@@ -565,7 +592,7 @@ export default function TrainerCalendarSplitView() {
       const isFiltered = displayEvents.some(displayEvent => displayEvent.id === event.id);
       return {
         id: event.id,
-        title: event.title,
+        title: event.class_name || event.title || 'Lớp học',
         start: event.start,
         end: event.end,
         backgroundColor: getStatusColor(event.status),
@@ -1280,11 +1307,16 @@ export default function TrainerCalendarSplitView() {
                 <h3 className='text-sm font-semibold text-gray-900 dark:text-white mb-1 font-heading'>
                   Không có sự kiện
                 </h3>
-                <p className='text-xs text-gray-500 dark:text-gray-400 text-center font-inter'>
+                <p className='text-xs text-gray-500 dark:text-gray-400 text-center font-inter mb-2'>
                   {Object.values(filters).some(f => f)
                     ? 'Không tìm thấy sự kiện phù hợp với bộ lọc'
                     : 'Chưa có lịch dạy nào trong khoảng thời gian này'}
                 </p>
+                {!Object.values(filters).some(f => f) && (
+                  <p className='text-xs text-gray-400 dark:text-gray-500 text-center font-inter'>
+                    Thử chọn tháng/tuần khác hoặc tạo lịch dạy mới
+                  </p>
+                )}
               </div>
             ) : (
               displayEvents.map((event, index) => (
@@ -1309,7 +1341,7 @@ export default function TrainerCalendarSplitView() {
                     {/* Header */}
                     <div className='flex items-start justify-between mb-3'>
                       <h3 className='text-sm font-bold text-gray-900 dark:text-white line-clamp-2 pr-2 font-heading leading-tight'>
-                        {event.title}
+                        {event.class_name || event.title || 'Lớp học'}
                       </h3>
                       <span
                         className={`px-2 py-0.5 text-xs rounded-md font-semibold whitespace-nowrap font-heading ${getStatusClass(

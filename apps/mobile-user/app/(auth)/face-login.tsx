@@ -1,4 +1,5 @@
 import { useAuth } from '@/contexts/AuthContext';
+import { LoginCredentials } from '@/types/authTypes'; // IMPROVEMENT: Import LoginCredentials
 import { debugApi } from '@/utils/debug';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
@@ -21,6 +22,7 @@ import {
   Platform,
   StyleSheet,
   Text,
+  TextInput, // IMPROVEMENT: Add TextInput for password form
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -30,7 +32,7 @@ export default function FaceLoginScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const router = useRouter();
-  const { loginWithFace } = useAuth();
+  const { loginWithFace, login } = useAuth(); // IMPROVEMENT: Add login for password fallback
   const cameraRef = useRef<any>(null);
 
   const [permission, requestPermission] = useCameraPermissions();
@@ -38,6 +40,10 @@ export default function FaceLoginScreen() {
   const [result, setResult] = useState<'success' | 'error' | null>(null);
   const [message, setMessage] = useState('');
   const [captured, setCaptured] = useState(false);
+  const [showPasswordForm, setShowPasswordForm] = useState(false); // IMPROVEMENT: Show password form on fallback
+  const [email, setEmail] = useState(''); // IMPROVEMENT: Email for password fallback
+  const [password, setPassword] = useState(''); // IMPROVEMENT: Password for fallback
+  const [rememberMe, setRememberMe] = useState(false); // IMPROVEMENT: Remember me for fallback
   const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
   );
@@ -270,11 +276,12 @@ export default function FaceLoginScreen() {
     setCaptured(true);
 
     try {
-      // Take picture
+      // Take picture with higher quality for better face detection
       const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.8,
+        quality: 0.9, // Increased from 0.8 for better face detection
         base64: true,
-        skipProcessing: false,
+        skipProcessing: false, // Keep processing enabled for better image quality
+        exif: false, // Disable EXIF to reduce file size
       });
 
       if (!photo?.base64) {
@@ -295,6 +302,15 @@ export default function FaceLoginScreen() {
       if (!validation.valid) {
         throw new Error(validation.error || 'Invalid image');
       }
+
+      // Log image size for debugging
+      const imageSizeKB = (photo.base64.length * 3) / 4 / 1024;
+      console.log('[FACE LOGIN] Image captured:', {
+        hasBase64: !!photo.base64,
+        base64Length: photo.base64.length,
+        imageSizeKB: imageSizeKB.toFixed(2),
+        uri: photo.uri,
+      });
 
       // Login with face using AuthContext
       const loginResult = await loginWithFace(imageDataUri);
@@ -351,7 +367,26 @@ export default function FaceLoginScreen() {
         throw new Error('Invalid login response');
       }
     } catch (error: any) {
-      console.error('Face login error:', error);
+      // Only log to console, don't show error toast
+      // Error will be displayed in the UI via message state
+      console.log('[FACE LOGIN] Error:', error?.message || 'Unknown error');
+
+      // IMPROVEMENT: Check for biometric fallback
+      if (error?.biometricFallback || error?.errorCode === 'FACE_NOT_RECOGNIZED') {
+        setResult('error');
+        setMessage(
+          t('faceLogin.notRecognized', {
+            defaultValue: 'Không nhận diện được khuôn mặt. Vui lòng đăng nhập bằng mật khẩu.',
+          })
+        );
+        setCaptured(false);
+        setProcessing(false);
+        // Show password form after a short delay
+        setTimeout(() => {
+          setShowPasswordForm(true);
+        }, 2000);
+        return;
+      }
 
       // Parse error for better UX
       const errorInfo = parseFaceLoginError(error);
@@ -360,6 +395,9 @@ export default function FaceLoginScreen() {
       setMessage(errorInfo.message);
       setCaptured(false);
       setProcessing(false);
+
+      // Don't throw error to avoid showing error toast at bottom
+      // Error is already handled and displayed in UI
     }
   };
 
@@ -765,8 +803,134 @@ export default function FaceLoginScreen() {
         </View>
       )}
 
+      {/* IMPROVEMENT: Password Form Fallback */}
+      {showPasswordForm && (
+        <View
+          style={[
+            styles.passwordFormOverlay,
+            { backgroundColor: 'rgba(0,0,0,0.9)' },
+          ]}
+        >
+          <View
+            style={[
+              styles.passwordFormContainer,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Text
+              style={[
+                Typography.h3,
+                styles.passwordFormTitle,
+                { color: theme.colors.text },
+              ]}
+            >
+              {t('faceLogin.passwordFallback', {
+                defaultValue: 'Đăng nhập bằng mật khẩu',
+              })}
+            </Text>
+            <Text
+              style={[
+                Typography.body,
+                styles.passwordFormSubtitle,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {t('faceLogin.passwordFallbackMessage', {
+                defaultValue:
+                  'Không nhận diện được khuôn mặt. Vui lòng đăng nhập bằng email và mật khẩu.',
+              })}
+            </Text>
+
+            <View style={styles.passwordFormInputContainer}>
+              <TextInput
+                style={[
+                  styles.passwordFormInput,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
+                placeholder={t('auth.email') || 'Email'}
+                placeholderTextColor={theme.colors.textTertiary}
+                value={email}
+                onChangeText={setEmail}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                editable={!processing}
+              />
+              <TextInput
+                style={[
+                  styles.passwordFormInput,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                    color: theme.colors.text,
+                  },
+                ]}
+                placeholder={t('auth.password') || 'Mật khẩu'}
+                placeholderTextColor={theme.colors.textTertiary}
+                value={password}
+                onChangeText={setPassword}
+                secureTextEntry
+                editable={!processing}
+              />
+            </View>
+
+            <View style={styles.passwordFormActions}>
+              <TouchableOpacity
+                style={[
+                  styles.passwordFormButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={handlePasswordLogin}
+                disabled={processing}
+              >
+                {processing ? (
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textInverse}
+                  />
+                ) : (
+                  <Text
+                    style={[
+                      Typography.bodyMedium,
+                      styles.passwordFormButtonText,
+                      { color: theme.colors.textInverse },
+                    ]}
+                  >
+                    {t('auth.login') || 'Đăng nhập'}
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.passwordFormButtonSecondary,
+                  { borderColor: theme.colors.border },
+                ]}
+                onPress={() => {
+                  setShowPasswordForm(false);
+                  resetRecognition();
+                }}
+                disabled={processing}
+              >
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    styles.passwordFormButtonSecondaryText,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('common.cancel') || 'Hủy'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      )}
+
       {/* Processing Overlay */}
-      {processing && !result && (
+      {processing && !result && !showPasswordForm && (
         <View
           style={[
             styles.processingOverlay,

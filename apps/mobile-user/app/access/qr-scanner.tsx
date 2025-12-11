@@ -1,7 +1,9 @@
 import AccessNotificationModal from '@/components/AccessNotificationModal';
 import SessionRatingModal from '@/components/SessionRatingModal';
+import ClassRatingModal from '@/components/ClassRatingModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { accessService } from '@/services/member/access.service';
+import { attendanceService } from '@/services/schedule/attendance.service';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -11,6 +13,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Alert,
+  Modal,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -33,12 +37,25 @@ export default function QRScannerScreen() {
   const [scannedQRLocation, setScannedQRLocation] =
     useState<string>('Main Entrance');
 
+  // Class rating modal state
+  const [showClassRatingModal, setShowClassRatingModal] = useState(false);
+  const [classRatingData, setClassRatingData] = useState<{
+    scheduleId?: string;
+    className?: string;
+    trainerName?: string;
+    attendanceId?: string;
+  } | null>(null);
+
   // Notification modal state
   const [showNotification, setShowNotification] = useState(false);
   const [notificationType, setNotificationType] = useState<
     'check-in' | 'check-out' | 'error'
   >('check-in');
   const [notificationData, setNotificationData] = useState<any>(null);
+
+  // Early checkout modal state
+  const [showEarlyCheckoutModal, setShowEarlyCheckoutModal] = useState(false);
+  const [earlyCheckoutMessage, setEarlyCheckoutMessage] = useState<string>('');
 
   // Refs for immediate tracking (prevent race conditions)
   const isProcessingRef = useRef(false);
@@ -227,8 +244,95 @@ export default function QRScannerScreen() {
         return;
       }
 
-      // Check if QR code starts with GYM_ACCESS
-      if (!data.trim().startsWith('GYM_ACCESS')) {
+      // Check QR code type
+      const qrData = data.trim();
+      
+      // Handle SCHEDULE_QR for class check-in/check-out
+      if (qrData.startsWith('SCHEDULE_QR')) {
+        if (!member?.id) {
+          setNotificationType('error');
+          setNotificationData(null);
+          setShowNotification(true);
+          setProcessing(false);
+          isProcessingRef.current = false;
+          setTimeout(() => {
+            setShowNotification(false);
+            setScanned(false);
+          }, 2000);
+          return;
+        }
+
+        console.log('[SCHEDULE_QR] Processing schedule QR code...');
+        const result = await attendanceService.scanQRCodeCheckInOut(qrData, member.id);
+
+        if (result.success && result.data) {
+          const isCheckIn = !!result.data.check_in_time;
+          const isCheckOut = !!result.data.check_out_time;
+
+          // If check-out successful, show rating modal
+          if (isCheckOut && result.data.attendance) {
+            const attendance = result.data.attendance;
+            const schedule = attendance.schedule;
+            
+            setClassRatingData({
+              scheduleId: schedule?.id,
+              className: schedule?.gym_class?.name || 'Lớp học',
+              trainerName: schedule?.trainer?.full_name || 'Huấn luyện viên',
+              attendanceId: attendance.id,
+            });
+            setShowClassRatingModal(true);
+            setProcessing(false);
+            isProcessingRef.current = false;
+            setScanned(false);
+            return;
+          }
+
+          // For check-in, show notification
+          setNotificationType('success');
+          setNotificationData({
+            title: isCheckIn ? t('attendance.checkInSuccess') : t('attendance.checkOutSuccess'),
+            message: isCheckIn
+              ? t('attendance.checkInSuccessMessage')
+              : t('attendance.checkOutSuccessMessage'),
+          });
+          setShowNotification(true);
+          setProcessing(false);
+          isProcessingRef.current = false;
+
+          // Auto navigate after 2 seconds
+          setTimeout(() => {
+            setShowNotification(false);
+            setScanned(false);
+            router.push('/(tabs)/classes');
+          }, 2000);
+        } else {
+          // Check if it's an early checkout error
+          const errorMessage = result.error || t('attendance.checkInOutErrorMessage');
+          const isEarlyCheckoutError =
+            errorMessage.includes('not available at this time') ||
+            errorMessage.includes('Check-out is not available') ||
+            errorMessage.includes('không khả dụng');
+
+          if (isEarlyCheckoutError) {
+            // Show modal for early checkout error (no error notification below)
+            setEarlyCheckoutMessage(errorMessage);
+            setShowEarlyCheckoutModal(true);
+            setProcessing(false);
+            isProcessingRef.current = false;
+            setScanned(false);
+          } else {
+            // For other errors, just log and reset (no error notification)
+            console.error('[ATTENDANCE] Check-in/check-out error:', errorMessage);
+            setProcessing(false);
+            isProcessingRef.current = false;
+            setScanned(false);
+          }
+        }
+        return;
+      }
+
+      // Handle GYM_ACCESS for gym entry/exit
+      if (!qrData.startsWith('GYM_ACCESS')) {
         setNotificationType('error');
         setNotificationData(null);
         setShowNotification(true);
@@ -556,7 +660,105 @@ export default function QRScannerScreen() {
         data={notificationData}
       />
 
-      {/* Rating Modal */}
+      {/* Early Checkout Modal */}
+      <Modal
+        visible={showEarlyCheckoutModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowEarlyCheckoutModal(false)}
+      >
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: 'rgba(0, 0, 0, 0.6)' },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                borderRadius: 24,
+                padding: 24,
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text
+                style={[
+                  Typography.h3,
+                  { color: theme.colors.text, flex: 1 },
+                ]}
+              >
+                {t('attendance.checkInOutError') || 'Không thể check-out'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowEarlyCheckoutModal(false)}
+                style={[
+                  styles.closeButton,
+                  { backgroundColor: theme.colors.surface },
+                ]}
+              >
+                <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View
+              style={[
+                styles.iconContainer,
+                { backgroundColor: `${theme.colors.warning || theme.colors.error}15` },
+              ]}
+            >
+              <Text style={{ fontSize: 48 }}>⚠️</Text>
+            </View>
+
+            <Text
+              style={[
+                Typography.body,
+                {
+                  color: theme.colors.text,
+                  textAlign: 'center',
+                  marginBottom: 24,
+                },
+              ]}
+            >
+              {earlyCheckoutMessage ||
+                t('attendance.earlyCheckoutMessage') ||
+                'Bạn không thể check-out quá sớm. Vui lòng đợi đến khi lớp học kết thúc hoặc trong vòng 10 phút sau khi lớp kết thúc.'}
+            </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  paddingVertical: 16,
+                  borderRadius: 12,
+                },
+              ]}
+              onPress={() => {
+                setShowEarlyCheckoutModal(false);
+                setScanned(false);
+              }}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: theme.colors.textInverse,
+                    fontWeight: '600',
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                {t('common.ok') || 'Đã hiểu'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Session Rating Modal (for gym session) */}
       <SessionRatingModal
         visible={showRatingModal}
         onClose={() => setShowRatingModal(false)}
@@ -569,6 +771,64 @@ export default function QRScannerScreen() {
               }
             : undefined
         }
+      />
+
+      {/* Class Rating Modal (for class check-out) */}
+      <ClassRatingModal
+        visible={showClassRatingModal}
+        onClose={() => {
+          setShowClassRatingModal(false);
+          setClassRatingData(null);
+          // Navigate to classes tab after closing
+          setTimeout(() => {
+            router.push('/(tabs)/classes');
+          }, 300);
+        }}
+        onSubmit={async (rating) => {
+          if (!classRatingData?.scheduleId || !member?.id) {
+            return;
+          }
+
+          try {
+            const result = await attendanceService.submitRating(
+              classRatingData.scheduleId,
+              member.id,
+              rating
+            );
+
+            if (result.success) {
+              setShowClassRatingModal(false);
+              setClassRatingData(null);
+              
+              // Show success notification
+              setNotificationType('success');
+              setNotificationData({
+                title: t('classes.rating.submitSuccess', 'Cảm ơn bạn đã đánh giá!'),
+                message: t('classes.rating.submitSuccessMessage', 'Đánh giá của bạn đã được ghi nhận.'),
+              });
+              setShowNotification(true);
+
+              // Navigate to classes tab after 2 seconds
+              setTimeout(() => {
+                setShowNotification(false);
+                router.push('/(tabs)/classes');
+              }, 2000);
+            } else {
+              Alert.alert(
+                t('common.error'),
+                result.error || t('classes.rating.submitError', 'Không thể gửi đánh giá')
+              );
+            }
+          } catch (error: any) {
+            console.error('[ERROR] Submit class rating error:', error);
+            Alert.alert(
+              t('common.error'),
+              error.message || t('classes.rating.submitError', 'Không thể gửi đánh giá')
+            );
+          }
+        }}
+        className={classRatingData?.className}
+        trainerName={classRatingData?.trainerName}
       />
     </SafeAreaView>
   );
@@ -746,5 +1006,45 @@ const styles = StyleSheet.create({
   permissionButtonText: {
     ...Typography.bodyMedium,
     fontWeight: '600',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 400,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 15,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  closeButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  iconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalButton: {
+    alignItems: 'center',
   },
 });

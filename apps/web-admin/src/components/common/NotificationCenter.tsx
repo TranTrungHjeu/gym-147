@@ -1,6 +1,8 @@
 import { notificationService } from '@/services/notification.service';
 import { AlertCircle, AlertTriangle, Bell, CheckCircle, Info, X, Filter, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import useTranslation from '../../hooks/useTranslation';
 import AdminButton from './AdminButton';
 import AdminCard from './AdminCard';
 import CustomSelect from './CustomSelect';
@@ -14,6 +16,8 @@ interface Notification {
   read: boolean;
   actionUrl?: string;
   actionLabel?: string;
+  notificationData?: any;
+  notificationType?: string;
 }
 
 interface NotificationCenterProps {
@@ -27,6 +31,8 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
   onNotificationClick,
   realTimeUpdates = true,
 }) => {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,8 +90,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
           message: n.message,
           timestamp: new Date(n.created_at),
           read: n.is_read,
-          actionUrl: n.data?.actionUrl,
+          actionUrl: n.data?.action_route || n.data?.actionUrl,
           actionLabel: n.data?.actionLabel,
+          notificationData: n.data, // Store full data for custom handling
+          notificationType: n.type, // Store original type
         }));
 
         if (append) {
@@ -251,10 +259,10 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     const hours = Math.floor(minutes / 60);
     const days = Math.floor(hours / 24);
 
-    if (minutes < 1) return 'Vừa xong';
-    if (minutes < 60) return `${minutes} phút trước`;
-    if (hours < 24) return `${hours} giờ trước`;
-    if (days < 7) return `${days} ngày trước`;
+    if (minutes < 1) return t('notificationCenter.time.justNow');
+    if (minutes < 60) return t('notificationCenter.time.minutesAgo', { minutes });
+    if (hours < 24) return t('notificationCenter.time.hoursAgo', { hours });
+    if (days < 7) return t('notificationCenter.time.daysAgo', { days });
     return timestamp.toLocaleDateString('vi-VN');
   };
 
@@ -265,8 +273,27 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
     if (onNotificationClick) {
       onNotificationClick(notification);
     }
+    
+    // Handle SALARY_REQUEST notification
+    if ((notification as any).notificationType === 'SALARY_REQUEST' && (notification as any).notificationData) {
+      const data = (notification as any).notificationData;
+      const trainerId = data.trainer_id;
+      if (trainerId) {
+        navigate(`/management/salary-requests?trainer_id=${trainerId}&action=set_salary`);
+        setIsOpen(false);
+        return;
+      }
+    }
+    
+    // Handle other notifications with actionUrl
     if (notification.actionUrl) {
-      window.location.href = notification.actionUrl;
+      // Check if it's a relative path or full URL
+      if (notification.actionUrl.startsWith('http')) {
+        window.location.href = notification.actionUrl;
+      } else {
+        navigate(notification.actionUrl);
+      }
+      setIsOpen(false);
     }
   };
 
@@ -300,11 +327,11 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   <div className='flex items-center gap-2'>
                     <Bell className='w-5 h-5 text-gray-600 dark:text-gray-400' />
                     <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-                      Thông báo
+                      {t('notificationCenter.title')}
                     </h3>
                     {unreadCount > 0 && (
                       <span className='px-2 py-1 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-xs rounded-full font-inter'>
-                        {unreadCount} mới
+                        {t('notificationCenter.newCount', { count: unreadCount })}
                       </span>
                     )}
                   </div>
@@ -320,25 +347,26 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 <div className='grid grid-cols-2 gap-2 mb-3'>
                   <CustomSelect
                     options={[
-                      { value: 'all', label: 'Tất cả' },
-                      { value: 'read', label: 'Đã đọc' },
-                      { value: 'unread', label: 'Chưa đọc' },
+                      { value: 'all', label: t('notificationCenter.filters.all') },
+                      { value: 'read', label: t('notificationCenter.filters.read') },
+                      { value: 'unread', label: t('notificationCenter.filters.unread') },
                     ]}
                     value={filterRead}
                     onChange={setFilterRead}
-                    placeholder='Trạng thái'
+                    placeholder={t('notificationCenter.filters.statusPlaceholder')}
                     className='text-xs font-inter'
                   />
                   <CustomSelect
                     options={[
-                      { value: 'all', label: 'Tất cả loại' },
-                      { value: 'PAYMENT_SUCCESS', label: 'Thanh toán' },
-                      { value: 'CLASS_BOOKING', label: 'Đặt lịch' },
-                      { value: 'SYSTEM_ANNOUNCEMENT', label: 'Hệ thống' },
+                      { value: 'all', label: t('notificationCenter.filters.allTypes') },
+                      { value: 'PAYMENT_SUCCESS', label: t('notificationCenter.filters.payment') },
+                      { value: 'CLASS_BOOKING', label: t('notificationCenter.filters.booking') },
+                      { value: 'SALARY_REQUEST', label: 'Yêu cầu xét lương' },
+                      { value: 'SYSTEM_ANNOUNCEMENT', label: t('notificationCenter.filters.system') },
                     ]}
                     value={filterType}
                     onChange={setFilterType}
-                    placeholder='Loại'
+                    placeholder={t('notificationCenter.filters.typePlaceholder')}
                     className='text-xs font-inter'
                   />
                 </div>
@@ -347,7 +375,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                 {selectedNotifications.size > 0 && (
                   <div className='flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800'>
                     <span className='text-xs text-gray-600 dark:text-gray-400 font-inter'>
-                      Đã chọn: {selectedNotifications.size}
+                      {t('notificationCenter.selected', { count: selectedNotifications.size })}
                     </span>
                     <AdminButton
                       variant='outline'
@@ -355,7 +383,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       onClick={bulkMarkAsRead}
                       className='text-xs'
                     >
-                      Đánh dấu đã đọc
+                      {t('notificationCenter.bulkActions.markAsRead')}
                     </AdminButton>
                     <AdminButton
                       variant='outline'
@@ -364,13 +392,13 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       className='text-xs text-red-600 dark:text-red-400'
                     >
                       <Trash2 className='w-3 h-3 mr-1' />
-                      Xóa
+                      {t('common.delete')}
                     </AdminButton>
                     <button
                       onClick={() => setSelectedNotifications(new Set())}
                       className='text-xs text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-100 font-inter'
                     >
-                      Hủy
+                      {t('common.cancel')}
                     </button>
                   </div>
                 )}
@@ -380,7 +408,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                   <div className='flex items-center gap-2 pt-2 border-t border-gray-200 dark:border-gray-800'>
                     {unreadCount > 0 && (
                       <AdminButton variant='outline' size='xs' onClick={markAllAsRead} className='text-xs'>
-                        Đánh dấu tất cả đã đọc
+                        {t('notificationCenter.quickActions.markAllAsRead')}
                       </AdminButton>
                     )}
                   </div>
@@ -391,12 +419,12 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
               <div className='max-h-[500px] overflow-y-auto'>
                 {isLoading ? (
                   <div className='p-8 text-center text-gray-500 dark:text-gray-400 font-inter'>
-                    Đang tải...
+                    {t('common.loading')}
                   </div>
                 ) : notifications.length === 0 ? (
                   <div className='p-8 text-center text-gray-500 dark:text-gray-400 font-inter'>
                     <Bell className='w-12 h-12 mx-auto mb-2 opacity-50' />
-                    <p>Không có thông báo nào</p>
+                    <p>{t('notificationCenter.empty')}</p>
                   </div>
                 ) : (
                   <div className='divide-y divide-gray-200 dark:divide-gray-800'>
@@ -473,7 +501,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                         disabled={isLoading}
                         className='text-xs font-inter'
                       >
-                        {isLoading ? 'Đang tải...' : 'Tải thêm'}
+                        {isLoading ? t('common.loading') : t('notificationCenter.loadMore')}
                       </AdminButton>
                     </div>
                   )}
@@ -493,7 +521,7 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       window.location.href = '/notifications';
                     }}
                   >
-                    Xem tất cả thông báo
+                    {t('notificationCenter.viewAll')}
                   </AdminButton>
                 </div>
               )}

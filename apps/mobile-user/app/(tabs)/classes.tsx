@@ -17,10 +17,10 @@ import {
   type ScheduleFilters,
   type Trainer,
 } from '@/services';
-import { ClassCategory, Difficulty } from '@/types/classTypes';
+import { ClassCategory, Difficulty, TrainerStatus } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { DatePicker } from '@/components/ui';
 import { useRouter } from 'expo-router';
 import {
   Calendar,
@@ -30,14 +30,17 @@ import {
   Search,
   Sparkles,
   Users,
+  X,
+  Brain,
 } from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
   Animated,
   FlatList,
+  Modal,
   Platform,
   RefreshControl,
   ScrollView,
@@ -98,9 +101,7 @@ const CategoryChip: React.FC<{
           style={[
             themedStyles.categoryText,
             {
-              color: isSelected
-                ? theme.colors.textInverse
-                : theme.colors.text,
+              color: isSelected ? theme.colors.textInverse : theme.colors.text,
             },
           ]}
         >
@@ -155,11 +156,12 @@ export default function ClassesScreen() {
   const [schedules, setSchedules] = useState<Schedule[]>([]);
   const [myBookings, setMyBookings] = useState<Booking[]>([]);
   const [memberProfile, setMemberProfile] = useState<any>(null); // Full member profile with membership_type
-  
+
   // Class recommendations state
   const [classRecommendations, setClassRecommendations] = useState<
     ClassRecommendation[]
   >([]);
+  const [recommendationMethod, setRecommendationMethod] = useState<string | null>(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   // UI state
@@ -170,13 +172,17 @@ export default function ClassesScreen() {
   const [selectedDate, setSelectedDate] = useState(
     new Date().toISOString().split('T')[0]
   );
-  const [showDatePicker, setShowDatePicker] = useState(false);
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [selectedSchedule, setSelectedSchedule] = useState<Schedule | null>(
     null
   );
+  const [showRecommendationsModal, setShowRecommendationsModal] =
+    useState(false);
+  const [showVectorRecommendationsModal, setShowVectorRecommendationsModal] =
+    useState(false);
 
-  // Advanced filter states
+  // Filter modal states
+  const [showFilterModal, setShowFilterModal] = useState(false);
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [advancedFilters, setAdvancedFilters] = useState<ScheduleFilters>({});
@@ -184,6 +190,18 @@ export default function ClassesScreen() {
   // Track if initial load has completed
   const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [isLoadingDateChange, setIsLoadingDateChange] = useState(false);
+  const [isBookingLoading, setIsBookingLoading] = useState(false);
+
+  // Cache schedules by date to avoid reloading
+  const [schedulesCache, setSchedulesCache] = useState<
+    Record<string, Schedule[]>
+  >({});
+
+  // Request cancellation for date changes
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // Debounce timer for date changes
+  const dateChangeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load member profile on mount
   useEffect(() => {
@@ -193,15 +211,37 @@ export default function ClassesScreen() {
   }, [user?.id, member?.id]);
 
   // Load data on component mount (only when date changes, NOT category)
+  // Also reload when member is loaded (e.g., after registration)
   useEffect(() => {
     if (user?.id) {
-      // Show full loading only on initial load, not on date changes
-      loadData(isInitialLoad);
+      // Clear previous debounce timer
+      if (dateChangeTimerRef.current) {
+        clearTimeout(dateChangeTimerRef.current);
+      }
+
+      // Debounce date changes to avoid spam requests
       if (isInitialLoad) {
+        // No debounce for initial load
+        loadData(true, false);
         setIsInitialLoad(false);
+      } else {
+        // Debounce date changes by 300ms
+        dateChangeTimerRef.current = setTimeout(() => {
+          loadData(false, true); // Skip bookings on date change
+        }, 300);
       }
     }
-  }, [selectedDate, user?.id]); // Removed selectedCategory from dependencies
+
+    // Cleanup
+    return () => {
+      if (dateChangeTimerRef.current) {
+        clearTimeout(dateChangeTimerRef.current);
+      }
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [selectedDate, user?.id, member?.id]); // Added member?.id to reload when member is loaded
 
   // Load class recommendations when member is available
   useEffect(() => {
@@ -217,7 +257,9 @@ export default function ClassesScreen() {
 
   const loadTrainers = async () => {
     try {
-      const response = await trainerService.getTrainers({ status: 'ACTIVE' });
+      const response = await trainerService.getTrainers({
+        status: TrainerStatus.ACTIVE,
+      });
       if (response.success && response.data) {
         setTrainers(response.data);
       }
@@ -226,8 +268,82 @@ export default function ClassesScreen() {
     }
   };
 
-  const loadData = async (showFullLoading = true) => {
+  // Preload schedules for nearby dates (tomorrow, day after)
+  const preloadNearbyDates = useCallback(
+    async (currentDate: string) => {
+      const datesToPreload: string[] = [];
+      const current = new Date(currentDate);
+
+      // Preload tomorrow and day after tomorrow
+      for (let i = 1; i <= 2; i++) {
+        const nextDate = new Date(current);
+        nextDate.setDate(current.getDate() + i);
+        const dateStr = nextDate.toISOString().split('T')[0];
+
+        // Only preload if not in cache
+        if (!schedulesCache[dateStr]) {
+          datesToPreload.push(dateStr);
+        }
+      }
+
+      // Preload in background (don't block UI)
+      if (datesToPreload.length > 0) {
+        datesToPreload.forEach(async (dateStr) => {
+          try {
+            const filters: ScheduleFilters = {
+              date_from: dateStr,
+              date_to: dateStr,
+            };
+            const response = await scheduleService.getSchedules(filters);
+
+            if (response.success && response.data) {
+              const filteredSchedules = Array.isArray(response.data)
+                ? response.data.filter((schedule: Schedule) => {
+                    const scheduleDate = new Date(schedule.start_time);
+                    const scheduleDateStr = scheduleDate
+                      .toISOString()
+                      .split('T')[0];
+                    return scheduleDateStr === dateStr;
+                  })
+                : [];
+
+              // Cache the preloaded schedules
+              setSchedulesCache((prev) => ({
+                ...prev,
+                [dateStr]: filteredSchedules,
+              }));
+            }
+          } catch (err) {
+            // Silent fail for preload
+            console.log('[PRELOAD] Failed to preload date:', dateStr);
+          }
+        });
+      }
+    },
+    [schedulesCache]
+  );
+
+  const loadData = async (showFullLoading = true, skipBookings = false) => {
     try {
+      // Cancel previous request if exists
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+
+      // Create new abort controller
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      // Check cache first for date changes
+      if (!showFullLoading && schedulesCache[selectedDate]) {
+        setSchedules(schedulesCache[selectedDate]);
+        setIsLoadingDateChange(false);
+
+        // Preload nearby dates in background
+        preloadNearbyDates(selectedDate);
+        return;
+      }
+
       // Only show full loading spinner on initial load or manual refresh
       // When changing date, we'll show a subtle indicator instead
       if (showFullLoading) {
@@ -238,11 +354,8 @@ export default function ClassesScreen() {
       }
       setError(null);
 
-      // Reset schedules immediately when loading new date to prevent showing old data
-      setSchedules([]);
-
       if (!user?.id) {
-        setError('Please login to view classes');
+        setError(t('classes.pleaseLoginToViewClasses'));
         return;
       }
 
@@ -257,51 +370,116 @@ export default function ClassesScreen() {
         // Don't pass category to API - we'll filter client-side for better UX
       };
 
-      // Load schedules and bookings in parallel
-      const memberIdForBookings = member?.id || user.id;
-      const [schedulesResponse, bookingsResponse] = await Promise.all([
+      // Load schedules (and bookings only on initial load or manual refresh)
+      const loadPromises: Promise<any>[] = [
         scheduleService.getSchedules(filters),
-        bookingService.getMemberBookings(memberIdForBookings),
-      ]);
+      ];
+
+      if (!skipBookings) {
+        const memberIdForBookings = member?.id || user.id;
+        loadPromises.push(
+          bookingService.getMemberBookings(memberIdForBookings)
+        );
+      }
+
+      const responses = await Promise.all(loadPromises);
+
+      // Check if request was cancelled
+      if (abortController.signal.aborted) {
+        return;
+      }
+
+      const schedulesResponse = responses[0];
+      const bookingsResponse = skipBookings ? null : responses[1];
 
       // Handle schedules
       if (schedulesResponse.success && schedulesResponse.data) {
+        // Helper function to format date string in Vietnam timezone (YYYY-MM-DD)
+        const formatDateVN = (date: Date | string): string => {
+          const d = typeof date === 'string' ? new Date(date) : date;
+          // Use toLocaleDateString with Vietnam timezone to get correct date
+          const year = d.toLocaleDateString('en-US', {
+            year: 'numeric',
+            timeZone: 'Asia/Ho_Chi_Minh',
+          });
+          const month = d.toLocaleDateString('en-US', {
+            month: '2-digit',
+            timeZone: 'Asia/Ho_Chi_Minh',
+          });
+          const day = d.toLocaleDateString('en-US', {
+            day: '2-digit',
+            timeZone: 'Asia/Ho_Chi_Minh',
+          });
+          return `${year}-${month}-${day}`;
+        };
+
         // Always filter by selected date on client-side to ensure accuracy
         const filteredSchedules = Array.isArray(schedulesResponse.data)
           ? schedulesResponse.data.filter((schedule: Schedule) => {
-              const scheduleDate = new Date(schedule.start_time);
-              const selectedDateObj = new Date(selectedDate);
+              const scheduleDateStr = formatDateVN(schedule.start_time);
+              const selectedDateStr = formatDateVN(selectedDate);
 
-              // Compare dates (ignore time)
-              const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
-              const selectedDateStr = selectedDateObj
-                .toISOString()
-                .split('T')[0];
+              console.log('[DATE_FILTER] Comparing dates:', {
+                scheduleId: schedule.id,
+                scheduleStartTime: schedule.start_time,
+                scheduleDateStr,
+                selectedDate,
+                selectedDateStr,
+                match: scheduleDateStr === selectedDateStr,
+              });
 
               return scheduleDateStr === selectedDateStr;
             })
           : [];
 
         setSchedules(filteredSchedules);
+
+        // Cache the schedules for this date
+        setSchedulesCache((prev) => ({
+          ...prev,
+          [selectedDate]: filteredSchedules,
+        }));
+
+        // Preload nearby dates in background after successful load
+        if (!showFullLoading) {
+          preloadNearbyDates(selectedDate);
+        }
       } else {
         setSchedules([]);
+        // Cache empty array too
+        setSchedulesCache((prev) => ({
+          ...prev,
+          [selectedDate]: [],
+        }));
       }
 
-      // Handle bookings
-      if (bookingsResponse.success && bookingsResponse.data) {
-        setMyBookings(bookingsResponse.data);
-      } else {
-        setMyBookings([]);
+      // Handle bookings (only on initial load or manual refresh)
+      if (!skipBookings && bookingsResponse) {
+        if (bookingsResponse.success && bookingsResponse.data) {
+          setMyBookings(bookingsResponse.data);
+        } else {
+          setMyBookings([]);
+        }
       }
     } catch (err: any) {
-      console.error('Error loading classes data:', err);
-      setError(err.message || 'Failed to load classes data');
-    } finally {
-      if (showFullLoading) {
-        setLoading(false);
-      } else {
-        setIsLoadingDateChange(false);
+      // Ignore abort errors
+      if (err.name === 'AbortError') {
+        return;
       }
+      console.error('Error loading classes data:', err);
+      setError(err.message || t('classes.errors.failedToLoadData'));
+    } finally {
+      if (
+        abortControllerRef.current &&
+        !abortControllerRef.current.signal.aborted
+      ) {
+        if (showFullLoading) {
+          setLoading(false);
+        } else {
+          setIsLoadingDateChange(false);
+        }
+      }
+      abortControllerRef.current = null;
     }
   };
 
@@ -322,9 +500,11 @@ export default function ClassesScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    // Clear cache on manual refresh
+    setSchedulesCache({});
     await Promise.all([
       loadMemberProfile(),
-      loadData(true), // Show full loading on manual refresh
+      loadData(true, false), // Load bookings on refresh
       member?.id ? loadClassRecommendations(member.id) : Promise.resolve(),
     ]);
     setRefreshing(false);
@@ -333,10 +513,16 @@ export default function ClassesScreen() {
   // Load class recommendations
   const loadClassRecommendations = async (memberId: string) => {
     try {
-      console.log('[LOAD] [loadClassRecommendations] Starting...', { memberId });
+      console.log('[LOAD] [loadClassRecommendations] Starting...', {
+        memberId,
+      });
       setLoadingRecommendations(true);
       // Use vector-based recommendations (new feature) with AI fallback
-      const response = await classService.getClassRecommendations(memberId, true, true);
+      const response = await classService.getClassRecommendations(
+        memberId,
+        true,
+        true
+      );
 
       console.log('[DATA] [loadClassRecommendations] Response received:', {
         success: response.success,
@@ -349,34 +535,51 @@ export default function ClassesScreen() {
 
       if (response.success && response.data?.recommendations) {
         const recommendations = response.data.recommendations;
+        const method = response.data.method || 'unknown';
         setClassRecommendations(recommendations);
-        console.log('[SUCCESS] [loadClassRecommendations] Loaded recommendations:', {
-          count: recommendations.length,
-          method: response.data.method || 'unknown',
-          firstRec: recommendations[0] ? {
-            type: recommendations[0].type,
-            title: recommendations[0].title,
-            priority: recommendations[0].priority,
-          } : null,
-        });
+        setRecommendationMethod(method);
+        console.log(
+          '[SUCCESS] [loadClassRecommendations] Loaded recommendations:',
+          {
+            count: recommendations.length,
+            method: method,
+            firstRec: recommendations[0]
+              ? {
+                  type: recommendations[0].type,
+                  title: recommendations[0].title,
+                  priority: recommendations[0].priority,
+                  data: recommendations[0].data,
+                }
+              : null,
+          }
+        );
       } else {
-        console.warn('[WARN] [loadClassRecommendations] No recommendations found:', {
-          success: response.success,
-          hasData: !!response.data,
-          error: response.error,
-        });
+        console.warn(
+          '[WARN] [loadClassRecommendations] No recommendations found:',
+          {
+            success: response.success,
+            hasData: !!response.data,
+            error: response.error,
+          }
+        );
         setClassRecommendations([]);
       }
     } catch (err: any) {
-      console.error('[ERROR] [loadClassRecommendations] Error loading class recommendations:', {
-        message: err.message,
-        stack: err.stack,
-        memberId,
-      });
+      console.error(
+        '[ERROR] [loadClassRecommendations] Error loading class recommendations:',
+        {
+          message: err.message,
+          stack: err.stack,
+          memberId,
+        }
+      );
       setClassRecommendations([]);
     } finally {
       setLoadingRecommendations(false);
-      console.log('[SUCCESS] [loadClassRecommendations] Finished, loadingRecommendations:', false);
+      console.log(
+        '[SUCCESS] [loadClassRecommendations] Finished, loadingRecommendations:',
+        false
+      );
     }
   };
 
@@ -388,33 +591,11 @@ export default function ClassesScreen() {
     setSelectedCategory(category);
   };
 
-  const handleDateChange = (event: any, selectedDate?: Date) => {
-    // On Android, close picker after selection (event.type === 'set')
-    // On iOS, keep picker open (event.type === 'set' but we keep it open)
-    if (Platform.OS === 'android') {
-      setShowDatePicker(false);
-      // On Android, if user dismissed (event.type === 'dismissed'), don't update date
-      if (event.type === 'dismissed') {
-        return;
-      }
-    } else {
-      // On iOS, keep picker open unless user explicitly closes it
-      if (event.type === 'dismissed') {
-        setShowDatePicker(false);
-        return;
-      }
-    }
-
-    if (selectedDate) {
-      const dateString = selectedDate.toISOString().split('T')[0];
-      setSelectedDate(dateString);
-      // This will trigger useEffect to reload data with new date filter
-      // Don't show full loading spinner, just silently update
-    }
-  };
-
-  const handleDateButtonPress = () => {
-    setShowDatePicker(true);
+  const handleDateChange = (date: Date) => {
+    const dateString = date.toISOString().split('T')[0];
+    setSelectedDate(dateString);
+    // This will trigger useEffect to reload data with new date filter
+    // Don't show full loading spinner, just silently update
   };
 
   const navigateDate = (days: number) => {
@@ -461,12 +642,52 @@ export default function ClassesScreen() {
 
   const handleBookingConfirm = async (bookingData: CreateBookingRequest) => {
     try {
-      const response = await bookingService.createBooking(bookingData);
+      // Ensure member_id is included from auth context
+      if (!member?.id) {
+        Alert.alert(
+          t('common.error'),
+          t('classes.errors.memberRegistrationRequired') || 'Vui lòng đăng ký thành viên trước khi đặt lịch'
+        );
+        return;
+      }
+
+      // Set loading state
+      setIsBookingLoading(true);
+
+      // Add member_id to booking data
+      const bookingDataWithMember: CreateBookingRequest = {
+        ...bookingData,
+        member_id: member.id,
+      };
+
+      console.log('[BOOKING] Creating booking with data:', {
+        schedule_id: bookingDataWithMember.schedule_id,
+        member_id: bookingDataWithMember.member_id,
+        hasSpecialNeeds: !!bookingDataWithMember.special_needs,
+        hasNotes: !!bookingDataWithMember.notes,
+      });
+
+      const response = await bookingService.createBooking(bookingDataWithMember);
 
       if (response.success) {
         setShowBookingModal(false);
         setSelectedSchedule(null);
-        Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'));
+        
+        // Check if this is a waitlist booking
+        const isWaitlistBooking = (response as any).is_waitlist || response.data?.is_waitlist;
+        const waitlistPosition = (response as any).waitlist_position || response.data?.waitlist_position;
+        
+        if (isWaitlistBooking) {
+          const message = waitlistPosition
+            ? t('classes.booking.waitlistSuccessWithPosition', { position: waitlistPosition }) ||
+              `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistPosition}`
+            : t('classes.booking.waitlistSuccess') ||
+              'Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ';
+          Alert.alert(t('common.success'), message);
+        } else {
+          Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'));
+        }
+        
         // Refresh data
         await loadData();
       } else {
@@ -481,6 +702,8 @@ export default function ClassesScreen() {
         t('common.error'),
         error.message || t('classes.booking.bookingFailed')
       );
+    } finally {
+      setIsBookingLoading(false);
     }
   };
 
@@ -489,6 +712,25 @@ export default function ClassesScreen() {
   };
 
   const filteredSchedules = React.useMemo(() => {
+    // Helper function to format date string in Vietnam timezone (YYYY-MM-DD)
+    const formatDateVN = (date: Date | string): string => {
+      const d = typeof date === 'string' ? new Date(date) : date;
+      // Use toLocaleDateString with Vietnam timezone to get correct date
+      const year = d.toLocaleDateString('en-US', {
+        year: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      const month = d.toLocaleDateString('en-US', {
+        month: '2-digit',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      const day = d.toLocaleDateString('en-US', {
+        day: '2-digit',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      return `${year}-${month}-${day}`;
+    };
+
     console.log('[SEARCH] Filtering schedules:', {
       totalSchedules: schedules?.length || 0,
       selectedDate,
@@ -500,10 +742,20 @@ export default function ClassesScreen() {
     return (schedules || []).filter((schedule) => {
       // Date filter (client-side - ensure we only show schedules for selected date)
       // This is a safety check in case API doesn't filter correctly
-      const scheduleDate = new Date(schedule.start_time);
-      const selectedDateObj = new Date(advancedFilters.date_from || selectedDate);
-      const scheduleDateStr = scheduleDate.toISOString().split('T')[0];
-      const selectedDateStr = selectedDateObj.toISOString().split('T')[0];
+      // Use Vietnam timezone for accurate date comparison
+      const scheduleDateStr = formatDateVN(schedule.start_time);
+      const selectedDateStr = formatDateVN(
+        advancedFilters.date_from || selectedDate
+      );
+
+      console.log('[DATE_FILTER_MEMO] Comparing dates:', {
+        scheduleId: schedule.id,
+        scheduleStartTime: schedule.start_time,
+        scheduleDateStr,
+        selectedDate,
+        selectedDateStr,
+        match: scheduleDateStr === selectedDateStr,
+      });
 
       if (scheduleDateStr !== selectedDateStr) {
         return false;
@@ -561,21 +813,14 @@ export default function ClassesScreen() {
 
       return true;
     });
-  }, [
-    schedules,
-    selectedCategory,
-    searchQuery,
-    selectedDate,
-    advancedFilters,
-  ]);
+  }, [schedules, selectedCategory, searchQuery, selectedDate, advancedFilters]);
 
   const getUpcomingBookings = () => {
-    const today = new Date().toISOString();
-    return myBookings.filter(
-      (booking) =>
-        booking.status === 'CONFIRMED' &&
-        new Date(booking.schedule?.start_time || '').toISOString() >= today
-    );
+    const now = new Date();
+    return myBookings.filter((booking) => {
+      const startTime = new Date(booking.schedule?.start_time || '');
+      return booking.status === 'CONFIRMED' && startTime >= now;
+    });
   };
 
   const upcomingBookings = getUpcomingBookings();
@@ -592,7 +837,9 @@ export default function ClassesScreen() {
         ]}
       >
         <View style={themedStyles.header}>
-          <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
+          <Text
+            style={[themedStyles.headerTitle, { color: theme.colors.text }]}
+          >
             {t('classes.title')}
           </Text>
         </View>
@@ -626,7 +873,7 @@ export default function ClassesScreen() {
               themedStyles.retryButton,
               { backgroundColor: theme.colors.primary },
             ]}
-            onPress={loadData}
+            onPress={() => loadData(true)}
           >
             <Text
               style={[
@@ -649,15 +896,30 @@ export default function ClassesScreen() {
         { backgroundColor: theme.colors.background },
       ]}
     >
-      {/* Header */}
+      {/* Compact Header */}
       <View style={themedStyles.header}>
         <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('classes.title')}
         </Text>
         <View style={themedStyles.headerRight}>
           <TouchableOpacity
+            style={themedStyles.headerIconButton}
+            onPress={() => setShowRecommendationsModal(true)}
+            activeOpacity={0.7}
+          >
+            <Sparkles size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={themedStyles.headerIconButton}
+            onPress={() => setShowVectorRecommendationsModal(true)}
+            activeOpacity={0.7}
+          >
+            <Brain size={20} color={theme.colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity
             style={themedStyles.headerButton}
             onPress={handleMyBookingsPress}
+            activeOpacity={0.7}
           >
             <Text
               style={[
@@ -671,187 +933,48 @@ export default function ClassesScreen() {
         </View>
       </View>
 
-      {/* Search and Filters */}
-      <View style={themedStyles.searchContainer}>
-        <View
-          style={[
-            themedStyles.searchInputContainer,
-            { backgroundColor: theme.colors.surface },
-          ]}
-        >
-          <Search size={20} color={theme.colors.textSecondary} />
-          <TextInput
-            style={[themedStyles.searchInput, { color: theme.colors.text }]}
-            placeholder={t('classes.searchPlaceholder')}
-            placeholderTextColor={theme.colors.textSecondary}
-            value={searchQuery}
-            onChangeText={handleSearch}
-          />
-        </View>
-        <TouchableOpacity
-          style={[
-            themedStyles.filterButton,
-            {
-              backgroundColor: showAdvancedFilters
-                ? theme.colors.primary
-                : theme.colors.surface,
-            },
-          ]}
-          onPress={() => setShowAdvancedFilters(!showAdvancedFilters)}
-          activeOpacity={0.7}
-        >
-          <Filter
-            size={20}
-            color={showAdvancedFilters ? theme.colors.textInverse : theme.colors.text}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* Category Filter */}
-      <View style={themedStyles.categorySectionWrapper}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          style={themedStyles.categoryContainer}
-          contentContainerStyle={themedStyles.categoryContent}
-        >
-          <CategoryChip
-            label={t('classes.all')}
-            isSelected={selectedCategory === 'ALL'}
-            onPress={() => handleCategorySelect('ALL')}
-            theme={theme}
-            themedStyles={themedStyles}
-          />
-          {CATEGORIES.map((category) => {
-            const isSelected = selectedCategory === category;
-            return (
-              <CategoryChip
-                key={category}
-                label={getCategoryTranslation(category)}
-                isSelected={isSelected}
-                onPress={() => {
-                  console.log('📂 Category chip pressed:', category);
-                  handleCategorySelect(category);
-                }}
-                theme={theme}
-                themedStyles={themedStyles}
-              />
-            );
-          })}
-        </ScrollView>
-      </View>
-
-      {/* Date Selector - Enhanced with Navigation */}
-      <View
-        style={[
-          themedStyles.dateContainer,
-          { backgroundColor: theme.colors.surface },
-        ]}
-      >
-        <TouchableOpacity
-          style={themedStyles.dateNavButton}
-          onPress={() => navigateDate(-1)}
-          activeOpacity={0.7}
-        >
-          <ChevronLeft size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={themedStyles.dateContent}
-          onPress={handleDateButtonPress}
-          activeOpacity={0.8}
-          disabled={isLoadingDateChange}
-        >
-          {isLoadingDateChange ? (
-            <ActivityIndicator
-              size="small"
-              color={theme.colors.primary}
-              style={{ marginRight: theme.spacing.sm }}
+      {/* Compact Filter Section - All in one */}
+      <View style={themedStyles.filterSection}>
+        {/* Search Bar */}
+        <View style={themedStyles.searchRow}>
+          <View
+            style={[
+              themedStyles.searchInputContainer,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <Search size={18} color={theme.colors.textSecondary} />
+            <TextInput
+              style={[themedStyles.searchInput, { color: theme.colors.text }]}
+              placeholder={t('classes.searchPlaceholder')}
+              placeholderTextColor={theme.colors.textSecondary}
+              value={searchQuery}
+              onChangeText={handleSearch}
             />
-          ) : (
-            <View style={themedStyles.dateIconContainer}>
-              <Calendar size={18} color={theme.colors.primary} />
-            </View>
-          )}
-          <View style={themedStyles.dateTextContainer}>
-            <Text
-              style={[
-                themedStyles.dateDayName,
-                { color: theme.colors.textSecondary },
-              ]}
-            >
-              {new Date(selectedDate).toLocaleDateString(
-                t('common.locale') || 'en-US',
-                { weekday: 'short' }
-              )}
-            </Text>
-            <Text style={[themedStyles.dateMain, { color: theme.colors.text }]}>
-              {new Date(selectedDate).toLocaleDateString(
-                t('common.locale') || 'en-US',
-                {
-                  month: 'short',
-                  day: 'numeric',
-                }
-              )}
-            </Text>
           </View>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={themedStyles.dateNavButton}
-          onPress={() => navigateDate(1)}
-          activeOpacity={0.7}
-        >
-          <ChevronRight size={20} color={theme.colors.primary} />
-        </TouchableOpacity>
-
-        {/* Date Picker */}
-        {showDatePicker && (
-          <>
-            {Platform.OS === 'android' && (
-              <DateTimePicker
-                value={new Date(selectedDate)}
-                mode="date"
-                display="default"
-                onChange={handleDateChange}
-                minimumDate={new Date()}
-                maximumDate={
-                  new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000) // 90 days from now
-                }
-              />
-            )}
-            {Platform.OS === 'ios' && (
-              <View style={themedStyles.iosDatePickerContainer}>
-                <View style={themedStyles.iosDatePickerHeader}>
-                  <TouchableOpacity
-                    onPress={() => setShowDatePicker(false)}
-                    style={themedStyles.iosDatePickerButton}
-                  >
-                    <Text
-                      style={[
-                        themedStyles.iosDatePickerButtonText,
-                        { color: theme.colors.primary },
-                      ]}
-                    >
-                      {t('common.done')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-                <DateTimePicker
-                  value={new Date(selectedDate)}
-                  mode="date"
-                  display="spinner"
-                  onChange={handleDateChange}
-                  minimumDate={new Date()}
-                  maximumDate={
-                    new Date(new Date().getTime() + 90 * 24 * 60 * 60 * 1000) // 90 days from now
-                  }
-                  style={themedStyles.iosDatePicker}
-                />
-              </View>
-            )}
-          </>
-        )}
+          <TouchableOpacity
+            style={[
+              themedStyles.filterButton,
+              {
+                backgroundColor:
+                  showFilterModal || selectedCategory !== 'ALL'
+                    ? theme.colors.primary
+                    : theme.colors.surface,
+              },
+            ]}
+            onPress={() => setShowFilterModal(true)}
+            activeOpacity={0.7}
+          >
+            <Filter
+              size={18}
+              color={
+                showFilterModal || selectedCategory !== 'ALL'
+                  ? theme.colors.textInverse
+                  : theme.colors.text
+              }
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Classes List with Recommendations and Suggestions as Header */}
@@ -860,88 +983,57 @@ export default function ClassesScreen() {
         keyExtractor={(item) => item.id}
         ListHeaderComponent={() => (
           <>
-            {/* Class Recommendations Section */}
-            {classRecommendations.length > 0 || loadingRecommendations ? (
-              <View style={themedStyles.recommendationsSection}>
-                <View style={themedStyles.recommendationsHeader}>
-                  <View style={themedStyles.recommendationsHeaderLeft}>
-                    <Sparkles size={20} color={theme.colors.primary} />
-                    <Text
-                      style={[
-                        themedStyles.recommendationsTitle,
-                        { color: theme.colors.text, marginLeft: 8 },
-                      ]}
-                    >
-                      {t('classes.recommendationsTitle')}
-                    </Text>
-                  </View>
-                </View>
+            {/* Classes Count Header */}
+            {filteredSchedules.length > 0 && (
+              <View
+                style={{
+                  paddingHorizontal: theme.spacing.lg,
+                  paddingBottom: theme.spacing.md,
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
                 <Text
                   style={[
-                    themedStyles.recommendationsDescription,
-                    { color: theme.colors.textSecondary },
+                    {
+                      ...Typography.h6,
+                      color: theme.colors.text,
+                      fontWeight: '600',
+                    },
                   ]}
                 >
-                  {t('classes.recommendationsDescription')}
+                  {filteredSchedules.length}{' '}
+                  {filteredSchedules.length === 1
+                    ? t('classes.classFound') || 'lớp học'
+                    : t('classes.classesFound') || 'lớp học'}
                 </Text>
-                {loadingRecommendations ? (
-                  <View style={themedStyles.recommendationsLoading}>
-                    <ActivityIndicator size="small" color={theme.colors.primary} />
+                {(searchQuery || selectedCategory !== 'ALL') && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setSearchQuery('');
+                      setSelectedCategory('ALL');
+                    }}
+                    style={{
+                      paddingHorizontal: theme.spacing.sm,
+                      paddingVertical: theme.spacing.xs,
+                    }}
+                  >
                     <Text
                       style={[
-                        themedStyles.recommendationsLoadingText,
-                        { color: theme.colors.textSecondary },
+                        {
+                          ...Typography.bodySmall,
+                          color: theme.colors.primary,
+                          fontWeight: '600',
+                        },
                       ]}
                     >
-                      {t('classes.loadingRecommendations')}
+                      {t('common.clear') || 'Xóa bộ lọc'}
                     </Text>
-                  </View>
-                ) : classRecommendations.length > 0 ? (
-                  <View style={themedStyles.recommendationsContainer}>
-                    {classRecommendations.map((rec, index) => (
-                      <ClassRecommendationCard
-                        key={index}
-                        recommendation={rec}
-                        onPress={() => {
-                          if (rec.action === 'VIEW_CLASS' && rec.data?.classId) {
-                            router.push(`/classes/${rec.data.classId}`);
-                          } else if (rec.action === 'VIEW_SCHEDULE') {
-                            if (rec.data?.scheduleId) {
-                              router.push(
-                                `/classes?scheduleId=${rec.data.scheduleId}`
-                              );
-                            } else if (rec.data?.classId) {
-                              // If only classId, filter by class category or navigate to class
-                              if (rec.data?.classCategory) {
-                                setSelectedCategory(
-                                  rec.data.classCategory as ClassCategory
-                                );
-                              } else {
-                                router.push(`/classes/${rec.data.classId}`);
-                              }
-                            }
-                          } else if (
-                            rec.action === 'BOOK_CLASS' &&
-                            rec.data?.scheduleId
-                          ) {
-                            router.push(
-                              `/classes?scheduleId=${rec.data.scheduleId}&book=true`
-                            );
-                          } else if (
-                            rec.action === 'BROWSE_CATEGORY' &&
-                            rec.data?.classCategory
-                          ) {
-                            setSelectedCategory(
-                              rec.data.classCategory as ClassCategory
-                            );
-                          }
-                        }}
-                      />
-                    ))}
-                  </View>
-                ) : null}
+                  </TouchableOpacity>
+                )}
               </View>
-            ) : null}
+            )}
           </>
         )}
         renderItem={({ item }) => {
@@ -980,23 +1072,615 @@ export default function ClassesScreen() {
           />
         }
         ListEmptyComponent={
-          <EmptyState
-            title={t('classes.noClassesFound') || 'No classes found'}
-            description={
-              searchQuery || selectedCategory !== 'ALL'
-                ? t('classes.tryDifferentFilters') ||
-                  'Try adjusting your filters or search'
-                : t('classes.noClassesForDate') ||
-                  'No classes scheduled for this date'
-            }
-            actionLabel={t('classes.viewAll') || 'View All Classes'}
-            onAction={() => {
-              setSearchQuery('');
-              setSelectedCategory('ALL');
-            }}
-          />
+          isLoadingDateChange ? (
+            <View style={themedStyles.loadingEmptyState}>
+              <ActivityIndicator size="large" color={theme.colors.primary} />
+              <Text
+                style={[
+                  themedStyles.loadingEmptyStateText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('classes.loadingClasses') || 'Đang tải lớp học...'}
+              </Text>
+            </View>
+          ) : (
+            <EmptyState
+              title={t('classes.noClassesFound') || 'No classes found'}
+              description={
+                searchQuery || selectedCategory !== 'ALL'
+                  ? t('classes.tryDifferentFilters') ||
+                    'Try adjusting your filters or search'
+                  : t('classes.noClassesForDate') ||
+                    t('classes.noClassesForDate')
+              }
+              actionLabel={t('classes.viewAll') || 'View All Classes'}
+              onAction={() => {
+                router.push('/classes/all');
+              }}
+            />
+          )
         }
       />
+
+      {/* Filter Modal - Date and Category */}
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}
+      >
+        <View style={themedStyles.filterModalOverlay}>
+          <TouchableOpacity
+            style={themedStyles.filterModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowFilterModal(false)}
+          />
+          <SafeAreaView
+            edges={['bottom']}
+            style={[
+              themedStyles.filterModalContent,
+              { backgroundColor: theme.colors.background },
+            ]}
+          >
+            {/* Modal Header */}
+            <View
+              style={[
+                themedStyles.filterModalHeader,
+                { borderBottomColor: theme.colors.border },
+              ]}
+            >
+              <View style={themedStyles.filterModalHeaderLeft}>
+                <View
+                  style={[
+                    themedStyles.filterModalIconContainer,
+                    { backgroundColor: theme.colors.primary + '15' },
+                  ]}
+                >
+                  <Filter size={24} color={theme.colors.primary} />
+                </View>
+                <Text
+                  style={[
+                    themedStyles.filterModalTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('classes.filters') || 'Bộ lọc'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={themedStyles.filterModalCloseButton}
+                onPress={() => setShowFilterModal(false)}
+                activeOpacity={0.7}
+              >
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView
+              style={themedStyles.filterModalBody}
+              contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Date Selector Section */}
+              <View
+                style={[
+                  themedStyles.filterModalSection,
+                  { borderBottomColor: theme.colors.border },
+                ]}
+              >
+                <Text
+                  style={[
+                    themedStyles.filterModalSectionTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('classes.selectDate') || 'Chọn ngày'}
+                </Text>
+                <View
+                  style={[
+                    themedStyles.filterDateContainer,
+                    { backgroundColor: theme.colors.surface },
+                  ]}
+                >
+                  <TouchableOpacity
+                    style={themedStyles.filterDateNavButton}
+                    onPress={() => navigateDate(-1)}
+                    activeOpacity={0.7}
+                  >
+                    <ChevronLeft size={18} color={theme.colors.primary} />
+                  </TouchableOpacity>
+
+                  <View style={themedStyles.filterDateContent}>
+                    <DatePicker
+                      value={new Date(selectedDate)}
+                      onChange={handleDateChange}
+                      minimumDate={new Date()}
+                      maximumDate={
+                        new Date(
+                          new Date().getTime() + 90 * 24 * 60 * 60 * 1000
+                        ) // 90 days from now
+                      }
+                      mode="date"
+                      placeholder={new Date(selectedDate).toLocaleDateString(
+                        t('common.locale') || 'en-US',
+                        {
+                          month: 'short',
+                          day: 'numeric',
+                          weekday: 'short',
+                        }
+                      )}
+                    />
+                  </View>
+
+                  <TouchableOpacity
+                    style={themedStyles.filterDateNavButton}
+                    onPress={() => navigateDate(1)}
+                    activeOpacity={0.7}
+                  >
+                    <ChevronRight size={18} color={theme.colors.primary} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Category Filter Section */}
+              <View
+                style={[
+                  themedStyles.filterModalSection,
+                  { borderBottomColor: theme.colors.border },
+                ]}
+              >
+                <Text
+                  style={[
+                    themedStyles.filterModalSectionTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('classes.selectCategory') || 'Chọn loại lớp'}
+                </Text>
+                <View style={themedStyles.filterCategoryGrid}>
+                  <CategoryChip
+                    label={t('classes.all')}
+                    isSelected={selectedCategory === 'ALL'}
+                    onPress={() => {
+                      handleCategorySelect('ALL');
+                    }}
+                    theme={theme}
+                    themedStyles={themedStyles}
+                  />
+                  {CATEGORIES.map((category) => {
+                    const isSelected = selectedCategory === category;
+                    return (
+                      <CategoryChip
+                        key={category}
+                        label={getCategoryTranslation(category)}
+                        isSelected={isSelected}
+                        onPress={() => {
+                          handleCategorySelect(category);
+                        }}
+                        theme={theme}
+                        themedStyles={themedStyles}
+                      />
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+
+            {/* Modal Footer */}
+            <View
+              style={[
+                themedStyles.filterModalFooter,
+                { borderTopColor: theme.colors.border },
+              ]}
+            >
+              <TouchableOpacity
+                style={[
+                  themedStyles.filterModalResetButton,
+                  { borderColor: theme.colors.border },
+                ]}
+                onPress={() => {
+                  setSelectedCategory('ALL');
+                  setSelectedDate(new Date().toISOString().split('T')[0]);
+                }}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    themedStyles.filterModalResetButtonText,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('common.reset') || 'Đặt lại'}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  themedStyles.filterModalApplyButton,
+                  { backgroundColor: theme.colors.primary },
+                ]}
+                onPress={() => setShowFilterModal(false)}
+                activeOpacity={0.7}
+              >
+                <Text
+                  style={[
+                    themedStyles.filterModalApplyButtonText,
+                    { color: theme.colors.textInverse },
+                  ]}
+                >
+                  {t('common.apply') || 'Áp dụng'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Vector Embedding Recommendations Modal */}
+      <Modal
+        visible={showVectorRecommendationsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowVectorRecommendationsModal(false)}
+      >
+        <View style={themedStyles.filterModalOverlay}>
+          <TouchableOpacity
+            style={themedStyles.filterModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowVectorRecommendationsModal(false)}
+          />
+          <SafeAreaView
+            edges={['bottom']}
+            style={[
+              themedStyles.filterModalContent,
+              { backgroundColor: theme.colors.background },
+            ]}
+          >
+            {/* Modal Header */}
+            <View
+              style={[
+                themedStyles.filterModalHeader,
+                { borderBottomColor: theme.colors.border },
+              ]}
+            >
+              <View style={themedStyles.filterModalHeaderLeft}>
+                <View
+                  style={[
+                    themedStyles.filterModalIconContainer,
+                    { backgroundColor: theme.colors.primary + '15' },
+                  ]}
+                >
+                  <Brain size={24} color={theme.colors.primary} />
+                </View>
+                <Text
+                  style={[
+                    themedStyles.filterModalTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('classes.vectorRecommendations') || 'Gợi ý theo AI Vector'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={themedStyles.filterModalCloseButton}
+                onPress={() => setShowVectorRecommendationsModal(false)}
+                activeOpacity={0.7}
+              >
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView
+              style={themedStyles.filterModalBody}
+              contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Description */}
+              <Text
+                style={[
+                  themedStyles.filterModalSectionTitle,
+                  { color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
+                ]}
+              >
+                {t('classes.vectorRecommendationsDescription') || 'Gợi ý lớp học dựa trên vector embedding, phân tích sâu về mục tiêu và sở thích của bạn'}
+              </Text>
+
+              {/* Loading State */}
+              {loadingRecommendations ? (
+                <View style={themedStyles.loadingEmptyState}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text
+                    style={[
+                      themedStyles.loadingEmptyStateText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.loadingVectorRecommendations') || 'Đang tải gợi ý AI...'}
+                  </Text>
+                </View>
+              ) : (() => {
+                // Filter vector recommendations - check type, method, and data fields
+                const vectorRecommendations = classRecommendations.filter(
+                  (rec) => 
+                    rec.type === 'VECTOR_RECOMMENDATION' || 
+                    rec.data?.similarity !== undefined ||
+                    rec.data?.finalScore !== undefined ||
+                    recommendationMethod === 'vector_embedding'
+                );
+                
+                console.log('[VECTOR_MODAL] Filtered recommendations:', {
+                  total: classRecommendations.length,
+                  vector: vectorRecommendations.length,
+                  method: recommendationMethod,
+                  allTypes: classRecommendations.map(r => r.type),
+                  allData: classRecommendations.map(r => ({
+                    type: r.type,
+                    hasSimilarity: !!r.data?.similarity,
+                    hasFinalScore: !!r.data?.finalScore,
+                    classId: r.data?.classId,
+                  })),
+                });
+
+                // If method is vector_embedding, show all recommendations (they're all vector-based)
+                // Otherwise, only show filtered vector recommendations
+                const recommendationsToShow = recommendationMethod === 'vector_embedding' 
+                  ? classRecommendations 
+                  : vectorRecommendations;
+
+                console.log('[VECTOR_MODAL] Rendering recommendations:', {
+                  method: recommendationMethod,
+                  recommendationsToShowCount: recommendationsToShow.length,
+                  willRender: recommendationsToShow.length > 0,
+                  firstRec: recommendationsToShow[0] ? {
+                    type: recommendationsToShow[0].type,
+                    title: recommendationsToShow[0].title,
+                    data: recommendationsToShow[0].data,
+                  } : null,
+                });
+
+                return recommendationsToShow.length > 0 ? (
+                  <View style={{ gap: theme.spacing.md }}>
+                    {recommendationsToShow.map((recommendation, index) => {
+                      console.log(`[VECTOR_MODAL] Rendering recommendation ${index}:`, {
+                        type: recommendation.type,
+                        title: recommendation.title,
+                        hasData: !!recommendation.data,
+                      });
+                      return (
+                        <ClassRecommendationCard
+                          key={`vector-${index}-${recommendation.data?.classId || recommendation.type}`}
+                          recommendation={recommendation}
+                          onPress={async () => {
+                            console.log('[VECTOR_MODAL] Recommendation pressed:', {
+                              action: recommendation.action,
+                              data: recommendation.data,
+                              type: recommendation.type,
+                            });
+                            setShowVectorRecommendationsModal(false);
+                            
+                            try {
+                              // Handle navigation based on recommendation action and data
+                              // Priority: scheduleId > find schedule from classId > classId > category
+                              if (recommendation.data?.scheduleId) {
+                                // Navigate to schedule detail page (for booking)
+                                console.log('[VECTOR_MODAL] Navigating to schedule:', recommendation.data.scheduleId);
+                                router.push(`/classes/${recommendation.data.scheduleId}`);
+                              } else if (recommendation.data?.classId) {
+                                // Find the earliest upcoming schedule for this class
+                                console.log('[VECTOR_MODAL] Finding schedule for class:', recommendation.data.classId);
+                                try {
+                                  const filters = {
+                                    class_category: recommendation.data?.classCategory,
+                                    date_from: new Date().toISOString().split('T')[0],
+                                    available_only: true,
+                                  };
+                                  const response = await scheduleService.getSchedules(filters);
+                                  
+                                  if (response.success && response.data) {
+                                    // Find schedule for this specific class
+                                    const classSchedules = Array.isArray(response.data)
+                                      ? response.data.filter(
+                                          (s: Schedule) => s.gym_class?.id === recommendation.data.classId || s.class_id === recommendation.data.classId
+                                        )
+                                      : [];
+                                    
+                                    if (classSchedules.length > 0) {
+                                      // Sort by start_time and get the earliest one
+                                      const sortedSchedules = classSchedules.sort(
+                                        (a: Schedule, b: Schedule) => 
+                                          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+                                      );
+                                      const earliestSchedule = sortedSchedules[0];
+                                      console.log('[VECTOR_MODAL] Found schedule, navigating:', earliestSchedule.id);
+                                      router.push(`/classes/${earliestSchedule.id}`);
+                                    } else {
+                                      // No schedule found, navigate to classes list with category filter
+                                      console.log('[VECTOR_MODAL] No schedule found, navigating to category:', recommendation.data.classCategory);
+                                      if (recommendation.data?.classCategory) {
+                                        router.push(`/classes?category=${recommendation.data.classCategory}`);
+                                      } else {
+                                        router.push('/classes');
+                                      }
+                                    }
+                                  } else {
+                                    // Fallback: navigate to classes list
+                                    if (recommendation.data?.classCategory) {
+                                      router.push(`/classes?category=${recommendation.data.classCategory}`);
+                                    } else {
+                                      router.push('/classes');
+                                    }
+                                  }
+                                } catch (error) {
+                                  console.error('[VECTOR_MODAL] Error finding schedule:', error);
+                                  // Fallback: navigate to classes list with category
+                                  if (recommendation.data?.classCategory) {
+                                    router.push(`/classes?category=${recommendation.data.classCategory}`);
+                                  } else {
+                                    router.push('/classes');
+                                  }
+                                }
+                              } else if (recommendation.data?.classCategory) {
+                                // Navigate to classes list with category filter
+                                console.log('[VECTOR_MODAL] Navigating to category:', recommendation.data.classCategory);
+                                router.push(`/classes?category=${recommendation.data.classCategory}`);
+                              } else {
+                                console.warn('[VECTOR_MODAL] No valid navigation data in recommendation:', recommendation);
+                                router.push('/classes');
+                              }
+                            } catch (error) {
+                              console.error('[VECTOR_MODAL] Navigation error:', error);
+                              router.push('/classes');
+                            }
+                          }}
+                        />
+                      );
+                    })}
+                  </View>
+                ) : (
+                  <View style={themedStyles.loadingEmptyState}>
+                    <Text
+                      style={[
+                        themedStyles.loadingEmptyStateText,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('classes.noVectorRecommendations') || 'Chưa có gợi ý vector embedding. Vui lòng cập nhật profile để nhận gợi ý.'}
+                    </Text>
+                    <Text
+                      style={[
+                        themedStyles.loadingEmptyStateText,
+                        { color: theme.colors.textSecondary, marginTop: theme.spacing.sm, fontSize: 12 },
+                      ]}
+                    >
+                      {`Tổng số recommendations: ${classRecommendations.length}`}
+                    </Text>
+                  </View>
+                );
+              })()}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Recommendations Modal */}
+      <Modal
+        visible={showRecommendationsModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowRecommendationsModal(false)}
+      >
+        <View style={themedStyles.filterModalOverlay}>
+          <TouchableOpacity
+            style={themedStyles.filterModalBackdrop}
+            activeOpacity={1}
+            onPress={() => setShowRecommendationsModal(false)}
+          />
+          <SafeAreaView
+            edges={['bottom']}
+            style={[
+              themedStyles.filterModalContent,
+              { backgroundColor: theme.colors.background },
+            ]}
+          >
+            {/* Modal Header */}
+            <View
+              style={[
+                themedStyles.filterModalHeader,
+                { borderBottomColor: theme.colors.border },
+              ]}
+            >
+              <View style={themedStyles.filterModalHeaderLeft}>
+                <View
+                  style={[
+                    themedStyles.filterModalIconContainer,
+                    { backgroundColor: theme.colors.primary + '15' },
+                  ]}
+                >
+                  <Sparkles size={24} color={theme.colors.primary} />
+                </View>
+                <Text
+                  style={[
+                    themedStyles.filterModalTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  {t('classes.recommendations') || 'Gợi ý lớp học'}
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={themedStyles.filterModalCloseButton}
+                onPress={() => setShowRecommendationsModal(false)}
+                activeOpacity={0.7}
+              >
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
+
+            {/* Modal Body */}
+            <ScrollView
+              style={themedStyles.filterModalBody}
+              contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
+              showsVerticalScrollIndicator={false}
+            >
+              {/* Description */}
+              <Text
+                style={[
+                  themedStyles.filterModalSectionTitle,
+                  { color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
+                ]}
+              >
+                {t('classes.recommendationsDescription') || 'Dựa trên lịch sử tham gia và sở thích của bạn'}
+              </Text>
+
+              {/* Loading State */}
+              {loadingRecommendations ? (
+                <View style={themedStyles.loadingEmptyState}>
+                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <Text
+                    style={[
+                      themedStyles.loadingEmptyStateText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.loadingClasses') || 'Đang tải gợi ý...'}
+                  </Text>
+                </View>
+              ) : classRecommendations.length > 0 ? (
+                <View style={{ gap: theme.spacing.md }}>
+                  {classRecommendations.map((recommendation, index) => (
+                    <ClassRecommendationCard
+                      key={index}
+                      recommendation={recommendation}
+                      onPress={() => {
+                        setShowRecommendationsModal(false);
+                        // Handle navigation based on recommendation action
+                        if (recommendation.data?.scheduleId) {
+                          router.push(`/classes/${recommendation.data.scheduleId}`);
+                        } else if (recommendation.data?.classId) {
+                          router.push(`/classes/${recommendation.data.classId}`);
+                        }
+                      }}
+                    />
+                  ))}
+                </View>
+              ) : (
+                <View style={themedStyles.loadingEmptyState}>
+                  <Text
+                    style={[
+                      themedStyles.loadingEmptyStateText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.noRecommendations') || 'Không có gợi ý nào'}
+                  </Text>
+                </View>
+              )}
+            </ScrollView>
+          </SafeAreaView>
+        </View>
+      </Modal>
 
       {/* Advanced Filters Modal */}
       <AdvancedFiltersModal
@@ -1018,11 +1702,13 @@ export default function ClassesScreen() {
           visible={showBookingModal}
           schedule={selectedSchedule}
           onClose={() => {
-            setShowBookingModal(false);
-            setSelectedSchedule(null);
+            if (!isBookingLoading) {
+              setShowBookingModal(false);
+              setSelectedSchedule(null);
+            }
           }}
           onConfirm={handleBookingConfirm}
-          loading={false}
+          loading={isBookingLoading}
           userBooking={
             myBookings.find(
               (booking) =>
@@ -1076,146 +1762,135 @@ const styles = (theme: any) =>
       justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.xl,
-      paddingBottom: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-      width: '100%',
-      alignSelf: 'stretch',
+      paddingTop: theme.spacing.md + 4,
+      paddingBottom: theme.spacing.sm + 2,
+      backgroundColor: theme.colors.background,
     },
     headerTitle: {
       ...Typography.h2,
-      flex: 1,
-      flexShrink: 1,
+      fontWeight: '700',
     },
     headerRight: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.xs,
-      minWidth: 0,
-      flexShrink: 0,
-      maxWidth: '100%',
+      gap: theme.spacing.sm,
+    },
+    headerIconButton: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.primary + '15',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
     },
     headerButton: {
       paddingHorizontal: theme.spacing.sm + 2,
       paddingVertical: theme.spacing.xs + 2,
-      borderRadius: theme.radius.lg, // 12px - square
+      borderRadius: theme.radius.lg,
       backgroundColor: theme.colors.primary + '15',
+      borderWidth: 1,
+      borderColor: theme.colors.primary + '30',
     },
     headerButtonText: {
-      ...Typography.bodySmallMedium,
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      fontSize: 12,
     },
-    searchContainer: {
-      flexDirection: 'row',
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.sm,
-      gap: theme.spacing.sm,
+    filterSection: {
       backgroundColor: theme.colors.background,
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.sm,
+      paddingBottom: theme.spacing.sm,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    searchRow: {
+      flexDirection: 'row',
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.sm,
     },
     searchInputContainer: {
       flex: 1,
       flexDirection: 'row',
       alignItems: 'center',
-      paddingHorizontal: theme.spacing.md,
+      paddingHorizontal: theme.spacing.sm + 2,
       paddingVertical: theme.spacing.sm + 2,
-      borderRadius: theme.radius.lg, // 12px - square with slight rounding
-      gap: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      gap: theme.spacing.xs,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
     searchInput: {
-      ...Typography.bodyMedium,
+      ...Typography.bodySmall,
       flex: 1,
+      fontSize: 14,
     },
     filterButton: {
-      width: 48,
-      height: 48,
-      borderRadius: theme.radius.lg, // 12px - square
+      width: 40,
+      height: 40,
+      borderRadius: theme.radius.lg,
       alignItems: 'center',
       justifyContent: 'center',
       borderWidth: 1,
       borderColor: theme.colors.border,
-    },
-    categorySectionWrapper: {
-      backgroundColor: theme.colors.background,
-      paddingBottom: theme.spacing.sm,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    categoryContainer: {
-      flexGrow: 0,
-    },
-    categoryContent: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm,
-      gap: theme.spacing.sm,
-    },
-    categoryChip: {
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      borderRadius: theme.radius.lg, // 12px - square with slight rounding
       backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      minHeight: 36,
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    categoryText: {
-      ...Typography.bodyMedium,
     },
     dateContainer: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm + 2,
-      marginHorizontal: theme.spacing.lg,
-      marginVertical: theme.spacing.md,
-      borderRadius: theme.radius.lg, // 12px - square
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs + 2,
+      marginBottom: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
       borderWidth: 1,
       borderColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
-      ...theme.shadows.sm,
     },
     dateNavButton: {
-      width: 36,
-      height: 36,
-      borderRadius: theme.radius.md, // 8px - square
+      width: 32,
+      height: 32,
+      borderRadius: theme.radius.md,
       alignItems: 'center',
       justifyContent: 'center',
       backgroundColor: theme.colors.primary + '15',
     },
     dateContent: {
       flex: 1,
-      flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'center',
-      paddingHorizontal: theme.spacing.md,
-      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
     },
-    dateIconContainer: {
-      width: 32,
-      height: 32,
-      borderRadius: theme.radius.md, // 8px - square
-      backgroundColor: theme.colors.primary + '15',
-      alignItems: 'center',
+    dateText: {
+      ...Typography.bodySmall,
+      fontWeight: '600',
+      fontSize: 13,
+    },
+    categoryContainer: {
+      flexGrow: 0,
+    },
+    categoryContent: {
+      paddingVertical: theme.spacing.xs,
+      gap: theme.spacing.xs,
+    },
+    categoryChip: {
+      paddingHorizontal: theme.spacing.sm + 2,
+      paddingVertical: theme.spacing.xs + 2,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      minHeight: 32,
       justifyContent: 'center',
-    },
-    dateTextContainer: {
       alignItems: 'center',
     },
-    dateDayName: {
-      ...Typography.labelSmall,
-      textTransform: 'uppercase',
-      letterSpacing: 0.5,
-    },
-    dateMain: {
-      ...Typography.h6,
-      marginTop: 2,
+    categoryText: {
+      ...Typography.bodySmall,
+      fontWeight: '500',
+      fontSize: 12,
     },
     recommendationsSection: {
       paddingHorizontal: theme.spacing.lg,
@@ -1308,8 +1983,20 @@ const styles = (theme: any) =>
     },
     listContent: {
       paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
-      paddingBottom: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.xl + 8,
+    },
+    loadingEmptyState: {
+      flex: 1,
+      minHeight: 300,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: theme.spacing.xl,
+      gap: theme.spacing.md,
+    },
+    loadingEmptyStateText: {
+      ...Typography.bodyLarge,
+      textAlign: 'center',
     },
     emptyContainer: {
       flex: 1,
@@ -1361,11 +2048,6 @@ const styles = (theme: any) =>
     },
     filterBody: {
       flex: 1,
-    },
-    filterSection: {
-      padding: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
     },
     filterSectionTitle: {
       ...Typography.h5,
@@ -1427,33 +2109,133 @@ const styles = (theme: any) =>
     applyButtonText: {
       ...Typography.h5,
     },
-    iosDatePickerContainer: {
-      position: 'absolute',
-      bottom: 0,
-      left: 0,
-      right: 0,
-      backgroundColor: theme.colors.background,
+    filterModalOverlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+    },
+    filterModalBackdrop: {
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    },
+    filterModalContent: {
       borderTopLeftRadius: theme.radius.xl,
       borderTopRightRadius: theme.radius.xl,
+      maxHeight: '85%',
+      minHeight: 400,
       ...theme.shadows.lg,
     },
-    iosDatePickerHeader: {
+    filterModalHeader: {
       flexDirection: 'row',
-      justifyContent: 'flex-end',
+      justifyContent: 'space-between',
       alignItems: 'center',
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
     },
-    iosDatePickerButton: {
+    filterModalHeaderLeft: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      flex: 1,
+    },
+    filterModalIconContainer: {
+      width: 48,
+      height: 48,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterModalTitle: {
+      ...Typography.h5,
+      fontWeight: '700',
+    },
+    filterModalCloseButton: {
+      padding: theme.spacing.xs,
+    },
+    filterModalBody: {
+      paddingHorizontal: theme.spacing.lg,
+      paddingTop: theme.spacing.md,
+    },
+    filterModalSection: {
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+    },
+    filterModalSectionTitle: {
+      ...Typography.bodyLarge,
+      fontWeight: '600',
+      marginBottom: theme.spacing.sm,
+    },
+    filterDateContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.md,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
-    iosDatePickerButtonText: {
+    filterDateNavButton: {
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.sm,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: theme.colors.primary + '15',
+    },
+    filterDateContent: {
+      flex: 1,
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingHorizontal: theme.spacing.xs,
+    },
+    filterCategoryGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
+    advancedFiltersLink: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      backgroundColor: theme.colors.surface,
+    },
+    advancedFiltersLinkText: {
+      ...Typography.bodyMedium,
+      fontWeight: '600',
+    },
+    filterModalFooter: {
+      flexDirection: 'row',
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderTopWidth: 1,
+    },
+    filterModalResetButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      backgroundColor: theme.colors.surface,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterModalResetButtonText: {
       ...Typography.buttonMedium,
+      fontWeight: '600',
     },
-    iosDatePicker: {
-      height: 200,
+    filterModalApplyButton: {
+      flex: 1,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    filterModalApplyButtonText: {
+      ...Typography.buttonMedium,
+      fontWeight: '600',
     },
   });

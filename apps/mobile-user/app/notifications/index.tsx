@@ -611,7 +611,17 @@ export default function NotificationCenterScreen() {
       case 'CLASS_BOOKING':
       case 'CLASS_REMINDER':
       case 'CLASS_CANCELLED':
+      case 'BOOKING_REMINDER': // IMPROVEMENT: Booking reminder
         return <Calendar size={iconSize} color={iconColor} />;
+      case 'AUTO_CANCEL_WARNING': // IMPROVEMENT: Auto-cancel warning
+        return <AlertTriangle size={iconSize} color={iconColor} />;
+      case 'CHECKOUT_REMINDER': // IMPROVEMENT: Checkout reminder
+        return <CheckCircle2 size={iconSize} color={iconColor} />;
+      case 'WAITLIST_PROMOTE': // IMPROVEMENT: Waitlist promotion
+      case 'WAITLIST_PROMOTED':
+        return <PartyPopper size={iconSize} color={iconColor} />;
+      case 'EQUIPMENT_AUTO_STOP_WARNING': // IMPROVEMENT: Equipment auto-stop warning
+        return <Wrench size={iconSize} color={iconColor} />;
       case 'ACHIEVEMENT':
       case 'ACHIEVEMENT_UNLOCKED':
         return <Trophy size={iconSize} color={iconColor} />;

@@ -9,6 +9,7 @@ const smartSchedulingService = require('../services/smart-scheduling.service.js'
 const vectorSearchService = require('../services/vector-search.service.js');
 const scoringService = require('../services/scoring.service.js');
 const cacheService = require('../services/cache.service.js');
+const embeddingService = require('../services/embedding.service.js');
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {
@@ -321,6 +322,38 @@ class ClassController {
         },
       });
 
+      // Generate and update class_embedding after class creation
+      try {
+        console.log(`[EMBEDDING] Generating class embedding for class ${gymClass.id}...`);
+        const classDescriptionText = embeddingService.buildClassDescriptionText(gymClass);
+        
+        if (classDescriptionText && classDescriptionText.trim().length > 0) {
+          const embedding = await embeddingService.generateEmbedding(classDescriptionText);
+          
+          // Format vector for PostgreSQL
+          const vectorString = embeddingService.formatVectorForPostgres(embedding);
+          
+          // Update class_embedding using raw query (Prisma doesn't support vector type directly)
+          // Use parameterized query to prevent SQL injection
+          await prisma.$executeRaw`
+            UPDATE schedule_schema.gym_classes 
+            SET class_embedding = ${vectorString}::vector 
+            WHERE id = ${gymClass.id}
+          `;
+          
+          console.log(`[SUCCESS] [EMBEDDING] Updated class_embedding for class ${gymClass.id}`);
+        } else {
+          console.warn(`[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`);
+        }
+      } catch (embeddingError) {
+        // Don't fail the creation if embedding generation fails
+        console.error('[ERROR] [EMBEDDING] Failed to generate class embedding:', {
+          classId: gymClass.id,
+          error: embeddingError.message,
+          stack: embeddingError.stack,
+        });
+      }
+
       // Notify admins and super-admins about new class creation
       // Only notify if class is created by a trainer (trainer_id is provided)
       if (trainer_id && global.io) {
@@ -514,6 +547,46 @@ class ClassController {
           is_active,
         },
       });
+
+      // Generate and update class_embedding if class data changed
+      // Check if any embedding-relevant fields were updated
+      const embeddingRelevantFields = ['name', 'description', 'category', 'difficulty', 'equipment_needed', 'duration'];
+      const hasEmbeddingRelevantChanges = embeddingRelevantFields.some(
+        field => req.body[field] !== undefined
+      );
+
+      if (hasEmbeddingRelevantChanges) {
+        try {
+          console.log(`[EMBEDDING] Regenerating class embedding for class ${gymClass.id}...`);
+          const classDescriptionText = embeddingService.buildClassDescriptionText(gymClass);
+          
+          if (classDescriptionText && classDescriptionText.trim().length > 0) {
+            const embedding = await embeddingService.generateEmbedding(classDescriptionText);
+            
+            // Format vector for PostgreSQL
+            const vectorString = embeddingService.formatVectorForPostgres(embedding);
+            
+            // Update class_embedding using raw query (Prisma doesn't support vector type directly)
+            // Use parameterized query to prevent SQL injection
+            await prisma.$executeRaw`
+              UPDATE schedule_schema.gym_classes 
+              SET class_embedding = ${vectorString}::vector 
+              WHERE id = ${gymClass.id}
+            `;
+            
+            console.log(`[SUCCESS] [EMBEDDING] Updated class_embedding for class ${gymClass.id}`);
+          } else {
+            console.warn(`[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`);
+          }
+        } catch (embeddingError) {
+          // Don't fail the update if embedding generation fails
+          console.error('[ERROR] [EMBEDDING] Failed to generate class embedding:', {
+            classId: gymClass.id,
+            error: embeddingError.message,
+            stack: embeddingError.stack,
+          });
+        }
+      }
 
       res.json({
         success: true,

@@ -777,7 +777,13 @@ class TrainerController {
       const schedules = await prisma.schedule.findMany({
         where: { trainer_id: trainer.id },
         include: {
-          bookings: true,
+          bookings: {
+            where: {
+              status: {
+                not: 'CANCELLED',
+              },
+            },
+          },
           attendance: true,
         },
       });
@@ -786,10 +792,10 @@ class TrainerController {
       const totalClasses = schedules.length;
       const completedSessions = schedules.filter(s => s.status === 'completed').length;
       const upcomingClasses = schedules.filter(
-        s => s.status === 'scheduled' && new Date(s.date) >= now
+        s => s.status === 'scheduled' && new Date(s.start_time) >= now
       ).length;
 
-      // Get unique students from bookings
+      // Get unique students from bookings (excluding cancelled)
       const allBookings = schedules.flatMap(s => s.bookings);
       const uniqueStudents = new Set(allBookings.map(b => b.member_id)).size;
 
@@ -797,8 +803,8 @@ class TrainerController {
       const monthlySchedules = schedules.filter(
         s =>
           s.status === 'completed' &&
-          new Date(s.date) >= startOfMonth &&
-          new Date(s.date) <= endOfMonth
+          new Date(s.start_time) >= startOfMonth &&
+          new Date(s.start_time) <= endOfMonth
       );
       const monthlyRevenue = monthlySchedules.reduce((sum, s) => {
         const classPrice = s.price_override || 0; // Assuming price_override is the class price
@@ -911,39 +917,62 @@ class TrainerController {
       }
 
       // Calculate date range based on view mode
+      // Parse date string (YYYY-MM-DD) as UTC to avoid timezone issues
       let startDate, endDate;
-      const baseDate = date ? new Date(date) : new Date();
+      let baseDate;
+
+      if (date) {
+        // Parse date string as UTC (YYYY-MM-DD format)
+        const [year, month, day] = date.split('-').map(Number);
+        baseDate = new Date(Date.UTC(year, month - 1, day));
+      } else {
+        baseDate = new Date();
+      }
 
       if (viewMode === 'day') {
-        startDate = new Date(baseDate);
-        startDate.setHours(0, 0, 0, 0);
-        endDate = new Date(baseDate);
-        endDate.setHours(23, 59, 59, 999);
+        // Single day - use UTC
+        const year = baseDate.getUTCFullYear();
+        const month = baseDate.getUTCMonth();
+        const day = baseDate.getUTCDate();
+        startDate = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
       } else if (viewMode === 'week') {
         // Week starts on Monday (day 1), not Sunday (day 0)
-        // getDay() returns: 0=Sunday, 1=Monday, ..., 6=Saturday
-        const dayOfWeek = baseDate.getDay();
-        startDate = new Date(baseDate);
-        // If Sunday (0), go back 6 days to previous Monday
-        // Otherwise, go back (dayOfWeek - 1) days to current week's Monday
+        const year = baseDate.getUTCFullYear();
+        const month = baseDate.getUTCMonth();
+        const day = baseDate.getUTCDate();
+        const dayOfWeek = baseDate.getUTCDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+        // Calculate Monday of the week
         const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-        startDate.setDate(baseDate.getDate() - daysToSubtract);
-        startDate.setHours(0, 0, 0, 0);
+        const mondayDate = day - daysToSubtract;
+
+        startDate = new Date(Date.UTC(year, month, mondayDate, 0, 0, 0, 0));
         // End date is Sunday (6 days after Monday)
-        endDate = new Date(startDate);
-        endDate.setDate(startDate.getDate() + 6);
-        endDate.setHours(23, 59, 59, 999);
+        endDate = new Date(Date.UTC(year, month, mondayDate + 6, 23, 59, 59, 999));
       } else {
-        // month
-        startDate = new Date(baseDate.getFullYear(), baseDate.getMonth(), 1);
-        endDate = new Date(baseDate.getFullYear(), baseDate.getMonth() + 1, 0);
-        endDate.setHours(23, 59, 59, 999);
+        // month - use UTC
+        const year = baseDate.getUTCFullYear();
+        const month = baseDate.getUTCMonth();
+        startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+        endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
       }
+
+      // Debug logging
+      console.log('GetTrainerScheduleList - Query params:', {
+        user_id,
+        trainer_id: trainer.id,
+        date: req.query.date,
+        viewMode: req.query.viewMode,
+        baseDate: baseDate.toISOString(),
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
+      });
 
       const schedules = await prisma.schedule.findMany({
         where: {
           trainer_id: trainer.id,
-          date: {
+          start_time: {
             gte: startDate,
             lte: endDate,
           },
@@ -951,11 +980,33 @@ class TrainerController {
         include: {
           gym_class: true,
           room: true,
-          bookings: true,
+          bookings: {
+            where: {
+              status: {
+                not: 'CANCELLED',
+              },
+            },
+          },
           attendance: true,
         },
         orderBy: {
           start_time: 'asc',
+        },
+      });
+
+      // Debug: Check total schedules for this trainer (without date filter)
+      const totalSchedulesCount = await prisma.schedule.count({
+        where: {
+          trainer_id: trainer.id,
+        },
+      });
+
+      console.log('GetTrainerScheduleList - Results:', {
+        schedulesFound: schedules.length,
+        totalSchedulesForTrainer: totalSchedulesCount,
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
         },
       });
 
@@ -972,17 +1023,24 @@ class TrainerController {
       const memberMap = toMemberMap(hydratedBookings);
       const attendanceMemberMap = toMemberMap(hydratedAttendance);
 
-      const schedulesWithMembers = schedules.map(schedule => ({
-        ...schedule,
-        bookings: schedule.bookings.map(booking => ({
-          ...booking,
-          member: memberMap[booking.member_id] || null,
-        })),
-        attendance: schedule.attendance.map(record => ({
-          ...record,
-          member: attendanceMemberMap[record.member_id] || null,
-        })),
-      }));
+      const schedulesWithMembers = schedules.map(schedule => {
+        // Extract date from start_time in YYYY-MM-DD format
+        const startTime = new Date(schedule.start_time);
+        const date = startTime.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
+        return {
+          ...schedule,
+          date: date, // Add computed date field for frontend compatibility
+          bookings: schedule.bookings.map(booking => ({
+            ...booking,
+            member: memberMap[booking.member_id] || null,
+          })),
+          attendance: schedule.attendance.map(record => ({
+            ...record,
+            member: attendanceMemberMap[record.member_id] || null,
+          })),
+        };
+      });
 
       res.json({
         success: true,
@@ -1027,7 +1085,13 @@ class TrainerController {
       // Get schedules for this trainer
       const whereClause = { trainer_id: trainer.id };
       if (date) {
-        whereClause.date = new Date(date);
+        const dateObj = new Date(date);
+        const startOfDay = new Date(dateObj.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(dateObj.setHours(23, 59, 59, 999));
+        whereClause.start_time = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
       }
 
       const schedules = await prisma.schedule.findMany({
@@ -1043,7 +1107,9 @@ class TrainerController {
         schedule.attendance.map(record => ({
           ...record,
           class_name: schedule.gym_class?.name || 'Unknown Class',
-          class_date: schedule.date,
+          class_date: schedule.start_time
+            ? new Date(schedule.start_time).toISOString().split('T')[0]
+            : null,
           class_time: schedule.start_time,
         }))
       );
@@ -1107,7 +1173,13 @@ class TrainerController {
       // Get schedules for this trainer
       const whereClause = { trainer_id: trainer.id };
       if (date) {
-        whereClause.date = new Date(date);
+        const dateObj = new Date(date);
+        const startOfDay = new Date(dateObj.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(dateObj.setHours(23, 59, 59, 999));
+        whereClause.start_time = {
+          gte: startOfDay,
+          lte: endOfDay,
+        };
       }
 
       const schedules = await prisma.schedule.findMany({
@@ -1126,7 +1198,9 @@ class TrainerController {
         schedule.bookings.map(booking => ({
           ...booking,
           class_name: schedule.gym_class?.name || 'Unknown Class',
-          class_date: schedule.date,
+          class_date: schedule.start_time
+            ? new Date(schedule.start_time).toISOString().split('T')[0]
+            : null,
           class_time: schedule.start_time,
           room_name: schedule.room?.name || 'Unknown Room',
         }))
@@ -1209,7 +1283,9 @@ class TrainerController {
             ...attendance,
             schedule_id: schedule.id,
             class_name: schedule.gym_class?.name || 'Unknown Class',
-            class_date: schedule.date,
+            class_date: schedule.start_time
+              ? new Date(schedule.start_time).toISOString().split('T')[0]
+              : null,
           }))
       );
 
@@ -1288,7 +1364,9 @@ class TrainerController {
             ...attendance,
             schedule_id: schedule.id,
             class_name: schedule.gym_class?.name || 'Unknown Class',
-            class_date: schedule.date,
+            class_date: schedule.start_time
+              ? new Date(schedule.start_time).toISOString().split('T')[0]
+              : null,
           }))
       );
 
@@ -1384,7 +1462,9 @@ class TrainerController {
             ...attendance,
             schedule_id: schedule.id,
             class_name: schedule.gym_class?.name || 'Unknown Class',
-            class_date: schedule.date,
+            class_date: schedule.start_time
+              ? new Date(schedule.start_time).toISOString().split('T')[0]
+              : null,
             feedback_type: 'GENERAL', // Default type
             subject: 'Feedback về lớp học',
             status: 'PENDING', // Default status
@@ -1627,13 +1707,22 @@ class TrainerController {
         end_time: rawEndTime,
         room_id: rawRoomId,
         max_capacity: rawMaxCapacity,
+        minimum_participants: rawMinimumParticipants,
         special_notes: rawSpecialNotes,
       } = req.body;
+
+      // TC-EDGE-004: Normalize empty strings to null
+      const normalizeEmptyString = value => {
+        if (value === '' || (typeof value === 'string' && value.trim() === '')) {
+          return null;
+        }
+        return value;
+      };
 
       const category = rawCategory?.trim().toUpperCase();
       const difficulty = rawDifficulty?.trim().toUpperCase();
       const class_name = rawClassName?.trim().substring(0, 100);
-      const description = rawDescription?.trim().substring(0, 500) || null;
+      const description = normalizeEmptyString(rawDescription?.trim().substring(0, 500));
       const date = rawDate?.trim();
       const start_time = rawStartTime?.trim();
       const end_time = rawEndTime?.trim();
@@ -1648,7 +1737,20 @@ class TrainerController {
         }
       }
 
-      const special_notes = rawSpecialNotes?.trim().substring(0, 200) || null;
+      // Parse minimum_participants - optional field
+      let minimum_participants = null;
+      if (
+        rawMinimumParticipants !== undefined &&
+        rawMinimumParticipants !== null &&
+        rawMinimumParticipants !== ''
+      ) {
+        const parsed = parseInt(rawMinimumParticipants);
+        if (!isNaN(parsed) && parsed > 0) {
+          minimum_participants = parsed;
+        }
+      }
+
+      const special_notes = normalizeEmptyString(rawSpecialNotes?.trim().substring(0, 200));
 
       // Check rate limit (only check, don't increment yet)
       if (
@@ -2010,7 +2112,6 @@ class TrainerController {
           trainer_id: trainer.id,
           class_id: gymClass.id,
           room_id,
-          date: scheduleDate,
           start_time: startDateTime,
           end_time: endDateTime,
           max_capacity,
@@ -2060,7 +2161,9 @@ class TrainerController {
               room_id: schedule.room.id,
               room_name: schedule.room.name,
               room_capacity: schedule.room.capacity,
-              date: schedule.date,
+              date: schedule.start_time
+                ? new Date(schedule.start_time).toISOString().split('T')[0]
+                : null,
               start_time: schedule.start_time,
               end_time: schedule.end_time,
               max_capacity: schedule.max_capacity,
@@ -2120,7 +2223,9 @@ class TrainerController {
                 trainer_name: schedule.trainer.full_name,
                 room_name: schedule.room.name,
                 room_capacity: schedule.room.capacity,
-                date: schedule.date,
+                date: schedule.start_time
+                  ? new Date(schedule.start_time).toISOString().split('T')[0]
+                  : null,
                 start_time: schedule.start_time,
                 end_time: schedule.end_time,
                 max_capacity: schedule.max_capacity,
@@ -2160,7 +2265,9 @@ class TrainerController {
               difficulty: schedule.gym_class.difficulty,
               room_id: schedule.room.id,
               room_name: schedule.room.name,
-              date: schedule.date,
+              date: schedule.start_time
+                ? new Date(schedule.start_time).toISOString().split('T')[0]
+                : null,
               start_time: schedule.start_time,
               end_time: schedule.end_time,
               max_capacity: schedule.max_capacity,
@@ -2479,9 +2586,104 @@ class TrainerController {
         });
       }
 
+      // TC-SCHED-002: Check if schedule has bookings before allowing update
+      // Get accurate booking counts (including waitlist)
+      const confirmedBookingsCount = await prisma.booking.count({
+        where: {
+          schedule_id,
+          status: 'CONFIRMED',
+          payment_status: { in: ['PAID', 'PENDING'] },
+        },
+      });
+
+      const waitlistCount = await prisma.booking.count({
+        where: {
+          schedule_id,
+          is_waitlist: true,
+          status: 'CONFIRMED',
+        },
+      });
+
+      const totalBookings = confirmedBookingsCount + waitlistCount;
+
+      if (totalBookings > 0) {
+        // Allow update but warn about bookings
+        // If changing time/date/room, need to notify members
+        const isChangingTimeOrLocation =
+          (date &&
+            new Date(date).toISOString().split('T')[0] !==
+              new Date(schedule.start_time).toISOString().split('T')[0]) ||
+          (start_time && start_time !== schedule.start_time) ||
+          (end_time && end_time !== schedule.end_time) ||
+          (room_id && room_id !== schedule.room_id);
+
+        if (isChangingTimeOrLocation) {
+          // This will require notification to members - handled in update logic below
+          console.log(
+            `[WARNING] Updating schedule ${schedule_id} with ${totalBookings} booking(s) (${confirmedBookingsCount} confirmed + ${waitlistCount} waitlist). Members will be notified.`
+          );
+        }
+      }
+
+      // Validate max_capacity if provided
+      if (max_capacity !== undefined) {
+        // Validate max_capacity is positive
+        if (max_capacity <= 0) {
+          return res.status(400).json({
+            success: false,
+            message: 'Sức chứa phải lớn hơn 0',
+            data: null,
+          });
+        }
+
+        // Check if new max_capacity is less than current bookings
+        if (max_capacity < totalBookings) {
+          return res.status(400).json({
+            success: false,
+            message: `Sức chứa không được nhỏ hơn số lượng đặt chỗ hiện tại (${totalBookings} người: ${confirmedBookingsCount} đã xác nhận + ${waitlistCount} chờ)`,
+            data: {
+              current_bookings: totalBookings,
+              confirmed_bookings: confirmedBookingsCount,
+              waitlist_count: waitlistCount,
+              requested_capacity: max_capacity,
+            },
+          });
+        }
+
+        // Check against room capacity
+        if (schedule.room && max_capacity > schedule.room.capacity) {
+          return res.status(400).json({
+            success: false,
+            message: `Sức chứa không được vượt quá sức chứa của phòng (${schedule.room.capacity} người)`,
+            data: {
+              room_capacity: schedule.room.capacity,
+              room_name: schedule.room.name,
+              requested_capacity: max_capacity,
+            },
+          });
+        }
+
+        // Check against gym class max capacity
+        if (schedule.gym_class && max_capacity > schedule.gym_class.max_capacity) {
+          return res.status(400).json({
+            success: false,
+            message: `Sức chứa không được vượt quá sức chứa của lớp học (${schedule.gym_class.max_capacity} người)`,
+            data: {
+              class_max_capacity: schedule.gym_class.max_capacity,
+              class_name: schedule.gym_class.name,
+              requested_capacity: max_capacity,
+            },
+          });
+        }
+      }
+
       // Check if schedule can be modified (at least 7 days in advance)
       // Use new date if provided, otherwise use current schedule date
-      const dateToCheck = date ? new Date(date) : new Date(schedule.date);
+      const dateToCheck = date
+        ? new Date(date)
+        : schedule.start_time
+        ? new Date(schedule.start_time)
+        : new Date();
       const sevenDaysFromNow = new Date();
       sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
 
@@ -2494,12 +2696,15 @@ class TrainerController {
       }
 
       // Parse and validate date/time if provided
-      let parsedDate = new Date(schedule.date);
+      // Initialize parsedDate from schedule start_time (extract date part only)
+      let parsedDate = schedule.start_time 
+        ? new Date(new Date(schedule.start_time).toISOString().split('T')[0]) 
+        : null;
       let parsedStartTime = new Date(schedule.start_time);
       let parsedEndTime = new Date(schedule.end_time);
 
       if (date || start_time || end_time) {
-        // Parse date
+        // Parse date - if provided, use it; otherwise keep date from schedule
         if (date) {
           const dateObj = new Date(date);
           if (isNaN(dateObj.getTime())) {
@@ -2510,6 +2715,11 @@ class TrainerController {
             });
           }
           parsedDate = dateObj;
+        } else {
+          // If date not provided, extract date from schedule start_time
+          parsedDate = schedule.start_time 
+            ? new Date(new Date(schedule.start_time).toISOString().split('T')[0])
+            : new Date();
         }
 
         // Parse start_time
@@ -2533,10 +2743,13 @@ class TrainerController {
           startDate.setHours(hours, minutes, 0, 0);
           parsedStartTime = startDate;
         } else if (date) {
-          // If only date changed, update start_time to use new date
+          // If only date changed, update start_time to use new date but keep old time
           const oldStart = new Date(schedule.start_time);
           parsedStartTime = new Date(parsedDate);
           parsedStartTime.setHours(oldStart.getHours(), oldStart.getMinutes(), 0, 0);
+        } else {
+          // If neither date nor start_time changed, keep original start_time
+          parsedStartTime = new Date(schedule.start_time);
         }
 
         // Parse end_time
@@ -2556,14 +2769,18 @@ class TrainerController {
               data: null,
             });
           }
-          const endDate = new Date(parsedDate);
+          // Use same date as start_time to ensure correct duration calculation
+          const endDate = new Date(parsedStartTime);
           endDate.setHours(hours, minutes, 0, 0);
           parsedEndTime = endDate;
         } else if (date) {
-          // If only date changed, update end_time to use new date
+          // If only date changed, update end_time to use new date but keep old time
           const oldEnd = new Date(schedule.end_time);
           parsedEndTime = new Date(parsedDate);
           parsedEndTime.setHours(oldEnd.getHours(), oldEnd.getMinutes(), 0, 0);
+        } else {
+          // If neither date nor end_time changed, keep original end_time
+          parsedEndTime = new Date(schedule.end_time);
         }
 
         // Validate time logic
@@ -2658,7 +2875,9 @@ class TrainerController {
         special_notes: schedule.special_notes,
         gym_class_name: schedule.gym_class.name,
         gym_class_description: schedule.gym_class.description,
-        date: schedule.date,
+        date: schedule.start_time
+          ? new Date(schedule.start_time).toISOString().split('T')[0]
+          : null,
         start_time: schedule.start_time,
         end_time: schedule.end_time,
         room_id: schedule.room_id,
@@ -2673,9 +2892,8 @@ class TrainerController {
       if (special_notes !== undefined && special_notes !== schedule.special_notes) {
         updateData.special_notes = special_notes;
       }
-      if (parsedDate && parsedDate.getTime() !== new Date(schedule.date).getTime()) {
-        updateData.date = parsedDate;
-      }
+      // Date is now derived from start_time, so we don't update date separately
+      // If start_time changes, date will automatically change
       if (
         parsedStartTime &&
         parsedStartTime.getTime() !== new Date(schedule.start_time).getTime()
@@ -2708,6 +2926,29 @@ class TrainerController {
 
       // Hydrate bookings with member info
       updatedSchedule.bookings = await hydrateBookingsWithMembers(updatedSchedule.bookings);
+
+      // Notify waitlist members if capacity increased
+      let waitlistNotificationResult = null;
+      if (
+        max_capacity !== undefined &&
+        currentSchedule.max_capacity < max_capacity &&
+        max_capacity > updatedSchedule.current_bookings
+      ) {
+        try {
+          const waitlistService = require('../services/waitlist.service.js');
+          const additionalSlots = max_capacity - currentSchedule.max_capacity;
+          waitlistNotificationResult = await waitlistService.notifyWaitlistMembersAvailability(
+            updatedSchedule.id,
+            additionalSlots
+          );
+          console.log(
+            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${waitlistNotificationResult.notified || 0} waitlist members.`
+          );
+        } catch (waitlistError) {
+          console.error('[ERROR] Failed to notify waitlist members:', waitlistError);
+          // Don't fail schedule update if waitlist notification fails
+        }
+      }
 
       // Update gym class if needed
       if (class_name || description) {
@@ -2764,7 +3005,10 @@ class TrainerController {
       }
       if (
         parsedDate &&
-        new Date(currentSchedule.date).getTime() !== new Date(updatedSchedule.date).getTime()
+        currentSchedule.start_time &&
+        updatedSchedule.start_time &&
+        new Date(currentSchedule.start_time).toISOString().split('T')[0] !==
+          new Date(updatedSchedule.start_time).toISOString().split('T')[0]
       ) {
         changes.push('ngày');
       }
@@ -2811,7 +3055,9 @@ class TrainerController {
               trainer_name: trainer.full_name,
               room_id: updatedSchedule.room.id,
               room_name: updatedSchedule.room.name,
-              date: updatedSchedule.date,
+              date: updatedSchedule.start_time
+                ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                : null,
               start_time: updatedSchedule.start_time,
               end_time: updatedSchedule.end_time,
               max_capacity: updatedSchedule.max_capacity,
@@ -2866,7 +3112,9 @@ class TrainerController {
                   trainer_id: trainer.id,
                   trainer_name: trainer.full_name,
                   room_name: updatedSchedule.room.name,
-                  date: updatedSchedule.date,
+                  date: updatedSchedule.start_time
+                    ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                    : null,
                   start_time: updatedSchedule.start_time,
                   end_time: updatedSchedule.end_time,
                   max_capacity: updatedSchedule.max_capacity,
@@ -2922,7 +3170,9 @@ class TrainerController {
                   trainer_name: trainer.full_name,
                   room_id: updatedSchedule.room.id,
                   room_name: updatedSchedule.room.name,
-                  date: updatedSchedule.date,
+                  date: updatedSchedule.start_time
+                    ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                    : null,
                   start_time: updatedSchedule.start_time,
                   end_time: updatedSchedule.end_time,
                   max_capacity: updatedSchedule.max_capacity,
@@ -3003,7 +3253,9 @@ class TrainerController {
                     )?.id,
                     class_name: updatedSchedule.gym_class.name,
                     room_name: updatedSchedule.room.name,
-                    date: updatedSchedule.date,
+                    date: updatedSchedule.start_time
+                      ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                      : null,
                     start_time: updatedSchedule.start_time,
                     end_time: updatedSchedule.end_time,
                     max_capacity: updatedSchedule.max_capacity,
@@ -3041,7 +3293,9 @@ class TrainerController {
               difficulty: updatedSchedule.gym_class.difficulty,
               room_id: updatedSchedule.room.id,
               room_name: updatedSchedule.room.name,
-              date: updatedSchedule.date,
+              date: updatedSchedule.start_time
+                ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                : null,
               start_time: updatedSchedule.start_time,
               end_time: updatedSchedule.end_time,
               max_capacity: updatedSchedule.max_capacity,
@@ -3444,7 +3698,7 @@ class TrainerController {
         where: {
           trainer_id: trainer.id,
           status: 'COMPLETED',
-          ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+          ...(Object.keys(dateFilter).length > 0 && { start_time: dateFilter }),
         },
         include: {
           gym_class: true,
@@ -3471,7 +3725,9 @@ class TrainerController {
         totalBookings += bookingCount;
 
         // Group by month
-        const month = schedule.date.toISOString().substring(0, 7); // YYYY-MM
+        const month = schedule.start_time
+          ? new Date(schedule.start_time).toISOString().substring(0, 7)
+          : null; // YYYY-MM
         if (!revenueByMonth[month]) {
           revenueByMonth[month] = {
             revenue: 0,

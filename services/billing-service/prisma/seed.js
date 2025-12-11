@@ -47,11 +47,11 @@ async function main() {
         'Đánh giá thể lực cơ bản',
       ],
       class_credits: 4,
-      guest_passes: 0,
+      // guest_passes removed - not needed
       access_hours: { start: '06:00', end: '22:00' },
       access_areas: ['Khu Cardio', 'Khu tạ tự do'],
       equipment_priority: false,
-      personal_training_sessions: 0,
+      // personal_training_sessions removed - not needed
       nutritionist_consultations: 0,
       smart_workout_plans: false,
       wearable_integration: false,
@@ -78,11 +78,11 @@ async function main() {
         'Thời gian truy cập mở rộng',
       ],
       class_credits: null, // Unlimited
-      guest_passes: 2,
+      // guest_passes removed - not needed
       access_hours: { start: '05:00', end: '23:00' },
       access_areas: ['Khu Cardio', 'Khu tạ tự do', 'Functional Training', 'Bể bơi'],
       equipment_priority: true,
-      personal_training_sessions: 2,
+      // personal_training_sessions removed - not needed
       nutritionist_consultations: 1,
       smart_workout_plans: true,
       wearable_integration: true,
@@ -111,11 +111,11 @@ async function main() {
         'Ưu tiên đặt lớp học',
       ],
       class_credits: null, // Unlimited
-      guest_passes: 5,
+      // guest_passes removed - not needed
       access_hours: { start: '00:00', end: '23:59' },
       access_areas: ['Tất cả khu vực', 'Phòng VIP', 'Spa', 'Sauna'],
       equipment_priority: true,
-      personal_training_sessions: 999, // Unlimited (schema không cho null)
+      // personal_training_sessions removed - not needed
       nutritionist_consultations: 4,
       smart_workout_plans: true,
       wearable_integration: true,
@@ -141,11 +141,11 @@ async function main() {
         'Tủ đồ cá nhân',
       ],
       class_credits: 4,
-      guest_passes: 0,
+      // guest_passes removed - not needed
       access_hours: { start: '06:00', end: '22:00' },
       access_areas: ['Khu Cardio', 'Khu tạ tự do'],
       equipment_priority: false,
-      personal_training_sessions: 0,
+      // personal_training_sessions removed - not needed
       nutritionist_consultations: 0,
       smart_workout_plans: false,
       wearable_integration: false,
@@ -168,7 +168,7 @@ async function main() {
       duration_months: p.duration_months,
       is_featured: p.is_featured,
       class_credits: p.class_credits,
-      guest_passes: p.guest_passes,
+      // guest_passes removed - not needed
     })),
     'MEMBERSHIP PLANS DATA'
   );
@@ -442,7 +442,12 @@ async function main() {
   const oneMonthLater = new Date(today);
   oneMonthLater.setMonth(today.getMonth() + 1);
 
-  console.log('[DATE] Sử dụng ngày từ:', oneMonthAgo.toISOString().split('T')[0], 'đến', oneMonthLater.toISOString().split('T')[0]);
+  console.log(
+    '[DATE] Sử dụng ngày từ:',
+    oneMonthAgo.toISOString().split('T')[0],
+    'đến',
+    oneMonthLater.toISOString().split('T')[0]
+  );
 
   // Test Case 1: ACTIVE subscription (PREMIUM) - member_001
   const startDate1 = new Date(today);
@@ -465,8 +470,7 @@ async function main() {
         total_amount: 599000,
         classes_used: 12,
         classes_remaining: null, // Unlimited
-        guest_passes_used: 1,
-        pt_sessions_used: 1,
+        // guest_passes_used and pt_sessions_used removed - not needed
         auto_renew: true,
       },
     })
@@ -493,8 +497,7 @@ async function main() {
         total_amount: 239200,
         classes_used: 2,
         classes_remaining: 2, // 4 total
-        guest_passes_used: 0,
-        pt_sessions_used: 0,
+        // guest_passes_used and pt_sessions_used removed - not needed
         auto_renew: true,
       },
     })
@@ -522,9 +525,7 @@ async function main() {
         discount_amount: 999000, // 100% free trial
         total_amount: 0,
         classes_used: 3,
-        guest_passes_used: 0,
-        pt_sessions_used: 0,
-        is_trial: true,
+        // guest_passes_used and pt_sessions_used removed - not needed
         trial_start: startDate3,
         trial_end: trialEndDate3,
         auto_renew: true,
@@ -593,9 +594,9 @@ async function main() {
     startDate.setDate(today.getDate() - (30 - i * 2)); // 20-10 ngày trước
     const endDate = new Date(startDate);
     endDate.setMonth(endDate.getMonth() + 1);
-    
+
     const selectedPlan = planTypes[i % planTypes.length];
-    
+
     subscriptions.push(
       await prisma.subscription.create({
         data: {
@@ -609,11 +610,13 @@ async function main() {
           current_period_end: endDate,
           base_amount: selectedPlan.price,
           discount_amount: i % 3 === 0 ? Math.floor(selectedPlan.price * 0.1) : 0, // 10% discount cho một số
-          total_amount: selectedPlan.price - (i % 3 === 0 ? Math.floor(selectedPlan.price * 0.1) : 0),
+          total_amount:
+            selectedPlan.price - (i % 3 === 0 ? Math.floor(selectedPlan.price * 0.1) : 0),
           classes_used: Math.floor(Math.random() * 10) + 1,
-          classes_remaining: selectedPlan.class_credits ? selectedPlan.class_credits - Math.floor(Math.random() * 3) : null,
-          guest_passes_used: Math.floor(Math.random() * selectedPlan.guest_passes),
-          pt_sessions_used: selectedPlan.personal_training_sessions > 0 ? Math.floor(Math.random() * selectedPlan.personal_training_sessions) : 0,
+          classes_remaining: selectedPlan.class_credits
+            ? selectedPlan.class_credits - Math.floor(Math.random() * 3)
+            : null,
+          // guest_passes_used and pt_sessions_used removed - not needed
           auto_renew: true,
         },
       })
@@ -721,8 +724,6 @@ async function main() {
       net_amount: 299000,
       processed_at: new Date(subscriptions[3].start_date),
       refunded_amount: 149500, // Refund 50% (cancel giữa kỳ)
-      refunded_at: new Date(subscriptions[3].cancelled_at),
-      refund_reason: 'Hủy giữa kỳ',
     },
   });
   payments.push(refundedPayment);
@@ -731,7 +732,7 @@ async function main() {
   for (let i = 5; i < subscriptions.length; i++) {
     const paymentDate = new Date(subscriptions[i].start_date);
     paymentDate.setHours(9 + Math.floor(Math.random() * 8), Math.floor(Math.random() * 60), 0, 0);
-    
+
     payments.push(
       await prisma.payment.create({
         data: {
@@ -740,11 +741,14 @@ async function main() {
           amount: subscriptions[i].total_amount,
           currency: 'VND',
           status: 'COMPLETED',
-          payment_method: ['VNPAY', 'MOMO', 'BANK_TRANSFER', 'CREDIT_CARD'][Math.floor(Math.random() * 4)],
+          payment_method: ['VNPAY', 'MOMO', 'BANK_TRANSFER', 'CREDIT_CARD'][
+            Math.floor(Math.random() * 4)
+          ],
           transaction_id: `TXN_${Date.now()}_${i}`,
           gateway: ['VNPAY', 'MOMO', 'BANK', 'STRIPE'][Math.floor(Math.random() * 4)],
           gateway_fee: Math.floor(subscriptions[i].total_amount * 0.02), // 2% fee
-          net_amount: subscriptions[i].total_amount - Math.floor(subscriptions[i].total_amount * 0.02),
+          net_amount:
+            subscriptions[i].total_amount - Math.floor(subscriptions[i].total_amount * 0.02),
           payment_type: 'SUBSCRIPTION',
           processed_at: paymentDate,
         },
@@ -768,7 +772,9 @@ async function main() {
         subscription_id: subscriptions[0].id,
         payment_id: payments[0].id,
         member_id: testMemberIds[0],
-        invoice_number: `INV-${invoiceDate1.getFullYear()}-${String(invoiceDate1.getMonth() + 1).padStart(2, '0')}-001`,
+        invoice_number: `INV-${invoiceDate1.getFullYear()}-${String(
+          invoiceDate1.getMonth() + 1
+        ).padStart(2, '0')}-001`,
         status: 'PAID',
         type: 'SUBSCRIPTION',
         subtotal: 599000,
@@ -781,7 +787,9 @@ async function main() {
         line_items: {
           items: [
             {
-              description: `Gói Premium - Tháng ${invoiceDate1.getMonth() + 1}/${invoiceDate1.getFullYear()}`,
+              description: `Gói Premium - Tháng ${
+                invoiceDate1.getMonth() + 1
+              }/${invoiceDate1.getFullYear()}`,
               quantity: 1,
               unit_price: 599000,
               total: 599000,
@@ -802,7 +810,9 @@ async function main() {
         subscription_id: subscriptions[1].id,
         payment_id: payments[1].id,
         member_id: testMemberIds[1],
-        invoice_number: `INV-${invoiceDate2.getFullYear()}-${String(invoiceDate2.getMonth() + 1).padStart(2, '0')}-002`,
+        invoice_number: `INV-${invoiceDate2.getFullYear()}-${String(
+          invoiceDate2.getMonth() + 1
+        ).padStart(2, '0')}-002`,
         status: 'PAID',
         type: 'SUBSCRIPTION',
         subtotal: 299000,
@@ -814,7 +824,9 @@ async function main() {
         line_items: {
           items: [
             {
-              description: `Gói Basic - Tháng ${invoiceDate2.getMonth() + 1}/${invoiceDate2.getFullYear()}`,
+              description: `Gói Basic - Tháng ${
+                invoiceDate2.getMonth() + 1
+              }/${invoiceDate2.getFullYear()}`,
               quantity: 1,
               unit_price: 299000,
               total: 299000,
@@ -841,7 +853,9 @@ async function main() {
         subscription_id: subscriptions[4].id,
         payment_id: payments[3].id,
         member_id: testMemberIds[4],
-        invoice_number: `INV-${invoiceDate3.getFullYear()}-${String(invoiceDate3.getMonth() + 1).padStart(2, '0')}-003`,
+        invoice_number: `INV-${invoiceDate3.getFullYear()}-${String(
+          invoiceDate3.getMonth() + 1
+        ).padStart(2, '0')}-003`,
         status: 'OVERDUE',
         type: 'SUBSCRIPTION',
         subtotal: 199000,
@@ -851,7 +865,9 @@ async function main() {
         line_items: {
           items: [
             {
-              description: `Gói Student - Tháng ${invoiceDate3.getMonth() + 1}/${invoiceDate3.getFullYear()}`,
+              description: `Gói Student - Tháng ${
+                invoiceDate3.getMonth() + 1
+              }/${invoiceDate3.getFullYear()}`,
               quantity: 1,
               unit_price: 199000,
               total: 199000,
@@ -867,19 +883,21 @@ async function main() {
     const invoiceDate = new Date(subscriptions[i].start_date);
     const dueDate = new Date(invoiceDate);
     dueDate.setDate(dueDate.getDate() + 7);
-    
+
     // Lấy plan type từ plan đã tạo
     const planIndex = i % planTypes.length;
     const planType = planTypes[planIndex].type;
     const planName = planTypes[planIndex].name;
-    
+
     invoices.push(
       await prisma.invoice.create({
         data: {
           subscription_id: subscriptions[i].id,
           payment_id: payments[i].id,
           member_id: testMemberIds[i],
-          invoice_number: `INV-${invoiceDate.getFullYear()}-${String(invoiceDate.getMonth() + 1).padStart(2, '0')}-${String(i + 1).padStart(3, '0')}`,
+          invoice_number: `INV-${invoiceDate.getFullYear()}-${String(
+            invoiceDate.getMonth() + 1
+          ).padStart(2, '0')}-${String(i + 1).padStart(3, '0')}`,
           status: 'PAID',
           type: 'SUBSCRIPTION',
           subtotal: subscriptions[i].base_amount,
@@ -891,17 +909,23 @@ async function main() {
           line_items: {
             items: [
               {
-                description: `${planName} - Tháng ${invoiceDate.getMonth() + 1}/${invoiceDate.getFullYear()}`,
+                description: `${planName} - Tháng ${
+                  invoiceDate.getMonth() + 1
+                }/${invoiceDate.getFullYear()}`,
                 quantity: 1,
                 unit_price: subscriptions[i].base_amount,
                 total: subscriptions[i].base_amount,
               },
-              ...(subscriptions[i].discount_amount > 0 ? [{
-                description: 'Discount',
-                quantity: 1,
-                unit_price: -subscriptions[i].discount_amount,
-                total: -subscriptions[i].discount_amount,
-              }] : []),
+              ...(subscriptions[i].discount_amount > 0
+                ? [
+                    {
+                      description: 'Discount',
+                      quantity: 1,
+                      unit_price: -subscriptions[i].discount_amount,
+                      total: -subscriptions[i].discount_amount,
+                    },
+                  ]
+                : []),
             ],
           },
         },

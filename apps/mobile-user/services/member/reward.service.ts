@@ -1,8 +1,28 @@
 import { memberApiService } from './api.service';
+import { getToken } from '@/utils/auth/storage';
 
-export type RewardCategory = 'DISCOUNT' | 'FREE_CLASS' | 'MERCHANDISE' | 'MEMBERSHIP_EXTENSION' | 'PREMIUM_FEATURE' | 'OTHER';
-export type RewardType = 'PERCENTAGE_DISCOUNT' | 'FIXED_AMOUNT_DISCOUNT' | 'FREE_ITEM' | 'MEMBERSHIP_UPGRADE' | 'PREMIUM_FEATURE_ACCESS' | 'CASHBACK' | 'OTHER';
-export type RedemptionStatus = 'PENDING' | 'ACTIVE' | 'USED' | 'EXPIRED' | 'CANCELLED' | 'REFUNDED';
+export type RewardCategory =
+  | 'DISCOUNT'
+  | 'FREE_CLASS'
+  | 'MERCHANDISE'
+  | 'MEMBERSHIP_EXTENSION'
+  | 'PREMIUM_FEATURE'
+  | 'OTHER';
+export type RewardType =
+  | 'PERCENTAGE_DISCOUNT'
+  | 'FIXED_AMOUNT_DISCOUNT'
+  | 'FREE_ITEM'
+  | 'MEMBERSHIP_UPGRADE'
+  | 'PREMIUM_FEATURE_ACCESS'
+  | 'CASHBACK'
+  | 'OTHER';
+export type RedemptionStatus =
+  | 'PENDING'
+  | 'ACTIVE'
+  | 'USED'
+  | 'EXPIRED'
+  | 'CANCELLED'
+  | 'REFUNDED';
 
 export interface Reward {
   id: string;
@@ -53,6 +73,13 @@ class RewardService {
   }
 
   /**
+   * Get authentication token
+   */
+  private async getAuthToken(): Promise<string | null> {
+    return await getToken();
+  }
+
+  /**
    * Get all available rewards
    */
   async getRewards(filters?: {
@@ -67,8 +94,10 @@ class RewardService {
     try {
       const params = new URLSearchParams();
       if (filters?.category) params.append('category', filters.category);
-      if (filters?.min_points) params.append('min_points', String(filters.min_points));
-      if (filters?.max_points) params.append('max_points', String(filters.max_points));
+      if (filters?.min_points)
+        params.append('min_points', String(filters.min_points));
+      if (filters?.max_points)
+        params.append('max_points', String(filters.max_points));
 
       const queryString = params.toString();
       const url = queryString ? `/rewards?${queryString}` : '/rewards';
@@ -115,22 +144,28 @@ class RewardService {
   /**
    * Redeem a reward
    */
-  async getRecommendedRewards(
-    memberId: string
-  ): Promise<{
+  async getRecommendedRewards(memberId: string): Promise<{
     success: boolean;
     data?: Reward[];
     error?: string;
     preferences?: string[];
   }> {
     try {
-      const response = await fetch(`${this.baseUrl}/rewards/recommendations/${memberId}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.getAuthToken()}`,
-        },
-      });
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
+      const response = await fetch(
+        `${this.baseUrl}/rewards/recommendations/${memberId}`,
+        {
+          method: 'GET',
+          headers,
+        }
+      );
 
       const result = await response.json();
 
@@ -161,12 +196,17 @@ class RewardService {
     error?: string;
   }> {
     try {
+      const token = await this.getAuthToken();
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers.Authorization = `Bearer ${token}`;
+      }
+
       const response = await fetch(`${this.baseUrl}/rewards/qr-code/${code}`, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${this.getAuthToken()}`,
-        },
+        headers,
       });
 
       const result = await response.json();
@@ -202,9 +242,12 @@ class RewardService {
     current?: number;
   }> {
     try {
-      const response = await memberApiService.post(`/rewards/${rewardId}/redeem`, {
-        memberId,
-      });
+      const response = await memberApiService.post(
+        `/rewards/${rewardId}/redeem`,
+        {
+          memberId,
+        }
+      );
       return {
         success: response.success,
         data: response.data,
@@ -278,7 +321,9 @@ class RewardService {
     error?: string;
   }> {
     try {
-      const response = await memberApiService.post('/rewards/verify-code', { code });
+      const response = await memberApiService.post('/rewards/verify-code', {
+        code,
+      });
       return {
         success: response.success,
         data: response.data,
@@ -292,7 +337,33 @@ class RewardService {
       };
     }
   }
+
+  /**
+   * Mark redemption as used
+   */
+  async markAsUsed(redemptionId: string): Promise<{
+    success: boolean;
+    data?: RewardRedemption;
+    error?: string;
+  }> {
+    try {
+      // Use correct endpoint: /redemptions/:id/mark-used (not /members/redemptions/...)
+      const response = await memberApiService.put(
+        `/redemptions/${redemptionId}/mark-used`
+      );
+      return {
+        success: response.success,
+        data: response.data,
+        error: response.message,
+      };
+    } catch (error: any) {
+      console.error('Mark redemption as used error:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to mark redemption as used',
+      };
+    }
+  }
 }
 
 export const rewardService = new RewardService();
-

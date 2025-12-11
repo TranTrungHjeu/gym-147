@@ -1,15 +1,28 @@
 import React, { useState } from 'react';
-import { Search, CheckCircle, XCircle, Copy, User, Gift, Calendar, DollarSign, AlertCircle, QrCode } from 'lucide-react';
+import {
+  Search,
+  CheckCircle,
+  XCircle,
+  Copy,
+  User,
+  Gift,
+  Calendar,
+  DollarSign,
+  AlertCircle,
+  QrCode,
+} from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminModal from '../../components/common/AdminModal';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import rewardService, { RewardRedemption } from '../../services/reward.service';
 import { formatVietnamDateTime } from '../../utils/dateTime';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 
 const VerifyCode: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [code, setCode] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [redemption, setRedemption] = useState<RewardRedemption | null>(null);
@@ -19,7 +32,7 @@ const VerifyCode: React.FC = () => {
 
   const handleVerify = async () => {
     if (!code.trim()) {
-      showToast('Vui lòng nhập mã đổi thưởng', 'error');
+      showToast(t('verifyCode.messages.codeRequired'), 'error');
       return;
     }
 
@@ -30,11 +43,11 @@ const VerifyCode: React.FC = () => {
       if (response.success && response.data) {
         setRedemption(response.data);
       } else {
-        showToast(response.message || 'Mã không hợp lệ', 'error');
+        showToast(response.message || t('verifyCode.messages.invalidCode'), 'error');
         setRedemption(null);
       }
     } catch (error: any) {
-      showToast(error.message || 'Không thể verify mã', 'error');
+      showToast(error.message || t('verifyCode.messages.verifyError'), 'error');
       setRedemption(null);
     } finally {
       setVerifying(false);
@@ -44,7 +57,7 @@ const VerifyCode: React.FC = () => {
   const handleCopyCode = () => {
     if (redemption?.code) {
       navigator.clipboard.writeText(redemption.code);
-      showToast('Đã copy mã!', 'success');
+      showToast(t('verifyCode.messages.copySuccess'), 'success');
     }
   };
 
@@ -56,12 +69,12 @@ const VerifyCode: React.FC = () => {
       const response = await rewardService.generateQRCode(redemption.code);
       if (response.success && response.data) {
         setQrCodeUrl(response.data.qr_code_data_url);
-        showToast('Đã tạo QR code!', 'success');
+        showToast(t('verifyCode.messages.qrSuccess'), 'success');
       } else {
-        showToast('Không thể tạo QR code', 'error');
+        showToast(t('verifyCode.messages.qrError'), 'error');
       }
     } catch (error: any) {
-      showToast(error.message || 'Không thể tạo QR code', 'error');
+      showToast(error.message || t('verifyCode.messages.qrError'), 'error');
     } finally {
       setLoadingQR(false);
     }
@@ -74,17 +87,17 @@ const VerifyCode: React.FC = () => {
       setIsMarkingUsed(true);
       const response = await rewardService.markAsUsed(redemption.id);
       if (response.success) {
-        showToast('Đã đánh dấu đã sử dụng', 'success');
+        showToast(t('verifyCode.messages.markSuccess'), 'success');
         setRedemption({
           ...redemption,
           status: 'USED',
           used_at: new Date().toISOString(),
         });
       } else {
-        showToast(response.message || 'Không thể đánh dấu', 'error');
+        showToast(response.message || t('verifyCode.messages.markError'), 'error');
       }
     } catch (error: any) {
-      showToast(error.message || 'Không thể đánh dấu', 'error');
+      showToast(error.message || t('verifyCode.messages.markError'), 'error');
     } finally {
       setIsMarkingUsed(false);
     }
@@ -92,29 +105,30 @@ const VerifyCode: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      PENDING: 'Chờ xử lý',
-      ACTIVE: 'Đang hoạt động',
-      USED: 'Đã sử dụng',
-      EXPIRED: 'Hết hạn',
-      CANCELLED: 'Đã hủy',
-      REFUNDED: 'Đã hoàn trả',
+      PENDING: t('verifyCode.status.PENDING'),
+      ACTIVE: t('verifyCode.status.ACTIVE'),
+      USED: t('verifyCode.status.USED'),
+      EXPIRED: t('verifyCode.status.EXPIRED'),
+      CANCELLED: t('verifyCode.status.CANCELLED'),
+      REFUNDED: t('verifyCode.status.REFUNDED'),
     };
     return labels[status] || status;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusEnumType = (
+    status: string
+  ): { type: 'MEMBERSHIP_STATUS' | 'BOOKING_STATUS' | 'PAYMENT_STATUS'; value: string } => {
     switch (status) {
       case 'ACTIVE':
-        return 'success';
+        return { type: 'MEMBERSHIP_STATUS', value: 'ACTIVE' };
       case 'USED':
-        return 'info';
+        return { type: 'BOOKING_STATUS', value: 'COMPLETED' };
       case 'EXPIRED':
-        return 'warning';
-      case 'CANCELLED':
+        return { type: 'MEMBERSHIP_STATUS', value: 'EXPIRED' };
       case 'REFUNDED':
-        return 'danger';
+        return { type: 'PAYMENT_STATUS', value: 'REFUNDED' };
       default:
-        return 'secondary';
+        return { type: 'MEMBERSHIP_STATUS', value: 'INACTIVE' };
     }
   };
 
@@ -122,12 +136,12 @@ const VerifyCode: React.FC = () => {
     <div className='p-6 space-y-8 bg-gray-50/50 dark:bg-gray-900/50 min-h-screen'>
       {/* Header Section */}
       <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-      <div>
+        <div>
           <h1 className='text-3xl font-bold bg-gradient-to-r from-orange-600 to-red-600 bg-clip-text text-transparent'>
-            Verify Mã Đổi thưởng
+            {t('verifyCode.title')}
           </h1>
           <p className='text-gray-500 dark:text-gray-400 mt-2 text-lg'>
-            Xác minh mã đổi thưởng của thành viên
+            {t('verifyCode.subtitle')}
           </p>
         </div>
       </div>
@@ -135,24 +149,24 @@ const VerifyCode: React.FC = () => {
       {/* Verify Code Input */}
       <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
         <div className='p-6'>
-        <div className='space-y-4'>
-          <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Nhập mã đổi thưởng
-            </label>
-            <div className='flex gap-2'>
-              <input
-                type='text'
-                value={code}
-                onChange={(e) => setCode(e.target.value.toUpperCase())}
-                onKeyPress={(e) => e.key === 'Enter' && handleVerify()}
-                placeholder='REWARD-XXXX-XXXX'
+          <div className='space-y-4'>
+            <div>
+              <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+                {t('verifyCode.input.label')}
+              </label>
+              <div className='flex gap-2'>
+                <input
+                  type='text'
+                  value={code}
+                  onChange={e => setCode(e.target.value.toUpperCase())}
+                  onKeyPress={e => e.key === 'Enter' && handleVerify()}
+                  placeholder={t('verifyCode.input.placeholder')}
                   className='flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl font-mono text-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all'
-                autoFocus
-              />
+                  autoFocus
+                />
                 <AdminButton onClick={handleVerify} icon={Search} isLoading={verifying}>
-                Verify
-              </AdminButton>
+                  {t('verifyCode.input.verify')}
+                </AdminButton>
               </div>
             </div>
           </div>
@@ -166,21 +180,45 @@ const VerifyCode: React.FC = () => {
             {/* Header with Status */}
             <div className='flex items-center justify-between'>
               <div>
-                <h2 className='text-xl font-bold text-gray-900 dark:text-white'>Thông tin Đổi thưởng</h2>
-                <p className='text-gray-600 dark:text-gray-400 mt-1'>Chi tiết mã đổi thưởng</p>
+                <h2 className='text-xl font-bold text-gray-900 dark:text-white'>
+                  {t('verifyCode.result.title')}
+                </h2>
+                <p className='text-gray-600 dark:text-gray-400 mt-1'>
+                  {t('verifyCode.result.subtitle')}
+                </p>
               </div>
-              <StatusBadge status={getStatusColor(redemption.status) as any} />
+              {(() => {
+                const statusEnum = getStatusEnumType(redemption.status);
+                return (
+                  <EnumBadge
+                    type={statusEnum.type}
+                    value={statusEnum.value}
+                    size='sm'
+                    showIcon={true}
+                  />
+                );
+              })()}
             </div>
 
             {/* Code Display */}
             <div className='bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700'>
               <div className='flex items-center justify-between'>
                 <div>
-                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>Mã đổi thưởng</label>
-                  <code className='text-2xl font-mono font-bold text-orange-600 dark:text-orange-400 tracking-wider'>{redemption.code}</code>
+                  <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
+                    {t('verifyCode.result.code')}
+                  </label>
+                  <code className='text-2xl font-mono font-bold text-orange-600 dark:text-orange-400 tracking-wider'>
+                    {redemption.code}
+                  </code>
                 </div>
-                <AdminButton onClick={handleCopyCode} icon={Copy} variant='outline' size='sm' className='border-gray-300 dark:border-gray-600'>
-                  Copy
+                <AdminButton
+                  onClick={handleCopyCode}
+                  icon={Copy}
+                  variant='outline'
+                  size='sm'
+                  className='border-gray-300 dark:border-gray-600'
+                >
+                  {t('verifyCode.actions.copyCode')}
                 </AdminButton>
               </div>
             </div>
@@ -204,10 +242,12 @@ const VerifyCode: React.FC = () => {
                   )}
                   <div>
                     <h3 className='font-semibold text-gray-900 dark:text-white'>
-                      Mã {redemption.status === 'EXPIRED' ? 'đã hết hạn' : 'không thể sử dụng'}
+                      {redemption.status === 'EXPIRED'
+                        ? t('verifyCode.statusMessages.expired')
+                        : t('verifyCode.statusMessages.unusable')}
                     </h3>
                     <p className='text-sm text-gray-600 dark:text-gray-400 mt-1'>
-                      Trạng thái: {getStatusLabel(redemption.status)}
+                      {t('verifyCode.result.status')}: {getStatusLabel(redemption.status)}
                     </p>
                   </div>
                 </div>
@@ -220,28 +260,38 @@ const VerifyCode: React.FC = () => {
               <div className='space-y-4 p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
                   <User className='w-5 h-5 text-blue-500' />
-                  Thành viên
+                  {t('verifyCode.result.member')}
                 </h3>
                 <div className='space-y-2'>
                   <div>
-                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>Họ tên</label>
-                    <p className='text-gray-900 dark:text-white font-medium'>{redemption.member?.full_name || 'N/A'}</p>
+                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                      {t('verifyCode.result.fullName')}
+                    </label>
+                    <p className='text-gray-900 dark:text-white font-medium'>
+                      {redemption.member?.full_name || t('common.noData')}
+                    </p>
                   </div>
                   <div>
                     <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
-                      Mã thành viên
+                      {t('verifyCode.result.membershipNumber')}
                     </label>
-                    <p className='text-gray-900 dark:text-white'>#{redemption.member?.membership_number || 'N/A'}</p>
+                    <p className='text-gray-900 dark:text-white'>
+                      #{redemption.member?.membership_number || t('common.noData')}
+                    </p>
                   </div>
                   {redemption.member?.email && (
                     <div>
-                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>Email</label>
+                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                        {t('verifyCode.result.email')}
+                      </label>
                       <p className='text-gray-900 dark:text-white'>{redemption.member.email}</p>
                     </div>
                   )}
                   {redemption.member?.phone && (
                     <div>
-                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>SĐT</label>
+                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                        {t('verifyCode.result.phone')}
+                      </label>
                       <p className='text-gray-900 dark:text-white'>{redemption.member.phone}</p>
                     </div>
                   )}
@@ -252,23 +302,33 @@ const VerifyCode: React.FC = () => {
               <div className='space-y-4 p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
                   <Gift className='w-5 h-5 text-orange-500' />
-                  Phần thưởng
+                  {t('verifyCode.result.reward')}
                 </h3>
                 <div className='space-y-2'>
                   <div>
-                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>Tiêu đề</label>
-                    <p className='text-gray-900 dark:text-white font-medium'>{redemption.reward?.title || 'N/A'}</p>
+                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                      {t('verifyCode.result.title')}
+                    </label>
+                    <p className='text-gray-900 dark:text-white font-medium'>
+                      {redemption.reward?.title || t('common.noData')}
+                    </p>
                   </div>
                   {redemption.reward?.description && (
                     <div>
-                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>Mô tả</label>
-                      <p className='text-gray-900 dark:text-white text-sm'>{redemption.reward.description}</p>
+                      <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                        {t('verifyCode.result.description')}
+                      </label>
+                      <p className='text-gray-900 dark:text-white text-sm'>
+                        {redemption.reward.description}
+                      </p>
                     </div>
                   )}
                   <div>
-                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>Điểm đã đổi</label>
+                    <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1'>
+                      {t('verifyCode.result.pointsSpent')}
+                    </label>
                     <p className='text-gray-900 dark:text-white font-medium text-yellow-600 dark:text-yellow-400'>
-                      {redemption.points_spent} điểm
+                      {redemption.points_spent} {t('verifyCode.result.points')}
                     </p>
                   </div>
                 </div>
@@ -280,15 +340,17 @@ const VerifyCode: React.FC = () => {
               <div>
                 <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2'>
                   <Calendar className='w-4 h-4' />
-                  Ngày đổi
+                  {t('verifyCode.result.redeemedAt')}
                 </label>
-                <p className='text-gray-900 dark:text-white'>{formatVietnamDateTime(redemption.redeemed_at)}</p>
+                <p className='text-gray-900 dark:text-white'>
+                  {formatVietnamDateTime(redemption.redeemed_at)}
+                </p>
               </div>
               {redemption.expires_at && (
                 <div>
                   <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2'>
                     <Calendar className='w-4 h-4' />
-                    Hết hạn
+                    {t('verifyCode.result.expiresAt')}
                   </label>
                   <p
                     className={`${
@@ -305,9 +367,11 @@ const VerifyCode: React.FC = () => {
                 <div>
                   <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2'>
                     <CheckCircle className='w-4 h-4' />
-                    Ngày sử dụng
+                    {t('verifyCode.result.usedAt')}
                   </label>
-                  <p className='text-gray-900 dark:text-white'>{formatVietnamDateTime(redemption.used_at)}</p>
+                  <p className='text-gray-900 dark:text-white'>
+                    {formatVietnamDateTime(redemption.used_at)}
+                  </p>
                 </div>
               )}
             </div>
@@ -321,7 +385,7 @@ const VerifyCode: React.FC = () => {
                   isLoading={isMarkingUsed}
                   className='w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white border-none'
                 >
-                  Đánh dấu đã sử dụng
+                  {t('verifyCode.actions.markAsUsed')}
                 </AdminButton>
               </div>
             )}
@@ -337,10 +401,10 @@ const VerifyCode: React.FC = () => {
               <Search className='w-12 h-12 text-gray-400' />
             </div>
             <h3 className='text-lg font-medium text-gray-900 dark:text-white mb-2'>
-              Không tìm thấy mã đổi thưởng
+              {t('verifyCode.empty.notFound')}
             </h3>
             <p className='text-gray-500 dark:text-gray-400 max-w-sm mx-auto'>
-              Vui lòng kiểm tra lại mã đổi thưởng và thử lại.
+              {t('verifyCode.empty.message')}
             </p>
           </div>
         </div>
@@ -350,4 +414,3 @@ const VerifyCode: React.FC = () => {
 };
 
 export default VerifyCode;
-

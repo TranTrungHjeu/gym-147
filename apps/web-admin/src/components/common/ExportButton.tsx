@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { Calendar, FileSpreadsheet, FileText } from 'lucide-react';
 import React from 'react';
+import useTranslation from '../../hooks/useTranslation';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 import { addNotoSansFont } from '../../utils/fonts/noto-sans-vietnamese';
 import AdminButton from './AdminButton';
@@ -15,14 +16,15 @@ interface ExportOptions {
     label: string;
   }>;
   title?: string;
+  t?: (key: string, params?: any) => string;
 }
 
 const ExportUtils = {
-  exportToPDF: async (options: ExportOptions) => {
-    const { data, columns, filename = 'export', title } = options;
+  exportToPDF: async (options: ExportOptions & { t?: (key: string, params?: any) => string }) => {
+    const { data, columns, filename = 'export', title, t } = options;
 
     if (!data || data.length === 0) {
-      alert('Không có dữ liệu để xuất');
+      alert(t ? t('export.noData') : 'Không có dữ liệu để xuất');
       return;
     }
 
@@ -60,7 +62,7 @@ const ExportUtils = {
         // Add export date
         const exportDate = formatVietnamDateTime(new Date(), 'datetime');
         doc.setFontSize(8);
-        doc.text(`Xuất ngày: ${exportDate}`, 14, 22);
+        doc.text(t ? t('export.exportDate', { date: exportDate }) : `Xuất ngày: ${exportDate}`, 14, 22);
       }
 
       // Prepare table data
@@ -183,7 +185,7 @@ const ExportUtils = {
           doc.setFont('times', 'normal');
         }
         doc.text(
-          `Trang ${i} / ${pageCount}`,
+          t ? t('export.pageNumber', { current: i, total: pageCount }) : `Trang ${i} / ${pageCount}`,
           doc.internal.pageSize.getWidth() / 2,
           doc.internal.pageSize.getHeight() - 10,
           { align: 'center' }
@@ -194,7 +196,7 @@ const ExportUtils = {
       doc.save(`${filename}_${formatVietnamDateTime(new Date(), 'date').replace(/\//g, '-')}.pdf`);
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      alert('Không thể xuất PDF. Vui lòng thử lại.');
+      alert(t ? t('export.pdfError') : 'Không thể xuất PDF. Vui lòng thử lại.');
     }
   },
 
@@ -327,10 +329,11 @@ const ExportUtils = {
       location?: string;
       url?: string;
     }>,
-    filename: string = 'calendar'
+    filename: string = 'calendar',
+    t?: (key: string, params?: any) => string
   ) => {
     if (!events || events.length === 0) {
-      alert('Không có sự kiện để xuất');
+      alert(t ? t('export.noEvents') : 'Không có sự kiện để xuất');
       return;
     }
 
@@ -440,6 +443,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
   showiCal = false,
   iCalEvents,
 }) => {
+  const { t } = useTranslation();
   const handleExport = (format: 'pdf' | 'excel' | 'csv') => {
     if (format === 'pdf') {
       ExportUtils.exportToPDF({
@@ -448,6 +452,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
         data,
         columns,
         title,
+        t,
       });
     } else {
       ExportUtils.exportToExcel({
@@ -462,7 +467,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
 
   const handleExportiCal = () => {
     if (iCalEvents && iCalEvents.length > 0) {
-      ExportUtils.exportToiCal(iCalEvents, filename);
+      ExportUtils.exportToiCal(iCalEvents, filename, t);
     }
   };
 
@@ -474,7 +479,7 @@ const ExportButton: React.FC<ExportButtonProps> = ({
         icon={FileSpreadsheet}
         onClick={() => handleExport('excel')}
       >
-        Export Excel
+        {t('export.excel')}
       </AdminButton>
       <AdminButton
         variant={variant}
@@ -482,11 +487,11 @@ const ExportButton: React.FC<ExportButtonProps> = ({
         icon={FileText}
         onClick={() => handleExport('pdf')}
       >
-        Export PDF
+        {t('export.pdf')}
       </AdminButton>
       {showiCal && iCalEvents && iCalEvents.length > 0 && (
         <AdminButton variant={variant} size={size} icon={Calendar} onClick={handleExportiCal}>
-          Export iCal
+          {t('export.iCal')}
         </AdminButton>
       )}
     </div>

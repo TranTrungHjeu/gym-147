@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
 import {
+  ChevronLeft,
   Clock,
   Download,
   Eye,
@@ -14,6 +15,7 @@ import {
   Users,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import UserInfoCard from '../components/UserProfile/UserInfoCard';
 import AdminCard from '../components/common/AdminCard';
 import AdminModal from '../components/common/AdminModal';
@@ -27,9 +29,9 @@ import {
 import ConfirmDialog from '../components/common/ConfirmDialog';
 import CustomSelect from '../components/common/CustomSelect';
 import Pagination from '../components/common/Pagination';
-import RoleBadge from '../components/common/RoleBadge';
-import StatusBadge from '../components/common/StatusBadge';
+import { EnumBadge } from '../shared/components/ui';
 import { TableLoading } from '../components/ui/AppLoading';
+import useTranslation from '../hooks/useTranslation';
 import { memberApi, scheduleApi } from '../services/api';
 import { User, userService } from '../services/user.service';
 
@@ -55,6 +57,8 @@ interface UserStats {
 }
 
 export default function UserManagement() {
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   // State management
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,8 +202,7 @@ export default function UserManagement() {
           if (window.showToast) {
             window.showToast({
               type: 'error',
-              message:
-                'Network error: Cannot connect to API. Please check if services are running.',
+              message: t('userManagement.messages.networkError'),
               duration: 5000,
             });
           }
@@ -207,7 +210,7 @@ export default function UserManagement() {
           if (window.showToast) {
             window.showToast({
               type: 'error',
-              message: error.response?.data?.message || 'Không thể tải danh sách người dùng',
+              message: error.response?.data?.message || t('userManagement.messages.loadError'),
               duration: 3000,
             });
           }
@@ -404,7 +407,7 @@ export default function UserManagement() {
       if (window.showToast) {
         window.showToast({
           type: 'success',
-          message: 'Xóa người dùng thành công',
+          message: t('userManagement.messages.deleteSuccess'),
           duration: 3000,
         });
       }
@@ -413,7 +416,7 @@ export default function UserManagement() {
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: error.response?.data?.message || 'Không thể xóa người dùng',
+          message: error.response?.data?.message || t('userManagement.messages.deleteError'),
           duration: 3000,
         });
       }
@@ -464,7 +467,7 @@ export default function UserManagement() {
         Role: user.role,
         Status: user.isActive ? 'Active' : 'Inactive',
         'Email Verified': user.emailVerified ? 'Yes' : 'No',
-        'Phone Verified': user.phoneVerified ? 'Yes' : 'No',
+        'Phone Verified': user.phoneVerified ? t('common.yes') : t('common.no'),
         'Created At': createdDate,
       };
     });
@@ -485,9 +488,7 @@ export default function UserManagement() {
     if (window.showToast) {
       window.showToast({
         type: 'success',
-        message: `${exportUsers.length} user${
-          exportUsers.length > 1 ? 's' : ''
-        } exported successfully`,
+        message: t('userManagement.messages.exportSuccess', { count: exportUsers.length }),
         duration: 3000,
       });
     }
@@ -515,10 +516,10 @@ export default function UserManagement() {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Người dùng
+            {t('userManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Quản lý tất cả người dùng trong hệ thống (Admin, Trainer, Member)
+            {t('userManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -530,7 +531,7 @@ export default function UserManagement() {
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md'
           >
             <RefreshCw className='w-4 h-4' />
-            Làm mới
+            {t('userManagement.actions.refresh')}
           </button>
           <button
             onClick={handleExport}
@@ -538,7 +539,7 @@ export default function UserManagement() {
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed'
           >
             <Download className='w-4 h-4' />
-            Xuất dữ liệu
+            {t('userManagement.actions.export')}
           </button>
         </div>
       </div>
@@ -561,7 +562,7 @@ export default function UserManagement() {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số người dùng
+                  {t('userManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -584,7 +585,7 @@ export default function UserManagement() {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đang hoạt động
+                  {t('userManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -609,7 +610,7 @@ export default function UserManagement() {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Không hoạt động
+                  {t('userManagement.stats.inactive')}
                 </div>
               </div>
             </div>
@@ -632,7 +633,7 @@ export default function UserManagement() {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Mới trong tháng
+                  {t('userManagement.stats.newThisMonth')}
                 </div>
               </div>
             </div>
@@ -648,7 +649,7 @@ export default function UserManagement() {
             <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500' />
             <input
               type='text'
-              placeholder='Tìm kiếm người dùng...'
+              placeholder={t('userManagement.filters.searchPlaceholder')}
               value={filters.search}
               onChange={e => setFilters(prev => ({ ...prev, search: e.target.value, page: 1 }))}
               className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
@@ -659,11 +660,11 @@ export default function UserManagement() {
           <div>
             <CustomSelect
               options={[
-                { value: '', label: 'Tất cả vai trò' },
-                { value: 'SUPER_ADMIN', label: 'Super Admin' },
-                { value: 'ADMIN', label: 'Admin' },
-                { value: 'TRAINER', label: 'Trainer' },
-                { value: 'MEMBER', label: 'Member' },
+                { value: '', label: t('userManagement.filters.allRoles') },
+                { value: 'SUPER_ADMIN', label: t('userManagement.filters.roles.superAdmin') },
+                { value: 'ADMIN', label: t('userManagement.filters.roles.admin') },
+                { value: 'TRAINER', label: t('userManagement.filters.roles.trainer') },
+                { value: 'MEMBER', label: t('userManagement.filters.roles.member') },
               ]}
               value={filters.role}
               onChange={value => {
@@ -672,7 +673,7 @@ export default function UserManagement() {
                   setFilters(prev => ({ ...prev, role: value, page: 1 }));
                 }
               }}
-              placeholder='Tất cả vai trò'
+              placeholder={t('userManagement.filters.allRoles')}
               className='font-inter'
             />
           </div>
@@ -681,9 +682,9 @@ export default function UserManagement() {
           <div>
             <CustomSelect
               options={[
-                { value: '', label: 'Tất cả trạng thái' },
-                { value: 'active', label: 'Hoạt động' },
-                { value: 'inactive', label: 'Không hoạt động' },
+                { value: '', label: t('userManagement.filters.allStatuses') },
+                { value: 'active', label: t('userManagement.filters.statuses.active') },
+                { value: 'inactive', label: t('userManagement.filters.statuses.inactive') },
               ]}
               value={filters.status}
               onChange={value => {
@@ -692,7 +693,7 @@ export default function UserManagement() {
                   setFilters(prev => ({ ...prev, status: value, page: 1 }));
                 }
               }}
-              placeholder='Tất cả trạng thái'
+              placeholder={t('userManagement.filters.allStatuses')}
               className='font-inter'
             />
           </div>
@@ -701,17 +702,19 @@ export default function UserManagement() {
 
       {/* Users List */}
       {loading && !isPageTransitioning ? (
-        <TableLoading text='Đang tải danh sách người dùng...' />
+        <TableLoading text={t('userManagement.loading')} />
       ) : filteredAndSortedUsers.length === 0 ? (
         <AdminCard padding='md' className='text-center'>
           <div className='flex flex-col items-center justify-center py-12'>
             <Users className='w-20 h-20 text-gray-300 dark:text-gray-700 mb-4' />
             <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-heading mb-2'>
-              {filters.search ? 'Không tìm thấy người dùng nào' : 'Không có người dùng nào'}
+              {filters.search
+                ? t('userManagement.empty.noResults')
+                : t('userManagement.empty.noUsers')}
             </div>
             {!filters.search && users.length === 0 && (
               <div className='text-theme-xs text-gray-400 dark:text-gray-500 font-inter mt-2'>
-                Chưa có người dùng trong hệ thống
+                Chưa có tài khoản trong hệ thống
               </div>
             )}
           </div>
@@ -731,22 +734,27 @@ export default function UserManagement() {
                 <AdminTableHeader>
                   <AdminTableRow>
                     <AdminTableCell header className='w-[15%]'>
-                      <span className='whitespace-nowrap'>Người dùng</span>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.account')}</span>
                     </AdminTableCell>
                     <AdminTableCell header className='w-[20%]'>
-                      <span className='whitespace-nowrap'>Email</span>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.email')}</span>
                     </AdminTableCell>
                     <AdminTableCell header className='w-[15%] hidden md:table-cell'>
-                      <span className='whitespace-nowrap'>Số điện thoại</span>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.phone')}</span>
                     </AdminTableCell>
                     <AdminTableCell header className='w-[12%]'>
-                      <span className='whitespace-nowrap'>Vai trò</span>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.role')}</span>
                     </AdminTableCell>
                     <AdminTableCell header className='w-[12%]'>
-                      <span className='whitespace-nowrap'>Trạng thái</span>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.status')}</span>
                     </AdminTableCell>
                     <AdminTableCell header className='w-[15%] hidden lg:table-cell'>
-                      <span className='whitespace-nowrap'>Ngày tạo</span>
+                      <span className='whitespace-nowrap'>
+                        {t('userManagement.table.createdAt')}
+                      </span>
+                    </AdminTableCell>
+                    <AdminTableCell header className='w-[8%]'>
+                      <span className='whitespace-nowrap'>{t('userManagement.table.actions')}</span>
                     </AdminTableCell>
                   </AdminTableRow>
                 </AdminTableHeader>
@@ -754,7 +762,8 @@ export default function UserManagement() {
                   {displayUsers.map((user, index) => {
                     const firstName = user.firstName || user.first_name || '';
                     const lastName = user.lastName || user.last_name || '';
-                    const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
+                    const fullName =
+                      `${firstName} ${lastName}`.trim() || t('common.defaultUserName');
                     const isActive = user.isActive ?? true;
                     const avatar = userAvatars[user.id];
 
@@ -834,10 +843,15 @@ export default function UserManagement() {
                           ) : null}
                         </AdminTableCell>
                         <AdminTableCell>
-                          <RoleBadge role={user.role} size='sm' />
+                          <EnumBadge type='ROLE' value={user.role} size='sm' showIcon={true} />
                         </AdminTableCell>
                         <AdminTableCell>
-                          <StatusBadge status={isActive} size='sm' />
+                          <EnumBadge
+                            type='MEMBERSHIP_STATUS'
+                            value={isActive ? 'ACTIVE' : 'INACTIVE'}
+                            size='sm'
+                            showIcon={true}
+                          />
                         </AdminTableCell>
                         <AdminTableCell className='hidden lg:table-cell'>
                           {(() => {
@@ -865,6 +879,29 @@ export default function UserManagement() {
                               return null;
                             }
                           })()}
+                        </AdminTableCell>
+                        <AdminTableCell>
+                          {user.role === 'TRAINER' || user.role === 'MEMBER' ? (
+                            <button
+                              onClick={e => {
+                                e.stopPropagation();
+                                if (user.role === 'TRAINER') {
+                                  navigate(`/management/trainers?user_id=${user.id}`);
+                                } else if (user.role === 'MEMBER') {
+                                  navigate(`/management/members?user_id=${user.id}`);
+                                }
+                              }}
+                              className='inline-flex items-center justify-center gap-1 px-2 py-1.5 text-[9px] sm:text-[10px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg hover:bg-orange-100 dark:hover:bg-orange-900/30 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 shadow-sm hover:shadow-md'
+                              title={
+                                user.role === 'TRAINER'
+                                  ? 'Xem trong bảng Trainer'
+                                  : 'Xem trong bảng Member'
+                              }
+                            >
+                              <ChevronLeft className='w-3 h-3' />
+                              <span className='hidden sm:inline'>Prev</span>
+                            </button>
+                          ) : null}
                         </AdminTableCell>
                       </AdminTableRow>
                     );
@@ -929,7 +966,7 @@ export default function UserManagement() {
                   return (
                     `${firstName} ${lastName}`.trim() ||
                     selectedUserForAction.email ||
-                    'Unknown User'
+                    t('common.defaultUserName')
                   );
                 })()}
               </p>
@@ -956,7 +993,7 @@ export default function UserManagement() {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20'
               >
                 <Trash2 className='w-3.5 h-3.5' />
-                Xóa
+                {t('userManagement.actions.delete')}
               </button>
             </div>
           </div>
@@ -971,18 +1008,18 @@ export default function UserManagement() {
           setUserToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xác nhận xóa người dùng'
-        message={`Bạn có chắc chắn muốn xóa người dùng "${
-          userToDelete
+        title={t('userManagement.delete.title')}
+        message={t('userManagement.delete.message', {
+          name: userToDelete
             ? `${userToDelete.firstName || userToDelete.first_name || ''} ${
                 userToDelete.lastName || userToDelete.last_name || ''
               }`.trim() ||
               userToDelete.email ||
-              'Unknown'
-            : ''
-        }"? Hành động này không thể hoàn tác.`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+              t('common.unknown')
+            : '',
+        })}
+        confirmText={t('userManagement.delete.confirm')}
+        cancelText={t('common.cancel')}
         variant='danger'
         isLoading={isDeleting}
       />
@@ -992,7 +1029,7 @@ export default function UserManagement() {
         <AdminModal
           isOpen={!!selectedUser}
           onClose={() => setSelectedUser(null)}
-          title='Chi tiết Người dùng'
+          title={t('userManagement.details.title')}
           size='xl'
         >
           <UserInfoCard userId={selectedUser.id} onUpdate={handleUserUpdate} />

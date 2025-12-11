@@ -1,5 +1,6 @@
 import { AlertTriangle } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import useTranslation from '../../hooks/useTranslation';
 import Modal from '../Modal/Modal';
 import { ButtonSpinner } from '../ui/AppLoading';
 
@@ -23,13 +24,16 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = 'Xác nhận',
-  cancelText = 'Hủy',
+  confirmText,
+  cancelText,
   variant = 'danger',
   isLoading = false,
   requireType = true,
   typeText = 'delete',
 }) => {
+  const { t } = useTranslation();
+  const defaultConfirmText = confirmText || t('common.confirm');
+  const defaultCancelText = cancelText || t('common.cancel');
   const [confirmInput, setConfirmInput] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -110,7 +114,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
                   {title}
                 </h4>
                 <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-heading'>
-                  Hành động này không thể hoàn tác
+                  {t('confirmDialog.irreversible')}
                 </p>
               </div>
             </div>
@@ -135,7 +139,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
           {requireType && (
             <div>
               <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-2'>
-                Nhập "<span className='font-mono font-bold'>{typeText}</span>" để xác nhận
+                {t('common.enterToConfirm', { text: typeText })}
               </label>
               <input
                 ref={inputRef}
@@ -157,7 +161,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               />
               {confirmInput && confirmInput.toLowerCase() !== typeText.toLowerCase() && (
                 <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-heading'>
-                  Vui lòng nhập đúng "{typeText}"
+                  {t('common.pleaseEnterCorrect', { text: typeText })}
                 </p>
               )}
             </div>
@@ -173,7 +177,7 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               disabled={isLoading}
               className='px-5 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
-              {cancelText}
+              {defaultCancelText}
             </button>
             <button
               type='button'
@@ -184,10 +188,10 @@ const ConfirmDialog: React.FC<ConfirmDialogProps> = ({
               {isLoading ? (
                 <>
                   <ButtonSpinner />
-                  Đang xử lý...
+                  {t('common.processing')}
                 </>
               ) : (
-                confirmText
+                defaultConfirmText
               )}
             </button>
           </div>

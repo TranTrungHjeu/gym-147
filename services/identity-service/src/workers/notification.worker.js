@@ -73,12 +73,45 @@ class NotificationWorker {
    */
   async processNotification(notificationData) {
     try {
-      const { user_id, type, title, message, data, channels = ['IN_APP'] } = notificationData;
+      // Support both user_id and userId (from member-service)
+      const { user_id, userId, memberId, type, title, message, data, channels = ['IN_APP'] } = notificationData;
+
+      // Get actual user_id (support both naming conventions)
+      let actualUserId = user_id || userId;
+
+      // If still no user_id and we have memberId, try to get from member service
+      if (!actualUserId && memberId) {
+        try {
+          const axios = require('axios');
+          const MEMBER_SERVICE_URL = process.env.MEMBER_SERVICE_URL || 'http://member:3002';
+          const memberResponse = await axios.get(`${MEMBER_SERVICE_URL}/members/${memberId}`, {
+            timeout: 5000,
+          });
+          if (memberResponse.data?.data?.member?.user_id || memberResponse.data?.data?.user_id) {
+            actualUserId = memberResponse.data.data.member?.user_id || memberResponse.data.data.user_id;
+          }
+        } catch (memberError) {
+          console.error('[ERROR] Failed to get user_id from member service:', memberError.message);
+        }
+      }
+
+      if (!actualUserId) {
+        console.error('[ERROR] Cannot create notification: user_id is missing', {
+          notificationData: {
+            type,
+            title,
+            hasUserId: !!user_id,
+            hasUserIdAlt: !!userId,
+            hasMemberId: !!memberId,
+          },
+        });
+        return { success: false, error: 'User ID is required but not provided' };
+      }
 
       // Create notification in database
       const notification = await prisma.notification.create({
         data: {
-          user_id,
+          user_id: actualUserId,
           type,
           title,
           message,
@@ -90,7 +123,7 @@ class NotificationWorker {
       // Send push notification if enabled
       if (channels.includes('PUSH')) {
         try {
-          await sendPushNotification(user_id, title, message, {
+          await sendPushNotification(actualUserId, title, message, {
             type,
             notification_id: notification.id,
             ...data,

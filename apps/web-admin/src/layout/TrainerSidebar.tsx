@@ -4,6 +4,7 @@ import {
   Calendar,
   ChevronDown,
   ClipboardList,
+  DollarSign,
   LayoutDashboard,
   Star,
   User,
@@ -133,6 +134,11 @@ const navItems: NavItem[] = [
       { name: 'Thống kê cá nhân', path: '/trainerdashboard/trainer-stats', pro: false },
       { name: 'Báo cáo hiệu suất', path: '/trainerdashboard/performance', pro: false },
     ],
+  },
+  {
+    name: 'Lương',
+    icon: <DollarSign className='w-5 h-5' />,
+    path: '/trainerdashboard/salary',
   },
 ];
 

@@ -16,10 +16,122 @@
     "daysAgo": "{{count}} ngày trước",
     "user": "Người dùng",
     "defaultUserName": "Người dùng",
+    "unknown": "Unknown",
     "prev": "Trước",
     "next": "Sau",
     "page": "Trang",
-    "of": "trong"
+    "of": "trong",
+    "status": {
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động",
+      "onLeave": "Nghỉ phép",
+      "terminated": "Đã chấm dứt"
+    },
+    "yes": "Có",
+    "no": "Không",
+    "processing": "Đang xử lý...",
+    "enterToConfirm": "Nhập \"{{text}}\" để xác nhận",
+    "pleaseEnterCorrect": "Vui lòng nhập đúng \"{{text}}\"",
+    "actions": {
+      "create": "Tạo",
+      "edit": "Chỉnh sửa",
+      "delete": "Xóa",
+      "save": "Lưu",
+      "update": "Cập nhật",
+      "view": "Xem",
+      "search": "Tìm kiếm",
+      "filter": "Lọc",
+      "refresh": "Làm mới",
+      "export": "Xuất",
+      "import": "Nhập",
+      "download": "Tải xuống",
+      "upload": "Tải lên",
+      "back": "Quay lại",
+      "submit": "Gửi",
+      "clear": "Xóa",
+      "apply": "Áp dụng",
+      "select": "Chọn",
+      "selectAll": "Chọn tất cả",
+      "deselectAll": "Bỏ chọn tất cả",
+      "add": "Thêm",
+      "remove": "Xóa",
+      "copy": "Sao chép",
+      "generate": "Tạo",
+      "markAsRead": "Đánh dấu đã đọc",
+      "markAsUnread": "Đánh dấu chưa đọc"
+    },
+    "messages": {
+      "createSuccess": "Tạo thành công",
+      "updateSuccess": "Cập nhật thành công",
+      "deleteSuccess": "Xóa thành công",
+      "saveSuccess": "Lưu thành công",
+      "loadError": "Không thể tải dữ liệu",
+      "saveError": "Không thể lưu",
+      "deleteError": "Không thể xóa",
+      "networkError": "Lỗi mạng. Vui lòng kiểm tra kết nối.",
+      "unauthorized": "Không có quyền truy cập",
+      "forbidden": "Truy cập bị cấm",
+      "notFound": "Không tìm thấy tài nguyên",
+      "serverError": "Lỗi máy chủ. Vui lòng thử lại sau.",
+      "validationError": "Lỗi xác thực",
+      "noData": "Không có dữ liệu",
+      "noResults": "Không tìm thấy kết quả",
+      "loading": "Đang tải...",
+      "processing": "Đang xử lý...",
+      "pleaseWait": "Vui lòng đợi...",
+      "confirmDelete": "Bạn có chắc chắn muốn xóa mục này?",
+      "confirmDeleteMessage": "Hành động này không thể hoàn tác.",
+      "cannotUndo": "Hành động này không thể hoàn tác"
+    },
+    "table": {
+      "actions": "Thao tác",
+      "noData": "Không có dữ liệu",
+      "loading": "Đang tải dữ liệu...",
+      "itemsPerPage": "Số mục mỗi trang",
+      "showing": "Hiển thị",
+      "to": "đến",
+      "of": "trong",
+      "results": "kết quả"
+    },
+    "filters": {
+      "all": "Tất cả",
+      "allCategories": "Tất cả danh mục",
+      "allStatuses": "Tất cả trạng thái",
+      "allTypes": "Tất cả loại",
+      "searchPlaceholder": "Tìm kiếm...",
+      "selectCategory": "Chọn danh mục",
+      "selectStatus": "Chọn trạng thái",
+      "selectType": "Chọn loại",
+      "dateFrom": "Từ ngày",
+      "dateTo": "Đến ngày",
+      "clearFilters": "Xóa bộ lọc",
+      "applyFilters": "Áp dụng bộ lọc"
+    },
+    "form": {
+      "required": "Trường này là bắt buộc",
+      "invalid": "Giá trị không hợp lệ",
+      "maxLength": "Tối đa {{count}} ký tự",
+      "minLength": "Tối thiểu {{count}} ký tự",
+      "invalidEmail": "Địa chỉ email không hợp lệ",
+      "invalidPhone": "Số điện thoại không hợp lệ",
+      "invalidUrl": "URL không hợp lệ",
+      "invalidDate": "Ngày không hợp lệ",
+      "save": "Lưu",
+      "cancel": "Hủy",
+      "submit": "Gửi",
+      "reset": "Đặt lại"
+    },
+    "status": {
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động",
+      "pending": "Đang chờ",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy",
+      "processing": "Đang xử lý",
+      "failed": "Thất bại",
+      "success": "Thành công",
+      "error": "Lỗi"
+    }
   },
   "user": {
     "menu": {
@@ -44,8 +156,27 @@
         "trainer": "Trainer",
         "member": "Member",
         "equipment": "Equipment",
+        "monthlyRevenue": "Doanh thu tháng",
         "newMembers": "Member mới (30 ngày)",
         "activeSessions": "Phiên hoạt động (24h)"
+      },
+      "charts": {
+        "revenue": {
+          "title": "Doanh thu & Thống kê",
+          "subtitle": "Biểu đồ doanh thu và thống kê tài chính"
+        },
+        "memberGrowth": {
+          "title": "Tăng trưởng Thành viên",
+          "subtitle": "Biểu đồ tăng trưởng thành viên theo thời gian"
+        },
+        "equipment": {
+          "title": "Sử dụng Thiết bị",
+          "subtitle": "Thống kê trạng thái thiết bị"
+        },
+        "classAttendance": {
+          "title": "Tham gia Lớp học",
+          "subtitle": "Thống kê tham gia các lớp học"
+        }
       },
       "quickActions": {
         "title": "Thao tác nhanh",
@@ -66,6 +197,7 @@
           "newMemberRegistered": "Member mới đăng ký",
           "newAdminRegistered": "Admin mới đăng ký",
           "loggedIn": "Đã đăng nhập bằng",
+          "loginAction": "đăng nhập",
           "at": "tại"
         },
         "roles": {
@@ -98,6 +230,23 @@
         "loadStatsFailed": "Không thể tải thống kê dashboard",
         "loadDataError": "Lỗi khi tải dữ liệu dashboard"
       }
+    },
+    "real": {
+      "subtitle": "Tổng quan hệ thống Gym 147",
+      "totalMembers": "Tổng thành viên",
+      "todayRevenue": "Doanh thu hôm nay",
+      "todaySchedule": "Lịch tập hôm nay",
+      "activeEquipment": "Thiết bị hoạt động",
+      "revenueChart": "Biểu đồ doanh thu",
+      "chartPlaceholder": "Chart placeholder",
+      "recentActivity": "Hoạt động gần đây",
+      "pending": "Đang chờ",
+      "sampleActivity1": "Nguyễn Văn A đăng ký gói tập",
+      "sampleTime1": "2 phút trước",
+      "sampleActivity2": "Trần Thị B thanh toán",
+      "sampleTime2": "15 phút trước",
+      "sampleActivity3": "Lê Văn C đặt lịch tập",
+      "sampleTime3": "1 giờ trước"
     },
     "superAdmin": {
       "title": "Super Admin Dashboard",
@@ -132,6 +281,7 @@
           "newAdminRegistered": "Admin mới",
           "newSuperAdminRegistered": "Super mới",
           "loggedIn": "Đã đăng nhập bằng",
+          "loginAction": "đăng nhập",
           "at": "tại"
         },
         "roles": {
@@ -148,61 +298,63 @@
     }
   },
   "userManagement": {
-    "title": "Quản lý Thành viên",
-    "subtitle": "Quản lý tài khoản người dùng trong hệ thống",
+    "title": "Quản lý Tài khoản",
+    "subtitle": "Quản lý tất cả tài khoản trong hệ thống (Admin, Trainer, Member)",
+    "loading": "Đang tải danh sách tài khoản...",
     "stats": {
-      "totalUsers": "Tổng Users",
+      "total": "Tổng số tài khoản",
       "active": "Đang hoạt động",
-      "inactive": "Không hoạt động"
-    },
-    "userList": {
-      "title": "Danh sách Users",
-      "noUsers": "Không tìm thấy user nào"
-    },
-    "search": {
-      "placeholder": "Tìm kiếm user..."
-    },
-    "filter": {
-      "allRoles": "Tất cả roles"
-    },
-    "roles": {
-      "superAdmin": "Super Admin",
-      "admin": "Admin",
-      "trainer": "Trainer",
-      "member": "Member"
-    },
-    "status": {
-      "active": "Hoạt động",
-      "inactive": "Không hoạt động"
-    },
-    "badges": {
-      "view": "Xem",
-      "members": "Thành viên",
-      "classes": "Lớp học",
-      "noEmail": "Chưa có email"
-    },
-    "empty": {
-      "selectUser": "Chọn một user để xem chi tiết",
-      "description": "Chi tiết thông tin sẽ được hiển thị ở đây",
-      "noUserFound": "Không tìm thấy user"
-    },
-    "userInfo": {
-      "firstName": "Tên",
-      "lastName": "Họ",
-      "email": "Email",
-      "phone": "Số điện thoại",
-      "notUpdated": "Chưa cập nhật"
+      "inactive": "Không hoạt động",
+      "newThisMonth": "Mới trong tháng"
     },
     "actions": {
-      "edit": "Chỉnh sửa",
-      "delete": "Xóa",
-      "deleteFeatureComing": "Chức năng xóa tài khoản đang được phát triển"
+      "refresh": "Làm mới",
+      "export": "Xuất dữ liệu",
+      "delete": "Xóa"
     },
-    "confirmDelete": "Bạn có chắc chắn muốn xóa user này?",
-    "deleteSuccess": "Xóa user thành công!",
-    "errors": {
-      "loadUsersFailed": "Lỗi tải danh sách users",
-      "deleteFailed": "Lỗi xóa user: {{error}}"
+    "filters": {
+      "searchPlaceholder": "Tìm kiếm tài khoản...",
+      "allRoles": "Tất cả vai trò",
+      "allStatuses": "Tất cả trạng thái",
+      "roles": {
+        "superAdmin": "Super Admin",
+        "admin": "Admin",
+        "trainer": "Trainer",
+        "member": "Member"
+      },
+      "statuses": {
+        "active": "Hoạt động",
+        "inactive": "Không hoạt động"
+      }
+    },
+    "table": {
+      "account": "Tài khoản",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "role": "Vai trò",
+      "status": "Trạng thái",
+      "createdAt": "Ngày tạo",
+      "actions": "Thao tác"
+    },
+    "empty": {
+      "noUsers": "Không có tài khoản nào",
+      "noResults": "Không tìm thấy tài khoản nào"
+    },
+    "delete": {
+      "title": "Xác nhận xóa tài khoản",
+      "message": "Bạn có chắc chắn muốn xóa tài khoản \"{{name}}\"? Hành động này không thể hoàn tác.",
+      "confirm": "Xóa"
+    },
+    "details": {
+      "title": "Chi tiết Tài khoản"
+    },
+    "messages": {
+      "networkError": "Network error: Cannot connect to API. Please check if services are running.",
+      "loadError": "Không thể tải danh sách tài khoản",
+      "deleteSuccess": "Xóa tài khoản thành công",
+      "deleteError": "Không thể xóa tài khoản",
+      "noUsersToExport": "No users to export",
+      "exportSuccess": "Đã xuất {{count}} tài khoản thành công"
     }
   },
   "equipmentManagement": {
@@ -243,7 +395,8 @@
     "actions": {
       "edit": "Sửa",
       "delete": "Xóa",
-      "view": "Xem"
+      "view": "Xem",
+      "generateQR": "Tạo QR Code"
     },
     "empty": {
       "noEquipment": "Không có thiết bị nào",
@@ -331,6 +484,17 @@
       "updateSuccess": "Cập nhật thiết bị thành công",
       "loadError": "Không thể tải danh sách thiết bị",
       "saveError": "Không thể lưu thiết bị"
+    },
+    "qrCode": {
+      "title": "Mã QR Thiết bị",
+      "loading": "Đang tạo mã QR...",
+      "error": "Không thể tạo mã QR",
+      "sensorId": "ID Cảm biến",
+      "download": "Tải xuống",
+      "instructions": {
+        "title": "Hướng dẫn",
+        "description": "In mã QR này và dán lên thiết bị. Member có thể quét mã QR bằng ứng dụng mobile để sử dụng thiết bị."
+      }
     }
   },
   "homepage": {
@@ -627,6 +791,2679 @@
       "span": "Bản đồ",
       "title": "VỊ TRÍ CỦA CHÚNG TÔI",
       "placeholder": "Bản đồ sẽ được hiển thị tại đây"
+    }
+  },
+  "sidebar": {
+    "menu": {
+      "userManagement": "Quản lý người dùng",
+      "allAccounts": "Tất cả tài khoản",
+      "members": "Thành viên",
+      "trainers": "Huấn luyện viên",
+      "personalTraining": "Huấn luyện cá nhân",
+      "guestPasses": "Thẻ Khách",
+      "servicesActivities": "Dịch vụ & Hoạt động",
+      "classes": "Lớp học",
+      "schedules": "Lịch tập",
+      "rooms": "Phòng tập",
+      "equipment": "Thiết bị",
+      "billing": "Thanh toán",
+      "gamification": "Gamification",
+      "challenges": "Thử thách",
+      "rewards": "Phần thưởng",
+      "redemptions": "Đổi thưởng",
+      "analytics": "Phân tích",
+      "reportsAnalytics": "Báo cáo & Phân tích",
+      "overview": "Tổng quan",
+      "userReports": "Báo cáo người dùng",
+      "memberReports": "Báo cáo thành viên",
+      "classReports": "Báo cáo lớp học",
+      "revenueReports": "Báo cáo doanh thu",
+      "equipmentReports": "Báo cáo thiết bị",
+      "systemReports": "Báo cáo hệ thống",
+      "scheduledReports": "Báo cáo đã lên lịch",
+      "systemSettings": "Cài đặt hệ thống",
+      "generalSettings": "Cài đặt chung",
+      "emailTemplates": "Mẫu Email",
+      "smsTemplates": "Mẫu SMS",
+      "apiKeys": "API Keys",
+      "webhooks": "Webhooks",
+      "auditLogs": "Audit Logs",
+      "backupRestore": "Backup & Restore",
+      "bulkNotifications": "Thông báo hàng loạt"
+    }
+  },
+  "guestManagement": {
+    "title": "Quản lý Thẻ Khách",
+    "subtitle": "Quản lý thẻ khách và khách mời",
+    "listTitle": "Danh sách Thẻ Khách"
+  },
+  "personalTraining": {
+    "title": "Huấn luyện cá nhân",
+    "subtitle": "Quản lý các buổi huấn luyện cá nhân"
+  },
+  "certification": {
+    "deleteReasons": {
+      "invalid": "Chứng chỉ không hợp lệ",
+      "expired": "Chứng chỉ đã hết hạn",
+      "not_meet_requirements": "Chứng chỉ không đúng yêu cầu",
+      "duplicate": "Chứng chỉ trùng lặp",
+      "other": "Lý do khác"
+    },
+    "categories": {
+      "CARDIO": "Tim mạch",
+      "STRENGTH": "Sức mạnh",
+      "YOGA": "Yoga",
+      "PILATES": "Pilates",
+      "DANCE": "Khiêu vũ",
+      "MARTIAL_ARTS": "Võ thuật",
+      "AQUA": "Bơi lội",
+      "FUNCTIONAL": "Chức năng",
+      "RECOVERY": "Phục hồi",
+      "SPECIALIZED": "Chuyên biệt"
+    }
+  },
+  "goals": {
+    "types": {
+      "classes": "Số lớp dạy",
+      "students": "Số học viên",
+      "rating": "Đánh giá trung bình",
+      "revenue": "Doanh thu",
+      "attendance": "Tỷ lệ tham gia",
+      "sessions": "Số buổi hoàn thành"
+    },
+    "units": {
+      "classes": "lớp",
+      "students": "học viên",
+      "rating": "sao",
+      "revenue": "VND",
+      "attendance": "%",
+      "sessions": "buổi"
+    }
+  },
+  "schedule": {
+    "categories": {
+      "CARDIO": "Cardio",
+      "STRENGTH": "Sức mạnh",
+      "YOGA": "Yoga",
+      "PILATES": "Pilates",
+      "DANCE": "Khiêu vũ",
+      "MARTIAL_ARTS": "Võ thuật",
+      "AQUA": "Bơi lội",
+      "FUNCTIONAL": "Chức năng",
+      "RECOVERY": "Phục hồi",
+      "SPECIALIZED": "Chuyên biệt"
+    },
+    "difficulty": {
+      "BEGINNER": "Người mới bắt đầu",
+      "INTERMEDIATE": "Trung bình",
+      "ADVANCED": "Nâng cao",
+      "ALL_LEVELS": "Tất cả cấp độ"
+    }
+  },
+  "enum": {
+    "role": {
+      "superAdmin": "Super Admin",
+      "admin": "Admin",
+      "trainer": "Huấn luyện viên",
+      "member": "Thành viên"
+    },
+    "equipmentStatus": {
+      "available": "Sẵn sàng",
+      "inUse": "Đang sử dụng",
+      "maintenance": "Bảo trì",
+      "outOfOrder": "Hỏng",
+      "reserved": "Đã đặt"
+    },
+    "equipmentCategory": {
+      "cardio": "Cardio",
+      "strength": "Sức mạnh",
+      "freeWeights": "Tạ tự do",
+      "functional": "Chức năng",
+      "stretching": "Kéo giãn",
+      "recovery": "Phục hồi",
+      "specialized": "Chuyên dụng"
+    },
+    "membershipStatus": {
+      "active": "Hoạt động",
+      "expired": "Hết hạn",
+      "suspended": "Tạm ngưng",
+      "cancelled": "Đã hủy",
+      "pending": "Đang chờ",
+      "inactive": "Không hoạt động"
+    },
+    "membershipType": {
+      "basic": "Cơ bản",
+      "premium": "Premium",
+      "vip": "VIP",
+      "student": "Sinh viên"
+    },
+    "trainerStatus": {
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động",
+      "onLeave": "Nghỉ phép",
+      "terminated": "Chấm dứt"
+    },
+    "classCategory": {
+      "cardio": "Tim mạch",
+      "strength": "Sức mạnh",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Khiêu vũ",
+      "martialArts": "Võ thuật",
+      "aqua": "Bơi lội",
+      "functional": "Chức năng",
+      "recovery": "Phục hồi",
+      "specialized": "Chuyên biệt"
+    },
+    "bookingStatus": {
+      "confirmed": "Đã xác nhận",
+      "cancelled": "Đã hủy",
+      "waitlist": "Chờ",
+      "noShow": "Không tham gia",
+      "completed": "Hoàn thành"
+    },
+    "scheduleStatus": {
+      "scheduled": "Đã lên lịch",
+      "inProgress": "Đang diễn ra",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy",
+      "postponed": "Hoãn"
+    },
+    "paymentStatus": {
+      "pending": "Đang chờ",
+      "processing": "Đang xử lý",
+      "completed": "Hoàn thành",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy",
+      "refunded": "Đã hoàn tiền",
+      "partiallyRefunded": "Hoàn tiền một phần"
+    },
+    "refundStatus": {
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "processed": "Đã xử lý",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
+    "refundReason": {
+      "cancellation": "Hủy đặt chỗ",
+      "downgrade": "Hạ cấp gói",
+      "other": "Khác"
+    },
+    "paymentMethod": {
+      "creditCard": "Thẻ tín dụng",
+      "debitCard": "Thẻ ghi nợ",
+      "bankTransfer": "Chuyển khoản",
+      "vnpay": "VNPay",
+      "momo": "MoMo",
+      "zaloPay": "ZaloPay",
+      "cash": "Tiền mặt",
+      "crypto": "Tiền điện tử"
+    },
+    "subscriptionStatus": {
+      "trial": "Dùng thử",
+      "active": "Hoạt động",
+      "pastDue": "Quá hạn",
+      "cancelled": "Đã hủy",
+      "expired": "Hết hạn",
+      "suspended": "Tạm ngưng",
+      "pending": "Đang chờ"
+    },
+    "queueStatus": {
+      "waiting": "Đang chờ",
+      "notified": "Đã thông báo",
+      "expired": "Hết hạn",
+      "cancelled": "Đã hủy",
+      "completed": "Hoàn thành"
+    },
+    "issueType": {
+      "broken": "Hỏng",
+      "damaged": "Hư hỏng",
+      "dirty": "Bẩn",
+      "missingParts": "Thiếu phụ tùng",
+      "unsafe": "Không an toàn",
+      "other": "Khác"
+    },
+    "severity": {
+      "low": "Thấp",
+      "medium": "Trung bình",
+      "high": "Cao",
+      "critical": "Nghiêm trọng"
+    },
+    "reportStatus": {
+      "pending": "Đang chờ",
+      "inProgress": "Đang xử lý",
+      "resolved": "Đã giải quyết",
+      "closed": "Đã đóng",
+      "rejected": "Từ chối"
+    },
+    "certificationLevel": {
+      "basic": "Cơ bản",
+      "intermediate": "Trung cấp",
+      "advanced": "Nâng cao",
+      "expert": "Chuyên gia"
+    },
+    "verificationStatus": {
+      "pending": "Đang chờ",
+      "verified": "Đã xác thực",
+      "rejected": "Từ chối",
+      "expired": "Hết hạn",
+      "suspended": "Tạm ngưng"
+    },
+    "difficulty": {
+      "beginner": "Người mới bắt đầu",
+      "intermediate": "Trung bình",
+      "advanced": "Nâng cao",
+      "allLevels": "Tất cả cấp độ",
+      "expert": "Chuyên gia"
+    },
+    "gender": {
+      "male": "Nam",
+      "female": "Nữ",
+      "other": "Khác"
+    },
+    "accessMethod": {
+      "rfid": "RFID",
+      "qrCode": "Mã QR",
+      "faceRecognition": "Nhận diện khuôn mặt",
+      "manual": "Thủ công",
+      "mobileApp": "Ứng dụng di động"
+    }
+  },
+  "memberManagement": {
+    "title": "Quản lý Khách hàng",
+    "subtitle": "Quản lý tất cả khách hàng (thành viên) trong hệ thống",
+    "stats": {
+      "total": "Tổng số khách hàng",
+      "active": "Đang hoạt động",
+      "inactive": "Không hoạt động",
+      "newThisMonth": "Mới trong tháng"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm khách hàng..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động"
+    },
+    "table": {
+      "name": "Khách hàng",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "membershipType": "Gói thành viên",
+      "status": "Trạng thái",
+      "createdAt": "Ngày tạo",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "view": "Xem chi tiết",
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "export": "Xuất dữ liệu",
+      "bulkActivate": "Kích hoạt",
+      "bulkDeactivate": "Vô hiệu hóa",
+      "bulkEmail": "Gửi email"
+    },
+    "empty": {
+      "noMembers": "Không có khách hàng nào",
+      "noResults": "Không tìm thấy khách hàng nào",
+      "noMembersDescription": "Chưa có khách hàng trong hệ thống"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách thành viên",
+      "loading": "Đang tải danh sách thành viên...",
+      "deleteSuccess": "Xóa khách hàng thành công",
+      "deleteError": "Không thể xóa khách hàng",
+      "exportSuccess": "Xuất danh sách thành viên thành công",
+      "confirmDelete": "Bạn có chắc chắn muốn xóa {{count}} khách hàng?",
+      "bulkDeleteSuccess": "Đã xóa {{count}} khách hàng thành công",
+      "bulkDeleteError": "Không thể xóa một số khách hàng",
+      "bulkActivateSuccess": "Đã kích hoạt {{count}} khách hàng",
+      "bulkActivateError": "Không thể kích hoạt một số khách hàng",
+      "bulkDeactivateSuccess": "Đã vô hiệu hóa {{count}} khách hàng",
+      "bulkDeactivateError": "Không thể vô hiệu hóa một số khách hàng",
+      "bulkEmailSuccess": "Đã mở email client với {{count}} người nhận",
+      "bulkEmailError": "Không có email nào để gửi"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa khách hàng",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa khách hàng \"{{name}}\"? Hành động này không thể hoàn tác."
+    },
+    "details": {
+      "title": "Chi tiết Khách hàng"
+    },
+    "export": {
+      "title": "Danh sách Khách hàng"
+    }
+  },
+  "trainerManagement": {
+    "title": "Quản lý Huấn luyện viên",
+    "subtitle": "Quản lý tất cả huấn luyện viên trong hệ thống",
+    "stats": {
+      "total": "Tổng Huấn luyện viên",
+      "active": "Đang hoạt động",
+      "inactive": "Không hoạt động",
+      "pendingCertifications": "Chứng chỉ đang chờ",
+      "totalClasses": "Tổng số lớp học"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm huấn luyện viên theo tên, email..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "allSpecializations": "Tất cả chuyên môn",
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động"
+    },
+    "table": {
+      "name": "Tên",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "contact": "Liên hệ",
+      "specializations": "Chuyên môn",
+      "status": "Trạng thái",
+      "certifications": "Chứng chỉ",
+      "actions": "Thao tác",
+      "experience": "Kinh nghiệm",
+      "rating": "Đánh giá",
+      "classes": "Lớp học",
+      "hourlyRate": "Giá/giờ"
+    },
+    "actions": {
+      "view": "Xem",
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "viewCertifications": "Xem Chứng chỉ",
+      "reviewCertification": "Xem xét Chứng chỉ"
+    },
+    "form": {
+      "addTitle": "Thêm Huấn luyện viên Mới",
+      "editTitle": "Sửa Huấn luyện viên",
+      "fullName": "Họ và tên",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "bio": "Tiểu sử",
+      "experienceYears": "Số năm kinh nghiệm",
+      "hourlyRate": "Giá theo giờ",
+      "status": "Trạng thái",
+      "specializations": "Chuyên môn"
+    },
+    "empty": {
+      "noTrainers": "Không tìm thấy huấn luyện viên nào",
+      "noResults": "Không có huấn luyện viên nào phù hợp với tiêu chí tìm kiếm",
+      "noTrainersDescription": "Tạo tài khoản trainer mới để bắt đầu quản lý huấn luyện viên"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách huấn luyện viên",
+      "loading": "Đang tải danh sách trainer...",
+      "createSuccess": "Tạo huấn luyện viên thành công",
+      "updateSuccess": "Cập nhật huấn luyện viên thành công",
+      "deleteSuccess": "Xóa huấn luyện viên thành công",
+      "deleteError": "Không thể xóa huấn luyện viên"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa huấn luyện viên",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa huấn luyện viên \"{{name}}\"? Hành động này không thể hoàn tác."
+    },
+    "total": "Tổng cộng: {{count}} huấn luyện viên",
+    "export": {
+      "filename": "danh-sach-huan-luyen-vien",
+      "title": "Danh sách Huấn luyện viên"
+    }
+  },
+  "classManagement": {
+    "title": "Quản lý Lớp học",
+    "subtitle": "Quản lý tất cả lớp học trong phòng gym",
+    "addClass": "Thêm lớp học",
+    "stats": {
+      "totalClasses": "Tổng số lớp học",
+      "activeClasses": "Lớp đang hoạt động",
+      "totalCapacity": "Tổng sức chứa",
+      "differentCategories": "Danh mục khác nhau"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm lớp học..."
+    },
+    "filter": {
+      "allCategories": "Tất cả danh mục",
+      "allDifficulties": "Tất cả cấp độ",
+      "allStatuses": "Tất cả trạng thái",
+      "difficulty": "Độ khó",
+      "status": "Trạng thái"
+    },
+    "table": {
+      "name": "Tên",
+      "category": "Danh mục",
+      "difficulty": "Cấp độ",
+      "duration": "Thời lượng",
+      "maxCapacity": "Sức chứa tối đa",
+      "price": "Giá",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "addTitle": "Thêm Lớp học Mới",
+      "editTitle": "Sửa Lớp học",
+      "name": "Tên lớp học",
+      "nameRequired": "Tên lớp học là bắt buộc",
+      "nameMaxLength": "Tên lớp học không được quá 100 ký tự",
+      "description": "Mô tả",
+      "category": "Danh mục",
+      "categoryRequired": "Danh mục là bắt buộc",
+      "difficulty": "Cấp độ",
+      "difficultyRequired": "Cấp độ là bắt buộc",
+      "duration": "Thời lượng (phút)",
+      "durationRequired": "Thời lượng là bắt buộc",
+      "durationMin": "Thời lượng phải ít nhất 15 phút",
+      "durationMax": "Thời lượng không được quá 180 phút",
+      "maxCapacity": "Sức chứa tối đa",
+      "maxCapacityRequired": "Sức chứa tối đa là bắt buộc",
+      "price": "Giá",
+      "isActive": "Hoạt động"
+    },
+    "difficulty": {
+      "beginner": "Cơ bản",
+      "intermediate": "Trung bình",
+      "advanced": "Nâng cao",
+      "allLevels": "Tất cả cấp độ"
+    },
+    "status": {
+      "paused": "Tạm dừng"
+    },
+    "people": "người",
+    "minutes": "phút",
+    "vnd": "VNĐ",
+    "free": "Miễn phí",
+    "empty": {
+      "noClasses": "Không tìm thấy lớp học nào",
+      "noResults": "Không có lớp học nào phù hợp với tiêu chí tìm kiếm"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách lớp học",
+      "loading": "Đang tải danh sách lớp học...",
+      "createSuccess": "Tạo lớp học thành công",
+      "updateSuccess": "Cập nhật lớp học thành công",
+      "deleteSuccess": "Xóa lớp học thành công",
+      "deleteError": "Không thể xóa lớp học",
+      "saveError": "Không thể lưu lớp học"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa lớp học",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa lớp học \"{{name}}\"? Hành động này không thể hoàn tác."
+    },
+    "total": "Tổng cộng: {{count}} lớp học",
+    "export": {
+      "filename": "danh-sach-lop-hoc",
+      "title": "Danh sách Lớp học"
+    },
+    "actions": {
+      "view": "Xem lớp",
+      "edit": "Sửa",
+      "delete": "Xóa"
+    }
+  },
+  "scheduleManagement": {
+    "title": "Quản lý Lịch tập",
+    "subtitle": "Quản lý lịch tập và booking của thành viên",
+    "createSchedule": "Tạo lịch mới",
+    "stats": {
+      "totalSchedules": "Tổng lịch tập",
+      "scheduled": "Đã lên lịch",
+      "inProgress": "Đang diễn ra",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm lớp học, phòng..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "allClassTypes": "Tất cả loại lớp",
+      "selectDate": "Chọn ngày",
+      "clearDateFilter": "Xóa bộ lọc ngày"
+    },
+    "table": {
+      "class": "Lớp học",
+      "room": "Phòng",
+      "dateTime": "Ngày giờ",
+      "capacity": "Số lượng",
+      "status": "Trạng thái"
+    },
+    "status": {
+      "scheduled": "Đã lên lịch",
+      "inProgress": "Đang diễn ra",
+      "completed": "Hoàn thành",
+      "cancelled": "Đã hủy",
+      "postponed": "Hoãn lại"
+    },
+    "empty": {
+      "noSchedules": "Không có lịch tập nào",
+      "createNew": "Tạo lịch tập mới để bắt đầu"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách lịch tập",
+      "loading": "Đang tải danh sách lịch tập...",
+      "createSuccess": "Tạo lịch tập thành công",
+      "updateSuccess": "Cập nhật lịch tập thành công",
+      "deleteSuccess": "Xóa lịch tập thành công",
+      "deleteError": "Không thể xóa lịch tập",
+      "saveError": "Không thể lưu lịch tập"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa lịch tập",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa lịch tập \"{{name}}\"? Hành động này không thể hoàn tác."
+    },
+    "export": {
+      "filename": "danh-sach-lich-tap",
+      "title": "Danh sách Lịch tập"
+    },
+    "actions": {
+      "edit": "Sửa",
+      "delete": "Xóa"
+    }
+  },
+  "roomManagement": {
+    "title": "Quản lý Phòng tập",
+    "subtitle": "Quản lý tất cả phòng tập",
+    "addRoom": "Thêm phòng tập",
+    "stats": {
+      "totalRooms": "Tổng Phòng",
+      "availableRooms": "Sẵn sàng",
+      "occupiedRooms": "Đang sử dụng",
+      "totalCapacity": "Tổng Sức chứa"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm phòng tập..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái"
+    },
+    "status": {
+      "AVAILABLE": "Sẵn sàng",
+      "OCCUPIED": "Đang sử dụng",
+      "MAINTENANCE": "Bảo trì",
+      "CLEANING": "Đang dọn dẹp",
+      "RESERVED": "Đã đặt"
+    },
+    "table": {
+      "name": "Tên phòng",
+      "capacity": "Sức chứa",
+      "area": "Diện tích (m²)",
+      "status": "Trạng thái",
+      "equipment": "Thiết bị",
+      "amenities": "Tiện ích",
+      "actions": "Thao tác"
+    },
+    "capacityUnit": "người",
+    "form": {
+      "addTitle": "Thêm Phòng tập Mới",
+      "editTitle": "Sửa Phòng tập",
+      "name": "Tên phòng",
+      "nameRequired": "Tên phòng là bắt buộc",
+      "capacity": "Sức chứa",
+      "capacityRequired": "Sức chứa là bắt buộc",
+      "area": "Diện tích (m²)",
+      "status": "Trạng thái",
+      "equipment": "Thiết bị",
+      "amenities": "Tiện ích"
+    },
+    "empty": {
+      "noRooms": "Không tìm thấy phòng tập nào",
+      "noResults": "Không có phòng tập nào phù hợp với tiêu chí tìm kiếm",
+      "addFirstRoom": "Thêm phòng tập đầu tiên"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách phòng tập",
+      "loading": "Đang tải danh sách phòng...",
+      "createSuccess": "Tạo phòng tập thành công",
+      "updateSuccess": "Cập nhật phòng tập thành công",
+      "deleteSuccess": "Xóa phòng tập thành công",
+      "deleteError": "Không thể xóa phòng tập",
+      "saveError": "Không thể lưu phòng tập",
+      "exportSuccess": "Đã xuất danh sách phòng tập"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa phòng tập",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa phòng tập \"{{name}}\"? Hành động này không thể hoàn tác."
+    },
+    "export": {
+      "filename": "danh-sach-phong-tap",
+      "title": "Danh sách Phòng tập",
+      "exportExcel": "Xuất Excel"
+    },
+    "import": {
+      "title": "Nhập Phòng tập",
+      "selectFile": "Chọn file CSV",
+      "preview": "Xem trước Nhập",
+      "validateErrors": "Lỗi xác thực trong file CSV",
+      "row": "Dòng {{index}}",
+      "importCSV": "Nhập CSV",
+      "invalidFile": "Định dạng file không hợp lệ. Vui lòng chọn file CSV.",
+      "csvErrors": "File CSV chứa {{count}} lỗi",
+      "readError": "Không thể đọc file CSV",
+      "complete": "Nhập hoàn tất: {{success}} thành công, {{error}} thất bại",
+      "importError": "Không thể nhập phòng tập",
+      "previewTitle": "Xem trước Nhập",
+      "importing": "Đang nhập...",
+      "importButton": "Nhập {{count}} Phòng",
+      "previewMessage": "{{count}} phòng sẵn sàng để nhập",
+      "errors": "Lỗi"
+    },
+    "actions": {
+      "viewDetails": "Xem chi tiết",
+      "edit": "Sửa",
+      "delete": "Xóa"
+    },
+    "empty": {
+      "noRooms": "Không tìm thấy phòng tập nào",
+      "noResults": "Không có phòng tập nào phù hợp với tiêu chí tìm kiếm",
+      "addFirstRoom": "Thêm phòng tập đầu tiên"
+    }
+  },
+  "billingManagement": {
+    "title": "Quản lý Thanh toán",
+    "subtitle": "Quản lý gói đăng ký, kế hoạch và thanh toán",
+    "tabs": {
+      "overview": "Tổng quan",
+      "plans": "Gói tập",
+      "subscriptions": "Đăng ký",
+      "payments": "Thanh toán"
+    },
+    "stats": {
+      "totalRevenue": "Tổng doanh thu",
+      "monthlyRevenue": "Doanh thu tháng",
+      "activeSubscriptions": "Đăng ký đang hoạt động",
+      "pendingPayments": "Thanh toán chờ xử lý"
+    },
+    "plans": {
+      "title": "Gói Thành viên",
+      "addPlan": "Thêm Gói",
+      "table": {
+        "name": "Tên Gói",
+        "type": "Loại",
+        "duration": "Thời hạn",
+        "price": "Giá",
+        "features": "Tính năng",
+        "status": "Trạng thái",
+        "actions": "Thao tác"
+      }
+    },
+    "subscriptions": {
+      "title": "Đăng ký",
+      "search": {
+        "placeholder": "Tìm kiếm đăng ký..."
+      },
+      "table": {
+        "member": "Thành viên",
+        "plan": "Gói tập",
+        "startDate": "Ngày bắt đầu",
+        "endDate": "Ngày kết thúc",
+        "status": "Trạng thái",
+        "actions": "Thao tác"
+      },
+      "empty": {
+        "noSubscriptions": "Không có đăng ký nào",
+        "tryDifferentFilters": "Thử tìm kiếm hoặc lọc khác",
+        "noSubscriptionsInSystem": "Chưa có đăng ký nào trong hệ thống"
+      },
+      "messages": {
+        "loading": "Đang tải danh sách đăng ký..."
+      },
+      "export": {
+        "filename": "danh-sach-dang-ky",
+        "title": "Danh sách Đăng ký"
+      }
+    },
+    "payments": {
+      "title": "Thanh toán",
+      "search": {
+        "placeholder": "Tìm kiếm thanh toán..."
+      },
+      "table": {
+        "member": "Thành viên",
+        "amount": "Số tiền",
+        "method": "Phương thức",
+        "status": "Trạng thái",
+        "date": "Ngày thanh toán",
+        "actions": "Thao tác"
+      },
+      "empty": {
+        "noPayments": "Không có thanh toán nào",
+        "tryDifferentFilters": "Thử tìm kiếm hoặc lọc khác",
+        "noPaymentsInSystem": "Chưa có thanh toán nào trong hệ thống"
+      },
+      "messages": {
+        "loading": "Đang tải danh sách thanh toán..."
+      },
+      "export": {
+        "filename": "danh-sach-thanh-toan",
+        "title": "Danh sách Thanh toán"
+      }
+    },
+    "messages": {
+      "loadError": "Không thể tải dữ liệu thanh toán",
+      "loadAnalyticsError": "Không thể tải dữ liệu phân tích",
+      "loadingOverview": "Đang tải dữ liệu tổng quan...",
+      "exportSuccess": "Xuất báo cáo thành công",
+      "featureComing": "Tính năng đang phát triển"
+    },
+    "errors": {
+      "serviceUnavailable": "Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.",
+      "timeout": "Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.",
+      "loadDataError": "Không thể tải dữ liệu {{tab}}"
+    },
+    "filter": {
+      "all": "Tất cả"
+    },
+    "status": {
+      "active": "Đang hoạt động",
+      "expired": "Hết hạn",
+      "cancelled": "Đã hủy",
+      "suspended": "Tạm ngưng"
+    },
+    "paymentStatus": {
+      "paid": "Đã thanh toán",
+      "pending": "Chờ xử lý",
+      "failed": "Thất bại",
+      "refunded": "Đã hoàn tiền"
+    },
+    "actions": {
+      "createPlan": "Tạo gói mới",
+      "addNew": "Thêm mới",
+      "viewDetails": "Xem chi tiết",
+      "edit": "Sửa"
+    },
+    "filter": {
+      "all": "Tất cả",
+      "byStatus": "Lọc theo trạng thái"
+    }
+  },
+  "refundManagement": {
+    "title": "Quản lý Hoàn tiền",
+    "subtitle": "Duyệt và xử lý các yêu cầu hoàn tiền",
+    "search": {
+      "placeholder": "Tìm kiếm hoàn tiền..."
+    },
+    "filter": {
+      "all": "Tất cả",
+      "status": "Lọc theo trạng thái",
+      "reason": "Lọc theo lý do"
+    },
+    "status": {
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "processed": "Đã xử lý",
+      "failed": "Thất bại",
+      "cancelled": "Đã hủy"
+    },
+    "reason": {
+      "cancellation": "Hủy đặt chỗ",
+      "downgrade": "Hạ cấp gói",
+      "other": "Khác"
+    },
+    "stats": {
+      "total": "Tổng số",
+      "pending": "Chờ duyệt",
+      "approved": "Đã duyệt",
+      "processed": "Đã xử lý"
+    },
+    "actions": {
+      "approve": "Duyệt",
+      "process": "Xử lý",
+      "view": "Xem chi tiết"
+    },
+    "messages": {
+      "loading": "Đang tải danh sách hoàn tiền...",
+      "noRefunds": "Không có yêu cầu hoàn tiền nào",
+      "approveSuccess": "Duyệt hoàn tiền thành công",
+      "processSuccess": "Xử lý hoàn tiền thành công"
+    },
+    "errors": {
+      "loadDataError": "Không thể tải dữ liệu hoàn tiền",
+      "approveError": "Không thể duyệt hoàn tiền",
+      "processError": "Không thể xử lý hoàn tiền"
+    },
+    "confirm": {
+      "approveTitle": "Xác nhận duyệt hoàn tiền",
+      "processTitle": "Xác nhận xử lý hoàn tiền",
+      "approve": "Bạn có chắc chắn muốn duyệt hoàn tiền {{amount}}?",
+      "process": "Bạn có chắc chắn muốn xử lý hoàn tiền {{amount}}?"
+    },
+    "detail": {
+      "title": "Chi tiết Hoàn tiền",
+      "memberInfo": "Thông tin thành viên",
+      "memberName": "Họ tên",
+      "memberEmail": "Email",
+      "refundInfo": "Thông tin hoàn tiền",
+      "amount": "Số tiền",
+      "reason": "Lý do",
+      "requestedBy": "Người yêu cầu",
+      "approvedBy": "Người duyệt",
+      "processedBy": "Người xử lý",
+      "transactionId": "Mã giao dịch",
+      "createdAt": "Ngày tạo",
+      "processedAt": "Ngày xử lý",
+      "notes": "Ghi chú",
+      "timeline": "Lịch sử",
+      "by": "Bởi",
+      "paymentInfo": "Thông tin thanh toán",
+      "paymentId": "Mã thanh toán",
+      "paymentAmount": "Số tiền thanh toán"
+    }
+  },
+  "challengeManagement": {
+    "title": "Quản lý Thử thách",
+    "subtitle": "Tạo động lực cho thành viên với các thử thách hấp dẫn",
+    "addChallenge": "Tạo thử thách mới",
+    "search": {
+      "placeholder": "Tìm kiếm thử thách..."
+    },
+    "filter": {
+      "allTypes": "Tất cả loại",
+      "allCategories": "Tất cả danh mục",
+      "allStatuses": "Tất cả trạng thái"
+    },
+    "table": {
+      "title": "Tiêu đề",
+      "type": "Loại",
+      "category": "Danh mục",
+      "target": "Mục tiêu",
+      "reward": "Điểm thưởng",
+      "startDate": "Ngày bắt đầu",
+      "endDate": "Ngày kết thúc",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "addTitle": "Thêm Thử thách Mới",
+      "editTitle": "Sửa Thử thách",
+      "title": "Tiêu đề Thử thách",
+      "description": "Mô tả",
+      "type": "Loại",
+      "category": "Danh mục",
+      "targetValue": "Giá trị Mục tiêu",
+      "targetUnit": "Đơn vị Mục tiêu",
+      "rewardPoints": "Điểm Thưởng",
+      "startDate": "Ngày bắt đầu",
+      "endDate": "Ngày kết thúc",
+      "isPublic": "Công khai",
+      "maxParticipants": "Số người tham gia tối đa"
+    },
+    "stats": {
+      "total": "Tổng số thử thách",
+      "active": "Đang hoạt động",
+      "participants": "Người tham gia",
+      "totalRewards": "Tổng điểm thưởng",
+      "totalCount": "Tổng cộng: {{count}} thử thách"
+    },
+    "categories": {
+      "ATTENDANCE": "Tham gia",
+      "FITNESS": "Thể lực",
+      "EQUIPMENT": "Thiết bị",
+      "SOCIAL": "Xã hội"
+    },
+    "types": {
+      "DAILY": "Hàng ngày",
+      "WEEKLY": "Hàng tuần",
+      "MONTHLY": "Hàng tháng",
+      "CUSTOM": "Tùy chỉnh"
+    },
+    "empty": {
+      "noChallenges": "Không có thử thách nào",
+      "noResults": "Không tìm thấy thử thách nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách thử thách",
+      "loading": "Đang tải danh sách thử thách...",
+      "createSuccess": "Tạo thử thách \"{{name}}\" thành công!",
+      "createError": "Không thể tạo thử thách",
+      "updateSuccess": "Cập nhật thử thách \"{{name}}\" thành công!",
+      "updateError": "Không thể cập nhật thử thách",
+      "deleteSuccess": "Xóa thử thách \"{{name}}\" thành công!",
+      "deleteError": "Không thể xóa thử thách",
+      "saveError": "Không thể lưu thử thách",
+      "idNotFound": "Lỗi: Không tìm thấy ID thử thách. Vui lòng làm mới trang và thử lại."
+    },
+    "form": {
+      "titleRequired": "Tiêu đề là bắt buộc",
+      "descriptionRequired": "Mô tả là bắt buộc",
+      "targetValueRequired": "Giá trị mục tiêu phải lớn hơn 0",
+      "rewardPointsInvalid": "Điểm thưởng không được âm",
+      "endDateAfterStart": "Ngày kết thúc phải sau ngày bắt đầu"
+    },
+    "export": {
+      "filename": "danh-sach-thu-thach",
+      "title": "Danh sách Thử thách"
+    }
+  },
+  "rewardManagement": {
+    "title": "Quản lý Phần thưởng",
+    "subtitle": "Tạo và quản lý các phần thưởng hấp dẫn cho thành viên",
+    "addReward": "Tạo phần thưởng mới",
+    "search": {
+      "placeholder": "Tìm kiếm phần thưởng..."
+    },
+    "filter": {
+      "allCategories": "Tất cả danh mục",
+      "allStatuses": "Tất cả trạng thái",
+      "minPoints": "Điểm tối thiểu",
+      "maxPoints": "Điểm tối đa"
+    },
+    "table": {
+      "title": "Tiêu đề",
+      "category": "Danh mục",
+      "type": "Loại",
+      "pointsCost": "Giá Điểm",
+      "stock": "Tồn kho",
+      "validFrom": "Có hiệu lực từ",
+      "validUntil": "Có hiệu lực đến",
+      "status": "Trạng thái",
+      "actions": "Thao tác",
+      "redemptions": "Số lần đổi"
+    },
+    "form": {
+      "addTitle": "Thêm Phần thưởng Mới",
+      "editTitle": "Sửa Phần thưởng",
+      "title": "Tiêu đề Phần thưởng",
+      "description": "Mô tả",
+      "category": "Danh mục",
+      "pointsCost": "Giá Điểm",
+      "image": "Hình ảnh",
+      "discountPercent": "Giảm giá %",
+      "discountAmount": "Số tiền Giảm giá",
+      "rewardType": "Loại Phần thưởng",
+      "stockQuantity": "Số lượng Tồn kho",
+      "redemptionLimit": "Giới hạn Đổi thưởng",
+      "validFrom": "Có hiệu lực từ",
+      "validUntil": "Có hiệu lực đến",
+      "termsConditions": "Điều khoản & Điều kiện"
+    },
+    "stats": {
+      "total": "Tổng số phần thưởng",
+      "active": "Đang hoạt động",
+      "totalRedemptions": "Tổng lượt đổi",
+      "totalPointsSpent": "Tổng điểm đã đổi",
+      "totalCount": "Tổng cộng: {{count}} phần thưởng"
+    },
+    "categories": {
+      "DISCOUNT": "Giảm giá",
+      "FREE_CLASS": "Lớp học miễn phí",
+      "MERCHANDISE": "Sản phẩm",
+      "MEMBERSHIP_EXTENSION": "Gia hạn",
+      "PREMIUM_FEATURE": "Tính năng Premium",
+      "OTHER": "Khác"
+    },
+    "rewardTypes": {
+      "PERCENTAGE_DISCOUNT": "Giảm %",
+      "FIXED_AMOUNT_DISCOUNT": "Giảm VND",
+      "FREE_ITEM": "Sản phẩm miễn phí",
+      "MEMBERSHIP_UPGRADE": "Nâng cấp",
+      "PREMIUM_FEATURE_ACCESS": "Tính năng Premium",
+      "CASHBACK": "Hoàn tiền",
+      "OTHER": "Khác"
+    },
+    "empty": {
+      "noRewards": "Không có phần thưởng nào",
+      "noResults": "Không tìm thấy phần thưởng nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách phần thưởng",
+      "loading": "Đang tải danh sách phần thưởng...",
+      "createSuccess": "Tạo phần thưởng \"{{name}}\" thành công!",
+      "createError": "Không thể tạo phần thưởng",
+      "updateSuccess": "Cập nhật phần thưởng \"{{name}}\" thành công!",
+      "updateError": "Không thể cập nhật phần thưởng",
+      "deleteSuccess": "Xóa phần thưởng \"{{name}}\" thành công!",
+      "deleteError": "Không thể xóa phần thưởng",
+      "saveError": "Không thể lưu phần thưởng",
+      "uploadImageError": "Không thể tải lên hình ảnh",
+      "statusUpdateSuccess": "Đã {{action}} phần thưởng \"{{name}}\" thành công!",
+      "statusUpdateError": "Không thể cập nhật trạng thái"
+    },
+    "form": {
+      "titleRequired": "Tiêu đề là bắt buộc",
+      "descriptionRequired": "Mô tả là bắt buộc",
+      "pointsCostRequired": "Điểm phải lớn hơn 0",
+      "onlyOneDiscountType": "Chỉ được chọn một loại giảm giá (phần trăm HOẶC số tiền)",
+      "discountPercentRange": "Phần trăm giảm giá phải từ 0 đến 100",
+      "discountAmountInvalid": "Số tiền giảm giá không được âm",
+      "stockQuantityInvalid": "Số lượng tồn kho không được âm",
+      "redemptionLimitInvalid": "Giới hạn đổi không được âm",
+      "validUntilAfterValidFrom": "Ngày kết thúc phải sau ngày bắt đầu",
+      "selectCategory": "Chọn danh mục",
+      "selectType": "Chọn loại",
+      "changeImage": "Thay đổi",
+      "uploadImage": "Tải lên hình ảnh",
+      "imageUploadHint": "Tối đa 5MB. Định dạng: JPG, PNG, GIF, WebP",
+      "termsConditionsPlaceholder": "Điều khoản và điều kiện..."
+    },
+    "actions": {
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "create": "Tạo mới",
+      "update": "Cập nhật",
+      "activate": "kích hoạt",
+      "deactivate": "vô hiệu hóa"
+    },
+    "delete": {
+      "confirmTitle": "Xóa Phần thưởng",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa phần thưởng \"{{name}}\"?"
+    },
+    "export": {
+      "filename": "danh-sach-phan-thuong",
+      "title": "Danh sách Phần thưởng"
+    }
+  },
+  "redemptionManagement": {
+    "title": "Quản lý Đổi thưởng",
+    "subtitle": "Theo dõi và quản lý lịch sử đổi quà của thành viên",
+    "search": {
+      "placeholder": "Tìm kiếm theo mã, thành viên, phần thưởng..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "memberId": "ID Thành viên",
+      "rewardId": "ID Phần thưởng"
+    },
+    "table": {
+      "code": "Mã đổi",
+      "member": "Thành viên",
+      "reward": "Phần thưởng",
+      "pointsSpent": "Điểm đã đổi",
+      "redeemedAt": "Ngày đổi",
+      "usedAt": "Ngày sử dụng",
+      "expiresAt": "Hết hạn",
+      "time": "Thời gian",
+      "status": "Trạng thái",
+      "actions": "Thao tác",
+      "notes": "Ghi chú"
+    },
+    "stats": {
+      "total": "Tổng số đơn",
+      "active": "Đang hoạt động",
+      "used": "Đã sử dụng",
+      "expired": "Hết hạn",
+      "refunded": "Đã hoàn trả",
+      "totalPointsSpent": "Tổng điểm đổi",
+      "totalCount": "Tổng cộng: {{count}} đơn đổi thưởng"
+    },
+    "status": {
+      "PENDING": "Chờ xử lý",
+      "ACTIVE": "Đang hoạt động",
+      "USED": "Đã sử dụng",
+      "EXPIRED": "Hết hạn",
+      "CANCELLED": "Đã hủy",
+      "REFUNDED": "Đã hoàn trả"
+    },
+    "actions": {
+      "viewDetails": "Chi tiết",
+      "refund": "Hoàn trả",
+      "copyCode": "Copy mã",
+      "markAsUsed": "Đánh dấu đã dùng"
+    },
+    "empty": {
+      "noRedemptions": "Không có đơn đổi thưởng nào",
+      "noResults": "Không tìm thấy đơn đổi thưởng nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách đổi thưởng",
+      "loading": "Đang tải danh sách đổi thưởng...",
+      "refundSuccess": "Hoàn trả {{points}} điểm thành công",
+      "refundError": "Không thể hoàn trả đổi thưởng",
+      "copyCodeSuccess": "Đã copy mã!",
+      "markAsUsedSuccess": "Đã đánh dấu đã sử dụng",
+      "markAsUsedError": "Không thể đánh dấu"
+    },
+    "refund": {
+      "title": "Hoàn trả Điểm",
+      "reason": "Lý do hoàn trả",
+      "reasonRequired": "Lý do hoàn trả là bắt buộc",
+      "reasonPlaceholder": "Nhập lý do hoàn trả...",
+      "confirmText": "Hoàn trả ngay",
+      "confirmMessage": "Bạn có chắc chắn muốn hoàn trả {{points}} điểm cho thành viên {{member}}?"
+    },
+    "export": {
+      "filename": "danh-sach-doi-thuong",
+      "title": "Danh sách Đổi thưởng"
+    }
+  },
+  "guestManagement": {
+    "title": "Quản lý Thẻ Khách",
+    "subtitle": "Quản lý thẻ khách và khách mời",
+    "addGuestPass": "Tạo Thẻ Khách",
+    "stats": {
+      "total": "Tổng Thẻ",
+      "active": "Đang hoạt động",
+      "used": "Đã sử dụng",
+      "expired": "Hết hạn"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm theo tên khách, email, số điện thoại..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "allTypes": "Tất cả loại"
+    },
+    "status": {
+      "ACTIVE": "Đang hoạt động",
+      "USED": "Đã sử dụng",
+      "EXPIRED": "Hết hạn",
+      "CANCELLED": "Đã hủy"
+    },
+    "passTypes": {
+      "SINGLE_DAY": "1 ngày",
+      "WEEK": "1 tuần",
+      "MONTH": "1 tháng"
+    },
+    "table": {
+      "guestName": "Tên khách",
+      "issuer": "Người phát hành",
+      "passType": "Loại thẻ",
+      "validUntil": "Hiệu lực",
+      "status": "Trạng thái",
+      "uses": "Sử dụng",
+      "actions": "Thao tác"
+    },
+    "detail": {
+      "title": "Chi tiết thẻ khách - {{name}}",
+      "guestName": "Tên khách",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "issuer": "Người phát hành",
+      "passType": "Loại thẻ",
+      "status": "Trạng thái",
+      "validFrom": "Hiệu lực từ",
+      "validUntil": "Hiệu lực đến",
+      "uses": "Sử dụng",
+      "price": "Giá"
+    },
+    "actions": {
+      "viewDetails": "Xem chi tiết",
+      "delete": "Xóa"
+    },
+    "empty": {
+      "noPasses": "Không có thẻ khách nào",
+      "noResults": "Không tìm thấy thẻ khách nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách thẻ khách",
+      "loading": "Đang tải danh sách thẻ khách...",
+      "createSuccess": "Tạo thẻ khách thành công",
+      "deleteSuccess": "Xóa thẻ khách thành công",
+      "deleteError": "Không thể xóa thẻ khách"
+    },
+    "delete": {
+      "confirmTitle": "Xóa thẻ khách",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa thẻ khách của {{name}}?",
+      "thisGuest": "khách này"
+    },
+    "export": {
+      "filename": "danh-sach-guest-passes",
+      "title": "Danh sách Thẻ Khách"
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "allTypes": "Tất cả loại",
+      "passType": "Loại thẻ"
+    },
+    "stats": {
+      "total": "Tổng số thẻ khách",
+      "active": "Đang hoạt động",
+      "used": "Đã sử dụng",
+      "expired": "Hết hạn",
+      "revenue": "Doanh thu",
+      "totalCount": "Tổng cộng: {{count}} thẻ khách"
+    }
+  },
+  "personalTrainingManagement": {
+    "title": "Quản lý Personal Training",
+    "subtitle": "Quản lý tất cả các buổi tập huấn luyện cá nhân",
+    "createSession": "Tạo buổi tập PT",
+    "stats": {
+      "total": "Tổng số buổi tập",
+      "completed": "Đã hoàn thành",
+      "scheduled": "Đã lên lịch",
+      "revenue": "Doanh thu"
+    },
+    "search": {
+      "placeholder": "Tìm kiếm theo thành viên, huấn luyện viên..."
+    },
+    "filter": {
+      "allStatuses": "Tất cả trạng thái",
+      "allTrainers": "Tất cả huấn luyện viên"
+    },
+    "status": {
+      "SCHEDULED": "Đã lên lịch",
+      "CONFIRMED": "Đã xác nhận",
+      "IN_PROGRESS": "Đang diễn ra",
+      "COMPLETED": "Hoàn thành",
+      "CANCELLED": "Đã hủy",
+      "NO_SHOW": "Vắng mặt"
+    },
+    "table": {
+      "member": "Thành viên",
+      "trainer": "Huấn luyện viên",
+      "sessionDate": "Ngày buổi tập",
+      "duration": "Thời lượng",
+      "price": "Giá",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "empty": {
+      "noSessions": "Không tìm thấy buổi tập PT nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách buổi tập PT",
+      "createSuccess": "Tạo buổi tập PT thành công",
+      "deleteSuccess": "Xóa buổi tập PT thành công",
+      "deleteError": "Không thể xóa buổi tập PT"
+    },
+    "delete": {
+      "confirmTitle": "Xác nhận xóa buổi tập PT",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa buổi tập PT này? Hành động này không thể hoàn tác."
+    }
+  },
+  "notificationManagement": {
+    "title": "Quản lý thông báo",
+    "subtitle": "Gửi thông báo hàng loạt đến members và trainers",
+    "tabs": {
+      "members": "Gửi đến Members",
+      "trainers": "Gửi đến Trainers",
+      "history": "Lịch sử"
+    },
+    "form": {
+      "title": "Tiêu đề",
+      "titlePlaceholder": "Nhập tiêu đề thông báo...",
+      "message": "Nội dung",
+      "messagePlaceholder": "Nhập nội dung thông báo...",
+      "type": "Loại thông báo",
+      "sendTo": "Gửi đến",
+      "memberIds": "Member IDs (phân cách bằng dấu phẩy)",
+      "memberIdsPlaceholder": "id1, id2, id3...",
+      "trainerIds": "Trainer IDs (phân cách bằng dấu phẩy)",
+      "trainerIdsPlaceholder": "id1, id2, id3..."
+    },
+    "sendTo": {
+      "all": "Tất cả",
+      "filter": "Theo filter",
+      "specific": "IDs cụ thể"
+    },
+    "types": {
+      "GENERAL": "Thông báo chung",
+      "SYSTEM_ANNOUNCEMENT": "Thông báo hệ thống"
+    },
+    "filters": {
+      "title": "Bộ lọc",
+      "membershipType": "Loại membership",
+      "status": "Trạng thái",
+      "search": "Tìm kiếm",
+      "searchPlaceholder": "Tên, email, phone..."
+    },
+    "actions": {
+      "send": "Gửi thông báo",
+      "sending": "Đang gửi...",
+      "preview": "Xem trước Người nhận",
+      "viewDetails": "Xem Chi tiết"
+    },
+    "history": {
+      "title": "Lịch sử Thông báo",
+      "empty": {
+        "title": "Chưa có lịch sử thông báo",
+        "message": "Lịch sử gửi thông báo sẽ hiển thị tại đây"
+      },
+      "table": {
+        "title": "Tiêu đề",
+        "targetType": "Loại Đối tượng",
+        "sentCount": "Đã gửi",
+        "failedCount": "Thất bại",
+        "totalTargets": "Tổng",
+        "createdAt": "Ngày tạo",
+        "actions": "Thao tác"
+      },
+      "filters": {
+        "targetType": "Loại Đối tượng",
+        "startDate": "Từ ngày",
+        "endDate": "Đến ngày"
+      }
+    },
+    "success": {
+      "title": "Gửi thông báo thành công!",
+      "target": "Đối tượng",
+      "members": "Thành viên",
+      "trainers": "Huấn luyện viên",
+      "total": "Tổng số",
+      "sent": "Gửi thành công",
+      "failed": "Gửi thất bại"
+    },
+    "messages": {
+      "sendSuccess": "Gửi thông báo thành công đến {{sent}} người nhận",
+      "sendFailed": "Gửi thông báo thất bại",
+      "sendError": "Không thể gửi thông báo",
+      "loadHistoryError": "Không thể tải lịch sử thông báo",
+      "fillRequiredFields": "Vui lòng điền đầy đủ tiêu đề và nội dung",
+      "selectAtLeastOneFilter": "Vui lòng chọn ít nhất một filter",
+      "enterAtLeastOneMemberId": "Vui lòng nhập ít nhất một member ID",
+      "enterAtLeastOneTrainerId": "Vui lòng nhập ít nhất một trainer ID",
+      "previewError": "Không thể tải danh sách xem trước"
+    },
+    "members": {
+      "title": "Gửi cho Thành viên",
+      "form": {
+        "title": "Tiêu đề",
+        "message": "Tin nhắn",
+        "type": "Loại",
+        "sendTo": "Gửi đến",
+        "all": "Tất cả Thành viên",
+        "filter": "Thành viên đã lọc",
+        "specific": "Thành viên cụ thể"
+      },
+      "filters": {
+        "membershipType": "Loại Thành viên",
+        "membershipStatus": "Trạng thái Thành viên",
+        "search": "Tìm kiếm"
+      },
+      "preview": {
+        "title": "Xem trước Người nhận",
+        "count": "{{count}} thành viên sẽ nhận thông báo này"
+      }
+    },
+    "trainers": {
+      "title": "Gửi cho Huấn luyện viên",
+      "form": {
+        "title": "Tiêu đề",
+        "message": "Tin nhắn",
+        "type": "Loại",
+        "sendTo": "Gửi đến",
+        "all": "Tất cả Huấn luyện viên",
+        "filter": "Huấn luyện viên đã lọc",
+        "specific": "Huấn luyện viên cụ thể"
+      },
+      "filters": {
+        "status": "Trạng thái",
+        "specialization": "Chuyên môn",
+        "search": "Tìm kiếm"
+      },
+      "preview": {
+        "title": "Xem trước Người nhận",
+        "count": "{{count}} huấn luyện viên sẽ nhận thông báo này"
+      }
+    },
+    "history": {
+      "title": "Lịch sử Thông báo",
+      "table": {
+        "title": "Tiêu đề",
+        "targetType": "Loại Đối tượng",
+        "sentCount": "Đã gửi",
+        "failedCount": "Thất bại",
+        "totalTargets": "Tổng",
+        "createdAt": "Ngày tạo",
+        "actions": "Thao tác"
+      },
+      "filters": {
+        "targetType": "Loại Đối tượng",
+        "startDate": "Từ ngày",
+        "endDate": "Đến ngày"
+      }
+    },
+    "actions": {
+      "send": "Gửi Thông báo",
+      "preview": "Xem trước Người nhận",
+      "viewDetails": "Xem Chi tiết"
+    },
+    "messages": {
+      "sendSuccess": "Gửi thông báo thành công đến {{sent}} người nhận",
+      "sendError": "Không thể gửi thông báo",
+      "loadError": "Không thể tải lịch sử thông báo",
+      "previewError": "Không thể tải danh sách xem trước"
+    },
+    "success": {
+      "title": "Đã Gửi Thông báo",
+      "sentCount": "Đã gửi: {{count}}",
+      "failedCount": "Thất bại: {{count}}",
+      "totalTargets": "Tổng: {{count}}"
+    }
+  },
+  "emailTemplatesManagement": {
+    "title": "Quản Lý Mẫu Email",
+    "subtitle": "Tạo và quản lý các mẫu email tự động",
+    "createTemplate": "Tạo mẫu mới",
+    "table": {
+      "name": "Tên",
+      "type": "Loại",
+      "subject": "Tiêu đề",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "addTitle": "Tạo Mẫu Email Mới",
+      "editTitle": "Sửa Mẫu Email",
+      "name": "Tên Mẫu",
+      "subject": "Tiêu đề",
+      "body": "Nội dung",
+      "type": "Loại",
+      "isActive": "Hoạt động"
+    },
+    "types": {
+      "WELCOME": "Chào mừng",
+      "PASSWORD_RESET": "Đặt lại mật khẩu",
+      "MEMBERSHIP_EXPIRY": "Hết hạn thành viên",
+      "CLASS_REMINDER": "Nhắc nhở lớp học",
+      "PAYMENT_RECEIPT": "Hóa đơn thanh toán",
+      "CUSTOM": "Tùy chỉnh"
+    },
+    "empty": {
+      "noTemplates": "Không tìm thấy mẫu email nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách mẫu email",
+      "createSuccess": "Tạo mẫu email thành công",
+      "updateSuccess": "Cập nhật mẫu email thành công",
+      "deleteSuccess": "Xóa mẫu email thành công",
+      "deleteError": "Không thể xóa mẫu email"
+    },
+    "delete": {
+      "confirmTitle": "Xóa mẫu email",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa mẫu email này?"
+    }
+  },
+  "smsTemplatesManagement": {
+    "title": "Quản Lý Mẫu SMS",
+    "subtitle": "Tạo và quản lý các mẫu SMS tự động",
+    "createTemplate": "Tạo mẫu mới",
+    "table": {
+      "name": "Tên",
+      "type": "Loại",
+      "message": "Tin nhắn",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "addTitle": "Tạo Mẫu SMS Mới",
+      "editTitle": "Sửa Mẫu SMS",
+      "name": "Tên Mẫu",
+      "message": "Tin nhắn",
+      "type": "Loại",
+      "isActive": "Hoạt động",
+      "characterCount": "{{count}} ký tự"
+    },
+    "types": {
+      "OTP": "Mã OTP",
+      "REMINDER": "Nhắc nhở",
+      "NOTIFICATION": "Thông báo",
+      "CUSTOM": "Tùy chỉnh"
+    },
+    "empty": {
+      "noTemplates": "Không tìm thấy mẫu SMS nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách mẫu SMS",
+      "createSuccess": "Tạo mẫu SMS thành công",
+      "updateSuccess": "Cập nhật mẫu SMS thành công",
+      "deleteSuccess": "Xóa mẫu SMS thành công",
+      "deleteError": "Không thể xóa mẫu SMS"
+    },
+    "delete": {
+      "confirmTitle": "Xóa mẫu SMS",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa mẫu SMS này?"
+    }
+  },
+  "apiKeysManagement": {
+    "title": "Quản Lý API Keys",
+    "subtitle": "Tạo và quản lý API keys cho truy cập hệ thống",
+    "addKey": "Tạo API key mới",
+    "table": {
+      "name": "Tên",
+      "keyPrefix": "Key Prefix",
+      "permissions": "Quyền",
+      "rateLimit": "Rate Limit",
+      "expiresAt": "Hết hạn",
+      "lastUsedAt": "Lần sử dụng cuối",
+      "status": "Trạng thái",
+      "actions": "Thao tác",
+      "noExpiry": "Không hết hạn",
+      "neverUsed": "Chưa sử dụng"
+    },
+    "form": {
+      "addTitle": "Tạo API key mới",
+      "editTitle": "Sửa API key",
+      "name": "Tên API key",
+      "namePlaceholder": "Ví dụ: Production API Key",
+      "permissions": "Quyền truy cập",
+      "rateLimit": "Rate Limit (requests/hour)",
+      "expiresAt": "Ngày hết hạn (tùy chọn)"
+    },
+    "actions": {
+      "edit": "Sửa",
+      "delete": "Xóa",
+      "revoke": "Thu hồi",
+      "copy": "Copy",
+      "save": "Lưu"
+    },
+    "viewKey": {
+      "title": "API Key đã được tạo",
+      "warningTitle": "[WARNING] Lưu ý quan trọng",
+      "warningMessage": "API key này chỉ hiển thị một lần duy nhất. Vui lòng sao chép và lưu trữ an toàn.",
+      "apiKey": "API Key",
+      "saved": "Đã lưu"
+    },
+    "empty": {
+      "noKeys": "Chưa có API key nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách API keys",
+      "createSuccess": "Tạo API key thành công. Vui lòng lưu key này ngay!",
+      "updateSuccess": "Cập nhật API key thành công",
+      "deleteSuccess": "Xóa API key thành công",
+      "deleteError": "Không thể xóa API key",
+      "revokeSuccess": "Thu hồi API key thành công",
+      "revokeError": "Không thể thu hồi API key",
+      "copySuccess": "Đã sao chép API key",
+      "saveError": "Không thể lưu API key"
+    },
+    "delete": {
+      "confirmTitle": "Xóa API key",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa API key \"{{name}}\"? Hành động này không thể hoàn tác."
+    }
+  },
+  "webhooksManagement": {
+    "title": "Quản Lý Webhooks",
+    "subtitle": "Quản lý webhook endpoints cho sự kiện hệ thống",
+    "createWebhook": "Tạo Webhook",
+    "table": {
+      "name": "Tên",
+      "url": "URL",
+      "events": "Sự kiện",
+      "status": "Trạng thái",
+      "lastTriggered": "Kích hoạt lần cuối",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "addTitle": "Tạo Webhook Mới",
+      "editTitle": "Sửa Webhook",
+      "name": "Tên Webhook",
+      "url": "Webhook URL",
+      "events": "Sự kiện",
+      "secret": "Secret",
+      "isActive": "Hoạt động"
+    },
+    "events": {
+      "member.created": "Thành viên Đã tạo",
+      "member.updated": "Thành viên Đã cập nhật",
+      "member.deleted": "Thành viên Đã xóa",
+      "class.booked": "Lớp Đã đặt",
+      "class.cancelled": "Lớp Đã hủy",
+      "payment.completed": "Thanh toán Hoàn thành",
+      "payment.failed": "Thanh toán Thất bại",
+      "subscription.created": "Đăng ký Đã tạo",
+      "subscription.expired": "Đăng ký Đã hết hạn"
+    },
+    "actions": {
+      "viewEvents": "Xem Sự kiện",
+      "test": "Kiểm tra Webhook"
+    },
+    "empty": {
+      "noWebhooks": "Không tìm thấy webhook nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách webhooks",
+      "createSuccess": "Tạo webhook thành công",
+      "updateSuccess": "Cập nhật webhook thành công",
+      "deleteSuccess": "Xóa webhook thành công",
+      "deleteError": "Không thể xóa webhook",
+      "loadEventsError": "Không thể tải lịch sử sự kiện"
+    },
+    "delete": {
+      "confirmTitle": "Xóa webhook",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa webhook này?"
+    }
+  },
+  "auditLogsManagement": {
+    "title": "Nhật Ký Kiểm Tra (Audit Logs)",
+    "subtitle": "Theo dõi tất cả các hoạt động trong hệ thống",
+    "export": "Xuất CSV",
+    "stats": {
+      "total": "Tổng cộng: {{count}} bản ghi"
+    },
+    "table": {
+      "timestamp": "Thời gian",
+      "user": "Người dùng",
+      "action": "Hành động",
+      "resourceType": "Loại tài nguyên",
+      "resourceId": "ID Tài nguyên",
+      "details": "Chi tiết",
+      "ipAddress": "IP Address",
+      "viewDetails": "Xem chi tiết"
+    },
+    "filters": {
+      "userId": "User ID",
+      "action": "Hành động",
+      "resourceType": "Loại tài nguyên",
+      "dateFrom": "Từ ngày",
+      "dateTo": "Đến ngày"
+    },
+    "empty": {
+      "noLogs": "Không có nhật ký nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải nhật ký kiểm tra",
+      "exportSuccess": "Xuất nhật ký thành công",
+      "exportError": "Không thể xuất nhật ký"
+    }
+  },
+  "backupRestoreManagement": {
+    "title": "Sao Lưu & Khôi Phục",
+    "subtitle": "Quản lý sao lưu và khôi phục dữ liệu hệ thống",
+    "actions": {
+      "create": "Tạo Backup",
+      "restore": "Khôi phục",
+      "download": "Tải",
+      "delete": "Xóa"
+    },
+    "table": {
+      "name": "Tên",
+      "type": "Loại",
+      "size": "Kích thước",
+      "status": "Trạng thái",
+      "createdAt": "Ngày tạo",
+      "actions": "Thao tác"
+    },
+    "form": {
+      "createTitle": "Tạo Backup mới",
+      "restoreTitle": "Khôi phục từ Backup",
+      "name": "Tên backup",
+      "type": "Loại backup",
+      "selectBackup": "Chọn backup",
+      "selectBackupPlaceholder": "Chọn backup...",
+      "restoreType": "Loại khôi phục",
+      "warning": "[WARNING] Quá trình backup có thể mất vài phút. Vui lòng không đóng trang này.",
+      "restoreWarningTitle": "[WARNING] Cảnh báo",
+      "restoreWarningMessage": "Khôi phục backup sẽ ghi đè dữ liệu hiện tại. Hãy đảm bảo bạn đã tạo backup trước khi khôi phục."
+    },
+    "types": {
+      "FULL": "Full Backup (Toàn bộ)",
+      "INCREMENTAL": "Incremental (Tăng dần)",
+      "DATABASE_ONLY": "Chỉ Database",
+      "FILES_ONLY": "Chỉ Files"
+    },
+    "restoreTypes": {
+      "FULL": "Full Restore (Toàn bộ)",
+      "PARTIAL": "Partial Restore (Một phần)"
+    },
+    "status": {
+      "PENDING": "Đang chờ",
+      "IN_PROGRESS": "Đang xử lý",
+      "COMPLETED": "Hoàn thành",
+      "FAILED": "Thất bại"
+    },
+    "empty": {
+      "noBackups": "Chưa có backup nào"
+    },
+    "messages": {
+      "loadError": "Không thể tải danh sách backup",
+      "createSuccess": "Đã bắt đầu tạo backup",
+      "createError": "Không thể tạo backup",
+      "downloadSuccess": "Đã bắt đầu tải backup",
+      "downloadError": "Không thể tải backup",
+      "restoreSuccess": "Đã bắt đầu khôi phục backup",
+      "restoreError": "Không thể khôi phục backup",
+      "deleteSuccess": "Xóa backup thành công",
+      "deleteError": "Không thể xóa backup"
+    },
+    "delete": {
+      "confirmTitle": "Xóa backup",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa backup \"{{name}}\"?"
+    }
+  },
+  "settingsManagement": {
+    "title": "Cài đặt Hệ thống",
+    "subtitle": "Cấu hình và quản lý hệ thống",
+    "tabs": {
+      "general": "Tổng quan",
+      "notifications": "Thông báo",
+      "security": "Bảo mật",
+      "integrations": "Tích hợp"
+    },
+    "actions": {
+      "save": "Lưu thay đổi",
+      "saving": "Đang lưu..."
+    },
+    "general": {
+      "title": "Thông tin phòng gym",
+      "gymName": "Tên phòng gym",
+      "gymPhone": "Số điện thoại",
+      "gymAddress": "Địa chỉ",
+      "gymEmail": "Email",
+      "timezone": "Múi giờ",
+      "selectTimezone": "Chọn múi giờ",
+      "currency": "Tiền tệ",
+      "selectCurrency": "Chọn tiền tệ",
+      "language": "Ngôn ngữ",
+      "selectLanguage": "Chọn ngôn ngữ",
+      "languages": {
+        "vi": "Tiếng Việt",
+        "en": "English"
+      }
+    },
+    "notifications": {
+      "title": "Cài đặt thông báo",
+      "enableNotifications": "Bật thông báo",
+      "enableNotificationsDesc": "Cho phép hệ thống gửi thông báo",
+      "enableEmailNotifications": "Thông báo qua Email",
+      "enableEmailNotificationsDesc": "Gửi thông báo qua email",
+      "enableSMSNotifications": "Thông báo qua SMS",
+      "enableSMSNotificationsDesc": "Gửi thông báo qua SMS"
+    },
+    "security": {
+      "title": "Cài đặt bảo mật",
+      "require2FA": "Yêu cầu xác thực 2 bước",
+      "require2FADesc": "Bắt buộc sử dụng 2FA cho tất cả tài khoản",
+      "sessionTimeout": "Thời gian hết hạn phiên (phút)",
+      "maxLoginAttempts": "Số lần đăng nhập sai tối đa"
+    },
+    "integrations": {
+      "title": "Tích hợp hệ thống",
+      "enableAPI": "Bật API",
+      "enableAPIDesc": "Cho phép truy cập API từ bên ngoài",
+      "enableWebhook": "Bật Webhook",
+      "enableWebhookDesc": "Cho phép gửi webhook events"
+    },
+    "messages": {
+      "loadError": "Không thể tải cài đặt",
+      "saveSuccess": "Đã lưu cài đặt thành công",
+      "saveError": "Không thể lưu cài đặt"
+    }
+  },
+  "reports": {
+    "equipment": {
+      "title": "Báo cáo Thiết bị",
+      "subtitle": "Thống kê và phân tích về tình trạng và sử dụng thiết bị",
+      "loading": "Đang tải dữ liệu thiết bị...",
+      "stats": {
+        "total": "Tổng thiết bị",
+        "available": "Sẵn sàng",
+        "inUse": "Đang sử dụng",
+        "needsMaintenance": "Cần bảo trì",
+        "utilizationRate": "tỷ lệ sử dụng",
+        "availabilityRate": "Tỷ lệ khả dụng",
+        "maintenanceOrBroken": "Bảo trì / Hỏng",
+        "maintenance": "Bảo trì",
+        "broken": "Hỏng",
+        "ofTotal": "tổng số",
+        "equipment": "thiết bị"
+      },
+      "status": {
+        "available": "Sẵn sàng",
+        "inUse": "Đang sử dụng",
+        "maintenance": "Bảo trì",
+        "outOfOrder": "Hỏng"
+      },
+      "statusBreakdown": {
+        "title": "Phân bổ Trạng thái",
+        "subtitle": "Chi tiết số lượng thiết bị theo từng trạng thái",
+        "noData": "Chưa có dữ liệu phân bổ trạng thái"
+      }
+    },
+    "users": {
+      "title": "Báo cáo Người dùng",
+      "subtitle": "Thống kê và phân tích về người dùng hệ thống",
+      "roles": {
+        "superAdmin": "Super Admin",
+        "admin": "Admin",
+        "trainer": "Huấn luyện viên",
+        "member": "Thành viên"
+      },
+      "roleDistribution": {
+        "title": "Phân bổ Người dùng theo Vai trò",
+        "subtitle": "Biểu đồ thể hiện số lượng người dùng theo từng vai trò trong hệ thống",
+        "noData": "Chưa có dữ liệu phân bổ người dùng"
+      },
+      "growthByRole": {
+        "title": "Tăng trưởng Người dùng theo Vai trò",
+        "subtitle": "Biểu đồ thể hiện xu hướng tăng trưởng người dùng theo từng vai trò theo thời gian"
+      }
+    },
+    "system": {
+      "title": "Báo cáo Hệ thống",
+      "subtitle": "Thống kê hoạt động và hiệu suất hệ thống",
+      "stats": {
+        "totalUsers": "Tổng người dùng",
+        "activeSessions": "Phiên hoạt động (24h)",
+        "recentRegistrations": "Đăng ký mới (30 ngày)"
+      },
+      "systemActivity": {
+        "title": "Hoạt động Hệ thống",
+        "subtitle": "Biểu đồ thể hiện mức độ hoạt động của hệ thống theo thời gian",
+        "loading": "Đang tải..."
+      }
+    }
+  },
+  "reportsManagement": {
+    "title": "Báo cáo & Phân tích",
+    "subtitle": "Xem các báo cáo và thống kê hệ thống",
+    "tabs": {
+      "revenue": "Doanh thu",
+      "members": "Thành viên",
+      "classes": "Lớp học",
+      "equipment": "Thiết bị"
+    },
+    "actions": {
+      "exportPDF": "Xuất PDF",
+      "exportExcel": "Xuất Excel",
+      "filter": "Lọc"
+    },
+    "filters": {
+      "fromDate": "Từ ngày",
+      "toDate": "Đến ngày"
+    },
+    "stats": {
+      "totalRevenue": "Tổng doanh thu",
+      "averageRevenue": "Doanh thu trung bình",
+      "totalTransactions": "Số giao dịch"
+    },
+    "export": {
+      "title": "Báo cáo {{type}}",
+      "columns": {
+        "date": "Ngày",
+        "revenue": "Doanh thu",
+        "transactions": "Số giao dịch",
+        "newUsers": "Người dùng mới",
+        "activeUsers": "Người dùng hoạt động",
+        "className": "Tên lớp",
+        "totalAttendance": "Tổng tham gia",
+        "averageAttendance": "Trung bình tham gia",
+        "status": "Trạng thái",
+        "count": "Số lượng"
+      }
+    },
+    "messages": {
+      "loadError": "Không thể tải dữ liệu {{tab}}",
+      "loadingRevenue": "Đang tải dữ liệu doanh thu...",
+      "exporting": "Đang xuất báo cáo...",
+      "exportExcelSuccess": "Đã xuất báo cáo Excel",
+      "exportError": "Không thể xuất báo cáo",
+      "noData": "Không có dữ liệu để xuất"
+    }
+  },
+  "verifyCode": {
+    "title": "Verify Mã Đổi thưởng",
+    "subtitle": "Xác minh mã đổi thưởng của thành viên",
+    "input": {
+      "label": "Nhập mã đổi thưởng",
+      "placeholder": "REWARD-XXXX-XXXX",
+      "verify": "Verify"
+    },
+    "result": {
+      "title": "Thông tin Đổi thưởng",
+      "subtitle": "Chi tiết mã đổi thưởng",
+      "code": "Mã đổi thưởng",
+      "member": "Thành viên",
+      "reward": "Phần thưởng",
+      "fullName": "Họ tên",
+      "membershipNumber": "Mã thành viên",
+      "email": "Email",
+      "phone": "SĐT",
+      "title": "Tiêu đề",
+      "description": "Mô tả",
+      "pointsSpent": "Điểm đã đổi",
+      "points": "điểm",
+      "redeemedAt": "Ngày đổi",
+      "expiresAt": "Hết hạn",
+      "status": "Trạng thái",
+      "usedAt": "Ngày sử dụng"
+    },
+    "status": {
+      "PENDING": "Chờ xử lý",
+      "ACTIVE": "Đang hoạt động",
+      "USED": "Đã sử dụng",
+      "EXPIRED": "Hết hạn",
+      "CANCELLED": "Đã hủy",
+      "REFUNDED": "Đã hoàn trả"
+    },
+    "statusMessages": {
+      "expired": "Mã đã hết hạn",
+      "unusable": "Mã không thể sử dụng"
+    },
+    "actions": {
+      "copyCode": "Copy",
+      "generateQR": "Tạo QR Code",
+      "markAsUsed": "Đánh dấu đã sử dụng"
+    },
+    "empty": {
+      "notFound": "Không tìm thấy mã đổi thưởng",
+      "message": "Vui lòng kiểm tra lại mã đổi thưởng và thử lại."
+    },
+    "messages": {
+      "codeRequired": "Vui lòng nhập mã đổi thưởng",
+      "invalidCode": "Mã không hợp lệ",
+      "verifyError": "Không thể verify mã",
+      "copySuccess": "Đã copy mã!",
+      "qrSuccess": "Đã tạo QR code!",
+      "qrError": "Không thể tạo QR code",
+      "markSuccess": "Đã đánh dấu đã sử dụng",
+      "markError": "Không thể đánh dấu"
+    }
+  },
+  "calendar": {
+    "title": "Lịch",
+    "addEvent": "Thêm Sự kiện +",
+    "editEvent": "Sửa Sự kiện",
+    "updateChanges": "Cập nhật thay đổi",
+    "form": {
+      "title": "Tiêu đề Sự kiện",
+      "description": "Plan your next big moment: schedule or edit an event to stay on track",
+      "startDate": "Ngày bắt đầu",
+      "endDate": "Ngày kết thúc",
+      "level": "Cấp độ"
+    },
+    "sampleEvents": {
+      "eventConf": "Event Conf.",
+      "meeting": "Meeting",
+      "workshop": "Workshop"
+    },
+    "levels": {
+      "Danger": "Nguy hiểm",
+      "Success": "Thành công",
+      "Primary": "Chính",
+      "Warning": "Cảnh báo"
+    },
+    "messages": {
+      "addSuccess": "Thêm sự kiện thành công",
+      "updateSuccess": "Cập nhật sự kiện thành công",
+      "deleteSuccess": "Xóa sự kiện thành công"
+    }
+  },
+  "chat": {
+    "title": "Chat",
+    "customerSupport": "Hỗ trợ khách hàng",
+    "conversations": "Cuộc trò chuyện",
+    "noConversations": "Chưa có cuộc trò chuyện nào",
+    "selectConversation": "Chọn một cuộc trò chuyện",
+    "selectConversationDesc": "Chọn một thành viên từ danh sách để bắt đầu trò chuyện",
+    "unreadMessages": "{{count}} tin nhắn chưa đọc",
+    "today": "Hôm nay",
+    "yesterday": "Hôm qua",
+    "loadingMessages": "Đang tải tin nhắn...",
+    "noMessages": "Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!",
+    "input": {
+      "placeholder": "Nhập tin nhắn...",
+      "send": "Gửi"
+    },
+    "typing": "Đang nhập...",
+    "messages": {
+      "loadError": "Không thể tải cuộc trò chuyện",
+      "sendError": "Không thể gửi tin nhắn"
+    }
+  },
+  "notifications": {
+    "title": "Thông báo",
+    "subtitle": "Xem và quản lý tất cả thông báo của bạn",
+    "searchPlaceholder": "Tìm kiếm thông báo...",
+    "actions": {
+      "refresh": "Làm mới",
+      "selectionMode": "Chế độ chọn",
+      "settings": "Cài đặt",
+      "markAllRead": "Đánh dấu tất cả đã đọc",
+      "markAsRead": "Đánh dấu đã đọc",
+      "deleteNotification": "Xóa thông báo"
+    },
+    "filters": {
+      "allTypes": "Tất cả loại",
+      "workoutReminder": "Nhắc nhở tập luyện",
+      "membershipExpiry": "Hết hạn thành viên",
+      "paymentDue": "Thanh toán",
+      "classBooking": "Đặt lớp",
+      "achievement": "Thành tích",
+      "maintenance": "Bảo trì",
+      "promotion": "Khuyến mãi",
+      "system": "Hệ thống",
+      "allStatuses": "Tất cả trạng thái",
+      "unread": "Chưa đọc",
+      "read": "Đã đọc"
+    },
+    "messages": {
+      "loadError": "Không thể tải thông báo",
+      "markAsReadSuccess": "Đã đánh dấu đã đọc",
+      "markAsReadError": "Không thể đánh dấu đã đọc",
+      "deleteSuccess": "Đã xóa thông báo",
+      "deleteError": "Không thể xóa thông báo",
+      "markAllAsReadSuccess": "Đã đánh dấu tất cả đã đọc",
+      "markAllAsReadError": "Không thể đánh dấu tất cả đã đọc",
+      "deleteAllReadSuccess": "Đã xóa tất cả thông báo đã đọc",
+      "deleteAllReadError": "Không thể xóa tất cả thông báo đã đọc",
+      "bulkMarkAsReadSuccess": "Đã đánh dấu {{count}} thông báo đã đọc",
+      "bulkMarkAsReadError": "Không thể đánh dấu các thông báo đã chọn",
+      "bulkDeleteSuccess": "Đã xóa {{count}} thông báo",
+      "bulkDeleteError": "Không thể xóa các thông báo đã chọn"
+    },
+    "noNotifications": "Không có thông báo",
+    "newNotification": "Thông báo mới",
+    "marking": "Đang đánh dấu...",
+    "empty": "Chưa có thông báo nào"
+  },
+  "blank": {
+    "title": "Trang Trống",
+    "cardTitle": "Card Title Here",
+    "description": "Start putting content on grids or panels, you can also use different combinations of grids.Please check out the dashboard and other pages"
+  },
+  "createAdmin": {
+    "title": "Tạo Admin Mới",
+    "subtitle": "Tạo tài khoản quản trị viên mới cho hệ thống",
+    "form": {
+      "email": "Email *",
+      "emailPlaceholder": "admin@example.com",
+      "lastName": "Họ *",
+      "lastNamePlaceholder": "Nguyễn",
+      "firstName": "Tên *",
+      "firstNamePlaceholder": "Văn A",
+      "phone": "Số điện thoại",
+      "phonePlaceholder": "0123456789",
+      "password": "Mật khẩu *",
+      "passwordPlaceholder": "Mật khẩu mạnh",
+      "submit": "Tạo Admin",
+      "creating": "Đang tạo..."
+    },
+    "validation": {
+      "emailRequired": "Email là bắt buộc",
+      "emailInvalid": "Email không hợp lệ",
+      "emailMaxLength": "Email không được quá 100 ký tự",
+      "passwordRequired": "Mật khẩu là bắt buộc",
+      "passwordMinLength": "Mật khẩu phải có ít nhất 8 ký tự",
+      "passwordMaxLength": "Mật khẩu không được quá 50 ký tự",
+      "passwordLowercase": "Mật khẩu phải có ít nhất 1 chữ thường",
+      "passwordUppercase": "Mật khẩu phải có ít nhất 1 chữ hoa",
+      "passwordNumber": "Mật khẩu phải có ít nhất 1 số",
+      "passwordSpecial": "Mật khẩu phải có ít nhất 1 ký tự đặc biệt",
+      "firstNameRequired": "Tên là bắt buộc",
+      "firstNameMinLength": "Tên phải có ít nhất 2 ký tự",
+      "firstNameMaxLength": "Tên không được quá 50 ký tự",
+      "firstNameInvalid": "Tên chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn",
+      "lastNameRequired": "Họ là bắt buộc",
+      "lastNameMinLength": "Họ phải có ít nhất 2 ký tự",
+      "lastNameMaxLength": "Họ không được quá 50 ký tự",
+      "lastNameInvalid": "Họ chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn",
+      "phoneInvalid": "Số điện thoại phải bắt đầu bằng 0, số thứ 2 là 3, 5, 7, 8 hoặc 9 và có 10 số"
+    },
+    "messages": {
+      "createSuccess": "Tạo admin thành công! Tài khoản đã được kích hoạt và có thể đăng nhập ngay.",
+      "createError": "Có lỗi xảy ra khi tạo admin",
+      "createErrorRetry": "Có lỗi xảy ra khi tạo admin. Vui lòng thử lại."
+    },
+    "successModal": {
+      "title": "Tài khoản Admin đã được tạo thành công!"
+    }
+  },
+  "createTrainer": {
+    "title": "Tạo Trainer Mới",
+    "subtitle": "Tạo tài khoản huấn luyện viên mới cho hệ thống",
+    "form": {
+      "email": "Email *",
+      "emailPlaceholder": "trainer@example.com",
+      "lastName": "Họ *",
+      "lastNamePlaceholder": "Nguyễn",
+      "firstName": "Tên *",
+      "firstNamePlaceholder": "Văn A",
+      "phone": "Số điện thoại",
+      "phonePlaceholder": "0123456789",
+      "password": "Mật khẩu *",
+      "passwordPlaceholder": "Mật khẩu mạnh",
+      "submit": "Tạo Trainer",
+      "creating": "Đang tạo..."
+    },
+    "validation": {
+      "emailRequired": "Email là bắt buộc",
+      "emailInvalid": "Email không hợp lệ",
+      "emailMaxLength": "Email không được quá 100 ký tự",
+      "passwordRequired": "Mật khẩu là bắt buộc",
+      "passwordMinLength": "Mật khẩu phải có ít nhất 8 ký tự",
+      "passwordMaxLength": "Mật khẩu không được quá 50 ký tự",
+      "passwordLowercase": "Mật khẩu phải có ít nhất 1 chữ thường",
+      "passwordUppercase": "Mật khẩu phải có ít nhất 1 chữ hoa",
+      "passwordNumber": "Mật khẩu phải có ít nhất 1 số",
+      "passwordSpecial": "Mật khẩu phải có ít nhất 1 ký tự đặc biệt",
+      "firstNameRequired": "Tên là bắt buộc",
+      "firstNameMinLength": "Tên phải có ít nhất 2 ký tự",
+      "firstNameMaxLength": "Tên không được quá 50 ký tự",
+      "firstNameInvalid": "Tên chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn",
+      "lastNameRequired": "Họ là bắt buộc",
+      "lastNameMinLength": "Họ phải có ít nhất 2 ký tự",
+      "lastNameMaxLength": "Họ không được quá 50 ký tự",
+      "lastNameInvalid": "Họ chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn",
+      "phoneInvalid": "Số điện thoại phải bắt đầu bằng 0, số thứ 2 là 3, 5, 7, 8 hoặc 9 và có 10 số"
+    },
+    "messages": {
+      "createSuccess": "Tạo trainer thành công! Tài khoản đã được kích hoạt và có thể đăng nhập ngay.",
+      "createSuccessButScheduleWarning": "Tạo trainer thành công nhưng chưa được tạo trong schedule-service. Vui lòng kiểm tra logs.",
+      "createError": "Có lỗi xảy ra khi tạo trainer",
+      "createErrorRetry": "Có lỗi xảy ra khi tạo trainer. Vui lòng thử lại."
+    },
+    "successModal": {
+      "title": "Tài khoản Trainer đã được tạo thành công!"
+    }
+  },
+  "userProfiles": {
+    "title": "Hồ sơ Người dùng",
+    "editProfile": "Chỉnh sửa Hồ sơ",
+    "updateSuccess": "Cập nhật thông tin thành công!",
+    "deleteSuccess": "Xóa user thành công!",
+    "loadError": "Lỗi tải thông tin user"
+  },
+  "notFound": {
+    "title": "Không tìm thấy trang",
+    "error": "ERROR",
+    "message": "We can't seem to find the page you are looking for!",
+    "backToHome": "Back to Home Page",
+    "back": "Quay lại",
+    "copyright": "© {{year}} - TailAdmin"
+  },
+  "unauthorized": {
+    "title": "Truy cập bị từ chối",
+    "message": "Bạn không có quyền truy cập vào trang này. Vui lòng liên hệ quản trị viên nếu bạn cho rằng đây là lỗi.",
+    "backToDashboard": "Quay lại Dashboard",
+    "back": "Quay lại"
+  },
+  "confirmDialog": {
+    "irreversible": "Hành động này không thể hoàn tác"
+  },
+  "bookingError": {
+    "capacityFull": {
+      "title": "Lớp học đã đầy",
+      "message": "Lớp học đã đạt sức chứa tối đa. Vui lòng chọn lớp học khác hoặc tham gia danh sách chờ.",
+      "messageWithName": "Lớp \"{{name}}\" đã đạt sức chứa tối đa.\n\nBạn có thể:\n• Tham gia danh sách chờ\n• Chọn lớp học khác\n• Đặt lịch cho buổi học sau"
+    },
+    "alreadyBooked": {
+      "title": "Đã đặt lớp này",
+      "message": "Bạn đã đặt lớp học này rồi. Vui lòng kiểm tra lại lịch đặt của bạn.",
+      "messageWithName": "Bạn đã đặt lớp \"{{name}}\" rồi.\n\nVui lòng kiểm tra lại lịch đặt của bạn."
+    },
+    "scheduleNotFound": {
+      "title": "Lớp học không tồn tại",
+      "message": "Lớp học bạn đang cố đặt không còn tồn tại hoặc đã bị xóa."
+    },
+    "scheduleExpired": {
+      "title": "Lớp học đã kết thúc",
+      "message": "Lớp học đã kết thúc. Vui lòng chọn lớp học khác.",
+      "messageWithName": "Lớp \"{{name}}\" đã kết thúc.\n\nVui lòng chọn lớp học khác."
+    },
+    "scheduleCancelled": {
+      "title": "Lớp học đã bị hủy",
+      "message": "Lớp học đã bị hủy. Vui lòng chọn lớp học khác.",
+      "messageWithName": "Lớp \"{{name}}\" đã bị hủy.\n\nLớp học có thể đã bị hủy do không đủ số học viên tối thiểu hoặc lý do khác.\n\nVui lòng chọn lớp học khác."
+    },
+    "memberNotFound": {
+      "title": "Thông tin thành viên không hợp lệ",
+      "message": "Không tìm thấy thông tin thành viên. Vui lòng đăng ký thành viên trước khi đặt lớp."
+    },
+    "subscriptionExpired": {
+      "title": "Gói tập đã hết hạn",
+      "message": "Gói tập của bạn đã hết hạn. Vui lòng gia hạn gói tập để tiếp tục đặt lớp."
+    },
+    "paymentFailed": {
+      "title": "Thanh toán thất bại",
+      "message": "Không thể xử lý thanh toán. Vui lòng kiểm tra lại thông tin thanh toán và thử lại."
+    },
+    "serviceUnavailable": {
+      "title": "Dịch vụ tạm thời không khả dụng",
+      "message": "Dịch vụ đặt lớp hiện đang không khả dụng. Vui lòng thử lại sau vài phút."
+    },
+    "unknown": {
+      "title": "Đặt lớp thất bại",
+      "message": "Đã xảy ra lỗi khi đặt lớp. Vui lòng thử lại sau."
+    },
+    "actions": {
+      "retry": "Thử lại",
+      "viewBookings": "Xem lịch đặt",
+      "viewOtherClasses": "Xem lớp khác"
+    }
+  },
+  "successModal": {
+    "accountActivated": "Tài khoản đã được kích hoạt và có thể đăng nhập ngay",
+    "email": "Email",
+    "fullName": "Họ tên",
+    "phone": "Số điện thoại",
+    "status": "Trạng thái",
+    "activated": "Đã kích hoạt"
+  },
+  "modals": {
+    "confirmDialog": {
+      "defaultConfirm": "Xác nhận",
+      "defaultCancel": "Hủy",
+      "enterToConfirm": "Nhập \"{{text}}\" để xác nhận",
+      "pleaseEnterCorrect": "Vui lòng nhập đúng \"{{text}}\""
+    }
+  },
+  "breadcrumb": {
+    "home": "Home"
+  },
+  "pagination": {
+    "showing": "Hiển thị {{start}} đến {{end}} trong tổng số {{total}} mục",
+    "show": "Hiển thị"
+  },
+  "export": {
+    "noData": "Không có dữ liệu để xuất",
+    "exportDate": "Xuất ngày: {{date}}",
+    "pageNumber": "Trang {{current}} / {{total}}",
+    "pdfError": "Không thể xuất PDF. Vui lòng thử lại.",
+    "noEvents": "Không có sự kiện để xuất",
+    "excel": "Export Excel",
+    "pdf": "Export PDF",
+    "iCal": "Export iCal"
+  },
+  "connectionStatus": {
+    "title": "Kết nối Socket",
+    "schedule": "Schedule",
+    "member": "Member",
+    "connected": "Đã kết nối",
+    "connecting": "Đang kết nối...",
+    "disconnected": "Mất kết nối",
+    "reconnecting": "Đang thử kết nối lại: {{attempts}}/{{max}}"
+  },
+  "imageUpload": {
+    "upload": "Tải lên hình ảnh",
+    "change": "Thay đổi",
+    "maxSize": "Tối đa {{maxSize}}MB. Định dạng: {{formats}}",
+    "errors": {
+      "mustBeImage": "File phải là hình ảnh",
+      "maxSize": "File không được vượt quá {{maxSize}}MB",
+      "uploadFailed": "Không thể tải lên hình ảnh"
+    }
+  },
+  "statusBadge": {
+    "active": "Hoạt động",
+    "inactive": "Không hoạt động"
+  },
+  "verifyBadge": {
+    "email": {
+      "verified": "Email đã xác thực",
+      "unverified": "Email chưa xác thực"
+    },
+    "phone": {
+      "verified": "SĐT đã xác thực",
+      "unverified": "SĐT chưa xác thực"
+    },
+    "general": {
+      "verified": "Đã xác thực",
+      "unverified": "Chưa xác thực"
+    }
+  },
+  "errorModal": {
+    "defaultTitle": "Đã xảy ra lỗi",
+    "errorCode": "Mã lỗi: {{code}}",
+    "needSupport": "Cần hỗ trợ?"
+  },
+  "paymentError": {
+    "paymentFailed": {
+      "title": "Thanh toán thất bại",
+      "message": "Không thể xử lý thanh toán. Vui lòng kiểm tra lại thông tin thanh toán và thử lại.",
+      "messageWithAmount": "Không thể xử lý thanh toán {{amount}} VND.\n\nVui lòng:\n• Kiểm tra lại thông tin thẻ/ tài khoản\n• Đảm bảo số dư đủ\n• Thử lại sau vài phút"
+    },
+    "paymentTimeout": {
+      "title": "Thanh toán quá thời gian",
+      "message": "Thanh toán đã vượt quá thời gian cho phép. Vui lòng thử lại.\n\nNếu đã thanh toán thành công, vui lòng liên hệ hỗ trợ để xác nhận."
+    },
+    "invalidAmount": {
+      "title": "Số tiền không hợp lệ",
+      "message": "Số tiền thanh toán không hợp lệ. Vui lòng kiểm tra lại."
+    },
+    "invalidSignature": {
+      "title": "Xác thực thanh toán thất bại",
+      "message": "Không thể xác thực thông tin thanh toán. Vui lòng thử lại hoặc liên hệ hỗ trợ."
+    },
+    "duplicatePayment": {
+      "title": "Thanh toán trùng lặp",
+      "message": "Giao dịch này đã được xử lý trước đó. Vui lòng kiểm tra lại lịch sử thanh toán."
+    },
+    "subscriptionCreationFailed": {
+      "title": "Tạo gói tập thất bại",
+      "message": "Thanh toán thành công nhưng không thể tạo gói tập.\n\nVui lòng liên hệ hỗ trợ ngay để được xử lý. Tiền của bạn sẽ được hoàn lại nếu cần."
+    },
+    "discountCodeInvalid": {
+      "title": "Mã giảm giá không hợp lệ",
+      "message": "Mã giảm giá bạn nhập không tồn tại hoặc không hợp lệ."
+    },
+    "discountCodeExpired": {
+      "title": "Mã giảm giá đã hết hạn",
+      "message": "Mã giảm giá bạn sử dụng đã hết hạn. Vui lòng sử dụng mã khác."
+    },
+    "discountCodeLimitReached": {
+      "title": "Mã giảm giá đã hết lượt sử dụng",
+      "message": "Mã giảm giá này đã đạt giới hạn số lần sử dụng. Vui lòng sử dụng mã khác."
+    },
+    "serviceUnavailable": {
+      "title": "Dịch vụ thanh toán tạm thời không khả dụng",
+      "message": "Dịch vụ thanh toán hiện đang không khả dụng. Vui lòng thử lại sau vài phút."
+    },
+    "unknown": {
+      "title": "Lỗi thanh toán",
+      "message": "Đã xảy ra lỗi khi xử lý thanh toán. Vui lòng thử lại hoặc liên hệ hỗ trợ."
+    },
+    "actions": {
+      "retry": "Thử lại",
+      "contactSupport": "Liên hệ hỗ trợ"
+    }
+  },
+  "serviceUnavailable": {
+    "title": "Dịch vụ tạm thời không khả dụng",
+    "defaultServiceName": "Dịch vụ",
+    "message": "{{serviceName}} hiện đang không khả dụng. Điều này có thể do:\n\n• Dịch vụ đang được bảo trì\n• Sự cố kết nối mạng\n• Quá tải hệ thống\n\nVui lòng thử lại sau vài phút.",
+    "actions": {
+      "retry": "Thử lại",
+      "goHome": "Về trang chủ"
+    }
+  },
+  "bulkOperations": {
+    "items": "{{count}} mục",
+    "selectedPrefix": "Đã chọn",
+    "itemsSuffix": "mục",
+    "deselectAll": "Bỏ chọn tất cả",
+    "bulkEdit": "Sửa hàng loạt",
+    "delete": "Xóa ({{count}})"
+  },
+  "advancedFilters": {
+    "title": "Bộ lọc",
+    "filtering": "Đang lọc",
+    "searchPlaceholder": "Tìm kiếm...",
+    "allCategories": "Tất cả danh mục",
+    "allStatuses": "Tất cả trạng thái",
+    "fromDate": "Từ ngày",
+    "toDate": "Đến ngày",
+    "clear": "Xóa",
+    "allField": "Tất cả {{field}}"
+  },
+  "comparisonModal": {
+    "title": "So sánh hiệu suất",
+    "selectTrainers": "Chọn trainers để so sánh",
+    "loadingTrainers": "Đang tải danh sách trainers...",
+    "noTrainers": "Không có trainer nào để so sánh",
+    "classes": "lớp",
+    "timePeriod": "Khoảng thời gian",
+    "selectTimePeriod": "Chọn khoảng thời gian",
+    "periods": {
+      "month": "Tháng này",
+      "quarter": "Quý này",
+      "year": "Năm nay"
+    },
+    "compare": "So sánh",
+    "comparing": "Đang so sánh...",
+    "chartTitle": "Biểu đồ so sánh",
+    "tableTitle": "Bảng so sánh chi tiết",
+    "you": "Bạn",
+    "chart": {
+      "totalClasses": "Tổng lớp",
+      "students": "Học viên",
+      "rating": "Đánh giá",
+      "completed": "Hoàn thành",
+      "quantity": "Số lượng"
+    },
+    "table": {
+      "trainer": "Trainer",
+      "totalClasses": "Tổng lớp",
+      "students": "Học viên",
+      "rating": "Đánh giá",
+      "completed": "Hoàn thành",
+      "upcoming": "Sắp tới",
+      "revenue": "Doanh thu"
+    },
+    "errors": {
+      "loadTrainersFailed": "Lỗi tải danh sách trainers",
+      "selectAtLeastOne": "Vui lòng chọn ít nhất một trainer để so sánh",
+      "comparisonFailed": "Lỗi khi so sánh trainers"
+    }
+  },
+  "setGoalModal": {
+    "createTitle": "Đặt mục tiêu mới",
+    "editTitle": "Chỉnh sửa mục tiêu",
+    "goalTypes": {
+      "classes": "Số lớp dạy",
+      "students": "Số học viên",
+      "rating": "Đánh giá trung bình",
+      "revenue": "Doanh thu",
+      "attendance": "Tỷ lệ tham gia",
+      "sessions": "Số buổi hoàn thành"
+    },
+    "units": {
+      "classes": "lớp",
+      "students": "học viên",
+      "rating": "sao",
+      "revenue": "VND",
+      "attendance": "%",
+      "sessions": "buổi"
+    },
+    "form": {
+      "title": "Tiêu đề mục tiêu",
+      "titlePlaceholder": "Ví dụ: Đạt 50 lớp trong tháng này",
+      "description": "Mô tả",
+      "descriptionPlaceholder": "Mô tả chi tiết về mục tiêu...",
+      "goalType": "Loại mục tiêu",
+      "goalTypePlaceholder": "Chọn loại mục tiêu",
+      "targetValue": "Giá trị mục tiêu ({{unit}})",
+      "targetValuePlaceholder": "Nhập giá trị mục tiêu",
+      "deadline": "Hạn chót",
+      "deadlinePlaceholder": "Chọn hạn chót"
+    },
+    "saving": "Đang lưu...",
+    "create": "Tạo mục tiêu",
+    "update": "Cập nhật",
+    "messages": {
+      "createSuccess": "Tạo mục tiêu thành công",
+      "updateSuccess": "Cập nhật mục tiêu thành công"
+    },
+    "errors": {
+      "titleRequired": "Vui lòng nhập tiêu đề mục tiêu",
+      "targetValueInvalid": "Giá trị mục tiêu phải lớn hơn 0",
+      "deadlineRequired": "Vui lòng chọn hạn chót",
+      "saveFailed": "Lỗi khi lưu mục tiêu"
+    }
+  },
+  "notificationCenter": {
+    "title": "Thông báo",
+    "newCount": "{{count}} mới",
+    "selected": "Đã chọn: {{count}}",
+    "empty": "Không có thông báo nào",
+    "loadMore": "Tải thêm",
+    "viewAll": "Xem tất cả thông báo",
+    "filters": {
+      "all": "Tất cả",
+      "read": "Đã đọc",
+      "unread": "Chưa đọc",
+      "statusPlaceholder": "Trạng thái",
+      "allTypes": "Tất cả loại",
+      "payment": "Thanh toán",
+      "booking": "Đặt lịch",
+      "system": "Hệ thống",
+      "typePlaceholder": "Loại"
+    },
+    "bulkActions": {
+      "markAsRead": "Đánh dấu đã đọc"
+    },
+    "quickActions": {
+      "markAllAsRead": "Đánh dấu tất cả đã đọc"
+    },
+    "time": {
+      "justNow": "Vừa xong",
+      "minutesAgo": "{{minutes}} phút trước",
+      "hoursAgo": "{{hours}} giờ trước",
+      "daysAgo": "{{days}} ngày trước"
+    }
+  },
+  "chartTab": {
+    "monthly": "Tháng",
+    "quarterly": "Quý",
+    "annually": "Năm"
+  },
+  "setSalaryModal": {
+    "title": "Cài đặt lương cho trainer",
+    "currentSalary": "Lương hiện tại: {{amount}} VNĐ/giờ",
+    "setSalary": "Cài đặt lương",
+    "form": {
+      "hourlyRate": "Lương theo giờ (VNĐ)",
+      "hourlyRatePlaceholder": "Nhập lương theo giờ",
+      "example": "Ví dụ: 100000 (tương đương 100,000 VNĐ/giờ)",
+      "notes": "Ghi chú (tùy chọn)",
+      "notesPlaceholder": "Thêm ghi chú về việc cài đặt lương..."
+    },
+    "messages": {
+      "setSuccess": "Lương đã được cài đặt thành công"
+    },
+    "errors": {
+      "invalidRate": "Lương theo giờ phải là số dương",
+      "setFailed": "Không thể cài đặt lương"
+    }
+  },
+  "auth": {
+    "features": {
+      "professionalTraining": "TẬP LUYỆN CHUYÊN NGHIỆP",
+      "physicalUpgrade": "NÂNG CẤP THỂ CHẤT",
+      "professionalCurriculum": "GIÁO TRÌNH CHUYÊN NGHIỆP"
+    },
+    "quote": {
+      "text": "\"Your body can do it. It's your mind that you have to convince.\"",
+      "author": "TRUNG HIEU TRAN"
+    },
+    "resetPassword": {
+      "securityTitle": "BẢO MẬT TÀI KHOẢN",
+      "securityDescription": "Tạo mật khẩu mạnh để bảo vệ tài khoản của bạn",
+      "strongPassword": "MẬT KHẨU MẠNH",
+      "highSecurity": "BẢO MẬT CAO",
+      "absoluteSafety": "AN TOÀN TUYỆT ĐỐI",
+      "quote": {
+        "text": "\"Security is not a product, but a process.\"",
+        "author": "GYM 147 SECURITY"
+      }
+    },
+    "signIn": {
+      "title": "ĐĂNG NHẬP",
+      "welcome": "Chào mừng bạn quay trở lại Gym 147!",
+      "email": "Email",
+      "phone": "Số điện thoại",
+      "password": "Mật khẩu",
+      "adminLogin": "Đăng nhập với tư cách quản trị viên",
+      "rememberMe": "Ghi nhớ đăng nhập",
+      "forgotPassword": "Quên mật khẩu?",
+      "submit": "Đăng Nhập",
+      "noAccount": "Chưa có tài khoản?",
+      "signUpNow": "Đăng ký ngay",
+      "messages": {
+        "autoFillSuccess": "Thông tin đăng nhập đã được điền sẵn!"
+      },
+      "validation": {
+        "emailRequired": "Email không được để trống",
+        "phoneRequired": "Số điện thoại không được để trống",
+        "emailInvalid": "Email không hợp lệ",
+        "phoneInvalid": "Số điện thoại phải có 10-11 chữ số",
+        "passwordRequired": "Mật khẩu không được để trống",
+        "adminLoginRequired": "Vui lòng tick \"Đăng nhập với tư cách quản trị viên\" để đăng nhập với tài khoản admin"
+      },
+      "errors": {
+        "loginFailed": "Đăng nhập thất bại",
+        "genericError": "Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.",
+        "invalidCredentials": "Thông tin đăng nhập không đúng",
+        "invalidCredentialsMessage": "Email hoặc mật khẩu bạn nhập không chính xác. Vui lòng kiểm tra lại và thử lại.",
+        "accountLocked": "Tài khoản đã bị khóa",
+        "accountLockedMessage": "Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.",
+        "requires2FA": "Yêu cầu xác thực 2FA",
+        "requires2FAMessage": "Tài khoản của bạn yêu cầu xác thực 2 yếu tố. Vui lòng nhập mã từ ứng dụng xác thực.",
+        "googleOAuthFailed": "Không thể khởi tạo Google OAuth",
+        "googleLoginFailed": "Không thể đăng nhập với Google",
+        "facebookOAuthFailed": "Không thể khởi tạo Facebook OAuth",
+        "facebookLoginFailed": "Không thể đăng nhập với Facebook"
+      }
+    }
+  },
+  "addCertificationModal": {
+    "title": "Thêm chứng chỉ mới",
+    "edit": "Chỉnh sửa",
+    "create": "Tạo chứng chỉ",
+    "creating": "Đang tạo...",
+    "tabs": {
+      "aiScan": "Quét bằng AI",
+      "manual": "Nhập thủ công"
+    },
+    "categories": {
+      "cardio": "Tim mạch",
+      "strength": "Sức mạnh",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Khiêu vũ",
+      "martialArts": "Võ thuật",
+      "aqua": "Bơi lội",
+      "functional": "Chức năng",
+      "recovery": "Phục hồi",
+      "specialized": "Chuyên biệt"
+    },
+    "levels": {
+      "basic": "Cơ bản",
+      "intermediate": "Trung cấp",
+      "advanced": "Nâng cao",
+      "expert": "Chuyên gia"
+    },
+    "form": {
+      "category": "Danh mục",
+      "categoryPlaceholder": "Chọn danh mục",
+      "level": "Cấp độ chứng chỉ",
+      "levelPlaceholder": "Chọn cấp độ",
+      "name": "Tên chứng chỉ",
+      "namePlaceholder": "Ví dụ: Yoga Alliance RYT-500",
+      "issuer": "Tổ chức cấp chứng chỉ",
+      "issuerPlaceholder": "Ví dụ: Yoga Alliance International",
+      "issuedDate": "Ngày cấp",
+      "expirationDate": "Ngày hết hạn",
+      "upload": "Upload chứng chỉ"
+    },
+    "validation": {
+      "categoryRequired": "Danh mục là bắt buộc",
+      "nameRequired": "Tên chứng chỉ là bắt buộc",
+      "nameMinLength": "Tên chứng chỉ phải có ít nhất 3 ký tự",
+      "issuerRequired": "Tổ chức cấp chứng chỉ là bắt buộc",
+      "issuedDateRequired": "Ngày cấp là bắt buộc",
+      "issuedDateInvalid": "Ngày cấp không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)",
+      "issuedDateFuture": "Ngày cấp ({{issuedDate}}) không được là ngày tương lai (hôm nay là {{today}} theo giờ Việt Nam)",
+      "expirationDateInvalid": "Ngày hết hạn không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)",
+      "expirationDateBeforeIssued": "Ngày hết hạn ({{expirationDate}}) phải sau ngày cấp ({{issuedDate}})",
+      "expirationDateExpired": "Chứng chỉ đã hết hạn. Ngày hết hạn ({{expirationDate}}) đã qua (hôm nay là {{today}} theo giờ Việt Nam)"
+    },
+    "messages": {
+      "uploadSuccess": "Đã tải lên chứng chỉ thành công",
+      "autoFillSuccess": "Đã tự động điền thông tin từ chứng chỉ. Các trường đã bị khóa để đảm bảo tính chính xác.",
+      "scanSuccess": "Đã quét chứng chỉ thành công",
+      "createSuccess": "Tạo chứng chỉ thành công",
+      "fieldsUnlocked": "Đã mở khóa các trường. Bạn có thể chỉnh sửa thông tin."
+    },
+    "autoFill": {
+      "title": "Đã tự động điền thông tin từ chứng chỉ",
+      "message": "Vui lòng kiểm tra và chỉnh sửa nếu cần thiết"
+    },
+    "verification": {
+      "autoVerified": "Sẽ được xác thực tự động",
+      "manualReview": "Cần xem xét thủ công"
+    },
+    "errors": {
+      "createFailed": "Có lỗi xảy ra khi tạo chứng chỉ. Vui lòng thử lại."
+    }
+  },
+  "salaryRequestManagement": {
+    "title": "Quản lý yêu cầu xét lương",
+    "subtitle": "Xem và xử lý các yêu cầu xét lương từ trainers",
+    "searchPlaceholder": "Tìm kiếm theo tên, email trainer...",
+    "empty": "Không có yêu cầu xét lương nào",
+    "status": {
+      "pending": "Đang chờ"
+    },
+    "table": {
+      "trainer": "Trainer",
+      "email": "Email",
+      "requestTime": "Thời gian yêu cầu",
+      "status": "Trạng thái",
+      "actions": "Thao tác"
+    },
+    "actions": {
+      "setSalary": "Cài đặt lương"
+    },
+    "messages": {
+      "setSuccess": "Lương đã được cài đặt thành công"
+    },
+    "errors": {
+      "loadFailed": "Không thể tải danh sách yêu cầu"
     }
   }
 }

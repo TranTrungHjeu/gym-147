@@ -2,6 +2,7 @@
 const { prisma } = require('../lib/prisma');
 const streakService = require('../services/streak.service.js');
 const challengeService = require('../services/challenge.service.js');
+const equipmentController = require('./equipment.controller');
 
 class SessionController {
   // ==================== GYM SESSION TRACKING ====================
@@ -94,10 +95,79 @@ class SessionController {
         });
       }
 
+      // Calculate real-time calories from equipment usage in this session
+      // Include both completed usage (with end_time) and active usage (without end_time)
+      const equipmentUsages = await prisma.equipmentUsage.findMany({
+        where: {
+          session_id: session.id,
+        },
+        select: {
+          id: true,
+          calories_burned: true,
+          duration: true,
+          start_time: true,
+          end_time: true,
+          heart_rate_avg: true,
+          heart_rate_max: true,
+          sensor_data: true,
+          reps_completed: true,
+          sets_completed: true,
+          last_activity_check: true,
+          equipment: {
+            select: {
+              name: true,
+              category: true,
+            },
+          },
+        },
+      });
+
+      // Calculate calories for each usage
+      // For completed usage: use stored calories_burned
+      // For active usage: calculate real-time calories based on current duration
+      const now = new Date();
+      let totalCaloriesFromEquipment = 0;
+
+      for (const usage of equipmentUsages) {
+        if (usage.end_time) {
+          // Completed usage - use stored calories
+          totalCaloriesFromEquipment += usage.calories_burned || 0;
+        } else {
+          // Active usage - calculate real-time calories using same logic as equipment controller
+          const durationInSeconds = Math.floor(
+            (now.getTime() - new Date(usage.start_time).getTime()) / 1000
+          );
+
+          // Use equipment controller's calculation method for consistency
+          const realTimeCalories = equipmentController.calculateCaloriesWithActivity({
+            durationInSeconds,
+            equipmentCategory: usage.equipment.category,
+            heart_rate_avg: usage.heart_rate_avg,
+            heart_rate_max: usage.heart_rate_max,
+            sensor_data: usage.sensor_data,
+            reps_completed: usage.reps_completed,
+            sets_completed: usage.sets_completed,
+            last_activity_check: usage.last_activity_check,
+          });
+
+          totalCaloriesFromEquipment += realTimeCalories;
+        }
+      }
+
+      // Total calories = equipment calories + existing session calories (from workout plans)
+      const currentSessionCalories = session.calories_burned || 0;
+      const realTimeCalories = currentSessionCalories + totalCaloriesFromEquipment;
+
+      // Return session with real-time calculated calories
+      const sessionWithCalories = {
+        ...session,
+        calories_burned: realTimeCalories,
+      };
+
       res.json({
         success: true,
         message: 'Current session retrieved successfully',
-        data: { session },
+        data: { session: sessionWithCalories },
       });
     } catch (error) {
       console.error('Get current session error:', error);

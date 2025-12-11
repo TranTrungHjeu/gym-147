@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import useTranslation from '../../hooks/useTranslation';
 import { socketService, SocketServiceType } from '../../services/socket.service';
 import { Wifi, WifiOff, AlertCircle } from 'lucide-react';
 
@@ -7,6 +8,7 @@ interface ConnectionStatusProps {
 }
 
 export default function ConnectionStatus({ className = '' }: ConnectionStatusProps) {
+  const { t } = useTranslation();
   const [connectionStates, setConnectionStates] = useState<Map<SocketServiceType, any>>(new Map());
   const [isVisible, setIsVisible] = useState(false);
 
@@ -67,7 +69,7 @@ export default function ConnectionStatus({ className = '' }: ConnectionStatusPro
       <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 p-3 space-y-2 min-w-[200px]">
         <div className="flex items-center justify-between mb-2">
           <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">
-            Kết nối Socket
+            {t('connectionStatus.title')}
           </span>
           {scheduleState?.error || memberState?.error ? (
             <AlertCircle className="w-4 h-4 text-red-500" />
@@ -78,10 +80,10 @@ export default function ConnectionStatus({ className = '' }: ConnectionStatusPro
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               {getStatusIcon(scheduleState)}
-              <span className="text-gray-600 dark:text-gray-400">Schedule</span>
+              <span className="text-gray-600 dark:text-gray-400">{t('connectionStatus.schedule')}</span>
             </div>
             <span className={getStatusColor(scheduleState)}>
-              {scheduleState.connected ? 'Đã kết nối' : scheduleState.connecting ? 'Đang kết nối...' : 'Mất kết nối'}
+              {scheduleState.connected ? t('connectionStatus.connected') : scheduleState.connecting ? t('connectionStatus.connecting') : t('connectionStatus.disconnected')}
             </span>
           </div>
         )}
@@ -90,17 +92,17 @@ export default function ConnectionStatus({ className = '' }: ConnectionStatusPro
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-2">
               {getStatusIcon(memberState)}
-              <span className="text-gray-600 dark:text-gray-400">Member</span>
+              <span className="text-gray-600 dark:text-gray-400">{t('connectionStatus.member')}</span>
             </div>
             <span className={getStatusColor(memberState)}>
-              {memberState.connected ? 'Đã kết nối' : memberState.connecting ? 'Đang kết nối...' : 'Mất kết nối'}
+              {memberState.connected ? t('connectionStatus.connected') : memberState.connecting ? t('connectionStatus.connecting') : t('connectionStatus.disconnected')}
             </span>
           </div>
         )}
 
         {(scheduleState?.reconnectAttempts || 0) > 0 && (
           <div className="text-[10px] text-gray-500 dark:text-gray-400 pt-1 border-t border-gray-200 dark:border-gray-700">
-            Đang thử kết nối lại: {scheduleState.reconnectAttempts}/10
+            {t('connectionStatus.reconnecting', { attempts: scheduleState.reconnectAttempts, max: 10 })}
           </div>
         )}
       </div>

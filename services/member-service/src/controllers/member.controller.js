@@ -637,12 +637,101 @@ class MemberController {
       delete updateData.membership_number;
       delete updateData.created_at;
 
-      // Normalize phone and email (trim whitespace)
-      if (updateData.phone) {
-        updateData.phone = updateData.phone.trim();
+      // Check if member exists first (needed for comparison)
+      let existingMember = await prisma.member.findUnique({
+        where: { user_id: userId },
+      });
+
+      // Normalize phone and email (trim whitespace, convert empty to null)
+      if (updateData.phone !== undefined) {
+        if (updateData.phone === '' || updateData.phone === null) {
+          updateData.phone = null; // Allow null phone (not required)
+        } else {
+          updateData.phone = updateData.phone.trim();
+        }
       }
-      if (updateData.email) {
-        updateData.email = updateData.email.trim().toLowerCase();
+      if (updateData.email !== undefined) {
+        if (updateData.email === '' || updateData.email === null) {
+          updateData.email = null;
+        } else {
+          updateData.email = updateData.email.trim().toLowerCase();
+        }
+      }
+
+      // Check if phone or email is being changed (compare with existing member)
+      const isChangingPhone =
+        updateData.phone !== undefined &&
+        existingMember?.phone !== updateData.phone &&
+        !(existingMember?.phone === null && updateData.phone === null);
+      const isChangingEmail =
+        updateData.email !== undefined && existingMember?.email !== updateData.email;
+
+      // If changing phone or email, require OTP verification
+      if (isChangingPhone || isChangingEmail) {
+        const { otp, verificationMethod } = req.body;
+
+        if (!otp || !verificationMethod) {
+          return res.status(400).json({
+            success: false,
+            message:
+              'Cần xác thực OTP để thay đổi email hoặc số điện thoại. Vui lòng gửi OTP trước.',
+            data: {
+              requiresOTP: true,
+              changingPhone: isChangingPhone,
+              changingEmail: isChangingEmail,
+            },
+          });
+        }
+
+        // Verify OTP with Identity Service
+        try {
+          const axios = require('axios');
+          const identityServiceUrl = this.getIdentityServiceUrl();
+
+          // Use the updateEmailPhoneWithOTP endpoint which handles OTP verification
+          const verifyResponse = await axios.post(
+            `${identityServiceUrl}/profile/update-email-phone-otp`,
+            {
+              otp,
+              verificationMethod,
+              newEmail: isChangingEmail ? updateData.email : undefined,
+              newPhone: isChangingPhone ? updateData.phone : undefined,
+            },
+            {
+              headers: {
+                Authorization: authHeader,
+                'Content-Type': 'application/json',
+              },
+              timeout: 5000,
+            }
+          );
+
+          if (!verifyResponse.data.success) {
+            return res.status(400).json({
+              success: false,
+              message: verifyResponse.data.message || 'Mã OTP không đúng hoặc đã hết hạn',
+              data: null,
+            });
+          }
+
+          // If OTP verified successfully, Identity Service already updated user email/phone
+          // So we should use the updated values from Identity Service response
+          if (verifyResponse.data.data?.user) {
+            if (isChangingEmail && verifyResponse.data.data.user.email) {
+              updateData.email = verifyResponse.data.data.user.email;
+            }
+            if (isChangingPhone && verifyResponse.data.data.user.phone !== undefined) {
+              updateData.phone = verifyResponse.data.data.user.phone || null;
+            }
+          }
+        } catch (otpError) {
+          console.error('[ERROR] OTP verification failed:', otpError);
+          return res.status(400).json({
+            success: false,
+            message: otpError.response?.data?.message || 'Xác thực OTP thất bại. Vui lòng thử lại.',
+            data: null,
+          });
+        }
       }
 
       // Convert date strings to Date objects
@@ -653,10 +742,7 @@ class MemberController {
         updateData.expires_at = new Date(updateData.expires_at);
       }
 
-      // Check if member exists, if not create one
-      let existingMember = await prisma.member.findUnique({
-        where: { user_id: userId },
-      });
+      // existingMember was already fetched above for comparison
 
       if (!existingMember) {
         console.log('[WARNING] Member not found for user_id:', userId);
@@ -735,8 +821,8 @@ class MemberController {
         }
       }
 
-      // Check if phone is already used by another member
-      if (updateData.phone) {
+      // Check if phone is already used by another member (only if phone is not null)
+      if (updateData.phone !== undefined && updateData.phone !== null) {
         const phoneExists = await prisma.member.findFirst({
           where: {
             phone: updateData.phone,
@@ -836,10 +922,21 @@ class MemberController {
       const wasAlreadyCompleted = existingMember.onboarding_completed;
 
       // Update member with onboarding completion if profile is complete
+      // Ensure phone is null if empty string, not undefined
       const finalUpdateData = {
         ...updateData,
         updated_at: new Date(),
       };
+
+      // Ensure phone is null (not empty string) if not provided or empty
+      if (finalUpdateData.phone === '' || finalUpdateData.phone === undefined) {
+        // Only set to null if explicitly updating phone, otherwise keep existing
+        if ('phone' in updateData) {
+          finalUpdateData.phone = null;
+        } else {
+          delete finalUpdateData.phone; // Don't update phone if not in request
+        }
+      }
 
       // Auto-complete onboarding if profile has all required fields
       if (isCompletingProfile && !wasAlreadyCompleted) {
@@ -960,6 +1057,90 @@ class MemberController {
         } catch (healthMetricError) {
           console.error('Failed to create health metrics:', healthMetricError);
           // Don't fail the whole request, just log the error
+        }
+      }
+
+      // Generate and update profile_embedding if profile data changed
+      // Check if any embedding-relevant fields were updated
+      const embeddingRelevantFields = [
+        'fitness_goals',
+        'height',
+        'weight',
+        'medical_conditions',
+        'allergies',
+        'date_of_birth',
+      ];
+      const hasEmbeddingRelevantChanges = embeddingRelevantFields.some(
+        field => updateData[field] !== undefined
+      );
+
+      if (hasEmbeddingRelevantChanges) {
+        try {
+          const embeddingService = require('../services/embedding.service.js');
+
+          // Get updated member data with attendance history for better embedding
+          const updatedMember = await prisma.member.findUnique({
+            where: { id: member.id },
+            include: {
+              // We'll fetch attendance history separately to avoid circular dependency
+            },
+          });
+
+          // Get recent attendance history for embedding context
+          const attendanceHistory = await prisma.attendance.findMany({
+            where: { member_id: member.id },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: {
+                    select: {
+                      id: true,
+                      name: true,
+                      category: true,
+                      difficulty: true,
+                    },
+                  },
+                },
+              },
+            },
+            orderBy: { created_at: 'desc' },
+            take: 20, // Last 20 attendances
+          });
+
+          // Build profile text for embedding
+          const profileText = embeddingService.buildMemberProfileText(
+            updatedMember,
+            attendanceHistory
+          );
+
+          if (profileText && profileText.trim().length > 0) {
+            console.log(`[EMBEDDING] Generating profile embedding for member ${member.id}...`);
+            const embedding = await embeddingService.generateEmbedding(profileText);
+
+            // Format vector for PostgreSQL
+            const vectorString = embeddingService.formatVectorForPostgres(embedding);
+
+            // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
+            // Use parameterized query to prevent SQL injection
+            await prisma.$executeRaw`
+              UPDATE member_schema.members 
+              SET profile_embedding = ${vectorString}::vector 
+              WHERE id = ${member.id}
+            `;
+
+            console.log(`[SUCCESS] [EMBEDDING] Updated profile_embedding for member ${member.id}`);
+          } else {
+            console.warn(
+              `[WARNING] [EMBEDDING] Profile text is empty for member ${member.id}, skipping embedding generation`
+            );
+          }
+        } catch (embeddingError) {
+          // Don't fail the update if embedding generation fails
+          console.error('[ERROR] [EMBEDDING] Failed to generate profile embedding:', {
+            memberId: member.id,
+            error: embeddingError.message,
+            stack: embeddingError.stack,
+          });
         }
       }
 
@@ -2453,6 +2634,12 @@ class MemberController {
         0
       );
 
+      // Calculate calories from workout plans
+      // session.calories_burned = workout calories + equipment calories
+      // So workout calories = session.calories_burned - equipment calories
+      const totalCaloriesBurned = session.calories_burned || 0;
+      const caloriesFromWorkout = Math.max(0, totalCaloriesBurned - totalEquipmentCalories);
+
       // Calculate total duration from equipment usage (no fallback, use actual values)
       const totalEquipmentDuration = session.equipment_usage.reduce(
         (sum, usage) => sum + (usage.duration ?? 0),
@@ -2486,6 +2673,11 @@ class MemberController {
             session_rating: session.session_rating,
             notes: session.notes,
             member: session.member,
+          },
+          caloriesBreakdown: {
+            fromWorkout: caloriesFromWorkout,
+            fromEquipment: totalEquipmentCalories,
+            total: totalCaloriesBurned,
           },
           equipmentUsage: {
             totalSessions: session.equipment_usage.length,
@@ -3156,6 +3348,201 @@ class MemberController {
       res.status(500).json({
         success: false,
         message: error.message || 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Report issue - Member reports a general issue to admin/super admin
+   * POST /members/:member_id/report-issue
+   */
+  async reportIssue(req, res) {
+    try {
+      const { member_id } = req.params;
+      const { issue_type, title, description, severity, images, location } = req.body;
+
+      // Validate required fields
+      if (!title || !description) {
+        return res.status(400).json({
+          success: false,
+          message: 'Title and description are required',
+          data: null,
+        });
+      }
+
+      // Get member info
+      const member = await prisma.member.findUnique({
+        where: { id: member_id },
+        select: {
+          id: true,
+          user_id: true,
+          full_name: true,
+          email: true,
+          phone: true,
+          membership_number: true,
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Get all admin and super admin users from Identity Service
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+      let admins = [];
+
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({
+            user_id: admin.id,
+            email: admin.email,
+            role: admin.role,
+          }));
+          console.log(
+            `[REPORT_ISSUE] Retrieved ${admins.length} admin/super-admin users for notification`
+          );
+        } else {
+          console.warn(
+            '[WARNING] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] Failed to get admins from Identity Service:',
+          apiError.message || apiError
+        );
+        return res.status(500).json({
+          success: false,
+          message: 'Failed to get admin list',
+          data: null,
+        });
+      }
+
+      if (admins.length === 0) {
+        console.warn('[WARNING] No active admins found for issue report notification');
+        return res.status(500).json({
+          success: false,
+          message: 'No admins available to receive the report',
+          data: null,
+        });
+      }
+
+      // Prepare notification data
+      const severityText = severity || 'MEDIUM';
+      const issueTypeText = issue_type || 'GENERAL';
+      const notificationTitle = `Báo cáo sự cố - ${title}`;
+      const notificationMessage = `${member.full_name || 'Thành viên'} đã báo cáo sự cố: ${title}`;
+
+      // Create notifications for all admins
+      const createdNotifications = [];
+      const notificationPromises = admins.map(async admin => {
+        try {
+          const response = await axios.post(
+            `${IDENTITY_SERVICE_URL}/notifications`,
+            {
+              user_id: admin.user_id,
+              type: 'ISSUE_REPORT',
+              title: notificationTitle,
+              message: notificationMessage,
+              data: {
+                member_id: member.id,
+                member_user_id: member.user_id,
+                member_name: member.full_name,
+                member_email: member.email,
+                member_phone: member.phone,
+                membership_number: member.membership_number,
+                issue_type: issueTypeText,
+                title: title,
+                description: description,
+                severity: severityText,
+                images: images || [],
+                location: location || null,
+                reported_at: new Date().toISOString(),
+                role: 'MEMBER',
+                action_route: `/management/issues?member_id=${member.id}`,
+              },
+              channels: ['IN_APP', 'PUSH'],
+            },
+            { timeout: 10000 }
+          );
+
+          if (response.data?.success && response.data?.data?.notification) {
+            createdNotifications.push(response.data.data.notification);
+            console.log(
+              `[SUCCESS] Created notification for admin ${admin.user_id} (${admin.email})`
+            );
+          }
+        } catch (error) {
+          console.error(
+            `[ERROR] Failed to create notification for admin ${admin.user_id}:`,
+            error.message
+          );
+        }
+      });
+
+      await Promise.allSettled(notificationPromises);
+
+      // Emit socket events to admin rooms
+      if (global.io && createdNotifications.length > 0) {
+        createdNotifications.forEach(notification => {
+          if (notification && notification.id) {
+            const roomName = `user:${notification.user_id}`;
+            const socketPayload = {
+              notification_id: notification.id,
+              type: notification.type,
+              title: notification.title,
+              message: notification.message,
+              data: notification.data,
+              created_at: notification.created_at,
+              is_read: notification.is_read,
+            };
+
+            try {
+              // Emit to specific admin room
+              global.io.to(roomName).emit('notification:new', socketPayload);
+              // Also emit to admin room (for admins subscribed to 'admin' room)
+              global.io.to('admin').emit('notification:new', socketPayload);
+              // Emit specific event for issue reports
+              global.io.to(roomName).emit('issue:report:new', socketPayload);
+              global.io.to('admin').emit('issue:report:new', socketPayload);
+              console.log(
+                `[SOCKET] Emitted issue:report:new to ${roomName} (notification_id: ${notification.id})`
+              );
+            } catch (emitError) {
+              console.error(`[ERROR] Error emitting socket event to ${roomName}:`, emitError);
+            }
+          }
+        });
+        console.log(`[SUCCESS] Emitted socket events for ${createdNotifications.length} admin(s)`);
+      } else if (!global.io) {
+        console.warn('[WARNING] global.io not available - notifications saved to database only');
+      }
+
+      res.status(201).json({
+        success: true,
+        message: 'Issue reported successfully. Admins have been notified.',
+        data: {
+          member_id: member.id,
+          member_name: member.full_name,
+          notifications_sent: createdNotifications.length,
+          total_admins: admins.length,
+        },
+      });
+    } catch (error) {
+      console.error('[ERROR] Report issue error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
         data: null,
       });
     }

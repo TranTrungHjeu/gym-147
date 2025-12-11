@@ -138,6 +138,13 @@ router.post('/admin/announcements', (req, res) =>
   memberController.sendSystemAnnouncement(req, res)
 );
 
+// ==================== ISSUE REPORTING ROUTES ====================
+
+// Report issue - Member reports a general issue to admin/super admin
+router.post('/members/:member_id/report-issue', (req, res) =>
+  memberController.reportIssue(req, res)
+);
+
 // ==================== MEMBER-SCOPED ACHIEVEMENT ROUTES ====================
 
 // Get member achievements

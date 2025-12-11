@@ -2626,6 +2626,264 @@ class NotificationService {
       throw error;
     }
   }
+
+  /**
+   * Notify member when they successfully check in
+   */
+  async notifyMemberCheckIn(
+    memberUserId,
+    memberName,
+    className,
+    checkInTime,
+    scheduleId = null,
+    memberId = null
+  ) {
+    try {
+      console.log(`[NOTIFY] Sending check-in success notification to member: ${memberUserId}`);
+
+      const notificationData = {
+        member_name: memberName,
+        class_name: className,
+        check_in_time: checkInTime.toISOString(),
+        role: 'MEMBER',
+      };
+
+      if (scheduleId) {
+        notificationData.schedule_id = scheduleId;
+      }
+
+      if (memberId) {
+        notificationData.member_id = memberId;
+      }
+
+      // Create notification in identity service with push notification
+      const createdNotification = await this.createNotificationInIdentityService({
+        user_id: memberUserId,
+        type: 'MEMBER_CHECKED_IN',
+        title: 'Điểm danh thành công',
+        message: `Bạn đã điểm danh thành công vào lớp ${className}`,
+        data: notificationData,
+        channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
+      });
+
+      if (createdNotification && createdNotification.id) {
+        console.log(
+          `[SUCCESS] Check-in success notification created for member ${memberUserId} (notification_id: ${createdNotification.id})`
+        );
+      } else {
+        console.log(
+          `[INFO] Check-in success notification enqueued to Redis for member ${memberUserId} (will be processed by worker)`
+        );
+      }
+
+      // Emit socket event to member (only if notification was created)
+      if (global.io && createdNotification && createdNotification.id) {
+        const roomName = `user:${memberUserId}`;
+        const socketPayload = {
+          notification_id: createdNotification.id,
+          type: createdNotification.type,
+          title: createdNotification.title,
+          message: createdNotification.message,
+          data: createdNotification.data,
+          created_at: createdNotification.created_at,
+          is_read: createdNotification.is_read,
+        };
+
+        try {
+          console.log(`[SOCKET] Emitting notification:new event to member ${roomName}`);
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`[SUCCESS] Socket event emitted successfully to ${roomName}`);
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket event to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
+        }
+      } else if (!createdNotification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for member ${memberUserId} (will be processed by worker)`
+        );
+      } else {
+        console.warn('[WARN] global.io not available - notification saved to database only');
+      }
+    } catch (error) {
+      console.error('[ERROR] Error sending check-in success notification to member:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Notify member when they successfully check out
+   */
+  async notifyMemberCheckOut(
+    memberUserId,
+    memberName,
+    className,
+    checkOutTime,
+    scheduleId = null,
+    memberId = null
+  ) {
+    try {
+      console.log(`[NOTIFY] Sending check-out success notification to member: ${memberUserId}`);
+
+      const notificationData = {
+        member_name: memberName,
+        class_name: className,
+        check_out_time: checkOutTime.toISOString(),
+        role: 'MEMBER',
+      };
+
+      if (scheduleId) {
+        notificationData.schedule_id = scheduleId;
+      }
+
+      if (memberId) {
+        notificationData.member_id = memberId;
+      }
+
+      // Create notification in identity service with push notification
+      const createdNotification = await this.createNotificationInIdentityService({
+        user_id: memberUserId,
+        type: 'MEMBER_CHECKED_OUT',
+        title: 'Check-out thành công',
+        message: `Bạn đã check-out thành công khỏi lớp ${className}`,
+        data: notificationData,
+        channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
+      });
+
+      if (createdNotification && createdNotification.id) {
+        console.log(
+          `[SUCCESS] Check-out success notification created for member ${memberUserId} (notification_id: ${createdNotification.id})`
+        );
+      } else {
+        console.log(
+          `[INFO] Check-out success notification enqueued to Redis for member ${memberUserId} (will be processed by worker)`
+        );
+      }
+
+      // Emit socket event to member (only if notification was created)
+      if (global.io && createdNotification && createdNotification.id) {
+        const roomName = `user:${memberUserId}`;
+        const socketPayload = {
+          notification_id: createdNotification.id,
+          type: createdNotification.type,
+          title: createdNotification.title,
+          message: createdNotification.message,
+          data: createdNotification.data,
+          created_at: createdNotification.created_at,
+          is_read: createdNotification.is_read,
+        };
+
+        try {
+          console.log(`[SOCKET] Emitting notification:new event to member ${roomName}`);
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`[SUCCESS] Socket event emitted successfully to ${roomName}`);
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket event to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
+        }
+      } else if (!createdNotification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for member ${memberUserId} (will be processed by worker)`
+        );
+      } else {
+        console.warn('[WARN] global.io not available - notification saved to database only');
+      }
+    } catch (error) {
+      console.error('[ERROR] Error sending check-out success notification to member:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Send real-time notification to trainer when member checks out
+   * @param {string} trainerId - Trainer user ID
+   * @param {string} memberName - Member name
+   * @param {string} className - Class name
+   * @param {Date} checkOutTime - Check-out time
+   * @param {string} scheduleId - Schedule ID (optional)
+   * @param {string} memberId - Member ID (optional)
+   */
+  async notifyTrainerCheckOut(
+    trainerId,
+    memberName,
+    className,
+    checkOutTime,
+    scheduleId = null,
+    memberId = null
+  ) {
+    try {
+      console.log(`[NOTIFY] Sending check-out notification to trainer: ${trainerId}`);
+
+      const notificationData = {
+        member_name: memberName,
+        class_name: className,
+        check_out_time: checkOutTime.toISOString(),
+        role: 'MEMBER',
+      };
+
+      if (scheduleId) {
+        notificationData.schedule_id = scheduleId;
+      }
+
+      if (memberId) {
+        notificationData.member_id = memberId;
+      }
+
+      // Create notification in identity service with push notification
+      const createdNotification = await this.createNotificationInIdentityService({
+        user_id: trainerId,
+        type: 'MEMBER_CHECKED_OUT',
+        title: 'Thành viên đã check-out',
+        message: `${memberName} đã check-out khỏi lớp ${className}`,
+        data: notificationData,
+        channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
+      });
+
+      if (createdNotification && createdNotification.id) {
+        console.log(
+          `[SUCCESS] Check-out notification created for trainer ${trainerId} (notification_id: ${createdNotification.id})`
+        );
+      } else {
+        console.log(
+          `[INFO] Check-out notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
+      }
+
+      // Emit socket event to trainer (only if notification was created)
+      if (global.io && createdNotification && createdNotification.id) {
+        const roomName = `user:${trainerId}`;
+        const socketPayload = {
+          notification_id: createdNotification.id,
+          type: createdNotification.type,
+          title: createdNotification.title,
+          message: createdNotification.message,
+          data: createdNotification.data,
+          created_at: createdNotification.created_at,
+          is_read: createdNotification.is_read,
+        };
+
+        try {
+          console.log(`[SOCKET] Emitting socket event member:checked_out to ${roomName}`);
+          global.io.to(roomName).emit('member:checked_out', socketPayload);
+
+          // Also emit general notification:new event for compatibility
+          global.io.to(roomName).emit('notification:new', socketPayload);
+          console.log(`[SUCCESS] Socket events emitted successfully to ${roomName}`);
+        } catch (socketError) {
+          console.error(`[ERROR] Error emitting socket events to ${roomName}:`, socketError);
+          // Don't fail notification creation if socket fails
+        }
+      } else if (!createdNotification) {
+        console.log(
+          `[INFO] Notification enqueued to Redis for trainer ${trainerId} (will be processed by worker)`
+        );
+      } else {
+        console.warn('[WARN] global.io not available - notification saved to database only');
+      }
+    } catch (error) {
+      console.error('[ERROR] Error sending check-out notification:', error);
+      throw error;
+    }
+  }
 }
 
 module.exports = new NotificationService();

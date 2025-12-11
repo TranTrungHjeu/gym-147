@@ -28,7 +28,16 @@ import { useEffect } from 'react';
 import React from 'react';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-SplashScreen.preventAutoHideAsync();
+// Prevent auto-hide and handle errors gracefully
+SplashScreen.preventAutoHideAsync().catch((error) => {
+  // Ignore errors - splash screen may already be prevented or not available
+  if (error?.message?.includes('No native splash screen registered')) {
+    // This is expected in some cases (e.g., web, development)
+    console.log('[SPLASH] Splash screen not available (expected in some environments)');
+  } else {
+  console.warn('[SPLASH] Error preventing auto-hide:', error);
+}
+});
 
 function AppContent() {
   const { logout } = useAuth();
@@ -89,7 +98,29 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (fontsLoaded || fontError) {
-      SplashScreen.hideAsync();
+      // Hide splash screen with error handling
+      // Use setTimeout to ensure splash screen is ready
+      const hideSplash = async () => {
+        try {
+          await SplashScreen.hideAsync();
+        } catch (error: any) {
+        // Ignore errors if splash screen is already hidden or not registered
+          if (
+            error?.message?.includes('No native splash screen registered') ||
+            error?.message?.includes('SplashScreen.show')
+          ) {
+            // This is expected in some cases (e.g., web, development, or already hidden)
+            console.log('[SPLASH] Splash screen not available or already hidden (expected)');
+        } else {
+          console.warn('[SPLASH] Error hiding splash screen:', error);
+        }
+        }
+      };
+
+      // Small delay to ensure splash screen is ready
+      setTimeout(() => {
+        hideSplash();
+      }, 100);
     }
   }, [fontsLoaded, fontError]);
 
@@ -114,9 +145,12 @@ export default function RootLayout() {
           }
 
           // Handle different notification types with deep linking
+          // IMPROVEMENT: Handle new warning notification types
           switch (notificationType) {
             case 'QUEUE_YOUR_TURN':
             case 'QUEUE_POSITION_UPDATED':
+            case 'EQUIPMENT_AUTO_STOP_WARNING': // IMPROVEMENT: Equipment auto-stop warning
+            case 'EQUIPMENT_AVAILABLE':
               if (data?.equipment_id) {
                 console.log('   → Navigating to equipment:', data.equipment_id);
                 router.push(`/equipment/${data.equipment_id}`);
@@ -126,8 +160,16 @@ export default function RootLayout() {
             case 'CLASS_BOOKING':
             case 'CLASS_CANCELLED':
             case 'CLASS_REMINDER':
+            case 'BOOKING_REMINDER': // IMPROVEMENT: Booking reminder
+            case 'AUTO_CANCEL_WARNING': // IMPROVEMENT: Auto-cancel warning
+            case 'CHECKOUT_REMINDER': // IMPROVEMENT: Checkout reminder
             case 'WAITLIST_PROMOTED':
-              if (data?.schedule_id) {
+            case 'WAITLIST_PROMOTE': // IMPROVEMENT: Waitlist promotion
+              // If requires_payment is true, navigate to my-bookings so user can pay
+              if (data?.requires_payment && data?.booking_id) {
+                console.log('   → Navigating to my-bookings to complete payment for booking:', data.booking_id);
+                router.push('/classes/my-bookings');
+              } else if (data?.schedule_id) {
                 console.log('   → Navigating to class schedule:', data.schedule_id);
                 router.push(`/classes/${data.schedule_id}`);
               } else if (data?.class_id) {

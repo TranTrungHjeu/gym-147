@@ -206,7 +206,8 @@ class SecurityController {
    */
   async enable2FA(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
 
       // Check if 2FA is already enabled
       const user = await prisma.user.findUnique({
@@ -222,8 +223,10 @@ class SecurityController {
         });
       }
 
-      // Generate 2FA secret
-      const secret = crypto.randomBytes(20).toString('base32');
+      // Generate 2FA secret (base32 encoding)
+      // Node.js doesn't support 'base32' encoding, so we create a helper function
+      const randomBytes = crypto.randomBytes(20);
+      const secret = this.bufferToBase32(randomBytes);
       const secretKey = `otpauth://totp/Gym147:${user.email}?secret=${secret}&issuer=Gym147`;
 
       // Update user with 2FA secret (but don't enable yet)
@@ -256,7 +259,8 @@ class SecurityController {
    */
   async verify2FA(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { token } = req.body;
 
       if (!token) {
@@ -325,7 +329,21 @@ class SecurityController {
    */
   async get2FAStatus(req, res) {
     try {
-      const userId = req.user.id;
+      // Get userId from req.user - JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id || req.user?.user_id;
+
+      if (!userId) {
+        console.error('[ERROR] get2FAStatus: req.user is missing userId field:', {
+          user: req.user,
+          hasUser: !!req.user,
+          userKeys: req.user ? Object.keys(req.user) : [],
+        });
+        return res.status(401).json({
+          success: false,
+          message: 'User ID not found in token',
+          data: null,
+        });
+      }
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -377,7 +395,8 @@ class SecurityController {
    */
   async disable2FA(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { password, token } = req.body;
 
       if (!password || !token) {
@@ -455,7 +474,8 @@ class SecurityController {
    */
   async get2FAQRCode(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
 
       const user = await prisma.user.findUnique({
         where: { id: userId },
@@ -492,6 +512,68 @@ class SecurityController {
   }
 
   /**
+   * Convert buffer to base32 string (helper method)
+   * Base32 encoding for TOTP secrets (RFC 4648)
+   */
+  bufferToBase32(buffer) {
+    const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    let bits = 0;
+    let value = 0;
+    let output = '';
+
+    for (let i = 0; i < buffer.length; i++) {
+      value = (value << 8) | buffer[i];
+      bits += 8;
+
+      while (bits >= 5) {
+        output += base32Chars[(value >>> (bits - 5)) & 0x1f];
+        bits -= 5;
+      }
+    }
+
+    if (bits > 0) {
+      output += base32Chars[(value << (5 - bits)) & 0x1f];
+    }
+
+    return output;
+  }
+
+  /**
+   * Convert base32 string to buffer (helper method)
+   * Base32 decoding for TOTP secrets (RFC 4648)
+   */
+  base32ToBuffer(base32String) {
+    const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const base32Map = {};
+    for (let i = 0; i < base32Chars.length; i++) {
+      base32Map[base32Chars[i]] = i;
+    }
+
+    // Remove padding and convert to uppercase
+    const input = base32String.replace(/=+$/, '').toUpperCase();
+    let bits = 0;
+    let value = 0;
+    const output = [];
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      if (!(char in base32Map)) {
+        continue; // Skip invalid characters
+      }
+
+      value = (value << 5) | base32Map[char];
+      bits += 5;
+
+      if (bits >= 8) {
+        output.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+
+    return Buffer.from(output);
+  }
+
+  /**
    * Verify TOTP token (helper method)
    */
   verifyTOTPToken(secret, token) {
@@ -499,10 +581,23 @@ class SecurityController {
     // In production, you should use a proper TOTP library like 'speakeasy'
     // For now, we'll implement a basic version
 
-    const time = Math.floor(Date.now() / 1000 / 30); // 30-second window
-    const expectedToken = this.generateTOTP(secret, time);
+    if (!secret || !token) {
+      return false;
+    }
 
-    return expectedToken === token;
+    const time = Math.floor(Date.now() / 1000 / 30); // 30-second window
+
+    // Check current time window and adjacent windows (for clock skew tolerance)
+    const timeWindows = [time - 1, time, time + 1];
+
+    for (const timeWindow of timeWindows) {
+      const expectedToken = this.generateTOTP(secret, timeWindow);
+      if (expectedToken === token) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -511,8 +606,16 @@ class SecurityController {
   generateTOTP(secret, time) {
     // This is a simplified TOTP generation
     // In production, use a proper TOTP library
-    const hmac = crypto.createHmac('sha1', Buffer.from(secret, 'base32'));
-    hmac.update(Buffer.from(time.toString(16).padStart(16, '0'), 'hex'));
+    // Convert base32 secret to buffer
+    const secretBuffer = this.base32ToBuffer(secret);
+
+    // Create time buffer (8 bytes, big-endian)
+    const timeBuffer = Buffer.allocUnsafe(8);
+    timeBuffer.writeUInt32BE(0, 0); // High 4 bytes
+    timeBuffer.writeUInt32BE(time, 4); // Low 4 bytes
+
+    const hmac = crypto.createHmac('sha1', secretBuffer);
+    hmac.update(timeBuffer);
     const hash = hmac.digest();
 
     const offset = hash[hash.length - 1] & 0xf;
@@ -532,7 +635,8 @@ class SecurityController {
    */
   async addIPWhitelist(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { ipAddress, description } = req.body;
 
       if (!ipAddress) {
@@ -587,7 +691,8 @@ class SecurityController {
    */
   async removeIPWhitelist(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { ipAddress } = req.params;
 
       if (!ipAddress) {
@@ -638,7 +743,8 @@ class SecurityController {
    */
   async getWhitelistedIPs(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
 
       const ips = await prisma.iPWhitelist.findMany({
         where: {
@@ -671,7 +777,8 @@ class SecurityController {
    */
   async addTrustedLocation(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { latitude, longitude, address, name } = req.body;
 
       if (!latitude || !longitude || !address) {
@@ -712,7 +819,8 @@ class SecurityController {
    */
   async getTrustedLocations(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
 
       const locations = await prisma.trustedLocation.findMany({
         where: {
@@ -745,7 +853,8 @@ class SecurityController {
    */
   async blockLocation(req, res) {
     try {
-      const userId = req.user.id;
+      // JWT token uses 'userId' field (see jwt.sign in security.controller.js:147)
+      const userId = req.user?.userId || req.user?.id;
       const { latitude, longitude, address, reason } = req.body;
 
       if (!latitude || !longitude || !address) {

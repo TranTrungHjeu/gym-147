@@ -6,6 +6,7 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { EventInput, DateSelectArg, EventClickArg } from '@fullcalendar/core';
 import { Modal } from '../components/ui/modal';
 import { useModal } from '../hooks/useModal';
+import useTranslation from '../hooks/useTranslation';
 
 interface CalendarEvent extends EventInput {
   extendedProps: {
@@ -14,6 +15,7 @@ interface CalendarEvent extends EventInput {
 }
 
 const Calendar: React.FC = () => {
+  const { t } = useTranslation();
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [eventTitle, setEventTitle] = useState('');
   const [eventStartDate, setEventStartDate] = useState('');
@@ -35,19 +37,19 @@ const Calendar: React.FC = () => {
     setEvents([
       {
         id: '1',
-        title: 'Event Conf.',
+        title: t('calendar.sampleEvents.eventConf'),
         start: new Date().toISOString().split('T')[0],
         extendedProps: { calendar: 'Danger' },
       },
       {
         id: '2',
-        title: 'Meeting',
+        title: t('calendar.sampleEvents.meeting'),
         start: new Date(Date.now() + 86400000).toISOString().split('T')[0],
         extendedProps: { calendar: 'Success' },
       },
       {
         id: '3',
-        title: 'Workshop',
+        title: t('calendar.sampleEvents.workshop'),
         start: new Date(Date.now() + 172800000).toISOString().split('T')[0],
         end: new Date(Date.now() + 259200000).toISOString().split('T')[0],
         extendedProps: { calendar: 'Primary' },
@@ -132,7 +134,7 @@ const Calendar: React.FC = () => {
             eventContent={renderEventContent}
             customButtons={{
               addEventButton: {
-                text: 'Add Event +',
+                text: t('calendar.addEvent'),
                 click: openModal,
               },
             }}
@@ -142,17 +144,17 @@ const Calendar: React.FC = () => {
           <div className='flex flex-col px-2 overflow-y-auto custom-scrollbar'>
             <div>
               <h5 className='mb-2 font-semibold text-gray-800 modal-title text-theme-xl dark:text-white/90 lg:text-2xl font-space-grotesk'>
-                {selectedEvent ? 'Edit Event' : 'Add Event'}
+                {selectedEvent ? t('calendar.editEvent') : t('calendar.addEvent')}
               </h5>
               <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
-                Plan your next big moment: schedule or edit an event to stay on track
+                {t('calendar.form.description')}
               </p>
             </div>
             <div className='mt-8'>
               <div>
                 <div>
                   <label className='mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400 font-inter'>
-                    Event Title
+                    {t('calendar.form.title')}
                   </label>
                   <input
                     id='event-title'
@@ -165,7 +167,7 @@ const Calendar: React.FC = () => {
               </div>
               <div className='mt-6'>
                 <label className='block mb-4 text-sm font-medium text-gray-700 dark:text-gray-400 font-inter'>
-                  Event Color
+                  {t('calendar.form.level')}
                 </label>
                 <div className='flex flex-wrap items-center gap-4 sm:gap-5'>
                   {Object.entries(calendarsEvents).map(([key, value]) => (
@@ -203,7 +205,7 @@ const Calendar: React.FC = () => {
 
               <div className='mt-6'>
                 <label className='mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400'>
-                  Enter Start Date
+                  {t('calendar.form.startDate')}
                 </label>
                 <div className='relative'>
                   <input
@@ -218,7 +220,7 @@ const Calendar: React.FC = () => {
 
               <div className='mt-6'>
                 <label className='mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-400'>
-                  Enter End Date
+                  {t('calendar.form.endDate')}
                 </label>
                 <div className='relative'>
                   <input
@@ -237,14 +239,14 @@ const Calendar: React.FC = () => {
                 type='button'
                 className='flex w-full justify-center rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-400 dark:hover:bg-white/[0.03] sm:w-auto'
               >
-                Close
+                {t('common.close')}
               </button>
               <button
                 onClick={handleAddOrUpdateEvent}
                 type='button'
                 className='btn btn-success btn-update-event flex w-full justify-center rounded-lg bg-brand-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-600 sm:w-auto'
               >
-                {selectedEvent ? 'Update Changes' : 'Add Event'}
+                {selectedEvent ? t('calendar.updateChanges') : t('calendar.addEvent')}
               </button>
             </div>
           </div>

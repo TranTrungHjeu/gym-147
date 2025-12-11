@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
 
 interface PaginationProps {
   currentPage: number;
@@ -22,6 +23,7 @@ const Pagination: React.FC<PaginationProps> = ({
   itemsPerPageOptions = [10, 25, 50, 100],
   showItemsPerPage = true,
 }) => {
+  const { t } = useTranslation();
   const startItem = (currentPage - 1) * itemsPerPage + 1;
   const endItem = Math.min(currentPage * itemsPerPage, totalItems);
 
@@ -78,9 +80,7 @@ const Pagination: React.FC<PaginationProps> = ({
     <div className='flex flex-col sm:flex-row items-center justify-between gap-4 px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50'>
       {/* Items info */}
       <div className='text-sm text-gray-600 dark:text-gray-400 font-heading'>
-        Hiển thị <span className='font-medium text-gray-900 dark:text-white'>{startItem}</span> đến{' '}
-        <span className='font-medium text-gray-900 dark:text-white'>{endItem}</span> trong tổng số{' '}
-        <span className='font-medium text-gray-900 dark:text-white'>{totalItems}</span> mục
+        {t('pagination.showing', { start: startItem, end: endItem, total: totalItems })}
       </div>
 
       <div className='flex items-center gap-4'>
@@ -88,7 +88,7 @@ const Pagination: React.FC<PaginationProps> = ({
         {showItemsPerPage && onItemsPerPageChange && (
           <div className='flex items-center gap-2'>
             <label className='text-sm text-gray-600 dark:text-gray-400 font-heading'>
-              Hiển thị:
+              {t('pagination.show')}:
             </label>
             <select
               value={itemsPerPage}
@@ -117,7 +117,7 @@ const Pagination: React.FC<PaginationProps> = ({
             }`}
           >
             <ChevronLeft className='w-4 h-4' />
-            <span>Trước</span>
+            <span>{t('common.prev')}</span>
           </button>
 
           {/* Page Numbers */}
@@ -161,7 +161,7 @@ const Pagination: React.FC<PaginationProps> = ({
                 : 'border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-orange-50 dark:hover:bg-orange-900/20 hover:border-orange-400 dark:hover:border-orange-600 hover:text-orange-600 dark:hover:text-orange-400 shadow-sm hover:shadow-md active:scale-95'
             }`}
           >
-            <span>Sau</span>
+            <span>{t('common.next')}</span>
             <ChevronRight className='w-4 h-4' />
           </button>
         </div>

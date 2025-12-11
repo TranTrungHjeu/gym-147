@@ -40,9 +40,20 @@ class ChatController {
           // Emit to receiver if specified
           if (result.data.receiver_id) {
             global.io.to(`user:${result.data.receiver_id}`).emit('chat:message', socketData);
+            console.log(`[CHAT] Emitted message to user:${result.data.receiver_id}`);
           } else {
-            // Emit to all admins/staff for support chat
-            global.io.emit('chat:support:message', socketData);
+            // Emit to admin room for support chat
+            const adminRoom = global.io.sockets.adapter.rooms.get('admin');
+            const adminCount = adminRoom ? adminRoom.size : 0;
+            console.log(
+              `[CHAT] Emitting support message to admin room (${adminCount} admins connected)`
+            );
+            global.io.to('admin').emit('chat:support:message', socketData);
+            console.log(`[CHAT] Support message emitted:`, {
+              id: socketData.id,
+              sender_id: socketData.sender_id,
+              message: socketData.message.substring(0, 50) + '...',
+            });
           }
 
           // Emit to sender for confirmation
@@ -78,13 +89,15 @@ class ChatController {
   async getChatHistory(req, res) {
     try {
       const userId = req.user.userId;
+      const userRole = req.user.role;
       const { other_user_id, limit = 50, offset = 0 } = req.query;
 
       const result = await this.chatService.getChatHistory(
         userId,
         other_user_id || null,
         parseInt(limit),
-        parseInt(offset)
+        parseInt(offset),
+        userRole
       );
 
       if (result.success) {
@@ -116,7 +129,8 @@ class ChatController {
   async getUnreadCount(req, res) {
     try {
       const userId = req.user.userId;
-      const result = await this.chatService.getUnreadCount(userId);
+      const userRole = req.user.role;
+      const result = await this.chatService.getUnreadCount(userId, userRole);
 
       if (result.success) {
         res.json({
@@ -147,7 +161,8 @@ class ChatController {
   async getConversations(req, res) {
     try {
       const userId = req.user.userId;
-      const result = await this.chatService.getConversations(userId);
+      const userRole = req.user.role;
+      const result = await this.chatService.getConversations(userId, userRole);
 
       if (result.success) {
         res.json({
@@ -178,9 +193,10 @@ class ChatController {
   async markAsRead(req, res) {
     try {
       const userId = req.user.userId;
+      const userRole = req.user.role;
       const { message_ids } = req.body;
 
-      const result = await this.chatService.markAsRead(userId, message_ids || null);
+      const result = await this.chatService.markAsRead(userId, message_ids || null, userRole);
 
       if (result.success) {
         res.json({
@@ -206,5 +222,3 @@ class ChatController {
 }
 
 module.exports = { ChatController };
-
-

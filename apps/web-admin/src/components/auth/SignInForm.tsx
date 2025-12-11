@@ -1,6 +1,7 @@
 import { Eye, EyeOff } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import useTranslation from '../../hooks/useTranslation';
 import { useNavigation } from '../../context/NavigationContext';
 import { useToast } from '../../hooks/useToast';
 import { authService } from '../../services/auth.service';
@@ -23,6 +24,7 @@ export default function SignInForm({
   clearErrors = false,
   autoFillCredentials,
 }: SignInFormProps) {
+  const { t } = useTranslation();
   const { setIsNavigating } = useNavigation();
   const { showToast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
@@ -42,7 +44,7 @@ export default function SignInForm({
     message: string;
   }>({
     isOpen: false,
-    title: 'Đăng nhập thất bại',
+    title: t('auth.signIn.errors.loginFailed'),
     message: '',
   });
   const [isOAuthLoading, setIsOAuthLoading] = useState(false);
@@ -75,7 +77,7 @@ export default function SignInForm({
       }
 
       // Show success toast for auto-fill
-      showToast('Thông tin đăng nhập đã được điền sẵn!', 'success');
+      showToast(t('auth.signIn.messages.autoFillSuccess'), 'success');
     }
   }, [autoFillCredentials]);
 
@@ -85,22 +87,23 @@ export default function SignInForm({
       case 'email':
         if (!value) {
           return loginType === 'email'
-            ? 'Email không được để trống'
-            : 'Số điện thoại không được để trống';
+            ? t('auth.signIn.validation.emailRequired')
+            : t('auth.signIn.validation.phoneRequired');
         }
         if (loginType === 'email') {
-          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) return 'Email không hợp lệ';
+          if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value))
+            return t('auth.signIn.validation.emailInvalid');
         } else {
           if (!/^[0-9]{10,11}$/.test(value.replace(/\s/g, '')))
-            return 'Số điện thoại phải có 10-11 chữ số';
+            return t('auth.signIn.validation.phoneInvalid');
         }
         return '';
       case 'password':
-        if (!value) return 'Mật khẩu không được để trống';
+        if (!value) return t('auth.signIn.validation.passwordRequired');
         return '';
       case 'adminLogin':
         if (!isAdminLogin && (email.includes('admin') || email.includes('gym147'))) {
-          return 'Vui lòng tick "Đăng nhập với tư cách quản trị viên" để đăng nhập với tài khoản admin';
+          return t('auth.signIn.validation.adminLoginRequired');
         }
         return '';
       default:
@@ -185,7 +188,7 @@ export default function SignInForm({
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     e.stopPropagation(); // Prevent event bubbling
-    
+
     setIsLoading(true);
 
     // Mark all fields as touched for validation
@@ -211,8 +214,7 @@ export default function SignInForm({
       setFieldErrors({
         email: emailError,
         password: passwordError,
-        adminLogin:
-          'Vui lòng tick "Đăng nhập với tư cách quản trị viên" để đăng nhập với tài khoản admin',
+        adminLogin: t('auth.signIn.validation.adminLoginRequired'),
       });
       setIsLoading(false);
       return;
@@ -223,6 +225,7 @@ export default function SignInForm({
       const response = await authService.login({
         identifier: email, // Backend expects 'identifier' field
         password: password,
+        rememberMe: isChecked, // Send remember me flag
       });
 
       if (response.success) {
@@ -252,25 +255,25 @@ export default function SignInForm({
         // Handle API error response
         setFieldErrors(prev => ({
           ...prev,
-          password: response.message || 'Đăng nhập thất bại',
+          password: response.message || t('auth.signIn.errors.loginFailed'),
         }));
       }
     } catch (error: any) {
       console.error('Login error:', error);
 
       // Determine error message based on error type
-      let errorTitle = 'Đăng nhập thất bại';
-      let errorMessage = 'Có lỗi xảy ra khi đăng nhập. Vui lòng thử lại.';
+      let errorTitle = t('auth.signIn.errors.loginFailed');
+      let errorMessage = t('auth.signIn.errors.genericError');
 
       if (error.response?.status === 401) {
-        errorTitle = 'Thông tin đăng nhập không đúng';
-        errorMessage = 'Email hoặc mật khẩu bạn nhập không chính xác. Vui lòng kiểm tra lại và thử lại.';
+        errorTitle = t('auth.signIn.errors.invalidCredentials');
+        errorMessage = t('auth.signIn.errors.invalidCredentialsMessage');
       } else if (error.response?.status === 423) {
-        errorTitle = 'Tài khoản đã bị khóa';
-        errorMessage = 'Tài khoản của bạn đã bị khóa. Vui lòng liên hệ quản trị viên để được hỗ trợ.';
+        errorTitle = t('auth.signIn.errors.accountLocked');
+        errorMessage = t('auth.signIn.errors.accountLockedMessage');
       } else if (error.response?.status === 200 && error.response?.data?.requires2FA) {
-        errorTitle = 'Yêu cầu xác thực 2FA';
-        errorMessage = 'Tài khoản của bạn yêu cầu xác thực 2 yếu tố. Vui lòng nhập mã từ ứng dụng xác thực.';
+        errorTitle = t('auth.signIn.errors.requires2FA');
+        errorMessage = t('auth.signIn.errors.requires2FAMessage');
       } else if (error.response?.data?.message) {
         errorMessage = error.response.data.message;
       } else if (error.message) {
@@ -299,11 +302,11 @@ export default function SignInForm({
         // Open OAuth URL in new window
         window.location.href = response.data.authUrl;
       } else {
-        showToast('Không thể khởi tạo Google OAuth', 'error');
+        showToast(t('auth.signIn.errors.googleOAuthFailed'), 'error');
       }
     } catch (error: any) {
       console.error('Google OAuth error:', error);
-      showToast(error.message || 'Không thể đăng nhập với Google', 'error');
+      showToast(error.message || t('auth.signIn.errors.googleLoginFailed'), 'error');
     } finally {
       setIsOAuthLoading(false);
     }
@@ -316,11 +319,11 @@ export default function SignInForm({
       if (response.success && response.data?.authUrl) {
         window.location.href = response.data.authUrl;
       } else {
-        showToast('Không thể khởi tạo Facebook OAuth', 'error');
+        showToast(t('auth.signIn.errors.facebookOAuthFailed'), 'error');
       }
     } catch (error: any) {
       console.error('Facebook OAuth error:', error);
-      showToast(error.message || 'Không thể đăng nhập với Facebook', 'error');
+      showToast(error.message || t('auth.signIn.errors.facebookLoginFailed'), 'error');
     } finally {
       setIsOAuthLoading(false);
     }
@@ -328,7 +331,9 @@ export default function SignInForm({
 
   return (
     <div
-      className={`flex flex-col h-full transition-all duration-1000 ${isFormLoaded ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'}`}
+      className={`flex flex-col h-full transition-all duration-1000 ${
+        isFormLoaded ? 'translate-y-0 opacity-100' : 'translate-y-8 opacity-0'
+      }`}
     >
       {/* Back Button */}
 
@@ -356,11 +361,9 @@ export default function SignInForm({
               className='mb-1 font-bold text-lg animate-fade-in-up delay-200 text-white'
               style={{ color: 'white !important', textShadow: '0 0 10px rgba(255,255,255,0.5)' }}
             >
-              ĐĂNG NHẬP
+              {t('auth.signIn.title')}
             </h1>
-            <p className='text-gray-600 dark:text-white/70 text-xs '>
-              Chào mừng bạn quay trở lại Gym 147!
-            </p>
+            <p className='text-gray-600 dark:text-white/70 text-xs '>{t('auth.signIn.welcome')}</p>
           </div>
 
           {/* Login Type Toggle */}
@@ -386,14 +389,19 @@ export default function SignInForm({
                     : 'text-gray-600 dark:text-white/70 hover:text-gray-800 dark:hover:text-white'
                 }`}
               >
-                Số điện thoại
+                {t('auth.signIn.phone')}
               </button>
             </div>
           </div>
           {/* Social Login Buttons */}
           <div className='mb-3'>
             <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 sm:gap-3'>
-              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+              <button
+                type='button'
+                onClick={handleGoogleLogin}
+                disabled={isOAuthLoading || isLoading}
+                className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed'
+              >
                 <svg
                   width='20'
                   height='20'
@@ -418,9 +426,14 @@ export default function SignInForm({
                     fill='#EB4335'
                   />
                 </svg>
-                GOOGLE
+                {isOAuthLoading ? t('common.processing') : 'GOOGLE'}
               </button>
-              <button className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm '>
+              <button
+                type='button'
+                onClick={handleFacebookLogin}
+                disabled={isOAuthLoading || isLoading}
+                className='group inline-flex items-center justify-center gap-2 py-2 text-xs font-medium text-gray-800 dark:text-gray-200 transition-all duration-300 bg-gray-100 dark:bg-gray-700/80 rounded-xl px-4 hover:bg-gray-200 dark:hover:bg-white/20 hover:scale-105 border border-gray-300 dark:border-gray-600 backdrop-blur-sm disabled:opacity-50 disabled:cursor-not-allowed'
+              >
                 <svg
                   width='20'
                   height='20'
@@ -447,15 +460,11 @@ export default function SignInForm({
               </div>
             </div>
             {/* Login Form */}
-            <form 
-              onSubmit={handleLogin} 
-              className='space-y-3'
-              noValidate
-            >
+            <form onSubmit={handleLogin} className='space-y-3' noValidate>
               {/* Email/Phone Field */}
               <div className='space-y-2'>
                 <Label className='text-gray-700 dark:text-white/90 font-medium '>
-                  {loginType === 'email' ? 'Email' : 'Số điện thoại'}{' '}
+                  {loginType === 'email' ? t('auth.signIn.email') : t('auth.signIn.phone')}{' '}
                   <span className='text-orange-400'>*</span>
                 </Label>
                 <div className='relative'>
@@ -510,7 +519,7 @@ export default function SignInForm({
               {/* Password Field */}
               <div className='space-y-2'>
                 <Label className='text-gray-700 dark:text-white/90 font-medium '>
-                  Mật khẩu <span className='text-orange-400'>*</span>
+                  {t('auth.signIn.password')} <span className='text-orange-400'>*</span>
                 </Label>
                 <div className='relative'>
                   <div className='absolute inset-y-0 right-0 flex items-center pr-3 z-20 pointer-events-none'>
@@ -559,7 +568,7 @@ export default function SignInForm({
                   onChange={handleAdminLoginChange}
                 />
                 <span className='text-gray-700 dark:text-white/80 text-sm font-medium '>
-                  Đăng nhập với tư cách quản trị viên
+                  {t('auth.signIn.adminLogin')}
                 </span>
               </div>
               {fieldErrors.adminLogin && (
@@ -575,7 +584,7 @@ export default function SignInForm({
                     className='w-5 h-5 text-orange-500 border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700/80 focus:ring-orange-400/20'
                   />
                   <span className='text-gray-700 dark:text-white/80 text-sm font-medium '>
-                    Ghi nhớ đăng nhập
+                    {t('auth.signIn.rememberMe')}
                   </span>
                 </div>
                 <button
@@ -583,7 +592,7 @@ export default function SignInForm({
                   onClick={handleForgotPasswordClick}
                   className='text-sm text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 transition-colors duration-200 font-medium hover:underline'
                 >
-                  Quên mật khẩu?
+                  {t('auth.signIn.forgotPassword')}
                 </button>
               </div>
 
@@ -594,7 +603,7 @@ export default function SignInForm({
                   className='w-full py-3 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-xl shadow-lg hover:shadow-orange-500/25 transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none  auth-button'
                   disabled={isLoading}
                 >
-                  {isLoading ? <ButtonLoading /> : 'Đăng Nhập'}
+                  {isLoading ? <ButtonLoading /> : t('auth.signIn.submit')}
                 </button>
               </div>
             </form>
@@ -602,13 +611,13 @@ export default function SignInForm({
             {/* Sign Up Link */}
             <div className='mt-6 text-center'>
               <p className='text-gray-600 dark:text-white/70 text-sm'>
-                Chưa có tài khoản?{' '}
+                {t('auth.signIn.noAccount')}{' '}
                 <button
                   type='button'
                   onClick={handleSignUpClick}
                   className='text-orange-500 dark:text-orange-400 hover:text-orange-600 dark:hover:text-orange-300 font-semibold transition-colors duration-200 hover:underline'
                 >
-                  Đăng ký ngay
+                  {t('auth.signIn.signUpNow')}
                 </button>
               </p>
             </div>

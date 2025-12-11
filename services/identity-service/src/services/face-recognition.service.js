@@ -28,8 +28,26 @@ class FaceRecognitionService {
     try {
       const fs = require('fs');
       const path = require('path');
-      return fs.existsSync(path.resolve(this.faceApiModelPath));
+
+      // Resolve path relative to service root (where main.js is located)
+      // In Docker: /app/services/identity-service
+      // In local: ./services/identity-service
+      const serviceRoot = path.resolve(__dirname, '../..');
+      const modelPath = path.isAbsolute(this.faceApiModelPath)
+        ? this.faceApiModelPath
+        : path.resolve(serviceRoot, this.faceApiModelPath);
+
+      const exists = fs.existsSync(modelPath);
+
+      if (!exists) {
+        console.warn(`[FACE-RECOGNITION] Models not found at: ${modelPath}`);
+        console.warn(`[FACE-RECOGNITION] Service root: ${serviceRoot}`);
+        console.warn(`[FACE-RECOGNITION] Configured path: ${this.faceApiModelPath}`);
+      }
+
+      return exists;
     } catch (e) {
+      console.error('[FACE-RECOGNITION] Error checking models:', e);
       return false;
     }
   }
@@ -70,13 +88,78 @@ class FaceRecognitionService {
         throw new Error('Invalid image dimensions');
       }
 
-      // Resize if too large
-      if (imageInfo.width > this.maxFaceSize || imageInfo.height > this.maxFaceSize) {
-        imageBuffer = await sharp(imageBuffer)
-          .resize(this.maxFaceSize, this.maxFaceSize, { fit: 'inside' })
+      console.log('[FACE-RECOGNITION] Image info:', {
+        width: imageInfo.width,
+        height: imageInfo.height,
+        format: imageInfo.format,
+        size: imageBuffer.length,
+      });
+
+      // Preprocess image for better face detection:
+      // 1. Resize to optimal size for face detection (512-1024px is optimal)
+      // 2. Enhance contrast and brightness
+      // 3. Convert to RGB if needed
+
+      let processedBuffer = imageBuffer;
+
+      // Optimal size for face detection (face-api.js works best with 512-1024px)
+      const minSize = 224; // Minimum size for face detection
+      const optimalSize = 800; // Optimal size for face detection (balance between quality and performance)
+      const maxSize = this.maxFaceSize;
+
+      // Build sharp pipeline
+      let sharpInstance = sharp(imageBuffer);
+
+      // Handle alpha channel (only for formats that support it, JPEG doesn't have alpha)
+      if (imageInfo.hasAlpha && imageInfo.format !== 'jpeg') {
+        sharpInstance = sharpInstance.flatten({ background: { r: 255, g: 255, b: 255 } });
+      }
+
+      // Resize logic: optimize for face detection
+      if (imageInfo.width < minSize || imageInfo.height < minSize) {
+        // Upscale small images
+        const scale = Math.max(minSize / imageInfo.width, minSize / imageInfo.height);
+        processedBuffer = await sharpInstance
+          .resize(Math.ceil(imageInfo.width * scale), Math.ceil(imageInfo.height * scale), {
+            fit: 'fill',
+            kernel: sharp.kernel.lanczos3, // Better quality upscaling
+          })
+          .modulate({ brightness: 1.1, saturation: 1.05 }) // Slight brightness and saturation boost
+          .jpeg({ quality: 95 })
+          .toBuffer();
+      } else if (imageInfo.width > maxSize || imageInfo.height > maxSize) {
+        // Downscale very large images
+        processedBuffer = await sharpInstance
+          .resize(maxSize, maxSize, { fit: 'inside' })
+          .modulate({ brightness: 1.1, saturation: 1.05 }) // Slight brightness and saturation boost
+          .jpeg({ quality: 90 })
+          .toBuffer();
+      } else if (imageInfo.width > optimalSize || imageInfo.height > optimalSize) {
+        // Resize large images to optimal size for better face detection
+        // Keep aspect ratio, resize to fit within optimalSize
+        processedBuffer = await sharpInstance
+          .resize(optimalSize, optimalSize, { fit: 'inside' })
+          .modulate({ brightness: 1.1, saturation: 1.05 }) // Slight brightness and saturation boost
+          .jpeg({ quality: 90 })
+          .toBuffer();
+      } else {
+        // Optimize existing image (enhance quality, ensure RGB)
+        processedBuffer = await sharpInstance
+          .modulate({ brightness: 1.1, saturation: 1.05 }) // Slight brightness and saturation boost
           .jpeg({ quality: 90 })
           .toBuffer();
       }
+
+      imageBuffer = processedBuffer;
+
+      // Log processed image info for debugging
+      const processedInfo = await sharp(processedBuffer).metadata();
+      console.log('[FACE-RECOGNITION] Processed image info:', {
+        width: processedInfo.width,
+        height: processedInfo.height,
+        format: processedInfo.format,
+        size: processedBuffer.length,
+      });
 
       return await this._extractFaceEncodingFaceApi(imageBuffer);
     } catch (error) {
@@ -120,6 +203,23 @@ class FaceRecognitionService {
   async _loadFaceApiModels() {
     if (this.modelsLoaded) return;
 
+    // Prevent concurrent loading attempts
+    if (this._loadingPromise) {
+      return this._loadingPromise;
+    }
+
+    this._loadingPromise = this._doLoadModels();
+    try {
+      await this._loadingPromise;
+    } finally {
+      this._loadingPromise = null;
+    }
+  }
+
+  /**
+   * Internal method to actually load models
+   */
+  async _doLoadModels() {
     try {
       // Dynamically import face-api.js only when needed
       const faceapi = require('@vladmandic/face-api');
@@ -146,7 +246,11 @@ class FaceRecognitionService {
       // Monkey patch for Node.js environment
       faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
-      const modelPath = path.resolve(this.faceApiModelPath);
+      // Resolve path relative to service root (where main.js is located)
+      const serviceRoot = path.resolve(__dirname, '../..');
+      const modelPath = path.isAbsolute(this.faceApiModelPath)
+        ? this.faceApiModelPath
+        : path.resolve(serviceRoot, this.faceApiModelPath);
 
       console.log(`[FACE-API-JS-AUTH] Loading models from: ${modelPath}`);
 
@@ -154,6 +258,13 @@ class FaceRecognitionService {
       await faceapi.nets.ssdMobilenetv1.loadFromDisk(modelPath);
       await faceapi.nets.faceLandmark68Net.loadFromDisk(modelPath);
       await faceapi.nets.faceRecognitionNet.loadFromDisk(modelPath);
+      // Also load TinyFaceDetector as fallback
+      try {
+        await faceapi.nets.tinyFaceDetector.loadFromDisk(modelPath);
+        console.log('[FACE-API-JS-AUTH] TinyFaceDetector model loaded as fallback');
+      } catch (e) {
+        console.warn('[FACE-API-JS-AUTH] TinyFaceDetector model not available, skipping fallback');
+      }
 
       // Store references
       this.faceapi = faceapi;
@@ -161,9 +272,17 @@ class FaceRecognitionService {
       this.modelsLoaded = true;
 
       console.log('[FACE-API-JS-AUTH] Models loaded successfully');
+
+      // Mark as loaded only after successful load
+      this.modelsLoaded = true;
     } catch (error) {
       console.error('[FACE-API-JS-AUTH] Failed to load models:', error);
       console.error('[FACE-API-JS-AUTH] Error details:', error.message);
+      console.error('[FACE-API-JS-AUTH] Stack:', error.stack);
+
+      // Reset loading state on error
+      this.modelsLoaded = false;
+      this._loadingPromise = null;
 
       // Provide helpful error message for Windows users
       if (
@@ -193,7 +312,13 @@ class FaceRecognitionService {
     }
 
     try {
-      await this._loadFaceApiModels();
+      // Load models with timeout to prevent hanging
+      const loadPromise = this._loadFaceApiModels();
+      const timeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Model loading timeout after 60 seconds')), 60000)
+      );
+
+      await Promise.race([loadPromise, timeoutPromise]);
 
       // Convert buffer to canvas
       const img = await this.canvas.loadImage(imageBuffer);
@@ -202,23 +327,93 @@ class FaceRecognitionService {
       ctx.drawImage(img, 0, 0, img.width, img.height);
 
       // Detect faces and extract descriptors
-      const detections = await this.faceapi
-        .detectAllFaces(imgCanvas)
+      // Use lower minConfidence for better detection
+      // Must use SsdMobilenetv1Options instance, not plain object
+      let detections = await this.faceapi
+        .detectAllFaces(
+          imgCanvas,
+          new this.faceapi.SsdMobilenetv1Options({
+            minConfidence: 0.2, // Very low threshold for better detection (default is 0.5)
+          })
+        )
         .withFaceLandmarks()
         .withFaceDescriptors();
 
+      // If no faces detected with ssdMobilenetv1, try with TinyFaceDetector as fallback
       if (!detections || detections.length === 0) {
+        console.log(
+          '[FACE-API-JS-AUTH] No faces detected with ssdMobilenetv1, trying TinyFaceDetector...'
+        );
+        try {
+          // Check if TinyFaceDetector is loaded
+          if (this.faceapi.nets.tinyFaceDetector && this.faceapi.nets.tinyFaceDetector.isLoaded) {
+            detections = await this.faceapi
+              .detectAllFaces(
+                imgCanvas,
+                new this.faceapi.TinyFaceDetectorOptions({
+                  inputSize: 512, // Higher input size for better detection
+                  scoreThreshold: 0.3, // Lower threshold
+                })
+              )
+              .withFaceLandmarks()
+              .withFaceDescriptors();
+            if (detections && detections.length > 0) {
+              console.log('[FACE-API-JS-AUTH] Face detected using TinyFaceDetector fallback');
+            }
+          } else {
+            console.log('[FACE-API-JS-AUTH] TinyFaceDetector not loaded, skipping fallback');
+          }
+        } catch (fallbackError) {
+          console.log(
+            '[FACE-API-JS-AUTH] TinyFaceDetector fallback failed:',
+            fallbackError.message
+          );
+        }
+      }
+
+      if (!detections || detections.length === 0) {
+        console.log('[FACE-API-JS-AUTH] No faces detected in image');
         return {
           faceDetected: false,
           message: 'No face detected in image',
         };
       }
 
+      console.log(`[FACE-API-JS-AUTH] Detected ${detections.length} face(s) in image`);
+
       // Get first face descriptor (128D Float32Array)
       const descriptor = detections[0].descriptor;
 
+      if (!descriptor || descriptor.length !== 128) {
+        console.error(
+          `[FACE-API-JS-AUTH] Invalid descriptor: length=${descriptor?.length || 0}, expected 128`
+        );
+        throw new Error('Invalid face descriptor extracted');
+      }
+
+      console.log(
+        `[FACE-API-JS-AUTH] Face descriptor extracted: length=${
+          descriptor.length
+        }, confidence=${detections[0].detection.score.toFixed(4)}`
+      );
+
       // Convert Float32Array to Buffer for storage
       const descriptorBuffer = Buffer.from(descriptor.buffer);
+
+      // Clean up canvas resources to free memory
+      try {
+        if (imgCanvas) {
+          const ctx = imgCanvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, imgCanvas.width, imgCanvas.height);
+          }
+          // Note: We don't dispose the canvas as it might be reused
+          // but we clear it to free image data
+        }
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+        console.warn('[FACE-API-JS-AUTH] Canvas cleanup warning:', cleanupError.message);
+      }
 
       return {
         faceDetected: true,
@@ -229,6 +424,28 @@ class FaceRecognitionService {
       };
     } catch (error) {
       console.error('[FACE-API-JS-AUTH] Extract encoding error:', error);
+      console.error('[FACE-API-JS-AUTH] Error stack:', error.stack);
+
+      // Clean up resources if possible
+      try {
+        if (imgCanvas) {
+          const ctx = imgCanvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, imgCanvas.width, imgCanvas.height);
+          }
+        }
+      } catch (cleanupError) {
+        // Ignore cleanup errors
+      }
+
+      // Re-throw with more context
+      if (
+        error.message &&
+        !error.message.includes('Face detection') &&
+        !error.message.includes('timeout')
+      ) {
+        throw new Error(`Face encoding extraction failed: ${error.message}`);
+      }
       throw error;
     }
   }
@@ -267,31 +484,122 @@ class FaceRecognitionService {
       let bestMatch = null;
       let bestDistance = Infinity;
 
-      for (const user of usersWithFaces) {
-        if (!user.face_encoding) continue;
+      console.log(
+        `[FACE-API-JS-AUTH] Comparing with ${usersWithFaces.length} users with face encodings`
+      );
 
-        // Convert stored encoding from Buffer to Float32Array
-        let storedDescriptor;
-        if (Buffer.isBuffer(user.face_encoding)) {
-          storedDescriptor = new Float32Array(user.face_encoding.buffer);
-        } else if (Array.isArray(user.face_encoding)) {
-          storedDescriptor = new Float32Array(user.face_encoding);
-        } else {
+      for (const user of usersWithFaces) {
+        if (!user.face_encoding) {
+          console.log(`[FACE-API-JS-AUTH] Skipping user ${user.id}: no face_encoding`);
           continue;
         }
 
-        // Calculate euclidean distance
-        const distance = this._euclideanDistance(probeResult.descriptor, storedDescriptor);
+        // Convert stored encoding from Buffer to Float32Array
+        let storedDescriptor;
+        try {
+          if (Buffer.isBuffer(user.face_encoding)) {
+            // Check if buffer has correct length (128 * 4 bytes = 512 bytes for Float32Array)
+            const expectedLength = 128 * 4; // 512 bytes
+            if (user.face_encoding.length < expectedLength) {
+              console.warn(
+                `[FACE-API-JS-AUTH] User ${user.id} has invalid face_encoding length: ${user.face_encoding.length} bytes (expected at least ${expectedLength})`
+              );
+              continue;
+            }
 
-        // Lower distance = more similar
-        if (distance < bestDistance) {
-          bestDistance = distance;
-          bestMatch = user;
+            // Create Float32Array from buffer
+            // Handle both cases: buffer might be aligned or not
+            if (user.face_encoding.byteOffset % 4 === 0) {
+              // Buffer is aligned, can use directly
+              storedDescriptor = new Float32Array(
+                user.face_encoding.buffer,
+                user.face_encoding.byteOffset,
+                128
+              );
+            } else {
+              // Buffer is not aligned, need to copy
+              const alignedBuffer = Buffer.allocUnsafe(512);
+              user.face_encoding.copy(
+                alignedBuffer,
+                0,
+                0,
+                Math.min(user.face_encoding.length, 512)
+              );
+              storedDescriptor = new Float32Array(
+                alignedBuffer.buffer,
+                alignedBuffer.byteOffset,
+                128
+              );
+            }
+          } else if (Array.isArray(user.face_encoding)) {
+            if (user.face_encoding.length !== 128) {
+              console.warn(
+                `[FACE-API-JS-AUTH] User ${user.id} has invalid face_encoding array length: ${user.face_encoding.length} (expected 128)`
+              );
+              continue;
+            }
+            storedDescriptor = new Float32Array(user.face_encoding);
+          } else if (user.face_encoding instanceof Uint8Array) {
+            // Handle Uint8Array from Prisma
+            if (user.face_encoding.length < 512) {
+              console.warn(
+                `[FACE-API-JS-AUTH] User ${user.id} has invalid face_encoding Uint8Array length: ${user.face_encoding.length} bytes (expected at least 512)`
+              );
+              continue;
+            }
+            // Convert Uint8Array to Buffer first, then to Float32Array
+            const buffer = Buffer.from(user.face_encoding);
+            storedDescriptor = new Float32Array(buffer.buffer, buffer.byteOffset, 128);
+          } else {
+            console.warn(
+              `[FACE-API-JS-AUTH] User ${
+                user.id
+              } has invalid face_encoding type: ${typeof user.face_encoding}, constructor: ${
+                user.face_encoding?.constructor?.name
+              }`
+            );
+            continue;
+          }
+
+          // Validate descriptor length
+          if (!storedDescriptor || storedDescriptor.length !== 128) {
+            console.warn(
+              `[FACE-API-JS-AUTH] User ${user.id} has invalid descriptor length: ${
+                storedDescriptor?.length || 0
+              } (expected 128)`
+            );
+            continue;
+          }
+
+          // Calculate euclidean distance
+          const distance = this._euclideanDistance(probeResult.descriptor, storedDescriptor);
+
+          console.log(
+            `[FACE-API-JS-AUTH] User ${user.id} (${user.email}): distance = ${distance.toFixed(4)}`
+          );
+
+          // Lower distance = more similar
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestMatch = user;
+          }
+        } catch (conversionError) {
+          console.error(
+            `[FACE-API-JS-AUTH] Error converting face_encoding for user ${user.id}:`,
+            conversionError.message
+          );
+          continue;
         }
       }
 
       // face-api.js threshold: distance < 0.6 usually means same person
       const threshold = this.similarityThreshold || 0.6;
+
+      console.log(
+        `[FACE-API-JS-AUTH] Best match: ${
+          bestMatch ? bestMatch.id : 'none'
+        }, distance: ${bestDistance.toFixed(4)}, threshold: ${threshold}`
+      );
 
       // Convert distance to similarity (0-1)
       const similarity = Math.max(0, 1 - Math.min(bestDistance / threshold, 1));

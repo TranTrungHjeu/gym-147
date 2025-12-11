@@ -36,6 +36,9 @@ RUN npx prisma generate
 # Copy source code
 COPY services/identity-service/src ./src
 
+# Copy face-api models (required for face recognition)
+COPY services/identity-service/models ./models
+
 # Copy .env vào image (optional, có thể dùng env_file trong docker-compose)
 # COPY services/identity-service/.env ./
 

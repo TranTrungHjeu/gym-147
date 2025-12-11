@@ -1,11 +1,13 @@
 import RewardRedemptionModal from '@/components/RewardRedemptionModal';
 import RewardSuccessModal from '@/components/RewardSuccessModal';
+import { ErrorModal } from '@/components/ErrorModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { pointsService, rewardService, type Reward } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { AppEvents } from '@/utils/eventEmitter';
 import { useLocalSearchParams, useRouter } from 'expo-router';
+import { Alert } from 'react-native';
 import {
   ArrowLeft,
   Calendar,
@@ -42,6 +44,8 @@ export default function RewardDetailScreen() {
   const [pointsBalance, setPointsBalance] = useState<number>(0);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
   const [redemptionData, setRedemptionData] = useState<{
     code: string;
     pointsSpent: number;
@@ -142,18 +146,65 @@ export default function RewardDetailScreen() {
         setRedemptionData({
           code: response.data.code || '',
           pointsSpent: reward.points_cost,
-          newBalance: response.data.new_balance || pointsBalance - reward.points_cost,
+          newBalance:
+            response.data.new_balance || pointsBalance - reward.points_cost,
         });
 
         // Show success modal
         setShowSuccessModal(true);
       } else {
-        // Handle error - could show error modal here
+        // Handle error - show error modal only (no toast)
         console.error('Redeem error:', response.error);
+
+        // Determine error message based on error type
+        let errorMsg = response.error || t('rewards.redeemError');
+
+        // Check for specific error types
+        const isLimitError =
+          response.error?.includes('redemption limit') ||
+          response.error?.includes('reached the redemption limit') ||
+          response.error?.toLowerCase().includes('limit');
+
+        if (isLimitError) {
+          // Extract limit number from error message if available
+          const limitMatch = response.error?.match(/\d+/);
+          const limit = limitMatch
+            ? parseInt(limitMatch[0])
+            : (reward as any)?.redemption_limit || 1;
+          errorMsg = t('rewards.redemptionLimitReached', {
+            limit,
+            defaultValue: `Bạn đã đạt giới hạn đổi quà cho phần thưởng này (${limit} lần).`,
+          });
+        } else if (
+          response.error === 'INSUFFICIENT_POINTS' ||
+          response.error?.includes('points') ||
+          response.error?.includes('Bạn cần')
+        ) {
+          errorMsg = t('rewards.insufficientPointsMessage', {
+            required: response.required || reward.points_cost,
+            current: response.current || pointsBalance,
+          });
+        } else if (
+          response.error?.includes('out of stock') ||
+          response.error?.includes('hết hàng')
+        ) {
+          errorMsg = t('rewards.outOfStock');
+        } else if (
+          response.error?.includes('not available') ||
+          response.error?.includes('không khả dụng')
+        ) {
+          errorMsg = t('rewards.rewardNotAvailable');
+        }
+
+        // Only show modal, no toast errors
+        setErrorMessage(errorMsg);
+        setShowErrorModal(true);
       }
     } catch (error: any) {
       console.error('Redeem error:', error);
-      // Handle error - could show error modal here
+      // Handle error - show error modal only (no toast)
+      setErrorMessage(error.message || t('rewards.redeemError'));
+      setShowErrorModal(true);
     } finally {
       setRedeeming(false);
     }
@@ -180,7 +231,8 @@ export default function RewardDetailScreen() {
   const isAvailable = () => {
     if (!reward) return false;
     if (!reward.is_active) return false;
-    if (reward.valid_until && new Date(reward.valid_until) < new Date()) return false;
+    if (reward.valid_until && new Date(reward.valid_until) < new Date())
+      return false;
     if (reward.stock_quantity !== null) {
       const redeemed = reward._count?.redemptions || 0;
       if (redeemed >= reward.stock_quantity) return false;
@@ -194,7 +246,9 @@ export default function RewardDetailScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -204,7 +258,10 @@ export default function RewardDetailScreen() {
     return (
       <SafeAreaView style={themedStyles.container}>
         <View style={themedStyles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={themedStyles.backButton}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={themedStyles.backButton}
+          >
             <ArrowLeft size={24} color={theme.colors.text} />
           </TouchableOpacity>
           <Text style={[Typography.h3, { color: theme.colors.text }]}>
@@ -213,7 +270,12 @@ export default function RewardDetailScreen() {
         </View>
         <View style={themedStyles.centerContent}>
           <XCircle size={64} color={theme.colors.textSecondary} />
-          <Text style={[Typography.body, { color: theme.colors.textSecondary, marginTop: 16 }]}>
+          <Text
+            style={[
+              Typography.body,
+              { color: theme.colors.textSecondary, marginTop: 16 },
+            ]}
+          >
             {t('rewards.noRewards')}
           </Text>
         </View>
@@ -228,7 +290,10 @@ export default function RewardDetailScreen() {
     <SafeAreaView style={themedStyles.container}>
       {/* Header */}
       <View style={themedStyles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={themedStyles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={themedStyles.backButton}
+        >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
@@ -236,12 +301,23 @@ export default function RewardDetailScreen() {
         </Text>
       </View>
 
-      <ScrollView style={themedStyles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={themedStyles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Reward Image */}
         {reward.image_url ? (
-          <Image source={{ uri: reward.image_url }} style={themedStyles.rewardImage} />
+          <Image
+            source={{ uri: reward.image_url }}
+            style={themedStyles.rewardImage}
+          />
         ) : (
-          <View style={[themedStyles.rewardImage, themedStyles.rewardImagePlaceholder]}>
+          <View
+            style={[
+              themedStyles.rewardImage,
+              themedStyles.rewardImagePlaceholder,
+            ]}
+          >
             <Gift size={64} color={theme.colors.textSecondary} />
           </View>
         )}
@@ -251,11 +327,15 @@ export default function RewardDetailScreen() {
           {/* Category Badge */}
           <View style={themedStyles.categoryBadge}>
             <Tag size={16} color={theme.colors.primary} />
-            <Text style={themedStyles.categoryText}>{getCategoryLabel(reward.category)}</Text>
+            <Text style={themedStyles.categoryText}>
+              {getCategoryLabel(reward.category)}
+            </Text>
           </View>
 
           {/* Title */}
-          <Text style={[Typography.h2, { color: theme.colors.text, marginTop: 12 }]}>
+          <Text
+            style={[Typography.h2, { color: theme.colors.text, marginTop: 12 }]}
+          >
             {reward.title}
           </Text>
 
@@ -263,7 +343,11 @@ export default function RewardDetailScreen() {
           <View style={themedStyles.pointsContainer}>
             <View style={themedStyles.pointsIconContainer}>
               <Coins size={20} color="#FFD700" />
-              <Sparkles size={12} color="#FFD700" style={themedStyles.sparkleIcon} />
+              <Sparkles
+                size={12}
+                color="#FFD700"
+                style={themedStyles.sparkleIcon}
+              />
             </View>
             <Text style={themedStyles.pointsText}>
               {reward.points_cost.toLocaleString()} {t('rewards.points')}
@@ -284,7 +368,9 @@ export default function RewardDetailScreen() {
             <View style={themedStyles.infoCard}>
               <Gift size={20} color={theme.colors.success} />
               <View style={themedStyles.infoContent}>
-                <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
+                <Text
+                  style={[Typography.bodyMedium, { color: theme.colors.text }]}
+                >
                   {reward.discount_percent
                     ? `Giảm ${reward.discount_percent}%`
                     : `Giảm ${reward.discount_amount?.toLocaleString()} VNĐ`}
@@ -297,14 +383,24 @@ export default function RewardDetailScreen() {
           <View style={themedStyles.section}>
             <View style={themedStyles.infoRow}>
               <Calendar size={18} color={theme.colors.textSecondary} />
-              <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  { color: theme.colors.textSecondary, marginLeft: 8 },
+                ]}
+              >
                 {t('rewards.validFrom')}: {formatDate(reward.valid_from)}
               </Text>
             </View>
             {reward.valid_until && (
               <View style={[themedStyles.infoRow, { marginTop: 8 }]}>
                 <Calendar size={18} color={theme.colors.textSecondary} />
-                <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
+                <Text
+                  style={[
+                    Typography.bodySmall,
+                    { color: theme.colors.textSecondary, marginLeft: 8 },
+                  ]}
+                >
                   {t('rewards.validUntil')}: {formatDate(reward.valid_until)}
                 </Text>
               </View>
@@ -316,8 +412,15 @@ export default function RewardDetailScreen() {
             <View style={themedStyles.section}>
               <View style={themedStyles.infoRow}>
                 <Info size={18} color={theme.colors.textSecondary} />
-                <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary, marginLeft: 8 }]}>
-                  {t('rewards.stockAvailable')}: {reward.stock_quantity - (reward._count?.redemptions || 0)} / {reward.stock_quantity}
+                <Text
+                  style={[
+                    Typography.bodySmall,
+                    { color: theme.colors.textSecondary, marginLeft: 8 },
+                  ]}
+                >
+                  {t('rewards.stockAvailable')}:{' '}
+                  {reward.stock_quantity - (reward._count?.redemptions || 0)} /{' '}
+                  {reward.stock_quantity}
                 </Text>
               </View>
             </View>
@@ -326,10 +429,20 @@ export default function RewardDetailScreen() {
           {/* Terms & Conditions */}
           {reward.terms_conditions && (
             <View style={themedStyles.section}>
-              <Text style={[Typography.h4, { color: theme.colors.text, marginBottom: 8 }]}>
+              <Text
+                style={[
+                  Typography.h4,
+                  { color: theme.colors.text, marginBottom: 8 },
+                ]}
+              >
                 {t('rewards.termsConditions')}
               </Text>
-              <Text style={[Typography.bodySmall, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 {reward.terms_conditions}
               </Text>
             </View>
@@ -337,19 +450,41 @@ export default function RewardDetailScreen() {
 
           {/* Availability Status */}
           {!available && (
-            <View style={[themedStyles.statusCard, { backgroundColor: theme.colors.error + '15' }]}>
+            <View
+              style={[
+                themedStyles.statusCard,
+                { backgroundColor: theme.colors.error + '15' },
+              ]}
+            >
               <XCircle size={20} color={theme.colors.error} />
-              <Text style={[Typography.bodySmall, { color: theme.colors.error, marginLeft: 8 }]}>
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  { color: theme.colors.error, marginLeft: 8 },
+                ]}
+              >
                 {t('rewards.notAvailable')}
               </Text>
             </View>
           )}
 
           {available && !affordable && (
-            <View style={[themedStyles.statusCard, { backgroundColor: theme.colors.warning + '15' }]}>
+            <View
+              style={[
+                themedStyles.statusCard,
+                { backgroundColor: theme.colors.warning + '15' },
+              ]}
+            >
               <Info size={20} color={theme.colors.warning} />
-              <Text style={[Typography.bodySmall, { color: theme.colors.warning, marginLeft: 8 }]}>
-                {t('rewards.pointsNeeded', { points: reward.points_cost - pointsBalance })}
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  { color: theme.colors.warning, marginLeft: 8 },
+                ]}
+              >
+                {t('rewards.pointsNeeded', {
+                  points: reward.points_cost - pointsBalance,
+                })}
               </Text>
             </View>
           )}
@@ -363,19 +498,30 @@ export default function RewardDetailScreen() {
             style={[
               themedStyles.redeemButton,
               {
-                backgroundColor: affordable ? theme.colors.primary : theme.colors.border,
+                backgroundColor: affordable
+                  ? theme.colors.primary
+                  : theme.colors.border,
               },
             ]}
             onPress={handleRedeem}
             disabled={!affordable || redeeming}
           >
             {redeeming ? (
-              <ActivityIndicator size="small" color={theme.colors.textInverse} />
+              <ActivityIndicator
+                size="small"
+                color={theme.colors.textInverse}
+              />
             ) : (
               <>
                 <Gift size={20} color={theme.colors.textInverse} />
-                <Text style={[Typography.bodyMedium, { color: theme.colors.textInverse, marginLeft: 8 }]}>
-                  {t('rewards.redeem')} ({reward.points_cost.toLocaleString()} {t('rewards.points')})
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    { color: theme.colors.textInverse, marginLeft: 8 },
+                  ]}
+                >
+                  {t('rewards.redeem')} ({reward.points_cost.toLocaleString()}{' '}
+                  {t('rewards.points')})
                 </Text>
               </>
             )}
@@ -409,6 +555,15 @@ export default function RewardDetailScreen() {
           onViewHistory={handleViewHistory}
         />
       )}
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        onClose={() => setShowErrorModal(false)}
+        title={t('rewards.redeemErrorTitle')}
+        message={errorMessage}
+        type="error"
+      />
     </SafeAreaView>
   );
 }
@@ -527,4 +682,3 @@ const styles = (theme: any) =>
       borderRadius: 12,
     },
   });
-

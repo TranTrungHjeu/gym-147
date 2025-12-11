@@ -91,7 +91,7 @@ ${prompt}`;
           },
         ],
         temperature: 0.7,
-        max_tokens: 1500, // Reduced for faster response
+        max_tokens: 4000, // Increased to ensure complete JSON response
       };
 
       console.log('\nREQUEST PAYLOAD:');
@@ -112,7 +112,7 @@ ${prompt}`;
           'HTTP-Referer': 'https://gym-management-system.com',
           'X-Title': 'Gym Management - AI Workout Generator',
         },
-        timeout: 60000, // 60 seconds timeout for AI processing
+        timeout: 540000, // 540 seconds (9 minutes) timeout for AI processing - must be less than Nginx/Express timeout (10 minutes)
       });
 
       console.log('\nRAW RESPONSE STATUS:', response.status);
@@ -603,7 +603,7 @@ LƯU Ý:
             'HTTP-Referer': process.env.AI_API_REFERER || '',
             'X-Title': 'GYM-147 Class Recommendations',
           },
-          timeout: 60000, // 60 seconds timeout for AI processing
+          timeout: 180000, // 180 seconds (3 minutes) timeout for AI processing
         }
       );
 
@@ -783,25 +783,240 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
         jsonStr = jsonMatch[0];
       }
 
+      // Check if response might be truncated (missing closing brackets)
+      // If so, try to find the last complete exercise and close the JSON properly
+      if (!jsonStr.trim().endsWith('}')) {
+        // Find exercises array start
+        const exercisesStartIdx = jsonStr.indexOf('"exercises"');
+        if (exercisesStartIdx !== -1) {
+          const beforeExercises = jsonStr.substring(0, exercisesStartIdx);
+          const afterExercisesStart = jsonStr.substring(exercisesStartIdx);
+
+          // Find the opening bracket of exercises array
+          const arrayStartIdx = afterExercisesStart.indexOf('[');
+          if (arrayStartIdx !== -1) {
+            const exercisesContent = afterExercisesStart.substring(arrayStartIdx + 1);
+
+            // Try to find complete exercise objects by looking for pattern with intensity field (last field)
+            // This is a more robust approach: find all { ... "intensity": "..." } patterns
+            let completeExercises = [];
+            let currentPos = 0;
+
+            while (currentPos < exercisesContent.length) {
+              // Find next opening brace
+              const braceStart = exercisesContent.indexOf('{', currentPos);
+              if (braceStart === -1) break;
+
+              // Look for intensity field (should be near the end of a complete exercise)
+              const intensityMatch = exercisesContent
+                .substring(braceStart)
+                .match(/"intensity"\s*:\s*"[^"]*"\s*\}/);
+
+              if (intensityMatch) {
+                // Found a potential complete exercise, extract it
+                const exerciseEnd = braceStart + intensityMatch.index + intensityMatch[0].length;
+                const exerciseStr = exercisesContent.substring(braceStart, exerciseEnd);
+
+                // Verify it has all required fields
+                if (
+                  exerciseStr.includes('"name"') &&
+                  exerciseStr.includes('"sets"') &&
+                  exerciseStr.includes('"reps"') &&
+                  exerciseStr.includes('"rest"') &&
+                  exerciseStr.includes('"category"') &&
+                  exerciseStr.includes('"intensity"')
+                ) {
+                  completeExercises.push(exerciseStr);
+                }
+                currentPos = exerciseEnd;
+              } else {
+                // No intensity found - might be incomplete exercise
+                // Try to find the next opening brace to see if there's another exercise
+                const nextBrace = exercisesContent.indexOf('{', braceStart + 1);
+                if (nextBrace !== -1) {
+                  // There's another exercise, so this one is incomplete
+                  // Try to extract what we have and complete it
+                  const incompleteExercise = exercisesContent.substring(braceStart, nextBrace);
+
+                  // Check if it has at least name, sets, reps, rest, category
+                  if (
+                    incompleteExercise.includes('"name"') &&
+                    incompleteExercise.includes('"sets"') &&
+                    incompleteExercise.includes('"reps"') &&
+                    incompleteExercise.includes('"rest"')
+                  ) {
+                    // Try to extract category if present
+                    const categoryMatch = incompleteExercise.match(/"category"\s*:\s*"([^"]*)"/);
+                    const category = categoryMatch ? categoryMatch[1] : 'GENERAL';
+
+                    // Complete the exercise with missing fields
+                    let completedExercise = incompleteExercise.trim();
+                    // Remove trailing comma if present
+                    completedExercise = completedExercise.replace(/,\s*$/, '');
+                    // Add missing fields if needed
+                    if (!completedExercise.includes('"category"')) {
+                      completedExercise += `, "category": "${category}"`;
+                    }
+                    if (!completedExercise.includes('"intensity"')) {
+                      completedExercise += ', "intensity": "MODERATE"';
+                    }
+                    // Ensure it ends with }
+                    if (!completedExercise.trim().endsWith('}')) {
+                      completedExercise += '}';
+                    }
+
+                    completeExercises.push(completedExercise);
+                  }
+                  currentPos = nextBrace;
+                } else {
+                  // No more exercises, try to complete the last one
+                  const lastExercise = exercisesContent.substring(braceStart);
+                  if (
+                    lastExercise.includes('"name"') &&
+                    lastExercise.includes('"sets"') &&
+                    lastExercise.includes('"reps"') &&
+                    lastExercise.includes('"rest"')
+                  ) {
+                    let completedExercise = lastExercise.trim();
+                    completedExercise = completedExercise.replace(/,\s*$/, '');
+                    const categoryMatch = completedExercise.match(/"category"\s*:\s*"([^"]*)"/);
+                    const category = categoryMatch ? categoryMatch[1] : 'GENERAL';
+
+                    if (!completedExercise.includes('"category"')) {
+                      completedExercise += `, "category": "${category}"`;
+                    }
+                    if (!completedExercise.includes('"intensity"')) {
+                      completedExercise += ', "intensity": "MODERATE"';
+                    }
+                    if (!completedExercise.trim().endsWith('}')) {
+                      completedExercise += '}';
+                    }
+
+                    completeExercises.push(completedExercise);
+                  }
+                  break;
+                }
+              }
+            }
+
+            if (completeExercises.length > 0) {
+              // Reconstruct JSON with only complete exercises
+              const exercisesArray = '[' + completeExercises.join(',') + ']';
+              jsonStr = beforeExercises + '"exercises":' + exercisesArray + '}';
+            }
+          }
+        }
+      }
+
       // Clean common JSON issues
       jsonStr = this.cleanJSONString(jsonStr);
 
-      const parsed = JSON.parse(jsonStr);
+      let parsed;
+      try {
+        parsed = JSON.parse(jsonStr);
+      } catch (parseError) {
+        // If JSON parsing fails, try to fix incomplete fields in exercises
+        // This handles cases where a field value is cut off mid-string
+        console.log('[AI] JSON parse failed, attempting to fix incomplete fields...');
+
+        // Try to fix incomplete string values (e.g., "CARDIO" cut to "CARD")
+        const exercisesMatch = jsonStr.match(/"exercises"\s*:\s*\[([\s\S]*)\]/);
+        if (exercisesMatch) {
+          let exercisesStr = exercisesMatch[1];
+
+          // Fix incomplete string values by finding the last quote before a comma or closing brace
+          // Pattern: "field": "incomplete value -> find and complete
+          exercisesStr = exercisesStr.replace(
+            /"([^"]+)":\s*"([^"]*?)(?=[",}\s])/g,
+            (match, field, value) => {
+              // If value seems incomplete (ends abruptly), try to infer it
+              if (field === 'category' && value && value.length > 0) {
+                const validCategories = [
+                  'CARDIO',
+                  'STRENGTH',
+                  'FREE_WEIGHTS',
+                  'FUNCTIONAL',
+                  'STRETCHING',
+                  'RECOVERY',
+                  'SPECIALIZED',
+                  'GENERAL',
+                ];
+                const matched = validCategories.find(cat => cat.startsWith(value.toUpperCase()));
+                if (matched) {
+                  return `"${field}": "${matched}"`;
+                }
+                return `"${field}": "GENERAL"`;
+              }
+              return match;
+            }
+          );
+
+          // Reconstruct JSON
+          const beforeExercises = jsonStr.substring(0, exercisesMatch.index);
+          const afterExercises = jsonStr.substring(exercisesMatch.index + exercisesMatch[0].length);
+          jsonStr = beforeExercises + '"exercises":[' + exercisesStr + ']' + afterExercises;
+
+          // Try parsing again
+          try {
+            parsed = JSON.parse(jsonStr);
+          } catch (retryError) {
+            // If still fails, try the original error handling
+            throw parseError;
+          }
+        } else {
+          throw parseError;
+        }
+      }
 
       // Validate structure
       if (!parsed.exercises || !Array.isArray(parsed.exercises)) {
         throw new Error('Invalid workout plan structure: missing exercises array');
       }
 
-      // Ensure all exercises have required fields
-      parsed.exercises = parsed.exercises.map((ex, idx) => ({
-        name: ex.name || `Bài tập ${idx + 1}`,
-        sets: ex.sets || 3,
-        reps: ex.reps || 10,
-        rest: ex.rest || '1 phút',
-        category: ex.category || 'GENERAL',
-        intensity: ex.intensity || 'MODERATE',
-      }));
+      // Valid categories list
+      const validCategories = [
+        'CARDIO',
+        'STRENGTH',
+        'FREE_WEIGHTS',
+        'FUNCTIONAL',
+        'STRETCHING',
+        'RECOVERY',
+        'SPECIALIZED',
+        'GENERAL',
+      ];
+
+      // Ensure all exercises have required fields and valid categories
+      parsed.exercises = parsed.exercises.map((ex, idx) => {
+        let category = ex.category || 'GENERAL';
+
+        // Validate and fix category
+        if (typeof category === 'string') {
+          category = category.trim().toUpperCase();
+          // Try to match partial category names (e.g., "FUNCTIONA" -> "FUNCTIONAL")
+          const matchedCategory = validCategories.find(
+            cat =>
+              cat.startsWith(category) ||
+              category.startsWith(cat.substring(0, Math.max(1, cat.length - 2)))
+          );
+          if (matchedCategory) {
+            category = matchedCategory;
+          } else if (!validCategories.includes(category)) {
+            // If no match found, default to GENERAL
+            category = 'GENERAL';
+          }
+        } else {
+          category = 'GENERAL';
+        }
+
+        return {
+          name: ex.name || `Bài tập ${idx + 1}`,
+          sets: ex.sets || 3,
+          reps: ex.reps || 10,
+          rest: ex.rest || '1 phút',
+          category: category,
+          intensity: ex.intensity || 'MODERATE',
+        };
+      });
 
       return parsed;
     } catch (error) {
@@ -824,6 +1039,53 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
       // If parsing fails, try to fix common issues
       let cleaned = jsonStr;
 
+      // Fix truncated category names (e.g., "FUNCTIONA" -> "FUNCTIONAL")
+      const validCategories = [
+        'CARDIO',
+        'STRENGTH',
+        'FREE_WEIGHTS',
+        'FUNCTIONAL',
+        'STRETCHING',
+        'RECOVERY',
+        'SPECIALIZED',
+        'GENERAL',
+      ];
+
+      // Fix truncated categories - match partial category names (at least 4 chars)
+      validCategories.forEach(category => {
+        // Match category that starts with at least first 4-6 characters
+        const minLength = Math.min(6, category.length - 1);
+        const prefix = category.substring(0, minLength);
+        const partialPattern = new RegExp(`"category"\\s*:\\s*"(${prefix}[^"]*?)"`, 'gi');
+        cleaned = cleaned.replace(partialPattern, (match, value) => {
+          // Only replace if the value is a partial match (not a complete different category)
+          if (value.length >= minLength && category.toLowerCase().startsWith(value.toLowerCase())) {
+            return `"category": "${category}"`;
+          }
+          return match;
+        });
+      });
+
+      // Fix unclosed strings in category field
+      cleaned = cleaned.replace(
+        /"category"\s*:\s*"([^"]*?)(?:"|,|\n|})/g,
+        (match, categoryValue) => {
+          // If category value doesn't end with quote, try to fix it
+          if (!match.endsWith('"') && categoryValue) {
+            // Try to match to valid category
+            const matchedCategory = validCategories.find(cat =>
+              cat.toLowerCase().startsWith(categoryValue.toLowerCase())
+            );
+            if (matchedCategory) {
+              return `"category": "${matchedCategory}"`;
+            }
+            // Default to GENERAL if can't match
+            return `"category": "GENERAL"`;
+          }
+          return match;
+        }
+      );
+
       // Fix trailing commas in arrays: [1, 2, 3, ] -> [1, 2, 3]
       cleaned = cleaned.replace(/,(\s*[}\]])/g, '$1');
 
@@ -834,6 +1096,21 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
       // Only fix if there's a closing brace/brace followed by opening brace/bracket on same or next line
       cleaned = cleaned.replace(/}\s*\n\s*{/g, '},\n{');
       cleaned = cleaned.replace(/]\s*\n\s*\[/g, '],\n[');
+
+      // Fix unclosed strings (common when AI response is cut off)
+      // Look for string values that aren't properly closed before a comma or closing brace
+      cleaned = cleaned.replace(
+        /"([^"]*?)"(\s*:\s*)"([^"]*?)(?:"|,|\n|}|])/g,
+        (match, key, colon, value) => {
+          // If value doesn't end with quote and is followed by comma/brace, close it
+          if (value && !match.endsWith('"')) {
+            // Escape any special characters in value
+            const escapedValue = value.replace(/"/g, '\\"');
+            return `"${key}"${colon}"${escapedValue}"`;
+          }
+          return match;
+        }
+      );
 
       // Remove comments (single line and multi-line)
       cleaned = cleaned.replace(/\/\/.*$/gm, '');
@@ -850,15 +1127,40 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
         if (exercisesMatch) {
           const startIndex = exercisesMatch.index + exercisesMatch[0].length;
           let bracketCount = 1;
+          let braceCount = 0;
+          let inString = false;
+          let escapeNext = false;
           let endIndex = startIndex;
 
-          // Find the matching closing bracket for exercises array
+          // Find the matching closing bracket for exercises array (more robust)
           for (let i = startIndex; i < cleaned.length && bracketCount > 0; i++) {
-            if (cleaned[i] === '[') bracketCount++;
-            if (cleaned[i] === ']') bracketCount--;
-            if (bracketCount === 0) {
-              endIndex = i;
-              break;
+            const char = cleaned[i];
+
+            if (escapeNext) {
+              escapeNext = false;
+              continue;
+            }
+
+            if (char === '\\') {
+              escapeNext = true;
+              continue;
+            }
+
+            if (char === '"' && !escapeNext) {
+              inString = !inString;
+              continue;
+            }
+
+            if (!inString) {
+              if (char === '[') bracketCount++;
+              if (char === ']') bracketCount--;
+              if (char === '{') braceCount++;
+              if (char === '}') braceCount--;
+
+              if (bracketCount === 0 && braceCount === 0) {
+                endIndex = i;
+                break;
+              }
             }
           }
 
@@ -866,11 +1168,39 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
             // Extract and fix exercises array content
             let exercisesStr = cleaned.substring(startIndex, endIndex);
 
+            // Fix truncated category values in exercises
+            validCategories.forEach(category => {
+              const partialPattern = new RegExp(
+                `"category"\\s*:\\s*"(${category.substring(0, category.length - 1)}[^"]*?)"`,
+                'gi'
+              );
+              exercisesStr = exercisesStr.replace(partialPattern, `"category": "${category}"`);
+            });
+
+            // Fix unclosed category strings
+            exercisesStr = exercisesStr.replace(
+              /"category"\s*:\s*"([^"]*?)(?:"|,|\n|})/g,
+              (match, categoryValue) => {
+                if (categoryValue) {
+                  const matchedCategory = validCategories.find(cat =>
+                    cat.toLowerCase().startsWith(categoryValue.toLowerCase())
+                  );
+                  return matchedCategory
+                    ? `"category": "${matchedCategory}"`
+                    : `"category": "GENERAL"`;
+                }
+                return match;
+              }
+            );
+
             // Remove trailing commas in exercises array
             exercisesStr = exercisesStr.replace(/,(\s*[}\]])/g, '$1');
 
             // Fix missing commas between exercise objects
             exercisesStr = exercisesStr.replace(/}\s*\n\s*{/g, '},\n{');
+
+            // Ensure all exercise objects are properly closed
+            exercisesStr = exercisesStr.replace(/}\s*([^,}\]])(?=\s*[}\]])/g, '},$1');
 
             // Reconstruct JSON with fixed exercises
             const beforeExercises = cleaned.substring(0, startIndex);
@@ -884,9 +1214,33 @@ ${Object.keys(analysis.attendance.favoriteTrainers).length > 0 ? `- Huấn luy�
 
         // Last attempt to parse
         try {
-          JSON.parse(cleaned);
+          const parsed = JSON.parse(cleaned);
+          // Post-parse validation: fix any invalid categories
+          if (parsed.exercises && Array.isArray(parsed.exercises)) {
+            parsed.exercises = parsed.exercises.map(ex => {
+              if (ex.category && !validCategories.includes(ex.category)) {
+                // Try to match partial category
+                const matched = validCategories.find(cat =>
+                  cat.toLowerCase().startsWith(ex.category.toLowerCase())
+                );
+                ex.category = matched || 'GENERAL';
+              }
+              return ex;
+            });
+            // Convert back to JSON string for return
+            cleaned = JSON.stringify(parsed);
+          }
           return cleaned;
         } catch (finalError) {
+          // Log the problematic section around the error position
+          const errorPos = finalError.message.match(/position (\d+)/)?.[1];
+          if (errorPos) {
+            const pos = parseInt(errorPos);
+            const start = Math.max(0, pos - 100);
+            const end = Math.min(cleaned.length, pos + 100);
+            console.error('Problematic JSON section:', cleaned.substring(start, end));
+          }
+
           // If all fixes fail, throw original error with context
           throw new Error(
             `JSON parsing failed after cleanup attempts. Original error: ${error.message}. Position: ${error.message.match(/position (\d+)/)?.[1] || 'unknown'}`
@@ -965,7 +1319,7 @@ LƯU Ý:
             'HTTP-Referer': process.env.AI_API_REFERER || '',
             'X-Title': 'GYM-147 Smart Scheduling',
           },
-          timeout: 60000, // 60 seconds timeout for AI processing
+          timeout: 180000, // 180 seconds (3 minutes) timeout for AI processing
         }
       );
 

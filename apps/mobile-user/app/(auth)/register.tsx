@@ -8,10 +8,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
+import * as AuthSession from 'expo-auth-session';
+import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
+  ActivityIndicator,
+  Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -22,11 +27,15 @@ import {
   View,
 } from 'react-native';
 
+// Complete OAuth session for WebBrowser
+WebBrowser.maybeCompleteAuthSession();
+
 const RegisterScreen = () => {
   const router = useRouter();
   const { theme } = useTheme();
   const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [otpCooldown, setOtpCooldown] = useState(0); // Cooldown timer in seconds
 
   const [primaryMethod, setPrimaryMethod] = useState<'EMAIL' | 'PHONE'>(
@@ -194,6 +203,106 @@ const RegisterScreen = () => {
     return isValid;
   };
 
+  const handleGoogleSignup = async () => {
+    try {
+      setIsGoogleLoading(true);
+
+      // For mobile, we'll use a web-based OAuth flow
+      const redirectUri = AuthSession.makeRedirectUri({
+        scheme: 'gym147',
+        path: 'auth/callback',
+      });
+
+      // Get OAuth URL from backend
+      const response = await fetch(
+        `${
+          process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
+        }/auth/oauth/google`,
+        {
+          method: 'GET',
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to get OAuth URL');
+      }
+
+      const data = await response.json();
+      if (!data.success || !data.data?.authUrl) {
+        throw new Error('Invalid OAuth response');
+      }
+
+      // Open OAuth URL in browser
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.data.authUrl,
+        redirectUri
+      );
+
+      if (result.type === 'success' && result.url) {
+        // Parse tokens from callback URL
+        const url = new URL(result.url);
+        const token = url.searchParams.get('token');
+        const refreshToken = url.searchParams.get('refreshToken');
+        const isNewUser = url.searchParams.get('isNewUser') === 'true';
+
+        if (token && refreshToken) {
+          // Store tokens
+          const { storeTokens } = await import('@/utils/auth/storage');
+          await storeTokens({
+            token,
+            refreshToken,
+          });
+
+          // Get user profile
+          const profileResponse = await fetch(
+            `${
+              process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
+            }/auth/profile`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
+
+          if (profileResponse.ok) {
+            const profileData = await profileResponse.json();
+            if (profileData.success) {
+              // If new user, navigate to onboarding/profile completion
+              // If existing user, navigate to tabs
+              if (isNewUser) {
+                // Navigate to profile completion or onboarding
+                router.replace('/(auth)/register-profile');
+              } else {
+                // Existing user, go to main app
+                router.replace('/(tabs)');
+              }
+            } else {
+              Alert.alert(t('common.error'), t('auth.oauthFailed'));
+            }
+          } else {
+            Alert.alert(t('common.error'), t('auth.oauthFailed'));
+          }
+        } else {
+          const error = url.searchParams.get('error');
+          Alert.alert(t('common.error'), error || t('auth.oauthFailed'));
+        }
+      } else if (result.type === 'cancel') {
+        // User cancelled - do nothing
+      } else {
+        Alert.alert(t('common.error'), t('auth.oauthFailed'));
+      }
+    } catch (error: any) {
+      console.error('Google OAuth error:', error);
+      Alert.alert(
+        t('common.error'),
+        error.message || t('auth.googleSignupFailed')
+      );
+    } finally {
+      setIsGoogleLoading(false);
+    }
+  };
+
   const handleSendOTP = async () => {
     if (!validateForm()) return;
 
@@ -230,12 +339,15 @@ const RegisterScreen = () => {
       });
     } catch (error: any) {
       const errorMessage =
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         t('registration.otpSendFailed');
 
       // Handle rate limit error - extract cooldown from response
-      if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
+      if (
+        error.response?.status === 429 &&
+        error.response?.data?.data?.retryAfter
+      ) {
         const retryAfter = error.response.data.data.retryAfter;
         setOtpCooldown(retryAfter);
       }
@@ -257,7 +369,7 @@ const RegisterScreen = () => {
         errorType = 'email';
         errorTitle =
           t('registration.emailAlreadyUsed') || 'Email đã được sử dụng';
-      } 
+      }
       // Check for phone already used
       else if (
         (messageLower.includes('số điện thoại') ||
@@ -435,6 +547,32 @@ const RegisterScreen = () => {
     loginButton: {
       ...Typography.footerTextBold,
       color: theme.colors.primary,
+    },
+    continueText: {
+      ...Typography.bodyMedium,
+      textAlign: 'center',
+      marginVertical: theme.spacing.md,
+    },
+    googleButtonContainer: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 14,
+      paddingHorizontal: 20,
+      borderRadius: 12,
+      borderWidth: 1,
+      marginTop: theme.spacing.sm,
+      gap: 12,
+    },
+    googleImage: {
+      width: 24,
+      height: 24,
+    },
+    googleText: {
+      ...Typography.buttonMedium,
+    },
+    buttonDisabled: {
+      opacity: 0.6,
     },
   });
 
@@ -645,7 +783,7 @@ const RegisterScreen = () => {
             (isLoading || otpCooldown > 0) && themedStyles.submitButtonDisabled,
           ]}
           onPress={handleSendOTP}
-          disabled={isLoading || otpCooldown > 0}
+          disabled={isLoading || otpCooldown > 0 || isGoogleLoading}
         >
           <Text style={themedStyles.submitButtonText}>
             {isLoading
@@ -654,6 +792,46 @@ const RegisterScreen = () => {
               ? t('registration.resendAfter', { seconds: otpCooldown })
               : t('registration.continue')}
           </Text>
+        </TouchableOpacity>
+
+        <Text
+          style={[
+            themedStyles.continueText,
+            { color: theme.colors.textSecondary },
+          ]}
+        >
+          {t('auth.orContinueWith')}
+        </Text>
+
+        <TouchableOpacity
+          style={[
+            themedStyles.googleButtonContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              borderColor: theme.colors.border,
+            },
+            isGoogleLoading && themedStyles.buttonDisabled,
+          ]}
+          onPress={handleGoogleSignup}
+          disabled={isGoogleLoading || isLoading}
+        >
+          {isGoogleLoading ? (
+            <ActivityIndicator size="small" color={theme.colors.primary} />
+          ) : (
+            <>
+              <Image
+                source={{
+                  uri: 'https://img.icons8.com/color/48/google-logo.png',
+                }}
+                style={themedStyles.googleImage}
+              />
+              <Text
+                style={[themedStyles.googleText, { color: theme.colors.text }]}
+              >
+                {t('auth.googleSignup')}
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
 
         <View style={themedStyles.footer}>

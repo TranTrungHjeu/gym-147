@@ -23,9 +23,10 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
 import ExportButton from '../../components/common/ExportButton';
 import Pagination from '../../components/common/Pagination';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../context/ToastContext';
+import useTranslation from '../../hooks/useTranslation';
 import rewardService, {
   CreateRewardRequest,
   Reward,
@@ -35,6 +36,7 @@ import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const RewardManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [rewards, setRewards] = useState<Reward[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -103,7 +105,7 @@ const RewardManagement: React.FC = () => {
         setRewards(rewardsList);
       }
     } catch (error: any) {
-      showToast({ message: 'Không thể tải danh sách phần thưởng', type: 'error' });
+      showToast({ message: t('rewardManagement.messages.loadError'), type: 'error' });
       console.error('Error loading rewards:', error);
       setRewards([]);
     } finally {
@@ -418,11 +420,17 @@ const RewardManagement: React.FC = () => {
     try {
       setIsDeleting(true);
       await rewardService.deleteReward(rewardToDelete.id);
-      showToast({ message: `Xóa phần thưởng "${rewardToDelete.title}" thành công!`, type: 'success' });
+      showToast({
+        message: t('rewardManagement.messages.deleteSuccess', { name: rewardToDelete.title }),
+        type: 'success',
+      });
       loadRewards();
     } catch (error: any) {
       console.error('Error deleting reward:', error);
-      showToast({ message: error.message || 'Không thể xóa phần thưởng', type: 'error' });
+      showToast({
+        message: error.message || t('rewardManagement.messages.deleteError'),
+        type: 'error',
+      });
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -434,15 +442,15 @@ const RewardManagement: React.FC = () => {
     const errors: Record<string, string> = {};
 
     if (!formData.title.trim()) {
-      errors.title = 'Tiêu đề là bắt buộc';
+      errors.title = t('rewardManagement.form.titleRequired');
     }
 
     if (!formData.description.trim()) {
-      errors.description = 'Mô tả là bắt buộc';
+      errors.description = t('rewardManagement.form.descriptionRequired');
     }
 
     if (formData.points_cost <= 0) {
-      errors.points_cost = 'Điểm phải lớn hơn 0';
+      errors.points_cost = t('rewardManagement.form.pointsCostRequired');
     }
 
     // Validate discount: chỉ được có một trong hai (percent hoặc amount)
@@ -451,28 +459,28 @@ const RewardManagement: React.FC = () => {
     const hasAmount = formData.discount_amount !== undefined && formData.discount_amount !== null;
 
     if (hasPercent && hasAmount) {
-      errors.discount_percent = 'Chỉ được chọn một loại giảm giá (phần trăm HOẶC số tiền)';
-      errors.discount_amount = 'Chỉ được chọn một loại giảm giá (phần trăm HOẶC số tiền)';
+      errors.discount_percent = t('rewardManagement.form.onlyOneDiscountType');
+      errors.discount_amount = t('rewardManagement.form.onlyOneDiscountType');
     }
 
     if (hasPercent && (formData.discount_percent! < 0 || formData.discount_percent! > 100)) {
-      errors.discount_percent = 'Phần trăm giảm giá phải từ 0 đến 100';
+      errors.discount_percent = t('rewardManagement.form.discountPercentRange');
     }
 
     if (hasAmount && formData.discount_amount! < 0) {
-      errors.discount_amount = 'Số tiền giảm giá không được âm';
+      errors.discount_amount = t('rewardManagement.form.discountAmountInvalid');
     }
 
     if (formData.stock_quantity != null && formData.stock_quantity < 0) {
-      errors.stock_quantity = 'Số lượng tồn kho không được âm';
+      errors.stock_quantity = t('rewardManagement.form.stockQuantityInvalid');
     }
 
     if (formData.redemption_limit != null && formData.redemption_limit < 0) {
-      errors.redemption_limit = 'Giới hạn đổi không được âm';
+      errors.redemption_limit = t('rewardManagement.form.redemptionLimitInvalid');
     }
 
     if (formData.valid_until && new Date(formData.valid_from) >= new Date(formData.valid_until)) {
-      errors.valid_until = 'Ngày kết thúc phải sau ngày bắt đầu';
+      errors.valid_until = t('rewardManagement.form.validUntilAfterValidFrom');
     }
 
     setFormErrors(errors);
@@ -498,7 +506,7 @@ const RewardManagement: React.FC = () => {
           }
         } catch (uploadError) {
           console.error('Error uploading image:', uploadError);
-          showToast({ message: 'Không thể tải lên hình ảnh', type: 'error' });
+          showToast({ message: t('rewardManagement.messages.uploadImageError'), type: 'error' });
           setIsUploadingImage(false);
           return;
         } finally {
@@ -520,25 +528,38 @@ const RewardManagement: React.FC = () => {
       if (editingReward) {
         response = await rewardService.updateReward(editingReward.id, payload);
         if (response.success) {
-          showToast({ message: `Cập nhật phần thưởng "${formData.title}" thành công!`, type: 'success' });
+          showToast({
+            message: t('rewardManagement.messages.updateSuccess', { name: formData.title }),
+            type: 'success',
+          });
           setIsFormModalOpen(false);
           loadRewards();
         } else {
-          showToast({ message: response.message || 'Không thể cập nhật phần thưởng', type: 'error' });
+          showToast({
+            message: response.message || t('rewardManagement.messages.updateError'),
+            type: 'error',
+          });
         }
       } else {
         response = await rewardService.createReward(payload);
         if (response.success) {
-          showToast({ message: `Tạo phần thưởng "${formData.title}" thành công!`, type: 'success' });
+          showToast({
+            message: t('rewardManagement.messages.createSuccess', { name: formData.title }),
+            type: 'success',
+          });
           setIsFormModalOpen(false);
           loadRewards();
         } else {
-          showToast({ message: response.message || 'Không thể tạo phần thưởng', type: 'error' });
+          showToast({
+            message: response.message || t('rewardManagement.messages.createError'),
+            type: 'error',
+          });
         }
       }
     } catch (error: any) {
       console.error('Error saving reward:', error);
-      const errorMessage = error.response?.data?.message || error.message || 'Không thể lưu phần thưởng';
+      const errorMessage =
+        error.response?.data?.message || error.message || t('rewardManagement.messages.saveError');
       showToast({ message: errorMessage, type: 'error' });
     }
   };
@@ -584,12 +605,12 @@ const RewardManagement: React.FC = () => {
 
   const getCategoryLabel = (category: string) => {
     const labels: Record<string, string> = {
-      DISCOUNT: 'Giảm giá',
-      FREE_CLASS: 'Lớp học miễn phí',
-      MERCHANDISE: 'Sản phẩm',
-      MEMBERSHIP_EXTENSION: 'Gia hạn',
-      PREMIUM_FEATURE: 'Tính năng Premium',
-      OTHER: 'Khác',
+      DISCOUNT: t('rewardManagement.categories.DISCOUNT'),
+      FREE_CLASS: t('rewardManagement.categories.FREE_CLASS'),
+      MERCHANDISE: t('rewardManagement.categories.MERCHANDISE'),
+      MEMBERSHIP_EXTENSION: t('rewardManagement.categories.MEMBERSHIP_EXTENSION'),
+      PREMIUM_FEATURE: t('rewardManagement.categories.PREMIUM_FEATURE'),
+      OTHER: t('rewardManagement.categories.OTHER'),
     };
     return labels[category] || category;
   };
@@ -613,13 +634,13 @@ const RewardManagement: React.FC = () => {
 
   const getRewardTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
-      PERCENTAGE_DISCOUNT: 'Giảm %',
-      FIXED_AMOUNT_DISCOUNT: 'Giảm VND',
-      FREE_ITEM: 'Sản phẩm miễn phí',
-      MEMBERSHIP_UPGRADE: 'Nâng cấp',
-      PREMIUM_FEATURE_ACCESS: 'Tính năng Premium',
-      CASHBACK: 'Hoàn tiền',
-      OTHER: 'Khác',
+      PERCENTAGE_DISCOUNT: t('rewardManagement.rewardTypes.PERCENTAGE_DISCOUNT'),
+      FIXED_AMOUNT_DISCOUNT: t('rewardManagement.rewardTypes.FIXED_AMOUNT_DISCOUNT'),
+      FREE_ITEM: t('rewardManagement.rewardTypes.FREE_ITEM'),
+      MEMBERSHIP_UPGRADE: t('rewardManagement.rewardTypes.MEMBERSHIP_UPGRADE'),
+      PREMIUM_FEATURE_ACCESS: t('rewardManagement.rewardTypes.PREMIUM_FEATURE_ACCESS'),
+      CASHBACK: t('rewardManagement.rewardTypes.CASHBACK'),
+      OTHER: t('rewardManagement.rewardTypes.OTHER'),
     };
     return labels[type] || type;
   };
@@ -645,17 +666,17 @@ const RewardManagement: React.FC = () => {
       Điểm: reward.points_cost,
       'Giảm giá %': reward.discount_percent || '',
       'Giảm giá VND': reward.discount_amount || '',
-      'Số lượng': reward.stock_quantity || 'Không giới hạn',
-      'Giới hạn đổi': reward.redemption_limit || 'Không giới hạn',
+      'Số lượng': reward.stock_quantity || t('common.unlimited'),
+      'Giới hạn đổi': reward.redemption_limit || t('common.unlimited'),
       'Còn lại':
         reward.stock_quantity !== undefined && reward.stock_quantity !== null
           ? reward.stock_quantity - (reward._count?.redemptions || 0)
-          : 'Không giới hạn',
+          : t('common.unlimited'),
       'Ngày bắt đầu': formatVietnamDateTime(reward.valid_from),
       'Ngày kết thúc': reward.valid_until
         ? formatVietnamDateTime(reward.valid_until)
-        : 'Không giới hạn',
-      'Trạng thái': reward.is_active ? 'Đang hoạt động' : 'Không hoạt động',
+        : t('common.unlimited'),
+      'Trạng thái': reward.is_active ? t('common.status.active') : t('common.status.inactive'),
       'Số lần đổi': reward._count?.redemptions || 0,
       'Ngày tạo': formatVietnamDateTime(reward.created_at),
     }));
@@ -667,18 +688,18 @@ const RewardManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Phần thưởng
+            {t('rewardManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Tạo và quản lý các phần thưởng hấp dẫn cho thành viên
+            {t('rewardManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
           <AdminButton onClick={loadRewards} icon={RefreshCw} variant='outline' size='sm'>
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </AdminButton>
           <AdminButton onClick={handleCreate} icon={Plus} size='sm'>
-            Tạo phần thưởng mới
+            {t('rewardManagement.addReward')}
           </AdminButton>
         </div>
       </div>
@@ -701,7 +722,7 @@ const RewardManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số phần thưởng
+                  {t('rewardManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -724,7 +745,7 @@ const RewardManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đang hoạt động
+                  {t('rewardManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -747,7 +768,7 @@ const RewardManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng lượt đổi
+                  {t('rewardManagement.stats.totalRedemptions')}
                 </div>
               </div>
             </div>
@@ -770,7 +791,7 @@ const RewardManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng điểm đã đổi
+                  {t('rewardManagement.stats.totalPointsSpent')}
                 </div>
               </div>
             </div>
@@ -800,33 +821,36 @@ const RewardManagement: React.FC = () => {
           setCurrentPage(1);
         }}
         availableCategories={[
-          { value: 'DISCOUNT', label: 'Giảm giá' },
-          { value: 'FREE_CLASS', label: 'Lớp học miễn phí' },
-          { value: 'MERCHANDISE', label: 'Sản phẩm' },
-          { value: 'MEMBERSHIP_EXTENSION', label: 'Gia hạn' },
-          { value: 'PREMIUM_FEATURE', label: 'Tính năng Premium' },
-          { value: 'OTHER', label: 'Khác' },
+          { value: 'DISCOUNT', label: t('rewardManagement.categories.DISCOUNT') },
+          { value: 'FREE_CLASS', label: t('rewardManagement.categories.FREE_CLASS') },
+          { value: 'MERCHANDISE', label: t('rewardManagement.categories.MERCHANDISE') },
+          {
+            value: 'MEMBERSHIP_EXTENSION',
+            label: t('rewardManagement.categories.MEMBERSHIP_EXTENSION'),
+          },
+          { value: 'PREMIUM_FEATURE', label: t('rewardManagement.categories.PREMIUM_FEATURE') },
+          { value: 'OTHER', label: t('rewardManagement.categories.OTHER') },
         ]}
         showDateRange={false}
         showCategory={true}
         customFilterFields={[
           {
             key: 'min_points',
-            label: 'Điểm tối thiểu',
+            label: t('rewardManagement.filter.minPoints'),
             type: 'number',
           },
           {
             key: 'max_points',
-            label: 'Điểm tối đa',
+            label: t('rewardManagement.filter.maxPoints'),
             type: 'number',
           },
           {
             key: 'is_active',
-            label: 'Trạng thái',
+            label: t('rewardManagement.table.status'),
             type: 'select',
             options: [
-              { value: 'true', label: 'Đang hoạt động' },
-              { value: 'false', label: 'Không hoạt động' },
+              { value: 'true', label: t('common.status.active') },
+              { value: 'false', label: t('common.status.inactive') },
             ],
           },
         ]}
@@ -835,21 +859,21 @@ const RewardManagement: React.FC = () => {
       {/* Export and Actions */}
       <div className='flex justify-between items-center'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredRewards.length} phần thưởng
+          {t('rewardManagement.stats.totalCount', { count: filteredRewards.length })}
         </div>
         {filteredRewards.length > 0 && (
           <ExportButton
             data={getExportData()}
             columns={[
-              { key: 'Tiêu đề', label: 'Tiêu đề' },
-              { key: 'Danh mục', label: 'Danh mục' },
-              { key: 'Loại', label: 'Loại' },
-              { key: 'Điểm', label: 'Điểm' },
-              { key: 'Trạng thái', label: 'Trạng thái' },
-              { key: 'Số lần đổi', label: 'Số lần đổi' },
+              { key: 'Tiêu đề', label: t('rewardManagement.table.title') },
+              { key: 'Danh mục', label: t('rewardManagement.table.category') },
+              { key: 'Loại', label: t('rewardManagement.table.type') },
+              { key: 'Điểm', label: t('rewardManagement.table.pointsCost') },
+              { key: 'Trạng thái', label: t('rewardManagement.table.status') },
+              { key: 'Số lần đổi', label: t('rewardManagement.table.redemptions') },
             ]}
-            filename='danh-sach-phan-thuong'
-            title='Danh sách Phần thưởng'
+            filename={t('rewardManagement.export.filename')}
+            title={t('rewardManagement.export.title')}
             variant='outline'
             size='sm'
           />
@@ -858,15 +882,15 @@ const RewardManagement: React.FC = () => {
 
       {/* Rewards List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách phần thưởng...' />
+        <TableLoading text={t('rewardManagement.messages.loading')} />
       ) : filteredRewards.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Gift className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
               {filters.search || filters.category !== 'all'
-                ? 'Không tìm thấy phần thưởng nào'
-                : 'Không có phần thưởng nào'}
+                ? t('rewardManagement.empty.noResults')
+                : t('rewardManagement.empty.noRewards')}
             </div>
           </div>
         </div>
@@ -929,7 +953,12 @@ const RewardManagement: React.FC = () => {
                             {getCategoryLabel(reward.category)}
                           </span>
                         </div>
-                        <StatusBadge status={reward.is_active ? 'active' : 'inactive'} />
+                        <EnumBadge
+                          type='MEMBERSHIP_STATUS'
+                          value={reward.is_active ? 'ACTIVE' : 'INACTIVE'}
+                          size='sm'
+                          showIcon={true}
+                        />
                       </div>
 
                       {/* Discount Value Badge - Compact Display */}
@@ -1103,14 +1132,14 @@ const RewardManagement: React.FC = () => {
                       className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-md shadow-sm hover:shadow-md hover:shadow-orange-500/30 transition-all duration-200 active:scale-95'
                     >
                       <Edit className='w-3 h-3' />
-                      Sửa
+                      {t('rewardManagement.actions.edit')}
                     </button>
                     <button
                       onClick={() => handleDelete(reward)}
                       className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-md shadow-sm hover:shadow-md hover:shadow-red-500/30 transition-all duration-200 active:scale-95'
                     >
                       <Trash2 className='w-3 h-3' />
-                      Xóa
+                      {t('rewardManagement.actions.delete')}
                     </button>
                   </div>
                 </div>
@@ -1453,7 +1482,9 @@ const RewardManagement: React.FC = () => {
       <AdminModal
         isOpen={isFormModalOpen}
         onClose={() => setIsFormModalOpen(false)}
-        title={editingReward ? 'Chỉnh sửa Phần thưởng' : 'Tạo Phần thưởng Mới'}
+        title={
+          editingReward ? t('rewardManagement.form.editTitle') : t('rewardManagement.form.addTitle')
+        }
         size='lg'
         footer={
           <div className='flex justify-end gap-3'>
@@ -1462,13 +1493,15 @@ const RewardManagement: React.FC = () => {
               variant='outline'
               className='border-gray-300'
             >
-              Hủy bỏ
+              {t('common.cancel')}
             </AdminButton>
             <AdminButton
               onClick={handleSave}
               className='bg-gradient-to-r from-orange-500 to-red-500 text-white border-none'
             >
-              {editingReward ? 'Cập nhật' : 'Tạo mới'}
+              {editingReward
+                ? t('rewardManagement.actions.update')
+                : t('rewardManagement.actions.create')}
             </AdminButton>
           </div>
         }
@@ -1476,7 +1509,7 @@ const RewardManagement: React.FC = () => {
         <div className='space-y-3'>
           <div>
             <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-              Tiêu đề <span className='text-red-500'>*</span>
+              {t('rewardManagement.form.title')} <span className='text-red-500'>*</span>
             </label>
             <AdminInput
               value={formData.title}
@@ -1488,7 +1521,7 @@ const RewardManagement: React.FC = () => {
 
           <div>
             <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-              Mô tả <span className='text-red-500'>*</span>
+              {t('rewardManagement.form.description')} <span className='text-red-500'>*</span>
             </label>
             <textarea
               value={formData.description}
@@ -1508,37 +1541,55 @@ const RewardManagement: React.FC = () => {
           <div className='grid grid-cols-2 gap-3'>
             <div>
               <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                Danh mục
+                {t('rewardManagement.form.category')}
               </label>
               <CustomSelect
                 options={[
-                  { value: 'DISCOUNT', label: 'Giảm giá' },
-                  { value: 'FREE_CLASS', label: 'Lớp học miễn phí' },
-                  { value: 'MERCHANDISE', label: 'Sản phẩm' },
-                  { value: 'MEMBERSHIP_EXTENSION', label: 'Gia hạn' },
-                  { value: 'PREMIUM_FEATURE', label: 'Tính năng Premium' },
-                  { value: 'OTHER', label: 'Khác' },
+                  { value: 'DISCOUNT', label: t('rewardManagement.categories.DISCOUNT') },
+                  { value: 'FREE_CLASS', label: t('rewardManagement.categories.FREE_CLASS') },
+                  { value: 'MERCHANDISE', label: t('rewardManagement.categories.MERCHANDISE') },
+                  {
+                    value: 'MEMBERSHIP_EXTENSION',
+                    label: t('rewardManagement.categories.MEMBERSHIP_EXTENSION'),
+                  },
+                  {
+                    value: 'PREMIUM_FEATURE',
+                    label: t('rewardManagement.categories.PREMIUM_FEATURE'),
+                  },
+                  { value: 'OTHER', label: t('rewardManagement.categories.OTHER') },
                 ]}
                 value={formData.category}
                 onChange={value => setFormData({ ...formData, category: value as any })}
-                placeholder='Chọn danh mục'
+                placeholder={t('rewardManagement.form.selectCategory')}
                 className='font-inter'
               />
             </div>
 
             <div>
               <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                Loại
+                {t('rewardManagement.form.rewardType')}
               </label>
               <CustomSelect
                 options={[
-                  { value: 'PERCENTAGE_DISCOUNT', label: 'Giảm %' },
-                  { value: 'FIXED_AMOUNT_DISCOUNT', label: 'Giảm VND' },
-                  { value: 'FREE_ITEM', label: 'Sản phẩm miễn phí' },
-                  { value: 'MEMBERSHIP_UPGRADE', label: 'Nâng cấp' },
-                  { value: 'PREMIUM_FEATURE_ACCESS', label: 'Tính năng Premium' },
-                  { value: 'CASHBACK', label: 'Hoàn tiền' },
-                  { value: 'OTHER', label: 'Khác' },
+                  {
+                    value: 'PERCENTAGE_DISCOUNT',
+                    label: t('rewardManagement.rewardTypes.PERCENTAGE_DISCOUNT'),
+                  },
+                  {
+                    value: 'FIXED_AMOUNT_DISCOUNT',
+                    label: t('rewardManagement.rewardTypes.FIXED_AMOUNT_DISCOUNT'),
+                  },
+                  { value: 'FREE_ITEM', label: t('rewardManagement.rewardTypes.FREE_ITEM') },
+                  {
+                    value: 'MEMBERSHIP_UPGRADE',
+                    label: t('rewardManagement.rewardTypes.MEMBERSHIP_UPGRADE'),
+                  },
+                  {
+                    value: 'PREMIUM_FEATURE_ACCESS',
+                    label: t('rewardManagement.rewardTypes.PREMIUM_FEATURE_ACCESS'),
+                  },
+                  { value: 'CASHBACK', label: t('rewardManagement.rewardTypes.CASHBACK') },
+                  { value: 'OTHER', label: t('rewardManagement.rewardTypes.OTHER') },
                 ]}
                 value={formData.reward_type}
                 onChange={value => {
@@ -1566,7 +1617,7 @@ const RewardManagement: React.FC = () => {
                     });
                   }
                 }}
-                placeholder='Chọn loại'
+                placeholder={t('rewardManagement.form.selectType')}
                 className='font-inter'
               />
             </div>
@@ -1574,7 +1625,7 @@ const RewardManagement: React.FC = () => {
 
           <div>
             <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-              Điểm <span className='text-red-500'>*</span>
+              {t('rewardManagement.form.pointsCost')} <span className='text-red-500'>*</span>
             </label>
             <AdminInput
               type='number'
@@ -1589,7 +1640,7 @@ const RewardManagement: React.FC = () => {
 
           <div className='grid grid-cols-2 gap-3'>
             <AdminInput
-              label='Giảm giá %'
+              label={t('rewardManagement.form.discountPercent')}
               type='number'
               value={formData.discount_percent?.toString() || ''}
               onChange={e => {
@@ -1615,7 +1666,7 @@ const RewardManagement: React.FC = () => {
             />
 
             <AdminInput
-              label='Giảm giá VND'
+              label={t('rewardManagement.form.discountAmount')}
               type='number'
               value={formData.discount_amount?.toString() || ''}
               onChange={e => {
@@ -1643,7 +1694,7 @@ const RewardManagement: React.FC = () => {
 
           <div className='grid grid-cols-2 gap-3'>
             <AdminInput
-              label='Số lượng'
+              label={t('rewardManagement.form.stockQuantity')}
               type='number'
               value={formData.stock_quantity?.toString() || ''}
               onChange={e =>
@@ -1652,13 +1703,13 @@ const RewardManagement: React.FC = () => {
                   stock_quantity: e.target.value ? parseInt(e.target.value) : undefined,
                 })
               }
-              placeholder='Không giới hạn'
+              placeholder={t('common.unlimited')}
               error={formErrors.stock_quantity}
               className='font-inter'
             />
 
             <AdminInput
-              label='Giới hạn đổi'
+              label={t('rewardManagement.form.redemptionLimit')}
               type='number'
               value={formData.redemption_limit?.toString() || ''}
               onChange={e =>
@@ -1667,7 +1718,7 @@ const RewardManagement: React.FC = () => {
                   redemption_limit: e.target.value ? parseInt(e.target.value) : undefined,
                 })
               }
-              placeholder='Không giới hạn'
+              placeholder={t('common.unlimited')}
               error={formErrors.redemption_limit}
               className='font-inter'
             />
@@ -1676,7 +1727,7 @@ const RewardManagement: React.FC = () => {
           <div className='grid grid-cols-2 gap-2.5'>
             <div className='flex flex-col'>
               <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                Ngày bắt đầu <span className='text-red-500'>*</span>
+                {t('rewardManagement.form.validFrom')} <span className='text-red-500'>*</span>
               </label>
               <div className='relative flex-1 group'>
                 <input
@@ -1697,7 +1748,7 @@ const RewardManagement: React.FC = () => {
 
             <div className='flex flex-col'>
               <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                Ngày kết thúc
+                {t('rewardManagement.form.validUntil')}
               </label>
               <div className='relative flex-1 group'>
                 <input
@@ -1723,7 +1774,7 @@ const RewardManagement: React.FC = () => {
 
           <div>
             <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-              Hình ảnh
+              {t('rewardManagement.form.image')}
             </label>
             <div className='flex items-center gap-4'>
               {imagePreview ? (
@@ -1764,7 +1815,9 @@ const RewardManagement: React.FC = () => {
                   icon={imagePreview ? Edit : Plus}
                   disabled={isUploadingImage}
                 >
-                  {imagePreview ? 'Thay đổi' : 'Tải lên hình ảnh'}
+                  {imagePreview
+                    ? t('rewardManagement.form.changeImage')
+                    : t('rewardManagement.form.uploadImage')}
                 </AdminButton>
                 {formErrors.image_url && (
                   <p className='text-xs text-red-600 dark:text-red-400 mt-1'>
@@ -1772,7 +1825,7 @@ const RewardManagement: React.FC = () => {
                   </p>
                 )}
                 <p className='text-xs text-gray-500 dark:text-gray-400 mt-2 font-inter'>
-                  Tối đa 5MB. Định dạng: JPG, PNG, GIF, WebP
+                  {t('rewardManagement.form.imageUploadHint')}
                 </p>
               </div>
             </div>
@@ -1780,13 +1833,13 @@ const RewardManagement: React.FC = () => {
 
           <div>
             <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-              Điều khoản
+              {t('rewardManagement.form.termsConditions')}
             </label>
             <textarea
               value={formData.terms_conditions || ''}
               onChange={e => setFormData({ ...formData, terms_conditions: e.target.value })}
               rows={2}
-              placeholder='Điều khoản và điều kiện...'
+              placeholder={t('rewardManagement.form.termsConditionsPlaceholder')}
               className='w-full px-3 py-1.5 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
@@ -1799,24 +1852,34 @@ const RewardManagement: React.FC = () => {
                   checked={editingReward.is_active}
                   onChange={e => {
                     const updateData: UpdateRewardRequest = { is_active: e.target.checked };
-                    const statusText = e.target.checked ? 'kích hoạt' : 'vô hiệu hóa';
+                    const statusText = e.target.checked
+                      ? t('rewardManagement.actions.activate')
+                      : t('rewardManagement.actions.deactivate');
                     rewardService
                       .updateReward(editingReward.id, updateData)
                       .then(() => {
                         showToast({
-                          message: `Đã ${statusText} phần thưởng "${editingReward.title}" thành công!`,
+                          message: t('rewardManagement.messages.statusUpdateSuccess', {
+                            action: statusText,
+                            name: editingReward.title,
+                          }),
                           type: 'success',
                         });
                         loadRewards();
                       })
                       .catch(err => {
                         console.error('Error updating reward status:', err);
-                        showToast({ message: err.message || 'Không thể cập nhật trạng thái', type: 'error' });
+                        showToast({
+                          message: err.message || t('rewardManagement.messages.statusUpdateError'),
+                          type: 'error',
+                        });
                       });
                   }}
                   className='w-4 h-4'
                 />
-                <span className='text-sm text-gray-700 dark:text-gray-300'>Đang hoạt động</span>
+                <span className='text-sm text-gray-700 dark:text-gray-300'>
+                  {t('common.status.active')}
+                </span>
               </label>
             </div>
           )}
@@ -1828,10 +1891,10 @@ const RewardManagement: React.FC = () => {
         isOpen={isDeleteDialogOpen}
         onClose={() => setIsDeleteDialogOpen(false)}
         onConfirm={confirmDelete}
-        title='Xóa Phần thưởng'
-        message={`Bạn có chắc chắn muốn xóa phần thưởng "${rewardToDelete?.title}"?`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('rewardManagement.delete.confirmTitle')}
+        message={t('rewardManagement.delete.confirmMessage', { name: rewardToDelete?.title || '' })}
+        confirmText={t('rewardManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         isLoading={isDeleting}
         variant='danger'
       />

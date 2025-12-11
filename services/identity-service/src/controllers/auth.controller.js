@@ -1,4 +1,4 @@
-﻿const bcrypt = require('bcrypt');
+const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const { prisma } = require('../lib/prisma.js');
@@ -289,7 +289,7 @@ class AuthController {
   async login(req, res) {
     try {
       logger.request(req, 'Login attempt');
-      const { identifier, password, twoFactorToken, push_token, push_platform } = req.body; // identifier can be email or phone
+      const { identifier, password, twoFactorToken, push_token, push_platform, rememberMe } = req.body; // identifier can be email or phone
 
       if (!identifier || !password) {
         logger.warn('Login failed: missing credentials', {
@@ -316,6 +316,7 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
+          errorCode: 'INVALID_CREDENTIALS',
           data: null,
         });
       }
@@ -326,6 +327,7 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Tài khoản đã bị vô hiệu hóa',
+          errorCode: 'ACCOUNT_INACTIVE',
           data: null,
         });
       }
@@ -353,6 +355,7 @@ class AuthController {
         return res.status(401).json({
           success: false,
           message: 'Invalid email or password. Please try again.',
+          errorCode: 'INVALID_CREDENTIALS',
           data: null,
         });
       }
@@ -410,22 +413,53 @@ class AuthController {
         console.log(`[BELL] Push token registered for user ${user.id}`);
       }
 
-      // Create session
+      // TC-AUTH-003: Create session with retry mechanism (prevent partial login state)
+      // IMPROVEMENT: Remember me - extend session to 30 days if rememberMe is true
       const accessToken = crypto.randomBytes(32).toString('hex');
       const refreshToken = crypto.randomBytes(32).toString('hex');
-      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      const sessionDuration = rememberMe ? 30 * 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000; // 30 days if rememberMe, else 7 days
+      const expiresAt = new Date(Date.now() + sessionDuration);
 
-      const session = await prisma.session.create({
-        data: {
-          user_id: user.id,
-          token: accessToken,
-          refresh_token: refreshToken,
-          device_info: req.headers['user-agent'] || 'Unknown',
-          ip_address: req.ip || req.connection.remoteAddress,
-          user_agent: req.headers['user-agent'] || 'Unknown',
-          expires_at: expiresAt,
-        },
-      });
+      let session;
+      const maxRetries = 3;
+      let retryCount = 0;
+      let sessionCreated = false;
+
+      while (retryCount < maxRetries && !sessionCreated) {
+        try {
+          session = await prisma.session.create({
+            data: {
+              user_id: user.id,
+              token: accessToken,
+              refresh_token: refreshToken,
+              device_info: req.headers['user-agent'] || 'Unknown',
+              ip_address: req.ip || req.connection.remoteAddress,
+              user_agent: req.headers['user-agent'] || 'Unknown',
+              expires_at: expiresAt,
+            },
+          });
+          sessionCreated = true;
+        } catch (sessionError) {
+          retryCount++;
+          console.error(
+            `[ERROR] Session creation failed (attempt ${retryCount}/${maxRetries}):`,
+            sessionError.message
+          );
+          if (retryCount >= maxRetries) {
+            // TC-AUTH-003: If session creation fails after retries, return error
+            // User is already created but cannot login - this is a critical error
+            console.error('[CRITICAL] Session creation failed after all retries. User created but cannot login.');
+            return res.status(500).json({
+              success: false,
+              message: 'Đăng nhập thành công nhưng không thể tạo phiên đăng nhập. Vui lòng thử lại.',
+              errorCode: 'SESSION_CREATION_FAILED',
+              data: null,
+            });
+          }
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        }
+      }
 
       // Store session in Redis with TTL = token expiry (30 minutes for access token)
       const sessionData = {
@@ -502,7 +536,7 @@ class AuthController {
         role: user.role,
       };
 
-      // If user is TRAINER, get trainer_id from schedule-service
+      // If user is TRAINER, get trainer_id and salary status from schedule-service
       if (user.role === 'TRAINER') {
         try {
           const scheduleService = require('../services/schedule.service.js');
@@ -514,13 +548,31 @@ class AuthController {
             console.log(
               `[SUCCESS] Trainer ID found for user ${user.id}: ${trainerResult.trainerId}`
             );
+
+            // Check salary status
+            try {
+              const salaryStatus = await schedule.getTrainerSalaryStatus(trainerResult.trainerId);
+              if (salaryStatus.success) {
+                userData.hasSalary = salaryStatus.hasSalary;
+                userData.hourly_rate = salaryStatus.hourly_rate;
+                console.log(
+                  `[SUCCESS] Salary status for trainer ${trainerResult.trainerId}: hasSalary=${salaryStatus.hasSalary}`
+                );
+              }
+            } catch (salaryError) {
+              console.error('[ERROR] Error fetching salary status during login:', salaryError.message);
+              // Continue without salary status - don't fail login
+              userData.hasSalary = false;
+            }
           } else {
             console.warn(`[WARNING] Trainer not found in schedule-service for user ${user.id}`);
             // Continue without trainerId - frontend can handle this
+            userData.hasSalary = false;
           }
         } catch (error) {
           console.error('[ERROR] Error fetching trainer_id during login:', error.message);
           // Continue without trainerId - don't fail login
+          userData.hasSalary = false;
         }
       }
 
@@ -728,9 +780,20 @@ class AuthController {
         }
       }
 
-      // Hash password
+      // TC-AUTH-005: Hash password with error handling
       const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      let hashedPassword;
+      try {
+        hashedPassword = await bcrypt.hash(password, saltRounds);
+      } catch (hashError) {
+        console.error('[ERROR] Password hashing failed:', hashError);
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể tạo mật khẩu. Vui lòng thử lại sau.',
+          errorCode: 'PASSWORD_HASH_FAILED',
+          data: null,
+        });
+      }
 
       // Determine verification status based on primary method
       const emailVerified = primaryMethod === 'EMAIL';
@@ -756,22 +819,55 @@ class AuthController {
       // Email verification is handled by OTPVerification table
       // No need for separate EmailVerification table
 
-      // Create session
+      // TC-AUTH-003: Create session with retry mechanism (prevent partial registration state)
       const accessToken = crypto.randomBytes(32).toString('hex');
       const refreshToken = crypto.randomBytes(32).toString('hex');
       const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-      const session = await prisma.session.create({
-        data: {
-          user_id: newUser.id,
-          token: accessToken,
-          refresh_token: refreshToken,
-          device_info: req.headers['user-agent'] || 'Unknown',
-          ip_address: req.ip || req.connection.remoteAddress,
-          user_agent: req.headers['user-agent'] || 'Unknown',
-          expires_at: expiresAt,
-        },
-      });
+      let session;
+      const maxRetries = 3;
+      let retryCount = 0;
+      let sessionCreated = false;
+
+      while (retryCount < maxRetries && !sessionCreated) {
+        try {
+          session = await prisma.session.create({
+            data: {
+              user_id: newUser.id,
+              token: accessToken,
+              refresh_token: refreshToken,
+              device_info: req.headers['user-agent'] || 'Unknown',
+              ip_address: req.ip || req.connection.remoteAddress,
+              user_agent: req.headers['user-agent'] || 'Unknown',
+              expires_at: expiresAt,
+            },
+          });
+          sessionCreated = true;
+        } catch (sessionError) {
+          retryCount++;
+          console.error(
+            `[ERROR] Session creation failed during registration (attempt ${retryCount}/${maxRetries}):`,
+            sessionError.message
+          );
+          if (retryCount >= maxRetries) {
+            // TC-AUTH-003: If session creation fails after retries, user is created but cannot login
+            // This is a critical error - user exists but cannot authenticate
+            console.error(
+              '[CRITICAL] Session creation failed after all retries during registration. User created but cannot login.'
+            );
+            // Note: We don't rollback user creation here as it's already committed
+            // Instead, we return error and user can try to login manually
+            return res.status(500).json({
+              success: false,
+              message: 'Đăng ký thành công nhưng không thể tạo phiên đăng nhập. Vui lòng đăng nhập lại.',
+              errorCode: 'SESSION_CREATION_FAILED',
+              data: null,
+            });
+          }
+          // Wait before retry (exponential backoff)
+          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+        }
+      }
 
       // Generate JWT token with sessionId
       const token = jwt.sign(
@@ -1437,7 +1533,19 @@ class AuthController {
 
       // Hash password mới
       const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      // TC-AUTH-005: Hash password with error handling
+      let hashedPassword;
+      try {
+        hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      } catch (hashError) {
+        console.error('[ERROR] Password hashing failed:', hashError);
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể tạo mật khẩu mới. Vui lòng thử lại sau.',
+          errorCode: 'PASSWORD_HASH_FAILED',
+          data: null,
+        });
+      }
 
       // Cập nhật password và đánh dấu token đã sử dụng
       await prisma.$transaction([
@@ -1878,6 +1986,41 @@ class AuthController {
   }
 
   /**
+   * Convert base32 string to buffer (helper method)
+   * Base32 decoding for TOTP secrets (RFC 4648)
+   */
+  base32ToBuffer(base32String) {
+    const base32Chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+    const base32Map = {};
+    for (let i = 0; i < base32Chars.length; i++) {
+      base32Map[base32Chars[i]] = i;
+    }
+
+    // Remove padding and convert to uppercase
+    const input = base32String.replace(/=+$/, '').toUpperCase();
+    let bits = 0;
+    let value = 0;
+    const output = [];
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      if (!(char in base32Map)) {
+        continue; // Skip invalid characters
+      }
+
+      value = (value << 5) | base32Map[char];
+      bits += 5;
+
+      if (bits >= 8) {
+        output.push((value >>> (bits - 8)) & 0xff);
+        bits -= 8;
+      }
+    }
+
+    return Buffer.from(output);
+  }
+
+  /**
    * Verify TOTP token (helper method)
    */
   verifyTOTPToken(secret, token) {
@@ -1885,10 +2028,23 @@ class AuthController {
     // In production, you should use a proper TOTP library like 'speakeasy'
     // For now, we'll implement a basic version
 
-    const time = Math.floor(Date.now() / 1000 / 30); // 30-second window
-    const expectedToken = this.generateTOTP(secret, time);
+    if (!secret || !token) {
+      return false;
+    }
 
-    return expectedToken === token;
+    const time = Math.floor(Date.now() / 1000 / 30); // 30-second window
+
+    // Check current time window and adjacent windows (for clock skew tolerance)
+    const timeWindows = [time - 1, time, time + 1];
+
+    for (const timeWindow of timeWindows) {
+      const expectedToken = this.generateTOTP(secret, timeWindow);
+      if (expectedToken === token) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   /**
@@ -1897,8 +2053,16 @@ class AuthController {
   generateTOTP(secret, time) {
     // This is a simplified TOTP generation
     // In production, use a proper TOTP library
-    const hmac = crypto.createHmac('sha1', Buffer.from(secret, 'base32'));
-    hmac.update(Buffer.from(time.toString(16).padStart(16, '0'), 'hex'));
+    // Convert base32 secret to buffer
+    const secretBuffer = this.base32ToBuffer(secret);
+
+    // Create time buffer (8 bytes, big-endian)
+    const timeBuffer = Buffer.allocUnsafe(8);
+    timeBuffer.writeUInt32BE(0, 0); // High 4 bytes
+    timeBuffer.writeUInt32BE(time, 4); // Low 4 bytes
+
+    const hmac = crypto.createHmac('sha1', secretBuffer);
+    hmac.update(timeBuffer);
     const hash = hmac.digest();
 
     const offset = hash[hash.length - 1] & 0xf;
@@ -2009,9 +2173,20 @@ class AuthController {
         });
       }
 
-      // Hash password
+      // TC-AUTH-005: Hash password with error handling
       const saltRounds = 12;
-      const hashedPassword = await bcrypt.hash(password, saltRounds);
+      let hashedPassword;
+      try {
+        hashedPassword = await bcrypt.hash(password, saltRounds);
+      } catch (hashError) {
+        console.error('[ERROR] Password hashing failed:', hashError);
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể tạo mật khẩu. Vui lòng thử lại sau.',
+          errorCode: 'PASSWORD_HASH_FAILED',
+          data: null,
+        });
+      }
 
       // Create admin user
       const newAdmin = await prisma.user.create({
@@ -2255,11 +2430,30 @@ class AuthController {
     }
   }
 
-  // Delete user
-  async deleteUser(req, res) {
+  // Change user password (admin only, no OTP required)
+  async changeUserPassword(req, res) {
     try {
       const { id } = req.params;
-      const currentUser = req.user; // User making the request
+      const { newPassword } = req.body;
+
+      // Validate required fields
+      if (!newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'New password is required',
+          data: null,
+        });
+      }
+
+      // Validate password strength
+      const passwordValidation = this.validatePassword(newPassword);
+      if (!passwordValidation.isValid) {
+        return res.status(400).json({
+          success: false,
+          message: passwordValidation.message,
+          data: null,
+        });
+      }
 
       // Check if user exists
       const existingUser = await prisma.user.findUnique({
@@ -2267,6 +2461,89 @@ class AuthController {
       });
 
       if (!existingUser) {
+        return res.status(404).json({
+          success: false,
+          message: 'User not found',
+          data: null,
+        });
+      }
+
+      // Hash new password
+      const saltRounds = 12;
+      let hashedPassword;
+      try {
+        hashedPassword = await bcrypt.hash(newPassword, saltRounds);
+      } catch (hashError) {
+        console.error('[ERROR] Password hashing failed:', hashError);
+        return res.status(500).json({
+          success: false,
+          message: 'Không thể tạo mật khẩu mới. Vui lòng thử lại sau.',
+          errorCode: 'PASSWORD_HASH_FAILED',
+          data: null,
+        });
+      }
+
+      // Update password
+      await prisma.user.update({
+        where: { id },
+        data: {
+          password_hash: hashedPassword,
+          failed_login_attempts: 0, // Reset failed attempts
+          locked_until: null, // Unlock account if locked
+        },
+      });
+
+      console.log('[SUCCESS] User password changed by admin:', {
+        userId: id,
+        email: existingUser.email,
+      });
+
+      res.json({
+        success: true,
+        message: 'Password changed successfully',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Change user password error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Delete user
+  async deleteUser(req, res) {
+    // TC-USER-004: Use Redis lock to prevent concurrent delete requests
+    const redisService = require('../services/redis.service.js');
+    const { id } = req.params;
+    const lockKey = `delete_user:${id}`;
+    const lockTTL = 30; // 30 seconds lock
+    let lockAcquired = false;
+
+    try {
+      // Try to acquire lock
+      lockAcquired = await redisService.acquireLock(lockKey, lockTTL);
+      if (!lockAcquired) {
+        return res.status(409).json({
+          success: false,
+          message: 'Đang có yêu cầu xóa tài khoản này. Vui lòng đợi và thử lại sau.',
+          errorCode: 'CONCURRENT_DELETE_REQUEST',
+          data: null,
+        });
+      }
+
+      const currentUser = req.user; // User making the request
+
+      // Check if user exists (with lock to prevent concurrent access)
+      const existingUser = await prisma.user.findUnique({
+        where: { id },
+      });
+
+      if (!existingUser) {
+        // Release lock before returning
+        await redisService.releaseLock(lockKey);
         return res.status(404).json({
           success: false,
           message: 'User not found',
@@ -2313,8 +2590,59 @@ class AuthController {
         }
       }
 
-      // If user is MEMBER, delete member from member service first
+      // If user is MEMBER, check for active subscription and cancel it first
       if (existingUser.role === 'MEMBER') {
+        // TC-USER-002: Check and cancel active subscription before deletion
+        try {
+          const axios = require('axios');
+          const billingServiceUrl = process.env.BILLING_SERVICE_URL || 'http://localhost:3003';
+
+          // Get member info to get member_id
+          const memberInfo = await memberService.getMemberByUserId(id);
+          if (memberInfo?.success && memberInfo?.data?.member?.id) {
+            const memberId = memberInfo.data.member.id;
+
+            // Check for active subscription
+            try {
+              const subscriptionResponse = await axios.get(
+                `${billingServiceUrl}/subscriptions/member/${memberId}`,
+                { timeout: 5000 }
+              );
+
+              if (
+                subscriptionResponse.data?.success &&
+                subscriptionResponse.data?.data?.subscription
+              ) {
+                const subscription = subscriptionResponse.data.data.subscription;
+                // Only cancel if subscription is ACTIVE or TRIAL
+                if (subscription.status === 'ACTIVE' || subscription.status === 'TRIAL') {
+                  console.log(
+                    `[DELETE] Cancelling active subscription ${subscription.id} for member ${memberId}`
+                  );
+                  await axios.patch(
+                    `${billingServiceUrl}/subscriptions/${subscription.id}/cancel`,
+                    { reason: 'User account deleted by administrator' },
+                    { timeout: 5000 }
+                  );
+                  console.log('[SUCCESS] Subscription cancelled successfully');
+                }
+              }
+            } catch (subscriptionError) {
+              // If subscription not found or already cancelled, continue
+              if (subscriptionError.response?.status !== 404) {
+                console.warn(
+                  '[WARNING] Failed to check/cancel subscription:',
+                  subscriptionError.message
+                );
+              }
+            }
+          }
+        } catch (billingError) {
+          console.warn('[WARNING] Billing service unavailable:', billingError.message);
+          // Continue with deletion even if subscription check fails
+        }
+
+        // TC-USER-001: Delete member with retry mechanism
         try {
           console.log('[DELETE] Deleting member from member service for user:', id);
           const memberResult = await memberService.deleteMember(id);
@@ -2322,16 +2650,116 @@ class AuthController {
           if (memberResult.success) {
             console.log('[SUCCESS] Member deleted successfully from member service');
           } else {
-            console.warn(
-              '[WARNING] Failed to delete member in member service:',
-              memberResult.error
-            );
-            // Continue with user deletion even if member service fails
+            // TC-USER-001: If retryable, return error to prevent partial deletion
+            if (memberResult.retryable) {
+              console.error(
+                '[ERROR] Failed to delete member in member service (retryable):',
+                memberResult.error
+              );
+              return res.status(500).json({
+                success: false,
+                message:
+                  'Không thể xóa thành viên do dịch vụ không khả dụng. Vui lòng thử lại sau.',
+                errorCode: 'MEMBER_DELETION_FAILED',
+                data: null,
+              });
+            } else {
+              console.warn(
+                '[WARNING] Failed to delete member in member service:',
+                memberResult.error
+              );
+              // Continue with user deletion if not retryable
+            }
           }
         } catch (error) {
           console.error('[ERROR] Error deleting member in member service:', error);
-          // Continue with user deletion even if member service fails
+          // Return error to prevent partial deletion
+          return res.status(500).json({
+            success: false,
+            message: 'Không thể xóa thành viên. Vui lòng thử lại sau.',
+            errorCode: 'MEMBER_DELETION_FAILED',
+            data: null,
+          });
         }
+      }
+
+      // TC-USER-003: Cancel pending bookings before deleting user
+      if (existingUser.role === 'MEMBER') {
+        try {
+          const axios = require('axios');
+          const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL || 'http://localhost:3004';
+
+          // Get member info to get member_id
+          const memberInfo = await memberService.getMemberByUserId(id);
+          if (memberInfo?.success && memberInfo?.data?.member?.id) {
+            const memberId = memberInfo.data.member.id;
+
+            // Get all pending bookings for this member
+            try {
+              // Get all bookings and filter for pending/confirmed ones
+              const bookingsResponse = await axios.get(
+                `${scheduleServiceUrl}/bookings/members/${memberId}`,
+                { timeout: 5000 }
+              );
+
+              if (bookingsResponse.data?.success && bookingsResponse.data?.data?.bookings) {
+                const bookings = bookingsResponse.data.data.bookings;
+                // TC-USER-003: Cancel bookings that are CONFIRMED or have PENDING payment
+                const pendingBookings = bookings.filter(
+                  b => b.status === 'CONFIRMED' && (b.payment_status === 'PENDING' || b.payment_status === 'PAID')
+                );
+
+                if (pendingBookings.length > 0) {
+                  console.log(
+                    `[DELETE] Cancelling ${pendingBookings.length} pending bookings for member ${memberId}`
+                  );
+
+                  // Cancel each pending booking
+                  for (const booking of pendingBookings) {
+                    try {
+                      await axios.patch(
+                        `${scheduleServiceUrl}/bookings/${booking.id}/cancel`,
+                        { cancellation_reason: 'Tài khoản đã bị xóa bởi quản trị viên' },
+                        { timeout: 5000 }
+                      );
+                      console.log(`[SUCCESS] Cancelled booking ${booking.id}`);
+                    } catch (bookingError) {
+                      console.warn(
+                        `[WARNING] Failed to cancel booking ${booking.id}:`,
+                        bookingError.message
+                      );
+                      // Continue with other bookings
+                    }
+                  }
+                }
+              }
+            } catch (bookingsError) {
+              if (bookingsError.response?.status !== 404) {
+                console.warn('[WARNING] Failed to check/cancel bookings:', bookingsError.message);
+              }
+            }
+          }
+        } catch (error) {
+          console.warn('[WARNING] Error checking bookings:', error.message);
+          // Continue with deletion even if booking check fails
+        }
+      }
+
+      // TC-USER-005: Revoke all active sessions before deleting user
+      try {
+        const redisService = require('../services/redis.service.js');
+        // Revoke sessions from Redis
+        await redisService.revokeUserSessions(id);
+        // Revoke tokens from Redis
+        await redisService.revokeAllTokens(id);
+        // Delete sessions from database
+        await prisma.session.deleteMany({
+          where: { user_id: id },
+        });
+        console.log('[SUCCESS] Revoked all sessions and tokens for user:', id);
+      } catch (sessionError) {
+        console.warn('[WARNING] Error revoking sessions:', sessionError.message);
+        // Continue with deletion even if session revocation fails
       }
 
       // Delete related records that have RESTRICT constraint before deleting user
@@ -2345,27 +2773,8 @@ class AuthController {
         console.warn('[WARNING] Error deleting access logs (may not exist):', error.message);
       }
 
-      try {
-        // Delete members_ref if exists (has RESTRICT constraint)
-        // Model name is Member but table is members_ref
-        await prisma.member.deleteMany({
-          where: { user_id: id },
-        });
-        console.log('[SUCCESS] Deleted members_ref for user:', id);
-      } catch (error) {
-        console.warn('[WARNING] Error deleting members_ref (may not exist):', error.message);
-      }
-
-      try {
-        // Delete staff_ref if exists (has RESTRICT constraint)
-        // Model name is Staff but table is staff_ref
-        await prisma.staff.deleteMany({
-          where: { user_id: id },
-        });
-        console.log('[SUCCESS] Deleted staff_ref for user:', id);
-      } catch (error) {
-        console.warn('[WARNING] Error deleting staff_ref (may not exist):', error.message);
-      }
+      // Note: members_ref and staff_ref tables have been removed
+      // Member and Staff services handle their own data in separate databases
 
       // Delete user from identity service
       await prisma.user.delete({
@@ -2901,19 +3310,27 @@ class AuthController {
       if (!verificationResult.recognized || !verificationResult.userId) {
         logger.warn('Face login failed: face not recognized', {
           confidence: verificationResult.confidence,
+          distance: verificationResult.distance,
+          faceDetected: verificationResult.faceDetected,
+          message: verificationResult.message,
         });
 
         // Note: Cannot create access log without valid user_id
         // Failed attempts are only logged to console
 
+        // IMPROVEMENT: Biometric fallback - Return error with fallback option
         return res.status(401).json({
           success: false,
           message:
             verificationResult.message ||
             'Face not recognized. Please try again or use password login.',
+          errorCode: 'FACE_NOT_RECOGNIZED',
           data: {
             confidence: verificationResult.confidence,
+            distance: verificationResult.distance,
+            faceDetected: verificationResult.faceDetected,
             requiresPassword: true, // Suggest password login
+            biometricFallback: true, // Flag to indicate fallback is available
           },
         });
       }

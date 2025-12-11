@@ -153,19 +153,7 @@ async function joinQueue(req, res) {
       });
     }
 
-    // 6. Get next position
-    const lastPosition = await prisma.equipmentQueue.findFirst({
-      where: {
-        equipment_id: equipment_id,
-        status: { in: ['WAITING', 'NOTIFIED'] },
-      },
-      orderBy: { position: 'desc' },
-      select: { position: true },
-    });
-
-    const nextPosition = (lastPosition?.position || 0) + 1;
-
-    // 7. Acquire distributed lock for queue operations
+    // 6. Acquire distributed lock for queue operations
     let lockAcquired = false;
     let lockId = null;
 
@@ -189,20 +177,45 @@ async function joinQueue(req, res) {
     }
 
     try {
-      // 7. Create queue entry (with lock protection)
-      const queueEntry = await prisma.equipmentQueue.create({
-      data: {
-        member_id: member.id,
-        equipment_id: equipment_id,
-        position: nextPosition,
-        status: 'WAITING',
-      },
-      include: {
-        equipment: {
-          select: { id: true, name: true, category: true },
+      // 7. TC-EQUIP-QUEUE-001: Use transaction to prevent race condition in position calculation
+      const result = await prisma.$transaction(
+        async tx => {
+          // Lock và get last position atomically
+          const lastPosition = await tx.equipmentQueue.findFirst({
+            where: {
+              equipment_id: equipment_id,
+              status: { in: ['WAITING', 'NOTIFIED'] },
+            },
+            orderBy: { position: 'desc' },
+            select: { position: true },
+          });
+
+          const nextPosition = (lastPosition?.position || 0) + 1;
+
+          // Create queue entry atomically
+          const queueEntry = await tx.equipmentQueue.create({
+            data: {
+              member_id: member.id,
+              equipment_id: equipment_id,
+              position: nextPosition,
+              status: 'WAITING',
+            },
+            include: {
+              equipment: {
+                select: { id: true, name: true, category: true },
+              },
+            },
+          });
+
+          return { queueEntry, nextPosition };
         },
-      },
-    });
+        {
+          isolationLevel: 'Serializable', // Highest isolation to prevent race conditions
+          timeout: 30000, // 30 seconds timeout
+        }
+      );
+
+      const { queueEntry, nextPosition } = result;
 
       console.log(`[SUCCESS] Member ${member.full_name} joined queue at position ${nextPosition}`);
 
@@ -363,36 +376,49 @@ async function leaveQueue(req, res) {
     }
 
     try {
-      // 3. Delete queue entry (remove completely instead of marking as CANCELLED)
-      await prisma.equipmentQueue.delete({
-        where: { id: queueEntry.id },
-      });
+      // 3. TC-EQUIP-QUEUE-002: Use transaction to ensure atomic position update
+      const result = await prisma.$transaction(
+        async tx => {
+          // Delete queue entry
+          await tx.equipmentQueue.delete({
+            where: { id: queueEntry.id },
+          });
 
-      // 4. Get members whose positions will be updated (before reordering)
-      const affectedMembers = await prisma.equipmentQueue.findMany({
-        where: {
-          equipment_id: equipment_id,
-          status: { in: ['WAITING', 'NOTIFIED'] },
-          position: { gt: removedPosition },
-        },
-        include: {
-          member: {
-            select: { id: true, user_id: true, full_name: true },
-          },
-        },
-      });
+          // Get members whose positions will be updated (before reordering)
+          const affectedMembers = await tx.equipmentQueue.findMany({
+            where: {
+              equipment_id: equipment_id,
+              status: { in: ['WAITING', 'NOTIFIED'] },
+              position: { gt: removedPosition },
+            },
+            include: {
+              member: {
+                select: { id: true, user_id: true, full_name: true },
+              },
+            },
+          });
 
-      // 5. Reorder remaining queue entries
-      await prisma.equipmentQueue.updateMany({
-        where: {
-          equipment_id: equipment_id,
-          status: { in: ['WAITING', 'NOTIFIED'] },
-          position: { gt: removedPosition },
+          // Reorder remaining queue entries atomically
+          await tx.equipmentQueue.updateMany({
+            where: {
+              equipment_id: equipment_id,
+              status: { in: ['WAITING', 'NOTIFIED'] },
+              position: { gt: removedPosition },
+            },
+            data: {
+              position: { decrement: 1 },
+            },
+          });
+
+          return { affectedMembers };
         },
-        data: {
-          position: { decrement: 1 },
-        },
-      });
+        {
+          isolationLevel: 'Serializable', // Highest isolation to prevent race conditions
+          timeout: 30000, // 30 seconds timeout
+        }
+      );
+
+      const { affectedMembers } = result;
 
       // Release lock after successful operation
       if (lockAcquired && distributedLock && lockId) {
@@ -436,7 +462,7 @@ async function leaveQueue(req, res) {
     }
 
     // Notification for affected members (position updated)
-    if (equipment && affectedMembers.length > 0) {
+    if (equipment && affectedMembers && affectedMembers.length > 0) {
       await Promise.allSettled(
         affectedMembers.map(async entry => {
           const newPosition = entry.position - 1;

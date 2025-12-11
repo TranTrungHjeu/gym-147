@@ -1,3 +1,4 @@
+import EmailPhoneOTPModal from '@/components/EmailPhoneOTPModal';
 import { memberService, userService } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   Save,
   CircleUser as UserCircle,
+  Send,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -86,6 +88,12 @@ export default function EditPersonalScreen() {
   const [loadingAddress, setLoadingAddress] = useState(false);
   const [pendingAddress, setPendingAddress] = useState<string>('');
   const [originalAddress, setOriginalAddress] = useState<string>('');
+
+  // OTP Modal states
+  const [showOTPModal, setShowOTPModal] = useState(false);
+  const [originalEmail, setOriginalEmail] = useState<string>('');
+  const [originalPhone, setOriginalPhone] = useState<string>('');
+  const [otpVerified, setOtpVerified] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -276,15 +284,22 @@ export default function EditPersonalScreen() {
         const last_name = nameParts.length > 1 ? nameParts.pop() : '';
         const first_name = nameParts.join(' ') || last_name;
 
+        const phone = response.data.phone || '';
+        const email = response.data.email || '';
+
         setFormData({
           first_name: first_name,
           last_name: last_name,
-          phone: response.data.phone || '',
-          email: response.data.email || '',
+          phone: phone,
+          email: email,
           date_of_birth: response.data.date_of_birth || '',
           gender: response.data.gender || 'MALE',
           address: response.data.address || '',
         });
+
+        // Store original values for comparison
+        setOriginalEmail(email);
+        setOriginalPhone(phone);
 
         // Store address for later parsing
         if (response.data.address) {
@@ -433,6 +448,31 @@ export default function EditPersonalScreen() {
       return;
     }
 
+    // Check if email or phone changed and OTP is required
+    const emailChanged =
+      formData.email !== originalEmail &&
+      formData.email.trim() !== '' &&
+      originalEmail;
+    const phoneChanged =
+      formData.phone !== originalPhone &&
+      formData.phone.trim() !== '' &&
+      originalPhone;
+
+    if ((emailChanged || phoneChanged) && !otpVerified) {
+      Alert.alert(
+        'Xác thực cần thiết',
+        'Bạn cần xác thực OTP trước khi lưu thay đổi email hoặc số điện thoại.',
+        [
+          { text: 'Hủy', style: 'cancel' },
+          {
+            text: 'Gửi OTP',
+            onPress: () => setShowOTPModal(true),
+          },
+        ]
+      );
+      return;
+    }
+
     try {
       setSaving(true);
 
@@ -446,11 +486,25 @@ export default function EditPersonalScreen() {
         }
       }
 
-      // Update Identity Service first (User)
-      const identityResponse = await userService.updateProfile({
+      // Update Identity Service first (User) - includes email/phone if OTP verified
+      // If OTP was verified, email/phone were already updated by OTP endpoint
+      const identityUpdateData: any = {
         firstName: formData.first_name,
         lastName: formData.last_name,
-      });
+      };
+
+      // Only include email/phone if OTP was verified (they're already updated)
+      // Otherwise, don't send them to avoid triggering OTP requirement again
+      if (otpVerified) {
+        if (emailChanged) {
+          identityUpdateData.email = formData.email;
+        }
+        if (phoneChanged) {
+          identityUpdateData.phone = formData.phone || null;
+        }
+      }
+
+      const identityResponse = await userService.updateProfile(identityUpdateData);
 
       // Check if identity update failed
       if (!identityResponse.success) {
@@ -483,20 +537,45 @@ export default function EditPersonalScreen() {
       }
 
       // Combine first_name and last_name into full_name for Member Service
-      const memberUpdateData = {
-        ...formData,
+      const memberUpdateData: any = {
         full_name: `${formData.first_name} ${formData.last_name}`.trim(),
         address: fullAddress,
+        date_of_birth: formData.date_of_birth,
+        gender: formData.gender,
       };
-      delete memberUpdateData.first_name;
-      delete memberUpdateData.last_name;
+
+      // Only include email/phone if OTP was verified (they're already updated in Identity Service)
+      // If not verified, don't send them to avoid triggering OTP requirement
+      if (otpVerified) {
+        if (emailChanged) {
+          memberUpdateData.email = formData.email;
+        }
+        if (phoneChanged) {
+          memberUpdateData.phone = formData.phone || null;
+        }
+      } else {
+        // If email/phone changed but OTP not verified, keep original values
+        if (emailChanged) {
+          memberUpdateData.email = originalEmail;
+        }
+        if (phoneChanged) {
+          memberUpdateData.phone = originalPhone || null;
+        } else if (!phoneChanged) {
+          // If phone didn't change, include current value
+          memberUpdateData.phone = formData.phone || null;
+        }
+        if (!emailChanged) {
+          // If email didn't change, include current value
+          memberUpdateData.email = formData.email;
+        }
+      }
 
       // Then save profile data to Member Service
-      const response = await memberService.updateMemberProfile(
-        memberUpdateData as any
-      );
+      const response = await memberService.updateMemberProfile(memberUpdateData);
 
       if (response.success) {
+        // Reset OTP verification state
+        setOtpVerified(false);
         // Navigate back immediately
         router.back();
       } else {
@@ -510,6 +589,12 @@ export default function EditPersonalScreen() {
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleOTPSuccess = () => {
+    setOtpVerified(true);
+    // Reload profile to get updated email/phone from Identity Service
+    loadProfile();
   };
 
   const updateField = (field: keyof PersonalInfo, value: string) => {
@@ -693,9 +778,39 @@ export default function EditPersonalScreen() {
 
             {/* Phone */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                {t('profile.phoneNumber')}
-              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={[styles.label, { color: theme.colors.text }]}>
+                  {t('profile.phoneNumber')}
+                </Text>
+                {formData.phone !== originalPhone &&
+                  formData.phone.trim() !== '' &&
+                  originalPhone && (
+                    <TouchableOpacity
+                      style={[
+                        styles.otpButton,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                      onPress={() => setShowOTPModal(true)}
+                    >
+                      <Send size={14} color={theme.colors.textInverse} />
+                      <Text
+                        style={[
+                          styles.otpButtonText,
+                          { color: theme.colors.textInverse },
+                        ]}
+                      >
+                        Gửi OTP
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
               <TextInput
                 style={[
                   styles.input,
@@ -703,6 +818,10 @@ export default function EditPersonalScreen() {
                     backgroundColor: theme.colors.surface,
                     borderColor: errors.phone
                       ? theme.colors.error
+                      : formData.phone !== originalPhone &&
+                        formData.phone.trim() !== '' &&
+                        originalPhone
+                      ? theme.colors.warning
                       : theme.colors.border,
                     color: theme.colors.text,
                   },
@@ -718,13 +837,56 @@ export default function EditPersonalScreen() {
                   {errors.phone}
                 </Text>
               )}
+              {formData.phone !== originalPhone &&
+                formData.phone.trim() !== '' &&
+                originalPhone &&
+                !otpVerified && (
+                  <Text
+                    style={[
+                      styles.warningText,
+                      { color: theme.colors.warning },
+                    ]}
+                  >
+                    Cần xác thực OTP để thay đổi số điện thoại
+                  </Text>
+                )}
             </View>
 
             {/* Email */}
             <View style={styles.inputGroup}>
-              <Text style={[styles.label, { color: theme.colors.text }]}>
-                {t('profile.emailAddress')} *
-              </Text>
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  marginBottom: 8,
+                }}
+              >
+                <Text style={[styles.label, { color: theme.colors.text }]}>
+                  {t('profile.emailAddress')} *
+                </Text>
+                {formData.email !== originalEmail &&
+                  formData.email.trim() !== '' &&
+                  originalEmail && (
+                    <TouchableOpacity
+                      style={[
+                        styles.otpButton,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                      onPress={() => setShowOTPModal(true)}
+                    >
+                      <Send size={14} color={theme.colors.textInverse} />
+                      <Text
+                        style={[
+                          styles.otpButtonText,
+                          { color: theme.colors.textInverse },
+                        ]}
+                      >
+                        Gửi OTP
+                      </Text>
+                    </TouchableOpacity>
+                  )}
+              </View>
               <TextInput
                 style={[
                   styles.input,
@@ -732,6 +894,10 @@ export default function EditPersonalScreen() {
                     backgroundColor: theme.colors.surface,
                     borderColor: errors.email
                       ? theme.colors.error
+                      : formData.email !== originalEmail &&
+                        formData.email.trim() !== '' &&
+                        originalEmail
+                      ? theme.colors.warning
                       : theme.colors.border,
                     color: theme.colors.text,
                   },
@@ -748,6 +914,19 @@ export default function EditPersonalScreen() {
                   {errors.email}
                 </Text>
               )}
+              {formData.email !== originalEmail &&
+                formData.email.trim() !== '' &&
+                originalEmail &&
+                !otpVerified && (
+                  <Text
+                    style={[
+                      styles.warningText,
+                      { color: theme.colors.warning },
+                    ]}
+                  >
+                    Cần xác thực OTP để thay đổi email
+                  </Text>
+                )}
             </View>
 
             {/* Date of Birth */}
@@ -1066,6 +1245,27 @@ export default function EditPersonalScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* OTP Modal */}
+      <EmailPhoneOTPModal
+        visible={showOTPModal}
+        onClose={() => setShowOTPModal(false)}
+        onSuccess={handleOTPSuccess}
+        userEmail={originalEmail}
+        userPhone={originalPhone}
+        newEmail={
+          formData.email !== originalEmail && formData.email.trim() !== ''
+            ? formData.email
+            : undefined
+        }
+        newPhone={
+          formData.phone !== originalPhone && formData.phone.trim() !== ''
+            ? formData.phone
+            : undefined
+        }
+        firstName={formData.first_name}
+        lastName={formData.last_name}
+      />
     </SafeAreaView>
   );
 }
@@ -1260,5 +1460,21 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     ...Typography.buttonLarge,
+  },
+  otpButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  otpButtonText: {
+    ...Typography.bodySmall,
+    fontWeight: '600',
+  },
+  warningText: {
+    ...Typography.bodySmall,
+    marginTop: 6,
   },
 });

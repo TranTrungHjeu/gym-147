@@ -33,7 +33,12 @@ export const DatePicker: React.FC<DatePickerProps> = React.memo(({
 }) => {
   const { theme } = useTheme();
   const [isVisible, setIsVisible] = useState(false);
-  const [tempDate, setTempDate] = useState(value);
+  const [tempDate, setTempDate] = useState(() => {
+    if (!value || !(value instanceof Date) || isNaN(value.getTime())) {
+      return new Date();
+    }
+    return value;
+  });
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(0.85)).current;
@@ -43,7 +48,12 @@ export const DatePicker: React.FC<DatePickerProps> = React.memo(({
   const dateScaleAnim = useRef(new Animated.Value(1)).current;
   const dateOpacityAnim = useRef(new Animated.Value(1)).current;
 
-  const currentDate = useMemo(() => value || new Date(), [value]);
+  const currentDate = useMemo(() => {
+    if (!value || !(value instanceof Date) || isNaN(value.getTime())) {
+      return new Date();
+    }
+    return value;
+  }, [value]);
   const themedStyles = useMemo(() => styles(theme), [theme]);
 
   // Animate modal when opening/closing
@@ -133,7 +143,13 @@ export const DatePicker: React.FC<DatePickerProps> = React.memo(({
 
   // Animate date display when date changes (not on initial mount)
   useEffect(() => {
-    if (isVisible && !isFirstMountRef.current && prevDateRef.current.getTime() !== tempDate.getTime()) {
+    if (
+      isVisible &&
+      !isFirstMountRef.current &&
+      prevDateRef.current &&
+      tempDate &&
+      prevDateRef.current.getTime() !== tempDate.getTime()
+    ) {
       dateScaleAnim.setValue(0.92);
       dateOpacityAnim.setValue(0.6);
       Animated.parallel([
@@ -153,7 +169,10 @@ export const DatePicker: React.FC<DatePickerProps> = React.memo(({
     }
   }, [tempDate, isVisible, dateScaleAnim, dateOpacityAnim]);
 
-  const formatDate = useCallback((date: Date): string => {
+  const formatDate = useCallback((date: Date | null | undefined): string => {
+    if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
+      return '';
+    }
     const day = date.getDate().toString().padStart(2, '0');
     const month = (date.getMonth() + 1).toString().padStart(2, '0');
     const year = date.getFullYear();
@@ -305,7 +324,7 @@ export const DatePicker: React.FC<DatePickerProps> = React.memo(({
                 ]}
               >
                 <Text style={themedStyles.dateDisplayText} numberOfLines={1}>
-                  {formatDate(tempDate)}
+                  {tempDate ? formatDate(tempDate) : ''}
                 </Text>
               </Animated.View>
             </View>

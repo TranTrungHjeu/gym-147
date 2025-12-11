@@ -161,6 +161,24 @@ class EquipmentService {
   async deleteEquipment(id: string): Promise<ApiResponse<void>> {
     return this.request<void>(`/equipment/${id}`, 'DELETE');
   }
+
+  async generateQRCode(id: string): Promise<
+    ApiResponse<{
+      equipment_id: string;
+      equipment_name: string;
+      sensor_id: string;
+      qr_code_data_url: string;
+      qr_code_svg: string;
+    }>
+  > {
+    return this.request<{
+      equipment_id: string;
+      equipment_name: string;
+      sensor_id: string;
+      qr_code_data_url: string;
+      qr_code_svg: string;
+    }>(`/equipment/${id}/qr-code`);
+  }
 }
 
 export const equipmentService = new EquipmentService();

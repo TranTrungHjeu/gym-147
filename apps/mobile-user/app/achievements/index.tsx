@@ -1,5 +1,5 @@
 import AchievementCard from '@/components/AchievementCard';
-import { ShareModal } from '@/components/ShareModal';
+import ShareModal from '@/components/ShareModal';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   achievementService,
@@ -328,7 +328,9 @@ export default function AchievementsScreen() {
           defaultValue: `I've completed ${completedAchievements.length} achievements! Check out my progress.`,
           count: completedAchievements.length,
         })}
-        url={`${process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'}/achievements`}
+        url={`${
+          process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'
+        }/achievements`}
       />
     </SafeAreaView>
   );
@@ -440,4 +442,3 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
 });
-

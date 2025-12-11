@@ -24,9 +24,14 @@ const hydrateScheduleRelations = async schedule => {
     ),
   ];
 
+  // Extract date from start_time in YYYY-MM-DD format
+  const startTime = new Date(schedule.start_time);
+  const date = startTime.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+
   if (memberIds.length === 0) {
     return {
       ...schedule,
+      date: date, // Add computed date field for frontend compatibility
       bookings: bookings.map(booking => ({ ...booking, member: null })),
       attendance: attendance.map(record => ({ ...record, member: null })),
     };
@@ -38,6 +43,7 @@ const hydrateScheduleRelations = async schedule => {
 
     return {
       ...schedule,
+      date: date, // Add computed date field for frontend compatibility
       bookings: bookings.map(booking => ({
         ...booking,
         member: memberMap[booking.member_id] || null,
@@ -51,6 +57,7 @@ const hydrateScheduleRelations = async schedule => {
     console.error('ScheduleController:hydrateScheduleRelations error:', error.message);
     return {
       ...schedule,
+      date: date, // Add computed date field for frontend compatibility
       bookings: bookings.map(booking => ({ ...booking, member: null })),
       attendance: attendance.map(record => ({ ...record, member: null })),
     };
@@ -69,6 +76,19 @@ const ALLOWED_SCHEDULE_STATUSES = new Set([
 const parseDateInput = value => {
   if (!value && value !== 0) {
     return null;
+  }
+
+  // If value is a date string in YYYY-MM-DD format, parse it as Vietnam timezone
+  if (typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    // Parse as Vietnam timezone (UTC+7)
+    // "2025-01-10" should represent "2025-01-10 00:00:00" in Vietnam time
+    // Vietnam time = UTC + 7, so "2025-01-10 00:00:00 VN" = "2025-01-09 17:00:00 UTC"
+    const [year, month, day] = value.split('-').map(Number);
+    // Create UTC date representing Vietnam midnight
+    // Date.UTC creates UTC time, so we need to subtract 7 hours to get VN midnight
+    const vnMidnightUTC = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+    vnMidnightUTC.setUTCHours(vnMidnightUTC.getUTCHours() - 7);
+    return vnMidnightUTC;
   }
 
   const date = new Date(value);
@@ -108,10 +128,11 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
     errors.push('room_id là bắt buộc');
   }
 
+  // Date is now derived from start_time, so we extract it from start_time
   const parsedDate = payload.date
     ? parseDateInput(payload.date)
-    : currentSchedule
-    ? new Date(currentSchedule.date)
+    : currentSchedule && currentSchedule.start_time
+    ? new Date(currentSchedule.start_time)
     : null;
 
   if (!parsedDate) {
@@ -317,7 +338,6 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
       class_id: targetClassId,
       trainer_id: targetTrainerId || null,
       room_id: targetRoomId,
-      date: parsedDate,
       start_time: parsedStart,
       end_time: parsedEnd,
       max_capacity: maxCapacityValue,
@@ -342,39 +362,86 @@ class ScheduleController {
         room_id,
         from_date,
         to_date,
-        page = 1,
-        limit = 20,
+        date_from, // Support both naming conventions
+        date_to, // Support both naming conventions
+        page,
+        limit, // No default limit - return all schedules
         search,
       } = req.query;
+
+      // Use date_from/date_to if provided, otherwise fall back to from_date/to_date
+      const finalFromDate = date_from || from_date;
+      const finalToDate = date_to || to_date;
+
+      // Log request parameters for debugging
+      console.log('[GET_ALL_SCHEDULES] Request params:', {
+        status,
+        category,
+        difficulty,
+        trainer_id,
+        room_id,
+        from_date,
+        to_date,
+        date_from,
+        date_to,
+        finalFromDate,
+        finalToDate,
+        page,
+        limit,
+        search,
+      });
 
       // Build where clause
       const whereClause = {};
 
       // Filter by status
+      // Default: Only show active schedules (SCHEDULED, IN_PROGRESS) for mobile users
+      // Allow 'all' or 'include_all=true' to get all statuses
       if (status) {
-        const normalizedStatus = normalizeStatus(status);
-        if (normalizedStatus) {
-          whereClause.status = normalizedStatus;
+        if (status === 'all' || status === 'ALL') {
+          // Don't filter by status - show all
+        } else {
+          const normalizedStatus = normalizeStatus(status);
+          if (normalizedStatus) {
+            whereClause.status = normalizedStatus;
+          }
         }
+      } else {
+        // Default: Only show active schedules (SCHEDULED, IN_PROGRESS)
+        // This ensures mobile users only see bookable/active classes
+        whereClause.status = {
+          in: ['SCHEDULED', 'IN_PROGRESS'],
+        };
       }
 
       // Filter by date range (using start_time for more accurate filtering)
-      if (from_date || to_date) {
+      if (finalFromDate || finalToDate) {
         whereClause.start_time = {};
-        if (from_date) {
-          const fromDate = parseDateInput(from_date);
+        if (finalFromDate) {
+          const fromDate = parseDateInput(finalFromDate);
           if (fromDate) {
-            // Set to start of day
+            // Set to start of day in Vietnam timezone
+            // Note: parseDateInput should handle timezone correctly
             fromDate.setHours(0, 0, 0, 0);
             whereClause.start_time.gte = fromDate;
+            console.log('[GET_ALL_SCHEDULES] Date filter - from:', {
+              input: finalFromDate,
+              parsed: fromDate,
+              iso: fromDate.toISOString(),
+            });
           }
         }
-        if (to_date) {
-          const toDate = parseDateInput(to_date);
+        if (finalToDate) {
+          const toDate = parseDateInput(finalToDate);
           if (toDate) {
-            // Set to end of day
+            // Set to end of day in Vietnam timezone
             toDate.setHours(23, 59, 59, 999);
             whereClause.start_time.lte = toDate;
+            console.log('[GET_ALL_SCHEDULES] Date filter - to:', {
+              input: finalToDate,
+              parsed: toDate,
+              iso: toDate.toISOString(),
+            });
           }
         }
       }
@@ -409,8 +476,10 @@ class ScheduleController {
         }
       }
 
-      // Calculate pagination
-      const skip = (parseInt(page) - 1) * parseInt(limit);
+      // Calculate pagination (only if limit is provided)
+      const parsedLimit = limit ? parseInt(limit) : undefined;
+      const parsedPage = page ? parseInt(page) : 1;
+      const skip = parsedLimit ? (parsedPage - 1) * parsedLimit : undefined;
 
       const [schedules, totalCount] = await Promise.all([
         prisma.schedule.findMany({
@@ -422,9 +491,9 @@ class ScheduleController {
             bookings: true,
             attendance: true,
           },
-          orderBy: { date: 'desc' },
-          skip,
-          take: parseInt(limit),
+          orderBy: { start_time: 'desc' },
+          ...(skip !== undefined && { skip }),
+          ...(parsedLimit && { take: parsedLimit }),
         }),
         prisma.schedule.count({ where: whereClause }),
       ]);
@@ -433,17 +502,64 @@ class ScheduleController {
         schedules.map(schedule => hydrateScheduleRelations(schedule))
       );
 
+      // Log response for debugging
+      console.log('[GET_ALL_SCHEDULES] Response:', {
+        schedulesCount: schedulesWithMembers.length,
+        totalCount,
+        page: parsedPage,
+        limit: parsedLimit || 'unlimited',
+        pages: parsedLimit ? Math.ceil(totalCount / parsedLimit) : 1,
+        filters: {
+          status: whereClause.status,
+          hasDateFilter: !!whereClause.start_time,
+          dateRange: whereClause.start_time
+            ? {
+                gte: whereClause.start_time.gte,
+                lte: whereClause.start_time.lte,
+              }
+            : null,
+          category: whereClause.gym_class?.category,
+          trainer_id: whereClause.trainer_id,
+          room_id: whereClause.room_id,
+        },
+        firstSchedule: schedulesWithMembers[0]
+          ? {
+              id: schedulesWithMembers[0].id,
+              status: schedulesWithMembers[0].status,
+              start_time: schedulesWithMembers[0].start_time,
+              class_name: schedulesWithMembers[0].gym_class?.name,
+            }
+          : null,
+        lastSchedule: schedulesWithMembers[schedulesWithMembers.length - 1]
+          ? {
+              id: schedulesWithMembers[schedulesWithMembers.length - 1].id,
+              status: schedulesWithMembers[schedulesWithMembers.length - 1].status,
+              start_time: schedulesWithMembers[schedulesWithMembers.length - 1].start_time,
+              class_name: schedulesWithMembers[schedulesWithMembers.length - 1].gym_class?.name,
+            }
+          : null,
+      });
+
       res.json({
         success: true,
         message: 'Schedules retrieved successfully',
         data: {
           schedules: schedulesWithMembers,
-          pagination: {
-            page: parseInt(page),
-            limit: parseInt(limit),
-            total: totalCount,
-            pages: Math.ceil(totalCount / parseInt(limit)),
-          },
+          pagination: parsedLimit
+            ? {
+                page: parsedPage,
+                limit: parsedLimit,
+                total: totalCount,
+                pages: Math.ceil(totalCount / parsedLimit),
+                hasMore: parsedPage * parsedLimit < totalCount,
+              }
+            : {
+                page: 1,
+                limit: null,
+                total: totalCount,
+                pages: 1,
+                hasMore: false,
+              },
           filters: {
             status,
             category,
@@ -547,7 +663,6 @@ class ScheduleController {
           class_id: validation.value.class_id,
           trainer_id: validation.value.trainer_id,
           room_id: validation.value.room_id,
-          date: validation.value.date,
           start_time: validation.value.start_time,
           end_time: validation.value.end_time,
           max_capacity: validation.value.max_capacity,
@@ -635,7 +750,6 @@ class ScheduleController {
           class_id: validation.value.class_id,
           trainer_id: validation.value.trainer_id,
           room_id: validation.value.room_id,
-          date: validation.value.date,
           start_time: validation.value.start_time,
           end_time: validation.value.end_time,
           status: validation.value.status,
@@ -672,7 +786,14 @@ class ScheduleController {
       ) {
         changes.push('giờ');
       }
-      if (currentSchedule.date?.toISOString() !== schedule.date?.toISOString()) {
+      // Compare date part of start_time
+      const currentDate = currentSchedule.start_time
+        ? new Date(currentSchedule.start_time).toISOString().split('T')[0]
+        : null;
+      const newDate = schedule.start_time
+        ? new Date(schedule.start_time).toISOString().split('T')[0]
+        : null;
+      if (currentDate !== newDate) {
         changes.push('ngày');
       }
       if (currentSchedule.max_capacity !== schedule.max_capacity) {
@@ -680,6 +801,30 @@ class ScheduleController {
       }
       if (currentSchedule.status !== schedule.status) {
         changes.push('trạng thái');
+      }
+
+      // Notify waitlist members if capacity increased
+      let waitlistNotificationResult = null;
+      if (
+        currentSchedule.max_capacity < schedule.max_capacity &&
+        schedule.max_capacity > schedule.current_bookings
+      ) {
+        try {
+          const waitlistService = require('../services/waitlist.service.js');
+          const additionalSlots = schedule.max_capacity - currentSchedule.max_capacity;
+          waitlistNotificationResult = await waitlistService.notifyWaitlistMembersAvailability(
+            schedule.id,
+            additionalSlots
+          );
+          console.log(
+            `[WAITLIST] Capacity increased for schedule ${schedule.id}. Notified ${
+              waitlistNotificationResult.notified || 0
+            } waitlist members.`
+          );
+        } catch (waitlistError) {
+          console.error('[ERROR] Failed to notify waitlist members:', waitlistError);
+          // Don't fail schedule update if waitlist notification fails
+        }
       }
 
       // Send notifications if there are changes
@@ -701,7 +846,9 @@ class ScheduleController {
                 class_name: schedule.gym_class.name,
                 room_id: schedule.room.id,
                 room_name: schedule.room.name,
-                date: schedule.date,
+                date: schedule.start_time
+                  ? new Date(schedule.start_time).toISOString().split('T')[0]
+                  : null,
                 start_time: schedule.start_time,
                 end_time: schedule.end_time,
                 max_capacity: schedule.max_capacity,
@@ -739,7 +886,9 @@ class ScheduleController {
               schedule_id: schedule.id,
               class_name: schedule.gym_class.name,
               room_name: schedule.room.name,
-              date: schedule.date,
+              date: schedule.start_time
+                ? new Date(schedule.start_time).toISOString().split('T')[0]
+                : null,
               start_time: schedule.start_time,
               end_time: schedule.end_time,
               max_capacity: schedule.max_capacity,
@@ -776,7 +925,9 @@ class ScheduleController {
                 class_name: schedule.gym_class.name,
                 room_id: schedule.room.id,
                 room_name: schedule.room.name,
-                date: schedule.date,
+                date: schedule.start_time
+                  ? new Date(schedule.start_time).toISOString().split('T')[0]
+                  : null,
                 start_time: schedule.start_time,
                 end_time: schedule.end_time,
                 max_capacity: schedule.max_capacity,
@@ -857,7 +1008,9 @@ class ScheduleController {
                   )?.id,
                   class_name: schedule.gym_class.name,
                   room_name: schedule.room.name,
-                  date: schedule.date,
+                  date: schedule.start_time
+                    ? new Date(schedule.start_time).toISOString().split('T')[0]
+                    : null,
                   start_time: schedule.start_time,
                   end_time: schedule.end_time,
                   max_capacity: schedule.max_capacity,
@@ -913,14 +1066,125 @@ class ScheduleController {
             select: { user_id: true },
           },
           bookings: {
-            select: { member: { select: { user_id: true } } },
+            where: {
+              status: 'CONFIRMED', // Only cancel confirmed bookings
+            },
+            select: {
+              id: true,
+              member_id: true,
+              payment_status: true,
+              amount_paid: true,
+            },
           },
         },
       });
 
-      await prisma.schedule.delete({
-        where: { id },
-      });
+      if (!schedule) {
+        return res.status(404).json({
+          success: false,
+          message: 'Schedule not found',
+          data: null,
+        });
+      }
+
+      // TC-SCHED-003: Cancel all bookings before deleting schedule
+      const confirmedBookings = schedule.bookings || [];
+      const cancellationReason = 'Lớp học đã bị xóa bởi quản trị viên';
+
+      // Fetch member info to get user_id for notifications and socket events
+      let members = [];
+      let memberMap = {};
+      if (confirmedBookings.length > 0) {
+        const memberIds = confirmedBookings.map(b => b.member_id);
+        try {
+          members = await memberService.getMembersByIds(memberIds);
+          memberMap = members.reduce((acc, member) => {
+            if (member?.id) acc[member.id] = member;
+            return acc;
+          }, {});
+        } catch (memberError) {
+          console.error('[ERROR] Failed to fetch member info for notifications:', memberError);
+        }
+      }
+
+      if (confirmedBookings.length > 0) {
+        // Use transaction to ensure atomic cancellation and deletion
+        await prisma.$transaction(
+          async tx => {
+            // Cancel all confirmed bookings
+            await tx.booking.updateMany({
+              where: {
+                schedule_id: id,
+                status: 'CONFIRMED',
+              },
+              data: {
+                status: 'CANCELLED',
+                cancelled_at: new Date(),
+                cancellation_reason: cancellationReason,
+              },
+            });
+
+            // Update schedule capacity (decrement by number of cancelled bookings)
+            await tx.schedule.update({
+              where: { id },
+              data: {
+                current_bookings: {
+                  decrement: confirmedBookings.length,
+                },
+              },
+            });
+
+            // Delete schedule (cascade will handle related records)
+            await tx.schedule.delete({
+              where: { id },
+            });
+          },
+          {
+            isolationLevel: 'Serializable',
+            timeout: 30000,
+          }
+        );
+
+        // Notify members about cancellation (outside transaction)
+        const notificationService = require('../services/notification.service.js');
+        for (const booking of confirmedBookings) {
+          try {
+            const member = memberMap[booking.member_id];
+            if (!member?.user_id) {
+              console.warn(
+                `[WARNING] Member ${booking.member_id} not found or has no user_id. Skipping notification.`
+              );
+              continue;
+            }
+
+            await notificationService.sendNotification({
+              user_id: member.user_id,
+              type: 'SCHEDULE_CANCELLED',
+              title: 'Lớp học đã bị hủy',
+              message: `Lớp "${
+                schedule.gym_class?.name || 'Lớp học'
+              }" đã bị xóa bởi quản trị viên.`,
+              data: {
+                schedule_id: id,
+                class_id: schedule.gym_class?.id,
+                class_name: schedule.gym_class?.name || 'Lớp học',
+                cancellation_reason: cancellationReason,
+                role: 'MEMBER',
+              },
+            });
+          } catch (notifError) {
+            console.error(
+              `[ERROR] Failed to notify member ${booking.member_id} about schedule deletion:`,
+              notifError.message
+            );
+          }
+        }
+      } else {
+        // No bookings, just delete
+        await prisma.schedule.delete({
+          where: { id },
+        });
+      }
 
       // Emit socket event for schedule deletion
       if (global.io && schedule) {
@@ -931,7 +1195,9 @@ class ScheduleController {
           data: {
             id: id,
             class_name: schedule.gym_class?.name,
-            date: schedule.date,
+            date: schedule.start_time
+              ? new Date(schedule.start_time).toISOString().split('T')[0]
+              : null,
             start_time: schedule.start_time,
             end_time: schedule.end_time,
           },
@@ -943,13 +1209,12 @@ class ScheduleController {
           global.io.to(`user:${schedule.trainer.user_id}`).emit('schedule:deleted', socketPayload);
         }
 
-        // Emit to all members who had bookings
-        if (schedule.bookings && schedule.bookings.length > 0) {
-          schedule.bookings.forEach(booking => {
-            if (booking.member?.user_id) {
-              global.io
-                .to(`user:${booking.member.user_id}`)
-                .emit('schedule:deleted', socketPayload);
+        // Emit to all members who had bookings (use memberMap from notification loop)
+        if (confirmedBookings.length > 0 && members.length > 0) {
+          confirmedBookings.forEach(booking => {
+            const member = memberMap[booking.member_id];
+            if (member?.user_id) {
+              global.io.to(`user:${member.user_id}`).emit('schedule:deleted', socketPayload);
             }
           });
         }
@@ -1154,7 +1419,7 @@ class ScheduleController {
         const sampleAttendance = await prisma.attendance.findFirst({
           include: {
             schedule: {
-              select: { id: true, date: true, start_time: true },
+              select: { id: true, start_time: true },
             },
           },
         });
@@ -1167,7 +1432,7 @@ class ScheduleController {
             where: { schedule_id: scheduleId },
             include: {
               schedule: {
-                select: { id: true, date: true, start_time: true },
+                select: { id: true, start_time: true },
               },
             },
           });
@@ -1217,7 +1482,7 @@ class ScheduleController {
 
       const schedules = await prisma.schedule.findMany({
         where: {
-          date: {
+          start_time: {
             gte: today,
             lte: nextWeek,
           },
@@ -1272,7 +1537,7 @@ class ScheduleController {
         dateFilter.lte = parseDateInput(to_date);
       }
 
-      const whereClause = Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {};
+      const whereClause = Object.keys(dateFilter).length > 0 ? { start_time: dateFilter } : {};
 
       const [
         totalSchedules,

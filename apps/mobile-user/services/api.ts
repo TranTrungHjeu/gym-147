@@ -4,6 +4,9 @@ import { getRefreshToken, getToken, storeTokens } from '@/utils/auth/storage';
 // Base API configuration
 const API_BASE_URL = environment.API_URL;
 
+// Request timeout: 3 minutes (180 seconds)
+const REQUEST_TIMEOUT = 180000; // 3 minutes in milliseconds
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
@@ -55,16 +58,28 @@ class ApiService {
 
       console.log('[REFRESH] Refreshing access token...');
 
-      const response = await fetch(
-        `${SERVICE_URLS.IDENTITY}/auth/refresh-token`,
-        {
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      let response: Response;
+      try {
+        response = await fetch(`${SERVICE_URLS.IDENTITY}/auth/refresh-token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ refreshToken }),
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
         }
-      );
+        throw error;
+      }
 
       if (!response.ok) {
         console.log('[ERROR] Token refresh failed:', response.status);
@@ -95,6 +110,21 @@ class ApiService {
    */
   async getStoredToken(): Promise<string | null> {
     return await getToken();
+  }
+
+  /**
+   * Create AbortController with timeout
+   */
+  private createTimeoutController(customTimeout?: number): {
+    controller: AbortController;
+    timeoutId: ReturnType<typeof setTimeout>;
+  } {
+    const timeout = customTimeout || REQUEST_TIMEOUT;
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, timeout);
+    return { controller, timeoutId };
   }
 
   /**
@@ -347,10 +377,25 @@ class ApiService {
           : 'NOT SET',
       });
 
-      return await fetch(url.toString(), {
-        method: 'GET',
-        headers,
-      });
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      try {
+        const response = await fetch(url.toString(), {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();
@@ -360,21 +405,50 @@ class ApiService {
   /**
    * POST request with auto-refresh
    */
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
+  async post<T>(
+    endpoint: string,
+    data?: any,
+    options?: { timeout?: number }
+  ): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
       const url = `${this.baseURL}${endpoint}`;
       const headers = await this.getHeaders(endpoint);
 
-      console.log('[API] API POST Request:', url);
+      console.log('[API] API POST Request:', {
+        baseURL: this.baseURL,
+        endpoint,
+        fullUrl: url,
+        timeout:
+          options?.timeout ||
+          (endpoint.includes('/workout-plans/ai') ? 600000 : REQUEST_TIMEOUT), // 10 minutes for AI
+      });
       if (data) {
         console.log('[API] API POST Body:', JSON.stringify(data, null, 2));
       }
 
-      return await fetch(url, {
-        method: 'POST',
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      });
+      // Use custom timeout for AI requests (10 minutes) or default timeout
+      const timeout =
+        options?.timeout ||
+        (endpoint.includes('/workout-plans/ai') ? 600000 : REQUEST_TIMEOUT); // 10 minutes for AI
+      const { controller, timeoutId } = this.createTimeoutController(timeout);
+
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: data ? JSON.stringify(data) : undefined,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          const timeoutSeconds = timeout / 1000;
+          throw new Error(`Request timeout after ${timeoutSeconds} seconds`);
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();
@@ -399,11 +473,26 @@ class ApiService {
         console.log('[API] API PUT Body:', JSON.stringify(data, null, 2));
       }
 
-      return await fetch(url, {
-        method: 'PUT',
-        headers,
-        body: data ? JSON.stringify(data) : undefined,
-      });
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      try {
+        const response = await fetch(url, {
+          method: 'PUT',
+          headers,
+          body: data ? JSON.stringify(data) : undefined,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();
@@ -426,11 +515,26 @@ class ApiService {
         endpoint,
       });
 
-      return await fetch(url, {
-        method: 'PATCH',
-        headers,
-        body,
-      });
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      try {
+        const response = await fetch(url, {
+          method: 'PATCH',
+          headers,
+          body,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();
@@ -442,10 +546,26 @@ class ApiService {
    */
   async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
-      return await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'DELETE',
-        headers: await this.getHeaders(endpoint),
-      });
+      const headers = await this.getHeaders(endpoint);
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      try {
+        const response = await fetch(`${this.baseURL}${endpoint}`, {
+          method: 'DELETE',
+          headers,
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();
@@ -464,11 +584,26 @@ class ApiService {
         headers.Authorization = `Bearer ${token}`;
       }
 
-      return await fetch(`${this.baseURL}${endpoint}`, {
-        method: 'POST',
-        headers,
-        body: file as any, // FormData type compatibility for React Native
-      });
+      const { controller, timeoutId } = this.createTimeoutController();
+
+      try {
+        const response = await fetch(`${this.baseURL}${endpoint}`, {
+          method: 'POST',
+          headers,
+          body: file as any, // FormData type compatibility for React Native
+          signal: controller.signal,
+        });
+        clearTimeout(timeoutId);
+        return response;
+      } catch (error: any) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+          throw new Error(
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+          );
+        }
+        throw error;
+      }
     };
 
     const response = await makeRequest();

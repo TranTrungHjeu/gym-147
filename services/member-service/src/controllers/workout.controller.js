@@ -1,5 +1,6 @@
 const aiService = require('../services/ai.service');
 const challengeService = require('../services/challenge.service.js');
+const { handleDatabaseError } = require('../utils/database-error-handler');
 // Use the shared Prisma client from lib/prisma.js
 const { prisma } = require('../lib/prisma');
 
@@ -802,18 +803,37 @@ class WorkoutController {
       const { id } = req.params;
       const { useAI = 'true' } = req.query; // Default to AI if available
 
-      // Get member profile
-      const member = await prisma.member.findUnique({
-        where: { id },
-        select: {
-          id: true,
-          height: true,
-          weight: true,
-          fitness_goals: true,
-          medical_conditions: true,
-          allergies: true,
-        },
-      });
+      let member, activePlan, recentEquipment, recentSessions, recentMetrics;
+
+      // Get member profile - handle database errors gracefully
+      try {
+        member = await prisma.member.findUnique({
+          where: { id },
+          select: {
+            id: true,
+            height: true,
+            weight: true,
+            fitness_goals: true,
+            medical_conditions: true,
+            allergies: true,
+          },
+        });
+      } catch (dbError) {
+        const dbErrorResponse = handleDatabaseError(dbError, res, 'Get member for recommendations');
+        if (dbErrorResponse) {
+          // Database error was handled, return empty recommendations instead
+          return res.json({
+            success: true,
+            message: 'Workout recommendations retrieved successfully',
+            data: {
+              recommendations: [],
+              analysis: null,
+              generatedAt: new Date().toISOString(),
+            },
+          });
+        }
+        throw dbError; // Re-throw if not a database error
+      }
 
       if (!member) {
         return res.status(404).json({
@@ -823,51 +843,68 @@ class WorkoutController {
         });
       }
 
-      // Get member's current active plan
-      const activePlan = await prisma.workoutPlan.findFirst({
-        where: {
-          member_id: id,
-          is_active: true,
-        },
-      });
+      // Get data with error handling - continue even if some queries fail
+      try {
+        activePlan = await prisma.workoutPlan.findFirst({
+          where: {
+            member_id: id,
+            is_active: true,
+          },
+        });
+      } catch (dbError) {
+        console.warn('[WARNING] Error fetching active plan for recommendations:', dbError.message);
+        activePlan = null;
+      }
 
-      // Get recent equipment usage (last 30 days)
-      const recentEquipment = await prisma.equipmentUsage.findMany({
-        where: {
-          member_id: id,
-          start_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        },
-        include: {
-          equipment: {
-            select: {
-              category: true,
-              name: true,
+      try {
+        recentEquipment = await prisma.equipmentUsage.findMany({
+          where: {
+            member_id: id,
+            start_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          },
+          include: {
+            equipment: {
+              select: {
+                category: true,
+                name: true,
+              },
             },
           },
-        },
-        orderBy: { start_time: 'desc' },
-        take: 50,
-      });
+          orderBy: { start_time: 'desc' },
+          take: 50,
+        });
+      } catch (dbError) {
+        console.warn('[WARNING] Error fetching equipment usage for recommendations:', dbError.message);
+        recentEquipment = [];
+      }
 
-      // Get recent gym sessions (last 30 days)
-      const recentSessions = await prisma.gymSession.findMany({
-        where: {
-          member_id: id,
-          entry_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
-        },
-        orderBy: { entry_time: 'desc' },
-        take: 20,
-      });
+      try {
+        recentSessions = await prisma.gymSession.findMany({
+          where: {
+            member_id: id,
+            entry_time: { gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) },
+          },
+          orderBy: { entry_time: 'desc' },
+          take: 20,
+        });
+      } catch (dbError) {
+        console.warn('[WARNING] Error fetching gym sessions for recommendations:', dbError.message);
+        recentSessions = [];
+      }
 
-      // Get health metrics (last 90 days for trend analysis)
-      const recentMetrics = await prisma.healthMetric.findMany({
-        where: {
-          member_id: id,
-          recorded_at: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
-        },
-        orderBy: { recorded_at: 'desc' },
-        take: 20,
-      });
+      try {
+        recentMetrics = await prisma.healthMetric.findMany({
+          where: {
+            member_id: id,
+            recorded_at: { gte: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000) },
+          },
+          orderBy: { recorded_at: 'desc' },
+          take: 20,
+        });
+      } catch (dbError) {
+        console.warn('[WARNING] Error fetching health metrics for recommendations:', dbError.message);
+        recentMetrics = [];
+      }
 
       let recommendations = [];
       let analysis = null;
@@ -928,6 +965,22 @@ class WorkoutController {
         },
       });
     } catch (error) {
+      // Check if it's a database error
+      const dbErrorResponse = handleDatabaseError(error, res, 'Get workout recommendations');
+      if (dbErrorResponse) {
+        // Database error was handled - return empty recommendations instead of error
+        return res.json({
+          success: true,
+          message: 'Workout recommendations retrieved successfully',
+          data: {
+            recommendations: [],
+            analysis: null,
+            generatedAt: new Date().toISOString(),
+          },
+        });
+      }
+
+      // For other errors, return error response
       console.error('Get workout recommendations error:', error);
       res.status(500).json({
         success: false,

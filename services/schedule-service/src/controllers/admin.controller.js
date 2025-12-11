@@ -357,13 +357,13 @@ class AdminController {
         totalRevenue,
       ] = await Promise.all([
         prisma.schedule.count({
-          where: Object.keys(dateFilter).length > 0 ? { date: dateFilter } : {},
+          where: Object.keys(dateFilter).length > 0 ? { start_time: dateFilter } : {},
         }),
         prisma.booking.count({
           where:
             Object.keys(dateFilter).length > 0
               ? {
-                  schedule: { date: dateFilter },
+                  schedule: { start_time: dateFilter },
                 }
               : {},
         }),
@@ -373,20 +373,20 @@ class AdminController {
         prisma.schedule.count({
           where: {
             status: 'COMPLETED',
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(Object.keys(dateFilter).length > 0 && { start_time: dateFilter }),
           },
         }),
         prisma.schedule.count({
           where: {
             status: 'CANCELLED',
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(Object.keys(dateFilter).length > 0 && { start_time: dateFilter }),
           },
         }),
         // Calculate total revenue from completed schedules
         prisma.schedule.aggregate({
           where: {
             status: 'COMPLETED',
-            ...(Object.keys(dateFilter).length > 0 && { date: dateFilter }),
+            ...(Object.keys(dateFilter).length > 0 && { start_time: dateFilter }),
           },
           _sum: {
             price_override: true,
@@ -681,15 +681,18 @@ class AdminController {
         member_email,
       } = req.body;
 
-      console.log('[NOTIFY] [SUBSCRIPTION_PAYMENT] Received subscription payment success notification:', {
-        payment_id,
-        member_id,
-        user_id,
-        amount,
-        plan_type,
-        plan_name,
-        member_name,
-      });
+      console.log(
+        '[NOTIFY] [SUBSCRIPTION_PAYMENT] Received subscription payment success notification:',
+        {
+          payment_id,
+          member_id,
+          user_id,
+          amount,
+          plan_type,
+          plan_name,
+          member_name,
+        }
+      );
 
       // Validate required fields
       if (!payment_id || !member_id || !amount) {
@@ -825,7 +828,9 @@ class AdminController {
               is_read: false,
             });
           });
-          console.log(`[SUCCESS] [SUBSCRIPTION_PAYMENT] All socket events emitted successfully to admins`);
+          console.log(
+            `[SUCCESS] [SUBSCRIPTION_PAYMENT] All socket events emitted successfully to admins`
+          );
         } else {
           console.warn(
             '[WARNING] [SUBSCRIPTION_PAYMENT] global.io not available - notifications saved to database only'

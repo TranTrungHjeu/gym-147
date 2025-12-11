@@ -33,13 +33,13 @@ export default function RFIDScannerScreen() {
 
   const handleScanRFID = async () => {
     if (!rfidTag.trim()) {
-      Alert.alert(t('common.error'), 'Please enter an RFID tag');
+      Alert.alert(t('common.error'), t('access.rfid.scanner.enterTagRequired'));
       return;
     }
 
     setProcessing(true);
     setResult(null);
-    setMessage('Processing RFID tag...');
+    setMessage(t('access.rfid.scanner.processing'));
 
     try {
       // First validate the RFID tag
@@ -49,13 +49,15 @@ export default function RFIDScannerScreen() {
 
       if (!validationResponse.success) {
         setResult('error');
-        setMessage(validationResponse.error || 'Invalid RFID tag');
+        setMessage(
+          validationResponse.error || t('access.rfid.scanner.invalidTag')
+        );
         return;
       }
 
       if (!validationResponse.data?.valid) {
         setResult('error');
-        setMessage('RFID tag is not registered or invalid');
+        setMessage(t('access.rfid.scanner.tagNotRegistered'));
         return;
       }
 
@@ -68,7 +70,7 @@ export default function RFIDScannerScreen() {
 
       if (checkInResponse.success) {
         setResult('success');
-        setMessage('Successfully checked in with RFID!');
+        setMessage(t('access.rfid.scanner.checkInSuccess'));
 
         // Auto navigate back after 2 seconds
         setTimeout(() => {
@@ -76,12 +78,14 @@ export default function RFIDScannerScreen() {
         }, 2000);
       } else {
         setResult('error');
-        setMessage(checkInResponse.error || 'Failed to check in');
+        setMessage(
+          checkInResponse.error || t('access.rfid.scanner.checkInFailed')
+        );
       }
     } catch (error) {
       console.error('RFID scan error:', error);
       setResult('error');
-      setMessage('An error occurred while processing the RFID tag');
+      setMessage(t('access.rfid.scanner.errorProcessing'));
     } finally {
       setProcessing(false);
     }
@@ -114,7 +118,7 @@ export default function RFIDScannerScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          RFID Scanner
+          {t('access.rfid.scanner.title')}
         </Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -137,7 +141,7 @@ export default function RFIDScannerScreen() {
           <Text
             style={[styles.instructionsTitle, { color: theme.colors.text }]}
           >
-            RFID Card Scanner
+            {t('access.rfid.scanner.cardScanner')}
           </Text>
           <Text
             style={[
@@ -145,14 +149,14 @@ export default function RFIDScannerScreen() {
               { color: theme.colors.textSecondary },
             ]}
           >
-            Enter your RFID tag number or use the demo button for testing
+            {t('access.rfid.scanner.instructions')}
           </Text>
         </View>
 
         {/* RFID Input */}
         <View style={styles.inputContainer}>
           <Text style={[styles.inputLabel, { color: theme.colors.text }]}>
-            RFID Tag Number
+            {t('access.rfid.scanner.tagNumber')}
           </Text>
           <TextInput
             style={[
@@ -165,7 +169,7 @@ export default function RFIDScannerScreen() {
             ]}
             value={rfidTag}
             onChangeText={setRfidTag}
-            placeholder="Enter RFID tag number"
+            placeholder={t('access.rfid.scanner.enterTagNumber')}
             placeholderTextColor={theme.colors.textSecondary}
             autoCapitalize="characters"
             autoCorrect={false}
@@ -182,7 +186,7 @@ export default function RFIDScannerScreen() {
           <Text
             style={[styles.demoButtonText, { color: theme.colors.primary }]}
           >
-            Use Demo RFID Tag
+            {t('access.rfid.scanner.useDemoTag')}
           </Text>
         </TouchableOpacity>
 
@@ -208,7 +212,7 @@ export default function RFIDScannerScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Scan RFID Tag
+              {t('access.rfid.scanner.scanTag')}
             </Text>
           )}
         </TouchableOpacity>
@@ -218,8 +222,7 @@ export default function RFIDScannerScreen() {
           <Text
             style={[styles.infoText, { color: theme.colors.textSecondary }]}
           >
-            In a real implementation, this would automatically read from an RFID
-            reader device
+            {t('access.rfid.scanner.infoMessage')}
           </Text>
         </View>
       </View>
@@ -259,7 +262,7 @@ export default function RFIDScannerScreen() {
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  Try Again
+                  {t('access.rfid.scanner.tryAgain')}
                 </Text>
               </TouchableOpacity>
             )}

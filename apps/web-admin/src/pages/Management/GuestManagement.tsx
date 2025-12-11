@@ -17,11 +17,13 @@ import Pagination from '../../components/common/Pagination';
 import CreateGuestPassModal from '../../components/modals/CreateGuestPassModal';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { GuestPass, GuestPassStats, guestService } from '../../services/guest.service';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const GuestManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [guestPasses, setGuestPasses] = useState<GuestPass[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [stats, setStats] = useState<GuestPassStats | null>(null);
@@ -60,7 +62,7 @@ const GuestManagement: React.FC = () => {
           setTotalPages(response.data.totalPages || 1);
         }
       } catch (error: any) {
-        showToast('Không thể tải danh sách thẻ khách', 'error');
+        showToast(t('guestManagement.messages.loadError'), 'error');
         console.error('Error loading guest passes:', error);
         setGuestPasses([]);
       } finally {
@@ -115,19 +117,19 @@ const GuestManagement: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const statusMap: { [key: string]: string } = {
-      ACTIVE: 'Đang hoạt động',
-      USED: 'Đã sử dụng',
-      EXPIRED: 'Hết hạn',
-      CANCELLED: 'Đã hủy',
+      ACTIVE: t('guestManagement.status.ACTIVE'),
+      USED: t('guestManagement.status.USED'),
+      EXPIRED: t('guestManagement.status.EXPIRED'),
+      CANCELLED: t('guestManagement.status.CANCELLED'),
     };
     return statusMap[status] || status;
   };
 
   const getPassTypeLabel = (type: string) => {
     const typeMap: { [key: string]: string } = {
-      SINGLE_DAY: '1 ngày',
-      WEEK: '1 tuần',
-      MONTH: '1 tháng',
+      SINGLE_DAY: t('guestManagement.passTypes.SINGLE_DAY'),
+      WEEK: t('guestManagement.passTypes.WEEK'),
+      MONTH: t('guestManagement.passTypes.MONTH'),
     };
     return typeMap[type] || type;
   };
@@ -150,12 +152,12 @@ const GuestManagement: React.FC = () => {
     try {
       setIsDeleting(true);
       await guestService.deleteGuestPass(passToDelete.id);
-      showToast('Xóa thẻ khách thành công', 'success');
+      showToast(t('guestManagement.messages.deleteSuccess'), 'success');
       await loadGuestPasses();
       setIsDeleteDialogOpen(false);
       setPassToDelete(null);
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa thẻ khách', 'error');
+      showToast(error.message || t('guestManagement.messages.deleteError'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -167,10 +169,10 @@ const GuestManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Thẻ Khách
+            {t('guestManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Quản lý tất cả thẻ khách và theo dõi truy cập
+            {t('guestManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -183,7 +185,7 @@ const GuestManagement: React.FC = () => {
               loadStats();
             }}
           >
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </AdminButton>
           <AdminButton
             variant='primary'
@@ -191,7 +193,7 @@ const GuestManagement: React.FC = () => {
             icon={Plus}
             onClick={() => setIsCreateModalOpen(true)}
           >
-            Tạo thẻ khách
+            {t('guestManagement.addGuestPass')}
           </AdminButton>
         </div>
       </div>
@@ -211,7 +213,7 @@ const GuestManagement: React.FC = () => {
                   {statsLoading ? '...' : stats?.total || 0}
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium mt-0.5'>
-                  Tổng số thẻ khách
+                  {t('guestManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -231,7 +233,7 @@ const GuestManagement: React.FC = () => {
                   {statsLoading ? '...' : stats?.active || 0}
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium mt-0.5'>
-                  Đang hoạt động
+                  {t('guestManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -251,7 +253,7 @@ const GuestManagement: React.FC = () => {
                   {statsLoading ? '...' : stats?.used || 0}
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium mt-0.5'>
-                  Đã sử dụng
+                  {t('guestManagement.stats.used')}
                 </div>
               </div>
             </div>
@@ -273,7 +275,7 @@ const GuestManagement: React.FC = () => {
                     : `${(stats?.total_revenue || 0).toLocaleString('vi-VN')} VND`}
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium mt-0.5'>
-                  Doanh thu
+                  {t('guestManagement.stats.revenue')}
                 </div>
               </div>
             </div>
@@ -297,22 +299,22 @@ const GuestManagement: React.FC = () => {
           setCurrentPage(1);
         }}
         availableStatuses={[
-          { value: 'ACTIVE', label: 'Đang hoạt động' },
-          { value: 'USED', label: 'Đã sử dụng' },
-          { value: 'EXPIRED', label: 'Hết hạn' },
-          { value: 'CANCELLED', label: 'Đã hủy' },
+          { value: 'ACTIVE', label: t('guestManagement.status.ACTIVE') },
+          { value: 'USED', label: t('guestManagement.status.USED') },
+          { value: 'EXPIRED', label: t('guestManagement.status.EXPIRED') },
+          { value: 'CANCELLED', label: t('guestManagement.status.CANCELLED') },
         ]}
         showStatus={true}
         showCategory={false}
         customFilterFields={[
           {
             key: 'pass_type',
-            label: 'Loại thẻ',
+            label: t('guestManagement.filter.passType'),
             type: 'select',
             options: [
-              { value: 'SINGLE_DAY', label: '1 ngày' },
-              { value: 'WEEK', label: '1 tuần' },
-              { value: 'MONTH', label: '1 tháng' },
+              { value: 'SINGLE_DAY', label: t('guestManagement.passTypes.SINGLE_DAY') },
+              { value: 'WEEK', label: t('guestManagement.passTypes.WEEK') },
+              { value: 'MONTH', label: t('guestManagement.passTypes.MONTH') },
             ],
           },
         ]}
@@ -321,7 +323,7 @@ const GuestManagement: React.FC = () => {
       {/* Export */}
       <div className='flex justify-between items-center'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredPasses.length} thẻ khách
+          {t('guestManagement.stats.totalCount', { count: filteredPasses.length })}
         </div>
         {filteredPasses.length > 0 && (
           <ExportButton
@@ -335,7 +337,7 @@ const GuestManagement: React.FC = () => {
               'Hiệu lực đến': pass.valid_until ? formatVietnamDateTime(pass.valid_until) : '',
               'Trạng thái': getStatusLabel(pass.status),
               'Số lần sử dụng': `${pass.uses_count}/${pass.max_uses}`,
-              Giá: pass.price ? `${pass.price.toLocaleString('vi-VN')} VND` : 'Miễn phí',
+              Giá: pass.price ? `${pass.price.toLocaleString('vi-VN')} VND` : t('common.free'),
             }))}
             columns={[
               { key: 'Tên khách', label: 'Tên khách' },
@@ -344,8 +346,8 @@ const GuestManagement: React.FC = () => {
               { key: 'Trạng thái', label: 'Trạng thái' },
               { key: 'Hiệu lực đến', label: 'Hiệu lực đến' },
             ]}
-            filename='danh-sach-guest-passes'
-            title='Danh sách Thẻ Khách'
+            filename={t('guestManagement.export.filename')}
+            title={t('guestManagement.export.title')}
             variant='outline'
             size='sm'
           />
@@ -354,13 +356,15 @@ const GuestManagement: React.FC = () => {
 
       {/* Guest Passes List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách thẻ khách...' />
+        <TableLoading text={t('guestManagement.messages.loading')} />
       ) : filteredPasses.length === 0 ? (
         <AdminCard padding='md' className='text-center'>
           <div className='flex flex-col items-center justify-center py-12'>
             <User className='w-20 h-20 text-gray-300 dark:text-gray-700 mb-4' />
             <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-heading mb-2'>
-              {searchTerm ? 'Không tìm thấy thẻ khách nào' : 'Không có thẻ khách nào'}
+              {searchTerm
+                ? t('guestManagement.empty.noResults')
+                : t('guestManagement.empty.noPasses')}
             </div>
           </div>
         </AdminCard>
@@ -370,13 +374,13 @@ const GuestManagement: React.FC = () => {
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell header>Tên khách</AdminTableCell>
-                  <AdminTableCell header>Người phát hành</AdminTableCell>
-                  <AdminTableCell header>Loại thẻ</AdminTableCell>
-                  <AdminTableCell header>Hiệu lực</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
-                  <AdminTableCell header>Sử dụng</AdminTableCell>
-                  <AdminTableCell header>Thao tác</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.guestName')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.issuer')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.passType')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.validUntil')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.status')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.uses')}</AdminTableCell>
+                  <AdminTableCell header>{t('guestManagement.table.actions')}</AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
@@ -441,7 +445,7 @@ const GuestManagement: React.FC = () => {
                             setIsDetailModalOpen(true);
                           }}
                           className='p-1.5 text-gray-500 hover:text-orange-600 dark:text-gray-400 dark:hover:text-orange-400 transition-colors'
-                          title='Xem chi tiết'
+                          title={t('guestManagement.actions.viewDetails')}
                         >
                           <Search className='w-4 h-4' />
                         </button>
@@ -451,7 +455,7 @@ const GuestManagement: React.FC = () => {
                             setIsDeleteDialogOpen(true);
                           }}
                           className='p-1.5 text-gray-500 hover:text-red-600 dark:text-gray-400 dark:hover:text-red-400 transition-colors'
-                          title='Xóa'
+                          title={t('guestManagement.actions.delete')}
                         >
                           <Trash2 className='w-4 h-4' />
                         </button>
@@ -482,12 +486,12 @@ const GuestManagement: React.FC = () => {
           setPassToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xóa thẻ khách'
-        message={`Bạn có chắc chắn muốn xóa thẻ khách của ${
-          passToDelete?.guest_name || 'khách này'
-        }?`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('guestManagement.delete.confirmTitle')}
+        message={t('guestManagement.delete.confirmMessage', {
+          name: passToDelete?.guest_name || t('guestManagement.delete.thisGuest'),
+        })}
+        confirmText={t('guestManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         isLoading={isDeleting}
         variant='danger'
       />
@@ -499,7 +503,7 @@ const GuestManagement: React.FC = () => {
           setIsDetailModalOpen(false);
           setSelectedPass(null);
         }}
-        title={`Chi tiết thẻ khách - ${selectedPass?.guest_name || 'N/A'}`}
+        title={t('guestManagement.detail.title', { name: selectedPass?.guest_name || 'N/A' })}
         size='lg'
       >
         {selectedPass && (
@@ -507,7 +511,7 @@ const GuestManagement: React.FC = () => {
             <div className='grid grid-cols-2 gap-4'>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Tên khách
+                  {t('guestManagement.detail.guestName')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {selectedPass.guest_name}
@@ -515,31 +519,31 @@ const GuestManagement: React.FC = () => {
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Email
+                  {t('guestManagement.detail.email')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.guest_email || 'N/A'}
+                  {selectedPass.guest_email || t('common.noData')}
                 </div>
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Số điện thoại
+                  {t('guestManagement.detail.phone')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.guest_phone || 'N/A'}
+                  {selectedPass.guest_phone || t('common.noData')}
                 </div>
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Người phát hành
+                  {t('guestManagement.detail.issuer')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
-                  {selectedPass.issuer?.full_name || 'N/A'}
+                  {selectedPass.issuer?.full_name || t('common.noData')}
                 </div>
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Loại thẻ
+                  {t('guestManagement.detail.passType')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {getPassTypeLabel(selectedPass.pass_type)}
@@ -547,7 +551,7 @@ const GuestManagement: React.FC = () => {
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Trạng thái
+                  {t('guestManagement.detail.status')}
                 </label>
                 <div className='mt-1'>
                   <span
@@ -561,27 +565,27 @@ const GuestManagement: React.FC = () => {
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Hiệu lực từ
+                  {t('guestManagement.detail.validFrom')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {selectedPass.valid_from
                     ? formatVietnamDateTime(selectedPass.valid_from, 'date')
-                    : 'N/A'}
+                    : t('common.noData')}
                 </div>
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Hiệu lực đến
+                  {t('guestManagement.detail.validUntil')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {selectedPass.valid_until
                     ? formatVietnamDateTime(selectedPass.valid_until, 'date')
-                    : 'N/A'}
+                    : t('common.noData')}
                 </div>
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Sử dụng
+                  {t('guestManagement.detail.uses')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {selectedPass.uses_count}/{selectedPass.max_uses}
@@ -589,12 +593,12 @@ const GuestManagement: React.FC = () => {
               </div>
               <div>
                 <label className='text-theme-xs font-semibold text-gray-700 dark:text-gray-300'>
-                  Giá
+                  {t('guestManagement.detail.price')}
                 </label>
                 <div className='text-theme-xs text-gray-900 dark:text-white mt-1'>
                   {selectedPass.price
                     ? `${selectedPass.price.toLocaleString('vi-VN')} VND`
-                    : 'Miễn phí'}
+                    : t('common.free')}
                 </div>
               </div>
             </div>

@@ -116,6 +116,35 @@ export class PaymentService {
     }
   }
 
+  /**
+   * IMPROVEMENT: Get payment history using new endpoint
+   * GET /payments/history/:member_id
+   */
+  async getPaymentHistory(
+    memberId: string,
+    filters?: PaymentFilters
+  ): Promise<ApiResponse<Payment[]>> {
+    try {
+      const params = new URLSearchParams();
+      if (filters?.status) params.append('status', filters.status);
+      if (filters?.method) params.append('method', filters.method);
+      if (filters?.startDate) params.append('startDate', filters.startDate);
+      if (filters?.endDate) params.append('endDate', filters.endDate);
+      if (filters?.limit) params.append('limit', filters.limit.toString());
+      if (filters?.offset) params.append('offset', filters.offset.toString());
+
+      const queryString = params.toString();
+      const url = `/payments/history/${memberId}${
+        queryString ? `?${queryString}` : ''
+      }`;
+
+      return await billingApiService.get<Payment[]>(url);
+    } catch (error) {
+      console.error('Error fetching payment history:', error);
+      throw error;
+    }
+  }
+
   async getPaymentById(paymentId: string): Promise<ApiResponse<Payment>> {
     try {
       return await billingApiService.get<Payment>(`/payments/${paymentId}`);
@@ -281,6 +310,209 @@ export class PaymentService {
       return await billingApiService.get<Refund>(`/refunds/${refundId}`);
     } catch (error) {
       console.error('Error fetching refund:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get refund by booking ID
+   * GET /refunds/booking/:booking_id
+   */
+  async getRefundByBookingId(
+    bookingId: string
+  ): Promise<ApiResponse<Refund | null>> {
+    try {
+      const response = await billingApiService.get<Refund | null>(
+        `/refunds/booking/${bookingId}`
+      );
+      return response;
+    } catch (error: any) {
+      // If 404, return null instead of throwing
+      if (error.response?.status === 404) {
+        return {
+          success: true,
+          data: null,
+        };
+      }
+      console.error('Error fetching refund by booking ID:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get all refunds for a member
+   * GET /refunds?member_id=:member_id
+   */
+  async getMemberRefunds(
+    memberId: string,
+    filters?: { status?: string; page?: number; limit?: number }
+  ): Promise<
+    ApiResponse<{
+      refunds: Refund[];
+      pagination?: {
+        total: number;
+        page: number;
+        limit: number;
+        totalPages: number;
+        hasMore: boolean;
+      };
+    }>
+  > {
+    try {
+      // Validate memberId
+      if (!memberId || memberId.trim() === '') {
+        console.error('[REFUND SERVICE] Invalid memberId:', memberId);
+        return {
+          success: false,
+          error: 'Member ID is required',
+          data: {
+            refunds: [],
+          },
+        };
+      }
+
+      const params: any = { member_id: memberId };
+      if (filters?.status) params.status = filters.status;
+      if (filters?.page) params.page = filters.page;
+      if (filters?.limit) params.limit = filters.limit;
+
+      console.log('[REFUND SERVICE] Requesting refunds with params:', {
+        member_id: memberId,
+        ...params,
+      });
+
+      const response = await billingApiService.get<{
+        success?: boolean;
+        data?: Refund[];
+        refunds?: Refund[];
+        pagination?: {
+          total: number;
+          page: number;
+          limit: number;
+          totalPages: number;
+          hasMore: boolean;
+        };
+      }>('/refunds', params);
+
+      // Handle different response structures
+      // Backend returns: { success: true, data: [...refunds], pagination: {...} }
+      // API service wraps it: { success: true, data: { success: true, data: [...], pagination: {...} } }
+      let refunds: Refund[] = [];
+      let pagination = undefined;
+
+      console.log('[REFUND SERVICE] Raw response:', {
+        hasData: !!response.data,
+        isArray: Array.isArray(response.data),
+        dataKeys: response.data ? Object.keys(response.data) : [],
+        dataType: typeof response.data,
+      });
+
+      if (response.data) {
+        // If response.data is an array, use it directly (unlikely but possible)
+        if (Array.isArray(response.data)) {
+          refunds = response.data;
+          console.log(
+            '[REFUND SERVICE] Using response.data as array:',
+            refunds.length
+          );
+        }
+        // If response.data has a data property (nested structure from backend)
+        else if (response.data.data && Array.isArray(response.data.data)) {
+          refunds = response.data.data;
+          pagination = response.data.pagination;
+          console.log(
+            '[REFUND SERVICE] Using response.data.data:',
+            refunds.length
+          );
+        }
+        // If response.data has refunds property (alternative structure)
+        else if (
+          response.data.refunds &&
+          Array.isArray(response.data.refunds)
+        ) {
+          refunds = response.data.refunds;
+          pagination = response.data.pagination;
+          console.log(
+            '[REFUND SERVICE] Using response.data.refunds:',
+            refunds.length
+          );
+        }
+        // If response.data is an object but no array found, log warning
+        else {
+          console.warn('[REFUND SERVICE] Unexpected response structure:', {
+            data: response.data,
+            dataKeys: Object.keys(response.data),
+          });
+          refunds = [];
+        }
+      }
+
+      return {
+        success: true,
+        data: {
+          refunds: Array.isArray(refunds) ? refunds : [],
+          pagination,
+        },
+      };
+    } catch (error: any) {
+      console.error('Error fetching member refunds:', error);
+      return {
+        success: false,
+        error: error.message || 'Failed to fetch refunds',
+        data: {
+          refunds: [],
+        },
+      };
+    }
+  }
+
+  /**
+   * IMPROVEMENT: Get refund timeline
+   * GET /refunds/:id/timeline
+   */
+  async getRefundTimeline(refundId: string): Promise<
+    ApiResponse<{
+      refund: {
+        id: string;
+        amount: string;
+        reason: string;
+        status: string;
+        requested_at: string;
+        processed_at?: string;
+        failed_at?: string;
+      };
+      timeline: Array<{
+        status: string;
+        timestamp: string;
+        action: string;
+        actor: string;
+        transaction_id?: string;
+        reason?: string;
+      }>;
+    }>
+  > {
+    try {
+      return await billingApiService.get<{
+        refund: {
+          id: string;
+          amount: string;
+          reason: string;
+          status: string;
+          requested_at: string;
+          processed_at?: string;
+          failed_at?: string;
+        };
+        timeline: Array<{
+          status: string;
+          timestamp: string;
+          action: string;
+          actor: string;
+          transaction_id?: string;
+          reason?: string;
+        }>;
+      }>(`/refunds/${refundId}/timeline`);
+    } catch (error) {
+      console.error('Error fetching refund timeline:', error);
       throw error;
     }
   }

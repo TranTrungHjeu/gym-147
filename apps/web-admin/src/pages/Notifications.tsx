@@ -15,6 +15,7 @@ import ConfirmDialog from '../components/common/ConfirmDialog';
 import CustomSelect from '../components/common/CustomSelect';
 import { TableLoading } from '../components/ui/AppLoading';
 import { useToast } from '../hooks/useToast';
+import useTranslation from '../hooks/useTranslation';
 import { Notification, notificationService } from '../services/notification.service';
 import { getCurrentUser } from '../utils/auth';
 
@@ -33,6 +34,7 @@ type NotificationStatus = 'ALL' | 'UNREAD' | 'READ';
 
 export default function NotificationsPage() {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
@@ -49,21 +51,21 @@ export default function NotificationsPage() {
   const user = getCurrentUser();
 
   const typeOptions = [
-    { value: 'ALL', label: 'Tất cả loại' },
-    { value: 'WORKOUT_REMINDER', label: 'Nhắc nhở tập luyện' },
-    { value: 'MEMBERSHIP_EXPIRY', label: 'Hết hạn thành viên' },
-    { value: 'PAYMENT_DUE', label: 'Thanh toán' },
-    { value: 'CLASS_BOOKING', label: 'Đặt lớp' },
-    { value: 'ACHIEVEMENT', label: 'Thành tích' },
-    { value: 'MAINTENANCE', label: 'Bảo trì' },
-    { value: 'PROMOTION', label: 'Khuyến mãi' },
-    { value: 'SYSTEM', label: 'Hệ thống' },
+    { value: 'ALL', label: t('notifications.filters.allTypes') },
+    { value: 'WORKOUT_REMINDER', label: t('notifications.filters.workoutReminder') },
+    { value: 'MEMBERSHIP_EXPIRY', label: t('notifications.filters.membershipExpiry') },
+    { value: 'PAYMENT_DUE', label: t('notifications.filters.paymentDue') },
+    { value: 'CLASS_BOOKING', label: t('notifications.filters.classBooking') },
+    { value: 'ACHIEVEMENT', label: t('notifications.filters.achievement') },
+    { value: 'MAINTENANCE', label: t('notifications.filters.maintenance') },
+    { value: 'PROMOTION', label: t('notifications.filters.promotion') },
+    { value: 'SYSTEM', label: t('notifications.filters.system') },
   ];
 
   const statusOptions = [
-    { value: 'ALL', label: 'Tất cả trạng thái' },
-    { value: 'UNREAD', label: 'Chưa đọc' },
-    { value: 'READ', label: 'Đã đọc' },
+    { value: 'ALL', label: t('notifications.filters.allStatuses') },
+    { value: 'UNREAD', label: t('notifications.filters.unread') },
+    { value: 'READ', label: t('notifications.filters.read') },
   ];
 
   const [page, setPage] = useState(1);
@@ -122,7 +124,7 @@ export default function NotificationsPage() {
       }
     } catch (error: any) {
       console.error('Error loading notifications:', error);
-      showToast(error.message || 'Không thể tải thông báo', 'error');
+      showToast(error.message || t('notifications.messages.loadError'), 'error');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -205,7 +207,7 @@ export default function NotificationsPage() {
         filterNotifications(searchQuery, selectedType, selectedStatus);
       } catch (error) {
         console.error('Error marking notification as read:', error);
-        showToast('Không thể đánh dấu đã đọc', 'error');
+        showToast(t('notifications.messages.markAsReadError'), 'error');
       }
     }
   };
@@ -218,7 +220,7 @@ export default function NotificationsPage() {
         prev.map(n => (n.id === notification.id ? { ...n, is_read: true } : n))
       );
       filterNotifications(searchQuery, selectedType, selectedStatus);
-      showToast('Đã đánh dấu đã đọc', 'success');
+      showToast(t('notifications.messages.markAsReadSuccess'), 'success');
     } catch (error) {
       console.error('Error marking notification as read:', error);
       showToast('Không thể đánh dấu đã đọc', 'error');
@@ -233,10 +235,10 @@ export default function NotificationsPage() {
       }
       setNotifications(prev => prev.filter(n => n.id !== notification.id));
       filterNotifications(searchQuery, selectedType, selectedStatus);
-      showToast('Đã xóa thông báo', 'success');
+      showToast(t('notifications.messages.deleteSuccess'), 'success');
     } catch (error) {
       console.error('Error deleting notification:', error);
-      showToast('Không thể xóa thông báo', 'error');
+      showToast(t('notifications.messages.deleteError'), 'error');
     }
   };
 
@@ -248,10 +250,10 @@ export default function NotificationsPage() {
       setUnreadCount(0);
       setNotifications(prev => prev.map(n => ({ ...n, is_read: true })));
       filterNotifications(searchQuery, selectedType, selectedStatus);
-      showToast('Đã đánh dấu tất cả đã đọc', 'success');
+      showToast(t('notifications.messages.markAllAsReadSuccess'), 'success');
     } catch (error) {
       console.error('Error marking all as read:', error);
-      showToast('Không thể đánh dấu tất cả đã đọc', 'error');
+      showToast(t('notifications.messages.markAllAsReadError'), 'error');
     }
   };
 
@@ -262,11 +264,11 @@ export default function NotificationsPage() {
     try {
       await notificationService.deleteAllRead(user.id);
       await loadData();
-      showToast('Đã xóa tất cả thông báo đã đọc', 'success');
+      showToast(t('notifications.messages.deleteAllReadSuccess'), 'success');
       setIsDeleteAllDialogOpen(false);
     } catch (error: any) {
       console.error('Error deleting all read notifications:', error);
-      showToast(error.message || 'Không thể xóa tất cả thông báo đã đọc', 'error');
+      showToast(error.message || t('notifications.messages.deleteAllReadError'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -301,19 +303,24 @@ export default function NotificationsPage() {
       setIsSelectionMode(false);
 
       const response = await notificationService.bulkMarkAsRead(user.id, notificationIds);
-      
+
       if (response.success) {
-        showToast(`Đã đánh dấu ${response.data?.updated_count || notificationIds.length} thông báo đã đọc`, 'success');
+        showToast(
+          t('notifications.messages.bulkMarkAsReadSuccess', {
+            count: response.data?.updated_count || notificationIds.length,
+          }),
+          'success'
+        );
       } else {
         // Revert on error
         await loadData(page, false);
-        showToast('Không thể đánh dấu các thông báo đã chọn', 'error');
+        showToast(t('notifications.messages.bulkMarkAsReadError'), 'error');
       }
     } catch (error: any) {
       console.error('Error bulk marking as read:', error);
       // Revert on error
       await loadData(page, false);
-      showToast(error.message || 'Không thể đánh dấu các thông báo đã chọn', 'error');
+      showToast(error.message || t('notifications.messages.bulkMarkAsReadError'), 'error');
     }
   };
 
@@ -334,13 +341,18 @@ export default function NotificationsPage() {
       setIsSelectionMode(false);
 
       const response = await notificationService.bulkDelete(user.id, notificationIds);
-      
+
       if (response.success) {
-        showToast(`Đã xóa ${response.data?.deleted_count || notificationIds.length} thông báo`, 'success');
+        showToast(
+          t('notifications.messages.bulkDeleteSuccess', {
+            count: response.data?.deleted_count || notificationIds.length,
+          }),
+          'success'
+        );
       } else {
         // Revert on error
         await loadData(page, false);
-        showToast('Không thể xóa các thông báo đã chọn', 'error');
+        showToast(t('notifications.messages.bulkDeleteError'), 'error');
       }
     } catch (error: any) {
       console.error('Error bulk deleting:', error);
@@ -356,7 +368,7 @@ export default function NotificationsPage() {
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
 
     if (diffInHours < 1) {
-      return 'Vừa xong';
+      return t('common.justNow');
     } else if (diffInHours < 24) {
       return `${Math.floor(diffInHours)}h trước`;
     } else if (diffInHours < 168) {
@@ -377,10 +389,10 @@ export default function NotificationsPage() {
         <div className='flex justify-between items-start'>
           <div>
             <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-              Thông báo
+              {t('notifications.title')}
             </h1>
             <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-              Xem và quản lý tất cả thông báo của bạn
+              {t('notifications.subtitle')}
             </p>
           </div>
           <div className='flex items-center gap-2'>
@@ -388,7 +400,7 @@ export default function NotificationsPage() {
               onClick={handleRefresh}
               disabled={refreshing}
               className='p-2 rounded-sm border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-all disabled:opacity-50 disabled:cursor-not-allowed'
-              title='Làm mới'
+              title={t('notifications.actions.refresh')}
             >
               <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
             </button>
@@ -399,7 +411,7 @@ export default function NotificationsPage() {
                   ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400'
                   : 'border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800'
               }`}
-              title='Chế độ chọn'
+              title={t('notifications.actions.selectionMode')}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
               transition={{ type: 'spring', stiffness: 400, damping: 17 }}
@@ -413,7 +425,7 @@ export default function NotificationsPage() {
             </motion.button>
             <button
               className='p-2 rounded-sm border border-gray-200 dark:border-gray-800 text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800 transition-all'
-              title='Cài đặt'
+              title={t('notifications.actions.settings')}
             >
               <Settings size={18} />
             </button>
@@ -430,7 +442,7 @@ export default function NotificationsPage() {
               <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
               <input
                 type='text'
-                placeholder='Tìm kiếm thông báo...'
+                placeholder={t('notifications.searchPlaceholder')}
                 value={searchQuery}
                 onChange={e => handleSearch(e.target.value)}
                 className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-sm bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
@@ -443,7 +455,7 @@ export default function NotificationsPage() {
                 options={typeOptions}
                 value={selectedType}
                 onChange={value => handleTypeFilter(value as NotificationType)}
-                placeholder='Tất cả loại'
+                placeholder={t('notifications.filters.allTypes')}
                 className='font-inter'
               />
             </div>
@@ -454,7 +466,7 @@ export default function NotificationsPage() {
                 options={statusOptions}
                 value={selectedStatus}
                 onChange={value => handleStatusFilter(value as NotificationStatus)}
-                placeholder='Tất cả trạng thái'
+                placeholder={t('notifications.filters.allStatuses')}
                 className='font-inter'
               />
             </div>

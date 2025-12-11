@@ -335,6 +335,36 @@ class NotificationService {
       total: userIds.length,
     };
   }
+
+  /**
+   * Send notification (wrapper for createInAppNotification with user_id)
+   * @param {Object} params - { user_id, type, title, message, data, channels }
+   */
+  async sendNotification({ user_id, type, title, message, data = {}, channels = ['IN_APP', 'PUSH'] }) {
+    try {
+      // Include channels in data for enqueueNotification
+      const notificationData = {
+        ...data,
+        channels,
+      };
+
+      const result = await this.createInAppNotification({
+        userId: user_id,
+        type,
+        title,
+        message,
+        data: notificationData,
+      });
+
+      return result;
+    } catch (error) {
+      console.error('[ERROR] Send notification error:', error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
 }
 
 module.exports = new NotificationService();

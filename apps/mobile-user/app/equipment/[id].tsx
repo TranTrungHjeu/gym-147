@@ -4,17 +4,20 @@ import { AlertModal } from '@/components/ui/AlertModal';
 import { ConfirmModal } from '@/components/ui/ConfirmModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { equipmentService } from '@/services/member/equipment.service';
+import { sensorService } from '@/services/sensors/sensor.service';
+import queueService from '@/services/queue/queue.service';
 import {
   Equipment,
   EquipmentQueue,
   EquipmentStatus,
   IssueType,
+  QueueStatus,
   Severity,
 } from '@/types/equipmentTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import * as Notifications from 'expo-notifications';
-import { useLocalSearchParams, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import {
   Activity,
   AlertCircle,
@@ -62,6 +65,25 @@ export default function EquipmentDetailScreen() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // IMPROVEMENT: Equipment availability and queue analytics
+  const [availabilityPrediction, setAvailabilityPrediction] = useState<{
+    available: boolean;
+    estimatedAvailableAt?: string;
+    estimatedWaitTime?: number;
+    currentUser?: any;
+  } | null>(null);
+  const [queueAnalytics, setQueueAnalytics] = useState<{
+    averageWaitTime: number;
+    averageDuration: number;
+    currentQueueLength: number;
+    historicalSessionsCount: number;
+  } | null>(null);
+  const [queuePositionPrediction, setQueuePositionPrediction] = useState<{
+    estimatedWaitTime: number;
+    estimatedTurnAt: string;
+    confidence: number;
+  } | null>(null);
 
   // Active usage state
   const [activeUsage, setActiveUsage] = useState<{
@@ -118,25 +140,123 @@ export default function EquipmentDetailScreen() {
       setLoading(true);
       setError(null);
 
-      const [equipmentResponse, queueResponse] = await Promise.all([
+      // IMPROVEMENT: Load equipment availability and queue analytics
+      const [
+        equipmentResponse,
+        queueResponse,
+        availabilityResponse,
+        analyticsResponse,
+      ] = await Promise.all([
         equipmentService.getEquipmentById(id),
         equipmentService.getEquipmentQueue(id),
+        equipmentService
+          .getEquipmentAvailability(id)
+          .catch(() => ({ success: false, data: null })), // IMPROVEMENT: Get availability prediction
+        equipmentService
+          .getQueueAnalytics(id)
+          .catch(() => ({ success: false, data: null })), // IMPROVEMENT: Get queue analytics
       ]);
 
       if (equipmentResponse.success && equipmentResponse.data) {
         setEquipment(equipmentResponse.data.equipment);
       } else {
-        setError('Failed to load equipment');
+        setError(t('equipment.errors.loadEquipmentFailed'));
       }
 
       if (queueResponse.success && queueResponse.data) {
         setQueue(queueResponse.data.queue);
-        // Find member's queue entry
-        if (member?.id) {
-          const memberEntry = queueResponse.data.queue.find(
-            (entry) => entry.member_id === member.id
-          );
-          setUserQueueEntry(memberEntry || null);
+      }
+
+      // Check if member is in queue using getQueuePosition API (more reliable)
+      if (member?.id) {
+        try {
+          const positionResponse = await queueService.getQueuePosition(id);
+          if (positionResponse.success && positionResponse.data) {
+            const positionData = positionResponse.data;
+            if (positionData.in_queue && positionData.queue_id) {
+              // Member is in queue - find the entry from queue list or create from position data
+              let memberEntry: EquipmentQueue | null = null;
+              
+              // First, try to find in queue list
+              if (queueResponse.success && queueResponse.data?.queue) {
+                memberEntry = queueResponse.data.queue.find(
+                  (entry) => entry.id === positionData.queue_id
+                ) || null;
+              }
+              
+              // If not found in list, create from position data
+              if (!memberEntry && positionData.queue_id) {
+                memberEntry = {
+                  id: positionData.queue_id,
+                  member_id: member.id,
+                  equipment_id: id,
+                  position: positionData.position || 0,
+                  status: (positionData.status as QueueStatus) || QueueStatus.WAITING,
+                  joined_at: positionData.joined_at || new Date().toISOString(),
+                  notified_at: positionData.notified_at,
+                  expires_at: positionData.expires_at,
+                };
+              }
+              
+              setUserQueueEntry(memberEntry);
+
+              // IMPROVEMENT: Get queue position prediction if member is in queue
+              if (memberEntry && positionData.position) {
+                try {
+                  const predictionResponse =
+                    await equipmentService.getQueuePositionPrediction(
+                      id,
+                      positionData.position
+                    );
+                  if (predictionResponse.success && predictionResponse.data) {
+                    setQueuePositionPrediction(predictionResponse.data);
+                  }
+                } catch (err) {
+                  console.error('Error loading queue prediction:', err);
+                }
+              }
+            } else {
+              // Member is not in queue
+              setUserQueueEntry(null);
+            }
+          } else {
+            // API call failed or member not in queue
+            setUserQueueEntry(null);
+          }
+        } catch (err) {
+          console.error('Error checking queue position:', err);
+          // Fallback: try to find in queue list
+          if (queueResponse.success && queueResponse.data?.queue) {
+            const memberEntry = queueResponse.data.queue.find(
+              (entry) => entry.member_id === member.id
+            );
+            setUserQueueEntry(memberEntry || null);
+          } else {
+            setUserQueueEntry(null);
+          }
+        }
+      }
+
+      // IMPROVEMENT: Set availability prediction
+      if (availabilityResponse.success && availabilityResponse.data) {
+        setAvailabilityPrediction(availabilityResponse.data);
+      }
+
+      // IMPROVEMENT: Set availability prediction
+      if (availabilityResponse.success && availabilityResponse.data) {
+        setAvailabilityPrediction(availabilityResponse.data);
+      }
+
+      // IMPROVEMENT: Set queue analytics
+      if (analyticsResponse.success && analyticsResponse.data) {
+        const analytics = analyticsResponse.data.analytics;
+        if (analytics) {
+          setQueueAnalytics({
+            averageWaitTime: analytics.average_wait_time_minutes || 0,
+            averageDuration: analytics.average_duration_minutes || 0,
+            currentQueueLength: analyticsResponse.data.current_queue_length || 0,
+            historicalSessionsCount: analytics.historical_sessions_count || 0,
+          });
         }
       }
 
@@ -163,7 +283,7 @@ export default function EquipmentDetailScreen() {
       }
     } catch (err: any) {
       console.error('Error loading equipment:', err);
-      setError(err.message || 'Failed to load equipment');
+      setError(err.message || t('equipment.errors.loadEquipmentFailed'));
     } finally {
       setLoading(false);
     }
@@ -173,6 +293,13 @@ export default function EquipmentDetailScreen() {
   useEffect(() => {
     loadEquipmentDetails();
   }, [id]);
+
+  // Reload when screen is focused (e.g., when user navigates back)
+  useFocusEffect(
+    React.useCallback(() => {
+      loadEquipmentDetails();
+    }, [id])
+  );
 
   // Subscribe to user-specific queue events
   // Note: Socket uses user_id (for real-time notifications), REST API uses member_id
@@ -253,7 +380,9 @@ export default function EquipmentDetailScreen() {
     const subscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         // App came to foreground - reload to restore active usage
-        console.log('[MOBILE] App returned to foreground - reloading equipment data');
+        console.log(
+          '[MOBILE] App returned to foreground - reloading equipment data'
+        );
         loadEquipmentDetails();
       }
     });
@@ -277,6 +406,74 @@ export default function EquipmentDetailScreen() {
 
     return calorieRates[category] || 6; // Default 6 kcal/min
   };
+
+  // Periodic activity updates with sensor data
+  useEffect(() => {
+    if (!activeUsage || !member?.id) {
+      // Stop sensors when no active usage
+      sensorService.stopListening();
+      return;
+    }
+
+    let sensorsStarted = false;
+    let activityUpdateInterval: NodeJS.Timeout | null = null;
+
+    const startPeriodicUpdates = async () => {
+      // Start listening to sensors
+      try {
+        sensorsStarted = await sensorService.startListening(1000); // Update every 1 second
+      } catch (error) {
+        console.warn('[SENSORS] Failed to start sensors:', error);
+      }
+
+      // Periodic activity updates (every 1 minute)
+      activityUpdateInterval = setInterval(async () => {
+        try {
+          const activityData: any = {};
+
+          // Get movement data from sensors (if available)
+          if (sensorsStarted) {
+            try {
+              const movementData = sensorService.getMovementData();
+              const sensorData = sensorService.getSensorDataForAPI();
+
+              if (movementData.hasMovement) {
+                activityData.sensor_data = sensorData;
+              }
+            } catch (error) {
+              console.warn('[SENSORS] Failed to get movement data:', error);
+            }
+          }
+
+          // Send update to backend (even if no data, to mark last_activity_check)
+          await equipmentService.updateActivityData(
+            member.id,
+            activeUsage.id,
+            activityData
+          );
+
+          console.log('[ACTIVITY] Sent periodic update:', {
+            has_movement: !!activityData.sensor_data,
+            movement_intensity: activityData.sensor_data?.movement,
+          });
+        } catch (error) {
+          console.error('[ERROR] Failed to send activity update:', error);
+          // Don't throw error to avoid disrupting workout
+        }
+      }, 60000); // Every 60 seconds (1 minute)
+    };
+
+    startPeriodicUpdates();
+
+    return () => {
+      if (activityUpdateInterval) {
+        clearInterval(activityUpdateInterval);
+      }
+      if (sensorsStarted) {
+        sensorService.stopListening();
+      }
+    };
+  }, [activeUsage, member?.id]);
 
   // Timer and calories effect
   useEffect(() => {
@@ -473,7 +670,7 @@ export default function EquipmentDetailScreen() {
         setAlertModal({
           visible: true,
           title: t('common.error'),
-          message: response.message || 'Failed to start usage',
+          message: response.message || t('equipment.errors.startUsageError'),
           type: 'error',
         });
       }
@@ -481,7 +678,7 @@ export default function EquipmentDetailScreen() {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: err.message || 'Failed to start usage',
+        message: err.message || t('equipment.errors.startUsageError'),
         type: 'error',
       });
     }
@@ -579,7 +776,7 @@ export default function EquipmentDetailScreen() {
             setAlertModal({
               visible: true,
               title: t('common.error'),
-              message: response?.message || 'Failed to end usage',
+              message: response?.message || t('equipment.errors.endUsageError'),
               type: 'error',
             });
           }
@@ -596,12 +793,12 @@ export default function EquipmentDetailScreen() {
           const errorMessage =
             err.message ||
             err.response?.data?.message ||
-            (err.status === 401 ? 'Unauthorized. Please login again.' : '') ||
+            (err.status === 401 ? t('equipment.errors.unauthorized') : '') ||
             (err.status === 403
-              ? 'You can only end your own equipment usage.'
+              ? t('equipment.errors.onlyOwnUsage')
               : '') ||
-            (err.status === 404 ? 'Active equipment usage not found.' : '') ||
-            'Failed to end usage';
+            (err.status === 404 ? t('equipment.errors.usageNotFound') : '') ||
+            t('equipment.errors.endUsageError');
 
           setConfirmModal((prev) => ({ ...prev, visible: false }));
           setAlertModal({
@@ -641,7 +838,7 @@ export default function EquipmentDetailScreen() {
         setAlertModal({
           visible: true,
           title: t('common.error'),
-          message: response.message || 'Failed to leave queue',
+          message: response.message || t('equipment.errors.leaveQueueError'),
           type: 'error',
         });
       }
@@ -649,7 +846,7 @@ export default function EquipmentDetailScreen() {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: err.message || 'Failed to leave queue',
+        message: err.message || t('equipment.errors.leaveQueueError'),
         type: 'error',
       });
     }
@@ -683,7 +880,7 @@ export default function EquipmentDetailScreen() {
         setAlertModal({
           visible: true,
           title: t('common.error'),
-          message: response.message || 'Failed to report issue',
+          message: response.message || t('equipment.errors.reportIssueError'),
           type: 'error',
         });
       }
@@ -691,7 +888,7 @@ export default function EquipmentDetailScreen() {
       setAlertModal({
         visible: true,
         title: t('common.error'),
-        message: err.message || 'Failed to report issue',
+        message: err.message || t('equipment.errors.reportIssueError'),
         type: 'error',
       });
     }
@@ -757,7 +954,7 @@ export default function EquipmentDetailScreen() {
         </View>
         <View style={styles.errorContainer}>
           <Text style={[styles.errorText, { color: theme.colors.error }]}>
-            {error || 'Equipment not found'}
+            {error || t('equipment.errors.equipmentNotFound')}
           </Text>
           <TouchableOpacity
             style={[styles.button, { backgroundColor: theme.colors.primary }]}
@@ -871,12 +1068,88 @@ export default function EquipmentDetailScreen() {
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  Max: {equipment.max_weight}kg
+                  {t('equipment.maxWeight', { weight: equipment.max_weight })}
                 </Text>
               </View>
             )}
           </View>
         </View>
+
+        {/* IMPROVEMENT: Queue Analytics */}
+        {queueAnalytics && (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: theme.colors.surface,
+                borderLeftWidth: 4,
+                borderLeftColor: theme.colors.primary,
+              },
+            ]}
+          >
+            <View style={styles.sectionHeader}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}
+              >
+                <Activity size={20} color={theme.colors.primary} />
+                <Text
+                  style={[styles.sectionTitle, { color: theme.colors.text }]}
+                >
+                  {t('equipment.queueAnalytics') || 'Thống kê hàng đợi'}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.analyticsGrid}>
+              <View style={styles.analyticsItem}>
+                <Text
+                  style={[
+                    styles.analyticsLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('equipment.averageWaitTime') || 'Thời gian chờ TB'}
+                </Text>
+                <Text
+                  style={[styles.analyticsValue, { color: theme.colors.text }]}
+                >
+                  {Math.round(queueAnalytics.averageWaitTime)}{' '}
+                  {t('common.minutes') || 'phút'}
+                </Text>
+              </View>
+              <View style={styles.analyticsItem}>
+                <Text
+                  style={[
+                    styles.analyticsLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('equipment.averageDuration') || 'Thời gian sử dụng TB'}
+                </Text>
+                <Text
+                  style={[styles.analyticsValue, { color: theme.colors.text }]}
+                >
+                  {Math.round(queueAnalytics.averageDuration)}{' '}
+                  {t('common.minutes') || 'phút'}
+                </Text>
+              </View>
+              <View style={styles.analyticsItem}>
+                <Text
+                  style={[
+                    styles.analyticsLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('equipment.currentQueueLength') || 'Độ dài hàng đợi'}
+                </Text>
+                <Text
+                  style={[styles.analyticsValue, { color: theme.colors.text }]}
+                >
+                  {queueAnalytics.currentQueueLength}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
 
         {/* Queue Section */}
         {queue.length > 0 && (
@@ -910,42 +1183,78 @@ export default function EquipmentDetailScreen() {
               </TouchableOpacity>
             </View>
 
-            {queue.map((entry, index) => (
-              <Fragment key={entry.id}>
-                <View
-                  style={[
-                    styles.queueItem,
-                    {
-                      backgroundColor:
-                        entry.member_id === member?.id
+            {queue.map((entry, index) => {
+              // IMPROVEMENT: Get prediction for user's position
+              const isUserEntry = entry.member_id === member?.id;
+              const prediction = isUserEntry ? queuePositionPrediction : null;
+
+              return (
+                <Fragment key={entry.id}>
+                  <View
+                    style={[
+                      styles.queueItem,
+                      {
+                        backgroundColor: isUserEntry
                           ? theme.colors.primary + '10'
                           : 'transparent',
-                    },
-                  ]}
-                >
-                  <View style={styles.queuePosition}>
-                    <Text
-                      style={[
-                        styles.positionNumber,
-                        { color: theme.colors.primary },
-                      ]}
-                    >
-                      #{index + 1}
-                    </Text>
-                  </View>
-                  <Text
-                    style={[
-                      styles.queueMemberName,
-                      { color: theme.colors.text },
+                      },
                     ]}
                   >
-                    {entry.member_id === member?.id
-                      ? t('profile.title')
-                      : entry.member?.full_name || 'Member'}
-                  </Text>
-                </View>
-              </Fragment>
-            ))}
+                    <View style={styles.queuePosition}>
+                      <Text
+                        style={[
+                          styles.positionNumber,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        #{entry.position || index + 1}
+                      </Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text
+                        style={[
+                          styles.queueMemberName,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {isUserEntry
+                          ? t('profile.title')
+                          : entry.member?.full_name || t('equipment.member')}
+                      </Text>
+                      {/* IMPROVEMENT: Show queue position prediction for user */}
+                      {isUserEntry && prediction && prediction.estimatedWaitTime != null && prediction.estimatedTurnAt && (
+                        <Text
+                          style={[
+                            styles.predictionText,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {t('equipment.estimatedWait') ||
+                            'Thời gian chờ dự kiến'}
+                          : {!isNaN(prediction.estimatedWaitTime) ? Math.round(prediction.estimatedWaitTime) : 0}{' '}
+                          {t('common.minutes') || 'phút'} •{' '}
+                          {t('equipment.yourTurnAt') || 'Lượt của bạn lúc'}:{' '}
+                          {(() => {
+                            try {
+                              const turnAtDate = new Date(prediction.estimatedTurnAt);
+                              if (!isNaN(turnAtDate.getTime())) {
+                                return turnAtDate.toLocaleTimeString('vi-VN', {
+                                  hour: '2-digit',
+                                  minute: '2-digit',
+                                });
+                              }
+                              return t('common.notAvailable', 'N/A');
+                            } catch (e) {
+                              return t('common.notAvailable', 'N/A');
+                            }
+                          })()}
+                        </Text>
+                      )}
+                    </View>
+                  </View>
+                </Fragment>
+              );
+            })}
           </View>
         )}
 
@@ -999,7 +1308,7 @@ export default function EquipmentDetailScreen() {
                     { transform: [{ scale: pulseAnim }] },
                   ]}
                 />
-                <Text style={styles.activeBadgeText}>LIVE</Text>
+                <Text style={styles.activeBadgeText}>{t('equipment.live')}</Text>
               </View>
             </View>
 
@@ -1320,6 +1629,100 @@ const styles = StyleSheet.create({
   queueMemberName: {
     ...Typography.bodyMedium,
     flex: 1,
+  },
+  // IMPROVEMENT: Styles for availability and analytics
+  availabilityCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  availabilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  availabilityTitle: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
+  availabilityInfo: {
+    marginTop: 8,
+    gap: 4,
+  },
+  availabilityText: {
+    ...Typography.bodySmall,
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 12,
+  },
+  analyticsItem: {
+    flex: 1,
+    minWidth: '45%',
+  },
+  analyticsLabel: {
+    ...Typography.bodySmall,
+    marginBottom: 4,
+  },
+  analyticsValue: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
+  predictionText: {
+    ...Typography.bodySmall,
+    marginTop: 4,
+    fontStyle: 'italic',
+  },
+  // IMPROVEMENT: Styles for availability and analytics
+  availabilityCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginTop: 12,
+  },
+  availabilityHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  availabilityTitle: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
+  availabilityInfo: {
+    marginTop: 8,
+    gap: 4,
+  },
+  availabilityText: {
+    ...Typography.bodySmall,
+  },
+  analyticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 16,
+    marginTop: 12,
+  },
+  analyticsItem: {
+    flex: 1,
+    minWidth: '45%',
+  },
+  analyticsLabel: {
+    ...Typography.bodySmall,
+    marginBottom: 4,
+  },
+  analyticsValue: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
+  predictionText: {
+    ...Typography.bodySmall,
+    marginTop: 4,
+    fontStyle: 'italic',
   },
   activeUsageContainer: {
     borderRadius: 24,

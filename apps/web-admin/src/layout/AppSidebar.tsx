@@ -5,6 +5,7 @@ import {
   CreditCard,
   Dumbbell,
   LayoutDashboard,
+  MessageCircle,
   Settings,
   Trophy,
   Users,
@@ -16,6 +17,7 @@ import logo from '../assets/images/logo.png';
 import { useNavigation } from '../context/NavigationContext';
 import { useSidebar } from '../context/SidebarContext';
 import { getCurrentUser, getDashboardPath } from '../utils/auth';
+import { chatService } from '../services/chat.service';
 import SidebarWidget from './SidebarWidget';
 
 // Add CSS keyframes for animations (only once)
@@ -79,18 +81,61 @@ type NavItem = {
   icon: React.ReactNode;
   path?: string;
   subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  badge?: number;
 };
 
 const AppSidebar: React.FC = () => {
   const { isExpanded, isMobileOpen, isHovered, setIsHovered } = useSidebar();
   const { setIsNavigating } = useNavigation();
   const location = useLocation();
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const user = getCurrentUser();
 
   // Get dashboard path dynamically based on current user
   const getDashboardPathForCurrentUser = useCallback(() => {
     const user = getCurrentUser();
     return getDashboardPath(user?.role || 'MEMBER');
   }, []);
+
+  // Load chat unread count
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const loadUnreadCount = async () => {
+      try {
+        const count = await chatService.getUnreadCount();
+        setChatUnreadCount(count);
+      } catch (error) {
+        console.error('Error loading chat unread count:', error);
+      }
+    };
+
+    // Connect to chat service and load unread count
+    let unsubscribe: (() => void) | undefined;
+    chatService
+      .connect(user.id)
+      .then(() => {
+        loadUnreadCount();
+        // Listen for new messages to update unread count
+        unsubscribe = chatService.onMessage(() => {
+          loadUnreadCount();
+        });
+      })
+      .catch(error => {
+        console.error('Error connecting to chat:', error);
+      });
+
+    // Poll for unread count every 30 seconds
+    const interval = setInterval(loadUnreadCount, 30000);
+
+    return () => {
+      clearInterval(interval);
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      // Note: Don't disconnect socket here as Chat page might be using it
+    };
+  }, [user?.id]);
 
   // Create nav items with dynamic dashboard path - memoized to prevent re-creation on every render
   const navItems: NavItem[] = useMemo(() => {
@@ -107,14 +152,20 @@ const AppSidebar: React.FC = () => {
         path: '/notifications',
       },
       {
+        icon: <MessageCircle className='w-5 h-5' />,
+        name: 'Hỗ trợ chat',
+        path: '/chat',
+        badge: chatUnreadCount > 0 ? chatUnreadCount : undefined,
+      },
+      {
         icon: <Users className='w-5 h-5' />,
         name: 'Quản lý người dùng',
         subItems: [
-          { name: 'Thành viên', path: '/management/users' },
-          { name: 'Khách hàng', path: '/management/members' },
+          { name: 'Tất cả tài khoản', path: '/management/users' },
+          { name: 'Thành viên', path: '/management/members' },
           { name: 'Huấn luyện viên', path: '/management/trainers' },
-          { name: 'Huấn luyện cá nhân', path: '/management/personal-training' },
-          { name: 'Thẻ Khách', path: '/management/guests' },
+          { name: 'Quản lý yêu cầu lương', path: '/management/salary-requests' },
+          // Personal Training and Guest Pass removed - not needed
         ],
       },
       {
@@ -130,7 +181,10 @@ const AppSidebar: React.FC = () => {
       {
         icon: <CreditCard className='w-5 h-5' />,
         name: 'Thanh toán',
-        path: '/management/billing',
+        subItems: [
+          { name: 'Quản lý thanh toán', path: '/management/billing' },
+          { name: 'Quản lý hoàn tiền', path: '/management/refunds' },
+        ],
       },
       {
         icon: <Trophy className='w-5 h-5' />,
@@ -153,7 +207,8 @@ const AppSidebar: React.FC = () => {
           { name: 'Báo cáo doanh thu', path: '/management/reports/revenue' },
           { name: 'Báo cáo thiết bị', path: '/management/reports/equipment' },
           { name: 'Báo cáo hệ thống', path: '/management/reports/system' },
-          { name: 'Báo cáo đã lên lịch', path: '/management/scheduled-reports' },
+          { name: 'Thống kê lương trainer', path: '/analytics/trainer-salary' },
+          // Scheduled reports removed - not needed
         ],
       },
     ];
@@ -167,12 +222,9 @@ const AppSidebar: React.FC = () => {
         name: 'Cài đặt hệ thống',
         subItems: [
           { name: 'Cài đặt chung', path: '/management/settings' },
-          { name: 'Mẫu Email', path: '/management/email-templates' },
-          { name: 'Mẫu SMS', path: '/management/sms-templates' },
-          { name: 'API Keys', path: '/management/api-keys' },
-          { name: 'Webhooks', path: '/management/webhooks' },
+          // Email Templates, SMS Templates, API Keys, Webhooks removed - not needed
           { name: 'Audit Logs', path: '/management/audit-logs' },
-          { name: 'Backup & Restore', path: '/management/backup-restore' },
+          // Backup & Restore removed - not needed
           { name: 'Thông báo hàng loạt', path: '/management/notifications' },
         ],
       },
@@ -291,13 +343,20 @@ const AppSidebar: React.FC = () => {
                 {nav.icon}
               </div>
               {(isExpanded || isHovered || isMobileOpen) && (
-                <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
-                  {nav.name}
-                </span>
+                <div className='flex items-center gap-2 flex-1'>
+                  <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
+                    {nav.name}
+                  </span>
+                  {nav.badge !== undefined && nav.badge > 0 && (
+                    <span className='bg-orange-500 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center'>
+                      {nav.badge > 99 ? '99+' : nav.badge}
+                    </span>
+                  )}
+                </div>
               )}
               {(isExpanded || isHovered || isMobileOpen) && (
                 <ChevronDown
-                  className={`ml-auto w-4 h-4 transition-transform duration-200 ${
+                  className={`w-4 h-4 transition-transform duration-200 ${
                     openSubmenu?.type === menuType && openSubmenu?.index === index
                       ? 'rotate-180 text-white'
                       : 'text-gray-500 dark:text-gray-400'
@@ -332,9 +391,16 @@ const AppSidebar: React.FC = () => {
                   {nav.icon}
                 </div>
                 {(isExpanded || isHovered || isMobileOpen) && (
-                  <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
-                    {nav.name}
-                  </span>
+                  <div className='flex items-center gap-2 flex-1'>
+                    <span className='font-semibold text-sm font-space-grotesk text-gray-900 dark:text-gray-100'>
+                      {nav.name}
+                    </span>
+                    {nav.badge !== undefined && nav.badge > 0 && (
+                      <span className='bg-orange-500 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center'>
+                        {nav.badge > 99 ? '99+' : nav.badge}
+                      </span>
+                    )}
+                  </div>
                 )}
               </Link>
             )

@@ -1,10 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { FileText, Search, Download, Filter, Calendar } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import { auditService, AuditLog, AuditLogFilters } from '../../services/audit.service';
 import { TableLoading } from '../../components/ui/AppLoading';
 import Pagination from '../../components/common/Pagination';
@@ -13,6 +20,7 @@ import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const AuditLogsManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
   const [filters, setFilters] = useState<AuditLogFilters>({
@@ -36,7 +44,7 @@ const AuditLogsManagement: React.FC = () => {
         setTotalPages(Math.ceil(response.data.total / (filters.limit || 20)));
       }
     } catch (error: any) {
-      showToast('Không thể tải nhật ký kiểm tra', 'error');
+      showToast(t('auditLogsManagement.messages.loadError'), 'error');
       console.error('Error fetching audit logs:', error);
     } finally {
       setLoading(false);
@@ -54,16 +62,19 @@ const AuditLogsManagement: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showToast('Xuất nhật ký thành công', 'success');
+      showToast(t('auditLogsManagement.messages.exportSuccess'), 'success');
     } catch (error: any) {
-      showToast('Không thể xuất nhật ký', 'error');
+      showToast(t('auditLogsManagement.messages.exportError'), 'error');
     }
   };
 
   const getActionColor = (action: string) => {
-    if (action.includes('CREATE') || action.includes('CREATE')) return 'text-green-600 dark:text-green-400';
-    if (action.includes('UPDATE') || action.includes('UPDATE')) return 'text-blue-600 dark:text-blue-400';
-    if (action.includes('DELETE') || action.includes('DELETE')) return 'text-red-600 dark:text-red-400';
+    if (action.includes('CREATE') || action.includes('CREATE'))
+      return 'text-green-600 dark:text-green-400';
+    if (action.includes('UPDATE') || action.includes('UPDATE'))
+      return 'text-blue-600 dark:text-blue-400';
+    if (action.includes('DELETE') || action.includes('DELETE'))
+      return 'text-red-600 dark:text-red-400';
     return 'text-gray-600 dark:text-gray-400';
   };
 
@@ -73,18 +84,14 @@ const AuditLogsManagement: React.FC = () => {
       <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Nhật Ký Kiểm Tra (Audit Logs)
+            {t('auditLogsManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Theo dõi tất cả các hoạt động trong hệ thống
+            {t('auditLogsManagement.subtitle')}
           </p>
         </div>
-        <AdminButton
-          variant='primary'
-          icon={Download}
-          onClick={handleExport}
-        >
-          Xuất CSV
+        <AdminButton variant='primary' icon={Download} onClick={handleExport}>
+          {t('auditLogsManagement.export')}
         </AdminButton>
       </div>
 
@@ -102,7 +109,7 @@ const AuditLogsManagement: React.FC = () => {
             resource_type: filters.resource_type,
           },
         }}
-        onFiltersChange={(newFilters) => {
+        onFiltersChange={newFilters => {
           setFilters({
             ...filters,
             date_from: newFilters.dateRange?.from,
@@ -118,17 +125,17 @@ const AuditLogsManagement: React.FC = () => {
         customFilterFields={[
           {
             key: 'user_id',
-            label: 'User ID',
+            label: t('auditLogsManagement.filters.userId'),
             type: 'text',
           },
           {
             key: 'action',
-            label: 'Hành động',
+            label: t('auditLogsManagement.filters.action'),
             type: 'text',
           },
           {
             key: 'resource_type',
-            label: 'Loại tài nguyên',
+            label: t('auditLogsManagement.filters.resourceType'),
             type: 'text',
           },
         ]}
@@ -138,7 +145,7 @@ const AuditLogsManagement: React.FC = () => {
       <AdminCard>
         <div className='mb-4 flex items-center justify-between'>
           <p className='text-sm text-gray-600 dark:text-gray-400'>
-            Tổng cộng: {total} bản ghi
+            {t('auditLogsManagement.stats.total', { count: total })}
           </p>
         </div>
         {loading ? (
@@ -146,30 +153,28 @@ const AuditLogsManagement: React.FC = () => {
         ) : logs.length === 0 ? (
           <div className='text-center py-12'>
             <FileText className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-            <p className='text-gray-500 dark:text-gray-400'>Không có nhật ký nào</p>
+            <p className='text-gray-500 dark:text-gray-400'>
+              {t('auditLogsManagement.empty.noLogs')}
+            </p>
           </div>
         ) : (
           <>
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell>Thời gian</AdminTableCell>
-                  <AdminTableCell>Người dùng</AdminTableCell>
-                  <AdminTableCell>Hành động</AdminTableCell>
-                  <AdminTableCell>Loại tài nguyên</AdminTableCell>
-                  <AdminTableCell>Chi tiết</AdminTableCell>
-                  <AdminTableCell>IP Address</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.timestamp')}</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.user')}</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.action')}</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.resourceType')}</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.details')}</AdminTableCell>
+                  <AdminTableCell>{t('auditLogsManagement.table.ipAddress')}</AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
                 {logs.map(log => (
                   <AdminTableRow key={log.id}>
-                    <AdminTableCell>
-                      {formatVietnamDateTime(log.created_at)}
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      {log.user_name || log.user_id}
-                    </AdminTableCell>
+                    <AdminTableCell>{formatVietnamDateTime(log.created_at)}</AdminTableCell>
+                    <AdminTableCell>{log.user_name || log.user_id}</AdminTableCell>
                     <AdminTableCell>
                       <span className={`font-medium ${getActionColor(log.action)}`}>
                         {log.action}
@@ -179,7 +184,7 @@ const AuditLogsManagement: React.FC = () => {
                     <AdminTableCell className='max-w-xs'>
                       <details className='cursor-pointer'>
                         <summary className='text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'>
-                          Xem chi tiết
+                          {t('auditLogsManagement.table.viewDetails')}
                         </summary>
                         <pre className='mt-2 p-2 bg-gray-50 dark:bg-gray-800 rounded text-xs overflow-auto'>
                           {JSON.stringify(log.details, null, 2)}
@@ -198,7 +203,7 @@ const AuditLogsManagement: React.FC = () => {
                 <Pagination
                   currentPage={filters.page || 1}
                   totalPages={totalPages}
-                  onPageChange={(page) => setFilters({ ...filters, page })}
+                  onPageChange={page => setFilters({ ...filters, page })}
                 />
               </div>
             )}
@@ -210,4 +215,3 @@ const AuditLogsManagement: React.FC = () => {
 };
 
 export default AuditLogsManagement;
-

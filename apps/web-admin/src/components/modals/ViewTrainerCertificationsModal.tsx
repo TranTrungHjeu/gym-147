@@ -13,6 +13,7 @@ import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
 import { Certification, certificationService } from '../../services/certification.service';
 import Modal from '../Modal/Modal';
+import { EnumBadge } from '../../shared/components/ui';
 import {
   AdminTable,
   AdminTableBody,
@@ -234,7 +235,9 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
             rejection_reason: data.rejection_reason || updated[index].rejection_reason,
             updated_at: data.updated_at || new Date().toISOString(),
           };
-          console.log(`[SUCCESS] [VIEW_CERTS_MODAL] Updated certification ${certId} optimistically`);
+          console.log(
+            `[SUCCESS] [VIEW_CERTS_MODAL] Updated certification ${certId} optimistically`
+          );
           return updated;
         });
 
@@ -341,49 +344,7 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
     return levelMap[level] || level;
   };
 
-  const getStatusBadge = (status: string) => {
-    const statusMap: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
-      VERIFIED: {
-        label: 'Đã xác thực',
-        className:
-          'bg-green-100 dark:bg-green-900/20 text-green-800 dark:text-green-300 border-green-200 dark:border-green-700',
-        icon: <CheckCircle className='w-3.5 h-3.5' />,
-      },
-      PENDING: {
-        label: 'Chờ xác thực',
-        className:
-          'bg-yellow-100 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-300 border-yellow-200 dark:border-yellow-700',
-        icon: <AlertCircle className='w-3.5 h-3.5' />,
-      },
-      REJECTED: {
-        label: 'Đã từ chối',
-        className:
-          'bg-red-100 dark:bg-red-900/20 text-red-800 dark:text-red-300 border-red-200 dark:border-red-700',
-        icon: <XCircle className='w-3.5 h-3.5' />,
-      },
-      EXPIRED: {
-        label: 'Đã hết hạn',
-        className:
-          'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700',
-        icon: <Clock className='w-3.5 h-3.5' />,
-      },
-      SUSPENDED: {
-        label: 'Đã tạm ngưng',
-        className:
-          'bg-orange-100 dark:bg-orange-900/20 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-700',
-        icon: <AlertCircle className='w-3.5 h-3.5' />,
-      },
-    };
-    const statusInfo = statusMap[status] || statusMap.PENDING;
-    return (
-      <span
-        className={`inline-flex items-center justify-center px-1.5 py-1 rounded-lg border ${statusInfo.className}`}
-        title={statusInfo.label}
-      >
-        {statusInfo.icon}
-      </span>
-    );
-  };
+  // Removed getStatusBadge - using EnumBadge with VERIFICATION_STATUS instead
 
   const formatDate = (dateString?: string) => {
     if (!dateString) return '-';
@@ -592,7 +553,12 @@ const ViewTrainerCertificationsModal: React.FC<ViewTrainerCertificationsModalPro
                           {cert.expiration_date ? formatDate(cert.expiration_date) : '-'}
                         </AdminTableCell>
                         <AdminTableCell className='overflow-hidden font-space-grotesk'>
-                          {getStatusBadge(cert.verification_status)}
+                          <EnumBadge
+                            type='VERIFICATION_STATUS'
+                            value={cert.verification_status}
+                            size='sm'
+                            showIcon={true}
+                          />
                         </AdminTableCell>
                       </AdminTableRow>
                     );

@@ -1,5 +1,6 @@
 import React from 'react';
 import { CheckCircle2, X } from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
 
 interface VerifyBadgeProps {
   verified: boolean;
@@ -16,6 +17,7 @@ const VerifyBadge: React.FC<VerifyBadgeProps> = ({
   className = '',
   type = 'general',
 }) => {
+  const { t } = useTranslation();
   const getSizeClasses = () => {
     switch (size) {
       case 'sm':
@@ -55,12 +57,12 @@ const VerifyBadge: React.FC<VerifyBadgeProps> = ({
   const getLabel = () => {
     if (!showText) return '';
     if (type === 'email') {
-      return verified ? 'Email đã xác thực' : 'Email chưa xác thực';
+      return verified ? t('verifyBadge.email.verified') : t('verifyBadge.email.unverified');
     }
     if (type === 'phone') {
-      return verified ? 'SĐT đã xác thực' : 'SĐT chưa xác thực';
+      return verified ? t('verifyBadge.phone.verified') : t('verifyBadge.phone.unverified');
     }
-    return verified ? 'Đã xác thực' : 'Chưa xác thực';
+    return verified ? t('verifyBadge.general.verified') : t('verifyBadge.general.unverified');
   };
 
   return (
@@ -68,7 +70,7 @@ const VerifyBadge: React.FC<VerifyBadgeProps> = ({
       className={`inline-flex items-center justify-center rounded-full font-semibold font-heading border transition-all duration-200 ${
         verified ? verifiedClasses : notVerifiedClasses
       } ${sizeClasses.container} ${className}`}
-      title={getLabel() || (verified ? 'Đã xác thực' : 'Chưa xác thực')}
+      title={getLabel() || (verified ? t('verifyBadge.general.verified') : t('verifyBadge.general.unverified'))}
     >
       {verified ? (
         <CheckCircle2 className={sizeClasses.icon} />

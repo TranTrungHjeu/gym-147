@@ -11,6 +11,7 @@ export interface LoginRequest {
   identifier: string; // Can be email or phone
   password: string;
   twoFactorToken?: string; // Optional 2FA token
+  rememberMe?: boolean; // Remember me flag for extended session
 }
 
 export interface SendOTPRequest {
@@ -158,6 +159,16 @@ class AuthService {
   // Register admin/trainer (for SUPER_ADMIN and ADMIN)
   async registerAdmin(data: RegisterAdminRequest): Promise<AuthResponse> {
     return this.request<AuthResponse>('/auth/register-admin', 'POST', data);
+  }
+
+  // Google OAuth
+  async getGoogleAuthUrl(): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/oauth/google');
+  }
+
+  // Facebook OAuth
+  async getFacebookAuthUrl(): Promise<AuthResponse> {
+    return this.request<AuthResponse>('/auth/oauth/facebook');
   }
 }
 

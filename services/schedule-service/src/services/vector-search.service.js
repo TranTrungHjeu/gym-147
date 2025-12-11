@@ -28,27 +28,31 @@ class VectorSearchService {
         k,
       });
 
-      // Sử dụng raw query với pgvector cosine distance
-      // <=> operator là cosine distance trong pgvector
-      // 1 - cosine_distance = cosine_similarity
-      // Note: Don't select class_embedding directly (it's vector type), only select similarity
-      const results = await prisma.$queryRaw`
-        SELECT 
-          id,
-          name,
-          description,
-          category,
-          difficulty,
-          duration,
-          price,
-          max_capacity,
-          1 - (class_embedding <=> ${vectorString}::vector) as similarity
-        FROM gym_classes
-        WHERE class_embedding IS NOT NULL
-          AND is_active = true
-        ORDER BY class_embedding <=> ${vectorString}::vector
-        LIMIT ${k}
-      `;
+      // Sử dụng transaction để đảm bảo search_path được set đúng
+      // Vector type có thể ở extensions schema
+      const results = await prisma.$transaction(async (tx) => {
+        // Set search_path trong transaction
+        await tx.$executeRawUnsafe('SET LOCAL search_path TO schedule_schema, public, extensions;');
+        
+        // Thực hiện query với vector type
+        return await tx.$queryRaw`
+          SELECT 
+            id,
+            name,
+            description,
+            category,
+            difficulty,
+            duration,
+            price,
+            max_capacity,
+            1 - (class_embedding <=> ${vectorString}::vector) as similarity
+          FROM schedule_schema.gym_classes
+          WHERE class_embedding IS NOT NULL
+            AND is_active = true
+          ORDER BY class_embedding <=> ${vectorString}::vector
+          LIMIT ${k}
+        `;
+      });
 
       console.log(`[SUCCESS] [VectorSearchService] Found ${results.length} similar classes`);
 
@@ -94,22 +98,29 @@ class VectorSearchService {
     try {
       const vectorString = '[' + queryVector.join(',') + ']';
       
-      const results = await prisma.$queryRaw`
-        SELECT 
-          id,
-          name,
-          description,
-          category,
-          difficulty,
-          duration,
-          price,
-          1 - (class_embedding <=> ${vectorString}::vector) as similarity
-        FROM gym_classes
-        WHERE class_embedding IS NOT NULL
-          AND is_active = true
-        ORDER BY class_embedding <=> ${vectorString}::vector
-        LIMIT ${k}
-      `;
+      // Sử dụng transaction để đảm bảo search_path được set đúng
+      const results = await prisma.$transaction(async (tx) => {
+        // Set search_path trong transaction
+        await tx.$executeRawUnsafe('SET LOCAL search_path TO schedule_schema, public, extensions;');
+        
+        // Thực hiện query với vector type
+        return await tx.$queryRaw`
+          SELECT 
+            id,
+            name,
+            description,
+            category,
+            difficulty,
+            duration,
+            price,
+            1 - (class_embedding <=> ${vectorString}::vector) as similarity
+          FROM schedule_schema.gym_classes
+          WHERE class_embedding IS NOT NULL
+            AND is_active = true
+          ORDER BY class_embedding <=> ${vectorString}::vector
+          LIMIT ${k}
+        `;
+      });
 
       return results.map(row => ({
         id: row.id,

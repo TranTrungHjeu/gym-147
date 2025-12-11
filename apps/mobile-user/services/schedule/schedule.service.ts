@@ -24,7 +24,22 @@ class ScheduleService {
         params: filters,
       });
 
-      console.log('[DATE] Schedules API response:', response);
+      console.log('[DATE] Schedules API response:', {
+        success: response?.success,
+        hasData: !!response?.data,
+        dataStructure: response?.data
+          ? {
+              isArray: Array.isArray(response.data),
+              hasSchedules: !!response.data.schedules,
+              hasDataSchedules: !!response.data.data?.schedules,
+              keys: Array.isArray(response.data) ? 'array' : Object.keys(response.data || {}),
+              pagination: response.data?.pagination || response.data?.data?.pagination,
+              filters: response.data?.filters || response.data?.data?.filters,
+            }
+          : null,
+        schedulesCount: response?.data?.schedules?.length || response?.data?.data?.schedules?.length || (Array.isArray(response?.data) ? response.data.length : 0),
+        fullResponse: JSON.stringify(response, null, 2).substring(0, 500), // First 500 chars
+      });
 
       // Handle different response structures
       let schedules = [];

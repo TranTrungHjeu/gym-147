@@ -142,7 +142,7 @@ const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({ isOpe
                 Tự động gia hạn
               </p>
               <p className='text-theme-xs font-heading text-gray-900 dark:text-white'>
-                {subscription.auto_renew ? (
+                {true ? ( // auto_renew removed from schema, default to true
                   <span className='text-success-600 dark:text-success-400 flex items-center gap-1'>
                     <CheckCircle2 className='w-3.5 h-3.5' />
                     Có

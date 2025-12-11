@@ -25,6 +25,10 @@ router.post('/subscriptions/with-discount', (req, res) =>
   billingController.createSubscriptionWithDiscount(req, res)
 );
 router.put('/subscriptions/:id', (req, res) => billingController.updateSubscription(req, res));
+// IMPROVEMENT: Upgrade/downgrade subscription route
+router.post('/subscriptions/:id/upgrade-downgrade', (req, res) =>
+  billingController.upgradeDowngradeSubscription(req, res)
+);
 router.patch('/subscriptions/:id/renew', (req, res) =>
   billingController.renewSubscription(req, res)
 );
@@ -38,11 +42,30 @@ router.get('/payments/:id', (req, res) => billingController.getPaymentById(req, 
 router.post('/payments', (req, res) => billingController.createPayment(req, res));
 router.put('/payments/:id', (req, res) => billingController.updatePayment(req, res));
 router.post('/payments/initiate', (req, res) => billingController.initiatePayment(req, res));
+// IMPROVEMENT: Payment retry and history routes
+router.post('/payments/:id/retry', (req, res) => billingController.retryPayment(req, res));
+router.get('/payments/history/:member_id', (req, res) => billingController.getPaymentHistory(req, res));
 // Webhook routes with signature verification
 const { verifyWebhookSignature } = require('../middleware/webhook.middleware.js');
-router.post('/payments/webhook', verifyWebhookSignature, (req, res) => billingController.handlePaymentWebhook(req, res));
+router.post('/payments/webhook', verifyWebhookSignature, (req, res) =>
+  billingController.handlePaymentWebhook(req, res)
+);
 router.patch('/payments/:id/process', (req, res) => billingController.processPayment(req, res));
 router.get('/payments/:id/receipt', (req, res) => billingController.downloadReceipt(req, res));
+router.post('/refunds', (req, res) => billingController.createRefund(req, res));
+// IMPROVEMENT: Get all refunds (must come before /refunds/:id routes)
+router.get('/refunds', (req, res) => billingController.getAllRefunds(req, res));
+// IMPROVEMENT: Get refund by booking ID (must come before /refunds/:id routes)
+router.get('/refunds/booking/:booking_id', (req, res) => billingController.getRefundByBookingId(req, res));
+// IMPROVEMENT: Get refund by ID
+router.get('/refunds/:id', (req, res) => billingController.getRefundById(req, res));
+// IMPROVEMENT: Refund status update (admin can update status after processing)
+router.patch('/refunds/:id/status', (req, res) => billingController.updateRefundStatus(req, res));
+// IMPROVEMENT: Refund approval and processing routes (kept for backward compatibility)
+router.patch('/refunds/:id/approve', (req, res) => billingController.approveRefund(req, res));
+router.patch('/refunds/:id/process', (req, res) => billingController.processRefund(req, res));
+// IMPROVEMENT: Refund timeline route
+router.get('/refunds/:id/timeline', (req, res) => billingController.getRefundTimeline(req, res));
 
 // Invoices Routes
 router.get('/invoices', (req, res) => billingController.getAllInvoices(req, res));
@@ -97,6 +120,11 @@ router.get('/analytics/revenue-reports/export/excel', (req, res) =>
 );
 router.get('/analytics/members/export/excel', (req, res) =>
   analyticsController.exportMemberAnalyticsExcel(req, res)
+);
+
+// Jobs Routes (for manual triggers)
+router.post('/jobs/subscriptions/expire', (req, res) =>
+  billingController.runSubscriptionExpirationJob(req, res)
 );
 
 module.exports = { billingRoutes: router };

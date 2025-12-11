@@ -42,8 +42,11 @@ export default function EquipmentReportModal({
   const [issueType, setIssueType] = useState<IssueType>(IssueType.OTHER);
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState<Severity>(Severity.MEDIUM);
-  const [images, setImages] = useState<Array<{ uri: string; uploaded?: boolean; url?: string; base64?: string }>>([]);
+  const [images, setImages] = useState<
+    Array<{ uri: string; uploaded?: boolean; url?: string; base64?: string }>
+  >([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const issueTypes = Object.values(IssueType);
   const severities = Object.values(Severity);
@@ -51,11 +54,14 @@ export default function EquipmentReportModal({
   const pickImage = async () => {
     try {
       // Request permissions
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      const { status } =
+        await ImagePicker.requestMediaLibraryPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(
           t('common.error'),
-          t('registration.permissionRequired') || 'Permission to access camera roll is required!'
+          t('equipment.issue.galleryPermissionRequired') ||
+            t('registration.permissionRequired') ||
+            'Permission to access camera roll is required!'
         );
         return;
       }
@@ -70,16 +76,21 @@ export default function EquipmentReportModal({
       });
 
       if (!result.canceled && result.assets) {
-        const newImages = result.assets.map(asset => ({
+        const newImages = result.assets.map((asset) => ({
           uri: asset.uri,
           uploaded: false,
           base64: asset.base64,
         }));
-        setImages(prev => [...prev, ...newImages]);
+        setImages((prev) => [...prev, ...newImages]);
       }
     } catch (error: any) {
       console.error('Error picking image:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to pick image');
+      Alert.alert(
+        t('common.error'),
+        error.message ||
+          t('equipment.issue.pickImageFailed') ||
+          'Failed to pick image'
+      );
     }
   };
 
@@ -90,7 +101,8 @@ export default function EquipmentReportModal({
       if (status !== 'granted') {
         Alert.alert(
           t('common.error'),
-          'Permission to access camera is required!'
+          t('equipment.issue.cameraPermissionRequired') ||
+            'Permission to access camera is required!'
         );
         return;
       }
@@ -110,16 +122,21 @@ export default function EquipmentReportModal({
           uploaded: false,
           base64: asset.base64,
         };
-        setImages(prev => [...prev, newImage]);
+        setImages((prev) => [...prev, newImage]);
       }
     } catch (error: any) {
       console.error('Error taking photo:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to take photo');
+      Alert.alert(
+        t('common.error'),
+        error.message ||
+          t('equipment.issue.takePhotoFailed') ||
+          'Failed to take photo'
+      );
     }
   };
 
   const removeImage = (index: number) => {
-    setImages(prev => prev.filter((_, i) => i !== index));
+    setImages((prev) => prev.filter((_, i) => i !== index));
   };
 
   const uploadImages = async (): Promise<string[]> => {
@@ -137,7 +154,7 @@ export default function EquipmentReportModal({
 
         // Use base64 from ImagePicker if available
         let base64 = image.base64;
-        
+
         // If base64 not available, try to read from file
         if (!base64) {
           try {
@@ -172,7 +189,11 @@ export default function EquipmentReportModal({
       }
     } catch (error: any) {
       console.error('Error uploading images:', error);
-      throw new Error(error.message || 'Failed to upload images. Please try again.');
+      throw new Error(
+        error.message ||
+          t('equipment.issue.uploadImagesFailed') ||
+          'Failed to upload images. Please try again.'
+      );
     } finally {
       setUploadingImages(false);
     }
@@ -184,11 +205,13 @@ export default function EquipmentReportModal({
     if (!description.trim()) {
       Alert.alert(
         t('common.error'),
-        t('equipment.issue.description') + ' is required'
+        t('equipment.issue.descriptionRequired') ||
+          `${t('equipment.issue.description')} ${t('common.required')}`
       );
       return;
     }
 
+    setSubmitting(true);
     try {
       // Upload images first
       let imageUrls: string[] = [];
@@ -196,14 +219,15 @@ export default function EquipmentReportModal({
         imageUrls = await uploadImages();
       }
 
-      onSubmit({
+      // Call onSubmit callback
+      await onSubmit({
         issue_type: issueType,
         description: description.trim(),
         severity,
         images: imageUrls,
       });
 
-      // Reset form
+      // Reset form only after successful submission
       setIssueType(IssueType.OTHER);
       setDescription('');
       setSeverity(Severity.MEDIUM);
@@ -212,8 +236,10 @@ export default function EquipmentReportModal({
     } catch (error: any) {
       Alert.alert(
         t('common.error'),
-        error.message || 'Failed to upload images. Please try again.'
+        error.message || 'Failed to submit report. Please try again.'
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -385,15 +411,21 @@ export default function EquipmentReportModal({
               <Text style={[styles.label, { color: theme.colors.text }]}>
                 {t('equipment.issue.addPhotos')} ({t('common.optional')})
               </Text>
-              
+
               {/* Image Preview Grid */}
               {images.length > 0 && (
                 <View style={styles.imageGrid}>
                   {images.map((image, index) => (
                     <View key={index} style={styles.imagePreviewContainer}>
-                      <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+                      <Image
+                        source={{ uri: image.uri }}
+                        style={styles.imagePreview}
+                      />
                       <TouchableOpacity
-                        style={[styles.removeImageButton, { backgroundColor: theme.colors.error }]}
+                        style={[
+                          styles.removeImageButton,
+                          { backgroundColor: theme.colors.error },
+                        ]}
                         onPress={() => removeImage(index)}
                       >
                         <X size={16} color="#fff" />
@@ -424,7 +456,7 @@ export default function EquipmentReportModal({
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    {t('common.selectFromGallery') || 'Gallery'}
+                    {t('common.selectFromGallery')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -446,13 +478,18 @@ export default function EquipmentReportModal({
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    {t('common.takePhoto') || 'Camera'}
+                    {t('common.takePhoto')}
                   </Text>
                 </TouchableOpacity>
               </View>
               {uploadingImages && (
-                <Text style={[styles.uploadingText, { color: theme.colors.textSecondary }]}>
-                  {t('common.uploading') || 'Uploading images...'}
+                <Text
+                  style={[
+                    styles.uploadingText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('common.uploading')}
                 </Text>
               )}
             </View>
@@ -480,14 +517,16 @@ export default function EquipmentReportModal({
                 styles.button,
                 styles.submitButton,
                 { backgroundColor: theme.colors.primary },
-                uploadingImages && styles.buttonDisabled,
+                (uploadingImages || submitting) && styles.buttonDisabled,
               ]}
               onPress={handleSubmit}
-              disabled={uploadingImages}
+              disabled={uploadingImages || submitting}
             >
               <Text style={styles.submitButtonText}>
                 {uploadingImages
-                  ? t('common.uploading') || 'Uploading...'
+                  ? t('common.uploading')
+                  : submitting
+                  ? t('common.submitting')
                   : t('equipment.issue.submit')}
               </Text>
             </TouchableOpacity>

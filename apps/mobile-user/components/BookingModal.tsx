@@ -10,6 +10,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Alert,
   Image,
   ImageSourcePropType,
   Modal,
@@ -145,8 +146,36 @@ export default function BookingModal({
       userBooking &&
       (userBooking.payment_status === 'PAID' ||
         userBooking.payment_status === 'COMPLETED') &&
-      userBooking.status === 'CONFIRMED'
+      userBooking.status === 'CONFIRMED' &&
+      !userBooking.is_waitlist
     ) {
+      return;
+    }
+
+    // If class is full, show confirmation before adding to waitlist
+    if (isFullyBooked) {
+      Alert.alert(
+        t('classes.booking.classFull'),
+        t('classes.booking.waitlistConfirmation') ||
+          'Lớp học đã hết slot. Bạn sẽ tham gia vào danh sách chờ. Bạn có muốn tiếp tục?',
+        [
+          {
+            text: t('common.cancel'),
+            style: 'cancel',
+          },
+          {
+            text: t('common.confirm'),
+            onPress: () => {
+              const bookingData: CreateBookingRequest = {
+                schedule_id: schedule.id,
+                special_needs: specialNeeds.trim() || undefined,
+                notes: notes.trim() || undefined,
+              };
+              onConfirm(bookingData);
+            },
+          },
+        ]
+      );
       return;
     }
 

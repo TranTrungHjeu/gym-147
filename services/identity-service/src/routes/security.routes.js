@@ -10,9 +10,15 @@ router.post('/verify-2fa-login', (req, res) => securityController.verify2FALogin
 
 // Two-Factor Authentication routes (protected for setup/management)
 router.get('/2fa/status', authMiddleware, (req, res) => securityController.get2FAStatus(req, res));
+// Support both /enable-2fa and /2fa/enable formats
 router.post('/enable-2fa', authMiddleware, (req, res) => securityController.enable2FA(req, res));
+router.post('/2fa/enable', authMiddleware, (req, res) => securityController.enable2FA(req, res));
+// Support both /verify-2fa and /2fa/verify formats
 router.post('/verify-2fa', authMiddleware, (req, res) => securityController.verify2FA(req, res));
+router.post('/2fa/verify', authMiddleware, (req, res) => securityController.verify2FA(req, res));
+// Support both /disable-2fa and /2fa/disable formats
 router.post('/disable-2fa', authMiddleware, (req, res) => securityController.disable2FA(req, res));
+router.post('/2fa/disable', authMiddleware, (req, res) => securityController.disable2FA(req, res));
 router.get('/2fa-qr-code', authMiddleware, (req, res) => securityController.get2FAQRCode(req, res));
 
 // Advanced security routes

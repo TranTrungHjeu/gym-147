@@ -288,7 +288,9 @@ export default function AddMetricScreen() {
                 </Text>
               </TouchableOpacity>
               <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                {t('health.addMetric')}
+                {t('health.addMetric', {
+                  defaultValue: 'Thêm chỉ số sức khỏe',
+                })}
               </Text>
             </View>
             <Text
@@ -297,7 +299,9 @@ export default function AddMetricScreen() {
                 { color: theme.colors.textSecondary },
               ]}
             >
-              {t('health.addMetricDescription')}
+              {t('health.addMetricDescription', {
+                defaultValue: 'Ghi nhận chỉ số sức khỏe của bạn',
+              })}
             </Text>
           </View>
 
@@ -363,9 +367,24 @@ export default function AddMetricScreen() {
                 selectedValue={formData.source}
                 onValueChange={handleSourceChange}
                 items={[
-                  { label: 'Manual Entry', value: 'manual' },
-                  { label: 'Device Sync', value: 'device' },
-                  { label: 'App Import', value: 'app' },
+                  {
+                    label: t('health.form.sourceManual', {
+                      defaultValue: 'Nhập thủ công',
+                    }),
+                    value: 'manual',
+                  },
+                  {
+                    label: t('health.form.sourceDevice', {
+                      defaultValue: 'Đồng bộ thiết bị',
+                    }),
+                    value: 'device',
+                  },
+                  {
+                    label: t('health.form.sourceApp', {
+                      defaultValue: 'Nhập từ ứng dụng',
+                    }),
+                    value: 'app',
+                  },
                 ]}
               />
             </View>

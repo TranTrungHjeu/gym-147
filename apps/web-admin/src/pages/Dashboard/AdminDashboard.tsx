@@ -17,7 +17,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminButton from '../../components/common/AdminButton';
 import AdminCard from '../../components/common/AdminCard';
-import RoleBadge from '../../components/common/RoleBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import CompactMetricCard from '../../components/dashboard/CompactMetricCard';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import MetricCard from '../../components/dashboard/MetricCard';
@@ -67,22 +67,36 @@ const AdminDashboard: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isResettingRateLimit, setIsResettingRateLimit] = useState(false);
   const [showResetConfirm, setShowResetConfirm] = useState(false);
-  
+
   // Revenue data
-  const [revenueData, setRevenueData] = useState<{ dates: string[]; revenues: number[]; transactions?: number[] } | null>(null);
+  const [revenueData, setRevenueData] = useState<{
+    dates: string[];
+    revenues: number[];
+    transactions?: number[];
+  } | null>(null);
   const [billingStats, setBillingStats] = useState<any>(null);
   const [isLoadingRevenue, setIsLoadingRevenue] = useState(false);
-  
+
   // Member growth data
-  const [memberGrowthData, setMemberGrowthData] = useState<{ dates: string[]; newUsers: number[]; activeUsers?: number[] } | null>(null);
+  const [memberGrowthData, setMemberGrowthData] = useState<{
+    dates: string[];
+    newUsers: number[];
+    activeUsers?: number[];
+  } | null>(null);
   const [isLoadingMemberGrowth, setIsLoadingMemberGrowth] = useState(false);
-  
+
   // Equipment utilization data
-  const [equipmentUsageData, setEquipmentUsageData] = useState<{ status: string; count: number }[]>([]);
+  const [equipmentUsageData, setEquipmentUsageData] = useState<{ status: string; count: number }[]>(
+    []
+  );
   const [isLoadingEquipment, setIsLoadingEquipment] = useState(false);
-  
+
   // Class attendance data
-  const [classAttendanceData, setClassAttendanceData] = useState<{ classNames: string[]; attendance: number[][]; dates?: string[] } | null>(null);
+  const [classAttendanceData, setClassAttendanceData] = useState<{
+    classNames: string[];
+    attendance: number[][];
+    dates?: string[];
+  } | null>(null);
   const [isLoadingClassAttendance, setIsLoadingClassAttendance] = useState(false);
 
   // Fetch dashboard statistics and recent activities
@@ -184,7 +198,7 @@ const AdminDashboard: React.FC = () => {
     // Use Vietnam timezone utility
     return formatRelativeTime(timestamp);
   };
-  
+
   // Fetch revenue data
   useEffect(() => {
     const fetchRevenueData = async () => {
@@ -194,7 +208,7 @@ const AdminDashboard: React.FC = () => {
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const fromDate = lastMonth.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
-        
+
         const [trendsResponse, statsResponse] = await Promise.all([
           billingService.getRevenueTrends({ from: fromDate, to: toDate }).catch(() => ({
             success: false,
@@ -205,11 +219,11 @@ const AdminDashboard: React.FC = () => {
             data: null,
           })),
         ]);
-        
+
         if (trendsResponse.success && trendsResponse.data) {
           setRevenueData(trendsResponse.data);
         }
-        
+
         if (statsResponse.success && statsResponse.data) {
           setBillingStats(statsResponse.data);
         }
@@ -219,10 +233,10 @@ const AdminDashboard: React.FC = () => {
         setIsLoadingRevenue(false);
       }
     };
-    
+
     fetchRevenueData();
   }, []);
-  
+
   // Fetch member growth data
   useEffect(() => {
     const fetchMemberGrowthData = async () => {
@@ -232,12 +246,14 @@ const AdminDashboard: React.FC = () => {
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const fromDate = lastMonth.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
-        
-        const response = await dashboardService.getUserGrowthData({ from: fromDate, to: toDate }).catch(() => ({
-          success: false,
-          data: { dates: [], newUsers: [], activeUsers: [] },
-        }));
-        
+
+        const response = await dashboardService
+          .getUserGrowthData({ from: fromDate, to: toDate })
+          .catch(() => ({
+            success: false,
+            data: { dates: [], newUsers: [], activeUsers: [] },
+          }));
+
         if (response.success && response.data) {
           setMemberGrowthData(response.data);
         }
@@ -247,10 +263,10 @@ const AdminDashboard: React.FC = () => {
         setIsLoadingMemberGrowth(false);
       }
     };
-    
+
     fetchMemberGrowthData();
   }, []);
-  
+
   // Fetch equipment utilization data
   useEffect(() => {
     const fetchEquipmentData = async () => {
@@ -260,7 +276,7 @@ const AdminDashboard: React.FC = () => {
           success: false,
           data: [],
         }));
-        
+
         if (response.success && response.data) {
           setEquipmentUsageData(response.data);
         }
@@ -270,10 +286,10 @@ const AdminDashboard: React.FC = () => {
         setIsLoadingEquipment(false);
       }
     };
-    
+
     fetchEquipmentData();
   }, []);
-  
+
   // Fetch class attendance data
   useEffect(() => {
     const fetchClassAttendanceData = async () => {
@@ -283,12 +299,14 @@ const AdminDashboard: React.FC = () => {
         const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const fromDate = lastMonth.toISOString().split('T')[0];
         const toDate = now.toISOString().split('T')[0];
-        
-        const response = await scheduleService.getClassAttendanceData({ from: fromDate, to: toDate }).catch(() => ({
-          success: false,
-          data: { classNames: [], attendance: [], dates: [] },
-        }));
-        
+
+        const response = await scheduleService
+          .getClassAttendanceData({ from: fromDate, to: toDate })
+          .catch(() => ({
+            success: false,
+            data: { classNames: [], attendance: [], dates: [] },
+          }));
+
         if (response.success && response.data) {
           setClassAttendanceData(response.data);
         }
@@ -298,7 +316,7 @@ const AdminDashboard: React.FC = () => {
         setIsLoadingClassAttendance(false);
       }
     };
-    
+
     fetchClassAttendanceData();
   }, []);
 
@@ -341,14 +359,18 @@ const AdminDashboard: React.FC = () => {
     // Parse activity description and translate
     if (description.includes('New trainer registered:')) {
       return `${t('dashboard.admin.activity.types.newTrainerRegistered')}: ${
-        userName || 'Unknown'
+        userName || t('common.unknown')
       }`;
     }
     if (description.includes('New member registered:')) {
-      return `${t('dashboard.admin.activity.types.newMemberRegistered')}: ${userName || 'Unknown'}`;
+      return `${t('dashboard.admin.activity.types.newMemberRegistered')}: ${
+        userName || t('common.unknown')
+      }`;
     }
     if (description.includes('New admin registered:')) {
-      return `${t('dashboard.admin.activity.types.newAdminRegistered')}: ${userName || 'Unknown'}`;
+      return `${t('dashboard.admin.activity.types.newAdminRegistered')}: ${
+        userName || t('common.unknown')
+      }`;
     }
     if (description.startsWith('Logged in using')) {
       const parts = description.replace('Logged in using', '').trim();
@@ -365,9 +387,37 @@ const AdminDashboard: React.FC = () => {
   };
 
   const renderActivityDescription = (activity: any) => {
-    const description = formatActivityDescription(activity);
+    const originalDescription = activity.description || '';
     const role = activity.user?.role;
-    const userName = activity.user?.name || 'Unknown';
+    const userName = activity.user?.name || t('common.unknown');
+
+    // For login activities
+    if (originalDescription.startsWith('Logged in using')) {
+      // Parse IP address from description
+      // Format: "Logged in using PASSWORD at 172.18.0.1"
+      let ipAddress = '';
+      if (originalDescription.includes(' at ')) {
+        const parts = originalDescription.split(' at ');
+        ipAddress = parts[parts.length - 1].trim();
+      }
+
+      return (
+        <>
+          {role && <EnumBadge type='ROLE' value={role} size='sm' showIcon={true} />}
+          <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
+            {userName}
+          </span>
+          {ipAddress && (
+            <span className='ml-1.5 text-gray-500 dark:text-gray-400 text-xs'>
+              {t('dashboard.admin.activity.types.loginAction')}{' '}
+              {t('dashboard.admin.activity.types.at')} IP: {ipAddress}
+            </span>
+          )}
+        </>
+      );
+    }
+
+    const description = formatActivityDescription(activity);
 
     // For registration activities, replace only role text with badge, keep description text
     if (
@@ -403,7 +453,7 @@ const AdminDashboard: React.FC = () => {
 
       return (
         <>
-          {role && <RoleBadge role={role} size='sm' variant='dashboard' />}
+          {role && <EnumBadge type='ROLE' value={role} size='sm' showIcon={true} />}
           <span className='ml-1.5'>{descText}</span>
           <span className='ml-1.5 text-gray-500 dark:text-gray-400'>:</span>
           <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
@@ -455,8 +505,14 @@ const AdminDashboard: React.FC = () => {
           />
           <MetricCard
             icon={DollarSign}
-            label='Doanh thu tháng'
-            value={billingStats?.monthly_revenue ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(billingStats.monthly_revenue) : '0₫'}
+            label={t('dashboard.admin.metrics.monthlyRevenue')}
+            value={
+              billingStats?.monthly_revenue
+                ? new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(
+                    billingStats.monthly_revenue
+                  )
+                : '0₫'
+            }
             iconBgColor='bg-green-100 dark:bg-green-900/30'
             iconColor='text-green-600 dark:text-green-400'
             isLoading={isLoadingRevenue}
@@ -498,8 +554,8 @@ const AdminDashboard: React.FC = () => {
             <div className='space-y-2'>
               <SectionHeader
                 icon={DollarSign}
-                title='Doanh thu & Thống kê'
-                subtitle='Biểu đồ doanh thu và thống kê tài chính'
+                title={t('dashboard.admin.charts.revenue.title')}
+                subtitle={t('dashboard.admin.charts.revenue.subtitle')}
               />
               <RevenueTrendChart
                 data={revenueData || undefined}
@@ -512,8 +568,8 @@ const AdminDashboard: React.FC = () => {
             <div className='space-y-2'>
               <SectionHeader
                 icon={TrendingUp}
-                title='Tăng trưởng Thành viên'
-                subtitle='Biểu đồ tăng trưởng thành viên theo thời gian'
+                title={t('dashboard.admin.charts.memberGrowth.title')}
+                subtitle={t('dashboard.admin.charts.memberGrowth.subtitle')}
               />
               <UserGrowthChart
                 data={memberGrowthData || undefined}
@@ -527,8 +583,8 @@ const AdminDashboard: React.FC = () => {
               <div className='space-y-2'>
                 <SectionHeader
                   icon={Dumbbell}
-                  title='Sử dụng Thiết bị'
-                  subtitle='Thống kê trạng thái thiết bị'
+                  title={t('dashboard.admin.charts.equipment.title')}
+                  subtitle={t('dashboard.admin.charts.equipment.subtitle')}
                 />
                 <EquipmentUsageChart
                   data={equipmentUsageData}
@@ -539,8 +595,8 @@ const AdminDashboard: React.FC = () => {
               <div className='space-y-2'>
                 <SectionHeader
                   icon={GraduationCap}
-                  title='Tham gia Lớp học'
-                  subtitle='Thống kê tham gia các lớp học'
+                  title={t('dashboard.admin.charts.classAttendance.title')}
+                  subtitle={t('dashboard.admin.charts.classAttendance.subtitle')}
                 />
                 <ClassAttendanceChart
                   data={classAttendanceData || undefined}
@@ -639,7 +695,7 @@ const AdminDashboard: React.FC = () => {
                       {recentActivities.map((activity, index) => {
                         const ActivityIcon = getActivityIcon(activity.description);
                         const iconColor = getActivityIconColor(activity.description);
-                        const userName = activity.user?.name || 'Unknown';
+                        const userName = activity.user?.name || t('common.unknown');
                         const userAvatar = activity.user?.avatar;
 
                         // Debug logging
@@ -720,10 +776,10 @@ const AdminDashboard: React.FC = () => {
                 )}
               </div>
             </AdminCard>
-            
+
             {/* Recent Bookings */}
             <RecentBookings limit={5} />
-            
+
             {/* Recent Payments */}
             <RecentPayments limit={5} />
           </div>

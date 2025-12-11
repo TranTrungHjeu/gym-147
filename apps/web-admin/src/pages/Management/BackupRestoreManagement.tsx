@@ -1,20 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { Database, Download, Upload, RefreshCw, Trash2, Play, Save, HardDrive } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import AdminModal from '../../components/common/AdminModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { backupService, Backup, RestoreRequest } from '../../services/backup.service';
 import { TableLoading, ButtonSpinner } from '../../components/ui/AppLoading';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 import CustomSelect from '../../components/common/CustomSelect';
 
 const BackupRestoreManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [backups, setBackups] = useState<Backup[]>([]);
   const [loading, setLoading] = useState(true);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -53,7 +61,7 @@ const BackupRestoreManagement: React.FC = () => {
         setBackups(response.data);
       }
     } catch (error: any) {
-      showToast('Không thể tải danh sách backup', 'error');
+      showToast(t('backupRestoreManagement.messages.loadError'), 'error');
       console.error('Error fetching backups:', error);
     } finally {
       setLoading(false);
@@ -64,12 +72,12 @@ const BackupRestoreManagement: React.FC = () => {
     try {
       setIsCreating(true);
       await backupService.createBackup(backupFormData);
-      showToast('Đã bắt đầu tạo backup', 'success');
+      showToast(t('backupRestoreManagement.messages.createSuccess'), 'success');
       setIsCreateModalOpen(false);
       setBackupFormData({ name: '', type: 'FULL' });
       fetchBackups();
     } catch (error: any) {
-      showToast(error.message || 'Không thể tạo backup', 'error');
+      showToast(error.message || t('backupRestoreManagement.messages.createError'), 'error');
     } finally {
       setIsCreating(false);
     }
@@ -86,9 +94,9 @@ const BackupRestoreManagement: React.FC = () => {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      showToast('Đã bắt đầu tải backup', 'success');
+      showToast(t('backupRestoreManagement.messages.downloadSuccess'), 'success');
     } catch (error: any) {
-      showToast('Không thể tải backup', 'error');
+      showToast(t('backupRestoreManagement.messages.downloadError'), 'error');
     }
   };
 
@@ -98,12 +106,12 @@ const BackupRestoreManagement: React.FC = () => {
       setIsRestoring(true);
       const response = await backupService.restoreBackup(restoreFormData);
       if (response.success) {
-        showToast('Đã bắt đầu khôi phục backup', 'success');
+        showToast(t('backupRestoreManagement.messages.restoreSuccess'), 'success');
         setIsRestoreModalOpen(false);
         setRestoreFormData({ backup_id: '', restore_type: 'FULL', tables: [] });
       }
     } catch (error: any) {
-      showToast(error.message || 'Không thể khôi phục backup', 'error');
+      showToast(error.message || t('backupRestoreManagement.messages.restoreError'), 'error');
     } finally {
       setIsRestoring(false);
     }
@@ -113,12 +121,12 @@ const BackupRestoreManagement: React.FC = () => {
     if (!backupToDelete) return;
     try {
       await backupService.deleteBackup(backupToDelete.id);
-      showToast('Xóa backup thành công', 'success');
+      showToast(t('backupRestoreManagement.messages.deleteSuccess'), 'success');
       setIsDeleteDialogOpen(false);
       setBackupToDelete(null);
       fetchBackups();
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa backup', 'error');
+      showToast(error.message || t('backupRestoreManagement.messages.deleteError'), 'error');
     }
   };
 
@@ -127,27 +135,29 @@ const BackupRestoreManagement: React.FC = () => {
     const k = 1024;
     const sizes = ['Bytes', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
+    return Math.round((bytes / Math.pow(k, i)) * 100) / 100 + ' ' + sizes[i];
   };
 
-  const getStatusColor = (status: Backup['status']) => {
+  const getStatusEnumType = (
+    status: Backup['status']
+  ): { type: 'REPORT_STATUS' | 'PAYMENT_STATUS' | 'SCHEDULE_STATUS'; value: string } => {
     switch (status) {
       case 'COMPLETED':
-        return 'text-green-600 dark:text-green-400';
+        return { type: 'SCHEDULE_STATUS', value: 'COMPLETED' };
       case 'FAILED':
-        return 'text-red-600 dark:text-red-400';
+        return { type: 'PAYMENT_STATUS', value: 'FAILED' };
       case 'IN_PROGRESS':
-        return 'text-blue-600 dark:text-blue-400';
+        return { type: 'REPORT_STATUS', value: 'IN_PROGRESS' };
       default:
-        return 'text-yellow-600 dark:text-yellow-400';
+        return { type: 'REPORT_STATUS', value: 'PENDING' };
     }
   };
 
   const backupTypes = [
-    { value: 'FULL', label: 'Full Backup (Toàn bộ)' },
-    { value: 'INCREMENTAL', label: 'Incremental (Tăng dần)' },
-    { value: 'DATABASE_ONLY', label: 'Chỉ Database' },
-    { value: 'FILES_ONLY', label: 'Chỉ Files' },
+    { value: 'FULL', label: t('backupRestoreManagement.types.FULL') },
+    { value: 'INCREMENTAL', label: t('backupRestoreManagement.types.INCREMENTAL') },
+    { value: 'DATABASE_ONLY', label: t('backupRestoreManagement.types.DATABASE_ONLY') },
+    { value: 'FILES_ONLY', label: t('backupRestoreManagement.types.FILES_ONLY') },
   ];
 
   return (
@@ -156,10 +166,10 @@ const BackupRestoreManagement: React.FC = () => {
       <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Sao Lưu & Khôi Phục
+            {t('backupRestoreManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Quản lý sao lưu và khôi phục dữ liệu hệ thống
+            {t('backupRestoreManagement.subtitle')}
           </p>
         </div>
         <div className='flex gap-2'>
@@ -171,17 +181,20 @@ const BackupRestoreManagement: React.FC = () => {
               setIsRestoreModalOpen(true);
             }}
           >
-            Khôi phục
+            {t('backupRestoreManagement.actions.restore')}
           </AdminButton>
           <AdminButton
             variant='primary'
             icon={Database}
             onClick={() => {
-              setBackupFormData({ name: `backup-${new Date().toISOString().split('T')[0]}`, type: 'FULL' });
+              setBackupFormData({
+                name: `backup-${new Date().toISOString().split('T')[0]}`,
+                type: 'FULL',
+              });
               setIsCreateModalOpen(true);
             }}
           >
-            Tạo Backup
+            {t('backupRestoreManagement.actions.create')}
           </AdminButton>
         </div>
       </div>
@@ -193,18 +206,20 @@ const BackupRestoreManagement: React.FC = () => {
         ) : backups.length === 0 ? (
           <div className='text-center py-12'>
             <HardDrive className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-            <p className='text-gray-500 dark:text-gray-400'>Chưa có backup nào</p>
+            <p className='text-gray-500 dark:text-gray-400'>
+              {t('backupRestoreManagement.empty.noBackups')}
+            </p>
           </div>
         ) : (
           <AdminTable>
             <AdminTableHeader>
               <AdminTableRow>
-                <AdminTableCell>Tên</AdminTableCell>
-                <AdminTableCell>Loại</AdminTableCell>
-                <AdminTableCell>Kích thước</AdminTableCell>
-                <AdminTableCell>Trạng thái</AdminTableCell>
-                <AdminTableCell>Ngày tạo</AdminTableCell>
-                <AdminTableCell>Thao tác</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.name')}</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.type')}</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.size')}</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.status')}</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.createdAt')}</AdminTableCell>
+                <AdminTableCell>{t('backupRestoreManagement.table.actions')}</AdminTableCell>
               </AdminTableRow>
             </AdminTableHeader>
             <AdminTableBody>
@@ -216,18 +231,22 @@ const BackupRestoreManagement: React.FC = () => {
                   </AdminTableCell>
                   <AdminTableCell>{formatFileSize(backup.size)}</AdminTableCell>
                   <AdminTableCell>
-                    <span className={`font-medium ${getStatusColor(backup.status)}`}>
-                      {backup.status === 'COMPLETED' ? 'Hoàn thành' :
-                       backup.status === 'FAILED' ? 'Thất bại' :
-                       backup.status === 'IN_PROGRESS' ? 'Đang xử lý' : 'Chờ xử lý'}
-                    </span>
+                    {(() => {
+                      const statusEnum = getStatusEnumType(backup.status);
+                      return (
+                        <EnumBadge
+                          type={statusEnum.type}
+                          value={statusEnum.value}
+                          size='sm'
+                          showIcon={true}
+                        />
+                      );
+                    })()}
                     {backup.error_message && (
                       <p className='text-xs text-red-600 mt-1'>{backup.error_message}</p>
                     )}
                   </AdminTableCell>
-                  <AdminTableCell>
-                    {formatVietnamDateTime(backup.created_at)}
-                  </AdminTableCell>
+                  <AdminTableCell>{formatVietnamDateTime(backup.created_at)}</AdminTableCell>
                   <AdminTableCell>
                     <div className='flex items-center gap-2'>
                       {backup.status === 'COMPLETED' && (
@@ -238,18 +257,22 @@ const BackupRestoreManagement: React.FC = () => {
                             icon={Download}
                             onClick={() => handleDownload(backup)}
                           >
-                            Tải
+                            {t('backupRestoreManagement.actions.download')}
                           </AdminButton>
                           <AdminButton
                             variant='outline'
                             size='sm'
                             icon={Play}
                             onClick={() => {
-                              setRestoreFormData({ backup_id: backup.id, restore_type: 'FULL', tables: [] });
+                              setRestoreFormData({
+                                backup_id: backup.id,
+                                restore_type: 'FULL',
+                                tables: [],
+                              });
                               setIsRestoreModalOpen(true);
                             }}
                           >
-                            Khôi phục
+                            {t('backupRestoreManagement.actions.restore')}
                           </AdminButton>
                         </>
                       )}
@@ -262,7 +285,7 @@ const BackupRestoreManagement: React.FC = () => {
                           setIsDeleteDialogOpen(true);
                         }}
                       >
-                        Xóa
+                        {t('backupRestoreManagement.actions.delete')}
                       </AdminButton>
                     </div>
                   </AdminTableCell>
@@ -277,37 +300,44 @@ const BackupRestoreManagement: React.FC = () => {
       <AdminModal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title='Tạo Backup mới'
+        title={t('backupRestoreManagement.form.createTitle')}
         size='md'
       >
         <div className='space-y-4'>
           <AdminInput
-            label='Tên backup'
+            label={t('backupRestoreManagement.form.name')}
             value={backupFormData.name}
             onChange={e => setBackupFormData({ ...backupFormData, name: e.target.value })}
             required
           />
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Loại backup
+              {t('backupRestoreManagement.form.type')}
             </label>
             <CustomSelect
               options={backupTypes}
               value={backupFormData.type}
-              onChange={value => setBackupFormData({ ...backupFormData, type: value as Backup['type'] })}
+              onChange={value =>
+                setBackupFormData({ ...backupFormData, type: value as Backup['type'] })
+              }
             />
           </div>
           <div className='p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg'>
             <p className='text-sm text-blue-800 dark:text-blue-300'>
-              [WARNING] Quá trình backup có thể mất vài phút. Vui lòng không đóng trang này.
+              {t('backupRestoreManagement.form.warning')}
             </p>
           </div>
           <div className='flex justify-end gap-2 pt-4 border-t'>
             <AdminButton variant='outline' onClick={() => setIsCreateModalOpen(false)}>
-              Hủy
+              {t('common.cancel')}
             </AdminButton>
-            <AdminButton variant='primary' icon={Save} onClick={handleCreateBackup} disabled={isCreating}>
-              {isCreating ? <ButtonSpinner /> : 'Tạo Backup'}
+            <AdminButton
+              variant='primary'
+              icon={Save}
+              onClick={handleCreateBackup}
+              disabled={isCreating}
+            >
+              {isCreating ? <ButtonSpinner /> : t('backupRestoreManagement.actions.create')}
             </AdminButton>
           </div>
         </div>
@@ -317,51 +347,58 @@ const BackupRestoreManagement: React.FC = () => {
       <AdminModal
         isOpen={isRestoreModalOpen}
         onClose={() => setIsRestoreModalOpen(false)}
-        title='Khôi phục từ Backup'
+        title={t('backupRestoreManagement.form.restoreTitle')}
         size='md'
       >
         <div className='space-y-4'>
           <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
             <p className='text-sm text-red-800 dark:text-red-300 font-medium mb-2'>
-              [WARNING] Cảnh báo
+              {t('backupRestoreManagement.form.restoreWarningTitle')}
             </p>
             <p className='text-sm text-red-700 dark:text-red-400'>
-              Khôi phục backup sẽ ghi đè dữ liệu hiện tại. Hãy đảm bảo bạn đã tạo backup trước khi khôi phục.
+              {t('backupRestoreManagement.form.restoreWarningMessage')}
             </p>
           </div>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Chọn backup
+              {t('backupRestoreManagement.form.selectBackup')}
             </label>
             <select
               value={restoreFormData.backup_id}
               onChange={e => setRestoreFormData({ ...restoreFormData, backup_id: e.target.value })}
               className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
             >
-              <option value=''>Chọn backup...</option>
-              {backups.filter(b => b.status === 'COMPLETED').map(backup => (
-                <option key={backup.id} value={backup.id}>
-                  {backup.name} - {formatVietnamDateTime(backup.created_at)}
-                </option>
-              ))}
+              <option value=''>{t('backupRestoreManagement.form.selectBackupPlaceholder')}</option>
+              {backups
+                .filter(b => b.status === 'COMPLETED')
+                .map(backup => (
+                  <option key={backup.id} value={backup.id}>
+                    {backup.name} - {formatVietnamDateTime(backup.created_at)}
+                  </option>
+                ))}
             </select>
           </div>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Loại khôi phục
+              {t('backupRestoreManagement.form.restoreType')}
             </label>
             <select
               value={restoreFormData.restore_type}
-              onChange={e => setRestoreFormData({ ...restoreFormData, restore_type: e.target.value as 'FULL' | 'PARTIAL' })}
+              onChange={e =>
+                setRestoreFormData({
+                  ...restoreFormData,
+                  restore_type: e.target.value as 'FULL' | 'PARTIAL',
+                })
+              }
               className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
             >
-              <option value='FULL'>Full Restore (Toàn bộ)</option>
-              <option value='PARTIAL'>Partial Restore (Một phần)</option>
+              <option value='FULL'>{t('backupRestoreManagement.restoreTypes.FULL')}</option>
+              <option value='PARTIAL'>{t('backupRestoreManagement.restoreTypes.PARTIAL')}</option>
             </select>
           </div>
           <div className='flex justify-end gap-2 pt-4 border-t'>
             <AdminButton variant='outline' onClick={() => setIsRestoreModalOpen(false)}>
-              Hủy
+              {t('common.cancel')}
             </AdminButton>
             <AdminButton
               variant='danger'
@@ -369,7 +406,7 @@ const BackupRestoreManagement: React.FC = () => {
               onClick={handleRestore}
               disabled={isRestoring || !restoreFormData.backup_id}
             >
-              {isRestoring ? <ButtonSpinner /> : 'Khôi phục'}
+              {isRestoring ? <ButtonSpinner /> : t('backupRestoreManagement.actions.restore')}
             </AdminButton>
           </div>
         </div>
@@ -383,10 +420,12 @@ const BackupRestoreManagement: React.FC = () => {
           setBackupToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xóa backup'
-        message={`Bạn có chắc chắn muốn xóa backup "${backupToDelete?.name}"?`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('backupRestoreManagement.delete.confirmTitle')}
+        message={t('backupRestoreManagement.delete.confirmMessage', {
+          name: backupToDelete?.name || '',
+        })}
+        confirmText={t('backupRestoreManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         variant='danger'
       />
     </div>
@@ -394,4 +433,3 @@ const BackupRestoreManagement: React.FC = () => {
 };
 
 export default BackupRestoreManagement;
-

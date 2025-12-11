@@ -39,9 +39,10 @@ export default function SessionDetailModal({
   const { theme } = useTheme();
   const { t, i18n } = useTranslation();
 
-  // Handle API response structure: { session: {...}, equipmentUsage: {...} }
+  // Handle API response structure: { session: {...}, equipmentUsage: {...}, caloriesBreakdown: {...} }
   const sessionData = session?.session || session;
   const equipmentUsage = session?.equipmentUsage;
+  const caloriesBreakdown = session?.caloriesBreakdown;
 
   if (!sessionData) return null;
 
@@ -366,6 +367,95 @@ export default function SessionDetailModal({
                     </Text>
                   </View>
                 </View>
+
+                {/* Calories Breakdown */}
+                {caloriesBreakdown && (
+                  <View
+                    style={[
+                      styles.breakdownContainer,
+                      {
+                        backgroundColor: theme.isDark
+                          ? 'rgba(255,255,255,0.05)'
+                          : 'rgba(0,0,0,0.03)',
+                        borderWidth: 1,
+                        borderColor: theme.isDark
+                          ? 'rgba(255,255,255,0.08)'
+                          : 'rgba(0,0,0,0.06)',
+                      },
+                      theme.shadows.sm,
+                    ]}
+                  >
+                    <Text
+                      style={[
+                        styles.breakdownTitle,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {t('session.caloriesBreakdown', 'Calories Breakdown')}
+                    </Text>
+                    <View style={styles.breakdownRow}>
+                      <Text
+                        style={[
+                          styles.breakdownLabel,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('session.caloriesFromWorkout', 'From Workout')}:
+                      </Text>
+                      <Text
+                        style={[styles.breakdownValue, { color: theme.colors.text }]}
+                      >
+                        {caloriesBreakdown.fromWorkout || 0} cal
+                      </Text>
+                    </View>
+                    <View style={styles.breakdownRow}>
+                      <Text
+                        style={[
+                          styles.breakdownLabel,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('session.caloriesFromEquipment', 'From Equipment')}:
+                      </Text>
+                      <Text
+                        style={[styles.breakdownValue, { color: theme.colors.text }]}
+                      >
+                        {caloriesBreakdown.fromEquipment || 0} cal
+                      </Text>
+                    </View>
+                    <View
+                      style={[
+                        styles.breakdownRow,
+                        styles.breakdownTotal,
+                        {
+                          borderTopWidth: 1,
+                          borderTopColor: theme.isDark
+                            ? 'rgba(255,255,255,0.1)'
+                            : 'rgba(0,0,0,0.1)',
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.breakdownLabel,
+                          styles.breakdownTotalLabel,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {t('session.total', 'Total')}:
+                      </Text>
+                      <Text
+                        style={[
+                          styles.breakdownValue,
+                          styles.breakdownTotalValue,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {caloriesBreakdown.total || 0} cal
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
 
               {/* Equipment Usage */}
@@ -764,5 +854,41 @@ const styles = StyleSheet.create({
   loadingText: {
     ...Typography.bodyMedium,
     marginTop: 16,
+  },
+  breakdownContainer: {
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 16,
+  },
+  breakdownTitle: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  breakdownRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  breakdownTotal: {
+    marginTop: 8,
+    paddingTop: 12,
+    marginBottom: 0,
+  },
+  breakdownLabel: {
+    ...Typography.bodySmall,
+  },
+  breakdownTotalLabel: {
+    ...Typography.bodyMedium,
+    fontWeight: '600',
+  },
+  breakdownValue: {
+    ...Typography.bodySmall,
+    fontWeight: '500',
+  },
+  breakdownTotalValue: {
+    ...Typography.bodyMedium,
+    fontWeight: '700',
   },
 });

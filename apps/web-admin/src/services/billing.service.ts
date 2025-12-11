@@ -28,7 +28,7 @@ export interface Subscription {
   start_date: string;
   end_date: string;
   status: 'ACTIVE' | 'EXPIRED' | 'CANCELLED' | 'SUSPENDED';
-  auto_renew: boolean;
+  // auto_renew removed from schema
   payment_status: string;
   created_at: string;
   updated_at: string;
@@ -290,7 +290,7 @@ class BillingService {
     member_id: string;
     plan_id: string;
     start_date: string;
-    auto_renew?: boolean;
+    // auto_renew removed from schema
   }): Promise<ApiResponse<Subscription>> {
     return this.request<Subscription>('/subscriptions', 'POST', data);
   }
@@ -461,6 +461,195 @@ class BillingService {
   async validateCoupon(code: string): Promise<ApiResponse<any>> {
     return this.request<any>('/validate-coupon', 'POST', { code });
   }
+
+  // Refunds
+  async getAllRefunds(filters?: {
+    status?: string;
+    reason?: string;
+    requested_by?: string;
+    approved_by?: string;
+    payment_id?: string;
+    member_id?: string;
+    all?: boolean; // Admin flag to view all refunds
+    page?: number;
+    limit?: number;
+    sort_by?: string;
+    sort_order?: 'asc' | 'desc';
+  }): Promise<ApiResponse<{
+    refunds: Refund[];
+    pagination?: any;
+  }>> {
+    const params = new URLSearchParams();
+    if (filters?.status) params.append('status', filters.status);
+    if (filters?.reason) params.append('reason', filters.reason);
+    if (filters?.requested_by) params.append('requested_by', filters.requested_by);
+    if (filters?.approved_by) params.append('approved_by', filters.approved_by);
+    if (filters?.payment_id) params.append('payment_id', filters.payment_id);
+    if (filters?.member_id) params.append('member_id', filters.member_id);
+    if (filters?.all) params.append('all', 'true'); // Add all=true for admin view
+    if (filters?.page) params.append('page', filters.page.toString());
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+    if (filters?.sort_by) params.append('sort_by', filters.sort_by);
+    if (filters?.sort_order) params.append('sort_order', filters.sort_order);
+
+    const response = await this.request<Refund[]>(`/refunds?${params}`);
+    return {
+      ...response,
+      data: {
+        refunds: response.data || [],
+        pagination: (response as any).pagination,
+      },
+    };
+  }
+
+  async getRefundById(id: string): Promise<ApiResponse<Refund>> {
+    return this.request<Refund>(`/refunds/${id}`);
+  }
+
+  async approveRefund(id: string, approved_by: string): Promise<ApiResponse<Refund>> {
+    return this.request<Refund>(`/refunds/${id}/approve`, 'PATCH', { approved_by });
+  }
+
+  async processRefund(id: string, processed_by: string): Promise<ApiResponse<Refund>> {
+    return this.request<Refund>(`/refunds/${id}/process`, 'PATCH', { processed_by });
+  }
+
+  async getRefundTimeline(id: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/refunds/${id}/timeline`);
+  }
+
+  /**
+   * Get approved refunds within a date range
+   * Used for calculating net revenue (revenue - refunds)
+   */
+  async getApprovedRefunds(filters?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<ApiResponse<{ refunds: Refund[]; pagination?: any; totalAmount?: number }>> {
+    const params = new URLSearchParams();
+    params.append('status', 'APPROVED');
+    if (filters?.from) params.append('from', filters.from);
+    if (filters?.to) params.append('to', filters.to);
+    if (filters?.limit) params.append('limit', filters.limit.toString());
+
+    // Note: Backend might not support 'from'/'to' directly on refunds
+    // We'll need to filter client-side if backend doesn't support it
+    const response = await this.getAllRefunds({
+      status: 'APPROVED',
+      limit: filters?.limit || 1000, // Get all approved refunds
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    });
+
+    // Filter by date range client-side if backend doesn't support it
+    let filteredRefunds = response.data?.refunds || [];
+    if (filters?.from || filters?.to) {
+      const fromDate = filters.from ? new Date(filters.from) : null;
+      const toDate = filters.to ? new Date(filters.to) : null;
+
+      filteredRefunds = filteredRefunds.filter((refund: Refund) => {
+        const refundDate = new Date(refund.created_at);
+        if (fromDate && refundDate < fromDate) return false;
+        if (toDate) {
+          // Include the entire day
+          const toDateEnd = new Date(toDate);
+          toDateEnd.setHours(23, 59, 59, 999);
+          if (refundDate > toDateEnd) return false;
+        }
+        return true;
+      });
+    }
+
+    // Calculate total refund amount
+    const totalAmount = filteredRefunds.reduce(
+      (sum: number, refund: Refund) => sum + (Number(refund.amount) || 0),
+      0
+    );
+
+    return {
+      ...response,
+      data: {
+        refunds: filteredRefunds,
+        pagination: response.data?.pagination,
+        totalAmount,
+      },
+    };
+  }
+
+  /**
+   * Get processed refunds within a date range
+   * Used for calculating net revenue (revenue - refunds)
+   * Only PROCESSED refunds are subtracted from revenue (not APPROVED ones)
+   */
+  async getProcessedRefunds(filters?: {
+    from?: string;
+    to?: string;
+    limit?: number;
+  }): Promise<ApiResponse<{ refunds: Refund[]; pagination?: any; totalAmount?: number }>> {
+    // Get all processed refunds
+    const response = await this.getAllRefunds({
+      status: 'PROCESSED',
+      limit: filters?.limit || 1000, // Get all processed refunds
+      sort_by: 'created_at',
+      sort_order: 'desc',
+    });
+
+    // Filter by date range client-side if backend doesn't support it
+    let filteredRefunds = response.data?.refunds || [];
+    if (filters?.from || filters?.to) {
+      const fromDate = filters.from ? new Date(filters.from) : null;
+      const toDate = filters.to ? new Date(filters.to) : null;
+
+      filteredRefunds = filteredRefunds.filter((refund: Refund) => {
+        // Use processed_at if available, otherwise use created_at
+        const refundDate = new Date(refund.processed_at || refund.created_at);
+        if (fromDate && refundDate < fromDate) return false;
+        if (toDate) {
+          // Include the entire day
+          const toDateEnd = new Date(toDate);
+          toDateEnd.setHours(23, 59, 59, 999);
+          if (refundDate > toDateEnd) return false;
+        }
+        return true;
+      });
+    }
+
+    // Calculate total refund amount
+    const totalAmount = filteredRefunds.reduce(
+      (sum: number, refund: Refund) => sum + (Number(refund.amount) || 0),
+      0
+    );
+
+    return {
+      ...response,
+      data: {
+        refunds: filteredRefunds,
+        pagination: response.data?.pagination,
+        totalAmount,
+      },
+    };
+  }
+}
+
+export interface Refund {
+  id: string;
+  payment_id: string;
+  amount: number;
+  reason: string;
+  status: 'PENDING' | 'APPROVED' | 'PROCESSED' | 'FAILED' | 'CANCELLED';
+  requested_by: string;
+  approved_by?: string;
+  processed_by?: string;
+  notes?: string;
+  transaction_id?: string;
+  created_at: string;
+  updated_at: string;
+  processed_at?: string;
+  failed_at?: string;
+  failure_reason?: string;
+  metadata?: any;
+  payment?: Payment;
 }
 
 export const billingService = new BillingService();

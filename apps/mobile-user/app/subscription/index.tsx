@@ -140,13 +140,16 @@ export default function SubscriptionScreen() {
               // Use member's actual plan type instead
               subscriptionData.plan_id = memberPlan.id;
               subscriptionData.plan = memberPlan;
-              console.log('[SUCCESS] Corrected subscription plan to match member:', {
-                oldPlanId: subscriptionData.plan_id,
-                oldPlanName: subscriptionData.plan?.name,
-                newPlanId: memberPlan.id,
-                newPlanName: memberPlan.name,
-                newPlanType: memberPlan.type,
-              });
+              console.log(
+                '[SUCCESS] Corrected subscription plan to match member:',
+                {
+                  oldPlanId: subscriptionData.plan_id,
+                  oldPlanName: subscriptionData.plan?.name,
+                  newPlanId: memberPlan.id,
+                  newPlanName: memberPlan.name,
+                  newPlanType: memberPlan.type,
+                }
+              );
             } else {
               // Plan IDs match, but ensure plan object is correct
               subscriptionData.plan = memberPlan;
@@ -205,6 +208,35 @@ export default function SubscriptionScreen() {
     router.push('/subscription/plans');
   };
 
+  const handleRenewSubscription = async () => {
+    if (!subscription || !member?.id) {
+      Alert.alert(t('common.error'), 'Subscription not found');
+      return;
+    }
+
+    try {
+      // Navigate to payment screen for renewal
+      router.push({
+        pathname: '/subscription/payment',
+        params: {
+          plan: JSON.stringify(subscription.plan),
+          subscriptionId: subscription.id,
+          action: 'RENEW',
+          amount:
+            subscription.total_amount?.toString() ||
+            subscription.plan?.price?.toString() ||
+            '0',
+        },
+      });
+    } catch (error: any) {
+      console.error('Error navigating to renew:', error);
+      Alert.alert(
+        t('common.error'),
+        error.message || 'Failed to navigate to renewal'
+      );
+    }
+  };
+
   const [cancelReason, setCancelReason] = useState('');
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -219,19 +251,17 @@ export default function SubscriptionScreen() {
       setLoading(true);
       const reason = cancelReason.trim() || 'User requested cancellation';
       await subscriptionService.cancelSubscription(subscription.id, reason);
-      
+
       // Optimistic UI update
       setSubscription((prev) => {
         if (!prev) return prev;
         return { ...prev, status: 'CANCELLED' };
       });
 
-      Alert.alert(
-        t('common.success'),
-        t('subscription.cancelSuccess'),
-        [{ text: t('common.ok') }]
-      );
-      
+      Alert.alert(t('common.success'), t('subscription.cancelSuccess'), [
+        { text: t('common.ok') },
+      ]);
+
       setShowCancelModal(false);
       setCancelReason('');
       await loadData(); // Reload data to reflect changes
@@ -241,18 +271,14 @@ export default function SubscriptionScreen() {
         error?.response?.data?.message ||
         error?.message ||
         t('subscription.cancelFailed');
-      
-      Alert.alert(
-        t('common.error'),
-        errorMessage,
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.retry'),
-            onPress: () => handleConfirmCancel(),
-          },
-        ]
-      );
+
+      Alert.alert(t('common.error'), errorMessage, [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('common.retry'),
+          onPress: () => handleConfirmCancel(),
+        },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -312,38 +338,69 @@ export default function SubscriptionScreen() {
                 { backgroundColor: theme.colors.surface },
               ]}
             >
-              <View style={styles.subscriptionHeader}>
-                <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                  {subscription.plan?.name ||
-                    subscription.plan_id ||
-                    t('subscription.unknownPlan')}
-                </Text>
-                <View
-                  style={[
-                    styles.statusBadge,
-                    {
-                      backgroundColor:
-                        subscription.status === 'ACTIVE'
-                          ? theme.colors.success + '20'
-                          : theme.colors.error + '20',
-                    },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      Typography.caption,
-                      {
-                        color:
-                          subscription.status === 'ACTIVE'
-                            ? theme.colors.success
-                            : theme.colors.error,
-                      },
-                    ]}
-                  >
-                    {getStatusTranslation(subscription.status)}
-                  </Text>
-                </View>
-              </View>
+              {(() => {
+                // Calculate if subscription is expired
+                const expirationDate =
+                  subscription.current_period_end ||
+                  subscription.end_date ||
+                  subscription.next_billing_date ||
+                  subscription.nextBillingDate ||
+                  (memberProfile?.expires_at
+                    ? new Date(memberProfile.expires_at)
+                    : null);
+
+                let isExpired = false;
+                if (expirationDate) {
+                  const endDate = new Date(expirationDate);
+                  if (!isNaN(endDate.getTime())) {
+                    const now = new Date();
+                    const diff = endDate.getTime() - now.getTime();
+                    const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                    isExpired = daysLeft < 0;
+                  }
+                }
+
+                return (
+                  <>
+                    <View style={styles.subscriptionHeader}>
+                      <Text
+                        style={[Typography.h3, { color: theme.colors.text }]}
+                      >
+                        {subscription.plan?.name ||
+                          subscription.plan_id ||
+                          t('subscription.unknownPlan')}
+                      </Text>
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              subscription.status === 'ACTIVE' && !isExpired
+                                ? theme.colors.success + '20'
+                                : theme.colors.error + '20',
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            Typography.caption,
+                            {
+                              color:
+                                subscription.status === 'ACTIVE' && !isExpired
+                                  ? theme.colors.success
+                                  : theme.colors.error,
+                            },
+                          ]}
+                        >
+                          {isExpired
+                            ? t('subscription.status.expired')
+                            : getStatusTranslation(subscription.status)}
+                        </Text>
+                      </View>
+                    </View>
+                  </>
+                );
+              })()}
 
               <Text
                 style={[
@@ -377,7 +434,10 @@ export default function SubscriptionScreen() {
                     subscription.nextBillingDate ||
                     (memberExpiresAt ? new Date(memberExpiresAt) : null);
 
-                  console.log('[DATA] Selected expiration date:', expirationDate);
+                  console.log(
+                    '[DATA] Selected expiration date:',
+                    expirationDate
+                  );
 
                   // Always show time remaining, even if date is missing
                   if (!expirationDate) {
@@ -440,6 +500,7 @@ export default function SubscriptionScreen() {
                   const monthsLeft = Math.floor(daysLeft / 30);
                   const weeksLeft = Math.floor((daysLeft % 30) / 7);
                   const remainingDays = daysLeft % 7;
+                  const isExpired = daysLeft < 0;
 
                   // Format time remaining text
                   // Only add 's' for English, not for Vietnamese
@@ -448,7 +509,7 @@ export default function SubscriptionScreen() {
                   const pluralS = isEnglish ? 's' : '';
 
                   let timeRemainingText = 'N/A';
-                  if (daysLeft < 0) {
+                  if (isExpired) {
                     timeRemainingText = t('subscription.expired') || 'Expired';
                   } else if (daysLeft === 0) {
                     timeRemainingText =
@@ -590,12 +651,55 @@ export default function SubscriptionScreen() {
                     {t('subscription.autoRenew')}
                   </Text>
                   <Text style={[Typography.body, { color: theme.colors.text }]}>
-                    {subscription.auto_renew ? t('common.yes') : t('common.no')}
+                    {t('common.yes')}
                   </Text>
                 </View>
               </View>
 
               <View style={styles.subscriptionActions}>
+                {/* Show Renew/Extend button if subscription is expired or expiring soon */}
+                {(() => {
+                  const expirationDate =
+                    subscription.current_period_end ||
+                    subscription.end_date ||
+                    subscription.next_billing_date ||
+                    subscription.nextBillingDate ||
+                    (memberProfile?.expires_at
+                      ? new Date(memberProfile.expires_at)
+                      : null);
+
+                  if (!expirationDate) return null;
+
+                  const endDate = new Date(expirationDate);
+                  if (isNaN(endDate.getTime())) return null;
+
+                  const now = new Date();
+                  const diff = endDate.getTime() - now.getTime();
+                  const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                  const isExpired = daysLeft < 0;
+                  const isExpiringSoon = daysLeft <= 7 && daysLeft >= 0;
+
+                  // Show renew button if expired or expiring soon
+                  if (isExpired || isExpiringSoon) {
+                    return (
+                      <Button
+                        title={
+                          t('subscription.plans.extend') ||
+                          t('subscription.renew') ||
+                          'Gia hạn'
+                        }
+                        onPress={handleRenewSubscription}
+                        style={[
+                          styles.actionButton,
+                          { backgroundColor: theme.colors.primary },
+                        ]}
+                      />
+                    );
+                  }
+
+                  return null;
+                })()}
+
                 <Button
                   title={t('subscription.upgradePlan')}
                   onPress={handleUpgradeSubscription}
@@ -614,36 +718,7 @@ export default function SubscriptionScreen() {
               </View>
             </View>
 
-            {subscription.addons.length > 0 && (
-              <View style={styles.addonsContainer}>
-                <Text style={[Typography.h3, { color: theme.colors.text }]}>
-                  {t('subscription.activeAddons')}
-                </Text>
-                {subscription.addons.map((addon) => (
-                  <View
-                    key={addon.id}
-                    style={[
-                      styles.addonItem,
-                      { borderColor: theme.colors.border },
-                    ]}
-                  >
-                    <Text
-                      style={[Typography.body, { color: theme.colors.text }]}
-                    >
-                      {addon.addon.name}
-                    </Text>
-                    <Text
-                      style={[
-                        Typography.caption,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      ${addon.price} {subscription.currency}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            )}
+            {/* Addons feature removed - not implemented */}
 
             {/* Premium Features Upgrade Section - Show if user has BASIC plan */}
             {subscription.plan?.type === 'BASIC' && (
@@ -661,9 +736,12 @@ export default function SubscriptionScreen() {
 
                 {!subscription.plan.smart_workout_plans && (
                   <PremiumFeatureCard
-                    title={t('subscription.premiumFeatures.smartWorkouts.title', {
-                      defaultValue: 'Smart Workout Plans',
-                    })}
+                    title={t(
+                      'subscription.premiumFeatures.smartWorkouts.title',
+                      {
+                        defaultValue: 'Smart Workout Plans',
+                      }
+                    )}
                     description={t(
                       'subscription.premiumFeatures.smartWorkouts.description',
                       {
@@ -685,33 +763,7 @@ export default function SubscriptionScreen() {
                   />
                 )}
 
-                {!subscription.plan.wearable_integration && (
-                  <PremiumFeatureCard
-                    title={t('subscription.premiumFeatures.wearable.title', {
-                      defaultValue: 'Wearable Integration',
-                    })}
-                    description={t(
-                      'subscription.premiumFeatures.wearable.description',
-                      {
-                        defaultValue:
-                          'Sync your fitness tracker and smartwatch data',
-                      }
-                    )}
-                    icon={<Watch size={24} color={theme.colors.primary} />}
-                    isLocked={true}
-                    onUpgrade={handleUpgradeSubscription}
-                    featureList={[
-                      t('subscription.premiumFeatures.wearable.feature1', {
-                        defaultValue: 'Real-time heart rate monitoring',
-                      }),
-                      t('subscription.premiumFeatures.wearable.feature2', {
-                        defaultValue: 'Activity tracking sync',
-                      }),
-                    ]}
-                  />
-                )}
-
-                {!subscription.plan.advanced_analytics && (
+                {!subscription.plan.smart_workout_plans && (
                   <PremiumFeatureCard
                     title={t('subscription.premiumFeatures.analytics.title', {
                       defaultValue: 'Advanced Analytics',
@@ -1012,9 +1064,7 @@ export default function SubscriptionScreen() {
             </Text>
 
             <View style={styles.modalInputContainer}>
-              <Text
-                style={[Typography.label, { color: theme.colors.text }]}
-              >
+              <Text style={[Typography.label, { color: theme.colors.text }]}>
                 {t('subscription.cancelReason')} ({t('common.optional')})
               </Text>
               <TextInput

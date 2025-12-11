@@ -1298,7 +1298,29 @@ class ProfileController {
           }
 
           // Convert descriptor (Float32Array) to Buffer
-          encodingBuffer = Buffer.from(encodingResult.descriptor.buffer);
+          // Ensure we only take the 128 float32 values (512 bytes)
+          // descriptor.buffer might be larger, so we need to slice correctly
+          const descriptor = encodingResult.descriptor;
+          if (!(descriptor instanceof Float32Array) || descriptor.length !== 128) {
+            throw new Error(
+              `Invalid descriptor: expected Float32Array of length 128, got ${descriptor.constructor.name} of length ${descriptor.length}`
+            );
+          }
+
+          // Create a new buffer with exactly 512 bytes (128 * 4)
+          encodingBuffer = Buffer.allocUnsafe(512);
+          const view = new DataView(
+            encodingBuffer.buffer,
+            encodingBuffer.byteOffset,
+            encodingBuffer.byteLength
+          );
+          for (let i = 0; i < 128; i++) {
+            view.setFloat32(i * 4, descriptor[i], true); // little-endian
+          }
+
+          console.log(
+            `[FACE-RECOGNITION] Saved face encoding: ${encodingBuffer.length} bytes for user ${userId}`
+          );
         } catch (extractError) {
           console.error('[FACE-RECOGNITION] Extract encoding error:', extractError);
           return res.status(400).json({

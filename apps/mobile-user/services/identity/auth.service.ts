@@ -25,8 +25,23 @@ class AuthService {
       if (response.success && response.data) {
         console.log('[AUTH] AuthService response.data:', response.data);
 
-        // Store tokens securely
-        await this.storeTokens(response.data);
+        // Check if 2FA is required (response might have requires2FA flag)
+        if ((response.data as any)?.requires2FA) {
+          // Don't store tokens when 2FA is required - return early
+          return {
+            success: false,
+            message: response.message || '2FA token required',
+            data: response.data, // Pass through the requires2FA and userId
+          };
+        }
+
+        // Only store tokens if we have actual tokens (not 2FA response)
+        const accessToken =
+          (response.data as any)?.accessToken || (response.data as any)?.token;
+        if (accessToken) {
+          // Store tokens securely
+          await this.storeTokens(response.data);
+        }
 
         return {
           success: true,
@@ -58,7 +73,10 @@ class AuthService {
       });
 
       if (response.success && response.data) {
-        console.log('[AUTH] AuthService face login response.data:', response.data);
+        console.log(
+          '[AUTH] AuthService face login response.data:',
+          response.data
+        );
 
         // Store tokens securely
         await this.storeTokens(response.data);
@@ -75,9 +93,17 @@ class AuthService {
       };
     } catch (error: any) {
       console.error('[AUTH] AuthService face login error:', error);
+      
+      // IMPROVEMENT: Check for biometric fallback flag
+      const errorResponse = error.response?.data || error;
+      const biometricFallback = errorResponse?.biometricFallback || 
+                                errorResponse?.errorCode === 'FACE_NOT_RECOGNIZED';
+      
       return {
         success: false,
         message: error.message || 'Face login failed',
+        biometricFallback, // IMPROVEMENT: Pass through fallback flag
+        errorCode: errorResponse?.errorCode,
       };
     }
   }
@@ -658,14 +684,21 @@ class AuthService {
   /**
    * Google OAuth login (mobile)
    */
-  async loginWithGoogle(idToken: string, deviceInfo?: string, platform?: string): Promise<ApiResponse<AuthResponse>> {
+  async loginWithGoogle(
+    idToken: string,
+    deviceInfo?: string,
+    platform?: string
+  ): Promise<ApiResponse<AuthResponse>> {
     try {
       console.log('[AUTH] AuthService: Attempting Google OAuth login...');
-      const response = await identityApiService.post('/auth/oauth/google/mobile', {
-        idToken,
-        deviceInfo: deviceInfo || 'Mobile App',
-        platform: platform || 'MOBILE_IOS',
-      });
+      const response = await identityApiService.post(
+        '/auth/oauth/google/mobile',
+        {
+          idToken,
+          deviceInfo: deviceInfo || 'Mobile App',
+          platform: platform || 'MOBILE_IOS',
+        }
+      );
 
       if (response.success && response.data) {
         // Store tokens securely
@@ -757,6 +790,45 @@ class AuthService {
       return {
         success: false,
         message: error.message || 'Failed to resend verification email',
+      };
+    }
+  }
+
+  /**
+   * Verify 2FA token for login
+   */
+  async verify2FALogin(
+    userId: string,
+    twoFactorToken: string
+  ): Promise<ApiResponse<AuthResponse>> {
+    try {
+      console.log('[AUTH] AuthService: Verifying 2FA for login...');
+
+      const response = await identityApiService.post('/auth/verify-2fa-login', {
+        userId,
+        twoFactorToken,
+      });
+
+      if (response.success && response.data) {
+        console.log('[AUTH] 2FA login successful, storing tokens...');
+        // Store tokens securely
+        await this.storeTokens(response.data);
+
+        return {
+          success: true,
+          data: response.data,
+        };
+      }
+
+      return {
+        success: false,
+        message: response.message || '2FA verification failed',
+      };
+    } catch (error: any) {
+      console.error('[AUTH] AuthService verify2FALogin error:', error);
+      return {
+        success: false,
+        message: error.message || 'Failed to verify 2FA for login',
       };
     }
   }
@@ -859,10 +931,13 @@ class AuthService {
   /**
    * Store authentication tokens
    */
-  private async storeTokens(authData: AuthResponse): Promise<void> {
+  private async storeTokens(authData: any): Promise<void> {
     try {
       const { storeTokens } = await import('@/utils/auth/storage');
-      await storeTokens(authData.accessToken, authData.refreshToken);
+      // Handle both 'accessToken' and 'token' field names
+      const accessToken = authData?.accessToken || authData?.token;
+      const refreshToken = authData?.refreshToken;
+      await storeTokens(accessToken, refreshToken);
       console.log('[AUTH] Tokens stored successfully');
     } catch (error) {
       console.error('[AUTH] AuthService storeTokens error:', error);

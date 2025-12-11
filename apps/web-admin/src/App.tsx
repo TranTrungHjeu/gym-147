@@ -17,6 +17,8 @@ import './index.css';
 import AppLayout from './layout/AppLayout';
 import TrainerLayout from './layout/TrainerLayout';
 import RewardAnalytics from './pages/Analytics/RewardAnalytics';
+import TrainerSalaryStatistics from './pages/Analytics/TrainerSalaryStatistics';
+import SalaryRequestManagement from './pages/Management/SalaryRequestManagement';
 import Auth from './pages/AuthPages/Auth';
 import OAuthCallback from './pages/AuthPages/OAuthCallback';
 import ResetPassword from './pages/AuthPages/ResetPassword';
@@ -39,31 +41,34 @@ import TrainerProfile from './pages/Dashboard/TrainerProfile';
 import TrainerRatings from './pages/Dashboard/TrainerRatings';
 import TrainerReviews from './pages/Dashboard/TrainerReviews';
 import TrainerSchedule from './pages/Dashboard/TrainerSchedule';
+import TrainerSalary from './pages/Dashboard/TrainerSalary';
 import TrainerStats from './pages/Dashboard/TrainerStats';
-import APIKeysManagement from './pages/Management/APIKeysManagement';
+// APIKeysManagement removed - not needed
 import AuditLogsManagement from './pages/Management/AuditLogsManagement';
-import BackupRestoreManagement from './pages/Management/BackupRestoreManagement';
+// BackupRestoreManagement removed - not needed
 import BillingManagement from './pages/Management/BillingManagement';
+import RefundManagement from './pages/Management/RefundManagement';
 import ChallengeManagement from './pages/Management/ChallengeManagement';
 import ClassManagement from './pages/Management/ClassManagement';
-import EmailTemplatesManagement from './pages/Management/EmailTemplatesManagement';
+// EmailTemplatesManagement removed - not needed
 import EquipmentManagement from './pages/Management/EquipmentManagement';
-import GuestManagement from './pages/Management/GuestManagement';
+// GuestManagement removed - not needed
 import MemberManagement from './pages/Management/MemberManagement';
 import NotificationManagement from './pages/Management/NotificationManagement';
-import PersonalTrainingManagement from './pages/Management/PersonalTrainingManagement';
+// PersonalTrainingManagement removed - not needed
 import RedemptionManagement from './pages/Management/RedemptionManagement';
 import ReportsManagement from './pages/Management/ReportsManagement';
 import RewardManagement from './pages/Management/RewardManagement';
 import RoomManagement from './pages/Management/RoomManagement';
-import SMSTemplatesManagement from './pages/Management/SMSTemplatesManagement';
+// SMSTemplatesManagement removed - not needed
 import ScheduleManagement from './pages/Management/ScheduleManagement';
-import ScheduledReportsManagement from './pages/Management/ScheduledReportsManagement';
+// ScheduledReportsManagement removed - not needed
 import SettingsManagement from './pages/Management/SettingsManagement';
 import TrainerManagement from './pages/Management/TrainerManagement';
 import VerifyCode from './pages/Management/VerifyCode';
-import WebhooksManagement from './pages/Management/WebhooksManagement';
+// WebhooksManagement removed - not needed
 import NotificationsPage from './pages/Notifications';
+import ChatPage from './pages/Chat';
 import NotFound from './pages/OtherPage/NotFound';
 import ClassesReport from './pages/Reports/ClassesReport';
 import EquipmentReport from './pages/Reports/EquipmentReport';
@@ -192,6 +197,17 @@ export default function App() {
               </ProtectedRoute>
             }
           />
+          {/* Chat Route */}
+          <Route
+            path='/chat'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <ChatPage />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
           {/* Management Routes for Admin/Super Admin */}
           <Route
             path='/management/members'
@@ -269,6 +285,16 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <BillingManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/refunds'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <RefundManagement />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -353,46 +379,7 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path='/management/email-templates'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <EmailTemplatesManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/sms-templates'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <SMSTemplatesManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/api-keys'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <APIKeysManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/webhooks'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <WebhooksManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* EmailTemplatesManagement, SMSTemplatesManagement, APIKeysManagement, WebhooksManagement removed - not needed */}
           <Route
             path='/management/audit-logs'
             element={
@@ -403,46 +390,9 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route
-            path='/management/backup-restore'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <BackupRestoreManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/scheduled-reports'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <ScheduledReportsManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/personal-training'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <PersonalTrainingManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/guests'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <GuestManagement />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
+          {/* backup-restore route removed - not needed */}
+          {/* ScheduledReportsManagement removed - not needed */}
+          {/* PersonalTrainingManagement, GuestManagement removed - not needed */}
           <Route
             path='/management/challenges'
             element={
@@ -479,6 +429,26 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <RewardAnalytics />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/analytics/trainer-salary'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <TrainerSalaryStatistics />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/management/salary-requests'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <SalaryRequestManagement />
                 </AppLayout>
               </ProtectedRoute>
             }
@@ -580,6 +550,16 @@ export default function App() {
               <ProtectedRoute requiredRole={['TRAINER']}>
                 <TrainerLayout>
                   <TrainerProfile />
+                </TrainerLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path='/trainerdashboard/salary'
+            element={
+              <ProtectedRoute requiredRole={['TRAINER']}>
+                <TrainerLayout>
+                  <TrainerSalary />
                 </TrainerLayout>
               </ProtectedRoute>
             }

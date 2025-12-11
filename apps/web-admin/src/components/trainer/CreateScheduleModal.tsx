@@ -32,6 +32,7 @@ interface FormData {
   end_time: string;
   room_id: string;
   max_capacity: number;
+  minimum_participants: number | null;
   special_notes: string;
 }
 
@@ -64,6 +65,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     end_time: '',
     room_id: '',
     max_capacity: 1,
+    minimum_participants: null,
     special_notes: '',
   });
 
@@ -91,6 +93,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         end_time: '',
         room_id: '',
         max_capacity: 1,
+        minimum_participants: null,
         special_notes: '',
       });
       setErrors({});
@@ -263,6 +266,15 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       newErrors.max_capacity = `Số lượng học viên không được vượt quá sức chứa phòng (${selectedRoom.capacity})`;
     }
 
+    // Minimum participants validation
+    if (formData.minimum_participants !== null && formData.minimum_participants !== undefined) {
+      if (formData.minimum_participants < 1) {
+        newErrors.minimum_participants = 'Số học viên tối thiểu phải lớn hơn 0';
+      } else if (formData.minimum_participants > formData.max_capacity) {
+        newErrors.minimum_participants = `Số học viên tối thiểu không được vượt quá số lượng tối đa (${formData.max_capacity})`;
+      }
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -346,6 +358,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
           end_time: '',
           room_id: '',
           max_capacity: 1,
+          minimum_participants: null,
           special_notes: '',
         });
         setErrors({});
@@ -819,7 +832,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
 
                   <div>
                     <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                      Số lượng học viên *
+                      Số lượng học viên tối đa *
                     </label>
                     <input
                       type='number'
@@ -837,6 +850,38 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     {errors.max_capacity && (
                       <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
                         {errors.max_capacity}
+                      </p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
+                      Số học viên tối thiểu (tùy chọn)
+                    </label>
+                    <input
+                      type='number'
+                      min='1'
+                      value={formData.minimum_participants || ''}
+                      onChange={e => {
+                        const value = e.target.value;
+                        handleInputChange(
+                          'minimum_participants',
+                          value === '' ? null : parseInt(value) || null
+                        );
+                      }}
+                      placeholder='Để trống nếu không yêu cầu tối thiểu'
+                      className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 ${
+                        errors.minimum_participants
+                          ? 'border-red-500 dark:border-red-500'
+                          : 'border-gray-300 dark:border-gray-700'
+                      }`}
+                    />
+                    <p className='mt-1.5 text-[10px] text-gray-500 dark:text-gray-400 font-inter'>
+                      Nếu không đủ số học viên tối thiểu trước 1 ngày, lớp sẽ tự động hủy
+                    </p>
+                    {errors.minimum_participants && (
+                      <p className='mt-1.5 text-[11px] text-red-600 dark:text-red-400 font-inter'>
+                        {errors.minimum_participants}
                       </p>
                     )}
                   </div>

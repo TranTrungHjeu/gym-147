@@ -202,32 +202,55 @@ export default function PrivacySettingsScreen() {
   const privacySettings = [
     {
       key: 'activity_sharing' as keyof PrivacyPreferences,
-      title: 'Activity Sharing',
-      description: 'Share your workout activities with friends',
+      title: t('settings.privacy.activitySharing', {
+        defaultValue: 'Chia sẻ hoạt động',
+      }),
+      description: t('settings.privacy.activitySharingDesc', {
+        defaultValue: 'Chia sẻ hoạt động tập luyện với bạn bè',
+      }),
       icon: <Eye size={20} color={theme.colors.primary} />,
     },
     {
       key: 'data_collection' as keyof PrivacyPreferences,
-      title: 'Data Collection',
-      description: 'Allow collection of usage data for app improvement',
+      title: t('settings.privacy.dataCollection', {
+        defaultValue: 'Thu thập dữ liệu',
+      }),
+      description: t('settings.privacy.dataCollectionDesc', {
+        defaultValue: 'Cho phép thu thập dữ liệu sử dụng để cải thiện ứng dụng',
+      }),
       icon: <Shield size={20} color={theme.colors.primary} />,
     },
     {
       key: 'analytics_tracking' as keyof PrivacyPreferences,
-      title: 'Analytics Tracking',
-      description: 'Help us improve the app with anonymous usage data',
+      title: t('settings.privacy.analyticsTracking', {
+        defaultValue: 'Theo dõi phân tích',
+      }),
+      description: t('settings.privacy.analyticsTrackingDesc', {
+        defaultValue:
+          'Giúp chúng tôi cải thiện ứng dụng với dữ liệu sử dụng ẩn danh',
+      }),
       icon: <Shield size={20} color={theme.colors.primary} />,
     },
     {
       key: 'location_tracking' as keyof PrivacyPreferences,
-      title: 'Location Tracking',
-      description: 'Track location for gym check-ins and nearby features',
+      title: t('settings.privacy.locationTracking', {
+        defaultValue: 'Theo dõi vị trí',
+      }),
+      description: t('settings.privacy.locationTrackingDesc', {
+        defaultValue:
+          'Theo dõi vị trí để check-in phòng gym và tính năng gần đây',
+      }),
       icon: <Shield size={20} color={theme.colors.primary} />,
     },
     {
       key: 'biometric_data' as keyof PrivacyPreferences,
-      title: 'Biometric Data',
-      description: 'Store biometric data for face recognition access',
+      title: t('settings.privacy.biometricData', {
+        defaultValue: 'Dữ liệu sinh trắc học',
+      }),
+      description: t('settings.privacy.biometricDataDesc', {
+        defaultValue:
+          'Lưu trữ dữ liệu sinh trắc học để truy cập bằng nhận diện khuôn mặt',
+      }),
       icon: <Shield size={20} color={theme.colors.primary} />,
     },
   ];
@@ -235,18 +258,30 @@ export default function PrivacySettingsScreen() {
   const visibilityOptions = [
     {
       value: 'PUBLIC',
-      label: 'Public',
-      description: 'Anyone can see your profile',
+      label: t('settings.privacy.visibility.public', {
+        defaultValue: 'Công khai',
+      }),
+      description: t('settings.privacy.visibility.publicDesc', {
+        defaultValue: 'Mọi người đều có thể xem hồ sơ của bạn',
+      }),
     },
     {
       value: 'FRIENDS',
-      label: 'Friends Only',
-      description: 'Only your friends can see your profile',
+      label: t('settings.privacy.visibility.friends', {
+        defaultValue: 'Chỉ bạn bè',
+      }),
+      description: t('settings.privacy.visibility.friendsDesc', {
+        defaultValue: 'Chỉ bạn bè của bạn mới có thể xem hồ sơ',
+      }),
     },
     {
       value: 'PRIVATE',
-      label: 'Private',
-      description: 'Only you can see your profile',
+      label: t('settings.privacy.visibility.private', {
+        defaultValue: 'Riêng tư',
+      }),
+      description: t('settings.privacy.visibility.privateDesc', {
+        defaultValue: 'Chỉ bạn mới có thể xem hồ sơ',
+      }),
     },
   ];
 
@@ -258,7 +293,9 @@ export default function PrivacySettingsScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
           <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-            Loading preferences...
+            {t('settings.privacy.loading', {
+              defaultValue: 'Đang tải tùy chọn...',
+            })}
           </Text>
         </View>
       </SafeAreaView>
@@ -278,7 +315,9 @@ export default function PrivacySettingsScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Privacy Settings
+          {t('settings.privacy.title', {
+            defaultValue: 'Cài đặt quyền riêng tư',
+          })}
         </Text>
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: theme.colors.primary }]}
@@ -297,7 +336,9 @@ export default function PrivacySettingsScreen() {
         {/* Profile Visibility */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Profile Visibility
+            {t('settings.privacy.profileVisibility', {
+              defaultValue: 'Hiển thị hồ sơ',
+            })}
           </Text>
           {visibilityOptions.map((option) => (
             <TouchableOpacity
@@ -349,7 +390,9 @@ export default function PrivacySettingsScreen() {
         {/* Privacy Settings */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Privacy Controls
+            {t('settings.privacy.controls', {
+              defaultValue: 'Điều khiển quyền riêng tư',
+            })}
           </Text>
           {privacySettings.map((setting) => (
             <View
@@ -400,7 +443,9 @@ export default function PrivacySettingsScreen() {
         {/* Data Management */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Data Management
+            {t('settings.privacy.dataManagement', {
+              defaultValue: 'Quản lý dữ liệu',
+            })}
           </Text>
 
           <TouchableOpacity
@@ -410,7 +455,9 @@ export default function PrivacySettingsScreen() {
             <Download size={20} color={theme.colors.primary} />
             <View style={styles.actionContent}>
               <Text style={[styles.actionTitle, { color: theme.colors.text }]}>
-                Export My Data
+                {t('settings.privacy.exportData', {
+                  defaultValue: 'Xuất dữ liệu của tôi',
+                })}
               </Text>
               <Text
                 style={[
@@ -418,7 +465,10 @@ export default function PrivacySettingsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Download a copy of all your personal data
+                {t('settings.privacy.exportDataDesc', {
+                  defaultValue:
+                    'Tải xuống bản sao tất cả dữ liệu cá nhân của bạn',
+                })}
               </Text>
             </View>
           </TouchableOpacity>
@@ -430,7 +480,7 @@ export default function PrivacySettingsScreen() {
             <Trash2 size={20} color={theme.colors.error} />
             <View style={styles.actionContent}>
               <Text style={[styles.actionTitle, { color: theme.colors.error }]}>
-                Delete Account
+                {t('settings.deleteAccount')}
               </Text>
               <Text
                 style={[
@@ -438,7 +488,9 @@ export default function PrivacySettingsScreen() {
                   { color: theme.colors.textSecondary },
                 ]}
               >
-                Permanently delete your account and all data
+                {t('settings.privacy.deleteAccountDesc', {
+                  defaultValue: 'Xóa vĩnh viễn tài khoản và tất cả dữ liệu',
+                })}
               </Text>
             </View>
           </TouchableOpacity>
@@ -447,14 +499,17 @@ export default function PrivacySettingsScreen() {
         {/* Info Section */}
         <View style={styles.infoSection}>
           <Text style={[styles.infoTitle, { color: theme.colors.text }]}>
-            Your Privacy Matters
+            {t('settings.privacy.matters', {
+              defaultValue: 'Quyền riêng tư của bạn quan trọng',
+            })}
           </Text>
           <Text
             style={[styles.infoText, { color: theme.colors.textSecondary }]}
           >
-            We are committed to protecting your privacy. You can control how
-            your data is used and shared. Some features may require certain
-            permissions to function properly.
+            {t('settings.privacy.mattersDesc', {
+              defaultValue:
+                'Chúng tôi cam kết bảo vệ quyền riêng tư của bạn. Bạn có thể kiểm soát cách dữ liệu của bạn được sử dụng và chia sẻ. Một số tính năng có thể yêu cầu quyền nhất định để hoạt động đúng cách.',
+            })}
           </Text>
         </View>
       </ScrollView>

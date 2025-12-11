@@ -23,6 +23,7 @@ export { notificationService } from './member/notification.service';
 export { pointsService } from './member/points.service';
 export { rewardService } from './member/reward.service';
 export { streakService } from './member/streak.service';
+export { attendanceService } from './schedule/attendance.service'; // IMPROVEMENT: Attendance service
 export { bookingService } from './schedule/booking.service';
 export {
   classService,
@@ -32,6 +33,7 @@ export {
 } from './schedule/class.service';
 export { favoriteService } from './schedule/favorite.service';
 export { scheduleService } from './schedule/schedule.service';
+export { salaryService } from './schedule/salary.service';
 export { trainerService } from './schedule/trainer.service';
 export { workoutPlanService } from './schedule/workout-plan.service';
 export { workoutService } from './schedule/workout.service';
@@ -148,11 +150,7 @@ export type {
 } from '@/types/healthTypes';
 
 export type {
-  AddonCardProps,
-  AddonType,
   BillingDashboardProps,
-  BillingInterval,
-  CreatePaymentMethodRequest,
   CreatePaymentRequest,
   CreateSubscriptionRequest,
   DiscountCode,
@@ -161,13 +159,11 @@ export type {
   Invoice,
   InvoiceStatus,
   InvoiceType,
-  MemberPaymentMethod,
   MembershipPlan,
   Payment,
   PaymentFilters,
   PaymentHistoryProps,
   PaymentMethod,
-  PaymentMethodCardProps,
   PaymentStatus,
   PaymentType,
   PlanCardProps,
@@ -177,7 +173,6 @@ export type {
   RefundStatus,
   RevenueReport,
   Subscription,
-  SubscriptionAddon,
   SubscriptionCardProps,
   SubscriptionFilters,
   SubscriptionManagementProps,

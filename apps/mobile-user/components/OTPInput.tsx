@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  InteractionManager,
+  Keyboard,
   StyleSheet,
   Text,
   TextInput,
@@ -18,6 +20,8 @@ interface OTPInputProps {
   isLoading?: boolean;
   error?: string;
   resendDelay?: number; // seconds
+  autoFocus?: boolean; // Auto focus first input
+  disabled?: boolean; // Disable all inputs
 }
 
 export const OTPInput: React.FC<OTPInputProps> = ({
@@ -27,6 +31,8 @@ export const OTPInput: React.FC<OTPInputProps> = ({
   isLoading = false,
   error,
   resendDelay = 60,
+  autoFocus = true,
+  disabled = false,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -34,11 +40,45 @@ export const OTPInput: React.FC<OTPInputProps> = ({
   const [resendTimer, setResendTimer] = useState(resendDelay);
   const [canResend, setCanResend] = useState(resendDelay === 0);
   const inputRefs = useRef<TextInput[]>([]);
+  const focusAttemptedRef = useRef(false);
 
+  // Focus first input when component mounts or when autoFocus changes
   useEffect(() => {
-    // Focus first input on mount
-    inputRefs.current[0]?.focus();
-  }, []);
+    if (autoFocus && !disabled && !focusAttemptedRef.current) {
+      focusAttemptedRef.current = true;
+      
+      // Use multiple strategies to ensure keyboard shows
+      const focusInput = () => {
+        const input = inputRefs.current[0];
+        if (input) {
+          // Blur first to reset any previous state
+          input.blur();
+          // Small delay then focus
+          setTimeout(() => {
+            input.focus();
+            // Force keyboard to show on Android
+            Keyboard.dismiss();
+            setTimeout(() => {
+              input.focus();
+            }, 50);
+          }, 100);
+        }
+      };
+
+      // Strategy 1: Wait for interactions to complete
+      InteractionManager.runAfterInteractions(() => {
+        // Strategy 2: Additional delay for modal animations
+        setTimeout(() => {
+          focusInput();
+        }, 300);
+      });
+    }
+    
+    // Reset focus attempt when disabled changes
+    if (disabled) {
+      focusAttemptedRef.current = false;
+    }
+  }, [autoFocus, disabled]);
 
   // Sync resendTimer with resendDelay prop when it changes from parent (e.g., from AsyncStorage)
   useEffect(() => {
@@ -97,7 +137,10 @@ export const OTPInput: React.FC<OTPInputProps> = ({
       setResendTimer(resendDelay);
       setCanResend(false);
       onResend();
-      inputRefs.current[0]?.focus();
+      // Focus first input after resend with delay to ensure keyboard shows
+      setTimeout(() => {
+        inputRefs.current[0]?.focus();
+      }, 100);
     }
   };
 
@@ -165,7 +208,8 @@ export const OTPInput: React.FC<OTPInputProps> = ({
             keyboardType="number-pad"
             maxLength={1}
             selectTextOnFocus
-            editable={!isLoading}
+            editable={!isLoading && !disabled}
+            autoFocus={autoFocus && index === 0}
           />
         ))}
       </View>

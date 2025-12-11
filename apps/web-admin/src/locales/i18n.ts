@@ -36,6 +36,8 @@ i18n
     defaultNS: 'translation',
     interpolation: {
       escapeValue: false, // React already escapes values
+      prefix: '{{',
+      suffix: '}}',
     },
     detection: {
       order: ['localStorage'], // Only use localStorage, don't auto-detect from browser

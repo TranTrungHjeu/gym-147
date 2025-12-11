@@ -104,6 +104,66 @@ class PointsController {
       });
     }
   }
+
+  /**
+   * Award points to member (internal API for other services)
+   */
+  async awardPoints(req, res) {
+    try {
+      const { id } = req.params;
+      const { points, source, source_id, description } = req.body;
+
+      // Validate required fields
+      if (!points || points <= 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Points must be a positive number',
+          data: null,
+        });
+      }
+
+      if (!source) {
+        return res.status(400).json({
+          success: false,
+          message: 'Source is required',
+          data: null,
+        });
+      }
+
+      // Award points
+      const result = await pointsService.awardPoints(
+        id,
+        points,
+        source,
+        source_id || null,
+        description || null
+      );
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: result.error || 'Failed to award points',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Points awarded successfully',
+        data: {
+          transaction: result.transaction,
+          new_balance: result.newBalance,
+        },
+      });
+    } catch (error) {
+      console.error('Award points error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
 }
 
 module.exports = new PointsController();

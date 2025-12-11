@@ -1,5 +1,6 @@
 import { AIGenerationModal } from '@/components/AIGenerationModal';
 import { AIWorkoutPromptModal } from '@/components/AIWorkoutPromptModal';
+import { MaxPlansLimitModal } from '@/components/MaxPlansLimitModal';
 import { UpgradeModal } from '@/components/UpgradeModal';
 import { EmptyState, WorkoutCardSkeleton } from '@/components/ui';
 import WorkoutCard from '@/components/WorkoutCard';
@@ -116,7 +117,7 @@ const getCategoryStyles = (theme: any) =>
 
 export default function WorkoutsScreen() {
   const { theme } = useTheme();
-  const { user } = useAuth();
+  const { user, member } = useAuth();
   const router = useRouter();
   const { t } = useTranslation();
 
@@ -260,15 +261,24 @@ export default function WorkoutsScreen() {
   );
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showPromptModal, setShowPromptModal] = useState(false);
+  const [showMaxPlansModal, setShowMaxPlansModal] = useState(false);
+  const [maxPlansData, setMaxPlansData] = useState<{
+    currentCount?: number;
+    maxAllowed?: number;
+    membershipType?: string;
+  }>({});
   const [generatingAI, setGeneratingAI] = useState(false);
   const [aiGenerationStatus, setAIGenerationStatus] = useState<
     'preparing' | 'analyzing' | 'generating' | 'completed'
   >('preparing');
 
-  // Load data on component mount
+  // Load data on component mount and when user/member changes
+  // This ensures data reloads after registration when member is loaded
   useEffect(() => {
-    loadData();
-  }, []);
+    if (user?.id) {
+      loadData();
+    }
+  }, [user?.id, member?.id]); // Reload when user or member changes
 
   const loadData = async () => {
     try {
@@ -366,8 +376,21 @@ export default function WorkoutsScreen() {
         setRecommendations([]);
       }
     } catch (err: any) {
-      console.error('[ERROR] Error loading recommendations:', err);
-      setRecommendations([]);
+      // Handle 503 errors gracefully - don't show error to user
+      const isServiceUnavailable = 
+        err.response?.status === 503 || 
+        err.message?.includes('503') ||
+        err.message?.includes('Service Unavailable') ||
+        err.message?.includes('service unavailable');
+      
+      if (isServiceUnavailable) {
+        console.warn('[WARNING] Recommendations service unavailable:', err.message);
+        // Silently fail - recommendations are optional
+        setRecommendations([]);
+      } else {
+        console.error('[ERROR] Error loading recommendations:', err);
+        setRecommendations([]);
+      }
     } finally {
       setLoadingRecommendations(false);
     }
@@ -436,19 +459,27 @@ export default function WorkoutsScreen() {
       if (!profileResponse.success || !profileResponse.data?.id) {
         Alert.alert(t('common.error'), 'Failed to get member profile');
         setGeneratingAI(false);
+        setAIGenerationStatus('preparing');
         return;
       }
 
       const memberId = profileResponse.data.id;
 
-      // Step 2: Analyzing
-      await new Promise((resolve) => setTimeout(resolve, 800));
-      setAIGenerationStatus('analyzing');
+      // Start process animation - transition to analyzing after a short delay
+      setTimeout(() => {
+        if (generatingAI) {
+          setAIGenerationStatus('analyzing');
+        }
+      }, 1000);
 
-      // Step 3: Generating
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      setAIGenerationStatus('generating');
+      // Transition to generating after another short delay
+      setTimeout(() => {
+        if (generatingAI) {
+          setAIGenerationStatus('generating');
+        }
+      }, 2000);
 
+      // Call AI API - process will continue until response
       const response = await workoutPlanService.generateAIWorkoutPlan(
         memberId,
         {
@@ -460,66 +491,67 @@ export default function WorkoutsScreen() {
       );
 
       if (response.success) {
-        // Step 4: Completed
+        // Step 4: Completed - show completed status briefly then close
         setAIGenerationStatus('completed');
-        await new Promise((resolve) => setTimeout(resolve, 1500));
+        
+        // Wait a moment to show completed status, then close modal
+        setTimeout(() => {
+          setGeneratingAI(false);
+          setAIGenerationStatus('preparing');
 
-        // Reload data and navigate to home
-        await loadData();
-        await loadRecommendations(memberId);
-
-        // Show success message first
-        Alert.alert(
-          t('workouts.aiSuccess') || 'Workout plan created successfully!',
-          t('workouts.aiPlanCreatedDesc') ||
-            'Your AI workout plan has been created. Check your workout recommendations!',
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                // Navigate to home tab after alert is dismissed
-                router.push('/');
+          // Show success message immediately when AI responds
+          Alert.alert(
+            t('workouts.aiSuccess') || 'Workout plan created successfully!',
+            t('workouts.aiPlanCreatedDesc') ||
+              'Your AI workout plan has been created. Check your workout recommendations!',
+            [
+              {
+                text: t('common.ok'),
+                onPress: () => {
+                  // Navigate to home tab after alert is dismissed
+                  router.push('/');
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+
+          // Reload workout plans and recommendations in background
+          // This ensures the new workout plan and updated recommendations are visible
+          Promise.allSettled([
+            loadData().catch((err) => {
+              console.warn('[WARNING] Error reloading data after workout creation:', err);
+            }),
+            loadRecommendations(memberId).catch((err) => {
+              console.warn('[WARNING] Error loading recommendations after workout creation:', err);
+              // Don't show error to user - workout was created successfully
+            }),
+          ]).then(() => {
+            console.log('[SUCCESS] Workout plans and recommendations reloaded after AI generation');
+          });
+        }, 1500); // Show completed status for 1.5 seconds
       } else {
         setGeneratingAI(false);
         setAIGenerationStatus('preparing');
 
-        // Show user-friendly error message
-        const errorMessage =
-          response.error || 'Failed to generate AI workout plan';
-        Alert.alert(t('common.error'), errorMessage, [
-          {
-            text: t('common.ok'),
-            style: 'default',
-          },
-          {
-            text: 'Try Again',
-            onPress: () => {
-              // Allow user to retry
-              setShowPromptModal(true);
-            },
-          },
-        ]);
+        // Check if it's a max plans limit error
+        if (response.isMaxPlansReached) {
+          setMaxPlansData({
+            currentCount: response.currentCount,
+            maxAllowed: response.maxAllowed,
+            membershipType: response.membershipType,
+          });
+          setShowMaxPlansModal(true);
+        } else {
+          // For other errors, just log them (no Alert.alert)
+          console.error('[ERROR] AI Generation failed:', response.error);
+        }
       }
     } catch (error: any) {
       setGeneratingAI(false);
       setAIGenerationStatus('preparing');
 
       console.error('[ERROR] AI Generation Exception:', error);
-
-        Alert.alert(
-          t('common.error'),
-        error.message || 'An unexpected error occurred. Please try again.',
-        [
-          {
-            text: t('common.ok'),
-            style: 'default',
-          },
-        ]
-      );
+      // Don't show error alert - just log it
     }
   };
 
@@ -1052,6 +1084,15 @@ export default function WorkoutsScreen() {
         onClose={() => setShowUpgradeModal(false)}
         feature="AI Workout Generation"
         currentTier={membershipType}
+      />
+
+      {/* Max Plans Limit Modal */}
+      <MaxPlansLimitModal
+        visible={showMaxPlansModal}
+        onClose={() => setShowMaxPlansModal(false)}
+        currentCount={maxPlansData.currentCount}
+        maxAllowed={maxPlansData.maxAllowed}
+        membershipType={maxPlansData.membershipType}
       />
 
       {/* AI Generation Modal */}

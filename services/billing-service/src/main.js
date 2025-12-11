@@ -182,6 +182,11 @@ const cron = require('node-cron');
 // Start cache warming job (runs every hour)
 const cacheWarmingJob = require('./jobs/cache-warming.job');
 cacheWarmingJob.startScheduled();
+
+// Start subscription expiration job (runs daily at 1 AM)
+const subscriptionExpirationJob = require('./jobs/subscription-expiration.job');
+subscriptionExpirationJob.startExpirationJob();
+
 const revenueReportService = require('./services/revenue-report.service.js');
 
 // Generate revenue report daily at 2 AM
@@ -190,7 +195,9 @@ cron.schedule('0 2 * * *', async () => {
   try {
     const result = await revenueReportService.generateYesterdayReport();
     if (result.success) {
-      console.log(`[SUCCESS] Revenue report generated successfully (${result.isNew ? 'new' : 'updated'})`);
+      console.log(
+        `[SUCCESS] Revenue report generated successfully (${result.isNew ? 'new' : 'updated'})`
+      );
     } else {
       console.error('[ERROR] Failed to generate revenue report:', result.error);
     }

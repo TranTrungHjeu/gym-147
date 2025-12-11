@@ -1,4 +1,6 @@
+import { ErrorModal } from '@/components/ErrorModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/useToast';
 import {
   challengeService,
   type Challenge,
@@ -7,12 +9,19 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { Calendar, CheckCircle, Clock, Target, Trophy, Users, Zap } from 'lucide-react-native';
+import {
+  Calendar,
+  CheckCircle,
+  Clock,
+  Target,
+  Trophy,
+  Users,
+  Zap,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -28,11 +37,15 @@ export default function ChallengeDetailScreen() {
   const { theme } = useTheme();
   const { user, member } = useAuth();
   const { t } = useTranslation();
+  const { showSuccess, ToastComponent } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [myProgress, setMyProgress] = useState<ChallengeProgress | null>(null);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isAlreadyJoinedError, setIsAlreadyJoinedError] = useState(false);
 
   const themedStyles = styles(theme);
 
@@ -57,11 +70,14 @@ export default function ChallengeDetailScreen() {
       }
 
       if (myChallengesResponse.success && myChallengesResponse.data) {
-        const progress = myChallengesResponse.data.find((p) => p.challenge_id === id);
+        const progress = myChallengesResponse.data.find(
+          (p) => p.challenge_id === id
+        );
         setMyProgress(progress || null);
       }
     } catch (error) {
-      console.error('Error loading challenge:', error);
+      // Use console.log to avoid triggering alerts in dev mode
+      console.log('Error loading challenge:', error);
     } finally {
       setLoading(false);
     }
@@ -79,19 +95,78 @@ export default function ChallengeDetailScreen() {
     try {
       const response = await challengeService.joinChallenge(id, member.id);
       if (response.success) {
-        Alert.alert('Thành công', 'Đã tham gia thử thách!');
+        // Show success message and refresh data
+        showSuccess(
+          t('challenges.joinSuccess', {
+            defaultValue: 'Đã tham gia thử thách thành công!',
+          }),
+          3000
+        );
         loadData();
       } else {
-        Alert.alert('Lỗi', response.error || 'Không thể tham gia thử thách');
+        // Check if it's an "already joined" error
+        const isAlreadyJoined =
+          response.error?.toLowerCase().includes('already joined') ||
+          response.error?.toLowerCase().includes('đã tham gia');
+
+        if (isAlreadyJoined) {
+          setIsAlreadyJoinedError(true);
+          setErrorMessage(
+            t('challenges.alreadyJoined', {
+              defaultValue:
+                'Bạn đã tham gia thử thách này rồi. Hãy xem tiến độ của bạn ở phía trên để theo dõi quá trình hoàn thành thử thách.',
+            })
+          );
+        } else {
+          setIsAlreadyJoinedError(false);
+          setErrorMessage(
+            response.error ||
+              t('challenges.joinError', {
+                defaultValue:
+                  'Không thể tham gia thử thách. Vui lòng thử lại sau.',
+              })
+          );
+        }
+        setShowErrorModal(true);
       }
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể tham gia thử thách');
+      // Only show modal, no toast, no alert
+      console.log('Join challenge error caught:', error);
+      setIsAlreadyJoinedError(false);
+
+      // Check error message for already joined
+      const errorMessage = error.message || error.toString() || '';
+      const isAlreadyJoined =
+        errorMessage.toLowerCase().includes('already joined') ||
+        errorMessage.toLowerCase().includes('đã tham gia');
+
+      if (isAlreadyJoined) {
+        setIsAlreadyJoinedError(true);
+        setErrorMessage(
+          t('challenges.alreadyJoined', {
+            defaultValue:
+              'Bạn đã tham gia thử thách này rồi. Hãy xem tiến độ của bạn ở phía trên để theo dõi quá trình hoàn thành thử thách.',
+          })
+        );
+      } else {
+        setErrorMessage(
+          errorMessage ||
+            t('challenges.joinError', {
+              defaultValue:
+                'Không thể tham gia thử thách. Vui lòng thử lại sau.',
+            })
+        );
+      }
+      setShowErrorModal(true);
     }
   };
 
   const getProgressPercentage = () => {
     if (!myProgress) return 0;
-    return Math.min((myProgress.current_value / myProgress.target_value) * 100, 100);
+    return Math.min(
+      (myProgress.current_value / myProgress.target_value) * 100,
+      100
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -115,7 +190,9 @@ export default function ChallengeDetailScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -123,9 +200,14 @@ export default function ChallengeDetailScreen() {
 
   if (!challenge) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <Text style={themedStyles.errorText}>Không tìm thấy thử thách</Text>
-        <TouchableOpacity style={themedStyles.backButton} onPress={() => router.back()}>
+        <TouchableOpacity
+          style={themedStyles.backButton}
+          onPress={() => router.back()}
+        >
           <Text style={themedStyles.backButtonText}>Quay lại</Text>
         </TouchableOpacity>
       </SafeAreaView>
@@ -140,11 +222,15 @@ export default function ChallengeDetailScreen() {
     <SafeAreaView style={themedStyles.container}>
       <ScrollView
         style={themedStyles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {/* Challenge Header */}
         <View style={themedStyles.header}>
-          <View style={themedStyles.iconContainer}>{getChallengeIcon(challenge.category)}</View>
+          <View style={themedStyles.iconContainer}>
+            {getChallengeIcon(challenge.category)}
+          </View>
           <Text style={themedStyles.title}>{challenge.title}</Text>
           <Text style={themedStyles.type}>{challenge.type}</Text>
         </View>
@@ -171,7 +257,8 @@ export default function ChallengeDetailScreen() {
             <View style={themedStyles.infoContent}>
               <Text style={themedStyles.infoLabel}>Thời gian</Text>
               <Text style={themedStyles.infoValue}>
-                {formatDate(challenge.start_date)} - {formatDate(challenge.end_date)}
+                {formatDate(challenge.start_date)} -{' '}
+                {formatDate(challenge.end_date)}
               </Text>
             </View>
           </View>
@@ -193,7 +280,9 @@ export default function ChallengeDetailScreen() {
               <Users size={20} color={theme.colors.primary} />
               <View style={themedStyles.infoContent}>
                 <Text style={themedStyles.infoLabel}>Người tham gia</Text>
-                <Text style={themedStyles.infoValue}>{challenge._count.progress} người</Text>
+                <Text style={themedStyles.infoValue}>
+                  {challenge._count.progress} người
+                </Text>
               </View>
             </View>
           )}
@@ -219,13 +308,16 @@ export default function ChallengeDetailScreen() {
                     themedStyles.progressFill,
                     {
                       width: `${progressPercentage}%`,
-                      backgroundColor: isCompleted ? '#4CAF50' : theme.colors.primary,
+                      backgroundColor: isCompleted
+                        ? '#4CAF50'
+                        : theme.colors.primary,
                     },
                   ]}
                 />
               </View>
               <Text style={themedStyles.progressText}>
-                {myProgress?.current_value || 0} / {challenge.target_value} {challenge.target_unit || 'điểm'}
+                {myProgress?.current_value || 0} / {challenge.target_value}{' '}
+                {challenge.target_unit || 'điểm'}
               </Text>
             </View>
 
@@ -246,7 +338,10 @@ export default function ChallengeDetailScreen() {
                 .sort((a, b) => b.current_value - a.current_value)
                 .slice(0, 10)
                 .map((entry, index) => (
-                  <View key={entry.member_id} style={themedStyles.leaderboardItem}>
+                  <View
+                    key={entry.member_id}
+                    style={themedStyles.leaderboardItem}
+                  >
                     <View style={themedStyles.rankContainer}>
                       {index === 0 && <Trophy size={20} color="#FFD700" />}
                       {index === 1 && <Trophy size={20} color="#C0C0C0" />}
@@ -270,12 +365,56 @@ export default function ChallengeDetailScreen() {
         {/* Join Button */}
         {!isJoined && (
           <View style={themedStyles.buttonContainer}>
-            <TouchableOpacity style={themedStyles.joinButton} onPress={handleJoinChallenge}>
-              <Text style={themedStyles.joinButtonText}>Tham gia thử thách</Text>
+            <TouchableOpacity
+              style={themedStyles.joinButton}
+              onPress={handleJoinChallenge}
+            >
+              <Text style={themedStyles.joinButtonText}>
+                {t('challenges.join', { defaultValue: 'Tham gia thử thách' })}
+              </Text>
             </TouchableOpacity>
           </View>
         )}
       </ScrollView>
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        onClose={() => {
+          setShowErrorModal(false);
+          setIsAlreadyJoinedError(false);
+        }}
+        title={
+          isAlreadyJoinedError
+            ? t('challenges.alreadyJoinedTitle', {
+                defaultValue: 'Đã tham gia thử thách',
+              })
+            : t('challenges.errorTitle', {
+                defaultValue: 'Không thể tham gia',
+              })
+        }
+        message={errorMessage}
+        type={isAlreadyJoinedError ? 'info' : 'warning'}
+        actionButton={
+          isAlreadyJoinedError
+            ? {
+                label: t('challenges.viewProgress', {
+                  defaultValue: 'Xem tiến độ',
+                }),
+                onPress: () => {
+                  setShowErrorModal(false);
+                  setIsAlreadyJoinedError(false);
+                  // Scroll to progress section if needed
+                  // The progress section is already visible above
+                },
+                variant: 'primary',
+              }
+            : undefined
+        }
+      />
+
+      {/* Toast Component */}
+      <ToastComponent />
     </SafeAreaView>
   );
 }
@@ -470,4 +609,3 @@ const styles = (theme: any) =>
       fontFamily: 'Inter-SemiBold',
     },
   });
-
