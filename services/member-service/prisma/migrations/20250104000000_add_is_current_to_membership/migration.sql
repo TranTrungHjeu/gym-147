@@ -1,0 +1,2 @@
+-- Migration: No changes needed
+-- This migration file is kept for consistency but no schema changes are made

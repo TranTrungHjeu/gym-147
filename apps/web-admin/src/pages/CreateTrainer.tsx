@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import SuccessModal from '../components/common/SuccessModal';
+import useTranslation from '../hooks/useTranslation';
 import { authService } from '../services/auth.service';
 
 const CreateTrainer: React.FC = () => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
     email: '',
@@ -20,40 +22,40 @@ const CreateTrainer: React.FC = () => {
   const validateField = (name: string, value: string): string => {
     switch (name) {
       case 'email':
-        if (!value) return 'Email là bắt buộc';
+        if (!value) return t('createTrainer.validation.emailRequired');
         if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(value))
-          return 'Email không hợp lệ';
-        if (value.length > 100) return 'Email không được quá 100 ký tự';
+          return t('createTrainer.validation.emailInvalid');
+        if (value.length > 100) return t('createTrainer.validation.emailMaxLength');
         return '';
       case 'password':
-        if (!value) return 'Mật khẩu là bắt buộc';
-        if (value.length < 8) return 'Mật khẩu phải có ít nhất 8 ký tự';
-        if (value.length > 50) return 'Mật khẩu không được quá 50 ký tự';
-        if (!/(?=.*[a-z])/.test(value)) return 'Mật khẩu phải có ít nhất 1 chữ thường';
-        if (!/(?=.*[A-Z])/.test(value)) return 'Mật khẩu phải có ít nhất 1 chữ hoa';
-        if (!/(?=.*\d)/.test(value)) return 'Mật khẩu phải có ít nhất 1 số';
+        if (!value) return t('createTrainer.validation.passwordRequired');
+        if (value.length < 8) return t('createTrainer.validation.passwordMinLength');
+        if (value.length > 50) return t('createTrainer.validation.passwordMaxLength');
+        if (!/(?=.*[a-z])/.test(value)) return t('createTrainer.validation.passwordLowercase');
+        if (!/(?=.*[A-Z])/.test(value)) return t('createTrainer.validation.passwordUppercase');
+        if (!/(?=.*\d)/.test(value)) return t('createTrainer.validation.passwordNumber');
         if (!/(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/.test(value))
-          return 'Mật khẩu phải có ít nhất 1 ký tự đặc biệt';
+          return t('createTrainer.validation.passwordSpecial');
         return '';
       case 'firstName':
-        if (!value) return 'Tên là bắt buộc';
-        if (value.length < 2) return 'Tên phải có ít nhất 2 ký tự';
-        if (value.length > 50) return 'Tên không được quá 50 ký tự';
+        if (!value) return t('createTrainer.validation.firstNameRequired');
+        if (value.length < 2) return t('createTrainer.validation.firstNameMinLength');
+        if (value.length > 50) return t('createTrainer.validation.firstNameMaxLength');
         // Allow Unicode letters (including Vietnamese), spaces, hyphens, and apostrophes
         if (!/^[\p{L}\s'-]+$/u.test(value.trim()))
-          return 'Tên chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn';
+          return t('createTrainer.validation.firstNameInvalid');
         return '';
       case 'lastName':
-        if (!value) return 'Họ là bắt buộc';
-        if (value.length < 2) return 'Họ phải có ít nhất 2 ký tự';
-        if (value.length > 50) return 'Họ không được quá 50 ký tự';
+        if (!value) return t('createTrainer.validation.lastNameRequired');
+        if (value.length < 2) return t('createTrainer.validation.lastNameMinLength');
+        if (value.length > 50) return t('createTrainer.validation.lastNameMaxLength');
         // Allow Unicode letters (including Vietnamese), spaces, hyphens, and apostrophes
         if (!/^[\p{L}\s'-]+$/u.test(value.trim()))
-          return 'Họ chỉ được chứa chữ cái, khoảng trắng, dấu gạch ngang và dấu nháy đơn';
+          return t('createTrainer.validation.lastNameInvalid');
         return '';
       case 'phone':
         if (value && !/^0[35789][0-9]{8}$/.test(value))
-          return 'Số điện thoại phải bắt đầu bằng 0, số thứ 2 là 3, 5, 7, 8 hoặc 9 và có 10 số';
+          return t('createTrainer.validation.phoneInvalid');
         return '';
       default:
         return '';
@@ -105,18 +107,18 @@ const CreateTrainer: React.FC = () => {
       if (response.success) {
         // Check if trainer was created in schedule-service
         const scheduleServiceCreated = response.data?.scheduleServiceCreated !== false;
-        
+
         if (window.showToast) {
           if (scheduleServiceCreated) {
             window.showToast({
               type: 'success',
-              message: 'Tạo trainer thành công! Tài khoản đã được kích hoạt và có thể đăng nhập ngay.',
+              message: t('createTrainer.messages.createSuccess'),
               duration: 5000,
             });
           } else {
             window.showToast({
               type: 'warning',
-              message: 'Tạo trainer thành công nhưng chưa được tạo trong schedule-service. Vui lòng kiểm tra logs.',
+              message: t('createTrainer.messages.createSuccessButScheduleWarning'),
               duration: 7000,
             });
             console.warn('Schedule service error:', response.data?.scheduleServiceError);
@@ -130,7 +132,7 @@ const CreateTrainer: React.FC = () => {
         if (window.showToast) {
           window.showToast({
             type: 'error',
-            message: response.message || 'Có lỗi xảy ra khi tạo trainer',
+            message: response.message || t('createTrainer.messages.createError'),
             duration: 5000,
           });
         }
@@ -140,7 +142,7 @@ const CreateTrainer: React.FC = () => {
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Có lỗi xảy ra khi tạo trainer. Vui lòng thử lại.',
+          message: t('createTrainer.messages.createErrorRetry'),
           duration: 5000,
         });
       }
@@ -178,8 +180,10 @@ const CreateTrainer: React.FC = () => {
               />
             </svg>
           </button>
-          <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Tạo Trainer Mới</h1>
-          <p className='text-gray-600 dark:text-gray-400'>Tạo tài khoản huấn luyện viên mới cho hệ thống</p>
+          <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>
+            {t('createTrainer.title')}
+          </h1>
+          <p className='text-gray-600 dark:text-gray-400'>{t('createTrainer.subtitle')}</p>
         </div>
 
         {/* Form */}
@@ -188,16 +192,20 @@ const CreateTrainer: React.FC = () => {
             <form onSubmit={handleSubmit} className='space-y-3'>
               {/* Email */}
               <div>
-                <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>Email *</label>
+                <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>
+                  {t('createTrainer.form.email')}
+                </label>
                 <input
                   type='email'
                   name='email'
                   value={formData.email}
                   onChange={handleInputChange}
                   className={`w-full px-2 py-1.5 text-sm rounded border ${
-                    fieldErrors.email ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    fieldErrors.email
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent`}
-                  placeholder='trainer@example.com'
+                  placeholder={t('createTrainer.form.emailPlaceholder')}
                 />
                 {fieldErrors.email && (
                   <p className='text-red-500 text-xs mt-1'>{fieldErrors.email}</p>
@@ -207,32 +215,40 @@ const CreateTrainer: React.FC = () => {
               {/* First Name and Last Name */}
               <div className='grid grid-cols-2 gap-3'>
                 <div>
-                  <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>Họ *</label>
+                  <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>
+                    {t('createTrainer.form.lastName')}
+                  </label>
                   <input
                     type='text'
                     name='lastName'
                     value={formData.lastName}
                     onChange={handleInputChange}
                     className={`w-full px-2 py-1.5 text-sm rounded border ${
-                      fieldErrors.lastName ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      fieldErrors.lastName
+                        ? 'border-red-500 dark:border-red-500'
+                        : 'border-gray-300 dark:border-gray-600'
                     } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent`}
-                    placeholder='Nguyễn'
+                    placeholder={t('createTrainer.form.lastNamePlaceholder')}
                   />
                   {fieldErrors.lastName && (
                     <p className='text-red-500 text-xs mt-1'>{fieldErrors.lastName}</p>
                   )}
                 </div>
                 <div>
-                  <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>Tên *</label>
+                  <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>
+                    {t('createTrainer.form.firstName')}
+                  </label>
                   <input
                     type='text'
                     name='firstName'
                     value={formData.firstName}
                     onChange={handleInputChange}
                     className={`w-full px-2 py-1.5 text-sm rounded border ${
-                      fieldErrors.firstName ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                      fieldErrors.firstName
+                        ? 'border-red-500 dark:border-red-500'
+                        : 'border-gray-300 dark:border-gray-600'
                     } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent`}
-                    placeholder='Văn A'
+                    placeholder={t('createTrainer.form.firstNamePlaceholder')}
                   />
                   {fieldErrors.firstName && (
                     <p className='text-red-500 text-xs mt-1'>{fieldErrors.firstName}</p>
@@ -243,7 +259,7 @@ const CreateTrainer: React.FC = () => {
               {/* Phone */}
               <div>
                 <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>
-                  Số điện thoại
+                  {t('createTrainer.form.phone')}
                 </label>
                 <input
                   type='tel'
@@ -251,9 +267,11 @@ const CreateTrainer: React.FC = () => {
                   value={formData.phone}
                   onChange={handleInputChange}
                   className={`w-full px-2 py-1.5 text-sm rounded border ${
-                    fieldErrors.phone ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    fieldErrors.phone
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent`}
-                  placeholder='0123456789'
+                  placeholder={t('createTrainer.form.phonePlaceholder')}
                 />
                 {fieldErrors.phone && (
                   <p className='text-red-500 text-xs mt-1'>{fieldErrors.phone}</p>
@@ -262,16 +280,20 @@ const CreateTrainer: React.FC = () => {
 
               {/* Password */}
               <div>
-                <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>Mật khẩu *</label>
+                <label className='block text-gray-700 dark:text-gray-300 text-xs font-medium mb-1'>
+                  {t('createTrainer.form.password')}
+                </label>
                 <input
                   type='password'
                   name='password'
                   value={formData.password}
                   onChange={handleInputChange}
                   className={`w-full px-2 py-1.5 text-sm rounded border ${
-                    fieldErrors.password ? 'border-red-500 dark:border-red-500' : 'border-gray-300 dark:border-gray-600'
+                    fieldErrors.password
+                      ? 'border-red-500 dark:border-red-500'
+                      : 'border-gray-300 dark:border-gray-600'
                   } bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-orange-500 dark:focus:ring-orange-400 focus:border-transparent`}
-                  placeholder='Mật khẩu mạnh'
+                  placeholder={t('createTrainer.form.passwordPlaceholder')}
                 />
                 {fieldErrors.password && (
                   <p className='text-red-500 text-xs mt-1'>{fieldErrors.password}</p>
@@ -287,10 +309,10 @@ const CreateTrainer: React.FC = () => {
                 {isLoading ? (
                   <div className='flex items-center justify-center'>
                     <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2'></div>
-                    Đang tạo...
+                    {t('createTrainer.form.creating')}
                   </div>
                 ) : (
-                  'Tạo Trainer'
+                  t('createTrainer.form.submit')
                 )}
               </button>
             </form>
@@ -314,7 +336,7 @@ const CreateTrainer: React.FC = () => {
               navigate('/admin-dashboard');
             }
           }}
-          title='Tài khoản Trainer đã được tạo thành công!'
+          title={t('createTrainer.successModal.title')}
           user={createdUser}
         />
       )}

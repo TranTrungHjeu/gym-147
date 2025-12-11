@@ -14,6 +14,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
   showText = false,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const isActive = typeof status === 'boolean' ? status : status === 'active';
 
   const getSizeClasses = () => {
@@ -59,7 +60,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
       className={`inline-flex items-center justify-center rounded-full font-semibold font-heading border ${
         isActive ? activeClasses : inactiveClasses
       } ${sizeClasses.container} ${className}`}
-      title={isActive ? 'Hoạt động' : 'Không hoạt động'}
+      title={isActive ? t('statusBadge.active') : t('statusBadge.inactive')}
     >
       {isActive ? (
         <CheckCircle2 className={sizeClasses.icon} />
@@ -68,7 +69,7 @@ const StatusBadge: React.FC<StatusBadgeProps> = ({
       )}
       {showText && (
         <span className={`ml-1 ${sizeClasses.text}`}>
-          {isActive ? 'Hoạt động' : 'Không hoạt động'}
+          {isActive ? t('statusBadge.active') : t('statusBadge.inactive')}
         </span>
       )}
     </span>

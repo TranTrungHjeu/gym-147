@@ -11,6 +11,8 @@ import * as WebBrowser from 'expo-web-browser';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { SalaryRequestModal } from '@/components/SalaryRequestModal';
+import { salaryService } from '@/services';
 import {
   ActivityIndicator,
   Animated,
@@ -30,7 +32,7 @@ WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { login, isLoading, hasMember, user } = useAuth();
+  const { login, verify2FALogin, isLoading, hasMember, user } = useAuth();
   const { theme } = useTheme();
   const { t } = useTranslation();
 
@@ -42,6 +44,18 @@ export default function LoginScreen() {
   const [showErrorModal, setShowErrorModal] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
+
+  // 2FA state
+  const [show2FAModal, setShow2FAModal] = useState(false);
+  const [twoFactorUserId, setTwoFactorUserId] = useState<string | null>(null);
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+  const [isVerifying2FA, setIsVerifying2FA] = useState(false);
+
+  // Salary request state
+  const [showSalaryModal, setShowSalaryModal] = useState(false);
+  const [trainerId, setTrainerId] = useState<string | null>(null);
+
   const modalScale = useRef(new Animated.Value(0)).current;
   const modalFade = useRef(new Animated.Value(0)).current;
 
@@ -79,6 +93,87 @@ export default function LoginScreen() {
     router.push('/(auth)/forgot-password');
   };
 
+  const handleVerify2FA = async () => {
+    if (!twoFactorCode || twoFactorCode.length !== 6) {
+      setTwoFactorError(
+        t('security.twoFactor.enterCode', {
+          defaultValue: 'Vui lòng nhập mã 6 số',
+        })
+      );
+      return;
+    }
+
+    if (!twoFactorUserId) {
+      setTwoFactorError(
+        t('common.error', { defaultValue: 'Lỗi: Không tìm thấy user ID' })
+      );
+      return;
+    }
+
+    setIsVerifying2FA(true);
+    setTwoFactorError(null);
+
+    try {
+      const result = await verify2FALogin(
+        twoFactorUserId,
+        twoFactorCode,
+        rememberMe
+      );
+
+      // Close 2FA modal
+      setShow2FAModal(false);
+      setTwoFactorCode('');
+      setTwoFactorUserId(null);
+
+      // Check registration completion status
+      const registrationStatus = result.registrationStatus || {};
+
+      // Priority: Subscription > Member > Profile
+      if (!registrationStatus.hasSubscription) {
+        const hasExpiredSubscription = result.hasMember;
+        router.replace({
+          pathname: '/(auth)/register-plan',
+          params: {
+            userId: result.user.id,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+            expired: hasExpiredSubscription ? 'true' : 'false',
+          },
+        });
+      } else if (!result.hasMember || !registrationStatus.hasCompletedProfile) {
+        router.replace({
+          pathname: '/(auth)/register-profile',
+          params: {
+            userId: result.user.id,
+            accessToken: result.accessToken,
+            refreshToken: result.refreshToken || '',
+            paymentVerified: 'true',
+          },
+        });
+      } else {
+        router.replace('/(tabs)');
+      }
+    } catch (error: any) {
+      setTwoFactorError(
+        error.message ||
+          t('security.twoFactor.invalidCode', {
+            defaultValue: 'Mã xác thực không hợp lệ',
+          })
+      );
+    } finally {
+      setIsVerifying2FA(false);
+    }
+  };
+
+  const handleClose2FAModal = () => {
+    setShow2FAModal(false);
+    setTwoFactorCode('');
+    setTwoFactorUserId(null);
+    setTwoFactorError(null);
+    // Clear password for security
+    setPassword('');
+  };
+
   const handleGoogleLogin = async () => {
     try {
       setIsGoogleLoading(true);
@@ -91,9 +186,14 @@ export default function LoginScreen() {
       });
 
       // Get OAuth URL from backend
-      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/auth/oauth/google`, {
-        method: 'GET',
-      });
+      const response = await fetch(
+        `${
+          process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
+        }/auth/oauth/google`,
+        {
+          method: 'GET',
+        }
+      );
 
       if (!response.ok) {
         throw new Error('Failed to get OAuth URL');
@@ -105,7 +205,10 @@ export default function LoginScreen() {
       }
 
       // Open OAuth URL in browser
-      const result = await WebBrowser.openAuthSessionAsync(data.data.authUrl, redirectUri);
+      const result = await WebBrowser.openAuthSessionAsync(
+        data.data.authUrl,
+        redirectUri
+      );
 
       if (result.type === 'success' && result.url) {
         // Parse tokens from callback URL
@@ -123,22 +226,41 @@ export default function LoginScreen() {
           });
 
           // Get user profile
-          const profileResponse = await fetch(`${process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'}/auth/profile`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          });
+          const profileResponse = await fetch(
+            `${
+              process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
+            }/auth/profile`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
+            }
+          );
 
           if (profileResponse.ok) {
             const profileData = await profileResponse.json();
             if (profileData.success) {
-              // Login successful
-              router.replace('/(tabs)');
+              // If new user, navigate to profile completion
+              // If existing user, navigate to tabs
+              if (isNewUser) {
+                // Navigate to profile completion for new users
+                router.replace('/(auth)/register-profile');
+              } else {
+                // Existing user, go to main app
+                router.replace('/(tabs)');
+              }
+            } else {
+              Alert.alert(t('common.error'), t('auth.oauthFailed'));
             }
+          } else {
+            Alert.alert(t('common.error'), t('auth.oauthFailed'));
           }
         } else {
           const error = url.searchParams.get('error');
-          Alert.alert(t('common.error'), error || 'OAuth authentication failed');
+          Alert.alert(
+            t('common.error'),
+            error || 'OAuth authentication failed'
+          );
         }
       } else if (result.type === 'cancel') {
         // User cancelled
@@ -147,7 +269,10 @@ export default function LoginScreen() {
       }
     } catch (error: any) {
       console.error('Google OAuth error:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to login with Google');
+      Alert.alert(
+        t('common.error'),
+        error.message || 'Failed to login with Google'
+      );
     } finally {
       setIsGoogleLoading(false);
     }
@@ -201,6 +326,16 @@ export default function LoginScreen() {
     try {
       const result = await login(credentials);
 
+      // Check if 2FA is required
+      if ('requires2FA' in result && result.requires2FA) {
+        setTwoFactorUserId(result.userId);
+        setShow2FAModal(true);
+        setTwoFactorCode('');
+        setTwoFactorError(null);
+        return;
+      }
+
+      // Normal login success flow
       // Check registration completion status
       const registrationStatus = result.registrationStatus || {};
 
@@ -213,12 +348,15 @@ export default function LoginScreen() {
       // Priority: Subscription > Member > Profile
       if (!registrationStatus.hasSubscription) {
         console.log('[WARN] No subscription - redirecting to plan selection');
+        // Check if user has member record (indicates subscription might be expired)
+        const hasExpiredSubscription = result.hasMember;
         router.replace({
           pathname: '/(auth)/register-plan',
           params: {
             userId: result.user.id,
             accessToken: result.accessToken,
             refreshToken: result.refreshToken || '',
+            expired: hasExpiredSubscription ? 'true' : 'false',
           },
         });
       } else if (!result.hasMember || !registrationStatus.hasCompletedProfile) {
@@ -236,6 +374,22 @@ export default function LoginScreen() {
         });
       } else {
         console.log('[SUCCESS] Complete registration - redirecting to home');
+
+        // Check if user is TRAINER and doesn't have salary
+        if (result.user.role === 'TRAINER' && result.user.trainerId) {
+          const hasSalary = (result.user as any).hasSalary !== false; // Default to true if not provided
+
+          if (!hasSalary) {
+            console.log(
+              '[INFO] Trainer does not have salary, showing salary request modal'
+            );
+            setTrainerId(result.user.trainerId);
+            setShowSalaryModal(true);
+            // Don't navigate yet, wait for user to handle salary modal
+            return;
+          }
+        }
+
         router.replace('/(tabs)');
       }
     } catch (error: any) {
@@ -450,7 +604,9 @@ export default function LoginScreen() {
           ) : (
             <>
               <Image
-                source={{ uri: 'https://img.icons8.com/color/48/google-logo.png' }}
+                source={{
+                  uri: 'https://img.icons8.com/color/48/google-logo.png',
+                }}
                 style={styles.googleImage}
               />
               <Text style={[styles.googleText, { color: theme.colors.text }]}>
@@ -508,14 +664,20 @@ export default function LoginScreen() {
 
             {/* Message */}
             <Text
-              style={[styles.modalMessage, { color: theme.colors.textSecondary }]}
+              style={[
+                styles.modalMessage,
+                { color: theme.colors.textSecondary },
+              ]}
             >
               {errorMessage}
             </Text>
 
             {/* OK Button */}
             <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.colors.primary }]}
+              style={[
+                styles.modalButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
               onPress={() => setShowErrorModal(false)}
               activeOpacity={0.8}
             >
@@ -524,6 +686,185 @@ export default function LoginScreen() {
           </Animated.View>
         </View>
       </Modal>
+
+      {/* 2FA Verification Modal */}
+      <Modal
+        visible={show2FAModal}
+        transparent
+        animationType="slide"
+        onRequestClose={handleClose2FAModal}
+      >
+        <View
+          style={[
+            styles.modalOverlay,
+            { backgroundColor: 'rgba(0, 0, 0, 0.7)' },
+          ]}
+        >
+          <View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                maxWidth: 400,
+                padding: 32,
+              },
+            ]}
+          >
+            {/* Close button */}
+            <TouchableOpacity
+              style={styles.modalCloseButton}
+              onPress={handleClose2FAModal}
+            >
+              <Ionicons
+                name="close"
+                size={24}
+                color={theme.colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            {/* Icon */}
+            <View
+              style={[
+                styles.modalIcon,
+                { backgroundColor: `${theme.colors.primary}15` },
+              ]}
+            >
+              <Ionicons
+                name="shield-checkmark"
+                size={48}
+                color={theme.colors.primary}
+              />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {t('security.twoFactor.title', {
+                defaultValue: 'Xác thực 2 lớp',
+              })}
+            </Text>
+
+            {/* Message */}
+            <Text
+              style={[
+                styles.modalMessage,
+                { color: theme.colors.textSecondary, marginBottom: 24 },
+              ]}
+            >
+              {t('security.twoFactor.loginPrompt', {
+                defaultValue:
+                  'Vui lòng nhập mã 6 số từ ứng dụng xác thực của bạn',
+              })}
+            </Text>
+
+            {/* 2FA Code Input */}
+            <View style={styles.twoFactorInputContainer}>
+              <TextInput
+                style={[
+                  styles.twoFactorInput,
+                  {
+                    color: theme.colors.text,
+                    backgroundColor: theme.colors.background,
+                    borderColor: twoFactorError
+                      ? theme.colors.error
+                      : theme.colors.border,
+                  },
+                ]}
+                value={twoFactorCode}
+                onChangeText={(text) => {
+                  // Only allow numeric input, max 6 digits
+                  const numericText = text.replace(/[^0-9]/g, '').slice(0, 6);
+                  setTwoFactorCode(numericText);
+                  setTwoFactorError(null);
+                  // Auto-submit when 6 digits are entered
+                  if (numericText.length === 6) {
+                    handleVerify2FA();
+                  }
+                }}
+                placeholder="000000"
+                placeholderTextColor={theme.colors.textTertiary}
+                keyboardType="number-pad"
+                maxLength={6}
+                autoFocus
+                editable={!isVerifying2FA}
+              />
+            </View>
+
+            {/* Error message */}
+            {twoFactorError && (
+              <Text
+                style={[
+                  styles.twoFactorErrorText,
+                  { color: theme.colors.error },
+                ]}
+              >
+                {twoFactorError}
+              </Text>
+            )}
+
+            {/* Verify Button */}
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                {
+                  backgroundColor: theme.colors.primary,
+                  marginTop: 24,
+                  opacity:
+                    twoFactorCode.length === 6 && !isVerifying2FA ? 1 : 0.5,
+                },
+              ]}
+              onPress={handleVerify2FA}
+              disabled={twoFactorCode.length !== 6 || isVerifying2FA}
+              activeOpacity={0.8}
+            >
+              {isVerifying2FA ? (
+                <ActivityIndicator size="small" color="#FFFFFF" />
+              ) : (
+                <Text style={styles.modalButtonText}>
+                  {t('security.twoFactor.verify', {
+                    defaultValue: 'Xác thực',
+                  })}
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            {/* Cancel Button */}
+            <TouchableOpacity
+              style={[styles.modalCancelButton, { marginTop: 12 }]}
+              onPress={handleClose2FAModal}
+              disabled={isVerifying2FA}
+            >
+              <Text
+                style={[
+                  styles.modalCancelText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('common.cancel', { defaultValue: 'Hủy' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Salary Request Modal */}
+      <SalaryRequestModal
+        visible={showSalaryModal}
+        trainerId={trainerId || undefined}
+        onClose={() => {
+          setShowSalaryModal(false);
+          // Navigate to home after closing modal
+          router.replace('/(tabs)');
+        }}
+        onRequest={async () => {
+          if (!trainerId) {
+            throw new Error('Trainer ID is required');
+          }
+          const result = await salaryService.requestSalary(trainerId);
+          if (!result.success) {
+            throw new Error(result.message || 'Failed to send salary request');
+          }
+        }}
+      />
     </View>
   );
 }
@@ -745,5 +1086,41 @@ const styles = StyleSheet.create({
     ...Typography.buttonLarge,
     textAlign: 'center',
     color: '#FFFFFF',
+  },
+  modalCloseButton: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    padding: 8,
+    zIndex: 1,
+  },
+  twoFactorInputContainer: {
+    width: '100%',
+    marginVertical: 16,
+  },
+  twoFactorInput: {
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderRadius: 16,
+    borderWidth: 2,
+    fontSize: 24,
+    fontFamily: 'SpaceGrotesk-Bold',
+    textAlign: 'center',
+    letterSpacing: 8,
+  },
+  twoFactorErrorText: {
+    ...Typography.bodySmall,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  modalCancelButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  modalCancelText: {
+    ...Typography.buttonMedium,
   },
 });

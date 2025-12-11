@@ -245,15 +245,39 @@ export default function WorkoutSessionScreen() {
       return;
     }
 
+    // Validate completed exercises
+    if (!completedExercises || completedExercises.length === 0) {
+      Alert.alert(
+        t('common.error'),
+        t('workouts.completeAtLeastOneExercise', {
+          default: 'Please complete at least one exercise before finishing the workout.',
+        })
+      );
+      return;
+    }
+
     try {
       setCompleting(true);
 
       const durationMinutes = Math.floor(duration / 60);
 
+      console.log('[WORKOUT] Attempting to complete workout:', {
+        memberId: currentMemberId,
+        workoutPlanId: id,
+        completedExercisesCount: completedExercises.length,
+        durationMinutes,
+      });
+
       const response = await workoutPlanService.completeWorkoutSession(currentMemberId, {
         workout_plan_id: id,
         completed_exercises: completedExercises,
         duration_minutes: durationMinutes,
+      });
+
+      console.log('[WORKOUT] Complete workout response:', {
+        success: response.success,
+        hasData: !!response.data,
+        error: response.error,
       });
 
       if (response.success && response.data) {
@@ -284,16 +308,23 @@ export default function WorkoutSessionScreen() {
           ]
         );
       } else {
+        const errorMessage = response.error || t('workouts.completeWorkoutError', {
+          default: 'Failed to complete workout session. Please try again.',
+        });
+        console.error('[WORKOUT] Failed to complete workout:', errorMessage);
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to complete workout session'
+          errorMessage
         );
       }
     } catch (error: any) {
-      console.error('Error completing workout:', error);
+      console.error('[WORKOUT] Error completing workout:', error);
+      const errorMessage = error.message || error.response?.data?.message || t('workouts.completeWorkoutError', {
+        default: 'Failed to complete workout session. Please try again.',
+      });
       Alert.alert(
         t('common.error'),
-        error.message || 'Failed to complete workout session'
+        errorMessage
       );
     } finally {
       setCompleting(false);

@@ -431,15 +431,20 @@ export default function StatsScreen() {
               />
             </View>
 
-            {otherTrends.map((trend, index) => (
+            {otherTrends.map((trend, index) => {
+              const metricType = (trend as any).metric_type;
+              const trendId = (trend as any).id || (trend as any).type || metricType;
+              // Create unique key by combining metric_type and index to avoid duplicates
+              const uniqueKey = `${trendId}-${index}`;
+              
+              return (
               <TouchableOpacity
-                key={(trend as any).metric_type || index}
+                key={uniqueKey}
                 style={[
                   themedStyles.trendItem,
                   { borderColor: theme.colors.border },
                 ]}
                 onPress={() => {
-                  const metricType = (trend as any).metric_type;
                   if (metricType) {
                     router.push(`/health/metric/${metricType}`);
                   }
@@ -486,7 +491,8 @@ export default function StatsScreen() {
                   </Text>
                 </View>
               </TouchableOpacity>
-            ))}
+              );
+            })}
           </View>
         )}
       </View>

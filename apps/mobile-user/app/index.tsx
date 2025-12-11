@@ -41,12 +41,15 @@ const WelcomeScreen = () => {
         // Priority: Subscription > Member > Profile
         if (!status.registrationStatus.hasSubscription) {
           console.log('[WARN] No subscription - redirecting to plan selection');
+          // Check if user has member record (indicates subscription might be expired)
+          const hasExpiredSubscription = status.hasMember;
           router.replace({
             pathname: '/(auth)/register-plan',
             params: {
               userId: user.id,
               accessToken: '', // Will be retrieved from storage if needed
               refreshToken: '',
+              expired: hasExpiredSubscription ? 'true' : 'false',
             },
           });
         } else if (

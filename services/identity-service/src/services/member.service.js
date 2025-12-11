@@ -53,43 +53,95 @@ class MemberService {
     }
   }
 
-  async deleteMember(userId) {
+  // TC-USER-001: Delete member with retry mechanism (prevent partial deletion)
+  async getMemberByUserId(userId) {
     try {
-      // First, get member by user_id to get the member id
-      const getResponse = await axios.get(`${this.baseURL}/members/user/${userId}`, {
+      const response = await axios.get(`${this.baseURL}/members/user/${userId}`, {
         timeout: 5000,
       });
 
-      if (getResponse.data.success && getResponse.data.data?.member?.id) {
-        const memberId = getResponse.data.data.member.id;
-        const response = await axios.delete(`${this.baseURL}/members/${memberId}`, {
-          timeout: 5000,
-        });
-
+      if (response.data.success) {
         return {
           success: true,
-          data: response.data,
+          data: response.data.data,
         };
       } else {
-        // Member not found, consider it already deleted
         return {
-          success: true,
-          data: null,
+          success: false,
+          error: response.data.message || 'Member not found',
         };
       }
     } catch (error) {
-      // If 404, member doesn't exist, consider it already deleted
       if (error.response?.status === 404) {
         return {
-          success: true,
-          data: null,
+          success: false,
+          error: 'Member not found',
         };
       }
-      console.error('Member service delete error:', error.message);
+      console.error('Member service getMemberByUserId error:', error.message);
       return {
         success: false,
         error: error.message,
       };
+    }
+  }
+
+  // TC-USER-001: Delete member with retry mechanism (prevent partial deletion)
+  async deleteMember(userId) {
+    const maxRetries = 3;
+    let retryCount = 0;
+
+    while (retryCount < maxRetries) {
+      try {
+        // First, get member by user_id to get the member id
+        const getResponse = await axios.get(`${this.baseURL}/members/user/${userId}`, {
+          timeout: 5000,
+        });
+
+        if (getResponse.data.success && getResponse.data.data?.member?.id) {
+          const memberId = getResponse.data.data.member.id;
+          const response = await axios.delete(`${this.baseURL}/members/${memberId}`, {
+            timeout: 5000,
+          });
+
+          return {
+            success: true,
+            data: response.data,
+          };
+        } else {
+          // Member not found, consider it already deleted
+          return {
+            success: true,
+            data: null,
+          };
+        }
+      } catch (error) {
+        // If 404, member doesn't exist, consider it already deleted
+        if (error.response?.status === 404) {
+          return {
+            success: true,
+            data: null,
+          };
+        }
+
+        retryCount++;
+        console.error(
+          `[ERROR] Member service delete error (attempt ${retryCount}/${maxRetries}):`,
+          error.message
+        );
+
+        if (retryCount >= maxRetries) {
+          // TC-USER-001: After all retries failed, return error
+          return {
+            success: false,
+            error: `Failed to delete member after ${maxRetries} attempts: ${error.message}`,
+            retryable: true, // Indicate this can be retried later
+          };
+        }
+
+        // Wait before retry (exponential backoff)
+        await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+      }
     }
   }
 

@@ -1,17 +1,17 @@
+import { ErrorModal } from '@/components/ErrorModal';
 import { chatService, ChatMessage } from '@/services/chat/chat.service';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { useRouter } from 'expo-router';
 import { ArrowLeft, Send } from 'lucide-react-native';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   FlatList,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -31,36 +31,126 @@ export default function ChatScreen() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [unreadCount, setUnreadCount] = useState(0);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const flatListRef = useRef<FlatList>(null);
 
   useEffect(() => {
     if (!user?.id) return;
+
+    // Load unread count
+    loadUnreadCount();
+
+    let unsubscribe: (() => void) | undefined;
+    let unsubscribeTyping: (() => void) | undefined;
 
     // Connect to Socket.IO
     chatService
       .connect(user.id)
       .then(() => {
         loadMessages();
+
+        // Listen for new messages - only after connection is established
+        unsubscribe = chatService.onMessage((newMessage) => {
+          console.log(
+            '[CHAT] Received message:',
+            newMessage.id,
+            'sender_id:',
+            newMessage.sender_id,
+            'receiver_id:',
+            newMessage.receiver_id,
+            'user.id:',
+            user.id
+          );
+
+          // Check if this message is for the current user
+          // Case 1: Member sent support message (receiver_id = null, sender_id = user.id) - our own message
+          // Case 2: Admin replied to member (receiver_id = user.id, sender_id = admin.id) - message for us
+          // Case 3: Message sent confirmation (chat:message:sent event) - always show our own messages
+          const isForCurrentUser =
+            newMessage.receiver_id === user.id || // Admin replied to us
+            newMessage.sender_id === user.id; // We sent this message (support or confirmation)
+
+          if (!isForCurrentUser) {
+            console.log(
+              '[CHAT] Message not for current user, ignoring. Details:',
+              {
+                messageId: newMessage.id,
+                senderId: newMessage.sender_id,
+                receiverId: newMessage.receiver_id,
+                currentUserId: user.id,
+              }
+            );
+            return;
+          }
+
+          console.log('[CHAT] Message is for current user, processing...');
+
+          // Handle all messages (regular and support)
+          setMessages((prev) => {
+            // Check if message already exists
+            if (prev.find((m) => m.id === newMessage.id)) {
+              console.log('[CHAT] Message already exists, skipping');
+              return prev;
+            }
+            console.log('[CHAT] Adding new message to list');
+            // Add new message and sort by created_at to maintain chronological order
+            const updated = [...prev, newMessage];
+            return updated.sort(
+              (a, b) =>
+                new Date(a.created_at).getTime() -
+                new Date(b.created_at).getTime()
+            );
+          });
+          scrollToBottom();
+
+          // Mark as read if it's a received message (not sent by current user)
+          // Admin replied: receiver_id === user.id
+          if (newMessage.receiver_id === user.id && !newMessage.is_read) {
+            console.log('[CHAT] Marking message as read:', newMessage.id);
+            chatService.markAsRead([newMessage.id]).catch(console.error);
+            loadUnreadCount();
+          }
+        });
+
+        // Listen for typing indicators - only after connection is established
+        unsubscribeTyping = chatService.onTyping((data) => {
+          setIsTyping(data.is_typing);
+
+          // Clear typing indicator after 3 seconds
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+          }
+          if (data.is_typing) {
+            typingTimeoutRef.current = setTimeout(() => {
+              setIsTyping(false);
+            }, 3000);
+          }
+        });
       })
       .catch((error) => {
-        console.error('Error connecting to chat:', error);
-        Alert.alert(t('common.error'), 'Failed to connect to chat service');
+        console.log('Error connecting to chat:', error);
+        setErrorMessage(
+          t('chat.connectionError', {
+            defaultValue:
+              'Không thể kết nối đến dịch vụ chat. Vui lòng thử lại sau.',
+          })
+        );
+        setShowErrorModal(true);
       });
 
-    // Listen for new messages
-    const unsubscribe = chatService.onMessage((newMessage) => {
-      setMessages((prev) => [...prev, newMessage]);
-      scrollToBottom();
-    });
-
-    // Listen for typing indicators
-    const unsubscribeTyping = chatService.onTyping((data) => {
-      setIsTyping(data.is_typing);
-    });
-
     return () => {
-      unsubscribe();
-      unsubscribeTyping();
+      if (unsubscribe) {
+        unsubscribe();
+      }
+      if (unsubscribeTyping) {
+        unsubscribeTyping();
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
       chatService.disconnect();
     };
   }, [user?.id]);
@@ -68,14 +158,41 @@ export default function ChatScreen() {
   const loadMessages = async () => {
     try {
       setLoading(true);
+      // Load support chat (receiver_id = null means admin/super admin support)
+      // Backend returns messages in desc order (newest first), reverse to show oldest first
       const chatMessages = await chatService.getChatHistory(null, 100, 0);
-      setMessages(chatMessages);
+      setMessages(chatMessages.reverse());
       scrollToBottom();
+
+      // Mark all messages as read when viewing
+      // Only mark messages where receiver_id === user.id (admin replies to this member)
+      const unreadIds = chatMessages
+        .filter((msg) => msg.receiver_id === user?.id && !msg.is_read)
+        .map((msg) => msg.id);
+      if (unreadIds.length > 0) {
+        await chatService.markAsRead(unreadIds);
+        loadUnreadCount();
+      }
     } catch (error: any) {
-      console.error('Error loading messages:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to load messages');
+      console.log('Error loading messages:', error);
+      setErrorMessage(
+        error.message ||
+          t('chat.loadError', {
+            defaultValue: 'Không thể tải tin nhắn. Vui lòng thử lại sau.',
+          })
+      );
+      setShowErrorModal(true);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadUnreadCount = async () => {
+    try {
+      const count = await chatService.getUnreadCount();
+      setUnreadCount(count);
+    } catch (error) {
+      console.log('Error loading unread count:', error);
     }
   };
 
@@ -93,16 +210,30 @@ export default function ChatScreen() {
     setSending(true);
 
     try {
-      // Send to support (null receiver_id = admin/staff support)
+      // Send to support (null receiver_id = admin/super admin support)
       await chatService.sendMessage(null, messageText);
       // Message will be added via Socket.IO event
+      scrollToBottom();
     } catch (error: any) {
-      console.error('Error sending message:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to send message');
+      console.log('Error sending message:', error);
+      setErrorMessage(
+        error.message ||
+          t('chat.sendError', {
+            defaultValue: 'Không thể gửi tin nhắn. Vui lòng thử lại sau.',
+          })
+      );
+      setShowErrorModal(true);
       setMessage(messageText); // Restore message on error
     } finally {
       setSending(false);
     }
+  };
+
+  const handleTyping = (text: string) => {
+    setMessage(text);
+    // Send typing indicator to admin/super admin
+    // Note: For support chat, we don't have a specific receiver_id
+    // The backend will handle broadcasting to all admins
   };
 
   const formatTime = (dateString: string) => {
@@ -119,11 +250,15 @@ export default function ChatScreen() {
 
   if (loading) {
     return (
-      <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+      <SafeAreaView
+        style={[styles.container, { backgroundColor: theme.colors.background }]}
+      >
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.primary} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            Loading chat...
+          <Text
+            style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+          >
+            {t('chat.loading', { defaultValue: 'Đang tải chat...' })}
           </Text>
         </View>
       </SafeAreaView>
@@ -131,7 +266,9 @@ export default function ChatScreen() {
   }
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+    <SafeAreaView
+      style={[styles.container, { backgroundColor: theme.colors.background }]}
+    >
       {/* Header */}
       <View
         style={[
@@ -142,15 +279,37 @@ export default function ChatScreen() {
           },
         ]}
       >
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('settings.support') || 'Support Chat'}
-          </Text>
-          <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-            {isTyping ? 'Support is typing...' : 'Available 24/7'}
+          <View style={styles.headerTitleRow}>
+            <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+              {t('chat.title', { defaultValue: 'Hỗ trợ' })}
+            </Text>
+            {unreadCount > 0 && (
+              <View
+                style={[
+                  styles.unreadBadge,
+                  { backgroundColor: theme.colors.error },
+                ]}
+              >
+                <Text style={styles.unreadBadgeText}>{unreadCount}</Text>
+              </View>
+            )}
+          </View>
+          <Text
+            style={[
+              styles.headerSubtitle,
+              { color: theme.colors.textSecondary },
+            ]}
+          >
+            {isTyping
+              ? t('chat.typing', { defaultValue: 'Đang nhập...' })
+              : t('chat.available', { defaultValue: 'Hỗ trợ 24/7' })}
           </Text>
         </View>
       </View>
@@ -172,7 +331,9 @@ export default function ChatScreen() {
               <View
                 style={[
                   styles.messageContainer,
-                  myMessage ? styles.myMessageContainer : styles.otherMessageContainer,
+                  myMessage
+                    ? styles.myMessageContainer
+                    : styles.otherMessageContainer,
                 ]}
               >
                 <View
@@ -200,7 +361,9 @@ export default function ChatScreen() {
                     style={[
                       styles.messageTime,
                       {
-                        color: myMessage ? 'rgba(255,255,255,0.7)' : theme.colors.textSecondary,
+                        color: myMessage
+                          ? 'rgba(255,255,255,0.7)'
+                          : theme.colors.textSecondary,
                       },
                     ]}
                   >
@@ -212,8 +375,16 @@ export default function ChatScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
-              <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                No messages yet. Start a conversation!
+              <Text
+                style={[
+                  styles.emptyText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {t('chat.noMessages', {
+                  defaultValue:
+                    'Chưa có tin nhắn nào. Hãy bắt đầu cuộc trò chuyện!',
+                })}
               </Text>
             </View>
           }
@@ -238,10 +409,12 @@ export default function ChatScreen() {
                 color: theme.colors.text,
               },
             ]}
-            placeholder={t('settings.typeMessage') || 'Type a message...'}
+            placeholder={t('chat.typeMessage', {
+              defaultValue: 'Nhập tin nhắn...',
+            })}
             placeholderTextColor={theme.colors.textSecondary}
             value={message}
-            onChangeText={setMessage}
+            onChangeText={handleTyping}
             multiline
             maxLength={1000}
           />
@@ -264,6 +437,18 @@ export default function ChatScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        onClose={() => {
+          setShowErrorModal(false);
+          setErrorMessage('');
+        }}
+        title={t('chat.errorTitle', { defaultValue: 'Lỗi' })}
+        message={errorMessage}
+        type="error"
+      />
     </SafeAreaView>
   );
 }
@@ -293,12 +478,31 @@ const styles = StyleSheet.create({
   headerContent: {
     flex: 1,
   },
+  headerTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   headerTitle: {
     ...Typography.h5,
   },
   headerSubtitle: {
     ...Typography.bodySmall,
     marginTop: 4,
+  },
+  unreadBadge: {
+    minWidth: 20,
+    height: 20,
+    borderRadius: 10,
+    paddingHorizontal: 6,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  unreadBadgeText: {
+    ...Typography.caption,
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '600',
   },
   messagesContainer: {
     flex: 1,
@@ -366,5 +570,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-
-

@@ -14,6 +14,7 @@ import {
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Notification, notificationService } from '../services/notification.service';
 import { socketService } from '../services/socket.service';
+import { EnumBadge } from '../shared/components/ui';
 
 interface NotificationDropdownProps {
   userId: string;
@@ -1548,50 +1549,12 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
     return null;
   };
 
-  const getRoleBadge = (role: string | null) => {
-    if (!role) return null;
-
-    const roleConfig: Record<string, { label: string }> = {
-      TRAINER: {
-        label: 'Huấn luyện viên',
-      },
-      MEMBER: {
-        label: 'Thành viên',
-      },
-      ADMIN: {
-        label: 'Quản trị viên',
-      },
-      AI: {
-        label: 'AI',
-      },
-      SUPER_ADMIN: {
-        label: 'Super Admin',
-      },
-      SYSTEM: {
-        label: 'Hệ thống',
-      },
-    };
-
-    // Tất cả badge đều dùng màu cam để đồng bộ
-    const orangeBadgeClassName =
-      'bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-400 border-orange-200 dark:border-orange-500/30';
-
-    const config = roleConfig[role] || {
-      label: role,
-    };
-
-    return (
-      <span
-        className={`inline-flex items-center px-2 py-0.5 rounded-md text-theme-xs font-heading font-semibold border ${orangeBadgeClassName} shadow-sm`}
-      >
-        {config.label}
-      </span>
-    );
-  };
+  // Removed getRoleBadge - using EnumBadge with ROLE instead
 
   const renderMessageWithBadge = (notification: Notification) => {
     const role = getNotificationRole(notification);
-    const badge = getRoleBadge(role);
+    // Get badge using EnumBadge (only for valid roles)
+    const badge = role ? <EnumBadge type='ROLE' value={role} size='xs' showIcon={true} /> : null;
 
     // Extract name from message or data
     // Priority: admin_name > trainer_name > member_name > extract from message

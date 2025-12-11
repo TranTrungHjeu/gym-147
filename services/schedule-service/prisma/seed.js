@@ -675,7 +675,7 @@ async function main() {
           member_id: memberId,
           status: BookingStatus.COMPLETED,
           booked_at: new Date(
-            schedule.date.getTime() - (1 + Math.random() * 6) * 24 * 60 * 60 * 1000
+            schedule.start_time.getTime() - (1 + Math.random() * 6) * 24 * 60 * 60 * 1000
           ), // 1-7 ngày trước
           cancelled_at: null,
           cancellation_reason: null,

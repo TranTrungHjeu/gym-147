@@ -31,6 +31,10 @@
     "equipmentUsed": "Equipment Used",
     "totalDuration": "Total Duration",
     "totalCalories": "Total Calories",
+    "caloriesBreakdown": "Calories Breakdown",
+    "caloriesFromWorkout": "From Workout",
+    "caloriesFromEquipment": "From Equipment",
+    "total": "Total",
     "device": "device",
     "devices": "devices",
     "sets": "sets",
@@ -79,7 +83,10 @@
     "accountCreated": "Account created successfully!",
     "registrationFailed": "Registration failed. Please try again.",
     "googleSignup": "Google Signup",
-    "googleSignupNotImplemented": "Google signup will be implemented",
+    "googleLogin": "Google Login",
+    "oauthFailed": "OAuth authentication failed",
+    "googleSignupFailed": "Failed to sign up with Google",
+    "googleLoginFailed": "Failed to login with Google",
     "didntReceiveCode": "Didn't receive code?",
     "resend": "Resend",
     "rememberMe": "Remember Me",
@@ -211,6 +218,15 @@
     "discountApplied": "Discount applied",
     "bonusDays": "bonus days",
     "bonusDaysApplied": "You got {{days}} bonus days!",
+    "trialCode": "Trial Code",
+    "trialInfo": "Trial Information",
+    "trialPeriod": "Trial Period",
+    "trialDescription": "You are using a trial code. This plan will automatically convert to Basic plan after expiration.",
+    "startTrial": "Start Trial",
+    "trialCodeValid": "Valid Trial Code",
+    "trialCodeMessage": "You will get 7 days free trial with Basic plan. After that you can upgrade to another plan.",
+    "trialSubscription": "Trial Subscription",
+    "paymentMethod": "Payment Method",
     "skipCoupon": "Skip this step",
     "paymentSummary": "Payment Summary",
     "membershipFee": "Membership Fee",
@@ -322,6 +338,7 @@
     "duration": "Duration",
     "exercises": "Exercises",
     "addWorkout": "Add Workout",
+    "createWorkout": "Create Workout",
     "noWorkouts": "No featured workouts available",
     "loadingWorkouts": "Loading workout plans...",
     "loadingWorkout": "Loading workout...",
@@ -387,6 +404,13 @@
     "restDay": "Rest Day",
     "increaseIntensity": "Increase Intensity",
     "upgradeBenefits": "Premium Benefits:",
+    "aiWorkoutUpgradeTitle": "Unlock AI Workout Plans",
+    "aiWorkoutUpgradeSubtitle": "Create personalized workout plans powered by AI",
+    "aiWorkoutUpgradeMessage": "Upgrade to Premium or VIP to unlock AI-powered workout plans that adapt to your progress and goals!",
+    "aiWorkoutFeatureTitle": "AI-Powered Workout Plans",
+    "aiWorkoutFeatureDesc": "Get personalized workout plans tailored to your goals, fitness level, and preferences",
+    "unlockAIWorkout": "Unlock AI Workout Plans",
+    "currentPlan": "Your current plan",
     "aiGenerating": "AI is creating your personalized workout plan...",
     "aiSuccess": "AI workout plan created successfully!",
     "aiGeneration": "AI Workout",
@@ -527,6 +551,7 @@
     "health": "Health",
     "account": "Account",
     "support": "Support",
+    "typeMessage": "Type a message...",
     "weeklyGoal": "Weekly Goal",
     "workouts": "workouts",
     "fitnessGoalOptions": {
@@ -537,7 +562,6 @@
       "maintain": "Maintain"
     },
     "premium": "Premium",
-    "premiumComingSoon": "Premium features coming soon!",
     "upgradeToPremium": "Upgrade to Premium",
     "personalInfoUpdated": "Personal information updated successfully",
     "healthInfoUpdated": "Health information updated successfully",
@@ -679,6 +703,8 @@
     "privacyUpdated": "Privacy preferences updated successfully",
     "failedToUpdatePrivacy": "Failed to update privacy preferences",
     "exportData": "Export Data",
+    "loadingPreferences": "Loading preferences...",
+    "deleteAccount": "Delete Account",
     "exportDataMessage": "Your data will be exported and sent to your email. This may take a few minutes.",
     "exportReady": "Export Ready",
     "exportReadyMessage": "Your data has been exported and sent to your email.",
@@ -695,7 +721,98 @@
     "supportMessageFailed": "Failed to send message. Please try again.",
     "messagePlaceholder": "Describe your issue or question...",
     "subjectPlaceholder": "Brief description of your issue",
-    "detailedMessagePlaceholder": "Please provide detailed information about your issue..."
+    "detailedMessagePlaceholder": "Please provide detailed information about your issue...",
+    "privacy": {
+      "title": "Privacy Settings",
+      "loading": "Loading preferences...",
+      "profileVisibility": "Profile Visibility",
+      "controls": "Privacy Controls",
+      "dataManagement": "Data Management",
+      "exportData": "Export My Data",
+      "exportDataDesc": "Download a copy of all your personal data",
+      "deleteAccountDesc": "Permanently delete your account and all data",
+      "matters": "Your Privacy Matters",
+      "mattersDesc": "We are committed to protecting your privacy. You can control how your data is used and shared. Some features may require certain permissions to function properly.",
+      "activitySharing": "Activity Sharing",
+      "activitySharingDesc": "Share your workout activities with friends",
+      "dataCollection": "Data Collection",
+      "dataCollectionDesc": "Allow collection of usage data for app improvement",
+      "analyticsTracking": "Analytics Tracking",
+      "analyticsTrackingDesc": "Help us improve the app with anonymous usage data",
+      "locationTracking": "Location Tracking",
+      "locationTrackingDesc": "Track location for gym check-ins and nearby features",
+      "biometricData": "Biometric Data",
+      "biometricDataDesc": "Store biometric data for face recognition access",
+      "visibility": {
+        "public": "Public",
+        "publicDesc": "Anyone can see your profile",
+        "friends": "Friends Only",
+        "friendsDesc": "Only your friends can see your profile",
+        "private": "Private",
+        "privateDesc": "Only you can see your profile"
+      }
+    },
+    "support": {
+      "title": "Help & Support",
+      "contactUs": "Contact Us",
+      "callUs": "Call Us",
+      "phoneNumber": "+1 (555) 123-4567",
+      "emailUs": "Email Us",
+      "emailAddress": "support@gymapp.com",
+      "liveChat": "Live Chat",
+      "available247": "Available 24/7",
+      "loginRequired": "Please login to use live chat",
+      "submitTicket": "Submit Support Ticket",
+      "submitTicketTitle": "Submit a Support Ticket",
+      "subject": "Subject",
+      "message": "Message",
+      "submitting": "Submitting...",
+      "faq": {
+        "title": "Frequently Asked Questions",
+        "checkIn": {
+          "question": "How do I check in to the gym?",
+          "answer": "You can check in using QR code scanning, RFID card, or face recognition. Tap the \"Check In\" button on the home screen and choose your preferred method."
+        },
+        "updateProfile": {
+          "question": "How do I update my profile information?",
+          "answer": "Go to the Profile tab and tap on \"Personal\", \"Health\", or \"Goals\" to edit different sections of your profile. Make sure to save your changes."
+        },
+        "trackWorkouts": {
+          "question": "How do I track my workouts?",
+          "answer": "Your workouts are automatically tracked when you check in and out of the gym. You can view your workout history in the Stats tab."
+        },
+        "changeMembership": {
+          "question": "How do I change my membership plan?",
+          "answer": "Contact our support team or visit the gym reception to discuss membership plan changes. You can also check available plans in the app."
+        },
+        "forgotPassword": {
+          "question": "What if I forget my password?",
+          "answer": "On the login screen, tap \"Forgot Password\" and enter your email address. You will receive a password reset link via email."
+        },
+        "enableNotifications": {
+          "question": "How do I enable notifications?",
+          "answer": "Go to Settings > Notifications to customize which notifications you want to receive. Make sure push notifications are enabled in your device settings."
+        },
+        "contactSupport": {
+          "question": "How do I contact customer support?",
+          "answer": "You can contact us through this support screen, call us, or email us."
+        },
+        "cancelMembership": {
+          "question": "How do I cancel my membership?",
+          "answer": "To cancel your membership, please contact our support team at least 30 days before your next billing cycle. We will guide you through the cancellation process."
+        }
+      }
+    }
+  },
+  "class": {
+    "refund": {
+      "status": {
+        "pending": "Pending Approval",
+        "approved": "Approved",
+        "processed": "Processed",
+        "failed": "Failed"
+      }
+    }
   },
   "classes": {
     "title": "Classes",
@@ -703,6 +820,10 @@
     "myBookings": "My Bookings",
     "searchPlaceholder": "Search classes...",
     "filter": "Filter",
+    "filters": "Filters",
+    "selectDate": "Select Date",
+    "selectCategory": "Select Category",
+    "advancedFilters": "Advanced Filters",
     "categories": {
       "cardio": "Cardio",
       "strength": "Strength",
@@ -739,6 +860,26 @@
       "completed": "Completed",
       "cancelled": "Cancelled"
     },
+    "refund": {
+      "amount": "Refund Amount",
+      "originalAmount": "Original Amount",
+      "processedAt": "Processed At",
+      "failureReason": "Failure Reason",
+      "viewTimeline": "View Refund Timeline",
+      "hoursUntilStart": "{{hours}} hours remaining",
+      "status": {
+        "pending": "Pending Approval",
+        "approved": "Approved",
+        "processed": "Processed",
+        "failed": "Failed"
+      },
+      "policy": {
+        "label": "Refund Policy",
+        "full": "100% Refund",
+        "partial": "50% Refund",
+        "none": "No Refund"
+      }
+    },
     "booking": {
       "book": "Book Now",
       "cancel": "Cancel Booking",
@@ -751,19 +892,137 @@
       "bookingCancelled": "Booking cancelled successfully",
       "bookingFailed": "Failed to book class",
       "classFull": "This class is full",
+      "existingPendingPayment": "You already have a booking pending payment for this class",
       "removeFromWaitlist": "Remove from Waitlist",
+      "waitlistSuccess": "Class is full. You have been added to the waitlist",
+      "waitlistSuccessWithPosition": "Class is full. You have been added to the waitlist at position {{position}}",
+      "waitlistConfirmation": "Class is full. You will join the waitlist. Do you want to continue?",
+      "onWaitlist": "On waitlist",
+      "onWaitlistWithPosition": "On waitlist (Position {{position}})",
       "cancelConfirm": "Are you sure you want to cancel this booking?",
       "cancelSuccess": "Booking cancelled successfully",
-      "cancelFailed": "Failed to cancel booking"
+      "cancelSuccessWithRefund": "Booking cancelled successfully! You will be refunded {{amount}}",
+      "cancelFailed": "Failed to cancel booking",
+      "cancellationReason": "Cancellation Reason",
+      "cancellationReasonRequired": "Please select a cancellation reason",
+      "cancellationReasonOther": "Other Reason",
+      "cancellationReasonOtherPlaceholder": "Enter cancellation reason...",
+      "refundPolicy": "Refund Policy",
+      "refundPolicy24h": "100% refund if cancelled before 24 hours",
+      "refundPolicy12h": "50% refund if cancelled before 12 hours",
+      "refundPolicyNoRefund": "No refund if cancelled after 12 hours",
+      "cancellationHistory": "Cancellation History",
+      "cancelledAt": "Cancelled At",
+      "noCancellations": "No cancellation history",
+      "viewCancellationHistory": "View Cancellation History",
+      "noCancellationHistory": "No cancellation history",
+      "cancellationDate": "Cancellation Date",
+      "cancellationRefund": "Refund Amount",
+      "cancellationRefundAmount": "{{amount}} ₫",
+      "cancellationNoRefund": "No Refund",
+      "refund": {
+        "amount": "Refund Amount",
+        "originalAmount": "Original Amount",
+        "status": {
+          "pending": "Pending Approval",
+          "approved": "Approved",
+          "processed": "Processed",
+          "failed": "Failed"
+        },
+        "policy": {
+          "label": "Refund Policy",
+          "full": "100% Refund",
+          "partial": "50% Refund",
+          "none": "No Refund"
+        },
+        "hoursUntilStart": "{{hours}} hours remaining",
+        "processedAt": "Processed At",
+        "failureReason": "Failure Reason",
+        "viewTimeline": "View Refund Timeline",
+        "viewRefund": "View Refund",
+        "noRefund": "No Refund",
+        "pendingMessage": "Your refund request is pending approval",
+        "approvedMessage": "Refund request approved, processing",
+        "processedMessage": "Refund processed successfully",
+        "failedMessage": "Sorry, refund could not be processed"
+      },
+      "loading": "Loading bookings...",
+      "loginRequired": "Please login to view bookings",
+      "noBookingsFound": "No bookings found",
+      "myBookingsTitle": "My Bookings",
+      "upcoming": "Upcoming",
+      "past": "Past",
+      "cancelled": "Cancelled",
+      "refund": "Refunds",
+      "noRefunds": "No refunds yet",
+      "emptyRefundMessage": "You don't have any refund requests yet",
+      "emptyUpcomingMessage": "Book some classes to see them here",
+      "emptyPastMessage": "You don't have any {{tab}} bookings yet",
+      "emptyCancelledMessage": "You don't have any cancelled bookings yet",
+      "browseClasses": "Browse Classes",
+      "loadError": "Failed to load bookings",
+      "cancellation": {
+        "title": "Cancellation Reason",
+        "subtitle": "Please select a reason to help us improve our service",
+        "refundPolicy": "Refund Policy",
+        "refund100": "100% Refund",
+        "refund50": "50% Refund",
+        "noRefund": "No Refund",
+        "customReasonPlaceholder": "Enter your cancellation reason...",
+        "confirm": "Confirm Cancel",
+        "reasons": {
+          "scheduleConflict": "Schedule changed",
+          "healthIssue": "Health issue",
+          "cannotAttend": "Cannot attend",
+          "foundAlternative": "Found alternative class",
+          "other": "Other reason"
+        }
+      }
     },
+    "attendance": {
+      "checkoutConfirm": "Checkout Confirmation",
+      "checkoutConfirmMessage": "Are you sure you want to checkout early from this class?",
+      "className": "Class",
+      "endTime": "End Time",
+      "checkoutWarning": "Note: If you checkout early, the system will automatically checkout when the class ends.",
+      "confirmCheckout": "Confirm Checkout"
+    },
+    "rating": {
+      "title": "Rate Class",
+      "editTitle": "Edit Rating",
+      "subtitle": "Share your experience about the class and trainer",
+      "class": "Class",
+      "trainer": "Trainer",
+      "rateClass": "Rate Class",
+      "rateTrainer": "Rate Trainer",
+      "feedback": "Feedback (optional)",
+      "feedbackPlaceholder": "Share more about your experience...",
+      "poor": "Poor",
+      "fair": "Fair",
+      "good": "Good",
+      "veryGood": "Very Good",
+      "excellent": "Excellent",
+      "submitSuccess": "Thank you for your rating!",
+      "submitSuccessMessage": "Your rating has been recorded.",
+      "submitError": "Failed to submit rating",
+      "viewOrEdit": "View/Edit Rating",
+      "rateClassButton": "Rate Class"
+    },
+    "noClassesForDate": "No classes scheduled for this date",
+    "pleaseLoginToViewClasses": "Please login to view classes",
     "trainer": "Trainer",
+    "time": "Time",
+    "location": "Location",
     "duration": "Duration",
     "capacity": "Capacity",
     "spotsAvailable": "spots available",
     "noClassesFound": "No classes found",
+    "classFound": "class",
+    "classesFound": "classes",
+    "tryDifferentFilters": "Try adjusting your filters or search",
+    "viewAll": "View All",
     "loadingClasses": "Loading classes...",
     "classNotFound": "Class not found",
-    "advancedFiltersComingSoon": "Advanced filters are coming soon! For now, use the category chips and date selector.",
     "scheduleDetails": "Schedule Details",
     "booked": "booked",
     "equipmentNeeded": "Equipment Needed",
@@ -777,6 +1036,10 @@
     "recommendations": "AI Recommendations",
     "recommendationsTitle": "Personalized Recommendations",
     "recommendationsDescription": "Based on your class attendance and preferences",
+    "vectorRecommendations": "AI Vector Recommendations",
+    "vectorRecommendationsDescription": "Class recommendations based on vector embedding, deep analysis of your goals and preferences",
+    "loadingVectorRecommendations": "Loading AI recommendations...",
+    "noVectorRecommendations": "No vector embedding recommendations yet. Please update your profile to receive recommendations.",
     "recommendationPriorityHigh": "High Priority",
     "recommendationPriorityMedium": "Medium Priority",
     "recommendationPriorityLow": "Low Priority",
@@ -810,9 +1073,34 @@
     "additionalNotes": "Additional Notes",
     "additionalNotesPlaceholder": "Any additional notes for the trainer?",
     "share": "Share",
-    "shareComingSoon": "Share functionality coming soon!",
     "yearExperience": "year of experience",
-    "yearsExperience": "years of experience"
+    "yearsExperience": "years of experience",
+    "errors": {
+      "loginRequired": "Please login to view class details",
+      "scheduleIdRequired": "Schedule ID is required",
+      "failedToCheckFavorite": "Failed to check favorite",
+      "invalidClassId": "Invalid class ID",
+      "failedToLoadDetails": "Failed to load class details",
+      "loginRequiredForBooking": "You need to login to book a class",
+      "scheduleNotFound": "Schedule information not found",
+      "memberRegistrationRequired": "Please register as a member before booking. Loading member information...",
+      "missingRequiredFields": "Missing required fields",
+      "failedToRemoveFavorite": "Failed to remove favorite",
+      "failedToAddFavorite": "Failed to add favorite",
+      "failedToUpdateFavorite": "Failed to update favorite",
+      "failedToShare": "Failed to share class",
+      "failedToLoadData": "Failed to load classes data"
+    },
+    "share": {
+      "with": "with",
+      "joinMessage": "Join me for this class!",
+      "defaultClassName": "Class"
+    },
+    "cancellationHistory": "Cancellation History",
+    "noCancellations": "No cancellation history",
+    "cancelledAt": "Cancelled At",
+    "refundAmount": "Refund Amount",
+    "cancellationReason": "Cancellation Reason"
   },
   "equipment": {
     "title": "Equipment",
@@ -859,6 +1147,8 @@
     "usageEnded": "Workout session ended successfully",
     "timeoutWarning": "Session Timeout Warning",
     "timeoutMessage": "Your workout session will automatically end in {{minutes}} minutes. Please end your session manually to avoid auto-stop.",
+    "autoStopWarning": "Auto-Stop Warning",
+    "autoStopWarningMessage": "Equipment will automatically stop after {{minutes}} minutes. Please end usage to avoid auto-stop.",
     "usage": {
       "startTime": "Start Time",
       "endTime": "End Time",
@@ -881,13 +1171,27 @@
       "saveWorkout": "Save Workout"
     },
     "noEquipmentFound": "No equipment found",
+    "equipmentFound": "equipment",
+    "equipmentsFound": "equipment",
     "loadingEquipment": "Loading equipment...",
     "workoutSaved": "Workout saved successfully!",
     "errors": {
       "startUsageFailed": "Failed to start equipment usage",
       "saveWorkoutFailed": "Failed to save workout",
-      "loginRequired": "Please login to start equipment usage"
+      "loginRequired": "Please login to start equipment usage",
+      "loadEquipmentFailed": "Failed to load equipment",
+      "equipmentNotFound": "Equipment not found",
+      "startUsageError": "Failed to start usage",
+      "endUsageError": "Failed to end usage",
+      "leaveQueueError": "Failed to leave queue",
+      "reportIssueError": "Failed to report issue",
+      "unauthorized": "Unauthorized. Please login again.",
+      "onlyOwnUsage": "You can only end your own equipment usage.",
+      "usageNotFound": "Active equipment usage not found."
     },
+    "maxWeight": "Max: {{weight}}kg",
+    "live": "LIVE",
+    "member": "Member",
     "tryAdjustingFilters": "Try adjusting your search or filters",
     "inQueue": "in queue",
     "queue": {
@@ -901,16 +1205,35 @@
       "queueEmpty": "No one in queue",
       "yourTurn": "Your turn!",
       "joinedQueue": "Joined queue successfully",
-      "leftQueue": "Left queue successfully"
+      "leftQueue": "Left queue successfully",
+      "analytics": "Queue Analytics",
+      "averageWaitTime": "Average Wait Time",
+      "queueLength": "Queue Length",
+      "positionPrediction": "Position Prediction",
+      "estimatedPosition": "Estimated Position",
+      "estimatedWaitTime": "Estimated Wait Time",
+      "availabilityPrediction": "Availability Prediction",
+      "estimatedAvailableAt": "Estimated Available At",
+      "minutes": "minutes",
+      "hours": "hours",
+      "viewDetails": "View Details"
     },
+    "queueAnalytics": "Queue Analytics",
+    "averageWaitTime": "Average Wait Time",
+    "averageDuration": "Average Duration",
+    "currentQueueLength": "Current Queue Length",
+    "estimatedWait": "Estimated Wait",
+    "yourTurnAt": "Your Turn At",
+    "notesPlaceholder": "Describe the equipment issue in detail...",
     "issue": {
       "reportIssue": "Report Issue",
       "issueType": "Issue Type",
       "description": "Description",
+      "descriptionRequired": "Please enter a description of the issue",
       "severityLabel": "Severity",
       "addPhotos": "Add Photos",
       "submit": "Submit Report",
-      "reported": "Issue reported successfully",
+      "reported": "Issue reported successfully. Admin has been notified and will handle it soon.",
       "types": {
         "broken": "Broken",
         "damaged": "Damaged",
@@ -924,7 +1247,12 @@
         "medium": "Medium",
         "high": "High",
         "critical": "Critical"
-      }
+      },
+      "cameraPermissionRequired": "Permission to access camera is required to take photos",
+      "galleryPermissionRequired": "Permission to access photo library is required to select images",
+      "pickImageFailed": "Failed to pick image. Please try again.",
+      "takePhotoFailed": "Failed to take photo. Please try again.",
+      "uploadImagesFailed": "Failed to upload images. Please try again."
     },
     "scanQR": "Scan QR Code",
     "qrScanner": "QR Scanner",
@@ -934,7 +1262,16 @@
     "cameraPermissionMessage": "We need camera access to scan QR codes on equipment",
     "grantPermission": "Grant Permission",
     "alignQRCode": "Align QR code within frame",
-    "scanAgain": "Scan Again"
+    "scanAgain": "Scan Again",
+    "queue": {
+      "yourTurn": {
+        "title": "It's Your Turn!",
+        "equipment": "Equipment",
+        "timeRemaining": "You have {{minutes}} minutes to use the equipment",
+        "useNow": "Use Now",
+        "close": "Close"
+      }
+    }
   },
   "access": {
     "rfid": {
@@ -943,7 +1280,25 @@
       "accessGranted": "Access Granted",
       "accessGrantedMessage": "Welcome! Access granted.",
       "accessDenied": "Access Denied",
-      "accessDeniedMessage": "You don't have permission to access this area."
+      "accessDeniedMessage": "You don't have permission to access this area.",
+      "scanner": {
+        "title": "RFID Scanner",
+        "cardScanner": "RFID Card Scanner",
+        "instructions": "Enter your RFID tag number or use the demo button for testing",
+        "tagNumber": "RFID Tag Number",
+        "enterTagNumber": "Enter RFID tag number",
+        "useDemoTag": "Use Demo RFID Tag",
+        "scanTag": "Scan RFID Tag",
+        "tryAgain": "Try Again",
+        "processing": "Processing RFID tag...",
+        "invalidTag": "Invalid RFID tag",
+        "tagNotRegistered": "RFID tag is not registered or invalid",
+        "checkInSuccess": "Successfully checked in with RFID!",
+        "checkInFailed": "Failed to check in",
+        "errorProcessing": "An error occurred while processing the RFID tag",
+        "enterTagRequired": "Please enter an RFID tag",
+        "infoMessage": "In a real implementation, this would automatically read from an RFID reader device"
+      }
     }
   },
   "health": {
@@ -1000,11 +1355,17 @@
       "enterValue": "Enter value",
       "dateTime": "Date & Time",
       "selectDateTime": "Select date and time",
+      "selectDate": "Select date and time",
       "source": "Source",
+      "sourceManual": "Manual Entry",
+      "sourceDevice": "Device Sync",
+      "sourceApp": "App Import",
+      "metricType": "Metric Type",
       "datePicker": "Date Picker",
-      "datePickerNotImplemented": "Date picker not implemented yet",
       "notesOptional": "Notes (Optional)",
-      "notesPlaceholder": "Add any notes about this measurement..."
+      "notesPlaceholder": "Add any notes about this measurement...",
+      "enterValue": "Enter value",
+      "noNotes": "No notes"
     },
     "trends": {
       "title": "Health Trends",
@@ -1021,13 +1382,49 @@
       "monthly": "Monthly",
       "yearly": "Yearly",
       "noData": "No data available",
+      "loading": "Loading health trends...",
       "loadingTrends": "Loading trends...",
       "failedToLoad": "Failed to load health trends",
       "metricDetail": "Metric Detail",
-      "metricDetailNotImplemented": "Metric detail screen not implemented yet"
+      "startRecording": "Start recording your health metrics to see trends",
+      "addFirstMetric": "Add First Metric",
+      "analysis": "Trend Analysis",
+      "currentValue": "Current Value",
+      "previousValue": "Previous Value",
+      "change": "Change",
+      "recentMeasurements": "Recent Measurements"
     },
     "addMetricSuccess": "Metric added successfully",
-    "addMetricError": "Failed to add metric"
+    "addMetricError": "Failed to add metric",
+    "addMetricDescription": "Record your health data",
+    "valueOutOfRange": "Value must be between {{min}} - {{max}} {{unit}}",
+    "loadError": "Failed to load health data",
+    "updateSuccess": "Metric updated successfully",
+    "updateError": "Failed to update metric",
+    "deleteSuccess": "Metric deleted successfully",
+    "deleteError": "Failed to delete metric",
+    "deleteMetric": "Delete Metric",
+    "deleteConfirm": "Are you sure you want to delete this metric?",
+    "metricDetail": "Metric Detail",
+    "metricNotFound": "Metric not found",
+    "metricNotFoundDescription": "This metric may have been deleted or does not exist.",
+    "comparison": {
+      "previous": "Compared to Previous",
+      "previousValue": "Previous Value"
+    },
+    "statistics": {
+      "title": "Statistics",
+      "min": "Minimum",
+      "max": "Maximum"
+    },
+    "viewAllRecords": "View All Records",
+    "navigation": "Navigation",
+    "recentAverage": "Recent 7 Average",
+    "allRecords": "All Records",
+    "invalidValue": "Invalid value",
+    "allRecords": "All Records",
+    "noMetrics": "No metrics available",
+    "noMetricsDescription": "Start recording your health metrics to track your progress."
   },
   "notifications": {
     "title": "Notifications",
@@ -1094,12 +1491,38 @@
       "medium": "Medium",
       "low": "Low",
       "normal": "Normal"
+    },
+    "warningTypes": {
+      "autoCancelWarning": "Auto-Cancel Warning",
+      "autoCancelWarningMessage": "Class will be automatically cancelled in {{hours}} hours due to low participant count.",
+      "checkoutReminder": "Checkout Reminder",
+      "checkoutReminderMessage": "Class will end in {{minutes}} minutes. Please checkout after class ends.",
+      "equipmentAutoStopWarning": "Equipment Auto-Stop Warning",
+      "equipmentAutoStopWarningMessage": "Equipment will automatically stop after {{minutes}} minutes. Please end usage.",
+      "waitlistPromote": "Promoted from Waitlist",
+      "waitlistPromoteMessage": "Congratulations! You have been promoted from the waitlist. Class: {{className}}",
+      "bookingReminder": "Booking Reminder",
+      "bookingReminderMessage": "Your class will start in {{hours}} hours. Please arrive on time."
     }
   },
   "subscription": {
     "title": "Subscription",
     "currentPlan": "Current Plan",
     "billingHistory": "Billing History",
+    "upgrade": "Upgrade Plan",
+    "downgrade": "Downgrade Plan",
+    "calculation": "Prorated Calculation",
+    "refundInfo": "Refund Information",
+    "daysRemaining": "Days Remaining",
+    "unusedAmount": "Unused Amount",
+    "newPlanCost": "New Plan Cost",
+    "priceDifference": "Price Difference",
+    "refundAmount": "Refund Amount",
+    "chargeAmount": "Amount to Charge",
+    "newPlan": "New Plan",
+    "timeline": "Processing Timeline",
+    "processedBy": "Processed By",
+    "estimatedCompletion": "Estimated Completion",
     "status": {
       "active": "Active",
       "inactive": "Inactive",
@@ -1138,7 +1561,23 @@
       "upgradeConfirm": "Upgrade Subscription",
       "upgradeConfirmMessage": "Are you sure you want to upgrade your subscription?",
       "subscriptionRenewed": "Subscription extended successfully!",
-      "failedToRenew": "Failed to extend subscription"
+      "failedToRenew": "Failed to extend subscription",
+      "upgradeDowngrade": "Upgrade/Downgrade Plan",
+      "upgradeDowngradeTitle": "Change Subscription Plan",
+      "currentPlan": "Current Plan",
+      "newPlan": "New Plan",
+      "proratedAmount": "Prorated Amount",
+      "priceDifference": "Price Difference",
+      "refundAmount": "Refund Amount",
+      "changeReason": "Change Reason",
+      "upgradeReason": "Upgrade",
+      "downgradeReason": "Downgrade",
+      "confirmChange": "Confirm Change",
+      "subscriptionChanged": "Subscription plan changed successfully",
+      "failedToChange": "Failed to change plan",
+      "upgradeSuccess": "Upgrade successful! Your plan has been updated.",
+      "renewSuccess": "Renewal successful! Your plan has been renewed.",
+      "subscribeSuccess": "Subscription successful! Your plan has been activated."
     },
     "payment": {
       "addCard": "Add Card",
@@ -1153,7 +1592,17 @@
       "addFailed": "Failed to add card",
       "removeConfirm": "Are you sure you want to remove this card?",
       "removeSuccess": "Card removed successfully",
-      "removeFailed": "Failed to remove card"
+      "removeFailed": "Failed to remove card",
+      "failedToLoadPlanDetails": "Failed to load plan details",
+      "cardHolderName": "Cardholder Name",
+      "cardNumberCannotChange": "Card number cannot be changed",
+      "cvc": "CVC",
+      "editMethod": "Edit Payment Method",
+      "loadFailed": "Failed to load payment method",
+      "methodNotFound": "Payment method not found",
+      "fillAllFields": "Please fill in all fields",
+      "updateSuccess": "Payment method updated successfully",
+      "updateFailed": "Failed to update payment method"
     },
     "billing": {
       "invoice": "Invoice",
@@ -1170,6 +1619,42 @@
         "cancelled": "Cancelled",
         "refunded": "Refunded"
       }
+    },
+    "history": {
+      "title": "Payment History",
+      "loading": "Loading payment history...",
+      "failedToLoad": "Failed to load payment history",
+      "receiptOpened": "Receipt opened in browser",
+      "cannotOpenReceipt": "Cannot open receipt URL",
+      "failedToDownloadReceipt": "Failed to download receipt",
+      "paymentRetryInitiated": "Payment retry initiated",
+      "failedToRetryPayment": "Failed to retry payment",
+      "status": "Status",
+      "method": "Method",
+      "subscriptionPayment": "Subscription Payment",
+      "transactionId": "Transaction ID",
+      "viewDetails": "View Details",
+      "receipt": "Receipt",
+      "retry": "Retry",
+      "noPaymentsFound": "No Payments Found",
+      "noPaymentsYet": "You haven't made any payments yet",
+      "noPaymentsMatchFilters": "No payments match your current filters",
+      "failedPrefix": "Failed",
+      "downloadReceipt": "Download Receipt",
+      "receiptDownloaded": "Receipt downloaded",
+      "refundTimeline": "Refund Timeline",
+      "refundStatus": "Refund Status",
+      "refundAmount": "Refund Amount",
+      "refundDate": "Refund Date",
+      "refundProcessing": "Processing",
+      "refundCompleted": "Completed",
+      "refundFailed": "Failed",
+      "refundPending": "Pending",
+      "viewRefundTimeline": "View Refund Timeline",
+      "noRefundTimeline": "No refund timeline",
+      "timeline": "Processing Timeline",
+      "processedBy": "Processed By",
+      "estimatedCompletion": "Estimated Completion"
     },
     "paymentMethods": {
       "all": "All Methods",
@@ -1215,9 +1700,6 @@
     "topPerformers": "Top Performers",
     "you": "You",
     "noData": "No leaderboard data available"
-  },
-  "points": {
-    "title": "Points"
   },
   "achievements": {
     "title": "Achievements",
@@ -1284,6 +1766,12 @@
     "leave": "Leave Challenge",
     "progress": "Progress",
     "reward": "Reward",
+    "joinSuccess": "Successfully joined challenge!",
+    "joinError": "Failed to join challenge. Please try again later.",
+    "alreadyJoined": "You have already joined this challenge. Check your progress above to track your completion.",
+    "alreadyJoinedTitle": "Already Joined",
+    "errorTitle": "Cannot Join",
+    "viewProgress": "View Progress",
     "points": "points",
     "endsIn": "Ends in",
     "days": "days",
@@ -1337,6 +1825,7 @@
     "paymentSuccess": "Payment Success",
     "paymentVerified": "Payment Verified",
     "paymentSuccessMessage": "Your payment has been verified successfully. Your subscription has been activated.",
+    "verificationFailed": "Failed to verify payment. Please try again.",
     "instructions": "Instructions",
     "instruction1": "Scan the QR code or copy bank information",
     "instruction2": "Transfer the exact amount shown above",
@@ -1369,7 +1858,12 @@
     "remove": "Remove",
     "update": "Update",
     "create": "Create",
+    "at": "at",
     "submit": "Submit",
+    "submitting": "Submitting...",
+    "uploading": "Uploading...",
+    "selectFromGallery": "Select from Gallery",
+    "takePhoto": "Take Photo",
     "reset": "Reset",
     "apply": "Apply",
     "clear": "Clear",
@@ -1413,12 +1907,14 @@
     "declining": "Declining",
     "stable": "Stable",
     "locale": "en-US",
+    "currencySymbol": "$",
     "tryAgain": "Try selecting a different date or category",
     "ok": "OK",
     "error": "Error",
     "info": "Information",
     "warning": "Warning",
     "success": "Success",
+    "user": "User",
     "goBack": "Go Back",
     "loading": "Loading...",
     "calculating": "Calculating...",
@@ -1536,8 +2032,41 @@
     "errorTitle": "Error",
     "errorMessage": "Failed to redeem reward",
     "errorDescription": "An error occurred while redeeming the reward. Please try again.",
+    "redeemError": "Failed to redeem reward. Please try again.",
+    "redeemErrorTitle": "Redemption Failed",
+    "redemptionLimitReached": "You have reached the redemption limit for this reward ({{limit}} times). Please choose another reward.",
+    "outOfStock": "This reward is out of stock. Please choose another reward.",
+    "rewardNotAvailable": "This reward is currently not available. Please try again later.",
+    "insufficientPointsMessage": "You don't have enough points to redeem this reward. Required {{required}} points, you currently have {{current}} points.",
     "retry": "Retry",
     "refresh": "Refresh"
+  },
+  "points": {
+    "title": "Points",
+    "earned": {
+      "title": "You earned points!",
+      "amount": "Points earned",
+      "from": "From",
+      "newBalance": "Current balance"
+    },
+    "source": {
+      "challenge": "Challenge",
+      "streak": "Streak",
+      "achievement": "Achievement",
+      "system": "System",
+      "refund": "Refund",
+      "attendance": "Class Completion",
+      "payment": "Payment",
+      "achievement": "Achievement",
+      "system": "System",
+      "refund": "Refund"
+    },
+    "history": {
+      "title": "Points History",
+      "empty": "No points history yet",
+      "noDescription": "No description",
+      "balance": "Balance"
+    }
   },
   "access": {
     "checkIn": "Check In",
@@ -1547,11 +2076,38 @@
     "welcomeMessage": "Welcome to the gym. Have a great workout!",
     "goodbyeMessage": "Thank you for your visit. See you next time!",
     "errorMessage": "Unable to process your request. Please try again.",
+    "tryAgain": "Try Again",
     "redirecting": "Redirecting...",
     "chooseMethod": "Choose Access Method",
     "qrCodeScanner": "QR Code Scanner",
     "rfidCard": "RFID Card",
-    "faceRecognition": "Face Recognition"
+    "faceRecognition": "Face Recognition",
+    "checkoutConfirmation": "Checkout Confirmation",
+    "checkoutConfirmationMessage": "Are you sure you want to checkout early?",
+    "checkoutConfirmed": "Checkout confirmed",
+    "checkoutReminder": "Checkout Reminder",
+    "checkoutReminderMessage": "Class will end in {{minutes}} minutes. Please checkout after class ends."
+  },
+  "qrCode": {
+    "title": "My QR Code",
+    "secure": "Secure",
+    "generating": "Generating QR Code...",
+    "showToStaff": "Show this QR code to staff for check-in",
+    "lastRefresh": "Last refresh: {{time}}",
+    "autoRefresh": "Auto-refreshes every 30 seconds for security",
+    "refresh": "Refresh QR Code",
+    "refreshing": "Refreshing...",
+    "download": "Download",
+    "downloading": "Downloading...",
+    "securityInfo": "Security Information",
+    "securityDescription": "This QR code automatically refreshes every 30 seconds to ensure your account security. Staff members can scan it for quick and secure check-in at the gym.",
+    "shareMessage": "My Gym QR Code: {{qrValue}}",
+    "shareMessageWithInstructions": "My Gym QR Code: {{qrValue}}\n\nScan this code to check in at the gym.",
+    "shareTitle": "Gym147 QR Code",
+    "shareDialogTitle": "Share QR Code",
+    "notAvailable": "QR Code not available",
+    "savedToDevice": "QR Code saved to device",
+    "shareError": "Failed to share QR code. Please try again."
   },
   "queue": {
     "title": "Equipment Queue",
@@ -1570,5 +2126,28 @@
     "position": "Position",
     "estimatedWait": "Estimated Wait",
     "minutes": "minutes"
+  },
+  "chat": {
+    "title": "Support",
+    "available": "Available 24/7",
+    "typing": "Typing...",
+    "typeMessage": "Type a message...",
+    "noMessages": "No messages yet. Start a conversation!",
+    "loading": "Loading chat...",
+    "connectionError": "Unable to connect to chat service. Please try again later.",
+    "loadError": "Unable to load messages. Please try again later.",
+    "sendError": "Unable to send message. Please try again later.",
+    "errorTitle": "Error"
+  },
+  "attendance": {
+    "checkInSuccess": "Check-in Successful",
+    "checkInSuccessMessage": "You have successfully checked in to the class",
+    "checkOutSuccess": "Check-out Successful",
+    "checkOutSuccessMessage": "You have successfully checked out from the class",
+    "checkInOutError": "Check-in/Check-out Failed",
+    "checkInOutErrorMessage": "Failed to process check-in/check-out. Please try again.",
+    "scanQRCheckIn": "Scan QR to Check-in",
+    "scanQRCheckOut": "Scan QR to Check-out",
+    "earlyCheckoutMessage": "You cannot check-out too early. Please wait until the class ends or within 10 minutes after the class ends."
   }
 }

@@ -39,13 +39,9 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     const basePrice = totalAmount !== undefined 
       ? totalAmount
       : (() => {
-          const setupFeeNum =
-            typeof plan.setup_fee === 'string'
-              ? parseFloat(plan.setup_fee)
-              : plan.setup_fee || 0;
           const priceNum =
             typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
-          return priceNum + setupFeeNum;
+          return priceNum;
         })();
 
     if (discount.type === 'PERCENTAGE') {
@@ -65,10 +61,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
     return 0;
   };
 
-  const setupFeeNum =
-    typeof plan.setup_fee === 'string'
-      ? parseFloat(plan.setup_fee)
-      : plan.setup_fee || 0;
+  const setupFeeNum = 0; // setup_fee removed from schema
   const priceNum =
     typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
   const subtotal = totalAmount !== undefined ? totalAmount : (priceNum + setupFeeNum);
@@ -257,14 +250,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
         <Text style={themedStyles.value}>{formatPrice(plan.price)}</Text>
       </View>
 
-      {plan.setup_fee && Number(plan.setup_fee) > 0 ? (
-        <View style={themedStyles.row}>
-          <Text style={themedStyles.label}>
-            {String(t('registration.setupFee') || 'Phí thiết lập')}
-          </Text>
-          <Text style={themedStyles.value}>{formatPrice(plan.setup_fee)}</Text>
-        </View>
-      ) : null}
+      {/* setup_fee removed from schema */}
 
       <View style={themedStyles.divider} />
 

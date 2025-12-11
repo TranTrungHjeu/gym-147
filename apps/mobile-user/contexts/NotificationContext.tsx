@@ -1,6 +1,6 @@
 import { notificationService } from '@/services/member/notification.service';
 import { Socket, io } from 'socket.io-client';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import React, {
   ReactNode,
   createContext,
@@ -12,6 +12,10 @@ import React, {
 } from 'react';
 import { useAuth } from './AuthContext';
 import { AppEvents } from '@/utils/eventEmitter';
+import PointsEarnedModal from '@/components/PointsEarnedModal';
+import QueueYourTurnModal from '@/components/QueueYourTurnModal';
+import { playNotificationSound } from '@/utils/sound';
+import * as Notifications from 'expo-notifications';
 
 interface NotificationContextType {
   unreadCount: number;
@@ -39,6 +43,24 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastErrorTimeRef = useRef(0);
+  
+  // Points earned modal state
+  const [showPointsModal, setShowPointsModal] = useState(false);
+  const [pointsModalData, setPointsModalData] = useState<{
+    points: number;
+    source?: string;
+    description?: string;
+    newBalance?: number;
+  } | null>(null);
+
+  // Queue your turn modal state
+  const [showQueueModal, setShowQueueModal] = useState(false);
+  const [queueModalData, setQueueModalData] = useState<{
+    equipmentName?: string;
+    expiresInMinutes?: number;
+    equipmentId?: string;
+    queueId?: string;
+  } | null>(null);
 
   // Initialize socket connection for notifications
   useEffect(() => {
@@ -213,6 +235,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
               return newCount;
             });
 
+            // Play notification sound if app is in foreground
+            if (AppState.currentState === 'active') {
+              playNotificationSound().catch((soundError) => {
+                console.warn('[BELL] Failed to play notification sound:', soundError);
+              });
+            }
+
             // Emit event for NotificationCenterScreen to listen
             console.log(
               '[BELL] Emitting AppEvents.emit("notification:new", data)',
@@ -303,6 +332,19 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         // Listen for points updates
         socket.on('points:updated', (data: any) => {
           console.log('[POINTS] Points updated event received:', data);
+          
+          // Check if points are for current member
+          if (member?.id && data.member_id === member.id) {
+            // Show points earned modal
+            setPointsModalData({
+              points: data.points_earned || 0,
+              source: data.source,
+              description: data.description,
+              newBalance: data.new_balance,
+            });
+            setShowPointsModal(true);
+          }
+          
           // Emit event for other components to listen
           AppEvents.emit('points:updated', data);
         });
@@ -323,8 +365,57 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           console.log('[DATA] Queue position updated event received:', data);
           refreshCount();
         });
-        socket.on('queue:your_turn', (data: any) => {
+        socket.on('queue:your_turn', async (data: any) => {
           console.log('[QUEUE] Queue your turn event received:', data);
+          
+          // Play notification sound
+          try {
+            await playNotificationSound();
+          } catch (soundError) {
+            console.error('[ERROR] Failed to play notification sound:', soundError);
+          }
+
+          // Show modal if user is in app
+          setQueueModalData({
+            equipmentName: data.equipment_name || 'Thiết bị',
+            expiresInMinutes: data.expires_in_minutes || 5,
+            equipmentId: data.equipment_id,
+            queueId: data.queue_id,
+          });
+          setShowQueueModal(true);
+
+          // Show local notification with sound (for when app is in background)
+          try {
+            const { useTranslation } = require('react-i18next');
+            // Get translation function - we'll use a simple approach
+            const title = 'Đến lượt bạn!';
+            const body = `${data.equipment_name || 'Thiết bị'} đã có sẵn. Bạn có ${data.expires_in_minutes || 5} phút để sử dụng.`;
+            
+            await Notifications.scheduleNotificationAsync({
+              content: {
+                title,
+                body,
+                data: {
+                  type: 'QUEUE_YOUR_TURN',
+                  equipment_id: data.equipment_id,
+                  equipment_name: data.equipment_name,
+                  queue_id: data.queue_id,
+                },
+                sound: true, // Play system notification sound
+                priority: Notifications.AndroidNotificationPriority.HIGH,
+                vibrate: [0, 250, 250, 250], // Vibrate pattern for notification
+              },
+              trigger: null, // Show immediately
+            });
+            
+            console.log('[NOTIFICATION] Queue your turn notification scheduled with sound');
+          } catch (notifError) {
+            console.error('[ERROR] Failed to show local notification:', notifError);
+          }
+
+          // Emit event for other components to listen (for optimistic updates)
+          AppEvents.emit('queue:your_turn', data);
+          
           refreshCount();
         });
         socket.on('queue:expired', (data: any) => {
@@ -523,6 +614,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             // Don't increment count here - notification:new will handle it
             // This event is just for identification purposes
 
+            // Play notification sound if app is in foreground
+            if (AppState.currentState === 'active') {
+              playNotificationSound().catch((soundError) => {
+                console.warn('[BELL] Failed to play notification sound:', soundError);
+              });
+            }
+
             // Emit event for NotificationCenterScreen to listen
             AppEvents.emit('notification:new', data);
           } catch (error) {
@@ -553,6 +651,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
               );
               return newCount;
             });
+
+            // Play notification sound if app is in foreground
+            if (AppState.currentState === 'active') {
+              playNotificationSound().catch((soundError) => {
+                console.warn('[BELL] Failed to play notification sound:', soundError);
+              });
+            }
 
             // Emit event for NotificationCenterScreen to listen
             console.log(
@@ -685,6 +790,37 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
       }}
     >
       {children}
+      <PointsEarnedModal
+        visible={showPointsModal}
+        onClose={() => {
+          setShowPointsModal(false);
+          setPointsModalData(null);
+        }}
+        points={pointsModalData?.points || 0}
+        source={pointsModalData?.source}
+        description={pointsModalData?.description}
+        newBalance={pointsModalData?.newBalance}
+      />
+      <QueueYourTurnModal
+        visible={showQueueModal}
+        onClose={() => {
+          setShowQueueModal(false);
+          setQueueModalData(null);
+        }}
+        onUseNow={() => {
+          // Navigate to equipment detail or start usage
+          if (queueModalData?.equipmentId) {
+            AppEvents.emit('queue:use_now', {
+              equipmentId: queueModalData.equipmentId,
+              queueId: queueModalData.queueId,
+            });
+          }
+        }}
+        equipmentName={queueModalData?.equipmentName}
+        expiresInMinutes={queueModalData?.expiresInMinutes}
+        equipmentId={queueModalData?.equipmentId}
+        queueId={queueModalData?.queueId}
+      />
     </NotificationContext.Provider>
   );
 };

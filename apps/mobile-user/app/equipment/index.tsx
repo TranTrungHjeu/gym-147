@@ -9,6 +9,7 @@ import {
 } from '@/types/equipmentTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { AppEvents } from '@/utils/eventEmitter';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Filter, QrCode, Search } from 'lucide-react-native';
 import React, { useCallback, useEffect, useState } from 'react';
@@ -89,13 +90,91 @@ export default function EquipmentListScreen() {
       loadEquipment();
     };
 
+    // Handle queue updates specifically
+    const handleQueueUpdate = (data: any) => {
+      console.log('[EQUIPMENT] Queue updated - refreshing equipment list:', data);
+      if (data.equipment_id) {
+        // Optimistically update queue count for the specific equipment
+        setEquipment((prevEquipment) =>
+          prevEquipment.map((eq) => {
+            if (eq.id === data.equipment_id) {
+              // Update queue count if provided, otherwise reload
+              if (data.queue_length !== undefined) {
+                return {
+                  ...eq,
+                  _count: {
+                    ...eq._count,
+                    queue: data.queue_length,
+                  },
+                };
+              }
+            }
+            return eq;
+          })
+        );
+        // Also reload to ensure accuracy
+        loadEquipment();
+      }
+    };
+
     // Listen for updates
     equipmentService.subscribeToEquipment('all', handleUpdate);
+    
+    // Listen for queue-specific updates
+    const socket = (equipmentService as any).socket;
+    if (socket) {
+      socket.on('equipment:queue:updated', handleQueueUpdate);
+    }
 
     return () => {
       equipmentService.unsubscribeFromEquipment('all');
+      if (socket) {
+        socket.off('equipment:queue:updated', handleQueueUpdate);
+      }
     };
   }, [loadEquipment]);
+
+  // Optimistic update when queue:your_turn event is received
+  useEffect(() => {
+    const handleQueueYourTurn = (data: any) => {
+      console.log('[EQUIPMENT] Queue your turn - optimistic update:', data);
+      
+      // Optimistically update equipment status to AVAILABLE
+      if (data.equipment_id) {
+        setEquipment((prevEquipment) =>
+          prevEquipment.map((eq) =>
+            eq.id === data.equipment_id
+              ? { ...eq, status: EquipmentStatus.AVAILABLE }
+              : eq
+          )
+        );
+      }
+    };
+
+    const handleEquipmentAvailable = (data: any) => {
+      console.log('[EQUIPMENT] Equipment available - optimistic update:', data);
+      
+      // Optimistically update equipment status to AVAILABLE
+      if (data.equipment_id) {
+        setEquipment((prevEquipment) =>
+          prevEquipment.map((eq) =>
+            eq.id === data.equipment_id
+              ? { ...eq, status: EquipmentStatus.AVAILABLE }
+              : eq
+          )
+        );
+      }
+    };
+
+    // Listen to AppEvents for optimistic updates
+    AppEvents.on('queue:your_turn', handleQueueYourTurn);
+    AppEvents.on('equipment:available', handleEquipmentAvailable);
+
+    return () => {
+      AppEvents.off('queue:your_turn', handleQueueYourTurn);
+      AppEvents.off('equipment:available', handleEquipmentAvailable);
+    };
+  }, []);
 
   // Filter equipment based on search and category
   useEffect(() => {
@@ -150,16 +229,18 @@ export default function EquipmentListScreen() {
             backgroundColor: isActive
               ? theme.colors.primary
               : theme.colors.surface,
-            borderColor: theme.colors.border,
+            borderColor: isActive ? theme.colors.primary : theme.colors.border,
           },
         ]}
         onPress={() => setActiveCategory(category as EquipmentCategory | 'ALL')}
+        activeOpacity={0.7}
       >
         <Text
           style={[
             styles.categoryText,
             {
-              color: isActive ? '#fff' : theme.colors.textSecondary,
+              color: isActive ? theme.colors.textInverse : theme.colors.text,
+              fontWeight: isActive ? '600' : '500',
             },
           ]}
         >
@@ -205,10 +286,19 @@ export default function EquipmentListScreen() {
       style={[styles.container, { backgroundColor: theme.colors.background }]}
     >
       {/* Header */}
-      <View style={styles.header}>
+      <View
+        style={[
+          styles.header,
+          {
+            borderBottomColor: theme.colors.border,
+            backgroundColor: theme.colors.surface,
+          },
+        ]}
+      >
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}
+          activeOpacity={0.7}
         >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
@@ -219,26 +309,42 @@ export default function EquipmentListScreen() {
           <TouchableOpacity
             style={[
               styles.iconButton,
-              { backgroundColor: theme.colors.surface },
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+              },
             ]}
             onPress={() => router.push('/equipment/qr-scanner')}
+            activeOpacity={0.7}
           >
-            <QrCode size={20} color={theme.colors.text} />
+            <QrCode size={20} color={theme.colors.primary} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[
               styles.iconButton,
-              { backgroundColor: theme.colors.surface, marginLeft: 8 },
+              {
+                backgroundColor: theme.colors.surface,
+                borderWidth: 1,
+                borderColor: theme.colors.border,
+                marginLeft: 8,
+              },
             ]}
             onPress={() => setShowFilterModal(true)}
+            activeOpacity={0.7}
           >
-            <Filter size={20} color={theme.colors.text} />
+            <Filter size={20} color={theme.colors.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
       {/* Search Bar */}
-      <View style={styles.searchContainer}>
+      <View
+        style={[
+          styles.searchContainer,
+          { backgroundColor: theme.colors.surface },
+        ]}
+      >
         <View
           style={[
             styles.searchBar,
@@ -259,11 +365,67 @@ export default function EquipmentListScreen() {
         </View>
       </View>
 
+      {/* Equipment Count */}
+      {filteredEquipment.length > 0 && (
+        <View
+          style={{
+            paddingHorizontal: 16,
+            paddingBottom: 8,
+            flexDirection: 'row',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+          }}
+        >
+          <Text
+            style={[
+              {
+                ...Typography.h6,
+                color: theme.colors.text,
+                fontWeight: '600',
+              },
+            ]}
+          >
+            {filteredEquipment.length}{' '}
+            {filteredEquipment.length === 1
+              ? t('equipment.equipmentFound') || 'thiết bị'
+              : t('equipment.equipmentsFound') || 'thiết bị'}
+          </Text>
+          {(searchQuery || activeCategory !== 'ALL') && (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                setActiveCategory('ALL');
+              }}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 6,
+              }}
+            >
+              <Text
+                style={[
+                  {
+                    ...Typography.bodySmall,
+                    color: theme.colors.primary,
+                    fontWeight: '600',
+                  },
+                ]}
+              >
+                {t('common.clear') || 'Xóa bộ lọc'}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+
       {/* Category Tabs */}
       <View
         style={[
           styles.categoriesWrapper,
-          { backgroundColor: theme.colors.background },
+          {
+            backgroundColor: theme.colors.surface,
+            borderBottomWidth: 1,
+            borderBottomColor: theme.colors.border,
+          },
         ]}
       >
         <FlatList
@@ -334,65 +496,79 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    paddingTop: 16,
+    paddingTop: 12,
     paddingBottom: 12,
+    borderBottomWidth: 1,
   },
   backButton: {
     padding: 4,
+    marginRight: 8,
   },
   headerTitle: {
     ...Typography.h4,
     flex: 1,
-    marginLeft: 12,
+    fontWeight: '700',
   },
   headerRight: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   iconButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
   searchContainer: {
     paddingHorizontal: 16,
+    paddingTop: 12,
     paddingBottom: 12,
   },
   searchBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 12,
-    borderWidth: 1,
+    paddingVertical: 14,
+    borderRadius: 16,
+    borderWidth: 1.5,
     gap: 12,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 2,
   },
   searchInput: {
     flex: 1,
     ...Typography.bodyMedium,
   },
   categoriesWrapper: {
-    paddingBottom: 4,
+    paddingBottom: 8,
   },
   categoriesContainer: {
     paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingVertical: 12,
   },
   categoryButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
     borderRadius: 20,
-    borderWidth: 1,
-    marginRight: 8,
+    borderWidth: 1.5,
+    marginRight: 10,
+    minHeight: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   categoryText: {
-    ...Typography.bodySmall,
-    fontWeight: '500',
+    ...Typography.bodyMedium,
   },
   listContainer: {
     padding: 16,
+    paddingTop: 8,
   },
   loadingContainer: {
     flex: 1,

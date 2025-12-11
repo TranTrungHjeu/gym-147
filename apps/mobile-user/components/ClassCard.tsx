@@ -1,8 +1,15 @@
-import { ClassCardProps } from '@/types/classTypes';
+import { ClassCardProps, ScheduleStatus } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { Calendar, Clock, MapPin, Star, Users } from 'lucide-react-native';
+import {
+  Calendar,
+  Clock,
+  MapPin,
+  QrCode,
+  Star,
+  Users,
+} from 'lucide-react-native';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -37,28 +44,49 @@ export default function ClassCard({
   showBookingActions = true,
   userBooking,
   onNavigateToPayment,
+  onScanQR,
+  attendance,
 }: ClassCardProps) {
   const { theme } = useTheme();
   const router = useRouter();
   const { t, i18n } = useTranslation();
 
-  const formatTime = (dateTime: string) => {
-    return new Date(dateTime).toLocaleTimeString(i18n.language, {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: true,
-    });
+  const formatTime = (dateTime: string | null | undefined): string => {
+    if (!dateTime) return '';
+    try {
+      const date = new Date(dateTime);
+      if (isNaN(date.getTime())) return '';
+      const formatted = date.toLocaleTimeString(i18n.language, {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false,
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      return formatted || '';
+    } catch (error) {
+      return '';
+    }
   };
 
-  const formatDate = (dateTime: string) => {
-    return new Date(dateTime).toLocaleDateString(i18n.language, {
-      weekday: 'short',
-      month: 'short',
-      day: 'numeric',
-    });
+  const formatDate = (dateTime: string | null | undefined): string => {
+    if (!dateTime) return '';
+    try {
+      const date = new Date(dateTime);
+      if (isNaN(date.getTime())) return '';
+      const formatted = date.toLocaleDateString(i18n.language, {
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
+      return formatted || '';
+    } catch (error) {
+      return '';
+    }
   };
 
-  const getDifficultyColor = (difficulty: string) => {
+  const getDifficultyColor = (difficulty: string | null | undefined) => {
+    if (!difficulty) return theme.colors.textSecondary;
     switch (difficulty) {
       case 'BEGINNER':
         return theme.colors.success;
@@ -73,7 +101,8 @@ export default function ClassCard({
     }
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusColor = (status: string | null | undefined) => {
+    if (!status) return theme.colors.textSecondary;
     switch (status) {
       case 'SCHEDULED':
         return theme.colors.primary;
@@ -88,34 +117,46 @@ export default function ClassCard({
     }
   };
 
-  const getDifficultyTranslation = (difficulty: string) => {
+  const getDifficultyTranslation = (difficulty: string): string => {
+    let result: string = '';
     switch (difficulty) {
       case 'BEGINNER':
-        return t('classes.difficulty.beginner');
+        result = t('classes.difficulty.beginner') || '';
+        break;
       case 'INTERMEDIATE':
-        return t('classes.difficulty.intermediate');
+        result = t('classes.difficulty.intermediate') || '';
+        break;
       case 'ADVANCED':
-        return t('classes.difficulty.advanced');
+        result = t('classes.difficulty.advanced') || '';
+        break;
       case 'ALL_LEVELS':
-        return t('classes.difficulty.all_levels');
+        result = t('classes.difficulty.all_levels') || '';
+        break;
       default:
-        return difficulty;
+        result = difficulty || t('classes.difficulty.all_levels') || '';
     }
+    return result || '';
   };
 
-  const getStatusTranslation = (status: string) => {
+  const getStatusTranslation = (status: string): string => {
+    let result: string = '';
     switch (status) {
       case 'SCHEDULED':
-        return t('classes.status.scheduled');
+        result = t('classes.status.scheduled') || '';
+        break;
       case 'IN_PROGRESS':
-        return t('classes.status.inProgress');
+        result = t('classes.status.inProgress') || '';
+        break;
       case 'COMPLETED':
-        return t('classes.status.completed');
+        result = t('classes.status.completed') || '';
+        break;
       case 'CANCELLED':
-        return t('classes.status.cancelled');
+        result = t('classes.status.cancelled') || '';
+        break;
       default:
-        return status;
+        result = status || t('classes.status.scheduled') || '';
     }
+    return result || '';
   };
 
   const getClassImage = () => {
@@ -129,13 +170,17 @@ export default function ClassCard({
     return classImages.CARDIO;
   };
 
-  const isFullyBooked = schedule.current_bookings >= schedule.max_capacity;
-  const hasWaitlist = schedule.waitlist_count > 0;
-  const spotsAvailable = schedule.max_capacity - schedule.current_bookings;
+  const isFullyBooked =
+    (schedule.current_bookings ?? 0) >= (schedule.max_capacity ?? 0);
+  const hasWaitlist = (schedule.waitlist_count ?? 0) > 0;
+  const spotsAvailable =
+    (schedule.max_capacity ?? 0) - (schedule.current_bookings ?? 0);
 
   const isBooked = userBooking?.status === 'CONFIRMED';
   const isWaitlisted =
-    userBooking?.is_waitlist || userBooking?.status === 'WAITLIST';
+    userBooking?.is_waitlist === true ||
+    userBooking?.is_waitlist ||
+    userBooking?.status === 'WAITLIST';
 
   const themedStyles = styles(theme);
 
@@ -179,73 +224,196 @@ export default function ClassCard({
         onPress={onPress}
         activeOpacity={0.7}
       >
-      {/* Image Container - Square, 200px height */}
-      <View style={themedStyles.imageContainer}>
-        <Image
-          source={getClassImage()}
-          style={themedStyles.classImage}
-          resizeMode="cover"
-        />
-        {/* Status Badge - Top right */}
-        <View
-          style={[
-            themedStyles.statusBadge,
-            { backgroundColor: getStatusColor(schedule.status) + 'E6' },
-          ]}
-        >
-          <View
-            style={[
-              themedStyles.statusIndicator,
-              { backgroundColor: theme.colors.textInverse },
-            ]}
+        {/* Image Container - Square, 200px height */}
+        <View style={themedStyles.imageContainer}>
+          <Image
+            source={getClassImage()}
+            style={themedStyles.classImage}
+            resizeMode="cover"
           />
-          <Text style={themedStyles.statusText}>
-            {getStatusTranslation(schedule.status)}
-          </Text>
-        </View>
-      </View>
-
-      {/* Content Container - padding 16px */}
-      <View style={themedStyles.content}>
-        {/* Header Row: Class Name + Difficulty Badge */}
-        <View style={themedStyles.classHeader}>
-          <Text
-            style={[themedStyles.className, { color: theme.colors.text }]}
-            numberOfLines={1}
-          >
-            {schedule.gym_class?.name}
-          </Text>
+          {/* Status Badge - Top right */}
           <View
             style={[
-              themedStyles.difficultyBadge,
+              themedStyles.statusBadge,
               {
-                backgroundColor: getDifficultyColor(
-                  schedule.gym_class?.difficulty || ''
-                ),
+                backgroundColor:
+                  (getStatusColor(schedule.status) ||
+                    theme.colors.textSecondary) + 'E6',
               },
             ]}
           >
-            <Text style={themedStyles.difficultyText}>
-              {getDifficultyTranslation(schedule.gym_class?.difficulty || '')}
+            <View
+              style={[
+                themedStyles.statusIndicator,
+                { backgroundColor: theme.colors.textInverse },
+              ]}
+            />
+            <Text style={themedStyles.statusText}>
+              {String(getStatusTranslation(schedule.status || '') || '')}
             </Text>
           </View>
         </View>
 
-        {/* Description - 2 lines */}
-        <Text
-          style={[
-            themedStyles.classDescription,
-            { color: theme.colors.textSecondary },
-          ]}
-          numberOfLines={2}
-        >
-          {schedule.gym_class?.description}
-        </Text>
+        {/* Content Container - padding 16px */}
+        <View style={themedStyles.content}>
+          {/* Header Row: Class Name + Difficulty Badge */}
+          <View style={themedStyles.classHeader}>
+            <Text
+              style={[themedStyles.className, { color: theme.colors.text }]}
+              numberOfLines={1}
+            >
+              {String(schedule.gym_class?.name || '')}
+            </Text>
+            <View
+              style={[
+                themedStyles.difficultyBadge,
+                {
+                  backgroundColor: getDifficultyColor(
+                    schedule.gym_class?.difficulty || ''
+                  ),
+                },
+              ]}
+            >
+              <Text style={themedStyles.difficultyText}>
+                {String(
+                  getDifficultyTranslation(
+                    schedule.gym_class?.difficulty || ''
+                  ) || ''
+                )}
+              </Text>
+            </View>
+          </View>
 
-        {/* Info Grid - 2 columns */}
-        <View style={themedStyles.infoGrid}>
-          {/* Trainer Info */}
-          {schedule.trainer && (
+          {/* Description - 2 lines */}
+          <Text
+            style={[
+              themedStyles.classDescription,
+              { color: theme.colors.textSecondary },
+            ]}
+            numberOfLines={2}
+          >
+            {String(schedule.gym_class?.description || '')}
+          </Text>
+
+          {/* Info Grid - 2 columns */}
+          <View style={themedStyles.infoGrid}>
+            {/* Trainer Info */}
+            {schedule.trainer && (
+              <View style={themedStyles.infoItem}>
+                <View style={themedStyles.infoIconContainer}>
+                  <Users size={14} color={theme.colors.textSecondary} />
+                </View>
+                <View style={themedStyles.infoTextContainer}>
+                  <Text
+                    style={[
+                      themedStyles.infoLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.trainer') || 'Huấn luyện viên'}
+                  </Text>
+                  <Text
+                    style={[
+                      themedStyles.infoValue,
+                      { color: theme.colors.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {String(schedule.trainer?.full_name || '')}
+                  </Text>
+                  {schedule.trainer?.rating_average != null &&
+                    schedule.trainer.rating_average > 0 && (
+                      <View style={themedStyles.ratingRow}>
+                        <Star
+                          size={12}
+                          color={theme.colors.warning}
+                          fill={theme.colors.warning}
+                        />
+                        <Text
+                          style={[
+                            themedStyles.ratingText,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {String(schedule.trainer.rating_average.toFixed(1))}
+                        </Text>
+                      </View>
+                    )}
+                </View>
+              </View>
+            )}
+
+            {/* Time Info */}
+            <View style={themedStyles.infoItem}>
+              <View style={themedStyles.infoIconContainer}>
+                <Clock size={14} color={theme.colors.textSecondary} />
+              </View>
+              <View style={themedStyles.infoTextContainer}>
+                <Text
+                  style={[
+                    themedStyles.infoLabel,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {t('classes.time') || 'Thời gian'}
+                </Text>
+                <Text
+                  style={[themedStyles.infoValue, { color: theme.colors.text }]}
+                  numberOfLines={1}
+                >
+                  {(() => {
+                    const startTime = formatTime(schedule.start_time);
+                    const endTime = formatTime(schedule.end_time);
+                    if (startTime && endTime) {
+                      return `${startTime} - ${endTime}`;
+                    } else if (startTime) {
+                      return startTime;
+                    } else if (endTime) {
+                      return endTime;
+                    }
+                    return '';
+                  })()}
+                </Text>
+                <Text
+                  style={[
+                    themedStyles.infoSubtext,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {formatDate(schedule.start_time)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Location Info */}
+            {schedule.room && (
+              <View style={themedStyles.infoItem}>
+                <View style={themedStyles.infoIconContainer}>
+                  <MapPin size={14} color={theme.colors.textSecondary} />
+                </View>
+                <View style={themedStyles.infoTextContainer}>
+                  <Text
+                    style={[
+                      themedStyles.infoLabel,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {t('classes.location') || 'Địa điểm'}
+                  </Text>
+                  <Text
+                    style={[
+                      themedStyles.infoValue,
+                      { color: theme.colors.text },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {String(schedule.room?.name || '')}
+                  </Text>
+                </View>
+              </View>
+            )}
+
+            {/* Capacity Info */}
             <View style={themedStyles.infoItem}>
               <View style={themedStyles.infoIconContainer}>
                 <Users size={14} color={theme.colors.textSecondary} />
@@ -257,205 +425,439 @@ export default function ClassCard({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {t('classes.trainer')}
+                  {t('classes.capacity') || 'Sức chứa'}
                 </Text>
                 <Text
                   style={[themedStyles.infoValue, { color: theme.colors.text }]}
-                  numberOfLines={1}
                 >
-                  {schedule.trainer.full_name}
+                  {String(schedule.current_bookings ?? 0)}/
+                  {String(schedule.max_capacity ?? 0)}
                 </Text>
-                {schedule.trainer.rating_average && (
-                  <View style={themedStyles.ratingRow}>
-                    <Star
-                      size={12}
-                      color={theme.colors.warning}
-                      fill={theme.colors.warning}
-                    />
-                    <Text
-                      style={[
-                        themedStyles.ratingText,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {schedule.trainer.rating_average.toFixed(1)}
-                    </Text>
-                  </View>
+                {isFullyBooked && (
+                  <Text
+                    style={[
+                      themedStyles.infoSubtext,
+                      { color: theme.colors.warning },
+                    ]}
+                  >
+                    {hasWaitlist
+                      ? `${String(schedule.waitlist_count ?? 0)} ${String(
+                          t('classes.onWaitlist') || 'đang chờ'
+                        )}`
+                      : String(t('classes.booking.fullyBooked') || 'Đã đầy')}
+                  </Text>
+                )}
+                {!isFullyBooked && spotsAvailable <= 5 && (
+                  <Text
+                    style={[
+                      themedStyles.infoSubtext,
+                      { color: theme.colors.error },
+                    ]}
+                  >
+                    {(() => {
+                      const translated = t('classes.onlySpotsLeft', {
+                        count: Math.max(0, spotsAvailable ?? 0),
+                      });
+                      return String(
+                        translated && typeof translated === 'string'
+                          ? translated
+                          : `${Math.max(0, spotsAvailable ?? 0)} chỗ còn lại`
+                      );
+                    })()}
+                  </Text>
                 )}
               </View>
             </View>
-          )}
-
-          {/* Time Info */}
-          <View style={themedStyles.infoItem}>
-            <View style={themedStyles.infoIconContainer}>
-              <Clock size={14} color={theme.colors.textSecondary} />
-            </View>
-            <View style={themedStyles.infoTextContainer}>
-              <Text
-                style={[
-                  themedStyles.infoLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {t('classes.time')}
-              </Text>
-              <Text
-                style={[themedStyles.infoValue, { color: theme.colors.text }]}
-                numberOfLines={1}
-              >
-                {formatTime(schedule.start_time)} - {formatTime(schedule.end_time)}
-              </Text>
-              <Text
-                style={[
-                  themedStyles.infoSubtext,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {formatDate(schedule.start_time)}
-              </Text>
-            </View>
           </View>
 
-          {/* Location Info */}
-          {schedule.room && (
-            <View style={themedStyles.infoItem}>
-              <View style={themedStyles.infoIconContainer}>
-                <MapPin size={14} color={theme.colors.textSecondary} />
-              </View>
-              <View style={themedStyles.infoTextContainer}>
-                <Text
-                  style={[
-                    themedStyles.infoLabel,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {t('classes.location')}
-                </Text>
-                <Text
-                  style={[themedStyles.infoValue, { color: theme.colors.text }]}
-                  numberOfLines={1}
-                >
-                  {schedule.room.name}
-                </Text>
-              </View>
+          {/* Price */}
+          {schedule.price_override && (
+            <View style={themedStyles.priceContainer}>
+              <Text
+                style={[
+                  themedStyles.priceText,
+                  { color: theme.colors.primary },
+                ]}
+              >
+                {String(t('common.currencySymbol') || '₫')}
+                {String(schedule.price_override ?? 0)}
+              </Text>
             </View>
           )}
 
-          {/* Capacity Info */}
-          <View style={themedStyles.infoItem}>
-            <View style={themedStyles.infoIconContainer}>
-              <Users size={14} color={theme.colors.textSecondary} />
-            </View>
-            <View style={themedStyles.infoTextContainer}>
-              <Text
-                style={[
-                  themedStyles.infoLabel,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {t('classes.capacity')}
-              </Text>
-              <Text
-                style={[themedStyles.infoValue, { color: theme.colors.text }]}
-              >
-                {schedule.current_bookings}/{schedule.max_capacity}
-              </Text>
-              {isFullyBooked && (
-                <Text
-                  style={[
-                    themedStyles.infoSubtext,
-                    { color: theme.colors.warning },
-                  ]}
-                >
-                  {hasWaitlist
-                    ? `${schedule.waitlist_count} ${t('classes.onWaitlist')}`
-                    : t('classes.booking.fullyBooked')}
-                </Text>
-              )}
-              {!isFullyBooked && spotsAvailable <= 5 && (
-                <Text
-                  style={[
-                    themedStyles.infoSubtext,
-                    { color: theme.colors.error },
-                  ]}
-                >
-                  {t('classes.onlySpotsLeft', { count: spotsAvailable })}
-                </Text>
-              )}
-            </View>
-          </View>
-        </View>
+          {/* Action Button - Full width, square */}
+          {(() => {
+            const shouldShow =
+              showBookingActions &&
+              (schedule.status === 'SCHEDULED' ||
+                String(schedule.status) === 'IN_PROGRESS');
+            console.log('[ACTION_BUTTON_DEBUG]', {
+              showBookingActions,
+              scheduleStatus: schedule.status,
+              scheduleStatusString: String(schedule.status),
+              shouldShow,
+              hasUserBooking: !!userBooking,
+            });
+            return shouldShow;
+          })() && (
+            <View style={themedStyles.actions}>
+              {(() => {
+                if (userBooking) {
+                  const paymentStatus =
+                    userBooking.payment_status?.toUpperCase() || '';
 
-        {/* Price */}
-        {schedule.price_override && (
-          <View style={themedStyles.priceContainer}>
-            <Text
-              style={[themedStyles.priceText, { color: theme.colors.primary }]}
-            >
-              ${schedule.price_override}
-            </Text>
-          </View>
-        )}
-
-        {/* Action Button - Full width, square */}
-        {showBookingActions && schedule.status === 'SCHEDULED' && (
-          <View style={themedStyles.actions}>
-            {(() => {
-              if (userBooking) {
-                const paymentStatus =
-                  userBooking.payment_status?.toUpperCase() || '';
-
-                if (paymentStatus === 'PENDING') {
-                  return (
-                    <TouchableOpacity
-                      style={[
-                        themedStyles.actionButton,
-                        { backgroundColor: theme.colors.warning },
-                      ]}
-                      onPress={onNavigateToPayment || onPress}
-                      activeOpacity={0.8}
-                    >
-                      <Text
+                  if (paymentStatus === 'PENDING') {
+                    return (
+                      <TouchableOpacity
                         style={[
-                          themedStyles.actionButtonText,
-                          { color: theme.colors.textInverse },
+                          themedStyles.actionButton,
+                          { backgroundColor: theme.colors.warning },
+                        ]}
+                        onPress={onNavigateToPayment || onPress}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            themedStyles.actionButtonText,
+                            { color: theme.colors.textInverse },
+                          ]}
+                        >
+                          {t('classes.booking.pendingPayment') ||
+                            'Chờ thanh toán'}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+
+                  // If booking is cancelled, allow re-booking
+                  if (userBooking.status === 'CANCELLED') {
+                    // Show book button if class is not fully booked
+                    if (!isFullyBooked && onBook) {
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            themedStyles.actionButton,
+                            { backgroundColor: theme.colors.primary },
+                          ]}
+                          onPress={onBook}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              themedStyles.actionButtonText,
+                              { color: theme.colors.textInverse },
+                            ]}
+                          >
+                            {t('classes.booking.book') || 'Đặt lịch ngay'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                    // If class is fully booked, show waitlist button
+                    if (onBook) {
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            themedStyles.actionButton,
+                            { backgroundColor: theme.colors.warning },
+                          ]}
+                          onPress={onBook}
+                          activeOpacity={0.8}
+                        >
+                          <Text
+                            style={[
+                              themedStyles.actionButtonText,
+                              { color: theme.colors.textInverse },
+                            ]}
+                          >
+                            {t('classes.joinWaitlist') ||
+                              'Tham gia danh sách chờ'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+                    // Fallback: show cancelled status if no onBook handler
+                    return (
+                      <View
+                        style={[
+                          themedStyles.actionButton,
+                          {
+                            backgroundColor: theme.colors.error + '20',
+                            borderWidth: 1,
+                            borderColor: theme.colors.error,
+                          },
                         ]}
                       >
-                        {t('classes.booking.pendingPayment')}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                }
+                        <Text
+                          style={[
+                            themedStyles.actionButtonText,
+                            { color: theme.colors.error },
+                          ]}
+                        >
+                          {t('classes.status.cancelled') || 'Đã hủy'}
+                        </Text>
+                      </View>
+                    );
+                  }
 
-                if (
-                  (paymentStatus === 'PAID' || paymentStatus === 'COMPLETED') &&
-                  isBooked
-                ) {
-                  return (
-                    <View
-                      style={[
-                        themedStyles.actionButton,
-                        {
-                          backgroundColor: theme.colors.success + '20',
-                          borderWidth: 1,
-                          borderColor: theme.colors.success,
-                        },
-                      ]}
-                    >
-                      <Text
+                  if (
+                    (paymentStatus === 'PAID' ||
+                      paymentStatus === 'COMPLETED') &&
+                    isBooked
+                  ) {
+                    console.log('[PAID_BOOKING_DEBUG]', {
+                      paymentStatus,
+                      isBooked,
+                      scheduleStatus: schedule.status,
+                      hasOnScanQR: !!onScanQR,
+                    });
+                    // Check if schedule is upcoming or ongoing (within check-in time window)
+                    const now = new Date();
+                    const startTime = schedule.start_time
+                      ? new Date(schedule.start_time)
+                      : null;
+                    const endTime = schedule.end_time
+                      ? new Date(schedule.end_time)
+                      : null;
+                    const tenMinBefore = startTime
+                      ? new Date(startTime.getTime() - 10 * 60 * 1000)
+                      : null;
+                    const tenMinAfter = endTime
+                      ? new Date(endTime.getTime() + 10 * 60 * 1000)
+                      : null;
+
+                    // Check-in allowed: 10 minutes before start time until end time
+                    // Note: We show the button even if check_in_enabled is false,
+                    // as trainer might enable it later. The backend will validate.
+                    const canCheckIn =
+                      startTime &&
+                      endTime &&
+                      tenMinBefore &&
+                      now >= tenMinBefore &&
+                      now <= endTime;
+
+                    // Check-out allowed: from end time until 10 minutes after end time
+                    const canCheckOut =
+                      endTime &&
+                      tenMinAfter &&
+                      now >= endTime &&
+                      now <= tenMinAfter;
+
+                    // Show QR button if schedule is upcoming/ongoing and onScanQR is provided
+                    // Show for any confirmed booking that's within check-in/check-out window
+                    // Also show if schedule is within 1 hour before start (more lenient)
+                    // OR if schedule status is IN_PROGRESS (class is currently happening)
+                    const oneHourBefore = startTime
+                      ? new Date(startTime.getTime() - 60 * 60 * 1000)
+                      : null;
+                    const isScheduleOngoing =
+                      String(schedule.status) === 'IN_PROGRESS';
+                    const isUpcomingOrOngoing =
+                      isScheduleOngoing ||
+                      (startTime &&
+                        ((oneHourBefore && now >= oneHourBefore) ||
+                          canCheckIn ||
+                          canCheckOut));
+
+                    const showQRButton = isUpcomingOrOngoing && onScanQR;
+
+                    // Debug logging
+                    if (
+                      isBooked &&
+                      (paymentStatus === 'PAID' ||
+                        paymentStatus === 'COMPLETED')
+                    ) {
+                      console.log('[QR_BUTTON_DEBUG]', {
+                        scheduleStatus: schedule.status,
+                        isScheduleOngoing,
+                        canCheckIn,
+                        canCheckOut,
+                        isUpcomingOrOngoing,
+                        hasOnScanQR: !!onScanQR,
+                        showQRButton,
+                        check_in_enabled: schedule.check_in_enabled,
+                        now: now.toISOString(),
+                        startTime: startTime?.toISOString(),
+                        endTime: endTime?.toISOString(),
+                        oneHourBefore: oneHourBefore?.toISOString(),
+                        bookingStatus: userBooking?.status,
+                        paymentStatus,
+                      });
+                    }
+
+                    // Show cancel button if onCancel is provided, otherwise show enrolled status
+                    if (onCancel) {
+                      return (
+                        <View style={themedStyles.actions}>
+                          {showQRButton && (
+                            <TouchableOpacity
+                              style={[
+                                themedStyles.actionButton,
+                                {
+                                  backgroundColor: theme.colors.primary,
+                                  marginBottom: 8,
+                                  flexDirection: 'row',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                },
+                              ]}
+                              onPress={onScanQR}
+                              activeOpacity={0.8}
+                            >
+                              <QrCode
+                                size={16}
+                                color={theme.colors.textInverse}
+                                style={{ marginRight: 6 }}
+                              />
+                              <Text
+                                style={[
+                                  themedStyles.actionButtonText,
+                                  { color: theme.colors.textInverse },
+                                ]}
+                              >
+                                {canCheckIn
+                                  ? t('attendance.scanQRCheckIn') ||
+                                    'Quét QR điểm danh'
+                                  : t('attendance.scanQRCheckOut') ||
+                                    'Quét QR check-out'}
+                              </Text>
+                            </TouchableOpacity>
+                          )}
+                          <TouchableOpacity
+                            style={[
+                              themedStyles.actionButton,
+                              {
+                                backgroundColor: 'transparent',
+                                borderWidth: 1,
+                                borderColor: theme.colors.error,
+                              },
+                            ]}
+                            onPress={onCancel}
+                            activeOpacity={0.8}
+                          >
+                            <Text
+                              style={[
+                                themedStyles.actionButtonText,
+                                { color: theme.colors.error },
+                              ]}
+                            >
+                              {t('classes.booking.cancelBooking') ||
+                                'Hủy đặt lịch'}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      );
+                    }
+
+                    // Show QR button if available, otherwise show enrolled status
+                    if (showQRButton) {
+                      return (
+                        <TouchableOpacity
+                          style={[
+                            themedStyles.actionButton,
+                            {
+                              backgroundColor: theme.colors.primary,
+                              flexDirection: 'row',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                            },
+                          ]}
+                          onPress={onScanQR}
+                          activeOpacity={0.8}
+                        >
+                          <QrCode
+                            size={16}
+                            color={theme.colors.textInverse}
+                            style={{ marginRight: 6 }}
+                          />
+                          <Text
+                            style={[
+                              themedStyles.actionButtonText,
+                              { color: theme.colors.textInverse },
+                            ]}
+                          >
+                            {canCheckIn
+                              ? t('attendance.scanQRCheckIn') ||
+                                'Quét QR điểm danh'
+                              : t('attendance.scanQRCheckOut') ||
+                                'Quét QR check-out'}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    }
+
+                    return (
+                      <View
                         style={[
-                          themedStyles.actionButtonText,
-                          { color: theme.colors.success },
+                          themedStyles.actionButton,
+                          {
+                            backgroundColor: theme.colors.success + '20',
+                            borderWidth: 1,
+                            borderColor: theme.colors.success,
+                          },
                         ]}
                       >
-                        {t('classes.booking.alreadyEnrolled')}
-                      </Text>
-                    </View>
-                  );
-                }
+                        <Text
+                          style={[
+                            themedStyles.actionButtonText,
+                            { color: theme.colors.success },
+                          ]}
+                        >
+                          {t('classes.booking.alreadyEnrolled') ||
+                            'Đã thuộc lớp học'}
+                        </Text>
+                      </View>
+                    );
+                  }
 
-                if (isWaitlisted || userBooking.status === 'WAITLIST') {
+                  if (
+                    isWaitlisted ||
+                    userBooking.is_waitlist ||
+                    userBooking.status === 'WAITLIST'
+                  ) {
+                    const waitlistPos = userBooking.waitlist_position;
+                    let waitlistText = '';
+                    if (waitlistPos) {
+                      const translated = t(
+                        'classes.booking.onWaitlistWithPosition',
+                        { position: waitlistPos }
+                      );
+                      waitlistText =
+                        translated && typeof translated === 'string'
+                          ? translated
+                          : `Đang ở danh sách chờ (Vị trí ${waitlistPos})`;
+                    } else {
+                      const translated = t('classes.booking.onWaitlist');
+                      waitlistText =
+                        translated && typeof translated === 'string'
+                          ? translated
+                          : 'Đang ở danh sách chờ';
+                    }
+                    return (
+                      <TouchableOpacity
+                        style={[
+                          themedStyles.actionButton,
+                          {
+                            backgroundColor: theme.colors.warning + '20',
+                            borderWidth: 1,
+                            borderColor: theme.colors.warning,
+                          },
+                        ]}
+                        onPress={onCancel}
+                        activeOpacity={0.8}
+                      >
+                        <Text
+                          style={[
+                            themedStyles.actionButtonText,
+                            { color: theme.colors.warning },
+                          ]}
+                        >
+                          {waitlistText}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  }
+
                   return (
                     <TouchableOpacity
                       style={[
@@ -463,7 +865,7 @@ export default function ClassCard({
                         {
                           backgroundColor: 'transparent',
                           borderWidth: 1,
-                          borderColor: theme.colors.warning,
+                          borderColor: theme.colors.error,
                         },
                       ]}
                       onPress={onCancel}
@@ -472,10 +874,32 @@ export default function ClassCard({
                       <Text
                         style={[
                           themedStyles.actionButtonText,
-                          { color: theme.colors.warning },
+                          { color: theme.colors.error },
                         ]}
                       >
-                        {t('classes.booking.removeFromWaitlist')}
+                        {t('classes.booking.cancel') || 'Hủy'}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                }
+
+                if (!isFullyBooked) {
+                  return (
+                    <TouchableOpacity
+                      style={[
+                        themedStyles.actionButton,
+                        { backgroundColor: theme.colors.primary },
+                      ]}
+                      onPress={onBook}
+                      activeOpacity={0.8}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.textInverse },
+                        ]}
+                      >
+                        {t('classes.booking.book') || 'Đặt lịch ngay'}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -485,33 +909,7 @@ export default function ClassCard({
                   <TouchableOpacity
                     style={[
                       themedStyles.actionButton,
-                      {
-                        backgroundColor: 'transparent',
-                        borderWidth: 1,
-                        borderColor: theme.colors.error,
-                      },
-                    ]}
-                    onPress={onCancel}
-                    activeOpacity={0.8}
-                  >
-                    <Text
-                      style={[
-                        themedStyles.actionButtonText,
-                        { color: theme.colors.error },
-                      ]}
-                    >
-                      {t('classes.booking.cancel')}
-                    </Text>
-                  </TouchableOpacity>
-                );
-              }
-
-              if (!isFullyBooked) {
-                return (
-                  <TouchableOpacity
-                    style={[
-                      themedStyles.actionButton,
-                      { backgroundColor: theme.colors.primary },
+                      { backgroundColor: theme.colors.warning },
                     ]}
                     onPress={onBook}
                     activeOpacity={0.8}
@@ -522,36 +920,15 @@ export default function ClassCard({
                         { color: theme.colors.textInverse },
                       ]}
                     >
-                      {t('classes.booking.book')}
+                      {t('classes.joinWaitlist') || 'Tham gia danh sách chờ'}
                     </Text>
                   </TouchableOpacity>
                 );
-              }
-
-              return (
-                <TouchableOpacity
-                  style={[
-                    themedStyles.actionButton,
-                    { backgroundColor: theme.colors.warning },
-                  ]}
-                  onPress={onBook}
-                  activeOpacity={0.8}
-                >
-                  <Text
-                    style={[
-                      themedStyles.actionButtonText,
-                      { color: theme.colors.textInverse },
-                    ]}
-                  >
-                    {t('classes.joinWaitlist')}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })()}
-          </View>
-        )}
-      </View>
-    </TouchableOpacity>
+              })()}
+            </View>
+          )}
+        </View>
+      </TouchableOpacity>
     </Animated.View>
   );
 }

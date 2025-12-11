@@ -1,5 +1,5 @@
 import { CheckCircle2, XCircle, Users, Briefcase } from 'lucide-react';
-import RoleBadge from '../common/RoleBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import useTranslation from '../../hooks/useTranslation';
 
 interface UserCardProps {
@@ -35,7 +35,7 @@ export default function UserCard({
   const lastName = user.lastName || user.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
   const isActive = user.isActive ?? user.is_active ?? true;
-  
+
   // Get initials for avatar fallback
   const getInitials = () => {
     const firstInitial = firstName.charAt(0).toUpperCase();
@@ -65,29 +65,30 @@ export default function UserCard({
       data-flip-card-id={`user-card-${user.id}`}
     >
       {/* Profile Image Section - Compact height */}
-      <div className="relative h-28 w-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-[var(--color-orange-50)] to-[var(--color-orange-100)] dark:from-[var(--color-orange-900)]/20 dark:to-[var(--color-orange-800)]/20">
+      <div className='relative h-28 w-full overflow-hidden flex-shrink-0 bg-gradient-to-br from-[var(--color-orange-50)] to-[var(--color-orange-100)] dark:from-[var(--color-orange-900)]/20 dark:to-[var(--color-orange-800)]/20'>
         {avatar ? (
           <img
             data-flip-id={`avatar-${user.id}`}
             src={avatar}
             alt={fullName}
-            className="h-full w-full object-cover object-center"
+            className='h-full w-full object-cover object-center'
             onError={e => {
               e.currentTarget.style.display = 'none';
               const parent = e.currentTarget.parentElement;
               if (parent && !parent.querySelector('.avatar-fallback')) {
                 const initialsDiv = document.createElement('div');
-                initialsDiv.className = "avatar-fallback absolute inset-0 flex items-center justify-center";
+                initialsDiv.className =
+                  'avatar-fallback absolute inset-0 flex items-center justify-center';
                 initialsDiv.innerHTML = `<div class="h-16 w-16 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center text-white text-lg font-heading font-semibold shadow-md border-2 border-white dark:border-gray-800">${getInitials()}</div>`;
                 parent.appendChild(initialsDiv);
               }
             }}
           />
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className='absolute inset-0 flex items-center justify-center'>
             <div
               data-flip-id={`avatar-${user.id}`}
-              className="h-16 w-16 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center text-white text-lg font-heading font-semibold shadow-md border-2 border-white dark:border-gray-800"
+              className='h-16 w-16 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center text-white text-lg font-heading font-semibold shadow-md border-2 border-white dark:border-gray-800'
             >
               {getInitials()}
             </div>
@@ -95,33 +96,33 @@ export default function UserCard({
         )}
         {/* Active Status Badge - Top right corner */}
         {isActive && (
-          <div className="absolute top-2 right-2 z-10">
-            <div className="bg-green-500 dark:bg-green-400 rounded-full p-1 shadow-md border-2 border-white dark:border-gray-800">
-              <CheckCircle2 className="w-3 h-3 text-white" />
+          <div className='absolute top-2 right-2 z-10'>
+            <div className='bg-green-500 dark:bg-green-400 rounded-full p-1 shadow-md border-2 border-white dark:border-gray-800'>
+              <CheckCircle2 className='w-3 h-3 text-white' />
             </div>
           </div>
         )}
       </div>
 
       {/* User Info Section - Compact layout */}
-      <div className="flex-1 flex flex-col px-3.5 py-2.5 min-h-0">
+      <div className='flex-1 flex flex-col px-3.5 py-2.5 min-h-0'>
         {/* Name */}
-        <h3 className="text-sm font-semibold font-heading text-gray-900 dark:text-white leading-tight line-clamp-1 mb-1">
+        <h3 className='text-sm font-semibold font-heading text-gray-900 dark:text-white leading-tight line-clamp-1 mb-1'>
           {fullName}
         </h3>
 
         {/* Role Badge */}
-        <div className="mb-1.5">
-          <RoleBadge role={user.role} size="sm" />
+        <div className='mb-1.5'>
+          <EnumBadge type='ROLE' value={user.role} size='sm' showIcon={true} />
         </div>
 
         {/* Email */}
-        <p className="text-[11px] text-gray-600 dark:text-gray-400 font-heading leading-tight line-clamp-1 mb-2 flex-1">
+        <p className='text-[11px] text-gray-600 dark:text-gray-400 font-heading leading-tight line-clamp-1 mb-2 flex-1'>
           {user.email || t('userManagement.badges.noEmail')}
         </p>
 
         {/* Status Badge */}
-        <div className="mt-auto">
+        <div className='mt-auto'>
           <span
             className={`inline-flex items-center gap-1 text-[10px] font-medium font-heading px-2 py-0.5 rounded ${
               isActive
@@ -131,12 +132,12 @@ export default function UserCard({
           >
             {isActive ? (
               <>
-                <CheckCircle2 className="w-2.5 h-2.5" />
+                <CheckCircle2 className='w-2.5 h-2.5' />
                 <span>{t('userManagement.status.active')}</span>
               </>
             ) : (
               <>
-                <XCircle className="w-2.5 h-2.5" />
+                <XCircle className='w-2.5 h-2.5' />
                 <span>{t('userManagement.status.inactive')}</span>
               </>
             )}
@@ -145,22 +146,22 @@ export default function UserCard({
       </div>
 
       {/* Stats Section - Compact footer */}
-      <div className="px-3.5 pb-2.5 pt-2 border-t border-gray-100 dark:border-gray-700 flex-shrink-0">
-        <div className="flex items-center justify-between gap-2">
+      <div className='px-3.5 pb-2.5 pt-2 border-t border-gray-100 dark:border-gray-700 flex-shrink-0'>
+        <div className='flex items-center justify-between gap-2'>
           {/* Stats Container */}
-          <div className="flex items-center gap-2.5 flex-1 min-w-0">
+          <div className='flex items-center gap-2.5 flex-1 min-w-0'>
             {/* Members stat */}
-            <div className="flex items-center gap-1">
-              <Users className="w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-              <span className="text-[11px] font-semibold font-heading text-gray-900 dark:text-white">
+            <div className='flex items-center gap-1'>
+              <Users className='w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0' />
+              <span className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
                 {stats?.followers || 0}
               </span>
             </div>
 
             {/* Classes stat */}
-            <div className="flex items-center gap-1">
-              <Briefcase className="w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0" />
-              <span className="text-[11px] font-semibold font-heading text-gray-900 dark:text-white">
+            <div className='flex items-center gap-1'>
+              <Briefcase className='w-3 h-3 text-gray-500 dark:text-gray-400 flex-shrink-0' />
+              <span className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white'>
                 {stats?.projects || 0}
               </span>
             </div>
@@ -195,4 +196,3 @@ export default function UserCard({
     </div>
   );
 }
-

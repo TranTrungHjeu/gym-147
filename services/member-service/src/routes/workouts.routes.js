@@ -31,9 +31,13 @@ router.delete('/workout-plans/:id', (req, res) => workoutController.deleteWorkou
 // ==================== AI WORKOUT PLAN ROUTES ====================
 
 // Generate AI workout plan
-router.post('/members/:id/workout-plans/ai', (req, res) =>
-  workoutController.generateAIWorkoutPlan(req, res)
-);
+// Increase timeout for this route to handle long AI processing (10 minutes)
+router.post('/members/:id/workout-plans/ai', (req, res, next) => {
+  // Set timeout for this specific request
+  req.setTimeout(600000); // 10 minutes
+  res.setTimeout(600000); // 10 minutes
+  workoutController.generateAIWorkoutPlan(req, res).catch(next);
+});
 
 // Get workout recommendations
 router.get('/members/:id/workout-recommendations', (req, res) =>

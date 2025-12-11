@@ -58,21 +58,37 @@ const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
   const formatDateForInput = (dateString: string | Date): string => {
     if (!dateString) return '';
     try {
-      const date = typeof dateString === 'string' ? new Date(dateString) : dateString;
+      let date: Date;
+      
+      // Handle different input formats
+      if (typeof dateString === 'string') {
+        // If it's already YYYY-MM-DD format, parse it as UTC to avoid timezone issues
+        if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+          const [year, month, day] = dateString.split('-').map(Number);
+          date = new Date(Date.UTC(year, month - 1, day));
+        } else {
+          // It's a datetime string, parse it
+          date = new Date(dateString);
+        }
+      } else {
+        date = dateString;
+      }
+      
       if (isNaN(date.getTime())) return '';
+      
       // Convert to Vietnam timezone and format as YYYY-MM-DD
       const vnDateStr = date.toLocaleDateString('en-CA', {
         timeZone: 'Asia/Ho_Chi_Minh',
       }); // Returns YYYY-MM-DD format
       return vnDateStr;
-    } catch {
+    } catch (error) {
+      console.error('[ERROR] Error formatting date for input:', error, 'Input:', dateString);
       return '';
     }
   };
 
   // Helper to format time to HH:MM (Vietnam timezone)
-  // Backend stores time in UTC but the time value represents Vietnam local time
-  // So we need to extract the time part directly without timezone conversion
+  // Backend returns ISO datetime strings in UTC, we need to convert to Vietnam timezone
   const formatTimeForInput = (timeString: string): string => {
     if (!timeString) return '';
     // Check if it's already in HH:MM format
@@ -80,12 +96,11 @@ const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
       return timeString;
     }
     try {
-      // Backend returns ISO datetime strings like "2025-12-12T12:00:00.000Z"
-      // The time part (12:00) is already in Vietnam time, just stored as UTC
-      // So we extract the time part directly from the UTC date
+      // Backend returns ISO datetime strings like "2025-12-12T05:00:00.000Z" (UTC)
+      // We need to convert to Vietnam timezone (UTC+7)
       let date: Date;
 
-      if (timeString.includes('T')) {
+      if (timeString.includes('T') || timeString.includes('Z') || timeString.includes('+')) {
         // ISO datetime string - parse it
         date = new Date(timeString);
       } else if (timeString.includes(' ')) {
@@ -97,18 +112,22 @@ const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
       }
 
       if (isNaN(date.getTime())) {
-        console.warn('Invalid date string:', timeString);
+        console.warn('[WARNING] Invalid date string:', timeString);
         return '';
       }
 
-      // Extract UTC time components (which represent VN time)
-      // The backend stores VN time as UTC, so UTC hours = VN hours
-      const hours = date.getUTCHours().toString().padStart(2, '0');
-      const minutes = date.getUTCMinutes().toString().padStart(2, '0');
+      // Convert to Vietnam timezone and extract time components
+      // Use toLocaleTimeString with Vietnam timezone to get correct local time
+      const vnTimeString = date.toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        timeZone: 'Asia/Ho_Chi_Minh',
+      });
 
-      return `${hours}:${minutes}`;
+      return vnTimeString;
     } catch (error) {
-      console.error('Error formatting time:', error, timeString);
+      console.error('[ERROR] Error formatting time:', error, timeString);
       return '';
     }
   };
@@ -149,26 +168,32 @@ const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
   useEffect(() => {
     if (isOpen && schedule) {
       // Debug: log original time values
-      console.log('[EditScheduleModal] Original times:', {
+      console.log('[EditScheduleModal] Original schedule data:', {
         start_time: schedule.start_time,
         end_time: schedule.end_time,
         date: schedule.date,
+        start_time_type: typeof schedule.start_time,
+        end_time_type: typeof schedule.end_time,
       });
 
+      // Format times with Vietnam timezone conversion
       const formattedStartTime = formatTimeForInput(schedule.start_time || '');
       const formattedEndTime = formatTimeForInput(schedule.end_time || '');
+      const formattedDate = formatDateForInput(schedule.date || schedule.start_time || '');
 
       // Debug: log formatted time values
-      console.log('[EditScheduleModal] Formatted times:', {
+      console.log('[EditScheduleModal] Formatted values (VN timezone):', {
+        date: formattedDate,
         start_time: formattedStartTime,
         end_time: formattedEndTime,
-        date: formatDateForInput(schedule.date || ''),
+        original_start_parsed: schedule.start_time ? new Date(schedule.start_time).toISOString() : null,
+        original_end_parsed: schedule.end_time ? new Date(schedule.end_time).toISOString() : null,
       });
 
       setFormData({
         class_name: schedule.gym_class?.name || '',
         description: schedule.gym_class?.description || '',
-        date: formatDateForInput(schedule.date || ''),
+        date: formattedDate,
         start_time: formattedStartTime,
         end_time: formattedEndTime,
         room_id: schedule.room?.id || '',
@@ -232,10 +257,12 @@ const EditScheduleModal: React.FC<EditScheduleModalProps> = ({
       newErrors.max_capacity = `Số lượng học viên không được vượt quá sức chứa phòng (${selectedRoom.capacity})`;
     }
 
-    // Time validation
+    // Time validation - use actual date if available, otherwise use a reference date
     if (formData.start_time && formData.end_time) {
-      const startTime = new Date(`2000-01-01T${formData.start_time}`);
-      const endTime = new Date(`2000-01-01T${formData.end_time}`);
+      // Use actual date from form if available, otherwise use a reference date
+      const dateStr = formData.date || '2000-01-01';
+      const startTime = new Date(`${dateStr}T${formData.start_time}`);
+      const endTime = new Date(`${dateStr}T${formData.end_time}`);
 
       if (startTime >= endTime) {
         newErrors.end_time = 'Giờ kết thúc phải sau giờ bắt đầu';

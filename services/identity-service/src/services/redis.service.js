@@ -490,6 +490,55 @@ class RedisService {
       return 0;
     }
   }
+
+  // ==================== DISTRIBUTED LOCKING ====================
+
+  /**
+   * Acquire a distributed lock
+   * @param {string} key - Lock key
+   * @param {number} ttlSeconds - Time to live in seconds
+   * @returns {Promise<boolean>} - True if lock acquired, false otherwise
+   */
+  async acquireLock(key, ttlSeconds = 30) {
+    if (!this.isConnected || !this.client) {
+      console.warn('[WARNING] Redis not connected, cannot acquire lock');
+      return false;
+    }
+
+    try {
+      const lockKey = `lock:${key}`;
+      // Use SET with NX (only if not exists) and EX (expire) to atomically acquire lock
+      const result = await this.client.set(lockKey, '1', {
+        EX: ttlSeconds,
+        NX: true, // Only set if key doesn't exist
+      });
+
+      return result === 'OK';
+    } catch (error) {
+      console.error('[ERROR] Error acquiring lock:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Release a distributed lock
+   * @param {string} key - Lock key
+   * @returns {Promise<boolean>} - True if lock released successfully
+   */
+  async releaseLock(key) {
+    if (!this.isConnected || !this.client) {
+      return false;
+    }
+
+    try {
+      const lockKey = `lock:${key}`;
+      await this.client.del(lockKey);
+      return true;
+    } catch (error) {
+      console.error('[ERROR] Error releasing lock:', error);
+      return false;
+    }
+  }
 }
 
 module.exports = new RedisService();

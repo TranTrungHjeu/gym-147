@@ -1,5 +1,6 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
+import { CheckCircle2, Info, XCircle } from 'lucide-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -17,7 +18,12 @@ interface ErrorModalProps {
   onClose: () => void;
   title?: string;
   message: string;
-  type?: 'email' | 'phone' | 'error' | 'warning';
+  type?: 'email' | 'phone' | 'error' | 'warning' | 'info';
+  actionButton?: {
+    label: string;
+    onPress: () => void;
+    variant?: 'primary' | 'secondary';
+  };
 }
 
 export const ErrorModal: React.FC<ErrorModalProps> = ({
@@ -26,6 +32,7 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
   title,
   message,
   type = 'error',
+  actionButton,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -68,6 +75,8 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
         return 'phone-portrait-outline';
       case 'warning':
         return 'warning-outline';
+      case 'info':
+        return 'information-circle-outline';
       default:
         return 'alert-circle-outline';
     }
@@ -79,6 +88,8 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
       case 'phone':
       case 'warning':
         return theme.colors.warning;
+      case 'info':
+        return theme.colors.info || theme.colors.primary;
       default:
         return theme.colors.error;
     }
@@ -90,6 +101,8 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
       case 'phone':
       case 'warning':
         return theme.colors.warning + '20';
+      case 'info':
+        return (theme.colors.info || theme.colors.primary) + '20';
       default:
         return theme.colors.error + '20';
     }
@@ -125,7 +138,15 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
               { backgroundColor: getBackgroundColor() },
             ]}
           >
-            <Ionicons name={getIcon()} size={24} color={getIconColor()} />
+            {type === 'info' ? (
+              <Info size={28} color={getIconColor()} strokeWidth={2.5} />
+            ) : type === 'warning' ? (
+              <Ionicons name={getIcon()} size={28} color={getIconColor()} />
+            ) : type === 'error' ? (
+              <XCircle size={28} color={getIconColor()} strokeWidth={2.5} />
+            ) : (
+              <Ionicons name={getIcon()} size={28} color={getIconColor()} />
+            )}
           </View>
 
           {/* Title */}
@@ -138,24 +159,70 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
             {message}
           </Text>
 
-          {/* Button */}
-          <TouchableOpacity
-            style={[
-              themedStyles.button,
-              { backgroundColor: theme.colors.primary },
-            ]}
-            onPress={onClose}
-            activeOpacity={0.8}
-          >
-            <Text
+          {/* Buttons */}
+          <View style={themedStyles.buttonContainer}>
+            {actionButton && (
+              <TouchableOpacity
+                style={[
+                  themedStyles.button,
+                  themedStyles.actionButton,
+                  {
+                    backgroundColor:
+                      actionButton.variant === 'secondary'
+                        ? theme.colors.surface
+                        : theme.colors.primary,
+                    borderWidth: actionButton.variant === 'secondary' ? 1 : 0,
+                    borderColor:
+                      actionButton.variant === 'secondary'
+                        ? theme.colors.border
+                        : 'transparent',
+                    marginRight: 8,
+                  },
+                ]}
+                onPress={actionButton.onPress}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    Typography.bodyMedium,
+                    {
+                      color:
+                        actionButton.variant === 'secondary'
+                          ? theme.colors.text
+                          : theme.colors.textInverse,
+                      fontWeight: '600',
+                    },
+                  ]}
+                >
+                  {actionButton.label}
+                </Text>
+              </TouchableOpacity>
+            )}
+            <TouchableOpacity
               style={[
-                Typography.bodyMedium,
-                { color: theme.colors.textInverse },
+                themedStyles.button,
+                {
+                  backgroundColor: theme.colors.primary,
+                  flex: actionButton ? 1 : undefined,
+                  width: actionButton ? undefined : '100%',
+                },
               ]}
+              onPress={onClose}
+              activeOpacity={0.8}
             >
-              {t('common.ok')}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: theme.colors.textInverse,
+                    fontWeight: actionButton ? '500' : '600',
+                  },
+                ]}
+              >
+                {t('common.ok')}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </Animated.View>
       </Animated.View>
     </Modal>
@@ -185,9 +252,9 @@ const styles = (theme: any) =>
       elevation: 6,
     },
     iconContainer: {
-      width: 48,
-      height: 48,
-      borderRadius: theme.radius.lg,
+      width: 64,
+      height: 64,
+      borderRadius: 32,
       justifyContent: 'center',
       alignItems: 'center',
       marginBottom: theme.spacing.md,
@@ -201,10 +268,16 @@ const styles = (theme: any) =>
       color: theme.colors.textSecondary,
       textAlign: 'center',
       marginBottom: theme.spacing.lg,
-      lineHeight: 20,
+      lineHeight: 22,
+      paddingHorizontal: 4,
+    },
+    buttonContainer: {
+      width: '100%',
+      flexDirection: 'row',
+      gap: 8,
     },
     button: {
-      width: '100%',
+      flex: 1,
       paddingVertical: theme.spacing.sm + 2,
       borderRadius: theme.radius.md,
       alignItems: 'center',
@@ -215,5 +288,7 @@ const styles = (theme: any) =>
       shadowRadius: 4,
       elevation: 3,
     },
+    actionButton: {
+      flex: 1,
+    },
   });
-

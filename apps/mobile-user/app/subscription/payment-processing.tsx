@@ -1,3 +1,4 @@
+import { Button } from '@/components/ui/Button';
 import { paymentService } from '@/services/billing/payment.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
 import { useTheme } from '@/utils/theme';
@@ -49,12 +50,13 @@ export default function SubscriptionPaymentProcessingScreen() {
   const action = params.action as PaymentAction;
 
   useEffect(() => {
-    if (bankTransferId) {
+    // Load bank transfer info if we have bankTransferId or paymentId
+    if (bankTransferId || paymentId) {
       loadBankTransferInfo();
     } else {
       setIsLoading(false);
     }
-  }, [bankTransferId]);
+  }, [bankTransferId, paymentId]);
 
   useEffect(() => {
     // Countdown timer
@@ -76,58 +78,131 @@ export default function SubscriptionPaymentProcessingScreen() {
     return () => clearInterval(timer);
   }, [countdown, isVerified]);
 
+  // Auto-navigate when payment is verified (from auto-verify)
   useEffect(() => {
-    // Auto-verify every 10 seconds
-    if (isVerified || !bankTransferId) return;
+    if (isVerified) {
+      console.log('[AUTO-NAVIGATE] Payment verified, navigating to subscription page...');
+      // Small delay to ensure backend has updated membership
+      const navigateTimer = setTimeout(() => {
+        router.replace('/subscription');
+      }, 1500); // 1.5 seconds delay to ensure backend processing is complete
+
+      return () => clearTimeout(navigateTimer);
+    }
+  }, [isVerified]);
+
+  useEffect(() => {
+    // Auto-verify every 10 seconds (silent mode)
+    // Use bankTransferId from state or params
+    const finalBankTransferId = bankTransfer?.id || bankTransferId;
+    if (isVerified || !finalBankTransferId) return;
 
     const verifyInterval = setInterval(async () => {
-      await verifyPayment();
+      // Pass false to indicate auto-verify (silent)
+      await verifyPayment(false);
     }, 10000);
 
     return () => clearInterval(verifyInterval);
-  }, [isVerified, bankTransferId]);
+  }, [isVerified, bankTransfer?.id, bankTransferId]);
 
   const loadBankTransferInfo = async () => {
     try {
       setIsLoading(true);
+      
+      // Try to get bank transfer by bankTransferId first
       if (bankTransferId) {
-        const response = await paymentService.getBankTransfer(bankTransferId);
-        if (response.success && response.data) {
-          setBankTransfer(response.data);
+        try {
+          const response = await paymentService.getBankTransfer(bankTransferId);
+          if (response.success && response.data) {
+            setBankTransfer(response.data);
+            return;
+          }
+        } catch (error) {
+          console.log('[BANK] Failed to get by bankTransferId, trying paymentId...', error);
+        }
+      }
+      
+      // Fallback: try to get by paymentId
+      if (paymentId) {
+        try {
+          const response = await paymentService.getBankTransfer(paymentId);
+          if (response.success && response.data) {
+            setBankTransfer(response.data);
+            return;
+          }
+        } catch (error) {
+          console.log('[BANK] Failed to get by paymentId:', error);
         }
       }
     } catch (error) {
-      console.error('Error loading bank transfer:', error);
+      console.error('[BANK] Error loading bank transfer:', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const verifyPayment = async () => {
-    if (!bankTransferId || isVerifying || isVerified) return;
+  const verifyPayment = async (isManual = false) => {
+    // Use bankTransferId from state or params
+    const finalBankTransferId = bankTransfer?.id || bankTransferId;
+    if (!finalBankTransferId || isVerifying || isVerified) return;
 
     try {
       setIsVerifying(true);
-      const response = await paymentService.verifyBankTransfer(bankTransferId);
+      const response = await paymentService.verifyBankTransfer(finalBankTransferId);
 
       if (response.success && response.data?.status === 'COMPLETED') {
         setIsVerified(true);
-        Alert.alert(
-          t('common.success') || 'Success',
-          t('payment.paymentVerified') || 'Payment verified successfully!',
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                // Reload subscription data and navigate back
-                router.replace('/subscription');
+        
+        // Show appropriate success message based on action
+        let successTitle = t('common.success') || 'Success';
+        let successMessage = '';
+        
+        if (action === 'UPGRADE') {
+          successMessage = t('subscription.upgradeSuccess') || 
+            'Nâng cấp gói thành công! Gói của bạn đã được cập nhật.';
+        } else if (action === 'RENEW') {
+          successMessage = t('subscription.renewSuccess') || 
+            'Gia hạn gói thành công! Gói của bạn đã được gia hạn.';
+        } else if (action === 'SUBSCRIBE') {
+          successMessage = t('subscription.subscribeSuccess') || 
+            'Đăng ký gói thành công! Gói của bạn đã được kích hoạt.';
+        } else {
+          successMessage = t('payment.paymentVerified') || 
+            'Thanh toán thành công!';
+        }
+        
+        // If auto-verify (silent), navigate automatically after short delay
+        // If manual verify, show alert first
+        if (isManual) {
+          Alert.alert(
+            successTitle,
+            successMessage,
+            [
+              {
+                text: t('common.ok'),
+                onPress: async () => {
+                  // Small delay to ensure backend has updated membership
+                  await new Promise(resolve => setTimeout(resolve, 500));
+                  // Reload subscription data and navigate back
+                  router.replace('/subscription');
+                },
               },
-            },
-          ]
-        );
+            ]
+          );
+        } else {
+          // Auto-verify: just set isVerified, useEffect will handle navigation
+          console.log('[AUTO-VERIFY] Payment verified successfully, will auto-navigate...');
+        }
       }
     } catch (error) {
       console.error('Error verifying payment:', error);
+      // Only show error alert on manual verify
+      if (isManual) {
+        Alert.alert(
+          t('common.error') || 'Error',
+          t('payment.verificationFailed') || 'Không thể xác minh thanh toán. Vui lòng thử lại.'
+        );
+      }
     } finally {
       setIsVerifying(false);
     }
@@ -505,7 +580,7 @@ export default function SubscriptionPaymentProcessingScreen() {
                 ? t('payment.verifying') || 'Verifying...'
                 : t('payment.verifyPayment') || 'Verify Payment'
             }
-            onPress={verifyPayment}
+            onPress={() => verifyPayment(true)}
             disabled={isVerifying}
             variant="outline"
             style={styles.verifyButton}

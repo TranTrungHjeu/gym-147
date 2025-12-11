@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal/Modal';
 import { useModal } from '../../hooks/useModal';
 import { User, userService } from '../../services/user.service';
-import RoleBadge from '../common/RoleBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import Button from '../ui/Button/Button';
 import ChangeEmailPhoneModal from '../modals/ChangeEmailPhoneModal';
 import { memberApi, scheduleApi } from '@/services/api';
@@ -46,6 +46,9 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     isActive?: boolean;
   } | null>(null);
   const [isActiveToggle, setIsActiveToggle] = useState<boolean>(true);
+  const [newPassword, setNewPassword] = useState<string>('');
+  const [confirmPassword, setConfirmPassword] = useState<string>('');
+  const [isAdmin, setIsAdmin] = useState<boolean>(false);
 
   // Track user state changes
   useEffect(() => {
@@ -126,6 +129,19 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           firstName: userData.first_name || userData.firstName || '',
           lastName: userData.last_name || userData.lastName || '',
         };
+
+        // Check if current user is admin/super admin
+        try {
+          const storedUserData = localStorage.getItem('user');
+          if (storedUserData) {
+            const currentUser = JSON.parse(storedUserData);
+            const currentUserRole = currentUser?.role;
+            setIsAdmin(currentUserRole === 'ADMIN' || currentUserRole === 'SUPER_ADMIN');
+          }
+        } catch (error) {
+          console.error('Error checking admin status:', error);
+        }
+
         console.log('[DATA] Fetched user data:', {
           userId: mappedUser.id,
           firstName: mappedUser.firstName,
@@ -253,6 +269,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         userPhone: user.phone,
       });
 
+      // For admin editing other users, allow direct update without OTP
+      // For admin editing other users, allow direct update without OTP
       const response =
         userId === 'current'
           ? await userService.updateProfile({
@@ -268,6 +286,36 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               phone,
               isActive,
             });
+
+      // If admin is changing password for another user
+      if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
+        if (newPassword !== confirmPassword) {
+          throw new Error('Mật khẩu xác nhận không khớp');
+        }
+        await userService.changeUserPassword(user.id, newPassword);
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+
+      // If admin is changing password for another user
+      if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
+        if (newPassword !== confirmPassword) {
+          throw new Error('Mật khẩu xác nhận không khớp');
+        }
+        await userService.changeUserPassword(user.id, newPassword);
+        setNewPassword('');
+        setConfirmPassword('');
+      }
+
+      // If admin is changing password for another user
+      if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
+        if (newPassword !== confirmPassword) {
+          throw new Error('Mật khẩu xác nhận không khớp');
+        }
+        await userService.changeUserPassword(user.id, newPassword);
+        setNewPassword('');
+        setConfirmPassword('');
+      }
 
       if (response.success) {
         // Normalize the response data to match frontend format
@@ -446,11 +494,20 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 className='w-24 h-24 rounded-full object-cover border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg'
               />
             ) : (
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg ${
-                ['bg-[var(--color-orange-500)]', 'bg-[var(--color-orange-600)]', 'bg-[var(--color-orange-700)]', 'bg-[var(--color-orange-800)]'][
-                  ((user?.firstName || user?.first_name || '').length + (user?.lastName || user?.last_name || '').length) % 4
-                ]
-              }`}>
+              <div
+                className={`w-24 h-24 rounded-full flex items-center justify-center border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg ${
+                  [
+                    'bg-[var(--color-orange-500)]',
+                    'bg-[var(--color-orange-600)]',
+                    'bg-[var(--color-orange-700)]',
+                    'bg-[var(--color-orange-800)]',
+                  ][
+                    ((user?.firstName || user?.first_name || '').length +
+                      (user?.lastName || user?.last_name || '').length) %
+                      4
+                  ]
+                }`}
+              >
                 <span className='text-2xl font-bold text-white font-heading'>
                   {getUserInitials(user)}
                 </span>
@@ -579,7 +636,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 Vai trò
               </p>
               <div className='flex items-center gap-2'>
-                <RoleBadge role={user.role} size='sm' />
+                <EnumBadge type='ROLE' value={user.role} size='sm' showIcon={true} />
               </div>
             </div>
 
@@ -776,53 +833,131 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Email
                     </label>
-                    <div className='flex gap-2'>
+                    {userId !== 'current' && isAdmin ? (
                       <input
                         type='email'
                         value={formData?.email ?? user?.email ?? ''}
-                        readOnly
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
-                      />
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='outline'
-                        onClick={() => {
+                        onChange={e => {
                           isEditingRef.current = true;
-                          openChangeEmailModal();
+                          setFormData(prev => ({
+                            ...(prev || {
+                              firstName: user?.firstName || user?.first_name || '',
+                              lastName: user?.lastName || user?.last_name || '',
+                              email: user?.email || '',
+                              phone: user?.phone || '',
+                              isActive: user?.isActive ?? true,
+                            }),
+                            email: e.target.value,
+                          }));
                         }}
-                        className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
-                      >
-                        Đổi Email
-                      </Button>
-                    </div>
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                      />
+                    ) : (
+                      <div className='flex gap-2'>
+                        <input
+                          type='email'
+                          value={formData?.email ?? user?.email ?? ''}
+                          readOnly
+                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                        />
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='outline'
+                          onClick={() => {
+                            isEditingRef.current = true;
+                            openChangeEmailModal();
+                          }}
+                          className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                        >
+                          Đổi Email
+                        </Button>
+                      </div>
+                    )}
                   </div>
 
                   <div>
                     <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
                       Số điện thoại
                     </label>
-                    <div className='flex gap-2'>
+                    {userId !== 'current' && isAdmin ? (
                       <input
                         type='tel'
                         value={formData?.phone ?? user?.phone ?? ''}
-                        readOnly
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
-                      />
-                      <Button
-                        type='button'
-                        size='sm'
-                        variant='outline'
-                        onClick={() => {
+                        onChange={e => {
                           isEditingRef.current = true;
-                          openChangePhoneModal();
+                          setFormData(prev => ({
+                            ...(prev || {
+                              firstName: user?.firstName || user?.first_name || '',
+                              lastName: user?.lastName || user?.last_name || '',
+                              email: user?.email || '',
+                              phone: user?.phone || '',
+                              isActive: user?.isActive ?? true,
+                            }),
+                            phone: e.target.value,
+                          }));
                         }}
-                        className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
-                      >
-                        Đổi SĐT
-                      </Button>
-                    </div>
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                      />
+                    ) : (
+                      <div className='flex gap-2'>
+                        <input
+                          type='tel'
+                          value={formData?.phone ?? user?.phone ?? ''}
+                          readOnly
+                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                        />
+                        <Button
+                          type='button'
+                          size='sm'
+                          variant='outline'
+                          onClick={() => {
+                            isEditingRef.current = true;
+                            openChangePhoneModal();
+                          }}
+                          className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                        >
+                          Đổi SĐT
+                        </Button>
+                      </div>
+                    )}
                   </div>
+
+                  {/* Password Change - Only for admin editing other users */}
+                  {userId !== 'current' && isAdmin && (
+                    <>
+                      <div>
+                        <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                          Mật khẩu mới (để trống nếu không đổi)
+                        </label>
+                        <input
+                          type='password'
+                          value={newPassword}
+                          onChange={e => {
+                            isEditingRef.current = true;
+                            setNewPassword(e.target.value);
+                          }}
+                          placeholder='Nhập mật khẩu mới'
+                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                        />
+                      </div>
+                      <div>
+                        <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                          Xác nhận mật khẩu
+                        </label>
+                        <input
+                          type='password'
+                          value={confirmPassword}
+                          onChange={e => {
+                            isEditingRef.current = true;
+                            setConfirmPassword(e.target.value);
+                          }}
+                          placeholder='Nhập lại mật khẩu mới'
+                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                        />
+                      </div>
+                    </>
+                  )}
 
                   {/* Status Toggle - Only show for non-current users */}
                   {userId !== 'current' && (
@@ -1015,11 +1150,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       <ChangeEmailPhoneModal
         isOpen={isChangeEmailOpen}
         onClose={closeChangeEmailModal}
-        onSuccess={(newEmail) => {
+        onSuccess={newEmail => {
           if (newEmail && user) {
             const updatedUser = { ...user, email: newEmail };
             setUser(updatedUser);
-            setFormData(prev => prev ? { ...prev, email: newEmail } : null);
+            setFormData(prev => (prev ? { ...prev, email: newEmail } : null));
             onUpdate?.(updatedUser);
             if (window.showToast) {
               window.showToast({
@@ -1039,11 +1174,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       <ChangeEmailPhoneModal
         isOpen={isChangePhoneOpen}
         onClose={closeChangePhoneModal}
-        onSuccess={(newEmail, newPhone) => {
+        onSuccess={(_newEmail, newPhone) => {
           if (newPhone && user) {
             const updatedUser = { ...user, phone: newPhone };
             setUser(updatedUser);
-            setFormData(prev => prev ? { ...prev, phone: newPhone } : null);
+            setFormData(prev => (prev ? { ...prev, phone: newPhone } : null));
             onUpdate?.(updatedUser);
             if (window.showToast) {
               window.showToast({

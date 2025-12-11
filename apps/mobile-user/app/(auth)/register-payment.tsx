@@ -39,19 +39,19 @@ const RegisterPaymentScreen = () => {
   const planName = params.planName as string;
   const planType = params.planType as string;
   const planPrice = parseFloat(params.planPrice as string);
-  const setupFee = parseFloat(params.setupFee as string);
+  const setupFee = 0; // setup_fee removed from schema
   const durationMonths = parseInt(params.durationMonths as string);
   const discountCode = params.discountCode as string;
   const discountType = params.discountType as string;
   const discountValue = parseFloat((params.discountValue as string) || '0');
   const bonusDays = parseInt((params.bonusDays as string) || '0');
+  const isTrial = params.isTrial === 'true'; // IMPROVEMENT: Check if trial subscription
 
   const plan = {
     id: planId,
     name: planName,
     type: planType,
     price: planPrice,
-    setup_fee: setupFee,
     duration_months: durationMonths,
   };
 
@@ -120,7 +120,8 @@ const RegisterPaymentScreen = () => {
   ];
 
   const handlePayment = async () => {
-    if (!selectedMethod) {
+    // IMPROVEMENT: For trial, skip payment method selection
+    if (!isTrial && !selectedMethod) {
       Alert.alert(t('common.warning'), t('registration.selectPaymentMethod'));
       return;
     }
@@ -133,6 +134,7 @@ const RegisterPaymentScreen = () => {
         planId,
         discountCode,
         bonusDays,
+        isTrial,
       });
 
       // Validate tokens before proceeding
@@ -174,12 +176,38 @@ const RegisterPaymentScreen = () => {
         subscriptionData
       );
 
-      // Step 4: Initiate payment with member.id
+      // IMPROVEMENT: For trial, skip payment and go directly to profile
+      if (isTrial || subscription.status === 'TRIAL') {
+        console.log('[TRIAL] Trial subscription created, skipping payment');
+        Alert.alert(
+          t('registration.trialStarted') || 'Bắt đầu dùng thử',
+          t('registration.trialMessage') || 'Bạn đã bắt đầu dùng thử 7 ngày miễn phí. Hãy hoàn tất hồ sơ để bắt đầu!',
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                router.push({
+                  pathname: '/(auth)/register-profile',
+                  params: {
+                    userId,
+                    accessToken,
+                    refreshToken,
+                    subscriptionId: subscription.id,
+                  },
+                });
+              },
+            },
+          ]
+        );
+        return;
+      }
+
+      // Step 4: Initiate payment with member.id (only for non-trial)
       const paymentResponse = await billingService.initiatePayment({
         member_id: memberId, // Use actual member.id instead of userId
         subscription_id: subscription.id,
         amount: subscription.total_amount,
-        payment_method: selectedMethod,
+        payment_method: selectedMethod!,
       });
 
       if (selectedMethod === PaymentMethod.BANK_TRANSFER) {
@@ -427,9 +455,33 @@ const RegisterPaymentScreen = () => {
           />
         </View>
 
-        <Text style={themedStyles.sectionTitle}>
-          {String(t('registration.paymentMethod') || 'Phương thức thanh toán')}
-        </Text>
+        {/* IMPROVEMENT: Trial Info Banner */}
+        {isTrial ? (
+          <View style={[themedStyles.trialBanner, { 
+            backgroundColor: `${theme.colors.primary}15`,
+            borderColor: theme.colors.primary,
+            borderWidth: 2,
+            padding: theme.spacing.lg,
+            borderRadius: theme.radius.xl,
+            marginBottom: theme.spacing.xl,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }]}>
+            <Ionicons name="gift" size={32} color={theme.colors.primary} />
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={[themedStyles.sectionTitle, { color: theme.colors.primary, marginBottom: 4 }]}>
+                {t('registration.trialSubscription') || 'Gói Dùng Thử'}
+              </Text>
+              <Text style={[themedStyles.subtitle, { color: theme.colors.text }]}>
+                {t('registration.trialDescription') || 'Bạn sẽ được dùng thử miễn phí 7 ngày. Không cần thanh toán ngay bây giờ.'}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={themedStyles.sectionTitle}>
+            {String(t('registration.paymentMethod') || 'Phương thức thanh toán')}
+          </Text>
+        )}
 
         <View style={themedStyles.paymentMethodsContainer}>
           {paymentMethods.map((method) => {
@@ -481,17 +533,18 @@ const RegisterPaymentScreen = () => {
               </TouchableOpacity>
             );
           })}
-        </View>
+          </View>
+        ) : null}
       </ScrollView>
 
       <View style={themedStyles.footerContainer}>
         <TouchableOpacity
           style={[
             themedStyles.payButton,
-            (!selectedMethod || isProcessing) && themedStyles.payButtonDisabled,
+            (!isTrial && !selectedMethod || isProcessing) && themedStyles.payButtonDisabled,
           ]}
           onPress={handlePayment}
-          disabled={!selectedMethod || isProcessing}
+          disabled={(!isTrial && !selectedMethod) || isProcessing}
           activeOpacity={0.8}
         >
           {isProcessing ? (
@@ -499,7 +552,9 @@ const RegisterPaymentScreen = () => {
           ) : (
             <Text style={themedStyles.payButtonText}>
               {String(
-                t('registration.proceedToPayment') || 'Tiếp tục thanh toán'
+                isTrial 
+                  ? (t('registration.startTrial') || 'Bắt đầu dùng thử')
+                  : (t('registration.proceedToPayment') || 'Tiếp tục thanh toán')
               )}
             </Text>
           )}

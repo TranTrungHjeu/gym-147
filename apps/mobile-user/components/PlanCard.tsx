@@ -349,55 +349,7 @@ export default function PlanCard({
           ))}
         </View>
 
-        {/* Additional Features */}
-        {(plan.class_credits !== null && plan.class_credits !== undefined) ||
-        plan.guest_passes !== undefined ? (
-          <View style={styles.additionalFeatures}>
-            {plan.class_credits !== null &&
-              plan.class_credits !== undefined && (
-                <View style={styles.featureRow}>
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {t('subscription.plans.classCredits') || 'Class Credits:'}
-                  </Text>
-                  <Text
-                    style={[
-                      Typography.bodyMedium,
-                      { color: theme.colors.text, fontWeight: '600' },
-                    ]}
-                  >
-                    {plan.class_credits === null
-                      ? 'Unlimited'
-                      : plan.class_credits.toString()}
-                  </Text>
-                </View>
-              )}
-            {plan.guest_passes !== undefined && (
-              <View style={styles.featureRow}>
-                <Text
-                  style={[
-                    Typography.caption,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  {t('subscription.plans.guestPasses') || 'Guest Passes:'}
-                </Text>
-                <Text
-                  style={[
-                    Typography.bodyMedium,
-                    { color: theme.colors.text, fontWeight: '600' },
-                  ]}
-                >
-                  {plan.guest_passes.toString()}
-                </Text>
-              </View>
-            )}
-          </View>
-        ) : null}
+        {/* Additional Features - Removed class_credits as it's not in schema */}
 
         {/* Card Actions */}
         <View style={styles.cardActions}>

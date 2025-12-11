@@ -1,9 +1,11 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
+import useTranslation from '../hooks/useTranslation';
 import { clearAuthData, getCurrentUser, getDashboardPath } from '../utils/auth';
 
 const Unauthorized: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const handleGoBack = () => {
     const user = getCurrentUser();
@@ -42,13 +44,12 @@ const Unauthorized: React.FC = () => {
           </div>
 
           {/* Title */}
-          <h1 className='text-2xl font-bold text-gray-900 dark:text-white mb-4'>Truy cập bị từ chối</h1>
+          <h1 className='text-2xl font-bold text-gray-900 dark:text-white mb-4'>
+            {t('unauthorized.title')}
+          </h1>
 
           {/* Message */}
-          <p className='text-gray-600 dark:text-gray-400 mb-8'>
-            Bạn không có quyền truy cập vào trang này. Vui lòng liên hệ quản trị viên nếu bạn cho
-            rằng đây là lỗi.
-          </p>
+          <p className='text-gray-600 dark:text-gray-400 mb-8'>{t('unauthorized.message')}</p>
 
           {/* Actions */}
           <div className='space-y-3'>
@@ -56,14 +57,14 @@ const Unauthorized: React.FC = () => {
               onClick={handleGoBack}
               className='w-full bg-orange-600 hover:bg-orange-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200'
             >
-              Quay lại Dashboard
+              {t('unauthorized.backToDashboard')}
             </button>
 
             <button
               onClick={handleLogout}
               className='w-full bg-gray-600 hover:bg-gray-700 text-white font-medium py-2 px-4 rounded-md transition-colors duration-200'
             >
-              Đăng xuất
+              {t('common.logout')}
             </button>
           </div>
         </div>

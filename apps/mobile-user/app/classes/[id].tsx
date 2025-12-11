@@ -1,4 +1,7 @@
 import BookingModal from '@/components/BookingModal';
+import CancellationReasonModal from '@/components/CancellationReasonModal'; // IMPROVEMENT: Cancellation reason modal
+import RefundInfoCard from '@/components/RefundInfoCard';
+import { SuccessModal } from '@/components/SuccessModal';
 import { useAuth } from '@/contexts/AuthContext';
 import {
   bookingService,
@@ -8,6 +11,7 @@ import {
   type Schedule,
 } from '@/services';
 import { paymentService } from '@/services/billing/payment.service';
+import { Refund } from '@/types/billingTypes';
 import {
   Booking,
   ClassCategory,
@@ -29,7 +33,8 @@ import {
   Timer,
   Users,
 } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
@@ -64,7 +69,11 @@ export default function ClassDetailScreen() {
   const { user, member, loadMemberProfile } = useAuth(); // Get member.id from AuthContext
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id, refresh, paymentVerified } = useLocalSearchParams<{ 
+    id: string;
+    refresh?: string;
+    paymentVerified?: string;
+  }>();
 
   // State for data
   const [loading, setLoading] = useState(true);
@@ -75,6 +84,8 @@ export default function ClassDetailScreen() {
   const [userBooking, setUserBooking] = useState<Booking | null>(null);
   const [paymentId, setPaymentId] = useState<string | null>(null);
   const [bankTransferId, setBankTransferId] = useState<string | null>(null);
+  const [refundInfo, setRefundInfo] = useState<Refund | null>(null);
+  const [loadingRefund, setLoadingRefund] = useState(false);
 
   // UI state
   const [showBookingModal, setShowBookingModal] = useState(false);
@@ -83,6 +94,9 @@ export default function ClassDetailScreen() {
   const [favoriteId, setFavoriteId] = useState<string | null>(null);
   const [isLoadingFavorite, setIsLoadingFavorite] = useState(false);
   const [trainerAvatarError, setTrainerAvatarError] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>('');
+  const [successTitle, setSuccessTitle] = useState<string>('');
 
   // Load member profile if not already loaded (when user logs in)
   useEffect(() => {
@@ -91,31 +105,37 @@ export default function ClassDetailScreen() {
     }
   }, [user?.id, member?.id]);
 
-  // Load data on component mount
-  useEffect(() => {
-    if (id) {
-      loadScheduleData();
+  // Use refs to track loading state and prevent infinite loops
+  const isLoadingRef = useRef(false);
+  const lastLoadedIdRef = useRef<string | null>(null);
+
+  // Memoize loadScheduleData to prevent infinite loops
+  const loadScheduleData = useCallback(async (force = false) => {
+    // Prevent multiple simultaneous calls
+    if (isLoadingRef.current) {
+      console.log('[SKIP] Already loading schedule data, skipping...');
+      return;
     }
-  }, [id]);
 
-  // Reset trainer avatar error when trainer changes
-  useEffect(() => {
-    setTrainerAvatarError(false);
-  }, [schedule?.trainer?.id]);
+    // Skip if we've already loaded for this id (unless forced)
+    if (!force && lastLoadedIdRef.current === id) {
+      console.log('[SKIP] Already loaded schedule data for this id, skipping...');
+      return;
+    }
 
-  const loadScheduleData = async () => {
     try {
+      isLoadingRef.current = true;
       setLoading(true);
       setError(null);
 
       if (!user?.id) {
-        setError('Please login to view class details');
+        setError(t('classes.errors.loginRequired'));
         return;
       }
 
       // Validate id exists
       if (!id) {
-        setError('Schedule ID is required');
+        setError(t('classes.errors.scheduleIdRequired'));
         setLoading(false);
         return;
       }
@@ -124,12 +144,13 @@ export default function ClassDetailScreen() {
       const scheduleResponse = await scheduleService.getScheduleById(id);
 
       if (!scheduleResponse.success || !scheduleResponse.data) {
-        setError(scheduleResponse.error || 'Không tìm thấy lớp học');
+        setError(scheduleResponse.error || t('classes.classNotFound'));
         setLoading(false);
         return;
       }
 
       setSchedule(scheduleResponse.data);
+      lastLoadedIdRef.current = id; // Track that we've loaded for this id
 
       // Load bookings and favorite status in parallel (after schedule is loaded)
       // Only check favorite if class_id is valid
@@ -141,9 +162,12 @@ export default function ClassDetailScreen() {
               .checkFavorite(user.id, FavoriteType.CLASS, classId)
               .catch(() => ({
                 success: false,
-                error: 'Failed to check favorite',
+                error: t('classes.errors.failedToCheckFavorite'),
               }))
-          : Promise.resolve({ success: false, error: 'Invalid class ID' });
+          : Promise.resolve({
+              success: false,
+              error: t('classes.errors.invalidClassId'),
+            });
 
       // Use member.id from AuthContext (not user.id) for getMemberBookings
       const memberIdForBookings = member?.id || user.id;
@@ -183,8 +207,13 @@ export default function ClassDetailScreen() {
         if (foundBooking) {
           // Set foundBooking first (it already has payment_status)
           setUserBooking(foundBooking);
-          setIsBooked(foundBooking.status === 'CONFIRMED');
-          setIsWaitlisted(foundBooking.status === 'WAITLIST');
+          setIsBooked(foundBooking.status === 'CONFIRMED' && !foundBooking.is_waitlist);
+          setIsWaitlisted(foundBooking.is_waitlist === true || foundBooking.status === 'WAITLIST');
+
+          // Load refund info if booking is cancelled
+          if (foundBooking.status === 'CANCELLED' && foundBooking.id) {
+            loadRefundInfo(foundBooking.id);
+          }
 
           // If payment_status is PENDING, try to fetch full booking details for payment_id
           if (
@@ -312,7 +341,7 @@ export default function ClassDetailScreen() {
               FavoriteType.CLASS
             );
             if (favoritesResponse.success && favoritesResponse.data) {
-              const classId = schedule?.gym_class?.id || schedule?.class_id;
+              const classId = scheduleResponse.data?.gym_class?.id || scheduleResponse.data?.class_id;
               const favorite = favoritesResponse.data.find(
                 (fav) => fav.favorite_id === classId
               );
@@ -327,11 +356,58 @@ export default function ClassDetailScreen() {
       }
     } catch (err: any) {
       console.error('[ERROR] Error loading schedule data:', err);
-      setError(err.message || 'Failed to load class details');
+      setError(err.message || t('classes.errors.failedToLoadDetails'));
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
-  };
+  }, [id, user?.id, member?.id, t]);
+
+  // Force refresh function (for manual refreshes)
+  const forceRefreshScheduleData = useCallback(() => {
+    lastLoadedIdRef.current = null;
+    loadScheduleData(true);
+  }, [loadScheduleData]);
+
+  // Load data on component mount
+  useEffect(() => {
+    if (id && !isLoadingRef.current && lastLoadedIdRef.current !== id) {
+      loadScheduleData();
+    }
+  }, [id, loadScheduleData]);
+
+  // Refresh data when screen comes into focus (e.g., returning from payment screen)
+  // Only refresh if id changed or we need to force refresh
+  useFocusEffect(
+    useCallback(() => {
+      if (id && user?.id && lastLoadedIdRef.current !== id && !isLoadingRef.current) {
+        console.log('[REFRESH] Refreshing schedule data on focus');
+        loadScheduleData();
+      }
+    }, [id, user?.id, loadScheduleData])
+  );
+
+  // Handle refresh param from navigation (e.g., after payment verification)
+  useEffect(() => {
+    if (refresh === 'true' && id && user?.id) {
+      console.log('[REFRESH] Refresh param detected, reloading schedule data');
+      loadScheduleData(true); // Force refresh after payment
+      
+      // Show success message if payment was verified
+      if (paymentVerified === 'true') {
+        // Small delay to ensure data is loaded
+        setTimeout(() => {
+          // Data will be updated automatically after loadScheduleData completes
+        }, 500);
+      }
+    }
+  }, [refresh, paymentVerified, id, user?.id]);
+
+  // Reset trainer avatar error when trainer changes
+  useEffect(() => {
+    setTrainerAvatarError(false);
+  }, [schedule?.trainer?.id]);
+
 
   const handleBookClass = () => {
     if (!schedule) return;
@@ -341,14 +417,16 @@ export default function ClassDetailScreen() {
   const handleBookingConfirm = async (bookingData: CreateBookingRequest) => {
     try {
       if (!user?.id) {
-        Alert.alert(t('common.error'), 'Bạn cần đăng nhập để đặt lịch', [
-          { text: t('common.ok') },
-        ]);
+        Alert.alert(
+          t('common.error'),
+          t('classes.errors.loginRequiredForBooking'),
+          [{ text: t('common.ok') }]
+        );
         return;
       }
 
       if (!schedule?.id) {
-        Alert.alert(t('common.error'), 'Không tìm thấy thông tin lịch học', [
+        Alert.alert(t('common.error'), t('classes.errors.scheduleNotFound'), [
           { text: t('common.ok') },
         ]);
         return;
@@ -361,7 +439,7 @@ export default function ClassDetailScreen() {
       if (!memberId) {
         Alert.alert(
           t('common.error'),
-          'Vui lòng đăng ký thành viên trước khi đặt lịch. Đang tải thông tin thành viên...',
+          t('classes.errors.memberRegistrationRequired'),
           [{ text: t('common.ok') }]
         );
         // Try to reload member profile from AuthContext
@@ -390,7 +468,7 @@ export default function ClassDetailScreen() {
       ) {
         Alert.alert(
           t('common.error'),
-          `Missing required fields: schedule_id=${!!bookingDataWithMember.schedule_id}, member_id=${!!bookingDataWithMember.member_id}`
+          t('classes.errors.missingRequiredFields')
         );
         setIsBookingLoading(false);
         return;
@@ -408,14 +486,15 @@ export default function ClassDetailScreen() {
         if ((response as any).existingBooking && response.data) {
           // Set userBooking from response
           setUserBooking(response.data);
-          setIsBooked(response.data.status === 'CONFIRMED');
+          setIsBooked(response.data.status === 'CONFIRMED' && !response.data.is_waitlist);
+          setIsWaitlisted(response.data.is_waitlist === true);
 
           // Reload schedule data to update UI
-          await loadScheduleData();
+          await loadScheduleData(true); // Force refresh after booking
 
           Alert.alert(
             t('common.info'),
-            'Bạn đã có booking đang chờ thanh toán cho lớp học này',
+            t('classes.booking.existingPendingPayment'),
             [
               {
                 text: t('common.ok'),
@@ -450,6 +529,10 @@ export default function ClassDetailScreen() {
           return;
         }
 
+        // Check if this is a waitlist booking
+        const isWaitlistBooking = (response as any).is_waitlist || response.data?.is_waitlist;
+        const waitlistPosition = (response as any).waitlist_position || response.data?.waitlist_position;
+
         // Check if payment is required
         if (response.paymentRequired && response.paymentInitiation) {
           // Navigate to bank transfer screen for payment
@@ -473,23 +556,40 @@ export default function ClassDetailScreen() {
           }
         }
 
-        // If no payment required or free booking
         // Update local state
-        setIsBooked(true);
-        setIsWaitlisted(false);
+        if (isWaitlistBooking) {
+          setIsWaitlisted(true);
+          setIsBooked(false);
+        } else {
+          setIsBooked(true);
+          setIsWaitlisted(false);
+        }
 
-        // Show success alert with better message
-        Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'), [
-          {
-            text: t('common.ok'),
-            onPress: () => {
-              // Optionally reload schedule data to get updated booking status
-              if (id) {
-                loadScheduleData();
-              }
-            },
-          },
-        ]);
+        // Update userBooking if available
+        if (response.data) {
+          setUserBooking(response.data);
+        }
+
+        // Show success modal instead of alert
+        if (isWaitlistBooking) {
+          setSuccessTitle(t('common.success'));
+          setSuccessMessage(
+            waitlistPosition
+              ? t('classes.booking.waitlistSuccessWithPosition', { position: waitlistPosition }) ||
+                `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistPosition}`
+              : t('classes.booking.waitlistSuccess') ||
+                'Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ'
+          );
+        } else {
+          setSuccessTitle(t('common.success'));
+          setSuccessMessage(t('classes.booking.bookingSuccess') || 'Đặt lớp thành công!');
+        }
+        setShowSuccessModal(true);
+
+        // Reload schedule data to get updated booking status
+        if (id) {
+          loadScheduleData(true); // Force refresh after booking success
+        }
       } else {
         Alert.alert(
           t('common.error'),
@@ -509,9 +609,41 @@ export default function ClassDetailScreen() {
     }
   };
 
+  // IMPROVEMENT: State for cancellation reason modal
+  const [showCancellationModal, setShowCancellationModal] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  // Load refund info for cancelled booking
+  const loadRefundInfo = useCallback(async (bookingId: string) => {
+    if (!bookingId || loadingRefund) return;
+    
+    try {
+      setLoadingRefund(true);
+      const response = await paymentService.getRefundByBookingId(bookingId);
+      if (response.success && response.data) {
+        setRefundInfo(response.data);
+      } else {
+        setRefundInfo(null);
+      }
+    } catch (error) {
+      console.error('[ERROR] Failed to load refund info:', error);
+      setRefundInfo(null);
+    } finally {
+      setLoadingRefund(false);
+    }
+  }, [loadingRefund]);
+
   const handleCancelBooking = async () => {
     if (!schedule || !user?.id) return;
 
+    // IMPROVEMENT: Show cancellation reason modal
+    setShowCancellationModal(true);
+  };
+
+  const handleConfirmCancellation = async (reason: string) => {
+    if (!schedule || !user?.id) return;
+
+    setIsCancelling(true);
     try {
       // Find user's booking for this schedule
       const bookingsResponse = await bookingService.getMemberBookings(user.id);
@@ -522,15 +654,43 @@ export default function ClassDetailScreen() {
 
         if (userBooking) {
           const cancelResponse = await bookingService.cancelBooking(
-            userBooking.id
+            userBooking.id,
+            {
+              cancellation_reason: reason, // IMPROVEMENT: Send cancellation reason
+            }
           );
           if (cancelResponse.success) {
-            Alert.alert(
-              t('common.success'),
-              t('classes.booking.bookingCancelled')
-            );
             setIsBooked(false);
             setIsWaitlisted(false);
+            setShowCancellationModal(false);
+            
+            // Show success modal with refund button if refund is available
+            const hasRefund = cancelResponse.refund && cancelResponse.refund.refundId;
+            const refundAmount = cancelResponse.refund?.refundAmount || 0;
+            
+            setSuccessTitle(t('common.success') || 'Thành công');
+            setSuccessMessage(
+              hasRefund
+                ? t('classes.booking.cancelSuccessWithRefund', {
+                    amount: new Intl.NumberFormat('vi-VN', {
+                      style: 'currency',
+                      currency: 'VND',
+                    }).format(refundAmount),
+                  }) || `Hủy lớp thành công! Bạn sẽ được hoàn ${new Intl.NumberFormat('vi-VN', {
+                    style: 'currency',
+                    currency: 'VND',
+                  }).format(refundAmount)}`
+                : t('classes.booking.bookingCancelled') || 'Hủy lớp thành công!'
+            );
+            setShowSuccessModal(true);
+            if (hasRefund) {
+              setRefundInfo(cancelResponse.refund);
+            } else {
+              setRefundInfo(null);
+            }
+            
+            // Reload schedule data to get updated booking status
+            loadScheduleData(true);
           } else {
             Alert.alert(
               'Error',
@@ -541,7 +701,12 @@ export default function ClassDetailScreen() {
       }
     } catch (error: any) {
       console.error('[ERROR] Error cancelling booking:', error);
-      Alert.alert('Error', error.message || 'Failed to cancel booking');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('classes.booking.cancelFailed')
+      );
+    } finally {
+      setIsCancelling(false);
     }
   };
 
@@ -554,7 +719,7 @@ export default function ClassDetailScreen() {
       // Get class_id first
       const classId = schedule.gym_class?.id || schedule.class_id;
       if (!classId) {
-        Alert.alert(t('common.error'), 'Không tìm thấy thông tin lớp học');
+        Alert.alert(t('common.error'), t('classes.errors.scheduleNotFound'));
         setIsLoadingFavorite(false);
         return;
       }
@@ -664,7 +829,7 @@ export default function ClassDetailScreen() {
           } else {
             Alert.alert(
               t('common.error'),
-              response.error || 'Failed to add favorite'
+              response.error || t('classes.errors.failedToAddFavorite')
             );
           }
         }
@@ -708,7 +873,7 @@ export default function ClassDetailScreen() {
       } else {
         Alert.alert(
           t('common.error'),
-          error.message || 'Failed to update favorite'
+          error.message || t('classes.errors.failedToUpdateFavorite')
         );
       }
     } finally {
@@ -720,7 +885,8 @@ export default function ClassDetailScreen() {
     if (!schedule) return;
 
     try {
-      const className = schedule.gym_class?.name || 'Class';
+      const className =
+        schedule.gym_class?.name || t('classes.share.defaultClassName');
       const trainerName = schedule.trainer?.full_name || '';
       const date = new Date(schedule.start_time).toLocaleDateString(
         i18n.language,
@@ -740,8 +906,10 @@ export default function ClassDetailScreen() {
       });
 
       const message = `${className}${
-        trainerName ? ` with ${trainerName}` : ''
-      }\n${date} at ${time}\n\nJoin me for this class!\n\n${deepLink}`;
+        trainerName ? ` ${t('classes.share.with')} ${trainerName}` : ''
+      }\n${date} ${t('common.at') || 'at'} ${time}\n\n${t(
+        'classes.share.joinMessage'
+      )}\n\n${deepLink}`;
 
       const result = await Share.share({
         message: message,
@@ -756,7 +924,10 @@ export default function ClassDetailScreen() {
       }
     } catch (error: any) {
       console.error('[ERROR] Error sharing:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to share class');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('classes.errors.failedToShare')
+      );
     }
   };
 
@@ -1494,6 +1665,42 @@ export default function ClassDetailScreen() {
             ) : null}
           </View>
         )}
+
+        {/* Refund Info - Show if booking is cancelled */}
+        {userBooking?.status === 'CANCELLED' && (
+          <View style={{ paddingHorizontal: 16, marginTop: 8 }}>
+            <RefundInfoCard
+              refund={refundInfo}
+              onViewTimeline={async () => {
+                if (refundInfo?.id) {
+                  try {
+                    const timelineResponse = await paymentService.getRefundTimeline(refundInfo.id);
+                    if (timelineResponse.success && timelineResponse.data) {
+                      // Show timeline in alert or modal
+                      const timeline = timelineResponse.data.timeline || [];
+                      const timelineText = timeline
+                        .map((item: any) => {
+                          const date = new Date(item.timestamp).toLocaleString('vi-VN');
+                          return `${date}: ${item.action} (${item.actor})`;
+                        })
+                        .join('\n');
+                      
+                      Alert.alert(
+                        t('classes.refund.viewTimeline'),
+                        timelineText || t('classes.refund.noRefund'),
+                        [{ text: t('common.ok') }]
+                      );
+                    }
+                  } catch (error) {
+                    console.error('[ERROR] Failed to load refund timeline:', error);
+                    Alert.alert(t('common.error'), t('classes.refund.noRefund'));
+                  }
+                }
+              }}
+              showTimelineButton={!!refundInfo?.id}
+            />
+          </View>
+        )}
       </ScrollView>
 
       {/* Action Buttons */}
@@ -1522,6 +1729,58 @@ export default function ClassDetailScreen() {
           }
 
           // User has a booking for this schedule
+          // Priority 0: Check if booking is cancelled - allow re-booking
+          if (userBooking.status === 'CANCELLED') {
+            // Show book button if class is not fully booked
+            if (!isFullyBooked) {
+              return (
+                <TouchableOpacity
+                  style={[
+                    themedStyles.bookButton,
+                    {
+                      backgroundColor: theme.colors.primary,
+                      ...theme.shadows.md,
+                    },
+                  ]}
+                  onPress={handleBookClass}
+                  activeOpacity={0.8}
+                >
+                  <Text
+                    style={[
+                      themedStyles.bookButtonText,
+                      { color: theme.colors.textInverse },
+                    ]}
+                  >
+                    {t('classes.booking.book')}
+                  </Text>
+                </TouchableOpacity>
+              );
+            }
+            // If class is fully booked, show waitlist button
+            return (
+              <TouchableOpacity
+                style={[
+                  themedStyles.waitlistButton,
+                  {
+                    backgroundColor: theme.colors.warning,
+                    ...theme.shadows.md,
+                  },
+                ]}
+                onPress={handleBookClass}
+                activeOpacity={0.8}
+              >
+                <Text
+                  style={[
+                    themedStyles.waitlistButtonText,
+                    { color: theme.colors.textInverse },
+                  ]}
+                >
+                  {t('classes.joinWaitlist')}
+                </Text>
+              </TouchableOpacity>
+            );
+          }
+
           // Priority 1: Check payment_status first
           const paymentStatus =
             userBooking.payment_status?.toString().trim().toUpperCase() || '';
@@ -1583,10 +1842,13 @@ export default function ClassDetailScreen() {
                           if (payment?.id) {
                             finalPaymentId = payment.id;
                             setPaymentId(payment.id);
-                            console.log('[SUCCESS] Found payment via reference_id:', {
-                              paymentId: payment.id,
-                              referenceId: (payment as any).reference_id,
-                            });
+                            console.log(
+                              '[SUCCESS] Found payment via reference_id:',
+                              {
+                                paymentId: payment.id,
+                                referenceId: (payment as any).reference_id,
+                              }
+                            );
                           }
                         }
 
@@ -1684,8 +1946,9 @@ export default function ClassDetailScreen() {
           }
 
           // Priority 3: Check if waitlisted
-          if (isWaitlisted || userBooking.status === 'WAITLIST') {
-            // Waitlisted
+          if (isWaitlisted || userBooking.is_waitlist || userBooking.status === 'WAITLIST') {
+            // Waitlisted - show position if available
+            const waitlistPos = userBooking.waitlist_position;
             return (
               <TouchableOpacity
                 style={[
@@ -1704,7 +1967,10 @@ export default function ClassDetailScreen() {
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  {t('classes.booking.removeFromWaitlist')}
+                  {waitlistPos
+                    ? t('classes.booking.onWaitlistWithPosition', { position: waitlistPos }) ||
+                      `Đang ở danh sách chờ (Vị trí ${waitlistPos})`
+                    : t('classes.booking.onWaitlist') || 'Đang ở danh sách chờ'}
                 </Text>
               </TouchableOpacity>
             );
@@ -1737,19 +2003,18 @@ export default function ClassDetailScreen() {
         })()}
 
         {!userBooking ? (
-          // No booking - show "Đặt lịch" button
+          // No booking - show "Đặt lịch" or "Tham gia danh sách chờ" button
           <TouchableOpacity
             style={[
               themedStyles.bookButton,
               {
                 backgroundColor: isFullyBooked
-                  ? theme.colors.disabled
+                  ? theme.colors.warning
                   : theme.colors.primary,
                 ...theme.shadows.md,
               },
             ]}
             onPress={handleBookClass}
-            disabled={isFullyBooked}
             activeOpacity={0.8}
           >
             <Text
@@ -1759,12 +2024,21 @@ export default function ClassDetailScreen() {
               ]}
             >
               {isFullyBooked
-                ? t('classes.booking.fullyBooked')
+                ? t('classes.joinWaitlist') || 'Tham gia danh sách chờ'
                 : t('classes.booking.book')}
             </Text>
           </TouchableOpacity>
         ) : null}
       </View>
+
+      {/* IMPROVEMENT: Cancellation Reason Modal */}
+      <CancellationReasonModal
+        visible={showCancellationModal}
+        onClose={() => setShowCancellationModal(false)}
+        onConfirm={handleConfirmCancellation}
+        scheduleStartTime={schedule?.start_time}
+        loading={isCancelling}
+      />
 
       {/* Booking Modal */}
       {schedule && (
@@ -1780,6 +2054,33 @@ export default function ClassDetailScreen() {
           loading={isBookingLoading}
         />
       )}
+
+      {/* Success Modal */}
+      <SuccessModal
+        visible={showSuccessModal}
+        onClose={() => {
+          setShowSuccessModal(false);
+          setSuccessMessage('');
+          setSuccessTitle('');
+          setRefundInfo(null);
+        }}
+        title={successTitle || t('common.success') || 'Thành công'}
+        message={successMessage}
+        actionButton={
+          refundInfo && (refundInfo as any)?.refundId
+            ? {
+                label: t('classes.refund.viewRefund', 'Xem hoàn tiền') || 'Xem hoàn tiền',
+                onPress: () => {
+                  setShowSuccessModal(false);
+                  router.push({
+                    pathname: '/subscription/refund-timeline',
+                    params: { refundId: (refundInfo as any).refundId },
+                  });
+                },
+              }
+            : undefined
+        }
+      />
     </SafeAreaView>
   );
 }

@@ -1,10 +1,17 @@
-import { ShareModal } from '@/components/ShareModal';
+import ShareModal from '@/components/ShareModal';
 import YouTubeVideoPlayer from '@/components/YouTubeVideoPlayer';
 import { workoutPlanService, youtubeVideoService } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Clock, Dumbbell, Play, Share2, Target } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Clock,
+  Dumbbell,
+  Play,
+  Share2,
+  Target,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -592,23 +599,28 @@ export default function WorkoutDetailScreen() {
             {t('workouts.startWorkout')}
           </Text>
         </TouchableOpacity>
-        </ScrollView>
+      </ScrollView>
 
-        {/* Share Modal */}
-        {workout && (
-          <ShareModal
-            visible={showShareModal}
-            onClose={() => setShowShareModal(false)}
-            title={workout.name}
-            message={workout.description || t('workouts.shareMessage', {
+      {/* Share Modal */}
+      {workout && (
+        <ShareModal
+          visible={showShareModal}
+          onClose={() => setShowShareModal(false)}
+          title={workout.name}
+          message={
+            workout.description ||
+            t('workouts.shareMessage', {
               defaultValue: 'Check out this workout plan!',
-            })}
-            url={`${process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'}/workouts/${workout.id}`}
-          />
-        )}
-      </SafeAreaView>
-    );
-  }
+            })
+          }
+          url={`${
+            process.env.EXPO_PUBLIC_APP_URL || 'https://gym-147.app'
+          }/workouts/${workout.id}`}
+        />
+      )}
+    </SafeAreaView>
+  );
+}
 
 const styles = (theme: any) =>
   StyleSheet.create({

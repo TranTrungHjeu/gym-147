@@ -6,11 +6,12 @@ const scheduleRoutes = require('./schedule.routes.js');
 const bookingRoutes = require('./booking.routes.js');
 const attendanceRoutes = require('./attendance.routes.js');
 const certificationRoutes = require('./certification.routes.js');
-// const notificationRoutes = require('./notification.routes.js'); // Removed - notifications now in identity service
+const notificationRoutes = require('./notification.routes.js'); // Proxy to identity-service
 const utilityRoutes = require('./utility.routes.js');
 const autoUpdateRoutes = require('./auto-update.routes.js');
 const favoriteRoutes = require('./favorite.routes.js');
 const adminRoutes = require('./admin.routes.js');
+const salaryRoutes = require('./salary.routes.js');
 
 const router = Router();
 
@@ -31,7 +32,7 @@ router.get('/', (req, res) => {
         bookings: '/bookings',
         attendance: '/attendance',
         certifications: '/certifications',
-        // notifications: '/notifications', // Removed - notifications now in identity service
+        notifications: '/notifications', // Proxy to identity-service
         autoUpdate: '/auto-update',
         stats: '/stats',
         sampleData: '/sample-data',
@@ -52,7 +53,8 @@ router.use('/schedules', scheduleRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/attendance', attendanceRoutes);
 router.use('/auto-update', autoUpdateRoutes);
-// router.use('/', notificationRoutes); // Removed - notifications now in identity service
+router.use('/notifications', notificationRoutes); // Proxy to identity-service
+router.use('/salary', salaryRoutes); // Salary management routes
 router.use('/', utilityRoutes); // Health, stats, sample-data
 router.use('/', favoriteRoutes); // Favorite routes
 router.use('/', adminRoutes); // Admin routes

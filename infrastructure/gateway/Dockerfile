@@ -13,7 +13,16 @@ COPY nginx/nginx.conf.template /etc/nginx/templates/nginx.conf.template
 
 # Copy entrypoint script (relative path)
 COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+
+# Fix line endings (convert CRLF to LF if needed) and ensure executable
+# Verify file exists and fix permissions
+RUN if [ ! -f /entrypoint.sh ]; then \
+        echo "ERROR: entrypoint.sh not found!" && exit 1; \
+    fi && \
+    sed -i 's/\r$//' /entrypoint.sh && \
+    chmod +x /entrypoint.sh && \
+    ls -la /entrypoint.sh && \
+    head -1 /entrypoint.sh | grep -q "#!/bin/sh" || (echo "ERROR: Invalid shebang" && exit 1)
 
 # Expose port 80
 EXPOSE 80

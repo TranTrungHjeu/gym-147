@@ -12,7 +12,7 @@ import {
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminCard from '../../components/common/AdminCard';
-import RoleBadge from '../../components/common/RoleBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import CompactMetricCard from '../../components/dashboard/CompactMetricCard';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import DashboardLayout from '../../components/dashboard/DashboardLayout';
@@ -148,12 +148,47 @@ const SuperAdminDashboard: React.FC = () => {
     // Calculate difference in milliseconds (timezone doesn't matter for difference calculation)
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return t('common.justNow');
-    if (diffInSeconds < 3600)
-      return t('common.minutesAgo', { count: Math.floor(diffInSeconds / 60) });
-    if (diffInSeconds < 86400)
-      return t('common.hoursAgo', { count: Math.floor(diffInSeconds / 3600) });
-    return t('common.daysAgo', { count: Math.floor(diffInSeconds / 86400) });
+    if (diffInSeconds < 60) {
+      const justNow = t('common.justNow');
+      return justNow && justNow !== 'common.justNow' ? justNow : 'Vừa xong';
+    }
+
+    if (diffInSeconds < 3600) {
+      const minutes = Math.floor(diffInSeconds / 60);
+      // Get template string
+      const template = t('common.minutesAgo');
+      // Check if translation was found
+      if (template && template !== 'common.minutesAgo') {
+        // Replace {{count}} with actual value
+        return template.replace(/\{\{count\}\}/g, minutes.toString());
+      }
+      // Fallback
+      return `${minutes} phút trước`;
+    }
+
+    if (diffInSeconds < 86400) {
+      const hours = Math.floor(diffInSeconds / 3600);
+      // Get template string
+      const template = t('common.hoursAgo');
+      // Check if translation was found
+      if (template && template !== 'common.hoursAgo') {
+        // Replace {{count}} with actual value
+        return template.replace(/\{\{count\}\}/g, hours.toString());
+      }
+      // Fallback
+      return `${hours} giờ trước`;
+    }
+
+    const days = Math.floor(diffInSeconds / 86400);
+    // Get template string
+    const template = t('common.daysAgo');
+    // Check if translation was found
+    if (template && template !== 'common.daysAgo') {
+      // Replace {{count}} with actual value
+      return template.replace(/\{\{count\}\}/g, days.toString());
+    }
+    // Fallback
+    return `${days} ngày trước`;
   };
 
   const getActivityIcon = (description: string) => {
@@ -203,12 +238,12 @@ const SuperAdminDashboard: React.FC = () => {
     // Parse activity description and translate
     if (description.includes('New trainer registered:')) {
       return `${t('dashboard.superAdmin.activity.types.newTrainerRegistered')}: ${
-        userName || 'Unknown'
+        userName || t('common.unknown')
       }`;
     }
     if (description.includes('New member registered:')) {
       return `${t('dashboard.superAdmin.activity.types.newMemberRegistered')}: ${
-        userName || 'Unknown'
+        userName || t('common.unknown')
       }`;
     }
     if (
@@ -216,12 +251,12 @@ const SuperAdminDashboard: React.FC = () => {
       description.includes('New super admin registered:')
     ) {
       return `${t('dashboard.superAdmin.activity.types.newSuperAdminRegistered')}: ${
-        userName || 'Unknown'
+        userName || t('common.unknown')
       }`;
     }
     if (description.includes('New admin registered:')) {
       return `${t('dashboard.superAdmin.activity.types.newAdminRegistered')}: ${
-        userName || 'Unknown'
+        userName || t('common.unknown')
       }`;
     }
     // For login activities, we'll handle them in renderActivityDescription
@@ -232,7 +267,7 @@ const SuperAdminDashboard: React.FC = () => {
   const renderActivityDescription = (activity: any) => {
     const originalDescription = activity.description || '';
     const role = activity.user?.role;
-    const userName = activity.user?.name || 'Unknown';
+    const userName = activity.user?.name || t('common.unknown');
 
     // For login activities
     if (originalDescription.startsWith('Logged in using')) {
@@ -246,15 +281,15 @@ const SuperAdminDashboard: React.FC = () => {
 
       return (
         <>
-          {role && <RoleBadge role={role} size='sm' variant='dashboard' />}
+          {role && <EnumBadge type='ROLE' value={role} size='sm' showIcon={true} />}
           <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
             {userName}
           </span>
           {ipAddress && (
-            <>
-              <span className='ml-1.5 text-gray-500 dark:text-gray-400'>:</span>
-              <span className='ml-1.5 text-gray-500 dark:text-gray-400 text-xs'>{ipAddress}</span>
-            </>
+            <span className='ml-1.5 text-gray-500 dark:text-gray-400 text-xs'>
+              {t('dashboard.superAdmin.activity.types.loginAction')}{' '}
+              {t('dashboard.superAdmin.activity.types.at')} IP: {ipAddress}
+            </span>
           )}
         </>
       );
@@ -302,7 +337,7 @@ const SuperAdminDashboard: React.FC = () => {
 
       return (
         <>
-          {role && <RoleBadge role={role} size='sm' variant='dashboard' />}
+          {role && <EnumBadge type='ROLE' value={role} size='sm' showIcon={true} />}
           <span className='ml-1.5'>{descText}</span>
           <span className='ml-1.5 text-gray-500 dark:text-gray-400'>:</span>
           <span className='ml-1.5 font-semibold text-gray-900 dark:text-white tracking-wide'>
@@ -457,7 +492,7 @@ const SuperAdminDashboard: React.FC = () => {
                         {recentActivities.map(activity => {
                           const ActivityIcon = getActivityIcon(activity.description);
                           const iconColor = getActivityIconColor(activity.description);
-                          const userName = activity.user?.name || 'Unknown';
+                          const userName = activity.user?.name || t('common.unknown');
                           const userAvatar = activity.user?.avatar;
 
                           const userInitials =

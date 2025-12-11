@@ -9,9 +9,14 @@ const PROFILE_UPDATED_KEY = '@fittrack_profile_updated';
 /**
  * Store auth token
  */
-export const storeToken = async (token: string): Promise<void> => {
+export const storeToken = async (token: string | null | undefined): Promise<void> => {
   try {
-    await AsyncStorage.setItem(TOKEN_KEY, token);
+    if (token != null) {
+      await AsyncStorage.setItem(TOKEN_KEY, token);
+    } else {
+      // Remove token if it's null/undefined
+      await AsyncStorage.removeItem(TOKEN_KEY);
+    }
   } catch (error) {
     console.error('Error storing token:', error);
     throw error;
@@ -45,9 +50,14 @@ export const removeToken = async (): Promise<void> => {
 /**
  * Store user data
  */
-export const storeUser = async (user: User): Promise<void> => {
+export const storeUser = async (user: User | null | undefined): Promise<void> => {
   try {
-    await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    if (user != null) {
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+    } else {
+      // Remove user data if it's null/undefined
+      await AsyncStorage.removeItem(USER_KEY);
+    }
   } catch (error) {
     console.error('Error storing user:', error);
     throw error;
@@ -83,14 +93,26 @@ export const removeUser = async (): Promise<void> => {
  * Store both access and refresh tokens
  */
 export const storeTokens = async (
-  accessToken: string,
-  refreshToken: string
+  accessToken: string | null | undefined,
+  refreshToken: string | null | undefined
 ): Promise<void> => {
   try {
-    await Promise.all([
-      storeToken(accessToken),
-      AsyncStorage.setItem('@fittrack_refresh_token', refreshToken),
-    ]);
+    const promises: Promise<void>[] = [];
+
+    // Store access token if provided
+    if (accessToken != null) {
+      promises.push(storeToken(accessToken));
+    }
+
+    // Store refresh token if provided, otherwise remove it
+    if (refreshToken != null) {
+      promises.push(AsyncStorage.setItem('@fittrack_refresh_token', refreshToken));
+    } else {
+      // Remove refresh token if it's null/undefined
+      promises.push(AsyncStorage.removeItem('@fittrack_refresh_token'));
+    }
+
+    await Promise.all(promises);
   } catch (error) {
     console.error('Error storing tokens:', error);
     throw error;

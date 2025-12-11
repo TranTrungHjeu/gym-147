@@ -164,11 +164,6 @@ class BillingController {
       const [plans, total] = await Promise.all([
         prisma.membershipPlan.findMany({
           where,
-          include: {
-            plan_addons: {
-              where: { is_active: true },
-            },
-          },
           orderBy: { created_at: 'desc' },
           take: parsedLimit,
           skip: parsedOffset,
@@ -201,12 +196,9 @@ class BillingController {
         type,
         duration_months,
         price,
-        setup_fee,
         benefits,
-        class_credits,
-        guest_passes,
-        access_hours,
-        access_areas,
+        smart_workout_plans,
+        is_featured,
       } = req.body;
 
       const plan = await prisma.membershipPlan.create({
@@ -216,12 +208,9 @@ class BillingController {
           type,
           duration_months,
           price,
-          setup_fee,
           benefits: benefits || [],
-          class_credits,
-          guest_passes: guest_passes || 0,
-          access_hours,
-          access_areas: access_areas || [],
+          smart_workout_plans: smart_workout_plans || false,
+          is_featured: is_featured || false,
           is_active: true,
         },
       });
@@ -308,7 +297,6 @@ class BillingController {
           where,
           include: {
             plan: true,
-            subscription_addons: true,
             payments: {
               orderBy: { created_at: 'desc' },
               take: 1, // Get latest payment
@@ -330,15 +318,13 @@ class BillingController {
               // Try fetching by member ID first
               let memberResponse;
               try {
-                memberResponse = await axios.get(
-                  `${MEMBER_SERVICE_URL}/api/members/${sub.member_id}`
-                );
+                memberResponse = await axios.get(`${MEMBER_SERVICE_URL}/members/${sub.member_id}`);
               } catch (idError) {
                 // If 404, try fetching by user_id (member_id might be user_id)
                 if (idError.response?.status === 404) {
                   try {
                     memberResponse = await axios.get(
-                      `${MEMBER_SERVICE_URL}/api/members/user/${sub.member_id}`
+                      `${MEMBER_SERVICE_URL}/members/user/${sub.member_id}`
                     );
                   } catch (userIdError) {
                     throw idError; // Throw original error if both fail
@@ -357,7 +343,21 @@ class BillingController {
                     full_name: memberData.full_name || 'N/A',
                     email: memberData.email || '',
                   };
+                  console.log(`[SUCCESS] Fetched member for subscription ${sub.id}:`, {
+                    memberId: member.id,
+                    fullName: member.full_name,
+                    email: member.email,
+                  });
+                } else {
+                  console.warn(
+                    `[WARNING] Member data is null for subscription ${sub.id}, member_id: ${sub.member_id}`
+                  );
                 }
+              } else {
+                console.warn(`[WARNING] Invalid member response for subscription ${sub.id}:`, {
+                  success: memberResponse?.data?.success,
+                  hasData: !!memberResponse?.data?.data,
+                });
               }
             } catch (error) {
               // Only log if it's not a 404 (expected for missing members)
@@ -413,7 +413,6 @@ class BillingController {
             where: { member_id: memberId },
             include: {
               plan: true,
-              subscription_addons: true,
               payments: {
                 orderBy: { created_at: 'desc' },
                 take: 1,
@@ -445,7 +444,7 @@ class BillingController {
 
   async createSubscription(req, res) {
     try {
-      const { member_id, plan_id, start_date, payment_method_id } = req.body;
+      const { member_id, plan_id, start_date } = req.body;
 
       // Get plan details
       const plan = await prisma.membershipPlan.findUnique({
@@ -510,9 +509,6 @@ class BillingController {
                   current_period_end: endDate,
                   base_amount: plan.price,
                   total_amount: plan.price,
-                  classes_remaining: plan.class_credits,
-                  payment_method_id,
-                  auto_renew: true,
                 },
                 include: {
                   plan: true,
@@ -533,9 +529,6 @@ class BillingController {
                 current_period_end: endDate,
                 base_amount: plan.price,
                 total_amount: plan.price,
-                classes_remaining: plan.class_credits,
-                payment_method_id,
-                auto_renew: true,
               },
               include: {
                 plan: true,
@@ -568,7 +561,7 @@ class BillingController {
         // Create Membership record in Member Service
         // This will automatically update member.membership_type and member.expires_at
         await axios.post(
-          `${MEMBER_SERVICE_URL}/api/members/user/${member_id}/memberships`,
+          `${MEMBER_SERVICE_URL}/members/user/${member_id}/memberships`,
           {
             type: plan.type, // BASIC, PREMIUM, VIP, STUDENT
             start_date: startDate,
@@ -631,6 +624,304 @@ class BillingController {
       res.status(500).json({
         success: false,
         message: 'Failed to create subscription',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * IMPROVEMENT: Upgrade or downgrade subscription
+   * POST /subscriptions/:id/upgrade-downgrade
+   */
+  async upgradeDowngradeSubscription(req, res) {
+    try {
+      const { id } = req.params;
+      const { new_plan_id, change_reason, notes } = req.body;
+
+      if (!new_plan_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'new_plan_id is required',
+          data: null,
+        });
+      }
+
+      // Get current subscription
+      const currentSubscription = await prisma.subscription.findUnique({
+        where: { id },
+        include: {
+          plan: true,
+        },
+      });
+
+      if (!currentSubscription) {
+        return res.status(404).json({
+          success: false,
+          message: 'Subscription not found',
+          data: null,
+        });
+      }
+
+      // Check if subscription is active
+      if (!['ACTIVE', 'TRIAL'].includes(currentSubscription.status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot upgrade/downgrade subscription with status: ${currentSubscription.status}`,
+          data: null,
+        });
+      }
+
+      // Get new plan
+      const newPlan = await prisma.membershipPlan.findUnique({
+        where: { id: new_plan_id },
+      });
+
+      if (!newPlan) {
+        return res.status(404).json({
+          success: false,
+          message: 'New plan not found',
+          data: null,
+        });
+      }
+
+      // Check if plan is actually different
+      // Convert both to strings for comparison to handle type mismatches
+      const currentPlanId = String(currentSubscription.plan_id);
+      const newPlanIdStr = String(new_plan_id);
+
+      console.log('[UPGRADE] Plan comparison:', {
+        currentPlanId,
+        newPlanIdStr,
+        currentPlanType: currentSubscription.plan?.type,
+        newPlanType: newPlan.type,
+        areEqual: currentPlanId === newPlanIdStr,
+      });
+
+      if (currentPlanId === newPlanIdStr) {
+        return res.status(400).json({
+          success: false,
+          message: 'New plan is the same as current plan',
+          data: null,
+        });
+      }
+
+      // Determine if upgrade or downgrade
+      const oldPrice = parseFloat(currentSubscription.plan.price);
+      const newPrice = parseFloat(newPlan.price);
+      const isUpgrade = newPrice > oldPrice;
+      const changeType = isUpgrade ? 'UPGRADE' : 'DOWNGRADE';
+
+      // Calculate prorated amount
+      const now = new Date();
+      const periodStart = new Date(currentSubscription.current_period_start);
+      const periodEnd = new Date(currentSubscription.current_period_end);
+      const totalPeriodDays = (periodEnd - periodStart) / (1000 * 60 * 60 * 24);
+      const daysUsed = (now - periodStart) / (1000 * 60 * 60 * 24);
+      const daysRemaining = totalPeriodDays - daysUsed;
+
+      // Calculate unused amount from old plan
+      const unusedAmount = (daysRemaining / totalPeriodDays) * oldPrice;
+
+      // Calculate cost of new plan for remaining period
+      const newPlanCost = (daysRemaining / totalPeriodDays) * newPrice;
+
+      // Calculate price difference
+      let priceDifference = newPlanCost - unusedAmount;
+
+      // Round up to nearest 1000 VND to avoid odd amounts (e.g., 19997 -> 20000)
+      // This makes it easier for users to transfer and for system to match
+      const roundUpToNearest = (amount, nearest = 1000) => {
+        return Math.ceil(amount / nearest) * nearest;
+      };
+
+      const roundedPriceDifference =
+        priceDifference > 0 ? roundUpToNearest(priceDifference, 1000) : priceDifference;
+
+      // Log calculation details for debugging
+      console.log('[UPGRADE] Prorated calculation:', {
+        subscriptionId: id,
+        oldPlan: {
+          id: currentSubscription.plan_id,
+          name: currentSubscription.plan.name,
+          type: currentSubscription.plan.type,
+          price: oldPrice,
+        },
+        newPlan: {
+          id: new_plan_id,
+          name: newPlan.name,
+          type: newPlan.type,
+          price: newPrice,
+        },
+        period: {
+          start: periodStart.toISOString(),
+          end: periodEnd.toISOString(),
+          now: now.toISOString(),
+          totalDays: totalPeriodDays.toFixed(2),
+          daysUsed: daysUsed.toFixed(2),
+          daysRemaining: daysRemaining.toFixed(2),
+        },
+        calculation: {
+          unusedAmount: unusedAmount.toFixed(2),
+          newPlanCost: newPlanCost.toFixed(2),
+          priceDifference: priceDifference.toFixed(2),
+          roundedPriceDifference: roundedPriceDifference.toFixed(2),
+          roundingApplied: priceDifference !== roundedPriceDifference,
+        },
+        isUpgrade,
+        changeType,
+      });
+
+      // Use rounded amount for payment
+      priceDifference = roundedPriceDifference;
+
+      // Use transaction for atomicity
+      const result = await prisma.$transaction(async tx => {
+        // Update subscription
+        const updatedSubscription = await tx.subscription.update({
+          where: { id },
+          data: {
+            plan_id: new_plan_id,
+            base_amount: newPrice,
+            total_amount: newPrice,
+            // Keep same end date (prorated)
+          },
+          include: {
+            plan: true,
+          },
+        });
+
+        // Create subscription history
+        await tx.subscriptionHistory.create({
+          data: {
+            subscription_id: id,
+            member_id: currentSubscription.member_id,
+            from_plan_id: currentSubscription.plan_id,
+            to_plan_id: new_plan_id,
+            from_status: currentSubscription.status,
+            to_status: updatedSubscription.status,
+            old_price: oldPrice,
+            new_price: newPrice,
+            price_difference: priceDifference,
+            change_reason: changeType,
+            changed_by: currentSubscription.member_id,
+            notes,
+          },
+        });
+
+        // If upgrade, create payment for difference
+        // Check if there's already a PENDING payment for this upgrade to avoid duplicates
+        if (isUpgrade && priceDifference > 0) {
+          const upgradeDescription = `${changeType} from ${currentSubscription.plan.name} to ${newPlan.name}`;
+
+          // Check for existing PENDING payment for this upgrade
+          // Match by: subscription_id, status PENDING, payment_type SUBSCRIPTION, and similar amount
+          // Use tolerance for amount comparison (1000 VND) since we round to nearest 1000
+          const existingPayment = await tx.payment.findFirst({
+            where: {
+              subscription_id: id,
+              status: 'PENDING',
+              payment_type: 'SUBSCRIPTION',
+              amount: {
+                gte: priceDifference - 1000, // Allow ±1000 VND tolerance for rounding
+                lte: priceDifference + 1000,
+              },
+              // Match by description containing upgrade info
+              description: {
+                contains: changeType, // Contains "UPGRADE" or "DOWNGRADE"
+              },
+            },
+            orderBy: { created_at: 'desc' },
+          });
+
+          let payment;
+          if (existingPayment) {
+            // Reuse existing PENDING payment
+            console.log('[UPGRADE] Reusing existing PENDING payment to avoid duplicate:', {
+              paymentId: existingPayment.id,
+              subscriptionId: id,
+              amount: existingPayment.amount,
+              newAmount: priceDifference,
+              description: existingPayment.description,
+            });
+            payment = existingPayment;
+          } else {
+            // Create new payment only if no existing PENDING payment found
+            payment = await tx.payment.create({
+              data: {
+                subscription_id: id,
+                member_id: currentSubscription.member_id,
+                amount: priceDifference,
+                currency: 'VND',
+                status: 'PENDING',
+                payment_method: 'BANK_TRANSFER', // Default, can be changed
+                payment_type: 'SUBSCRIPTION',
+                description: upgradeDescription,
+                net_amount: priceDifference,
+              },
+            });
+            console.log('[UPGRADE] Created new payment for upgrade:', {
+              paymentId: payment.id,
+              subscriptionId: id,
+              amount: priceDifference,
+              description: upgradeDescription,
+            });
+          }
+
+          return { subscription: updatedSubscription, payment, priceDifference };
+        }
+
+        // If downgrade, create refund record
+        if (!isUpgrade && priceDifference < 0) {
+          const refund = await tx.refund.create({
+            data: {
+              payment_id: currentSubscription.id, // Reference to subscription
+              amount: Math.abs(priceDifference),
+              reason: 'DOWNGRADE',
+              status: 'PENDING',
+              requested_by: currentSubscription.member_id,
+              notes: `Downgrade refund for ${changeType}`,
+            },
+          });
+
+          return {
+            subscription: updatedSubscription,
+            refund,
+            refundAmount: Math.abs(priceDifference),
+          };
+        }
+
+        return { subscription: updatedSubscription };
+      });
+
+      // Send notification
+      try {
+        await notificationService.createSubscriptionNotification({
+          userId: currentSubscription.member_id,
+          subscriptionId: id,
+          planName: newPlan.name,
+          planType: newPlan.type,
+          action: isUpgrade ? 'upgraded' : 'downgraded',
+        });
+      } catch (notificationError) {
+        console.error('[ERROR] Failed to send upgrade/downgrade notification:', notificationError);
+      }
+
+      res.json({
+        success: true,
+        message: `Subscription ${changeType.toLowerCase()}d successfully`,
+        data: {
+          subscription: result.subscription,
+          change_type: changeType,
+          price_difference: priceDifference,
+          payment: result.payment || null,
+          refund: result.refund || null,
+        },
+      });
+    } catch (error) {
+      console.error('Upgrade/downgrade subscription error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to upgrade/downgrade subscription',
         data: null,
       });
     }
@@ -758,7 +1049,7 @@ class BillingController {
   async renewSubscription(req, res) {
     try {
       const { id } = req.params;
-      const { payment_method, payment_method_id } = req.body;
+      const { payment_method } = req.body;
 
       // Get current subscription with plan
       const subscription = await prisma.subscription.findUnique({
@@ -789,7 +1080,6 @@ class BillingController {
       const discountAmount = subscription.discount_amount
         ? parseFloat(subscription.discount_amount)
         : 0;
-      const taxAmount = subscription.tax_amount ? parseFloat(subscription.tax_amount) : 0;
 
       // Use transaction to ensure atomicity
       const result = await prisma.$transaction(async tx => {
@@ -801,73 +1091,13 @@ class BillingController {
             amount: renewalAmount,
             currency: 'VND',
             status: payment_method ? 'PENDING' : 'COMPLETED', // If no payment method, mark as completed (manual renewal)
-            payment_method:
-              payment_method || subscription.payment_method_id ? 'BANK_TRANSFER' : 'CASH',
+            payment_method: payment_method || 'BANK_TRANSFER',
             payment_type: 'SUBSCRIPTION',
-            description: `Gia hạn gói ${subscription.plan.name} - ${subscription.plan.duration_months} tháng`,
             net_amount: renewalAmount,
-            payment_method_id: payment_method_id || subscription.payment_method_id,
-            metadata: {
-              renewal_type: 'MANUAL',
-              old_end_date: oldEndDate.toISOString(),
-              new_start_date: newStartDate.toISOString(),
-              new_end_date: newEndDate.toISOString(),
-              plan_duration_months: subscription.plan.duration_months,
-            },
           },
         });
 
-        // 2. Generate invoice number
-        const invoiceCount = await tx.invoice.count();
-        const invoice_number = `INV-${new Date().getFullYear()}-${String(invoiceCount + 1).padStart(
-          6,
-          '0'
-        )}`;
-
-        // 3. Create invoice
-        const invoice = await tx.invoice.create({
-          data: {
-            subscription_id: subscription.id,
-            payment_id: payment.id,
-            member_id: subscription.member_id,
-            invoice_number,
-            status: payment_method ? 'DRAFT' : 'PAID', // If no payment method, mark as paid
-            type: 'SUBSCRIPTION',
-            subtotal: baseAmount,
-            tax_rate: taxAmount > 0 ? taxAmount / baseAmount : null,
-            tax_amount: taxAmount,
-            discount_amount: discountAmount,
-            total_amount: renewalAmount,
-            issued_date: new Date(),
-            due_date: newEndDate,
-            paid_date: payment_method ? null : new Date(),
-            line_items: {
-              items: [
-                {
-                  description: `Gia hạn gói ${subscription.plan.name}`,
-                  quantity: 1,
-                  unit_price: baseAmount,
-                  total: baseAmount,
-                },
-              ],
-              subtotal: baseAmount,
-              discount: discountAmount,
-              tax: taxAmount,
-              total: renewalAmount,
-            },
-            notes: `Gia hạn gói thành viên từ ${oldEndDate.toLocaleDateString(
-              'vi-VN'
-            )} đến ${newEndDate.toLocaleDateString('vi-VN')}`,
-          },
-        });
-
-        // 4. Update payment with invoice reference
-        await tx.payment.update({
-          where: { id: payment.id },
-          data: {
-            reference_id: invoice.invoice_number,
-          },
-        });
+        // 2. Invoice creation removed - not needed
 
         // 5. Update subscription with new dates (only if payment is completed or no payment method)
         if (!payment_method || payment.status === 'COMPLETED') {
@@ -879,12 +1109,11 @@ class BillingController {
               current_period_end: newEndDate,
               next_billing_date: newEndDate,
               status: 'ACTIVE',
-              payment_method_id: payment_method_id || subscription.payment_method_id,
             },
           });
         }
 
-        return { payment, invoice };
+        return { payment };
       });
 
       // Get updated subscription
@@ -1017,7 +1246,6 @@ class BillingController {
           status: 'CANCELLED',
           cancelled_at: new Date(),
           cancellation_reason: reason,
-          auto_renew: false,
         },
       });
 
@@ -1036,7 +1264,1260 @@ class BillingController {
     }
   }
 
+  // TC-PAY-006: Create refund with retry mechanism
+  async createRefund(req, res) {
+    try {
+      const { payment_id, amount, reason, requested_by, notes } = req.body;
+
+      if (!payment_id || !amount || !reason || !requested_by) {
+        return res.status(400).json({
+          success: false,
+          message: 'payment_id, amount, reason, and requested_by are required',
+          data: null,
+        });
+      }
+
+      // Get payment to validate
+      const payment = await prisma.payment.findUnique({
+        where: { id: payment_id },
+        include: {
+          refunds: true,
+        },
+      });
+
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Payment not found',
+          data: null,
+        });
+      }
+
+      // Accept both COMPLETED and PAID status for refund
+      // COMPLETED is used by billing-service, PAID might be used by booking system
+      if (payment.status !== 'COMPLETED' && payment.status !== 'PAID') {
+        return res.status(400).json({
+          success: false,
+          message: `Only completed or paid payments can be refunded. Current status: ${payment.status}`,
+          data: null,
+        });
+      }
+
+      // Check if refund amount exceeds payment amount
+      const totalRefunded = payment.refunds
+        .filter(r => r.status === 'PROCESSED' || r.status === 'APPROVED')
+        .reduce((sum, r) => sum + parseFloat(r.amount), 0);
+
+      const refundAmount = parseFloat(amount);
+      const remainingAmount = parseFloat(payment.amount) - totalRefunded;
+
+      if (refundAmount > remainingAmount) {
+        return res.status(400).json({
+          success: false,
+          message: `Refund amount exceeds remaining amount. Maximum refund: ${remainingAmount}`,
+          data: null,
+        });
+      }
+
+      // Determine if refund should be auto-processed or require approval
+      // System-initiated refunds (from booking cancellation) require approval
+      // Admin-initiated refunds can be processed immediately if needed
+      const isSystemInitiated = requested_by === 'SYSTEM';
+      const shouldAutoProcess = !isSystemInitiated; // Only auto-process if not system-initiated
+
+      // Create refund record with appropriate status
+      const result = await prisma.$transaction(async tx => {
+        // Calculate total refunded amount BEFORE creating new refund
+        // Only count PROCESSED refunds for remaining amount calculation
+        const existingRefunds = await tx.refund.findMany({
+          where: {
+            payment_id,
+            status: 'PROCESSED',
+          },
+        });
+
+        const existingRefundedAmount = existingRefunds.reduce(
+          (sum, r) => sum + parseFloat(r.amount),
+          0
+        );
+
+        // Create refund record
+        const refundData = {
+          payment_id,
+          amount: refundAmount,
+          reason,
+          status: shouldAutoProcess ? 'PROCESSED' : 'PENDING', // PENDING for system-initiated, PROCESSED for admin
+          requested_by,
+          approved_by: shouldAutoProcess ? requested_by : null, // Auto-approve only if processing immediately
+          notes,
+          metadata: {
+            timeline: [
+              {
+                status: shouldAutoProcess ? 'PROCESSED' : 'PENDING',
+                timestamp: new Date().toISOString(),
+                action: shouldAutoProcess ? 'PROCESSED' : 'REQUESTED',
+                actor: requested_by,
+                note: shouldAutoProcess
+                  ? 'Refund processed immediately'
+                  : 'Refund request created, waiting for admin approval',
+              },
+            ],
+          },
+        };
+
+        // Only add transaction_id and processed_at if processing immediately
+        if (shouldAutoProcess) {
+          refundData.transaction_id = `REFUND_${Date.now()}_${payment_id.substring(0, 8)}`;
+          refundData.processed_at = new Date();
+        }
+
+        const refund = await tx.refund.create({
+          data: refundData,
+        });
+
+        // Only update payment if processing immediately
+        if (shouldAutoProcess) {
+          // Calculate new total refunded amount (including the refund we just created)
+          const newRefundedAmount = existingRefundedAmount + refundAmount;
+          const paymentAmount = parseFloat(payment.amount);
+
+          // Update payment status and refunded_amount
+          let newPaymentStatus = payment.status;
+          if (newRefundedAmount >= paymentAmount) {
+            newPaymentStatus = 'REFUNDED';
+          } else if (newRefundedAmount > 0) {
+            newPaymentStatus = 'PARTIALLY_REFUNDED';
+          }
+
+          await tx.payment.update({
+            where: { id: payment_id },
+            data: {
+              refunded_amount: newRefundedAmount,
+              status: newPaymentStatus,
+            },
+          });
+        }
+
+        return refund;
+      });
+
+      // Get refund with payment details
+      const refundWithPayment = await prisma.refund.findUnique({
+        where: { id: result.id },
+        include: {
+          payment: true,
+        },
+      });
+
+      // Notify based on status
+      if (shouldAutoProcess) {
+        // Notify member about successful refund
+        try {
+          await this.notifyMemberAboutRefund(
+            refundWithPayment,
+            refundWithPayment.payment,
+            'PROCESSED'
+          );
+        } catch (notifError) {
+          console.error('[ERROR] Failed to notify member about refund:', notifError);
+          // Don't fail if notification fails
+        }
+      } else {
+        // Notify admins about refund request (for approval)
+        try {
+          await this.notifyAdminsAboutRefundRequest(refundWithPayment, refundWithPayment.payment);
+        } catch (notifError) {
+          console.error('[ERROR] Failed to notify admins about refund request:', notifError);
+          // Don't fail if notification fails
+        }
+      }
+
+      res.json({
+        success: true,
+        message: shouldAutoProcess
+          ? 'Refund processed successfully.'
+          : 'Refund request created successfully. Waiting for admin approval.',
+        data: refundWithPayment,
+      });
+    } catch (error) {
+      console.error('Create refund error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to create refund',
+        data: null,
+      });
+    }
+  }
+
   // Payments Management
+  /**
+   * IMPROVEMENT: Retry failed payment
+   * POST /payments/:id/retry
+   */
+  async retryPayment(req, res) {
+    try {
+      const { id } = req.params;
+      const { payment_method, return_url, cancel_url } = req.body;
+
+      // Get payment
+      const payment = await prisma.payment.findUnique({
+        where: { id },
+        include: {
+          subscription: {
+            include: {
+              plan: true,
+            },
+          },
+        },
+      });
+
+      if (!payment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Payment not found',
+          data: null,
+        });
+      }
+
+      // Only allow retry for FAILED payments
+      if (payment.status !== 'FAILED') {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot retry payment with status: ${payment.status}. Only FAILED payments can be retried.`,
+          data: null,
+        });
+      }
+
+      // Check retry count (max 3 retries)
+      if (payment.retry_count >= 3) {
+        return res.status(400).json({
+          success: false,
+          message: 'Maximum retry attempts reached. Please contact support.',
+          errorCode: 'MAX_RETRIES_EXCEEDED',
+          data: null,
+        });
+      }
+
+      // Increment retry count
+      await prisma.payment.update({
+        where: { id },
+        data: {
+          retry_count: { increment: 1 },
+          status: 'PENDING',
+          failed_at: null,
+          failure_reason: null,
+        },
+      });
+
+      // Re-initiate payment
+      const initiateReq = {
+        body: {
+          member_id: payment.member_id,
+          subscription_id: payment.subscription_id,
+          amount: payment.amount,
+          payment_method: payment_method || payment.payment_method,
+          payment_type: payment.payment_type,
+          reference_id: payment.reference_id,
+          description: payment.description,
+          return_url,
+          cancel_url,
+        },
+      };
+
+      // Call initiatePayment internally
+      await this.initiatePayment(initiateReq, res);
+    } catch (error) {
+      console.error('Retry payment error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retry payment',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * IMPROVEMENT: Get payment history for a member
+   * GET /payments/history/:member_id
+   */
+  async getPaymentHistory(req, res) {
+    try {
+      const { member_id } = req.params;
+      const { limit = 50, offset = 0, status, payment_type } = req.query;
+
+      const where = { member_id };
+      if (status) where.status = status;
+      if (payment_type) where.payment_type = payment_type;
+
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100);
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const [payments, total] = await Promise.all([
+        prisma.payment.findMany({
+          where,
+          include: {
+            subscription: {
+              include: {
+                plan: true,
+              },
+            },
+            invoices: true,
+            refunds: {
+              orderBy: { created_at: 'desc' },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+        }),
+        Object.keys(where).length > 0 ? prisma.payment.count({ where }) : prisma.payment.count(),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Payment history retrieved successfully',
+        data: payments,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
+      });
+    } catch (error) {
+      console.error('Get payment history error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve payment history',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * IMPROVEMENT: Get refund timeline
+   * GET /refunds/:id/timeline
+   */
+  async getRefundTimeline(req, res) {
+    try {
+      const { id } = req.params;
+
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: {
+            include: {
+              subscription: {
+                include: {
+                  plan: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message: 'Refund not found',
+          data: null,
+        });
+      }
+
+      // Extract timeline from metadata
+      const timeline = refund.metadata?.timeline || [
+        {
+          status: refund.status,
+          timestamp: refund.created_at.toISOString(),
+          action: 'REQUESTED',
+          actor: refund.requested_by,
+        },
+      ];
+
+      // Add current status to timeline if not already there
+      if (refund.status === 'PROCESSED' && refund.processed_at) {
+        timeline.push({
+          status: 'PROCESSED',
+          timestamp: refund.processed_at.toISOString(),
+          action: 'PROCESSED',
+          actor: 'SYSTEM',
+        });
+      } else if (refund.status === 'FAILED' && refund.failed_at) {
+        timeline.push({
+          status: 'FAILED',
+          timestamp: refund.failed_at.toISOString(),
+          action: 'FAILED',
+          actor: 'SYSTEM',
+          reason: refund.failure_reason,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Refund timeline retrieved successfully',
+        data: {
+          refund: {
+            id: refund.id,
+            amount: refund.amount,
+            reason: refund.reason,
+            status: refund.status,
+            requested_at: refund.created_at,
+            processed_at: refund.processed_at,
+            failed_at: refund.failed_at,
+          },
+          timeline: timeline.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp)),
+        },
+      });
+    } catch (error) {
+      console.error('Get refund timeline error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve refund timeline',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Notify admins about refund request
+   * @private
+   */
+  async notifyAdminsAboutRefundRequest(refund, payment) {
+    try {
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      // Get all admin and super admin users from identity service
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users;
+          console.log(
+            `[SUCCESS] Retrieved ${admins.length} admin/super-admin users for refund notification`
+          );
+        } else {
+          console.warn(
+            '[WARNING] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] Failed to get admins from Identity Service:',
+          apiError.message || apiError
+        );
+        // Don't throw - continue even if we can't get admin list
+        return;
+      }
+
+      if (admins.length === 0) {
+        console.warn('[WARNING] No active admins found for refund notification');
+        return;
+      }
+
+      // Get member info for notification message
+      let memberName = 'Thành viên';
+      try {
+        const memberResponse = await axios.get(
+          `${MEMBER_SERVICE_URL}/members/${payment.member_id}`,
+          {
+            timeout: 5000,
+          }
+        );
+        if (memberResponse.data?.success && memberResponse.data?.data?.member) {
+          memberName = memberResponse.data.data.member.full_name || memberName;
+        }
+      } catch (memberError) {
+        console.warn(
+          '[WARNING] Failed to get member info for refund notification:',
+          memberError.message
+        );
+      }
+
+      // Send notification to each admin
+      const notificationPromises = admins.map(admin => {
+        return notificationService.createInAppNotification({
+          userId: admin.id,
+          type: 'REFUND_REQUEST',
+          title: 'Yêu cầu hoàn tiền mới',
+          message: `${memberName} yêu cầu hoàn tiền ${parseFloat(refund.amount).toLocaleString(
+            'vi-VN'
+          )} ₫ cho booking đã hủy`,
+          data: {
+            refund_id: refund.id,
+            payment_id: payment.id,
+            amount: refund.amount,
+            reason: refund.reason,
+            member_id: payment.member_id,
+            member_name: memberName,
+            booking_id: payment.reference_id,
+            role: 'ADMIN',
+          },
+        });
+      });
+
+      const results = await Promise.allSettled(notificationPromises);
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value?.success).length;
+
+      console.log(`[SUCCESS] Sent refund notification to ${successCount}/${admins.length} admins`);
+
+      // Also emit socket event to admin room
+      if (global.io) {
+        global.io.to('admin').emit('refund:request', {
+          refund_id: refund.id,
+          payment_id: payment.id,
+          amount: refund.amount,
+          reason: refund.reason,
+          member_id: payment.member_id,
+          member_name: memberName,
+        });
+      }
+    } catch (error) {
+      console.error('[ERROR] Failed to notify admins about refund request:', error);
+      // Don't throw - notification failure shouldn't break refund creation
+    }
+  }
+
+  /**
+   * Notify member about refund status change
+   * @private
+   */
+  async notifyMemberAboutRefund(refund, payment, status) {
+    try {
+      if (!payment.member_id) {
+        console.warn('[WARNING] Cannot notify member: payment has no member_id');
+        return;
+      }
+
+      // Get member info to get user_id
+      let memberInfo = null;
+      try {
+        const memberResponse = await axios.get(
+          `${MEMBER_SERVICE_URL}/members/${payment.member_id}`,
+          { timeout: 5000 }
+        );
+        memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
+      } catch (memberError) {
+        console.error('[ERROR] Failed to get member info for refund notification:', memberError);
+        return;
+      }
+
+      if (!memberInfo?.user_id) {
+        console.warn('[WARNING] Cannot notify member: member has no user_id');
+        return;
+      }
+
+      const statusMessages = {
+        APPROVED: {
+          title: 'Yêu cầu hoàn tiền đã được duyệt',
+          message: `Yêu cầu hoàn tiền của bạn đã được duyệt. Số tiền ${parseFloat(
+            refund.amount
+          ).toLocaleString('vi-VN')} ₫ sẽ được xử lý trong thời gian sớm nhất.`,
+        },
+        PROCESSED: {
+          title: 'Hoàn tiền thành công',
+          message: `Yêu cầu hoàn tiền của bạn đã được xử lý thành công. Số tiền ${parseFloat(
+            refund.amount
+          ).toLocaleString('vi-VN')} ₫ đã được hoàn về tài khoản của bạn.`,
+        },
+        FAILED: {
+          title: 'Hoàn tiền thất bại',
+          message: `Rất tiếc, yêu cầu hoàn tiền của bạn không thể xử lý. Vui lòng liên hệ bộ phận hỗ trợ để được hỗ trợ.`,
+        },
+      };
+
+      const message = statusMessages[status] || {
+        title: 'Cập nhật trạng thái hoàn tiền',
+        message: `Trạng thái hoàn tiền của bạn đã được cập nhật: ${status}`,
+      };
+
+      await notificationService.sendNotification({
+        user_id: memberInfo.user_id,
+        type: `REFUND_${status}`,
+        title: message.title,
+        message: message.message,
+        data: {
+          refund_id: refund.id,
+          payment_id: payment.id,
+          amount: refund.amount,
+          status: status,
+        },
+        channels: ['IN_APP', 'PUSH', 'EMAIL'],
+      });
+    } catch (error) {
+      console.error('[ERROR] Failed to notify member about refund:', error);
+      // Don't throw - notification failure shouldn't fail the operation
+    }
+  }
+
+  /**
+   * Approve refund request
+   * PATCH /refunds/:id/approve
+   */
+  async approveRefund(req, res) {
+    try {
+      const { id } = req.params;
+      const { approved_by } = req.body; // Admin ID who approves
+
+      if (!approved_by) {
+        return res.status(400).json({
+          success: false,
+          message: 'approved_by is required',
+          data: null,
+        });
+      }
+
+      // Get refund with payment
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: true,
+        },
+      });
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message: 'Refund not found',
+          data: null,
+        });
+      }
+
+      // Validate refund status
+      if (refund.status !== 'PENDING') {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot approve refund with status: ${refund.status}. Only PENDING refunds can be approved.`,
+          data: null,
+        });
+      }
+
+      // Update refund status to APPROVED
+      const timeline = refund.metadata?.timeline || [];
+      timeline.push({
+        status: 'APPROVED',
+        timestamp: new Date().toISOString(),
+        action: 'APPROVED',
+        actor: approved_by,
+      });
+
+      const updatedRefund = await prisma.refund.update({
+        where: { id },
+        data: {
+          status: 'APPROVED',
+          approved_by,
+          metadata: {
+            ...refund.metadata,
+            timeline,
+          },
+        },
+        include: {
+          payment: true,
+        },
+      });
+
+      // Notify member about approval
+      try {
+        await this.notifyMemberAboutRefund(updatedRefund, refund.payment, 'APPROVED');
+      } catch (notifError) {
+        console.error('[ERROR] Failed to notify member about refund approval:', notifError);
+        // Don't fail if notification fails
+      }
+
+      res.json({
+        success: true,
+        message: 'Refund approved successfully',
+        data: updatedRefund,
+      });
+    } catch (error) {
+      console.error('Approve refund error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to approve refund',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Process refund (after approval)
+   * PATCH /refunds/:id/process
+   */
+  async processRefund(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Get refund with payment
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: {
+            include: {
+              refunds: true,
+            },
+          },
+        },
+      });
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message: 'Refund not found',
+          data: null,
+        });
+      }
+
+      // Validate refund status
+      if (refund.status !== 'APPROVED') {
+        return res.status(400).json({
+          success: false,
+          message: `Cannot process refund with status: ${refund.status}. Only APPROVED refunds can be processed.`,
+          data: null,
+        });
+      }
+
+      // Process refund using transaction
+      const result = await prisma.$transaction(async tx => {
+        // Simulate payment gateway refund (or call actual gateway)
+        // For now, we'll simulate success
+        const transactionId = `REFUND_${refund.id}_${Date.now()}`;
+
+        // Update refund status to PROCESSED
+        const timeline = refund.metadata?.timeline || [];
+        timeline.push({
+          status: 'PROCESSED',
+          timestamp: new Date().toISOString(),
+          action: 'PROCESSED',
+          actor: 'SYSTEM',
+          transaction_id: transactionId,
+        });
+
+        const updatedRefund = await tx.refund.update({
+          where: { id },
+          data: {
+            status: 'PROCESSED',
+            transaction_id: transactionId,
+            processed_at: new Date(),
+            metadata: {
+              ...refund.metadata,
+              timeline,
+            },
+          },
+        });
+
+        // Calculate total refunded amount
+        const totalRefunded = refund.payment.refunds
+          .filter(r => r.id === id || r.status === 'PROCESSED')
+          .reduce((sum, r) => {
+            if (r.id === id) {
+              return sum + parseFloat(refund.amount);
+            }
+            return sum + parseFloat(r.amount);
+          }, 0);
+
+        const paymentAmount = parseFloat(refund.payment.amount);
+        const newRefundedAmount = totalRefunded;
+
+        // Update payment status and refunded_amount
+        let newPaymentStatus = refund.payment.status;
+        if (newRefundedAmount >= paymentAmount) {
+          newPaymentStatus = 'REFUNDED';
+        } else if (newRefundedAmount > 0) {
+          newPaymentStatus = 'PARTIALLY_REFUNDED';
+        }
+
+        await tx.payment.update({
+          where: { id: refund.payment_id },
+          data: {
+            refunded_amount: newRefundedAmount,
+            status: newPaymentStatus,
+          },
+        });
+
+        return updatedRefund;
+      });
+
+      // Get updated refund with payment
+      const refundWithPayment = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: true,
+        },
+      });
+
+      // Notify member about processing
+      try {
+        await this.notifyMemberAboutRefund(
+          refundWithPayment,
+          refundWithPayment.payment,
+          'PROCESSED'
+        );
+      } catch (notifError) {
+        console.error('[ERROR] Failed to notify member about refund processing:', notifError);
+        // Don't fail if notification fails
+      }
+
+      res.json({
+        success: true,
+        message: 'Refund processed successfully',
+        data: refundWithPayment,
+      });
+    } catch (error) {
+      console.error('Process refund error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to process refund',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Update refund status (for admin to confirm/reject after processing)
+   * PATCH /refunds/:id/status
+   */
+  async updateRefundStatus(req, res) {
+    try {
+      const { id } = req.params;
+      const { status, updated_by, notes } = req.body;
+
+      if (!status) {
+        return res.status(400).json({
+          success: false,
+          message: 'status is required',
+          data: null,
+        });
+      }
+
+      // Validate status
+      const validStatuses = ['PENDING', 'APPROVED', 'PROCESSED', 'FAILED', 'REJECTED'];
+      if (!validStatuses.includes(status)) {
+        return res.status(400).json({
+          success: false,
+          message: `Invalid status. Valid statuses: ${validStatuses.join(', ')}`,
+          data: null,
+        });
+      }
+
+      // Get refund with payment
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: true,
+        },
+      });
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message: 'Refund not found',
+          data: null,
+        });
+      }
+
+      // Update refund status
+      const timeline = refund.metadata?.timeline || [];
+      timeline.push({
+        status: status,
+        timestamp: new Date().toISOString(),
+        action: 'STATUS_UPDATED',
+        actor: updated_by || 'ADMIN',
+        notes: notes || null,
+      });
+
+      const updateData = {
+        status: status,
+        metadata: {
+          ...refund.metadata,
+          timeline,
+        },
+      };
+
+      // Update specific fields based on status
+      if (status === 'PROCESSED' && !refund.processed_at) {
+        updateData.processed_at = new Date();
+      } else if (status === 'FAILED' && !refund.failed_at) {
+        updateData.failed_at = new Date();
+        updateData.failure_reason = notes || 'Refund failed';
+      }
+
+      if (notes) {
+        updateData.notes = notes;
+      }
+
+      const updatedRefund = await prisma.refund.update({
+        where: { id },
+        data: updateData,
+        include: {
+          payment: true,
+        },
+      });
+
+      // Notify member about status change
+      try {
+        await this.notifyMemberAboutRefund(updatedRefund, refund.payment, status);
+      } catch (notifError) {
+        console.error('[ERROR] Failed to notify member about refund status update:', notifError);
+        // Don't fail if notification fails
+      }
+
+      res.json({
+        success: true,
+        message: 'Refund status updated successfully',
+        data: updatedRefund,
+      });
+    } catch (error) {
+      console.error('Update refund status error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to update refund status',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get all refunds with filters
+   * GET /refunds
+   */
+  async getAllRefunds(req, res) {
+    try {
+      const {
+        status,
+        reason,
+        requested_by,
+        approved_by,
+        payment_id,
+        member_id,
+        all, // Admin flag to view all refunds
+        page = 1,
+        limit = 50,
+        sort_by = 'created_at',
+        sort_order = 'desc',
+      } = req.query;
+
+      const where = {};
+      if (status) where.status = status;
+      if (reason) where.reason = reason;
+      if (requested_by) where.requested_by = requested_by;
+      if (approved_by) where.approved_by = approved_by;
+      
+      // Admin can view all refunds with all=true parameter
+      const isAdminView = all === 'true' || all === true;
+      
+      if (isAdminView) {
+        // Admin view: allow viewing all refunds without member_id/payment_id
+        console.log('[REFUND] Admin view: Loading all refunds');
+      } else {
+        // If member_id is provided, get payment_ids for this member first
+        let paymentIds = null;
+        if (member_id) {
+          console.log('[REFUND] Filtering by member_id:', member_id);
+          const memberPaymentsWhere = { member_id };
+          
+          // If payment_id is also provided, verify it belongs to this member
+          if (payment_id) {
+            memberPaymentsWhere.id = payment_id;
+          }
+          
+          const memberPayments = await prisma.payment.findMany({
+            where: memberPaymentsWhere,
+            select: { id: true },
+          });
+          paymentIds = memberPayments.map(p => p.id);
+          
+          console.log('[REFUND] Found payments for member:', {
+            member_id,
+            paymentCount: paymentIds.length,
+            paymentIds: paymentIds.slice(0, 10), // Log first 10
+          });
+
+          // If no payments found for this member, return empty result
+          if (paymentIds.length === 0) {
+            console.log('[REFUND] No payments found for member, returning empty result');
+            return res.json({
+              success: true,
+              message: 'Refunds retrieved successfully',
+              data: [],
+              pagination: {
+                total: 0,
+                page: parseInt(page) || 1,
+                limit: Math.min(parseInt(limit) || 50, 100),
+                totalPages: 0,
+                hasMore: false,
+              },
+            });
+          }
+          
+          // Filter refunds by payment_ids (if payment_id was provided, paymentIds will have only one item)
+          where.payment_id = paymentIds.length === 1 ? paymentIds[0] : { in: paymentIds };
+          console.log('[REFUND] Filtering refunds by payment_ids:', paymentIds.length, 'payments');
+        } else if (payment_id) {
+          // If only payment_id is provided (no member_id), use it directly
+          console.log('[REFUND] Filtering by payment_id only:', payment_id);
+          where.payment_id = payment_id;
+        } else {
+          // If neither member_id nor payment_id is provided, return error
+          // This prevents returning all refunds which is a security issue
+          console.error('[REFUND] ERROR: Neither member_id nor payment_id provided (and all=true not set)');
+          return res.status(400).json({
+            success: false,
+            message: 'member_id or payment_id is required (or use all=true for admin view)',
+            data: null,
+          });
+        }
+      }
+
+      const parsedLimit = Math.min(parseInt(limit) || 50, 100);
+      const parsedPage = Math.max(parseInt(page) || 1, 1);
+      const skip = (parsedPage - 1) * parsedLimit;
+
+      const orderBy = {};
+      orderBy[sort_by] = sort_order.toLowerCase() === 'asc' ? 'asc' : 'desc';
+
+      const [refunds, total] = await Promise.all([
+        prisma.refund.findMany({
+          where,
+          include: {
+            payment: {
+              include: {
+                subscription: {
+                  include: {
+                    plan: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy,
+          take: parsedLimit,
+          skip,
+        }),
+        prisma.refund.count({ where }),
+      ]);
+
+      console.log('[REFUND] Found refunds from database:', {
+        count: refunds.length,
+        requestedMemberId: member_id,
+      });
+
+      // Additional safety check: Filter refunds by member_id if provided
+      // This ensures we only return refunds for the requested member
+      let filteredRefunds = refunds;
+      if (member_id) {
+        filteredRefunds = refunds.filter((refund) => {
+          const refundMemberId = refund.payment?.member_id;
+          const matches = refundMemberId === member_id;
+          if (!matches) {
+            console.warn('[REFUND] WARNING: Refund payment member_id mismatch:', {
+              refundId: refund.id,
+              refundPaymentMemberId: refundMemberId,
+              requestedMemberId: member_id,
+            });
+          }
+          return matches;
+        });
+        console.log('[REFUND] After member_id filter:', {
+          before: refunds.length,
+          after: filteredRefunds.length,
+        });
+      }
+
+      // Fetch member information for each refund's payment
+      const refundsWithMembers = await Promise.all(
+        filteredRefunds.map(async refund => {
+          let member = null;
+          if (refund.payment?.member_id) {
+            try {
+              // Try fetching by member ID first
+              let memberResponse;
+              try {
+                memberResponse = await axios.get(
+                  `${MEMBER_SERVICE_URL}/members/${refund.payment.member_id}`
+                );
+              } catch (idError) {
+                // If 404, try fetching by user_id (member_id might be user_id)
+                if (idError.response?.status === 404) {
+                  try {
+                    memberResponse = await axios.get(
+                      `${MEMBER_SERVICE_URL}/members/user/${refund.payment.member_id}`
+                    );
+                  } catch (userIdError) {
+                    throw idError; // Throw original error if both fail
+                  }
+                } else {
+                  throw idError;
+                }
+              }
+
+              if (memberResponse?.data?.success && memberResponse.data.data) {
+                // Member service returns { success: true, data: { member: {...} } }
+                const memberData = memberResponse.data.data.member || memberResponse.data.data;
+                if (memberData) {
+                  member = {
+                    id: memberData.id || refund.payment.member_id,
+                    full_name: memberData.full_name || 'N/A',
+                    email: memberData.email || '',
+                  };
+                }
+              }
+            } catch (memberError) {
+              console.error(
+                `[WARNING] Failed to fetch member for refund ${refund.id}:`,
+                memberError.message
+              );
+              // Don't fail the whole request if member fetch fails
+              member = {
+                id: refund.payment.member_id,
+                full_name: 'N/A',
+                email: '',
+              };
+            }
+          }
+
+          return {
+            ...refund,
+            // Ensure amount is a number
+            amount: typeof refund.amount === 'string' ? parseFloat(refund.amount) : refund.amount,
+            payment: refund.payment
+              ? {
+                  ...refund.payment,
+                  member,
+                }
+              : null,
+          };
+        })
+      );
+
+      res.json({
+        success: true,
+        message: 'Refunds retrieved successfully',
+        data: refundsWithMembers,
+        pagination: {
+          total,
+          page: parsedPage,
+          limit: parsedLimit,
+          totalPages: Math.ceil(total / parsedLimit),
+          hasMore: skip + parsedLimit < total,
+        },
+      });
+    } catch (error) {
+      console.error('Get all refunds error:', error);
+      this.handleDatabaseError(error, res, 'Get all refunds');
+    }
+  }
+
+  /**
+   * Get refund by ID
+   * GET /refunds/:id
+   */
+  async getRefundById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const refund = await prisma.refund.findUnique({
+        where: { id },
+        include: {
+          payment: {
+            include: {
+              subscription: {
+                include: {
+                  plan: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      if (!refund) {
+        return res.status(404).json({
+          success: false,
+          message: 'Refund not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Refund retrieved successfully',
+        data: refund,
+      });
+    } catch (error) {
+      console.error('Get refund by ID error:', error);
+      this.handleDatabaseError(error, res, 'Get refund by ID');
+    }
+  }
+
+  /**
+   * Get refund by booking ID
+   * GET /refunds/booking/:booking_id
+   */
+  async getRefundByBookingId(req, res) {
+    try {
+      const { booking_id } = req.params;
+
+      // Find payment by reference_id (booking_id)
+      const payment = await prisma.payment.findFirst({
+        where: {
+          reference_id: booking_id,
+          payment_type: 'CLASS_BOOKING',
+        },
+        include: {
+          refunds: {
+            orderBy: {
+              created_at: 'desc',
+            },
+          },
+        },
+      });
+
+      if (!payment) {
+        return res.json({
+          success: true,
+          message: 'No payment found for this booking',
+          data: null,
+        });
+      }
+
+      // Get the most recent refund
+      const refund = payment.refunds[0] || null;
+
+      if (!refund) {
+        return res.json({
+          success: true,
+          message: 'No refund found for this booking',
+          data: null,
+        });
+      }
+
+      // Get refund with timeline
+      const refundWithTimeline = await prisma.refund.findUnique({
+        where: { id: refund.id },
+        include: {
+          payment: true,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Refund info retrieved successfully',
+        data: refundWithTimeline,
+      });
+    } catch (error) {
+      console.error('Get refund by booking ID error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve refund info',
+        data: null,
+      });
+    }
+  }
+
   async getAllPayments(req, res) {
     try {
       const { member_id, status, payment_type, reference_id, limit = 50, offset = 0 } = req.query;
@@ -1066,7 +2547,7 @@ class BillingController {
           take: parsedLimit,
           skip: parsedOffset,
         }),
-        prisma.payment.count({ where }),
+        Object.keys(where).length > 0 ? prisma.payment.count({ where }) : prisma.payment.count(),
       ]);
 
       // Fetch member information for each payment
@@ -1079,14 +2560,14 @@ class BillingController {
               let memberResponse;
               try {
                 memberResponse = await axios.get(
-                  `${MEMBER_SERVICE_URL}/api/members/${payment.member_id}`
+                  `${MEMBER_SERVICE_URL}/members/${payment.member_id}`
                 );
               } catch (idError) {
                 // If 404, try fetching by user_id (member_id might be user_id)
                 if (idError.response?.status === 404) {
                   try {
                     memberResponse = await axios.get(
-                      `${MEMBER_SERVICE_URL}/api/members/user/${payment.member_id}`
+                      `${MEMBER_SERVICE_URL}/members/user/${payment.member_id}`
                     );
                   } catch (userIdError) {
                     throw idError; // Throw original error if both fail
@@ -1105,7 +2586,21 @@ class BillingController {
                     full_name: memberData.full_name || 'N/A',
                     email: memberData.email || '',
                   };
+                  console.log(`[SUCCESS] Fetched member for payment ${payment.id}:`, {
+                    memberId: member.id,
+                    fullName: member.full_name,
+                    email: member.email,
+                  });
+                } else {
+                  console.warn(
+                    `[WARNING] Member data is null for payment ${payment.id}, member_id: ${payment.member_id}`
+                  );
                 }
+              } else {
+                console.warn(`[WARNING] Invalid member response for payment ${payment.id}:`, {
+                  success: memberResponse?.data?.success,
+                  hasData: !!memberResponse?.data?.data,
+                });
               }
             } catch (error) {
               // Only log if it's not a 404 (expected for missing members)
@@ -1164,20 +2659,48 @@ class BillingController {
         payment_method,
         payment_type = 'SUBSCRIPTION',
         description,
+        status, // Allow status to be set (e.g., 'COMPLETED' for auto-created payments)
+        reference_id, // Allow reference_id to be set (e.g., booking.id)
+        processed_at, // Allow processed_at to be set (e.g., when auto-creating completed payments)
+        net_amount, // Allow net_amount to be set (defaults to amount)
       } = req.body;
+
+      // Validate required fields
+      if (!member_id || !amount || !payment_method) {
+        return res.status(400).json({
+          success: false,
+          message: 'member_id, amount, and payment_method are required',
+          data: null,
+        });
+      }
 
       const payment = await prisma.payment.create({
         data: {
-          subscription_id,
+          subscription_id: subscription_id || null,
           member_id,
           amount,
           currency: 'VND',
-          status: 'PENDING',
+          status: status || 'PENDING', // Use provided status or default to PENDING
           payment_method,
           payment_type,
           description,
-          net_amount: amount,
+          reference_id: reference_id || null, // Allow reference_id to be set
+          net_amount: net_amount !== undefined ? net_amount : amount, // Use provided net_amount or default to amount
+          processed_at: processed_at
+            ? new Date(processed_at)
+            : status === 'COMPLETED'
+            ? new Date()
+            : null, // Set processed_at if status is COMPLETED
         },
+      });
+
+      console.log('[SUCCESS] Payment created:', {
+        payment_id: payment.id,
+        member_id: payment.member_id,
+        amount: payment.amount,
+        status: payment.status,
+        payment_type: payment.payment_type,
+        reference_id: payment.reference_id,
       });
 
       res.status(201).json({
@@ -1186,10 +2709,12 @@ class BillingController {
         data: payment,
       });
     } catch (error) {
-      console.error('Create payment error:', error);
+      console.error('[ERROR] Create payment error:', error);
+      console.error('[ERROR] Request body:', req.body);
       res.status(500).json({
         success: false,
         message: 'Failed to create payment',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
         data: null,
       });
     }
@@ -1522,6 +3047,10 @@ class BillingController {
         }
       }
 
+      // IMPROVEMENT: Check if this is a trial code
+      const isTrialCode =
+        discountCode.code.toUpperCase().startsWith('TRIAL-') || discountCode.type === 'FREE_TRIAL';
+
       // Calculate bonus days
       let bonusDays = 0;
       if (discountCode.type === 'FREE_TRIAL' || discountCode.type === 'FIRST_MONTH_FREE') {
@@ -1539,6 +3068,7 @@ class BillingController {
           value: discountCode.value,
           maxDiscount: discountCode.max_discount,
           bonusDays,
+          isTrialCode, // IMPROVEMENT: Flag to indicate trial code
         },
       });
     } catch (error) {
@@ -1612,7 +3142,9 @@ class BillingController {
         subscription_id: payment.subscription_id,
         member_id: payment.member_id,
         payment_type: payment.payment_type,
+        reference_id: payment.reference_id,
         amount: payment.amount,
+        description: payment.description,
       });
 
       // Generate payment URL based on gateway
@@ -1690,10 +3222,22 @@ class BillingController {
         },
       });
     } catch (error) {
-      console.error('Initiate payment error:', error);
+      console.error('[ERROR] [INITIATE_PAYMENT] Payment creation failed:', {
+        error: error.message,
+        stack: error.stack,
+        code: error.code,
+        meta: error.meta,
+        requestBody: {
+          member_id: req.body?.member_id,
+          payment_type: req.body?.payment_type,
+          reference_id: req.body?.reference_id,
+          amount: req.body?.amount,
+        },
+      });
       res.status(500).json({
         success: false,
         message: 'Lỗi khi khởi tạo thanh toán',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
         data: null,
       });
     }
@@ -1753,6 +3297,51 @@ class BillingController {
         });
       }
 
+      // TC-PAY-007: Validate payment amount mismatch
+      const webhookAmount = req.body.amount ? parseFloat(req.body.amount) : null;
+      if (webhookAmount !== null) {
+        const expectedAmount = parseFloat(payment.amount);
+        const amountMatch = Math.abs(webhookAmount - expectedAmount) < 0.01; // Allow 0.01 difference for floating point
+
+        if (!amountMatch) {
+          console.error('[ERROR] [WEBHOOK] Payment amount mismatch:', {
+            ...logContext,
+            expected: expectedAmount,
+            received: webhookAmount,
+            difference: Math.abs(webhookAmount - expectedAmount),
+          });
+
+          // Update payment with failure reason
+          await prisma.payment.update({
+            where: { id: payment_id },
+            data: {
+              status: 'FAILED',
+              failed_at: new Date(),
+              failure_reason: `Amount mismatch: expected ${expectedAmount}, received ${webhookAmount}`,
+              metadata: {
+                ...(payment.metadata || {}),
+                webhook_received_at: new Date().toISOString(),
+                webhook_id: webhookId,
+                request_id: requestId,
+                amount_mismatch: true,
+                expected_amount: expectedAmount,
+                received_amount: webhookAmount,
+              },
+            },
+          });
+
+          return res.status(400).json({
+            success: false,
+            message: 'Payment amount mismatch',
+            errorCode: 'PAYMENT_AMOUNT_MISMATCH',
+            data: {
+              expected: expectedAmount,
+              received: webhookAmount,
+            },
+          });
+        }
+      }
+
       // Store payment intent/receipt in metadata
       const metadata = {
         ...(payment.metadata || {}),
@@ -1787,6 +3376,118 @@ class BillingController {
         ...logContext,
         newStatus: updatedPayment.status,
       });
+
+      // Award points for successful payment (2% of payment amount)
+      if (status === 'SUCCESS' && updatedPayment.status === 'COMPLETED' && payment.member_id) {
+        try {
+          const paymentAmount = parseFloat(payment.amount);
+          const pointsToAward = Math.round(paymentAmount * 0.02); // 2% of payment amount
+
+          if (pointsToAward > 0) {
+            const axios = require('axios');
+            const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://member:3002';
+            
+            const pointsResponse = await axios.post(
+              `${memberServiceUrl}/members/${payment.member_id}/points/award`,
+              {
+                points: pointsToAward,
+                source: 'PAYMENT',
+                source_id: payment.id,
+                description: `Thanh toán thành công: ${paymentAmount.toLocaleString('vi-VN')} VNĐ`,
+              },
+              {
+                timeout: 5000,
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+              }
+            );
+
+            if (pointsResponse.data?.success) {
+              console.log(`[POINTS] Awarded ${pointsToAward} points to member ${payment.member_id} for payment ${payment.id}`);
+            } else {
+              console.warn(`[WARNING] Failed to award points for payment: ${pointsResponse.data?.message || 'Unknown error'}`);
+            }
+          }
+        } catch (pointsError) {
+          console.error('[ERROR] Failed to award points for payment:', {
+            ...logContext,
+            error: pointsError.message,
+            member_id: payment.member_id,
+            payment_amount: payment.amount,
+          });
+          // Don't fail webhook if points award fails
+        }
+      }
+
+      // IMPROVEMENT: Generate and send payment receipt if payment successful
+      if (status === 'SUCCESS') {
+        try {
+          // Create invoice if not exists
+          let invoice = await prisma.invoice.findFirst({
+            where: { payment_id: payment.id },
+          });
+
+          if (!invoice && payment.subscription) {
+            invoice = await prisma.invoice.create({
+              data: {
+                subscription_id: payment.subscription_id,
+                payment_id: payment.id,
+                member_id: payment.member_id,
+                invoice_number: `INV-${new Date().getFullYear()}-${Date.now()}`,
+                status: 'PAID',
+                type: 'SUBSCRIPTION',
+                subtotal: parseFloat(payment.amount),
+                total_amount: parseFloat(payment.amount),
+                due_date: new Date(),
+                paid_date: new Date(),
+                line_items: {
+                  items: [
+                    {
+                      description: payment.subscription.plan?.name || 'Subscription',
+                      quantity: 1,
+                      unit_price: parseFloat(payment.amount),
+                      total: parseFloat(payment.amount),
+                    },
+                  ],
+                },
+              },
+            });
+          }
+
+          // IMPROVEMENT: Send receipt email
+          if (invoice) {
+            try {
+              const memberService = require('../../../../member-service/src/services/member.service.js');
+              const member = await memberService.getMemberById(payment.member_id);
+
+              if (member?.email) {
+                // Send receipt email via notification service
+                await notificationService.sendNotification({
+                  user_id: member.user_id,
+                  type: 'PAYMENT_RECEIPT',
+                  title: 'Hóa đơn thanh toán',
+                  message: `Cảm ơn bạn đã thanh toán. Hóa đơn số ${invoice.invoice_number} đã được gửi đến email của bạn.`,
+                  data: {
+                    payment_id: payment.id,
+                    invoice_id: invoice.id,
+                    invoice_number: invoice.invoice_number,
+                    amount: parseFloat(payment.amount),
+                    payment_date: payment.processed_at || new Date(),
+                  },
+                  channels: ['EMAIL'],
+                });
+              }
+            } catch (receiptError) {
+              console.error('[ERROR] Failed to send payment receipt:', receiptError);
+              // Don't fail webhook if receipt fails
+            }
+          }
+        } catch (invoiceError) {
+          console.error('[ERROR] Failed to create invoice for payment:', invoiceError);
+          // Don't fail webhook if invoice creation fails
+        }
+      }
 
       // If payment successful, process subscription
       if (status === 'SUCCESS' && payment.subscription) {
@@ -1907,6 +3608,73 @@ class BillingController {
             console.error('[ERROR] Error marking reward redemption as used:', rewardError);
             // Don't fail the webhook if marking fails
           }
+        }
+
+        // TC-DISCOUNT-REFERRAL-002: Credit referral reward to referrer when payment completed
+        try {
+          const discountUsage = await prisma.discountUsage.findFirst({
+            where: {
+              subscription_id: payment.subscription_id,
+              referrer_member_id: { not: null },
+              referrer_reward: { not: null },
+            },
+            include: {
+              discount_code: {
+                select: {
+                  id: true,
+                  code: true,
+                  referrer_member_id: true,
+                  referral_reward: true,
+                },
+              },
+            },
+          });
+
+          if (discountUsage && discountUsage.referrer_member_id && discountUsage.referrer_reward) {
+            console.log('[REFERRAL] Processing referral reward:', {
+              referrer_member_id: discountUsage.referrer_member_id,
+              referral_reward: discountUsage.referrer_reward,
+              referee_member_id: payment.member_id,
+              subscription_id: payment.subscription_id,
+            });
+
+            // Credit points to referrer via Member Service
+            const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+            if (memberServiceUrl) {
+              try {
+                const rewardAmount = Number(discountUsage.referrer_reward);
+                const creditResponse = await axios.post(
+                  `${memberServiceUrl}/members/${discountUsage.referrer_member_id}/points/credit`,
+                  {
+                    amount: rewardAmount,
+                    source: 'REFERRAL_REWARD',
+                    description: `Phần thưởng giới thiệu từ mã ${discountUsage.discount_code.code}`,
+                    metadata: {
+                      referee_member_id: payment.member_id,
+                      subscription_id: payment.subscription_id,
+                      discount_code_id: discountUsage.discount_code_id,
+                    },
+                  },
+                  { timeout: 5000 }
+                );
+
+                if (creditResponse.data?.success) {
+                  console.log('[SUCCESS] Referral reward credited to referrer:', {
+                    referrer_member_id: discountUsage.referrer_member_id,
+                    amount: rewardAmount,
+                  });
+                } else {
+                  console.error('[ERROR] Failed to credit referral reward:', creditResponse.data);
+                }
+              } catch (creditError) {
+                console.error('[ERROR] Error crediting referral reward:', creditError.message);
+                // Don't fail the webhook if credit fails - can retry later
+              }
+            }
+          }
+        } catch (referralError) {
+          console.error('[ERROR] Error processing referral reward:', referralError);
+          // Don't fail the webhook if referral processing fails
         }
 
         // Call Member Service to update member membership
@@ -2256,12 +4024,37 @@ class BillingController {
         }
       }
 
+      // IMPROVEMENT: Check if this is a trial code
+      const isTrialCode =
+        discount_code &&
+        (discount_code.toUpperCase().startsWith('TRIAL-') ||
+          (discountCodeRecord && discountCodeRecord.type === 'FREE_TRIAL'));
+
+      // IMPROVEMENT: For trial codes, create TRIAL subscription
+      let subscriptionStatus = 'PENDING';
+      let trialStart = null;
+      let trialEnd = null;
+
+      if (isTrialCode) {
+        subscriptionStatus = 'TRIAL';
+        trialStart = new Date();
+        trialEnd = new Date(trialStart);
+        trialEnd.setDate(trialEnd.getDate() + 7); // 7 days trial
+        // For trial, start_date is after trial ends
+        startDate = new Date(trialEnd);
+        endDate = new Date(startDate);
+        endDate.setMonth(endDate.getMonth() + plan.duration_months);
+        // Trial is free, so total_amount = 0
+        totalAmount = 0;
+        discountAmount = baseAmount; // Full discount for trial
+      }
+
       // Create or update subscription (upsert for PENDING/CANCELLED/TRIAL)
       const subscription = await prisma.subscription.upsert({
         where: { member_id },
         update: {
           plan_id,
-          status: 'PENDING', // Will be activated after payment
+          status: subscriptionStatus,
           start_date: startDate,
           end_date: endDate,
           next_billing_date: endDate,
@@ -2270,16 +4063,17 @@ class BillingController {
           base_amount: baseAmount,
           discount_amount: discountAmount,
           total_amount: totalAmount,
-          classes_remaining: plan.class_credits,
-          auto_renew: true,
           cancelled_at: null,
           cancellation_reason: null,
           cancelled_by: null,
+          // IMPROVEMENT: Trial fields
+          trial_start: trialStart,
+          trial_end: trialEnd,
         },
         create: {
           member_id,
           plan_id,
-          status: 'PENDING', // Will be activated after payment
+          status: subscriptionStatus,
           start_date: startDate,
           end_date: endDate,
           next_billing_date: endDate,
@@ -2288,8 +4082,9 @@ class BillingController {
           base_amount: baseAmount,
           discount_amount: discountAmount,
           total_amount: totalAmount,
-          classes_remaining: plan.class_credits,
-          auto_renew: true,
+          // IMPROVEMENT: Trial fields
+          trial_start: trialStart,
+          trial_end: trialEnd,
         },
         include: {
           plan: true,
@@ -2329,12 +4124,37 @@ class BillingController {
 
         if (!existingUsage && !subscriptionHasDiscount) {
           console.log('[GIFT] Creating new DiscountUsage...');
+
+          // TC-DISCOUNT-REFERRAL-001: Apply referral reward logic
+          const bonusDaysToAdd = discountCodeRecord.bonus_days || 0;
+          const referralReward = discountCodeRecord.referral_reward || null;
+          const referrerMemberId = discountCodeRecord.referrer_member_id || null;
+
+          // Update subscription end_date with bonus days if not already added
+          if (bonusDaysToAdd > 0 && subscription.end_date) {
+            const currentEndDate = new Date(subscription.end_date);
+            const newEndDate = new Date(currentEndDate);
+            newEndDate.setDate(newEndDate.getDate() + bonusDaysToAdd);
+
+            await prisma.subscription.update({
+              where: { id: subscription.id },
+              data: { end_date: newEndDate },
+            });
+
+            console.log(
+              `[REFERRAL] Added ${bonusDaysToAdd} bonus days to subscription ${subscription.id}`
+            );
+          }
+
           await prisma.discountUsage.create({
             data: {
               discount_code_id: discountCodeRecord.id,
               member_id,
               subscription_id: subscription.id,
               amount_discounted: discountAmount,
+              bonus_days_added: bonusDaysToAdd > 0 ? bonusDaysToAdd : null,
+              referrer_member_id: referrerMemberId,
+              referrer_reward: referralReward,
             },
           });
 
@@ -2344,6 +4164,9 @@ class BillingController {
             data: { usage_count: { increment: 1 } },
           });
           console.log('[SUCCESS] DiscountUsage created successfully');
+
+          // TC-DISCOUNT-REFERRAL-002: Credit referral reward to referrer (if payment completed)
+          // Note: This will be processed when payment is confirmed in webhook
         } else {
           if (existingUsage) {
             console.log(
@@ -2398,16 +4221,8 @@ class BillingController {
           type: true,
           duration_months: true,
           price: true,
-          setup_fee: true,
           benefits: true,
-          class_credits: true,
-          guest_passes: true,
-          personal_training_sessions: true,
-          nutritionist_consultations: true,
           smart_workout_plans: true,
-          wearable_integration: true,
-          advanced_analytics: true,
-          equipment_priority: true,
           is_featured: true,
         },
         orderBy: [{ is_featured: 'desc' }, { price: 'asc' }],
@@ -2517,26 +4332,51 @@ class BillingController {
       const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
       const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-      const [totalPlans, activeSubscriptions, totalRevenue, monthlyRevenue, pendingPayments] =
+      // Use findMany + reduce instead of aggregate to avoid Prisma Decimal issues
+      // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
+      // because refunds will be subtracted separately later
+      const [totalPlans, activeSubscriptions, totalRevenuePayments, monthlyRevenuePayments, pendingPayments] =
         await Promise.all([
           prisma.membershipPlan.count({ where: { is_active: true } }),
           prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-          prisma.payment.aggregate({
-            where: { status: 'COMPLETED' },
-            _sum: { amount: true },
-          }),
-          prisma.payment.aggregate({
+          prisma.payment.findMany({
             where: {
-              status: 'COMPLETED',
+              status: {
+                in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+              },
+            },
+            select: {
+              amount: true,
+            },
+          }),
+          prisma.payment.findMany({
+            where: {
+              status: {
+                in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+              },
               created_at: {
                 gte: startOfMonth,
                 lte: endOfMonth,
               },
             },
-            _sum: { amount: true },
+            select: {
+              amount: true,
+            },
           }),
           prisma.payment.count({ where: { status: 'PENDING' } }),
         ]);
+
+      // Calculate totals from payments
+      const totalRevenue = {
+        _sum: {
+          amount: totalRevenuePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+        },
+      };
+      const monthlyRevenue = {
+        _sum: {
+          amount: monthlyRevenuePayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+        },
+      };
 
       res.json({
         success: true,
@@ -2551,6 +4391,37 @@ class BillingController {
       });
     } catch (error) {
       return this.handleDatabaseError(error, res, 'Get stats');
+    }
+  }
+
+  /**
+   * Manually trigger subscription expiration job
+   * POST /jobs/subscriptions/expire
+   */
+  async runSubscriptionExpirationJob(req, res) {
+    try {
+      const subscriptionExpirationJob = require('../jobs/subscription-expiration.job');
+
+      console.log('[MANUAL] Running subscription expiration job manually...');
+      const result = await subscriptionExpirationJob.runExpirationJob();
+
+      if (result.success) {
+        return res.json({
+          success: true,
+          message: `Subscription expiration job completed successfully. ${result.expiredCount} subscription(s) expired.`,
+          data: result,
+        });
+      } else {
+        return res.status(500).json({
+          success: false,
+          message: 'Subscription expiration job failed',
+          error: result.error,
+          data: result,
+        });
+      }
+    } catch (error) {
+      console.error('[ERROR] Manual subscription expiration job error:', error);
+      return this.handleDatabaseError(error, res, 'Run subscription expiration job');
     }
   }
 }

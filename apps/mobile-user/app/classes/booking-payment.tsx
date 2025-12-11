@@ -63,7 +63,8 @@ const BookingPaymentScreen = () => {
 
   useEffect(() => {
     // Auto-verify every 10 seconds (stop when verified)
-    if (isVerified) return;
+    // Only start auto-verify if we have bankTransferId or bankTransfer loaded
+    if (isVerified || (!bankTransferId && !bankTransfer)) return;
 
     const verifyInterval = setInterval(() => {
       if (!isVerifying && !isVerified) {
@@ -72,7 +73,7 @@ const BookingPaymentScreen = () => {
     }, 10000);
 
     return () => clearInterval(verifyInterval);
-  }, [isVerifying, isVerified]);
+  }, [isVerifying, isVerified, bankTransferId, bankTransfer]);
 
   const loadBankTransferInfo = async () => {
     try {
@@ -102,20 +103,81 @@ const BookingPaymentScreen = () => {
     try {
       if (!silent) setIsVerifying(true);
 
+      // Get bankTransferId from params, bankTransfer object, or paymentId
+      let finalBankTransferId = bankTransferId;
+      
+      // If not in params, try to get from bankTransfer object
+      if (!finalBankTransferId || finalBankTransferId.trim() === '') {
+        if (bankTransfer?.id) {
+          finalBankTransferId = bankTransfer.id;
+          console.log('[INFO] Using bankTransferId from bankTransfer object:', finalBankTransferId);
+        } else if (paymentId) {
+          // Last resort: try to get bank transfer from paymentId
+          try {
+            const btResponse = await paymentService.getBankTransfer(paymentId);
+            if (btResponse?.id) {
+              finalBankTransferId = btResponse.id;
+              console.log('[INFO] Fetched bankTransferId from paymentId:', finalBankTransferId);
+            }
+          } catch (btError) {
+            console.warn('[WARNING] Could not fetch bank transfer from paymentId:', btError);
+          }
+        }
+      }
+
       // Validate bankTransferId before verifying
-      if (!bankTransferId || bankTransferId.trim() === '') {
+      if (!finalBankTransferId || finalBankTransferId.trim() === '') {
         throw new Error('Bank transfer ID is required');
       }
 
-      const response = await paymentService.verifyBankTransfer(bankTransferId);
+      const response = await paymentService.verifyBankTransfer(finalBankTransferId);
+
+      console.log('[VERIFY] Response from backend:', {
+        success: response.success,
+        data_status: response.data?.status,
+        data_payment_status: response.data?.payment?.status,
+        message: response.message,
+      });
 
       // Check if transfer is verified (status = VERIFIED or COMPLETED)
+      // Response structure: { success: true, data: { status: 'VERIFIED', payment: {...} } }
+      const bankTransferData = response.data || response;
       const isVerifiedStatus =
-        response.status === 'VERIFIED' || response.status === 'COMPLETED';
-      const isPaymentCompleted = response.payment?.status === 'COMPLETED';
+        bankTransferData.status === 'VERIFIED' || bankTransferData.status === 'COMPLETED';
+      
+      // Also check payment status: COMPLETED, PAID, or SUCCESS
+      const paymentData = bankTransferData.payment || response.payment;
+      const isPaymentCompleted =
+        paymentData?.status === 'COMPLETED' ||
+        paymentData?.status === 'PAID' ||
+        paymentData?.status === 'SUCCESS';
 
-      if (isVerifiedStatus || isPaymentCompleted) {
+      // Also check if response indicates success (for "already verified" case)
+      const isSuccessResponse = response.success === true && 
+        (response.message?.includes('verified') || response.message?.includes('đã xác minh'));
+
+      console.log('[VERIFY] Verification check:', {
+        isVerifiedStatus,
+        isPaymentCompleted,
+        isSuccessResponse,
+        bankTransferStatus: bankTransferData.status,
+        paymentStatus: paymentData?.status,
+      });
+
+      if (isVerifiedStatus || isPaymentCompleted || isSuccessResponse) {
         setIsVerified(true);
+        
+        // Refresh booking data to get updated status
+        if (bookingId) {
+          try {
+            const bookingResponse = await bookingService.getBookingById(bookingId);
+            if (bookingResponse.success && bookingResponse.data) {
+              console.log('[SUCCESS] Booking status updated:', bookingResponse.data.status);
+            }
+          } catch (error) {
+            console.warn('[WARNING] Failed to refresh booking status:', error);
+          }
+        }
         
         if (!silent) {
           Alert.alert(
@@ -125,23 +187,23 @@ const BookingPaymentScreen = () => {
               {
                 text: t('common.ok'),
                 onPress: () => {
-                  // Navigate back to class detail screen
-                  if (scheduleId) {
-                    router.replace(`/classes/${scheduleId}`);
-                  } else {
-                    router.back();
-                  }
+                  // Navigate to my-bookings page to show updated booking status
+                  router.replace({
+                    pathname: '/classes/my-bookings',
+                    params: { paymentVerified: 'true', refresh: 'true' },
+                  });
                 },
               },
             ]
           );
         } else {
-          // Silent verification - just navigate
+          // Silent verification - navigate to my-bookings after short delay
           setTimeout(() => {
-            if (scheduleId) {
-              router.replace(`/classes/${scheduleId}`);
-            }
-          }, 2000);
+            router.replace({
+              pathname: '/classes/my-bookings',
+              params: { paymentVerified: 'true', refresh: 'true' },
+            });
+          }, 1500); // 1.5 seconds delay to ensure backend processing is complete
         }
       } else if (!silent) {
         Alert.alert(

@@ -177,12 +177,40 @@ async function startServer() {
   // Start auto check-out service (every 1 minute)
   autoCheckoutService.start();
 
+  // IMPROVEMENT: Start booking reminder cron job (every 1 minute)
+  cronService.startBookingReminderCron();
+
+  // IMPROVEMENT: Start auto-cancel warning cron job (every 1 hour)
+  cronService.startAutoCancelWarningCron();
+
+  // Start auto-cancel low participants cron job
+  // TC-AUTO-CANCEL-013: Optimized to run 3 times per day (9:00 AM, 2:00 PM, 6:00 PM)
+  // Can be configured via environment variables
+  const autoCancelScheduleTimes = process.env.AUTO_CANCEL_SCHEDULE_TIMES
+    ? process.env.AUTO_CANCEL_SCHEDULE_TIMES.split(',').map(t => t.trim())
+    : ['09:00', '14:00', '18:00']; // Default: 9:00 AM, 2:00 PM, 6:00 PM
+  const useAutoCancelInterval = process.env.AUTO_CANCEL_USE_INTERVAL === 'true';
+  const autoCancelIntervalMinutes = parseInt(process.env.AUTO_CANCEL_INTERVAL_MINUTES || '60');
+  
+  cronService.startAutoCancelLowParticipantsCron(
+    autoCancelScheduleTimes,
+    useAutoCancelInterval,
+    autoCancelIntervalMinutes
+  );
+
   const host = process.env.HOST || '0.0.0.0';
   server.listen(port, host, () => {
     console.log(`Schedule service listening on port ${port}`);
     console.log(`WebSocket server initialized`);
     console.log(`Auto-update cron job started (every 1 minute)`);
     console.log(`Auto check-out service started (every 1 minute)`);
+    console.log(`Booking reminder cron job started (every 1 minute)`);
+    console.log(`Auto-cancel warning cron job started (every 1 hour)`);
+    if (useAutoCancelInterval) {
+      console.log(`Auto-cancel low participants cron job started (TEST MODE: every ${autoCancelIntervalMinutes} minutes)`);
+    } else {
+      console.log(`Auto-cancel low participants cron job started (PRODUCTION MODE: daily at ${autoCancelScheduleTimes.join(', ')} GMT+7)`);
+    }
 
     // Start certification expiry warning cron job
     // Can be configured via environment variables

@@ -12,7 +12,9 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  Animated,
   BackHandler,
+  Modal,
   Platform,
   ScrollView,
   StyleSheet,
@@ -31,12 +33,20 @@ const RegisterPlanScreen = () => {
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [selectedPlan, setSelectedPlan] = useState<MembershipPlan | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [accessToken, setAccessToken] = useState<string>(params.accessToken as string);
-  const [refreshToken, setRefreshToken] = useState<string>(params.refreshToken as string);
+  const [accessToken, setAccessToken] = useState<string>(
+    params.accessToken as string
+  );
+  const [refreshToken, setRefreshToken] = useState<string>(
+    params.refreshToken as string
+  );
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [showExpiredModal, setShowExpiredModal] = useState(false);
+  const expiredModalScale = React.useRef(new Animated.Value(0)).current;
+  const expiredModalFade = React.useRef(new Animated.Value(0)).current;
 
   const userId = params.userId as string;
+  const isExpired = params.expired === 'true';
 
   // Load tokens from storage if params are empty
   useEffect(() => {
@@ -56,19 +66,50 @@ const RegisterPlanScreen = () => {
     fetchPlans();
   }, []);
 
+  // Show expired modal if user has expired subscription
+  useEffect(() => {
+    if (isExpired && !isLoading) {
+      setShowExpiredModal(true);
+    }
+  }, [isExpired, isLoading]);
+
+  useEffect(() => {
+    if (showExpiredModal) {
+      Animated.parallel([
+        Animated.spring(expiredModalScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 50,
+          friction: 7,
+        }),
+        Animated.timing(expiredModalFade, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    } else {
+      expiredModalScale.setValue(0);
+      expiredModalFade.setValue(0);
+    }
+  }, [showExpiredModal]);
+
   // Handle Android hardware back button
   useEffect(() => {
     if (Platform.OS === 'android') {
-      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-        if (showLogoutModal) {
-          // Nếu modal đang mở, đóng modal thay vì logout
-          handleCloseLogoutModal();
-          return true;
+      const backHandler = BackHandler.addEventListener(
+        'hardwareBackPress',
+        () => {
+          if (showLogoutModal) {
+            // Nếu modal đang mở, đóng modal thay vì logout
+            handleCloseLogoutModal();
+            return true;
+          }
+          // Nếu modal đóng, hiển thị modal xác nhận
+          handleBack();
+          return true; // Prevent default back behavior
         }
-        // Nếu modal đóng, hiển thị modal xác nhận
-        handleBack();
-        return true; // Prevent default back behavior
-      });
+      );
 
       return () => backHandler.remove();
     }
@@ -102,7 +143,6 @@ const RegisterPlanScreen = () => {
         planName: selectedPlan.name,
         planType: selectedPlan.type,
         planPrice: selectedPlan.price.toString(),
-        setupFee: (selectedPlan.setup_fee || 0).toString(),
         durationMonths: selectedPlan.duration_months.toString(),
       },
     });
@@ -299,8 +339,132 @@ const RegisterPlanScreen = () => {
         onConfirm={handleConfirmLogout}
         loading={isLoggingOut}
       />
+
+      {/* Subscription Expired Modal */}
+      <Modal visible={showExpiredModal} transparent animationType="none">
+        <View style={styles.modalOverlay}>
+          <Animated.View
+            style={[
+              styles.modalContainer,
+              {
+                backgroundColor: theme.colors.surface,
+                transform: [{ scale: expiredModalScale }],
+                opacity: expiredModalFade,
+              },
+            ]}
+          >
+            {/* Icon */}
+            <View
+              style={[
+                styles.modalIcon,
+                { backgroundColor: `${theme.colors.error}15` },
+              ]}
+            >
+              <Ionicons
+                name="alert-circle"
+                size={48}
+                color={theme.colors.error}
+              />
+            </View>
+
+            {/* Title */}
+            <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+              {t('subscription.expiredTitle') || 'Gói đã hết hạn'}
+            </Text>
+
+            {/* Message */}
+            <Text
+              style={[
+                styles.modalMessage,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {t('subscription.expiredMessage') ||
+                'Gói thành viên của bạn đã hết hạn. Vui lòng chọn gói mới để tiếp tục sử dụng dịch vụ.'}
+            </Text>
+
+            {/* OK Button */}
+            <TouchableOpacity
+              style={[
+                styles.modalButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
+              onPress={() => setShowExpiredModal(false)}
+              activeOpacity={0.8}
+            >
+              <Text style={styles.modalButtonText}>
+                {t('common.ok') || 'Đã hiểu'}
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </View>
+      </Modal>
     </View>
   );
 };
+
+const styles = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContainer: {
+    width: '100%',
+    maxWidth: 380,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.3,
+    shadowRadius: 30,
+    elevation: 15,
+  },
+  modalIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    alignSelf: 'center',
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontFamily: 'SpaceGrotesk-Bold',
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  modalMessage: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 32,
+  },
+  modalButton: {
+    width: '100%',
+    paddingVertical: 16,
+    paddingHorizontal: 16,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  modalButtonText: {
+    fontFamily: 'SpaceGrotesk-SemiBold',
+    fontSize: 16,
+    textAlign: 'center',
+    color: '#FFFFFF',
+  },
+});
 
 export default RegisterPlanScreen;

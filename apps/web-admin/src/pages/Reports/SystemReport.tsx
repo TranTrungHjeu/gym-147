@@ -3,10 +3,12 @@ import { useTheme } from '../../context/ThemeContext';
 import { dashboardService } from '../../services/dashboard.service';
 import SystemActivityChart from '../../components/charts/SystemActivityChart';
 import AdminCard from '../../components/common/AdminCard';
+import useTranslation from '../../hooks/useTranslation';
 import { Activity, TrendingUp, Clock, Users } from 'lucide-react';
 
 const SystemReport: React.FC = () => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [systemActivityData, setSystemActivityData] = useState<{
     dates: string[];
@@ -28,7 +30,7 @@ const SystemReport: React.FC = () => {
         ]);
 
         console.log('System Activity Response:', activityRes);
-        
+
         if (activityRes.success && activityRes.data) {
           console.log('System Activity Data:', activityRes.data);
           setSystemActivityData(activityRes.data);
@@ -68,10 +70,10 @@ const SystemReport: React.FC = () => {
       {/* Header */}
       <div>
         <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-          Báo cáo Hệ thống
+          {t('reports.system.title')}
         </h1>
         <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-          Thống kê hoạt động và hiệu suất hệ thống
+          {t('reports.system.subtitle')}
         </p>
       </div>
 
@@ -87,7 +89,7 @@ const SystemReport: React.FC = () => {
                 {stats.totalUsers}
               </div>
               <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                Tổng người dùng
+                {t('reports.system.stats.totalUsers')}
               </div>
             </div>
           </div>
@@ -103,7 +105,7 @@ const SystemReport: React.FC = () => {
                 {stats.activeSessions}
               </div>
               <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                Phiên hoạt động (24h)
+                {t('reports.system.stats.activeSessions')}
               </div>
             </div>
           </div>
@@ -119,7 +121,7 @@ const SystemReport: React.FC = () => {
                 {stats.recentRegistrations}
               </div>
               <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                Đăng ký mới (30 ngày)
+                {t('reports.system.stats.recentRegistrations')}
               </div>
             </div>
           </div>
@@ -130,15 +132,15 @@ const SystemReport: React.FC = () => {
       <AdminCard>
         <div className='mb-4'>
           <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-            Hoạt động Hệ thống
+            {t('reports.system.systemActivity.title')}
           </h3>
           <p className='text-sm text-gray-600 dark:text-gray-400 font-inter mt-1'>
-            Biểu đồ thể hiện mức độ hoạt động của hệ thống theo thời gian
+            {t('reports.system.systemActivity.subtitle')}
           </p>
         </div>
         {isLoading ? (
           <div className='text-center py-12 text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-            Đang tải...
+            {t('reports.system.systemActivity.loading')}
           </div>
         ) : (
           <SystemActivityChart
@@ -153,4 +155,3 @@ const SystemReport: React.FC = () => {
 };
 
 export default SystemReport;
-

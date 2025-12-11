@@ -9,7 +9,7 @@ import { MetricType } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { ArrowLeft, Calendar } from 'lucide-react-native';
+import { ArrowLeft, Calendar, BarChart3, TrendingUp, TrendingDown } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -38,6 +38,13 @@ export default function HealthMetricDetailScreen() {
   const [error, setError] = useState<string | null>(null);
   const [showDateRangePicker, setShowDateRangePicker] = useState(false);
   const [dateRange, setDateRange] = useState<{ startDate?: Date; endDate?: Date }>({});
+  const [statistics, setStatistics] = useState<{
+    min: number;
+    max: number;
+    average: number;
+    count: number;
+    recentAverage?: number;
+  } | null>(null);
 
   useEffect(() => {
     if (type) {
@@ -67,8 +74,30 @@ export default function HealthMetricDetailScreen() {
       const response = await healthService.getHealthMetrics(user.id, filters);
 
       if (response.success && response.data) {
-        setMetrics(response.data);
+        const metricsData = response.data;
+        setMetrics(metricsData);
         setError(null);
+        
+        // Calculate statistics
+        if (metricsData.length > 0) {
+          const values = metricsData.map((m: any) => m.value).filter((v: any) => typeof v === 'number' && !isNaN(v));
+          if (values.length > 0) {
+            const stats = {
+              min: Math.min(...values),
+              max: Math.max(...values),
+              average: values.reduce((sum: number, val: number) => sum + val, 0) / values.length,
+              count: values.length,
+            };
+            
+            // Calculate recent average (last 7 records)
+            if (values.length >= 7) {
+              const recentValues = values.slice(-7);
+              stats.recentAverage = recentValues.reduce((sum: number, val: number) => sum + val, 0) / recentValues.length;
+            }
+            
+            setStatistics(stats);
+          }
+        }
       } else {
         const errorMessage = response.error || t('health.loadError', {
           defaultValue: 'Không thể tải dữ liệu sức khỏe',
@@ -185,6 +214,118 @@ export default function HealthMetricDetailScreen() {
                 showTrend={true}
               />
             </View>
+
+            {/* Statistics Card */}
+            {statistics && (
+              <View
+                style={[
+                  styles.statisticsCard,
+                  {
+                    backgroundColor: theme.colors.surface,
+                    borderColor: theme.colors.border,
+                  },
+                ]}
+              >
+                <View style={styles.statisticsHeader}>
+                  <BarChart3 size={20} color={theme.colors.primary} />
+                  <Text
+                    style={[Typography.h4, { color: theme.colors.text, marginLeft: 8 }]}
+                  >
+                    {t('health.statistics.title', { defaultValue: 'Thống kê' })}
+                  </Text>
+                </View>
+                <View style={styles.statisticsGrid}>
+                  <View style={styles.statItem}>
+                    <Text
+                      style={[
+                        Typography.labelSmall,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('health.statistics.min', { defaultValue: 'Thấp nhất' })}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.h5,
+                        { color: theme.colors.text, marginTop: 4 },
+                      ]}
+                    >
+                      {statistics.min.toFixed(type === 'BLOOD_PRESSURE' ? 0 : 1)} {metrics[0]?.unit || ''}
+                    </Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text
+                      style={[
+                        Typography.labelSmall,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('health.statistics.max', { defaultValue: 'Cao nhất' })}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.h5,
+                        { color: theme.colors.text, marginTop: 4 },
+                      ]}
+                    >
+                      {statistics.max.toFixed(type === 'BLOOD_PRESSURE' ? 0 : 1)} {metrics[0]?.unit || ''}
+                    </Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text
+                      style={[
+                        Typography.labelSmall,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('health.average', { defaultValue: 'Trung bình' })}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.h5,
+                        { color: theme.colors.primary, marginTop: 4 },
+                      ]}
+                    >
+                      {statistics.average.toFixed(type === 'BLOOD_PRESSURE' ? 0 : 1)} {metrics[0]?.unit || ''}
+                    </Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text
+                      style={[
+                        Typography.labelSmall,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {t('health.records', { defaultValue: 'Tổng bản ghi' })}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.h5,
+                        { color: theme.colors.text, marginTop: 4 },
+                      ]}
+                    >
+                      {statistics.count}
+                    </Text>
+                  </View>
+                </View>
+                {statistics.recentAverage && (
+                  <View style={styles.recentAverageContainer}>
+                    <TrendingUp size={16} color={theme.colors.primary} />
+                    <Text
+                      style={[
+                        Typography.bodySmall,
+                        { color: theme.colors.textSecondary, marginLeft: 8 },
+                      ]}
+                    >
+                      {t('health.recentAverage', { defaultValue: 'Trung bình 7 lần gần đây' })}:{' '}
+                      <Text style={{ color: theme.colors.primary, fontWeight: '600' }}>
+                        {statistics.recentAverage.toFixed(type === 'BLOOD_PRESSURE' ? 0 : 1)} {metrics[0]?.unit || ''}
+                      </Text>
+                    </Text>
+                  </View>
+                )}
+              </View>
+            )}
 
             <View style={styles.metricsList}>
               <Text style={[Typography.h4, { color: theme.colors.text, marginBottom: 16 }]}>
@@ -337,6 +478,37 @@ const styles = StyleSheet.create({
   },
   addButton: {
     marginTop: 16,
+  },
+  statisticsCard: {
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+  },
+  statisticsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  statisticsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+  },
+  statItem: {
+    width: '48%',
+    marginBottom: 12,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderRadius: 8,
+  },
+  recentAverageContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 12,
+    padding: 12,
+    backgroundColor: 'rgba(0, 0, 0, 0.02)',
+    borderRadius: 8,
   },
 });
 

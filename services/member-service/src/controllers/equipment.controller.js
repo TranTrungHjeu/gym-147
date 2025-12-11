@@ -3,18 +3,140 @@ const { prisma } = require('../lib/prisma');
 const s3UploadService = require('../services/s3-upload.service');
 const challengeService = require('../services/challenge.service.js');
 const notificationService = require('../services/notification.service');
+const { notifyNextInQueue } = require('./queue.controller');
 let distributedLock = null;
 try {
-  distributedLock = require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
+  distributedLock =
+    require('../../../packages/shared-utils/dist/redis-lock.utils.js').distributedLock;
 } catch (e) {
   try {
-    distributedLock = require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
+    distributedLock =
+      require('../../../packages/shared-utils/src/redis-lock.utils.ts').distributedLock;
   } catch (e2) {
-    console.warn('[WARNING] Distributed lock utility not available, equipment usage will use database transactions only');
+    console.warn(
+      '[WARNING] Distributed lock utility not available, equipment usage will use database transactions only'
+    );
   }
 }
 
 class EquipmentController {
+  // ==================== HELPER FUNCTIONS ====================
+
+  /**
+   * Calculate calories with activity validation (multi-layer fallback)
+   * @param {Object} params
+   * @param {number} params.durationInSeconds - Duration in seconds
+   * @param {string} params.equipmentCategory - Equipment category
+   * @param {number} params.heart_rate_avg - Average heart rate (optional)
+   * @param {number} params.heart_rate_max - Max heart rate (optional)
+   * @param {Object} params.sensor_data - Sensor data with movement info (optional)
+   * @param {number} params.reps_completed - Reps completed (optional)
+   * @param {number} params.sets_completed - Sets completed (optional)
+   * @param {Date} params.last_activity_check - Last activity check timestamp (optional)
+   * @returns {number} Calculated calories
+   */
+  calculateCaloriesWithActivity({
+    durationInSeconds,
+    equipmentCategory,
+    heart_rate_avg,
+    heart_rate_max,
+    sensor_data,
+    reps_completed,
+    sets_completed,
+    last_activity_check,
+  }) {
+    const MINIMUM_ACTIVITY_MINUTES = 5;
+    const durationInMinutes = Math.floor(durationInSeconds / 60);
+
+    // Base calculation
+    const calorieRates = {
+      CARDIO: 12,
+      STRENGTH: 6,
+      FREE_WEIGHTS: 7,
+      FUNCTIONAL: 8,
+      STRETCHING: 3,
+      RECOVERY: 2,
+      SPECIALIZED: 5,
+    };
+
+    const caloriesPerMinute = calorieRates[equipmentCategory] || 6;
+    const caloriesPerSecond = caloriesPerMinute / 60;
+    const baseCalories = durationInSeconds * caloriesPerSecond;
+
+    // 1. Minimum activity threshold
+    if (durationInMinutes < MINIMUM_ACTIVITY_MINUTES) {
+      return Math.round(baseCalories * 0.1); // 10% to encourage
+    }
+
+    // 2. Activity score - MULTI-LAYER VALIDATION
+    let activityScore = 1.0;
+    let hasActivityData = false;
+
+    // Layer 1: Heart Rate (if available) - Highest accuracy
+    if (heart_rate_avg) {
+      hasActivityData = true;
+      if (heart_rate_avg < 80) {
+        activityScore *= 0.5; // Resting - reduce 50%
+      } else if (heart_rate_avg >= 100) {
+        activityScore *= 1.2; // Active - increase 20%
+      }
+    }
+
+    // Layer 2: Movement/Sensor Data (if available) - Medium accuracy
+    if (sensor_data) {
+      hasActivityData = true;
+      const movement = sensor_data.movement || sensor_data.movementIntensity || 0;
+
+      if (movement < 0.1) {
+        // Very little movement
+        activityScore *= 0.3; // Reduce 70%
+      } else if (movement > 0.5) {
+        // Good movement
+        activityScore *= 1.1; // Increase 10%
+      }
+    }
+
+    // Layer 3: Activity Data (reps, sets) - If user entered
+    if (reps_completed || sets_completed) {
+      hasActivityData = true;
+      // Has reps/sets → Actually working out
+      // No need to reduce score
+    }
+
+    // Layer 4: Periodic Check-in - If has last_activity_check
+    if (last_activity_check) {
+      const minutesSinceCheckIn = Math.floor(
+        (Date.now() - new Date(last_activity_check).getTime()) / (1000 * 60)
+      );
+
+      if (minutesSinceCheckIn > 5) {
+        // No check-in for 5 minutes → Might be resting
+        // Reduce calories for inactive period
+        const activeMinutes = Math.max(0, durationInMinutes - (minutesSinceCheckIn - 5));
+        const activeCalories = activeMinutes * caloriesPerMinute;
+        return Math.max(1, Math.round(activeCalories * activityScore));
+      }
+    }
+
+    // If no activity data at all
+    if (!hasActivityData) {
+      // Fallback: Based on duration and periodic check-in
+      if (last_activity_check) {
+        // Has periodic updates → User is active (at least app is open)
+        // Calculate 70% calories (assume user might be working out but no sensor data)
+        activityScore = 0.7;
+      } else {
+        // No periodic updates → Might be resting
+        // Calculate 50% calories
+        activityScore = 0.5;
+      }
+    }
+
+    // Final calculation
+    const adjustedCalories = baseCalories * activityScore;
+    return Math.max(1, Math.round(adjustedCalories));
+  }
+
   // ==================== EQUIPMENT MANAGEMENT ====================
 
   // Get all equipment
@@ -28,7 +150,7 @@ class EquipmentController {
       if (status) where.status = status;
       if (location) where.location = { contains: location, mode: 'insensitive' };
 
-      const [equipment, total] = await Promise.all([
+      const [equipmentList, total] = await Promise.all([
         prisma.equipment.findMany({
           where,
           skip: parseInt(skip),
@@ -60,6 +182,36 @@ class EquipmentController {
         }),
         prisma.equipment.count({ where }),
       ]);
+
+      // Calculate accurate queue count (only WAITING and NOTIFIED status)
+      // Use a single query to get all queue counts at once to avoid N+1
+      const equipmentIds = equipmentList.map((eq) => eq.id);
+      const queueCounts = await prisma.equipmentQueue.groupBy({
+        by: ['equipment_id'],
+        where: {
+          equipment_id: { in: equipmentIds },
+          status: {
+            in: ['WAITING', 'NOTIFIED'],
+          },
+        },
+        _count: {
+          id: true,
+        },
+      });
+
+      // Create a map for quick lookup
+      const queueCountMap = new Map(
+        queueCounts.map((qc) => [qc.equipment_id, qc._count.id])
+      );
+
+      // Update equipment with accurate queue counts
+      const equipment = equipmentList.map((eq) => ({
+        ...eq,
+        _count: {
+          ...eq._count,
+          queue: queueCountMap.get(eq.id) || 0,
+        },
+      }));
 
       res.json({
         success: true,
@@ -232,7 +384,11 @@ class EquipmentController {
       });
 
       // If status changed, create notification for admin
-      if (validUpdateData.status && oldEquipment && oldEquipment.status !== validUpdateData.status) {
+      if (
+        validUpdateData.status &&
+        oldEquipment &&
+        oldEquipment.status !== validUpdateData.status
+      ) {
         await notificationService.createEquipmentNotificationForAdmin({
           equipmentId: id,
           equipmentName: equipment.name || oldEquipment.name,
@@ -353,43 +509,64 @@ class EquipmentController {
       // memberId must be Member.id (not user_id)
       // Schema: EquipmentUsage.member_id references Member.id
 
-      // Check if equipment is available
-      const equipment = await prisma.equipment.findUnique({
-        where: { id: equipment_id },
+      // TC-EQUIP-001: Use transaction to prevent race condition in equipment status check
+      // TC-EQUIP-002: Check equipment status (including maintenance)
+      // TC-EQUIP-004: Check member subscription status
+      const result = await prisma.$transaction(async tx => {
+        // Check member exists and has active subscription
+        const member = await tx.member.findUnique({
+          where: { id: memberId },
+          select: {
+            id: true,
+            membership_status: true,
+            access_enabled: true,
+          },
+        });
+
+        if (!member) {
+          throw new Error('MEMBER_NOT_FOUND');
+        }
+
+        if (!member.access_enabled) {
+          throw new Error('ACCESS_DISABLED');
+        }
+
+        // TC-EQUIP-004: Check subscription status
+        if (member.membership_status !== 'ACTIVE') {
+          throw new Error('SUBSCRIPTION_EXPIRED');
+        }
+
+        // Check if equipment is available (with lock to prevent race condition)
+        const equipment = await tx.equipment.findUnique({
+          where: { id: equipment_id },
+        });
+
+        if (!equipment) {
+          throw new Error('EQUIPMENT_NOT_FOUND');
+        }
+
+        // TC-EQUIP-002: Check equipment status (including maintenance)
+        if (equipment.status !== 'AVAILABLE') {
+          throw new Error('EQUIPMENT_NOT_AVAILABLE');
+        }
+
+        // Check if member has active usage of this equipment
+        const activeUsage = await tx.equipmentUsage.findFirst({
+          where: {
+            member_id: memberId,
+            equipment_id,
+            end_time: null,
+          },
+        });
+
+        if (activeUsage) {
+          throw new Error('ALREADY_USING');
+        }
+
+        return { member, equipment };
       });
 
-      if (!equipment) {
-        return res.status(404).json({
-          success: false,
-          message: 'Equipment not found',
-          data: null,
-        });
-      }
-
-      if (equipment.status !== 'AVAILABLE') {
-        return res.status(400).json({
-          success: false,
-          message: 'Equipment is not available',
-          data: null,
-        });
-      }
-
-      // Check if member has active usage of this equipment
-      const activeUsage = await prisma.equipmentUsage.findFirst({
-        where: {
-          member_id: memberId,
-          equipment_id,
-          end_time: null,
-        },
-      });
-
-      if (activeUsage) {
-        return res.status(400).json({
-          success: false,
-          message: 'Member is already using this equipment',
-          data: null,
-        });
-      }
+      const { member, equipment } = result;
 
       // Find active gym session to link equipment usage
       const activeGymSession = await prisma.gymSession.findFirst({
@@ -442,7 +619,10 @@ class EquipmentController {
         reps_completed: usageData.reps_completed,
       });
 
-        const usage = await prisma.equipmentUsage.create({
+      // TC-EQUIP-001: Create usage and update equipment status atomically
+      const usage = await prisma.$transaction(async tx => {
+        // Create usage record
+        const newUsage = await tx.equipmentUsage.create({
           data: usageData,
           include: {
             equipment: {
@@ -456,20 +636,25 @@ class EquipmentController {
           },
         });
 
-        console.log('[SUCCESS] Equipment usage created:', {
-          usageId: usage.id,
-          session_id: usage.session_id,
-          member_id: usage.member_id,
-          equipment: usage.equipment.name,
-          start_time: usage.start_time,
-          VERIFIED: usage.session_id === sessionToLink?.id,
-        });
-
-        // Update equipment status to IN_USE
-        await prisma.equipment.update({
+        // Update equipment status to IN_USE atomically
+        await tx.equipment.update({
           where: { id: equipment_id },
           data: { status: 'IN_USE' },
         });
+
+        return newUsage;
+      });
+
+      console.log('[SUCCESS] Equipment usage created:', {
+        usageId: usage.id,
+        session_id: usage.session_id,
+        member_id: usage.member_id,
+        equipment: usage.equipment.name,
+        start_time: usage.start_time,
+        VERIFIED: usage.session_id === sessionToLink?.id,
+      });
+
+      // Equipment status already updated to IN_USE in transaction above
 
       // Remove user from queue if they were in queue (they claimed the equipment)
       const queueEntry = await prisma.equipmentQueue.findFirst({
@@ -482,13 +667,15 @@ class EquipmentController {
 
       if (queueEntry) {
         const removedPosition = queueEntry.position;
-        
+
         // Delete queue entry
         await prisma.equipmentQueue.delete({
           where: { id: queueEntry.id },
         });
 
-        console.log(`[SUCCESS] Removed queue entry for member ${memberId} (position ${removedPosition})`);
+        console.log(
+          `[SUCCESS] Removed queue entry for member ${memberId} (position ${removedPosition})`
+        );
 
         // Reorder remaining queue entries
         await prisma.equipmentQueue.updateMany({
@@ -530,11 +717,9 @@ class EquipmentController {
       }
 
       // [SUCCESS] Fix: Auto-update EQUIPMENT challenges when starting equipment usage (async, don't wait)
-      challengeService
-        .autoUpdateEquipmentChallenges(memberId, 1, 0)
-        .catch((err) => {
-          console.error('Auto-update equipment challenges error:', err);
-        });
+      challengeService.autoUpdateEquipmentChallenges(memberId, 1, 0).catch(err => {
+        console.error('Auto-update equipment challenges error:', err);
+      });
 
       res.status(201).json({
         success: true,
@@ -543,6 +728,171 @@ class EquipmentController {
       });
     } catch (error) {
       console.error('Start equipment usage error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  // Update activity data during equipment usage (periodic updates)
+  async updateActivityData(req, res) {
+    try {
+      const { id: memberId } = req.params;
+      const { usage_id, heart_rate_avg, heart_rate_max, sensor_data } = req.body;
+
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      if (!usage_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Usage ID is required',
+          data: null,
+        });
+      }
+
+      // Verify authentication
+      const authHeader = req.headers.authorization;
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Missing token',
+          data: null,
+        });
+      }
+
+      let userId = null;
+      try {
+        const token = authHeader.split(' ')[1];
+        const tokenParts = token.split('.');
+        if (tokenParts.length === 3) {
+          let payloadBase64 = tokenParts[1];
+          while (payloadBase64.length % 4) {
+            payloadBase64 += '=';
+          }
+          const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+          userId = payload.userId || payload.id;
+        }
+      } catch (error) {
+        console.error('Token decode error:', error);
+        return res.status(401).json({
+          success: false,
+          message: 'Unauthorized: Invalid token',
+          data: null,
+        });
+      }
+
+      // Verify member exists and matches user
+      const member = await prisma.member.findUnique({
+        where: { id: memberId },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      if (member.user_id !== userId) {
+        return res.status(403).json({
+          success: false,
+          message: 'Forbidden: You can only update your own activity data',
+          data: null,
+        });
+      }
+
+      // Find active usage
+      const activeUsage = await prisma.equipmentUsage.findFirst({
+        where: {
+          id: usage_id,
+          member_id: memberId,
+          end_time: null, // Must be active
+        },
+        include: {
+          equipment: true,
+        },
+      });
+
+      if (!activeUsage) {
+        return res.status(404).json({
+          success: false,
+          message: 'Active equipment usage not found',
+          data: null,
+        });
+      }
+
+      // Prepare update data
+      const updateData = {
+        last_activity_check: new Date(),
+      };
+
+      // Update heart rate if provided
+      if (heart_rate_avg !== undefined && heart_rate_avg !== null) {
+        // If we already have heart_rate_avg, calculate running average
+        if (activeUsage.heart_rate_avg) {
+          // Simple running average (can be improved with weighted average)
+          updateData.heart_rate_avg = Math.round((activeUsage.heart_rate_avg + heart_rate_avg) / 2);
+        } else {
+          updateData.heart_rate_avg = Math.round(heart_rate_avg);
+        }
+      }
+
+      if (heart_rate_max !== undefined && heart_rate_max !== null) {
+        // Keep the maximum value
+        if (activeUsage.heart_rate_max) {
+          updateData.heart_rate_max = Math.max(
+            activeUsage.heart_rate_max,
+            Math.round(heart_rate_max)
+          );
+        } else {
+          updateData.heart_rate_max = Math.round(heart_rate_max);
+        }
+      }
+
+      // Update sensor data if provided
+      if (sensor_data) {
+        // Merge with existing sensor_data
+        const existingSensorData = activeUsage.sensor_data || {};
+        updateData.sensor_data = {
+          ...existingSensorData,
+          ...sensor_data,
+          last_updated: new Date().toISOString(),
+        };
+      }
+
+      // Update the usage record
+      const updatedUsage = await prisma.equipmentUsage.update({
+        where: { id: usage_id },
+        data: updateData,
+        include: {
+          equipment: {
+            select: {
+              id: true,
+              name: true,
+              category: true,
+            },
+          },
+        },
+      });
+
+      res.json({
+        success: true,
+        message: 'Activity data updated successfully',
+        data: {
+          usage: updatedUsage,
+        },
+      });
+    } catch (error) {
+      console.error('Update activity data error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',
@@ -698,203 +1048,215 @@ class EquipmentController {
       try {
         const endTime = new Date();
 
-      // Calculate duration in seconds for accurate calorie calculation
-      const durationInSeconds = Math.floor((endTime - activeUsage.start_time) / 1000);
-      const durationInMinutes = Math.floor(durationInSeconds / 60); // For storage
+        // Calculate duration in seconds for accurate calorie calculation
+        const durationInSeconds = Math.floor((endTime - activeUsage.start_time) / 1000);
+        const durationInMinutes = Math.floor(durationInSeconds / 60); // For storage
 
-      // Calculate calories burned based on equipment category
-      // Rates based on MET (Metabolic Equivalent of Task) values (kcal per minute)
-      const calorieRates = {
-        CARDIO: 12, // High intensity: Treadmill, Bike, Rowing
-        STRENGTH: 6, // Moderate: Weights, Machines
-        FREE_WEIGHTS: 7, // Slightly higher: Dumbbells, Barbells
-        FUNCTIONAL: 8, // Dynamic movements: TRX, Kettlebells
-        STRETCHING: 3, // Low intensity: Yoga, Stretching
-        RECOVERY: 2, // Very low: Foam rolling, Massage
-        SPECIALIZED: 5, // Variable: Special equipment
-      };
-
-      const caloriesPerMinute = calorieRates[activeUsage.equipment.category] || 6; // Default 6 kcal/min
-
-      // Calculate calories per second for accurate measurement
-      const caloriesPerSecond = caloriesPerMinute / 60;
-      const exactCalories = durationInSeconds * caloriesPerSecond;
-      // Ensure at least 1 calorie if duration > 0, to avoid discouraging short workouts
-      const calories_burned = durationInSeconds > 0 ? Math.max(1, Math.round(exactCalories)) : 0;
-
-      console.log('[TIMER] Duration & Calories calculation:', {
-        equipmentCategory: activeUsage.equipment.category,
-        durationInSeconds,
-        durationInMinutes,
-        caloriesPerMinute,
-        caloriesPerSecond: caloriesPerSecond.toFixed(4),
-        exactCalories: exactCalories.toFixed(2),
-        calories_burned_rounded: Math.round(exactCalories),
-        calories_burned_final: calories_burned,
-      });
-
-      // Update usage record
-      console.log('💾 About to save to database:', {
-        usage_id,
-        duration_minutes: durationInMinutes,
-        calories_burned,
-        session_id: activeUsage.session_id,
-      });
-
-      const usage = await prisma.equipmentUsage.update({
-        where: { id: usage_id },
-        data: {
-          end_time: endTime,
-          duration: durationInMinutes,
-          calories_burned,
-          sets_completed,
-          weight_used,
+        // Calculate calories with activity validation (multi-layer fallback)
+        const calories_burned = this.calculateCaloriesWithActivity({
+          durationInSeconds,
+          equipmentCategory: activeUsage.equipment.category,
+          heart_rate_avg: heart_rate_avg || activeUsage.heart_rate_avg,
+          heart_rate_max: heart_rate_max || activeUsage.heart_rate_max,
+          sensor_data: sensor_data || activeUsage.sensor_data,
           reps_completed,
-          heart_rate_avg,
-          heart_rate_max,
-          sensor_data,
-        },
-        include: {
-          equipment: {
-            select: {
-              id: true,
-              name: true,
-              category: true,
-              location: true,
-            },
-          },
-        },
-      });
-
-      console.log('[SUCCESS] Saved to database:', {
-        usage_id: usage.id,
-        duration_stored: usage.duration,
-        calories_stored: usage.calories_burned,
-        session_id: usage.session_id,
-        VERIFIED: usage.calories_burned === calories_burned,
-      });
-
-      // Update equipment status back to AVAILABLE
-      // Calculate usage hours accurately (use seconds for precision)
-      const usageHoursToAdd = durationInSeconds / 3600; // Convert seconds to hours (decimal)
-
-      await prisma.equipment.update({
-        where: { id: activeUsage.equipment_id },
-        data: {
-          status: 'AVAILABLE',
-          usage_hours: { increment: usageHoursToAdd },
-        },
-      });
-
-      // [SUCCESS] Fix: Auto-update FITNESS challenges (calories) - async, don't wait
-      if (calories_burned > 0) {
-        challengeService
-          .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
-          .catch((err) => {
-            console.error('Auto-update fitness challenges error:', err);
-          });
-      }
-
-      // [SUCCESS] Fix: Auto-update EQUIPMENT challenges (count) - async, don't wait
-      challengeService
-        .autoUpdateEquipmentChallenges(memberId, 1, durationInMinutes)
-        .catch((err) => {
-          console.error('Auto-update equipment challenges error:', err);
+          sets_completed,
+          last_activity_check: activeUsage.last_activity_check,
         });
 
-      // Check queue and notify next person
-      const nextInQueue = await prisma.equipmentQueue.findFirst({
-        where: {
-          equipment_id: activeUsage.equipment_id,
-          status: 'WAITING',
-        },
-        orderBy: {
-          position: 'asc',
-        },
-        include: {
-          member: {
-            select: {
-              id: true,
-              user_id: true,
-              full_name: true,
-            },
-          },
-        },
-      });
+        console.log('[TIMER] Duration & Calories calculation (with activity validation):', {
+          equipmentCategory: activeUsage.equipment.category,
+          durationInSeconds,
+          durationInMinutes,
+          calories_burned,
+          has_heart_rate: !!(heart_rate_avg || activeUsage.heart_rate_avg),
+          has_sensor_data: !!(sensor_data || activeUsage.sensor_data),
+          has_activity_check: !!activeUsage.last_activity_check,
+        });
 
-      if (nextInQueue) {
-        const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes to claim
+        // Update usage record
+        console.log('💾 About to save to database:', {
+          usage_id,
+          duration_minutes: durationInMinutes,
+          calories_burned,
+          session_id: activeUsage.session_id,
+        });
 
-        // Update queue status to NOTIFIED
-        await prisma.equipmentQueue.update({
-          where: { id: nextInQueue.id },
+        const usage = await prisma.equipmentUsage.update({
+          where: { id: usage_id },
           data: {
-            status: 'NOTIFIED',
-            notified_at: new Date(),
-            expires_at: expiresAt,
+            end_time: endTime,
+            duration: durationInMinutes,
+            calories_burned,
+            sets_completed,
+            weight_used,
+            reps_completed,
+            heart_rate_avg,
+            heart_rate_max,
+            sensor_data,
+          },
+          include: {
+            equipment: {
+              select: {
+                id: true,
+                name: true,
+                category: true,
+                location: true,
+              },
+            },
           },
         });
 
-        console.log(
-          `[BELL] Notifying ${nextInQueue.member.full_name} - ${activeUsage.equipment.name} is available`
-        );
+        console.log('[SUCCESS] Saved to database:', {
+          usage_id: usage.id,
+          duration_stored: usage.duration,
+          calories_stored: usage.calories_burned,
+          session_id: usage.session_id,
+          VERIFIED: usage.calories_burned === calories_burned,
+        });
 
-        // Emit WebSocket event to notify user (for online users)
-        if (global.io) {
-          global.io.to(`equipment:${activeUsage.equipment_id}`).emit('equipment:available', {
-            equipment_id: activeUsage.equipment_id,
-            next_member_id: nextInQueue.member_id,
-          });
+        // Update equipment status back to AVAILABLE
+        // Calculate usage hours accurately (use seconds for precision)
+        const usageHoursToAdd = durationInSeconds / 3600; // Convert seconds to hours (decimal)
 
-          // Emit to specific user room if exists
-          global.io.to(`user:${nextInQueue.member.user_id}`).emit('queue:your_turn', {
-            equipment_id: activeUsage.equipment_id,
-            equipment_name: activeUsage.equipment.name,
-            queue_id: nextInQueue.id,
-            position: nextInQueue.position,
-            expires_at: expiresAt,
-            expires_in_minutes: 5,
+        await prisma.equipment.update({
+          where: { id: activeUsage.equipment_id },
+          data: {
+            status: 'AVAILABLE',
+            usage_hours: { increment: usageHoursToAdd },
+          },
+        });
+
+        // [SUCCESS] Fix: Auto-update FITNESS challenges (calories) - async, don't wait
+        if (calories_burned > 0) {
+          challengeService.autoUpdateFitnessChallenges(memberId, calories_burned, 0).catch(err => {
+            console.error('Auto-update fitness challenges error:', err);
           });
         }
 
-        // Send Push Notification (for offline users)
-        if (nextInQueue.member.user_id) {
+        // [SUCCESS] Fix: Auto-update EQUIPMENT challenges (count) - async, don't wait
+        challengeService
+          .autoUpdateEquipmentChallenges(memberId, 1, durationInMinutes)
+          .catch(err => {
+            console.error('Auto-update equipment challenges error:', err);
+          });
+
+        // Check queue and notify next person
+        const nextInQueue = await prisma.equipmentQueue.findFirst({
+          where: {
+            equipment_id: activeUsage.equipment_id,
+            status: 'WAITING',
+          },
+          orderBy: {
+            position: 'asc',
+          },
+          include: {
+            member: {
+              select: {
+                id: true,
+                user_id: true,
+                full_name: true,
+              },
+            },
+          },
+        });
+
+        if (nextInQueue) {
+          const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 minutes to claim
+
+          // Update queue status to NOTIFIED
+          await prisma.equipmentQueue.update({
+            where: { id: nextInQueue.id },
+            data: {
+              status: 'NOTIFIED',
+              notified_at: new Date(),
+              expires_at: expiresAt,
+            },
+          });
+
+          console.log(
+            `[BELL] Notifying ${nextInQueue.member.full_name} - ${activeUsage.equipment.name} is available`
+          );
+
+          // Create in-app notification in database
           try {
-            const { sendPushNotification } = require('../utils/push-notification');
-            await sendPushNotification(
-              nextInQueue.member.user_id,
-              "[CELEBRATE] It's Your Turn!",
-              `${activeUsage.equipment.name} is now available. You have 5 minutes to claim it.`,
-              {
-                type: 'QUEUE_YOUR_TURN',
+            await notificationService.createQueueNotification({
+              memberId: nextInQueue.member.id,
+              type: 'QUEUE_YOUR_TURN',
+              title: "[CELEBRATE] Đến lượt bạn!",
+              message: `${activeUsage.equipment.name} đã có sẵn. Bạn có 5 phút để sử dụng.`,
+              data: {
                 equipment_id: activeUsage.equipment_id,
                 equipment_name: activeUsage.equipment.name,
                 queue_id: nextInQueue.id,
+                position: nextInQueue.position,
                 expires_at: expiresAt.toISOString(),
-              }
-            );
-          } catch (pushError) {
-            console.warn('[WARNING] Push notification utility not available:', pushError.message);
-            // Continue without push notification
+                expires_in_minutes: 5,
+              },
+            });
+            console.log(`[SUCCESS] Created database notification for member ${nextInQueue.member.id}`);
+          } catch (notifError) {
+            console.error('[ERROR] Failed to create queue notification in database:', notifError);
+            // Continue even if notification creation fails
+          }
+
+          // Emit WebSocket event to notify user (for online users)
+          if (global.io) {
+            global.io.to(`equipment:${activeUsage.equipment_id}`).emit('equipment:available', {
+              equipment_id: activeUsage.equipment_id,
+              next_member_id: nextInQueue.member_id,
+            });
+
+            // Emit to specific user room if exists
+            global.io.to(`user:${nextInQueue.member.user_id}`).emit('queue:your_turn', {
+              equipment_id: activeUsage.equipment_id,
+              equipment_name: activeUsage.equipment.name,
+              queue_id: nextInQueue.id,
+              position: nextInQueue.position,
+              expires_at: expiresAt,
+              expires_in_minutes: 5,
+            });
+            console.log(`[SOCKET] Emitted queue:your_turn to user:${nextInQueue.member.user_id}`);
+          }
+
+          // Send Push Notification (for offline users)
+          if (nextInQueue.member.user_id) {
+            try {
+              const { sendPushNotification } = require('../utils/push-notification');
+              await sendPushNotification(
+                nextInQueue.member.user_id,
+                "[CELEBRATE] It's Your Turn!",
+                `${activeUsage.equipment.name} is now available. You have 5 minutes to claim it.`,
+                {
+                  type: 'QUEUE_YOUR_TURN',
+                  equipment_id: activeUsage.equipment_id,
+                  equipment_name: activeUsage.equipment.name,
+                  queue_id: nextInQueue.id,
+                  expires_at: expiresAt.toISOString(),
+                }
+              );
+            } catch (pushError) {
+              console.warn('[WARNING] Push notification utility not available:', pushError.message);
+              // Continue without push notification
+            }
           }
         }
-      }
 
-      // Create notification for admin when equipment becomes available
-      await notificationService.createEquipmentNotificationForAdmin({
-        equipmentId: activeUsage.equipment_id,
-        equipmentName: activeUsage.equipment.name,
-        status: 'AVAILABLE',
-        action: 'available',
-      });
-
-      // Emit WebSocket event for equipment status change
-      if (global.io) {
-        global.io.to(`equipment:${activeUsage.equipment_id}`).emit('equipment:statusChanged', {
-          equipment_id: activeUsage.equipment_id,
+        // Create notification for admin when equipment becomes available
+        await notificationService.createEquipmentNotificationForAdmin({
+          equipmentId: activeUsage.equipment_id,
+          equipmentName: activeUsage.equipment.name,
           status: 'AVAILABLE',
+          action: 'available',
         });
-      }
+
+        // Emit WebSocket event for equipment status change
+        if (global.io) {
+          global.io.to(`equipment:${activeUsage.equipment_id}`).emit('equipment:statusChanged', {
+            equipment_id: activeUsage.equipment_id,
+            status: 'AVAILABLE',
+          });
+        }
 
         res.json({
           success: true,
@@ -938,7 +1300,7 @@ class EquipmentController {
           success: false,
           message: 'Member ID and Equipment ID are required',
           data: null,
-      });
+        });
       }
 
       // memberId must be Member.id (not user_id)
@@ -994,6 +1356,54 @@ class EquipmentController {
   async autoStopExpiredSessions(req, res) {
     try {
       const now = new Date();
+
+      // IMPROVEMENT: Send warning notifications 10 minutes before auto-stop
+      const tenMinutesFromNow = new Date(now.getTime() + 10 * 60 * 1000);
+      const elevenMinutesFromNow = new Date(now.getTime() + 11 * 60 * 1000);
+
+      const sessionsForWarning = await prisma.equipmentUsage.findMany({
+        where: {
+          end_time: null,
+          auto_end_at: {
+            gte: tenMinutesFromNow,
+            lte: elevenMinutesFromNow,
+          },
+        },
+        include: {
+          equipment: true,
+          member: {
+            select: {
+              id: true,
+              user_id: true,
+              full_name: true,
+            },
+          },
+        },
+      });
+
+      // Send warning notifications
+      for (const session of sessionsForWarning) {
+        try {
+          if (session.member?.user_id) {
+            await notificationService.sendNotification({
+              user_id: session.member.user_id,
+              type: 'EQUIPMENT_WARNING',
+              title: 'Cảnh báo: Thiết bị sẽ tự động dừng',
+              message: `Thiết bị ${session.equipment.name} sẽ tự động dừng sau 10 phút. Vui lòng kết thúc sử dụng hoặc gia hạn thêm thời gian!`,
+              data: {
+                equipment_id: session.equipment_id,
+                equipment_name: session.equipment.name,
+                usage_id: session.id,
+                auto_end_at: session.auto_end_at,
+                warning_type: 'AUTO_STOP_10MIN',
+              },
+              channels: ['IN_APP', 'PUSH'],
+            });
+          }
+        } catch (error) {
+          console.error(`[ERROR] Failed to send warning for session ${session.id}:`, error);
+        }
+      }
 
       // Find all active sessions that have passed auto_end_at time
       const expiredSessions = await prisma.equipmentUsage.findMany({
@@ -1098,47 +1508,19 @@ class EquipmentController {
           },
         });
 
-        // Notify next in queue (if any)
-        const nextInQueue = await prisma.equipmentQueue.findFirst({
-          where: {
-            equipment_id: session.equipment_id,
-            status: 'WAITING',
-          },
-          orderBy: { position: 'asc' },
-          include: {
-            member: {
-              select: {
-                id: true,
-                user_id: true,
-                full_name: true,
-              },
-            },
-          },
-        });
-
-        if (nextInQueue && nextInQueue.member) {
-          await prisma.equipmentQueue.update({
-            where: { id: nextInQueue.id },
-            data: {
-              status: 'NOTIFIED',
-              notified_at: new Date(),
-              expires_at: new Date(Date.now() + 5 * 60 * 1000),
-            },
-          });
-
-          // Emit WebSocket events
-          // Socket rooms use user_id (from Identity Service), not member_id
-          if (global.io && nextInQueue.member.user_id) {
-            global.io.to(`equipment:${session.equipment_id}`).emit('equipment:available', {
-              equipment_id: session.equipment_id,
-              auto_stopped: true,
-            });
-
-            global.io.to(`user:${nextInQueue.member.user_id}`).emit('queue:yourTurn', {
-              equipment_id: session.equipment_id,
-              equipment_name: session.equipment.name,
-            });
-          }
+        // TC-EQUIP-AUTO-STOP-001: Notify next person in queue when equipment becomes available
+        // Use the centralized notifyNextInQueue function for consistency
+        try {
+          await notifyNextInQueue(session.equipment_id, session.equipment.name);
+          console.log(
+            `[AUTO-STOP] Notified next person in queue for equipment ${session.equipment.name}`
+          );
+        } catch (notifyError) {
+          console.error(
+            `[AUTO-STOP] Error notifying next in queue for equipment ${session.equipment_id}:`,
+            notifyError.message
+          );
+          // Don't fail the whole operation if notification fails
         }
 
         stoppedSessions.push({
@@ -1268,7 +1650,7 @@ class EquipmentController {
   async getEquipmentUsageStatsByStatus(req, res) {
     try {
       console.log('[STATS] Getting equipment usage stats by status...');
-      
+
       // Get all equipment grouped by status
       const equipmentStats = await prisma.equipment.groupBy({
         by: ['status'],
@@ -1393,7 +1775,7 @@ class EquipmentController {
           success: false,
           message: 'Member ID is required',
           data: null,
-      });
+        });
       }
 
       // member_id must be Member.id (not user_id)
@@ -1561,7 +1943,7 @@ class EquipmentController {
           success: false,
           message: 'Member ID is required',
           data: null,
-      });
+        });
       }
 
       // member_id must be Member.id (not user_id)
@@ -1582,6 +1964,26 @@ class EquipmentController {
         },
       });
 
+      // Create notification for admin for ALL issue reports (regardless of severity)
+      try {
+        await notificationService.createEquipmentIssueNotificationForAdmin({
+          equipmentId: id,
+          equipmentName: report.equipment.name,
+          memberId: member_id,
+          memberName: report.member.full_name,
+          issueType,
+          severity,
+          description,
+          reportId: report.id,
+        });
+      } catch (notificationError) {
+        console.error(
+          '[ERROR] Failed to create equipment issue notification for admin:',
+          notificationError
+        );
+        // Don't fail the report creation if notification fails
+      }
+
       // If CRITICAL or HIGH, update equipment status
       if (severity === 'CRITICAL' || severity === 'HIGH') {
         await prisma.equipment.update({
@@ -1589,7 +1991,7 @@ class EquipmentController {
           data: { status: 'OUT_OF_ORDER' },
         });
 
-        // Create notification for admin when equipment status changes to OUT_OF_ORDER
+        // Create additional notification for admin when equipment status changes to OUT_OF_ORDER
         const equipment = await prisma.equipment.findUnique({
           where: { id },
           select: { id: true, name: true },
@@ -1612,7 +2014,7 @@ class EquipmentController {
         }
       }
 
-      // Emit WebSocket event
+      // Emit WebSocket event (keep existing socket event for backward compatibility)
       if (global.io) {
         global.io.emit('equipment:issue:reported', {
           equipment_id: id,
@@ -1788,6 +2190,79 @@ class EquipmentController {
     }
   }
 
+  // Generate QR code for equipment
+  async generateQRCode(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Get equipment
+      const equipment = await prisma.equipment.findUnique({
+        where: { id },
+        select: {
+          id: true,
+          name: true,
+          sensor_id: true,
+        },
+      });
+
+      if (!equipment) {
+        return res.status(404).json({
+          success: false,
+          message: 'Equipment not found',
+          data: null,
+        });
+      }
+
+      // Check if equipment has sensor_id
+      if (!equipment.sensor_id) {
+        return res.status(400).json({
+          success: false,
+          message: 'Equipment does not have a sensor ID. Please add a sensor ID first.',
+          data: null,
+        });
+      }
+
+      const qrcode = require('qrcode');
+
+      // Generate QR code as data URL (PNG base64)
+      // QR code will contain the sensor_id which mobile app will scan
+      const qrCodeDataURL = await qrcode.toDataURL(equipment.sensor_id, {
+        width: 300,
+        margin: 2,
+        color: {
+          dark: '#000000',
+          light: '#FFFFFF',
+        },
+      });
+
+      // Also generate as SVG string
+      const qrCodeSVG = await qrcode.toString(equipment.sensor_id, {
+        type: 'svg',
+        width: 300,
+        margin: 2,
+      });
+
+      res.json({
+        success: true,
+        message: 'QR code generated successfully',
+        data: {
+          equipment_id: equipment.id,
+          equipment_name: equipment.name,
+          sensor_id: equipment.sensor_id,
+          qr_code_data_url: qrCodeDataURL,
+          qr_code_svg: qrCodeSVG,
+        },
+      });
+    } catch (error) {
+      console.error('Generate QR code error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to generate QR code',
+        data: null,
+      });
+    }
+  }
+
   // Upload equipment photo
   async uploadEquipmentPhoto(req, res) {
     try {
@@ -1837,10 +2312,16 @@ class EquipmentController {
       }
 
       // Upload to S3 with folder 'equipment'
-      const uploadResult = await s3UploadService.uploadFile(fileBuffer, originalName, mimeType, userId, {
-        folder: 'equipment',
-        optimize: true, // Optimize equipment photos
-      });
+      const uploadResult = await s3UploadService.uploadFile(
+        fileBuffer,
+        originalName,
+        mimeType,
+        userId,
+        {
+          folder: 'equipment',
+          optimize: true, // Optimize equipment photos
+        }
+      );
 
       if (!uploadResult.success) {
         return res.status(500).json({

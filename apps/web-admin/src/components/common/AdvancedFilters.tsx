@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Filter, X } from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
 import AdminCard from './AdminCard';
 import AdminButton from './AdminButton';
 import AdminInput from './AdminInput';
@@ -45,6 +46,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
   showSearch = true,
   customFilterFields = [],
 }) => {
+  const { t } = useTranslation();
   const [localFilters, setLocalFilters] = useState(filters);
 
   const handleFilterChange = (key: string, value: any) => {
@@ -550,13 +552,13 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         <div className='flex items-center gap-1.5'>
           <Filter className='w-3.5 h-3.5 text-gray-600 dark:text-gray-400' />
           <h3 className='text-xs font-semibold font-heading text-gray-900 dark:text-white'>
-            Bộ lọc
+            {t('advancedFilters.title')}
             </h3>
           {/* Badge with fixed size to prevent layout shift */}
           <div className='h-[18px] min-w-[60px] flex items-center'>
             {hasActiveFilters() && (
               <span className='px-1.5 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 text-[10px] rounded-full font-inter whitespace-nowrap'>
-                Đang lọc
+                {t('advancedFilters.filtering')}
               </span>
             )}
           </div>
@@ -569,7 +571,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <AdminInput
               icon={Filter}
               iconPosition='left'
-              placeholder='Tìm kiếm...'
+              placeholder={t('advancedFilters.searchPlaceholder')}
               value={localFilters.search || ''}
               onChange={e => handleFilterChange('search', e.target.value)}
                 className='w-full text-[11px]'
@@ -581,12 +583,12 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <div className='w-[180px] h-[30px] flex-shrink-0'>
               <CustomSelect
                 options={[
-                  { value: '', label: 'Tất cả danh mục' },
+                  { value: '', label: t('advancedFilters.allCategories') },
                   ...availableCategories,
                 ]}
               value={localFilters.category || ''}
                 onChange={value => handleFilterChange('category', value)}
-                placeholder='Tất cả danh mục'
+                placeholder={t('advancedFilters.allCategories')}
                 className='font-inter h-[30px]'
               />
             </div>
@@ -596,12 +598,12 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <div className='w-[180px] h-[30px] flex-shrink-0'>
               <CustomSelect
                 options={[
-                  { value: '', label: 'Tất cả trạng thái' },
+                  { value: '', label: t('advancedFilters.allStatuses') },
                   ...availableStatuses,
                 ]}
                 value={localFilters.status || ''}
                 onChange={value => handleFilterChange('status', value)}
-                placeholder='Tất cả trạng thái'
+                placeholder={t('advancedFilters.allStatuses')}
                 className='font-inter h-[30px]'
               />
               </div>
@@ -630,7 +632,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                       {field.type === 'select' && field.options && (
                 <CustomSelect
                   options={[
-                    { value: '', label: `Tất cả ${field.label.toLowerCase()}` },
+                    { value: '', label: t('advancedFilters.allField', { field: field.label.toLowerCase() }) },
                     ...field.options,
                   ]}
                             value={localFilters.customFilters?.[field.key] || ''}
@@ -656,7 +658,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <>
               <div className='w-[140px] flex flex-col flex-shrink-0'>
                 <label className='text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                  Từ ngày
+                  {t('advancedFilters.fromDate')}
                 </label>
                 <DatePicker
                   value={localFilters.dateRange?.from}
@@ -673,7 +675,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
               </div>
               <div className='w-[140px] flex flex-col flex-shrink-0'>
                 <label className='text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                  Đến ngày
+                  {t('advancedFilters.toDate')}
                 </label>
                 <DatePicker
                   value={localFilters.dateRange?.to}
@@ -706,7 +708,7 @@ const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 visibility: 'visible',
               }}
             >
-              Xóa
+              {t('advancedFilters.clear')}
             </AdminButton>
           </div>
         </div>

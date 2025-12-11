@@ -669,6 +669,39 @@ class RewardController {
       });
     }
   }
+
+  /**
+   * Mark redemption as used
+   */
+  async markAsUsed(req, res) {
+    try {
+      const { id } = req.params;
+      const { subscription_id } = req.body;
+
+      const result = await rewardService.markAsUsed(id);
+
+      if (!result.success) {
+        return res.status(400).json({
+          success: false,
+          message: result.error,
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Redemption marked as used successfully',
+        data: result.redemption,
+      });
+    } catch (error) {
+      console.error('Mark redemption as used error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
 }
 
 module.exports = new RewardController();

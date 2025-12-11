@@ -1,6 +1,7 @@
 import { gsap } from 'gsap';
 import { Edit, LucideIcon, Trash2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
+import useTranslation from '../../hooks/useTranslation';
 import AdminButton from './AdminButton';
 
 interface BulkOperationsProps {
@@ -60,6 +61,7 @@ const BulkOperations: React.FC<BulkOperationsProps> = ({
   onBulkEdit,
   bulkActions = [],
 }) => {
+  const { t } = useTranslation();
   const allSelected = selectedItems.length === totalItems && totalItems > 0;
   const someSelected = selectedItems.length > 0 && selectedItems.length < totalItems;
   const buttonsRef = useRef<HTMLDivElement>(null);
@@ -152,7 +154,7 @@ const BulkOperations: React.FC<BulkOperationsProps> = ({
             className='text-sm text-gray-600 dark:text-gray-400 font-heading'
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
-            {totalItems} mục
+            {t('bulkOperations.items', { count: totalItems })}
           </span>
         </div>
         <div className='flex items-center gap-2 w-[120px]'>
@@ -169,8 +171,8 @@ const BulkOperations: React.FC<BulkOperationsProps> = ({
           className='text-sm font-medium text-gray-900 dark:text-white font-heading'
           style={{ fontFamily: 'Space Grotesk, sans-serif' }}
         >
-          Đã chọn <AnimatedCounter count={selectedItems.length} /> /{' '}
-          <AnimatedCounter count={totalItems} /> mục
+          {t('bulkOperations.selectedPrefix')} <AnimatedCounter count={selectedItems.length} /> /{' '}
+          <AnimatedCounter count={totalItems} /> {t('bulkOperations.itemsSuffix')}
         </span>
         {someSelected && (
           <button
@@ -179,7 +181,7 @@ const BulkOperations: React.FC<BulkOperationsProps> = ({
             className='text-sm text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-heading transition-colors duration-200'
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
-            Bỏ chọn tất cả
+            {t('bulkOperations.deselectAll')}
           </button>
         )}
       </div>
@@ -198,12 +200,12 @@ const BulkOperations: React.FC<BulkOperationsProps> = ({
         ))}
         {onBulkEdit && (
           <AdminButton variant='outline' size='sm' icon={Edit} onClick={onBulkEdit}>
-            Sửa hàng loạt
+            {t('bulkOperations.bulkEdit')}
           </AdminButton>
         )}
         {onBulkDelete && (
           <AdminButton variant='danger' size='sm' icon={Trash2} onClick={onBulkDelete}>
-            Xóa (<AnimatedCounter count={selectedItems.length} />)
+            {t('bulkOperations.delete', { count: selectedItems.length })}
           </AdminButton>
         )}
       </div>

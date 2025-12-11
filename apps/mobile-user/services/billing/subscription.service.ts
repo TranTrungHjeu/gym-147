@@ -87,7 +87,6 @@ export class SubscriptionService {
           ...subscriptionData.plan,
           id: subscriptionData.plan.id, // Ensure plan.id is set
           price: parseFloat(subscriptionData.plan.price),
-          setup_fee: subscriptionData.plan.setup_fee ? parseFloat(subscriptionData.plan.setup_fee) : undefined,
         } : undefined,
       };
       
@@ -156,6 +155,36 @@ export class SubscriptionService {
     }
   }
 
+  /**
+   * IMPROVEMENT: Upgrade or downgrade subscription
+   * POST /subscriptions/:id/upgrade-downgrade
+   */
+  async upgradeDowngradeSubscription(
+    subscriptionId: string,
+    data: {
+      new_plan_id: string;
+      change_reason?: string;
+      notes?: string;
+    }
+  ): Promise<{
+    subscription: Subscription;
+    change_type: 'UPGRADE' | 'DOWNGRADE';
+    price_difference: number;
+    payment?: any;
+    refund?: any;
+  }> {
+    try {
+      const response = await billingApiService.post(
+        `/subscriptions/${subscriptionId}/upgrade-downgrade`,
+        data
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Error upgrading/downgrading subscription:', error);
+      throw error;
+    }
+  }
+
   async renewSubscription(
     subscriptionId: string,
     paymentMethod?: string
@@ -187,7 +216,6 @@ export class SubscriptionService {
         plan: subscriptionData.plan ? {
           ...subscriptionData.plan,
           price: parseFloat(subscriptionData.plan.price),
-          setup_fee: subscriptionData.plan.setup_fee ? parseFloat(subscriptionData.plan.setup_fee) : undefined,
         } : undefined,
       };
       return parsedSubscription;

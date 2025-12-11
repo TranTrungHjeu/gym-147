@@ -1,11 +1,30 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { scheduleService } from '../../services/schedule.service';
-import { Search, Plus, RefreshCw, Edit, Trash2, Building2, CheckCircle2, Users, Upload, FileText, Eye } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  RefreshCw,
+  Edit,
+  Trash2,
+  Building2,
+  CheckCircle2,
+  Users,
+  Upload,
+  FileText,
+  Eye,
+} from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import RoomFormModal from '../../components/modals/RoomFormModal';
 import RoomDetailModal from '../../components/modals/RoomDetailModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -28,6 +47,7 @@ interface Room {
 
 const RoomManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [rooms, setRooms] = useState<Room[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -58,13 +78,11 @@ const RoomManagement: React.FC = () => {
       setIsLoading(true);
       const response = await scheduleService.getAllRooms();
       if (response.success) {
-        const roomsList = Array.isArray(response.data) 
-          ? response.data 
-          : (response.data?.rooms || []);
+        const roomsList = Array.isArray(response.data) ? response.data : response.data?.rooms || [];
         setRooms(roomsList);
       }
     } catch (error: any) {
-      showToast('Không thể tải danh sách phòng tập', 'error');
+      showToast(t('roomManagement.messages.loadError'), 'error');
       console.error('Error loading rooms:', error);
       setRooms([]);
     } finally {
@@ -92,15 +110,15 @@ const RoomManagement: React.FC = () => {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'AVAILABLE':
-        return 'Sẵn sàng';
+        return t('roomManagement.status.AVAILABLE');
       case 'OCCUPIED':
-        return 'Đang sử dụng';
+        return t('roomManagement.status.OCCUPIED');
       case 'MAINTENANCE':
-        return 'Bảo trì';
+        return t('roomManagement.status.MAINTENANCE');
       case 'CLEANING':
-        return 'Đang dọn dẹp';
+        return t('roomManagement.status.CLEANING');
       case 'RESERVED':
-        return 'Đã đặt';
+        return t('roomManagement.status.RESERVED');
       default:
         return status;
     }
@@ -112,7 +130,7 @@ const RoomManagement: React.FC = () => {
     const availableRooms = rooms.filter(room => room.status === 'AVAILABLE').length;
     const occupiedRooms = rooms.filter(room => room.status === 'OCCUPIED').length;
     const totalCapacity = rooms.reduce((sum, room) => sum + (room.capacity || 0), 0);
-    
+
     return {
       totalRooms,
       availableRooms,
@@ -123,7 +141,7 @@ const RoomManagement: React.FC = () => {
 
   const filteredRooms = useMemo(() => {
     if (!Array.isArray(rooms)) return [];
-    
+
     return rooms.filter(room => {
       const matchesSearch = room?.name?.toLowerCase().includes(searchTerm.toLowerCase());
       const matchesStatus = statusFilter === 'all' || room?.status === statusFilter;
@@ -153,12 +171,12 @@ const RoomManagement: React.FC = () => {
     setIsDeleting(true);
     try {
       await scheduleService.deleteRoom(roomToDelete.id);
-      showToast('Xóa phòng tập thành công', 'success');
+      showToast(t('roomManagement.messages.deleteSuccess'), 'success');
       await loadRooms();
       setIsDeleteDialogOpen(false);
       setRoomToDelete(null);
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa phòng tập', 'error');
+      showToast(error.message || t('roomManagement.messages.deleteError'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -168,16 +186,17 @@ const RoomManagement: React.FC = () => {
     try {
       if (selectedRoom) {
         await scheduleService.updateRoom(selectedRoom.id, data);
-        showToast('Cập nhật phòng tập thành công', 'success');
+        showToast(t('roomManagement.messages.updateSuccess'), 'success');
       } else {
         await scheduleService.createRoom(data);
-        showToast('Tạo phòng tập thành công', 'success');
+        showToast(t('roomManagement.messages.createSuccess'), 'success');
       }
       await loadRooms();
       setIsFormModalOpen(false);
       setSelectedRoom(null);
     } catch (error: any) {
-      const errorMessage = error.response?.data?.message || error.message || 'Không thể lưu phòng tập';
+      const errorMessage =
+        error.response?.data?.message || error.message || t('roomManagement.messages.saveError');
       showToast(errorMessage, 'error');
       throw error;
     }
@@ -212,10 +231,10 @@ const RoomManagement: React.FC = () => {
       filename: `danh_sach_phong_tap_${new Date().toISOString().split('T')[0]}`,
       data: exportData,
       columns,
-      title: 'Danh sách Phòng tập',
+      title: t('roomManagement.export.title'),
     });
 
-    showToast('Đã xuất danh sách phòng tập', 'success');
+    showToast(t('roomManagement.messages.exportSuccess'), 'success');
   };
 
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -223,7 +242,7 @@ const RoomManagement: React.FC = () => {
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = (e) => {
+    reader.onload = e => {
       const text = e.target?.result as string;
       parseCSV(text);
     };
@@ -234,13 +253,13 @@ const RoomManagement: React.FC = () => {
     try {
       const lines = csvText.split('\n').filter(line => line.trim());
       if (lines.length < 2) {
-        showToast('File CSV không hợp lệ hoặc trống', 'error');
+        showToast(t('roomManagement.import.invalidFile'), 'error');
         return;
       }
 
       // Parse header
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-      
+
       // Parse data rows
       const data: any[] = [];
       for (let i = 1; i < lines.length; i++) {
@@ -259,10 +278,25 @@ const RoomManagement: React.FC = () => {
         const room: any = {
           name: row['Tên phòng'] || row['Ten phong'] || '',
           capacity: parseInt(row['Sức chứa'] || row['Suc chua'] || '0'),
-          area_sqm: row['Diện tích (m²)'] || row['Dien tich'] ? parseFloat(row['Diện tích (m²)'] || row['Dien tich']) : undefined,
+          area_sqm:
+            row['Diện tích (m²)'] || row['Dien tich']
+              ? parseFloat(row['Diện tích (m²)'] || row['Dien tich'])
+              : undefined,
           status: row['Trạng thái'] || row['Trang thai'] || 'AVAILABLE',
-          equipment: row['Thiết bị'] || row['Thiet bi'] ? (row['Thiết bị'] || row['Thiet bi']).split(';').map((e: string) => e.trim()).filter((e: string) => e) : [],
-          amenities: row['Tiện ích'] || row['Tien ich'] ? (row['Tiện ích'] || row['Tien ich']).split(';').map((a: string) => a.trim()).filter((a: string) => a) : [],
+          equipment:
+            row['Thiết bị'] || row['Thiet bi']
+              ? (row['Thiết bị'] || row['Thiet bi'])
+                  .split(';')
+                  .map((e: string) => e.trim())
+                  .filter((e: string) => e)
+              : [],
+          amenities:
+            row['Tiện ích'] || row['Tien ich']
+              ? (row['Tiện ích'] || row['Tien ich'])
+                  .split(';')
+                  .map((a: string) => a.trim())
+                  .filter((a: string) => a)
+              : [],
         };
 
         // Validation
@@ -281,14 +315,20 @@ const RoomManagement: React.FC = () => {
       const hasErrors = validatedData.some(item => item._errors && item._errors.length > 0);
       if (hasErrors) {
         const allErrors = validatedData.flatMap(item => item._errors || []);
-        showToast(`Có lỗi trong file CSV:\n${allErrors.slice(0, 5).join('\n')}${allErrors.length > 5 ? '\n...' : ''}`, 'error');
+        showToast(
+          t('roomManagement.import.csvErrors', {
+            errors: allErrors.slice(0, 5).join('\n'),
+            hasMore: allErrors.length > 5,
+          }),
+          'error'
+        );
       }
 
       setImportPreview(validatedData);
       setIsImportModalOpen(true);
     } catch (error) {
       console.error('Error parsing CSV:', error);
-      showToast('Không thể đọc file CSV', 'error');
+      showToast(t('roomManagement.import.readError'), 'error');
     }
   };
 
@@ -316,7 +356,7 @@ const RoomManagement: React.FC = () => {
       }
 
       showToast(
-        `Import hoàn tất: ${successCount} thành công, ${errorCount} thất bại`,
+        t('roomManagement.import.complete', { success: successCount, error: errorCount }),
         successCount > 0 ? 'success' : 'error'
       );
 
@@ -326,7 +366,7 @@ const RoomManagement: React.FC = () => {
         setImportPreview([]);
       }
     } catch (error) {
-      showToast('Có lỗi xảy ra khi import', 'error');
+      showToast(t('roomManagement.import.importError'), 'error');
     } finally {
       setIsImporting(false);
     }
@@ -338,10 +378,10 @@ const RoomManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Phòng tập
+            {t('roomManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Quản lý tất cả các phòng tập trong gym
+            {t('roomManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -350,14 +390,14 @@ const RoomManagement: React.FC = () => {
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <RefreshCw className='w-4 h-4' />
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </button>
           <button
             onClick={handleCreate}
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <Plus className='w-4 h-4' />
-            Thêm phòng
+            {t('roomManagement.addRoom')}
           </button>
         </div>
       </div>
@@ -384,7 +424,7 @@ const RoomManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số phòng
+                  {t('roomManagement.stats.totalRooms')}
                 </div>
               </div>
             </div>
@@ -411,7 +451,7 @@ const RoomManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Phòng sẵn sàng
+                  {t('roomManagement.stats.availableRooms')}
                 </div>
               </div>
             </div>
@@ -438,7 +478,7 @@ const RoomManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Phòng đang sử dụng
+                  {t('roomManagement.stats.occupiedRooms')}
                 </div>
               </div>
             </div>
@@ -465,7 +505,7 @@ const RoomManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng sức chứa
+                  {t('roomManagement.stats.totalCapacity')}
                 </div>
               </div>
             </div>
@@ -481,7 +521,7 @@ const RoomManagement: React.FC = () => {
             <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
             <input
               type='text'
-              placeholder='Tìm kiếm phòng...'
+              placeholder={t('roomManagement.search.placeholder')}
               value={searchTerm}
               onChange={e => {
                 setSearchTerm(e.target.value);
@@ -495,19 +535,19 @@ const RoomManagement: React.FC = () => {
           <div>
             <CustomSelect
               options={[
-                { value: 'all', label: 'Tất cả trạng thái' },
-                { value: 'AVAILABLE', label: 'Sẵn sàng' },
-                { value: 'OCCUPIED', label: 'Đang sử dụng' },
-                { value: 'MAINTENANCE', label: 'Bảo trì' },
-                { value: 'CLEANING', label: 'Đang dọn dẹp' },
-                { value: 'RESERVED', label: 'Đã đặt' },
+                { value: 'all', label: t('roomManagement.filter.allStatuses') },
+                { value: 'AVAILABLE', label: t('roomManagement.status.AVAILABLE') },
+                { value: 'OCCUPIED', label: t('roomManagement.status.OCCUPIED') },
+                { value: 'MAINTENANCE', label: t('roomManagement.status.MAINTENANCE') },
+                { value: 'CLEANING', label: t('roomManagement.status.CLEANING') },
+                { value: 'RESERVED', label: t('roomManagement.status.RESERVED') },
               ]}
               value={statusFilter}
               onChange={value => {
                 setStatusFilter(value);
                 setCurrentPage(1);
               }}
-              placeholder='Tất cả trạng thái'
+              placeholder={t('roomManagement.filter.allStatuses')}
               className='font-inter'
             />
           </div>
@@ -515,35 +555,30 @@ const RoomManagement: React.FC = () => {
         <div className='mt-3 flex justify-end gap-2'>
           <label className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-orange-400 dark:hover:border-orange-600 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95 cursor-pointer'>
             <Upload className='w-4 h-4' />
-            Import CSV
-            <input
-              type='file'
-              accept='.csv'
-              onChange={handleFileSelect}
-              className='hidden'
-            />
+            {t('roomManagement.import.importCSV')}
+            <input type='file' accept='.csv' onChange={handleFileSelect} className='hidden' />
           </label>
           <button
             onClick={handleExport}
             className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 hover:border-orange-400 dark:hover:border-orange-600 hover:text-orange-600 dark:hover:text-orange-400 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
           >
             <FileText className='w-4 h-4' />
-            Xuất Excel
+            {t('roomManagement.export.exportExcel')}
           </button>
         </div>
       </div>
 
       {/* Rooms List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách phòng...' />
+        <TableLoading text={t('roomManagement.messages.loading')} />
       ) : filteredRooms.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Building2 className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
               {searchTerm || statusFilter !== 'all'
-                ? 'Không tìm thấy phòng nào'
-                : 'Không có phòng nào'}
+                ? t('roomManagement.empty.noResults')
+                : t('roomManagement.empty.noRooms')}
             </div>
             {!searchTerm && statusFilter === 'all' && (
               <button
@@ -551,7 +586,7 @@ const RoomManagement: React.FC = () => {
                 className='mt-2 inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
               >
                 <Plus className='w-4 h-4' />
-                Thêm phòng đầu tiên
+                {t('roomManagement.empty.addFirstRoom')}
               </button>
             )}
           </div>
@@ -567,59 +602,63 @@ const RoomManagement: React.FC = () => {
               <AdminTable>
                 <AdminTableHeader>
                   <AdminTableRow>
-                    <AdminTableCell header>Tên phòng</AdminTableCell>
-                    <AdminTableCell header>Sức chứa</AdminTableCell>
-                    <AdminTableCell header>Diện tích</AdminTableCell>
-                    <AdminTableCell header>Trạng thái</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.name')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.capacity')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.area')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.status')}</AdminTableCell>
                   </AdminTableRow>
                 </AdminTableHeader>
                 <AdminTableBody>
-                {paginatedRooms.map((room, index) => (
-                  <AdminTableRow
-                    key={room.id}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
-                      index % 2 === 0
-                        ? 'bg-white dark:bg-gray-900'
-                        : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
-                    onClick={(e?: React.MouseEvent) => {
-                      if (e) {
-                        e.stopPropagation();
-                        setSelectedRoomForAction(room);
-                        setMenuPosition({ x: e.clientX, y: e.clientY });
-                        setActionMenuOpen(true);
-                      }
-                    }}
-                  >
-                    <AdminTableCell className='overflow-hidden relative'>
-                      {/* Hover border indicator */}
-                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
-                      <div className='min-w-0 flex-1 relative z-10'>
-                        <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
-                          {room.name}
+                  {paginatedRooms.map((room, index) => (
+                    <AdminTableRow
+                      key={room.id}
+                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                        index % 2 === 0
+                          ? 'bg-white dark:bg-gray-900'
+                          : 'bg-gray-50/50 dark:bg-gray-800/50'
+                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      onClick={(e?: React.MouseEvent) => {
+                        if (e) {
+                          e.stopPropagation();
+                          setSelectedRoomForAction(room);
+                          setMenuPosition({ x: e.clientX, y: e.clientY });
+                          setActionMenuOpen(true);
+                        }
+                      }}
+                    >
+                      <AdminTableCell className='overflow-hidden relative'>
+                        {/* Hover border indicator */}
+                        <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
+                        <div className='min-w-0 flex-1 relative z-10'>
+                          <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
+                            {room.name}
+                          </div>
                         </div>
-                      </div>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <div className='flex items-center gap-1.5'>
-                        <Users className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200' />
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <div className='flex items-center gap-1.5'>
+                          <Users className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200' />
+                          <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
+                            {room.capacity} {t('roomManagement.capacityUnit')}
+                          </span>
+                        </div>
+                      </AdminTableCell>
+                      <AdminTableCell>
                         <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                          {room.capacity} người
+                          {room.area_sqm ? `${room.area_sqm} m²` : '-'}
                         </span>
-                      </div>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                        {room.area_sqm ? `${room.area_sqm} m²` : '-'}
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(room.status)}`}>
-                        {getStatusLabel(room.status)}
-                      </span>
-                    </AdminTableCell>
-                  </AdminTableRow>
-                ))}
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <span
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                            room.status
+                          )}`}
+                        >
+                          {getStatusLabel(room.status)}
+                        </span>
+                      </AdminTableCell>
+                    </AdminTableRow>
+                  ))}
                 </AdminTableBody>
               </AdminTable>
             </div>
@@ -631,7 +670,7 @@ const RoomManagement: React.FC = () => {
               totalPages={totalPages}
               totalItems={filteredRooms.length}
               itemsPerPage={itemsPerPage}
-              onPageChange={(page) => {
+              onPageChange={page => {
                 setIsPageTransitioning(true);
                 setTimeout(() => {
                   setCurrentPage(page);
@@ -640,7 +679,7 @@ const RoomManagement: React.FC = () => {
                   }, 150);
                 }, 150);
               }}
-              onItemsPerPageChange={(newItemsPerPage) => {
+              onItemsPerPageChange={newItemsPerPage => {
                 setIsPageTransitioning(true);
                 setTimeout(() => {
                   setItemsPerPage(newItemsPerPage);
@@ -683,7 +722,7 @@ const RoomManagement: React.FC = () => {
           setIsImportModalOpen(false);
           setImportPreview([]);
         }}
-        title='Xem trước Import'
+        title={t('roomManagement.import.previewTitle')}
         size='lg'
         footer={
           <div className='flex justify-end gap-3'>
@@ -696,7 +735,7 @@ const RoomManagement: React.FC = () => {
               disabled={isImporting}
               className='px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 disabled:opacity-50'
             >
-              Hủy
+              {t('common.cancel')}
             </button>
             <button
               type='button'
@@ -707,12 +746,12 @@ const RoomManagement: React.FC = () => {
               {isImporting ? (
                 <>
                   <ButtonSpinner />
-                  Đang import...
+                  {t('roomManagement.import.importing')}
                 </>
               ) : (
                 <>
                   <Upload className='w-4 h-4' />
-                  Import ({importPreview.length} phòng)
+                  {t('roomManagement.import.importButton', { count: importPreview.length })}
                 </>
               )}
             </button>
@@ -721,18 +760,18 @@ const RoomManagement: React.FC = () => {
       >
         <div className='space-y-4'>
           <p className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-            Tìm thấy {importPreview.length} phòng trong file CSV. Vui lòng kiểm tra trước khi import.
+            {t('roomManagement.import.previewMessage', { count: importPreview.length })}
           </p>
           <div className='max-h-96 overflow-y-auto'>
             <AdminCard padding='none'>
               <AdminTable>
                 <AdminTableHeader>
                   <AdminTableRow>
-                    <AdminTableCell header>Tên phòng</AdminTableCell>
-                    <AdminTableCell header>Sức chứa</AdminTableCell>
-                    <AdminTableCell header>Diện tích</AdminTableCell>
-                    <AdminTableCell header>Trạng thái</AdminTableCell>
-                    <AdminTableCell header>Lỗi</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.name')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.capacity')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.area')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.table.status')}</AdminTableCell>
+                    <AdminTableCell header>{t('roomManagement.import.errors')}</AdminTableCell>
                   </AdminTableRow>
                 </AdminTableHeader>
                 <AdminTableBody>
@@ -812,7 +851,7 @@ const RoomManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Eye className='w-3.5 h-3.5' />
-                Chi tiết
+                {t('roomManagement.actions.viewDetails')}
               </button>
               <button
                 onClick={() => {
@@ -822,7 +861,7 @@ const RoomManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Edit className='w-3.5 h-3.5' />
-                Sửa
+                {t('roomManagement.actions.edit')}
               </button>
               <button
                 onClick={() => {
@@ -833,7 +872,7 @@ const RoomManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
               >
                 <Trash2 className='w-3.5 h-3.5' />
-                Xóa
+                {t('roomManagement.actions.delete')}
               </button>
             </div>
           </div>
@@ -848,10 +887,10 @@ const RoomManagement: React.FC = () => {
           setRoomToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xác nhận xóa phòng tập'
-        message={`Bạn có chắc chắn muốn xóa phòng "${roomToDelete?.name}"? Hành động này không thể hoàn tác.`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('roomManagement.delete.confirmTitle')}
+        message={t('roomManagement.delete.confirmMessage', { name: roomToDelete?.name || '' })}
+        confirmText={t('roomManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         variant='danger'
         isLoading={isDeleting}
       />

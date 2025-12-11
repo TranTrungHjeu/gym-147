@@ -19,8 +19,6 @@ async function main() {
   await prisma.session.deleteMany();
   await prisma.passwordReset.deleteMany();
   await prisma.oTPVerification.deleteMany();
-  await prisma.member.deleteMany();
-  await prisma.staff.deleteMany();
   await prisma.user.deleteMany();
 
   const hashedPassword = await bcrypt.hash('123abcC@', 12);
@@ -63,18 +61,78 @@ async function main() {
   console.log('[MEMBERS] Tạo users cho members...');
   const memberUsers = [];
   const memberData = [
-    { user_id: 'member_001_nguyen_van_a', name: 'Nguyễn Văn A', email: 'nguyenvana@example.com', phone: '0123456789' },
-    { user_id: 'member_002_tran_thi_b', name: 'Trần Thị B', email: 'tranthib@example.com', phone: '0123456790' },
-    { user_id: 'member_003_le_van_c', name: 'Lê Văn C', email: 'levanc@example.com', phone: '0123456791' },
-    { user_id: 'member_004_pham_thi_d', name: 'Phạm Thị D', email: 'phamthid@example.com', phone: '0123456792' },
-    { user_id: 'member_005_hoang_van_e', name: 'Hoàng Văn E', email: 'hoangvane@example.com', phone: '0123456793' },
-    { user_id: 'member_006_vo_thi_f', name: 'Võ Thị F', email: 'vothif@example.com', phone: '0123456794' },
-    { user_id: 'member_007_dang_van_g', name: 'Đặng Văn G', email: 'dangvang@example.com', phone: '0123456795' },
-    { user_id: 'member_008_bui_thi_h', name: 'Bùi Thị H', email: 'buithih@example.com', phone: '0123456796' },
-    { user_id: 'member_009_ly_van_i', name: 'Lý Văn I', email: 'lyvani@example.com', phone: '0123456797' },
-    { user_id: 'member_010_do_thi_j', name: 'Đỗ Thị J', email: 'dothij@example.com', phone: '0123456798' },
-    { user_id: 'member_011_nguyen_thi_k', name: 'Nguyễn Thị K', email: 'nguyenthik@example.com', phone: '0123456799' },
-    { user_id: 'member_012_tran_van_l', name: 'Trần Văn L', email: 'tranvanl@example.com', phone: '0123456800' },
+    {
+      user_id: 'member_001_nguyen_van_a',
+      name: 'Nguyễn Văn A',
+      email: 'nguyenvana@example.com',
+      phone: '0123456789',
+    },
+    {
+      user_id: 'member_002_tran_thi_b',
+      name: 'Trần Thị B',
+      email: 'tranthib@example.com',
+      phone: '0123456790',
+    },
+    {
+      user_id: 'member_003_le_van_c',
+      name: 'Lê Văn C',
+      email: 'levanc@example.com',
+      phone: '0123456791',
+    },
+    {
+      user_id: 'member_004_pham_thi_d',
+      name: 'Phạm Thị D',
+      email: 'phamthid@example.com',
+      phone: '0123456792',
+    },
+    {
+      user_id: 'member_005_hoang_van_e',
+      name: 'Hoàng Văn E',
+      email: 'hoangvane@example.com',
+      phone: '0123456793',
+    },
+    {
+      user_id: 'member_006_vo_thi_f',
+      name: 'Võ Thị F',
+      email: 'vothif@example.com',
+      phone: '0123456794',
+    },
+    {
+      user_id: 'member_007_dang_van_g',
+      name: 'Đặng Văn G',
+      email: 'dangvang@example.com',
+      phone: '0123456795',
+    },
+    {
+      user_id: 'member_008_bui_thi_h',
+      name: 'Bùi Thị H',
+      email: 'buithih@example.com',
+      phone: '0123456796',
+    },
+    {
+      user_id: 'member_009_ly_van_i',
+      name: 'Lý Văn I',
+      email: 'lyvani@example.com',
+      phone: '0123456797',
+    },
+    {
+      user_id: 'member_010_do_thi_j',
+      name: 'Đỗ Thị J',
+      email: 'dothij@example.com',
+      phone: '0123456798',
+    },
+    {
+      user_id: 'member_011_nguyen_thi_k',
+      name: 'Nguyễn Thị K',
+      email: 'nguyenthik@example.com',
+      phone: '0123456799',
+    },
+    {
+      user_id: 'member_012_tran_van_l',
+      name: 'Trần Văn L',
+      email: 'tranvanl@example.com',
+      phone: '0123456800',
+    },
   ];
 
   for (const member of memberData) {
@@ -107,10 +165,30 @@ async function main() {
   console.log('[TRAINERS] Tạo users cho trainers...');
   const trainerUsers = [];
   const trainerData = [
-    { user_id: 'trainer_001_nguyen_van_minh', name: 'Nguyễn Văn Minh', email: 'minh.nguyen@gym147.dev', phone: '+84901000003' },
-    { user_id: 'trainer_002_tran_thi_lan', name: 'Trần Thị Lan', email: 'lan.tran@gym147.dev', phone: '+84901000004' },
-    { user_id: 'trainer_003_le_van_hung', name: 'Lê Văn Hùng', email: 'hung.le@gym147.dev', phone: '+84901000005' },
-    { user_id: 'trainer_004_pham_thi_hoa', name: 'Phạm Thị Hoa', email: 'hoa.pham@gym147.dev', phone: '+84901000006' },
+    {
+      user_id: 'trainer_001_nguyen_van_minh',
+      name: 'Nguyễn Văn Minh',
+      email: 'minh.nguyen@gym147.dev',
+      phone: '+84901000003',
+    },
+    {
+      user_id: 'trainer_002_tran_thi_lan',
+      name: 'Trần Thị Lan',
+      email: 'lan.tran@gym147.dev',
+      phone: '+84901000004',
+    },
+    {
+      user_id: 'trainer_003_le_van_hung',
+      name: 'Lê Văn Hùng',
+      email: 'hung.le@gym147.dev',
+      phone: '+84901000005',
+    },
+    {
+      user_id: 'trainer_004_pham_thi_hoa',
+      name: 'Phạm Thị Hoa',
+      email: 'hoa.pham@gym147.dev',
+      phone: '+84901000006',
+    },
   ];
 
   for (const trainer of trainerData) {
@@ -139,22 +217,7 @@ async function main() {
     console.log(`[SUCCESS] Created trainer user: ${user.email} (${user.id})`);
   }
 
-  // 4. Tạo Gym Memberships cho tất cả users
-  console.log('[MEMBERSHIPS] Tạo gym memberships...');
-  for (const user of [...memberUsers, ...trainerUsers, superAdmin]) {
-    await prisma.gymMembership.create({
-      data: {
-        user_id: user.id,
-        gym_id: 'gym-147',
-        gym_name: 'Gym 147',
-        status: 'ACTIVE',
-        role: user.role,
-        joined_at: new Date(Date.now() - Math.random() * 90 * 24 * 60 * 60 * 1000), // 0-90 ngày trước
-        is_primary: true,
-      },
-    });
-  }
-  console.log('[SUCCESS] Created gym memberships');
+  // Gym Memberships removed - not needed for single gym system
 
   console.log('\n[CELEBRATE] Hoàn thành seed data cho Identity Service!');
   console.log('[LIST] Thông tin đăng nhập:');

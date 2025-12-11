@@ -83,7 +83,29 @@ export interface AuthContextType {
   member: { id: string } | null; // Store member.id for easy access (member_id from member service)
 
   // Actions
-  login: (credentials: LoginCredentials) => Promise<{
+  login: (
+    credentials: LoginCredentials & { rememberMe?: boolean }
+  ) => Promise<
+    | {
+        hasMember: boolean;
+        user: any;
+        accessToken: string;
+        refreshToken?: string;
+        registrationStatus?: {
+          hasSubscription: boolean;
+          hasCompletedProfile: boolean;
+        };
+      }
+    | {
+        requires2FA: true;
+        userId: string;
+      }
+  >;
+  verify2FALogin: (
+    userId: string,
+    twoFactorToken: string,
+    rememberMe?: boolean
+  ) => Promise<{
     hasMember: boolean;
     user: any;
     accessToken: string;

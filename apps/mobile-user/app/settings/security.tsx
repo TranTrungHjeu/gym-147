@@ -33,6 +33,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import QRCode from 'react-native-qrcode-svg';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 type SecurityTab = 'password' | '2fa' | 'face' | 'sessions';
@@ -62,6 +63,7 @@ export default function SecuritySettingsScreen() {
   const [twoFactorSecret, setTwoFactorSecret] = useState('');
   const [twoFactorQR, setTwoFactorQR] = useState('');
   const [verificationCode, setVerificationCode] = useState('');
+  const [isSetupMode, setIsSetupMode] = useState(false); // Track if user is in setup mode
 
   // Sessions state
   const [activeSessions, setActiveSessions] = useState<any[]>([]);
@@ -89,10 +91,12 @@ export default function SecuritySettingsScreen() {
       setLoadingFaceStatus(true);
       setFaceError(null);
       analytics.trackFeatureUsage('load_face_encoding_status');
-      
+
       const response = await userService.getFaceEncodingStatus();
       if (response.success && response.data) {
-        setFaceEnrolled(response.data.enrolled || response.data.hasFaceEncoding);
+        setFaceEnrolled(
+          response.data.enrolled || response.data.hasFaceEncoding
+        );
         if (showRetry) {
           showSuccess(
             t('faceLogin.statusUpdated', {
@@ -108,7 +112,7 @@ export default function SecuritySettingsScreen() {
           });
         setFaceError(errorMessage);
         setFaceEnrolled(false);
-        
+
         if (showRetry) {
           analytics.trackError('load_face_status_failed', errorMessage);
           setErrorModalData({
@@ -132,7 +136,7 @@ export default function SecuritySettingsScreen() {
       setFaceError(errorMessage);
       setFaceEnrolled(false);
       analytics.trackError('load_face_status_exception', errorMessage);
-      
+
       if (showRetry) {
         setErrorModalData({
           title: t('common.error', { defaultValue: 'Lỗi' }),
@@ -198,26 +202,38 @@ export default function SecuritySettingsScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await Promise.all([
-      loadSecurityData(),
-      loadFaceEncodingStatus(),
-    ]);
+    await Promise.all([loadSecurityData(), loadFaceEncodingStatus()]);
     setRefreshing(false);
   };
 
   const handleChangePassword = async () => {
     if (!oldPassword || !newPassword || !confirmPassword) {
-      Alert.alert(t('common.error'), 'Please fill in all fields');
+      Alert.alert(
+        t('common.error'),
+        t('security.password.fillAllFields', {
+          defaultValue: 'Vui lòng điền đầy đủ các trường',
+        })
+      );
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      Alert.alert(t('common.error'), 'New passwords do not match');
+      Alert.alert(
+        t('common.error'),
+        t('security.password.passwordsNotMatch', {
+          defaultValue: 'Mật khẩu mới không khớp',
+        })
+      );
       return;
     }
 
     if (newPassword.length < 8) {
-      Alert.alert(t('common.error'), 'Password must be at least 8 characters');
+      Alert.alert(
+        t('common.error'),
+        t('security.password.passwordTooShort', {
+          defaultValue: 'Mật khẩu phải có ít nhất 8 ký tự',
+        })
+      );
       return;
     }
 
@@ -229,21 +245,32 @@ export default function SecuritySettingsScreen() {
       );
 
       if (response.success) {
-        Alert.alert(t('common.success'), 'Password changed successfully');
+        Alert.alert(
+          t('common.success'),
+          t('security.password.changeSuccess', {
+            defaultValue: 'Đổi mật khẩu thành công',
+          })
+        );
         setOldPassword('');
         setNewPassword('');
         setConfirmPassword('');
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to change password'
+          response.error ||
+            t('security.password.changeError', {
+              defaultValue: 'Không thể đổi mật khẩu',
+            })
         );
       }
     } catch (error: any) {
       console.error('Error changing password:', error);
       Alert.alert(
         t('common.error'),
-        error.message || 'Failed to change password'
+        error.message ||
+          t('security.password.changeError', {
+            defaultValue: 'Không thể đổi mật khẩu',
+          })
       );
     } finally {
       setLoading(false);
@@ -251,34 +278,90 @@ export default function SecuritySettingsScreen() {
   };
 
   const handleEnable2FA = async () => {
+    // Don't allow enabling if already enabled
+    if (twoFactorEnabled) {
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await authService.enable2FA();
 
       if (response.success && response.data) {
-        setTwoFactorSecret(response.data.secret);
-        setTwoFactorQR(response.data.qrCodeUrl);
-        Alert.alert(
-          'Setup 2FA',
-          'Scan the QR code with your authenticator app, then enter the verification code'
-        );
+        console.log('[2FA] Enable 2FA response:', response.data);
+        setTwoFactorSecret(response.data.secret || response.data.manualEntryKey || '');
+        setTwoFactorQR(response.data.qrCodeUrl || '');
+        setIsSetupMode(true);
+        setVerificationCode(''); // Clear any previous code
+        
+        if (!response.data.qrCodeUrl && !response.data.secret) {
+          console.warn('[2FA] Warning: Both qrCodeUrl and secret are missing from response');
+          Alert.alert(
+            t('common.error'),
+            t('security.twoFactor.missingData', {
+              defaultValue: 'Thiếu dữ liệu từ server. Vui lòng thử lại.',
+            })
+          );
+          return;
+        }
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Failed to enable 2FA'
+          response.message ||
+            t('security.twoFactor.enableError', {
+              defaultValue: 'Không thể bật xác thực 2 lớp',
+            })
         );
       }
     } catch (error: any) {
       console.error('Error enabling 2FA:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to enable 2FA');
+      Alert.alert(
+        t('common.error'),
+        error.message ||
+          t('security.twoFactor.enableError', {
+            defaultValue: 'Không thể bật xác thực 2 lớp',
+          })
+      );
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCancel2FASetup = () => {
+    Alert.alert(
+      t('security.twoFactor.cancelTitle', {
+        defaultValue: 'Hủy thiết lập 2FA?',
+      }),
+      t('security.twoFactor.cancelMessage', {
+        defaultValue: 'Bạn có chắc muốn hủy quá trình thiết lập 2FA? Bạn sẽ phải bắt đầu lại từ đầu.',
+      }),
+      [
+        {
+          text: t('common.cancel', { defaultValue: 'Hủy' }),
+          style: 'cancel',
+        },
+        {
+          text: t('common.confirm', { defaultValue: 'Xác nhận' }),
+          style: 'destructive',
+          onPress: () => {
+            setIsSetupMode(false);
+            setTwoFactorSecret('');
+            setTwoFactorQR('');
+            setVerificationCode('');
+          },
+        },
+      ]
+    );
+  };
+
   const handleVerify2FA = async () => {
     if (!verificationCode) {
-      Alert.alert(t('common.error'), 'Please enter verification code');
+      Alert.alert(
+        t('common.error'),
+        t('security.twoFactor.enterCode', {
+          defaultValue: 'Vui lòng nhập mã xác thực',
+        })
+      );
       return;
     }
 
@@ -291,7 +374,12 @@ export default function SecuritySettingsScreen() {
         setVerificationCode('');
         setTwoFactorSecret('');
         setTwoFactorQR('');
-        Alert.alert(t('common.success'), '2FA enabled successfully');
+        Alert.alert(
+          t('common.success'),
+          t('security.twoFactor.enableSuccess', {
+            defaultValue: 'Đã bật xác thực 2 lớp thành công',
+          })
+        );
         // Refresh 2FA status
         const statusResponse = await authService.get2FAStatus();
         if (statusResponse.success && statusResponse.data) {
@@ -300,12 +388,21 @@ export default function SecuritySettingsScreen() {
       } else {
         Alert.alert(
           t('common.error'),
-          response.error || 'Invalid verification code'
+          response.error ||
+            t('security.twoFactor.invalidCode', {
+              defaultValue: 'Mã xác thực không hợp lệ',
+            })
         );
       }
     } catch (error: any) {
       console.error('Error verifying 2FA:', error);
-      Alert.alert(t('common.error'), error.message || 'Failed to verify 2FA');
+      Alert.alert(
+        t('common.error'),
+        error.message ||
+          t('security.twoFactor.enableError', {
+            defaultValue: 'Không thể bật xác thực 2 lớp',
+          })
+      );
     } finally {
       setLoading(false);
     }
@@ -313,12 +410,16 @@ export default function SecuritySettingsScreen() {
 
   const handleDisable2FA = async () => {
     Alert.alert(
-      'Disable 2FA',
-      'Are you sure you want to disable two-factor authentication?',
+      t('security.twoFactor.disableTitle', {
+        defaultValue: 'Tắt Xác thực 2 lớp',
+      }),
+      t('security.twoFactor.disableConfirm', {
+        defaultValue: 'Bạn có chắc chắn muốn tắt xác thực 2 lớp?',
+      }),
       [
         { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Disable',
+          text: t('security.twoFactor.disable', { defaultValue: 'Tắt' }),
           style: 'destructive',
           onPress: async () => {
             setLoading(true);
@@ -329,7 +430,12 @@ export default function SecuritySettingsScreen() {
                 setTwoFactorEnabled(false);
                 setTwoFactorSecret('');
                 setTwoFactorQR('');
-                Alert.alert(t('common.success'), '2FA disabled successfully');
+                Alert.alert(
+                  t('common.success'),
+                  t('security.twoFactor.disableSuccess', {
+                    defaultValue: 'Đã tắt xác thực 2 lớp thành công',
+                  })
+                );
                 // Refresh 2FA status
                 const statusResponse = await authService.get2FAStatus();
                 if (statusResponse.success && statusResponse.data) {
@@ -338,14 +444,20 @@ export default function SecuritySettingsScreen() {
               } else {
                 Alert.alert(
                   t('common.error'),
-                  response.error || 'Failed to disable 2FA'
+                  response.error ||
+                    t('security.twoFactor.disableError', {
+                      defaultValue: 'Không thể tắt xác thực 2 lớp',
+                    })
                 );
               }
             } catch (error: any) {
               console.error('Error disabling 2FA:', error);
               Alert.alert(
                 t('common.error'),
-                error.message || 'Failed to disable 2FA'
+                error.message ||
+                  t('security.twoFactor.disableError', {
+                    defaultValue: 'Không thể tắt xác thực 2 lớp',
+                  })
               );
             } finally {
               setLoading(false);
@@ -360,7 +472,7 @@ export default function SecuritySettingsScreen() {
     <View style={styles.tabContent}>
       <View style={styles.section}>
         <Text style={[Typography.h4, { color: theme.colors.text }]}>
-          Change Password
+          {t('security.password.title', { defaultValue: 'Đổi mật khẩu' })}
         </Text>
         <Text
           style={[
@@ -368,13 +480,17 @@ export default function SecuritySettingsScreen() {
             { color: theme.colors.textSecondary, marginTop: 4 },
           ]}
         >
-          Your password must be at least 8 characters long
+          {t('security.password.description', {
+            defaultValue: 'Mật khẩu của bạn phải có ít nhất 8 ký tự',
+          })}
         </Text>
       </View>
 
       <View style={styles.inputGroup}>
         <Text style={[Typography.label, { color: theme.colors.text }]}>
-          Current Password
+          {t('security.password.currentPassword', {
+            defaultValue: 'Mật khẩu hiện tại',
+          })}
         </Text>
         <View style={styles.passwordInputContainer}>
           <TextInput
@@ -383,12 +499,15 @@ export default function SecuritySettingsScreen() {
               {
                 color: theme.colors.text,
                 backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
               },
             ]}
             value={oldPassword}
             onChangeText={setOldPassword}
             secureTextEntry={!showOldPassword}
-            placeholder="Enter current password"
+            placeholder={t('security.password.currentPasswordPlaceholder', {
+              defaultValue: 'Nhập mật khẩu hiện tại',
+            })}
             placeholderTextColor={theme.colors.textSecondary}
           />
           <TouchableOpacity
@@ -406,7 +525,7 @@ export default function SecuritySettingsScreen() {
 
       <View style={styles.inputGroup}>
         <Text style={[Typography.label, { color: theme.colors.text }]}>
-          New Password
+          {t('security.password.newPassword', { defaultValue: 'Mật khẩu mới' })}
         </Text>
         <View style={styles.passwordInputContainer}>
           <TextInput
@@ -415,12 +534,15 @@ export default function SecuritySettingsScreen() {
               {
                 color: theme.colors.text,
                 backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
               },
             ]}
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry={!showNewPassword}
-            placeholder="Enter new password"
+            placeholder={t('security.password.newPasswordPlaceholder', {
+              defaultValue: 'Nhập mật khẩu mới',
+            })}
             placeholderTextColor={theme.colors.textSecondary}
           />
           <TouchableOpacity
@@ -438,7 +560,9 @@ export default function SecuritySettingsScreen() {
 
       <View style={styles.inputGroup}>
         <Text style={[Typography.label, { color: theme.colors.text }]}>
-          Confirm New Password
+          {t('security.password.confirmPassword', {
+            defaultValue: 'Xác nhận mật khẩu mới',
+          })}
         </Text>
         <View style={styles.passwordInputContainer}>
           <TextInput
@@ -447,12 +571,15 @@ export default function SecuritySettingsScreen() {
               {
                 color: theme.colors.text,
                 backgroundColor: theme.colors.surface,
+                borderColor: theme.colors.border,
               },
             ]}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showConfirmPassword}
-            placeholder="Confirm new password"
+            placeholder={t('security.password.confirmPasswordPlaceholder', {
+              defaultValue: 'Xác nhận mật khẩu mới',
+            })}
             placeholderTextColor={theme.colors.textSecondary}
           />
           <TouchableOpacity
@@ -469,7 +596,9 @@ export default function SecuritySettingsScreen() {
       </View>
 
       <Button
-        title="Change Password"
+        title={t('security.password.changePassword', {
+          defaultValue: 'Đổi mật khẩu',
+        })}
         onPress={handleChangePassword}
         loading={loading}
         style={styles.submitButton}
@@ -484,7 +613,9 @@ export default function SecuritySettingsScreen() {
           <Shield size={24} color={theme.colors.primary} />
           <View style={{ flex: 1, marginLeft: 12 }}>
             <Text style={[Typography.h4, { color: theme.colors.text }]}>
-              Two-Factor Authentication
+              {t('security.twoFactor.title', {
+                defaultValue: 'Xác thực 2 lớp',
+              })}
             </Text>
             <Text
               style={[
@@ -492,7 +623,9 @@ export default function SecuritySettingsScreen() {
                 { color: theme.colors.textSecondary, marginTop: 4 },
               ]}
             >
-              Add an extra layer of security to your account
+              {t('security.twoFactor.description', {
+                defaultValue: 'Thêm một lớp bảo mật cho tài khoản của bạn',
+              })}
             </Text>
           </View>
           <Switch
@@ -516,7 +649,9 @@ export default function SecuritySettingsScreen() {
       {twoFactorSecret && !twoFactorEnabled && (
         <View style={styles.section}>
           <Text style={[Typography.h5, { color: theme.colors.text }]}>
-            Setup Instructions
+            {t('security.twoFactor.instructions.title', {
+              defaultValue: 'Hướng dẫn thiết lập',
+            })}
           </Text>
           <Text
             style={[
@@ -524,7 +659,10 @@ export default function SecuritySettingsScreen() {
               { color: theme.colors.textSecondary, marginTop: 8 },
             ]}
           >
-            1. Download an authenticator app (Google Authenticator, Authy, etc.)
+            {t('security.twoFactor.instructions.step1', {
+              defaultValue:
+                '1. Tải ứng dụng xác thực (Google Authenticator, Authy, v.v.)',
+            })}
           </Text>
           <Text
             style={[
@@ -532,7 +670,9 @@ export default function SecuritySettingsScreen() {
               { color: theme.colors.textSecondary, marginTop: 4 },
             ]}
           >
-            2. Scan the QR code or enter the secret key manually
+            {t('security.twoFactor.instructions.step2', {
+              defaultValue: '2. Quét mã QR hoặc nhập mã bí mật thủ công',
+            })}
           </Text>
           <Text
             style={[
@@ -540,23 +680,145 @@ export default function SecuritySettingsScreen() {
               { color: theme.colors.textSecondary, marginTop: 4 },
             ]}
           >
-            3. Enter the 6-digit code from the app below
+            {t('security.twoFactor.instructions.step3', {
+              defaultValue: '3. Nhập mã 6 số từ ứng dụng bên dưới',
+            })}
           </Text>
 
-          <View
-            style={[
-              styles.qrContainer,
-              { backgroundColor: theme.colors.surface },
-            ]}
-          >
-            <Text style={[Typography.bodySmall, { color: theme.colors.text }]}>
-              Secret Key: {twoFactorSecret}
-            </Text>
-          </View>
+          {twoFactorQR ? (
+            <View
+              style={[
+                styles.qrContainer,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <Text
+                style={[
+                  Typography.bodyMedium,
+                  {
+                    color: theme.colors.text,
+                    marginBottom: 16,
+                    textAlign: 'center',
+                  },
+                ]}
+              >
+                {t('security.twoFactor.setupDescription', {
+                  defaultValue: 'Quét mã QR bằng ứng dụng xác thực',
+                })}
+              </Text>
+              <View
+                style={[
+                  styles.qrCodeWrapper,
+                  {
+                    backgroundColor: '#FFFFFF',
+                    padding: 16,
+                    borderRadius: 8,
+                    borderWidth: 1,
+                    borderColor: theme.colors.border || '#E0E0E0',
+                  },
+                ]}
+              >
+                {twoFactorQR ? (
+                  <QRCode
+                    value={twoFactorQR}
+                    size={200}
+                    color="#000000"
+                    backgroundColor="#FFFFFF"
+                    logo={undefined}
+                    logoSize={0}
+                    quietZone={10}
+                    ecl="M"
+                  />
+                ) : (
+                  <View
+                    style={{
+                      width: 200,
+                      height: 200,
+                      backgroundColor: '#F0F0F0',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <Text style={{ color: '#999' }}>Loading QR code...</Text>
+                  </View>
+                )}
+              </View>
+              {twoFactorSecret && (
+                <View style={styles.secretKeyContainer}>
+                  <Text
+                    style={[
+                      Typography.bodySmall,
+                      {
+                        color: theme.colors.textSecondary,
+                        marginTop: 16,
+                        marginBottom: 8,
+                      },
+                    ]}
+                  >
+                    {t('security.twoFactor.secretKey', {
+                      defaultValue: 'Mã bí mật',
+                    })}
+                    :
+                  </Text>
+                  <Text
+                    style={[
+                      Typography.bodySmall,
+                      {
+                        color: theme.colors.text,
+                        fontFamily: 'SpaceGrotesk-Medium',
+                        textAlign: 'center',
+                      },
+                    ]}
+                  >
+                    {twoFactorSecret}
+                  </Text>
+                </View>
+              )}
+            </View>
+          ) : twoFactorSecret ? (
+            <View
+              style={[
+                styles.qrContainer,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  {
+                    color: theme.colors.textSecondary,
+                    marginBottom: 8,
+                  },
+                ]}
+              >
+                {t('security.twoFactor.secretKey', {
+                  defaultValue: 'Mã bí mật',
+                })}{' '}
+                (
+                {t('security.twoFactor.instructions.step2', {
+                  defaultValue: 'nhập thủ công',
+                })}
+                ):
+              </Text>
+              <Text
+                style={[
+                  Typography.bodySmall,
+                  {
+                    color: theme.colors.text,
+                    fontFamily: 'SpaceGrotesk-Medium',
+                  },
+                ]}
+              >
+                {twoFactorSecret}
+              </Text>
+            </View>
+          ) : null}
 
           <View style={styles.inputGroup}>
             <Text style={[Typography.label, { color: theme.colors.text }]}>
-              Verification Code
+              {t('security.twoFactor.verificationCode', {
+                defaultValue: 'Mã xác thực',
+              })}
             </Text>
             <TextInput
               style={[
@@ -564,11 +826,14 @@ export default function SecuritySettingsScreen() {
                 {
                   color: theme.colors.text,
                   backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border,
                 },
               ]}
               value={verificationCode}
               onChangeText={setVerificationCode}
-              placeholder="Enter 6-digit code"
+              placeholder={t('security.twoFactor.verificationCodePlaceholder', {
+                defaultValue: 'Nhập mã 6 số',
+              })}
               placeholderTextColor={theme.colors.textSecondary}
               keyboardType="number-pad"
               maxLength={6}
@@ -576,7 +841,9 @@ export default function SecuritySettingsScreen() {
           </View>
 
           <Button
-            title="Verify and Enable"
+            title={t('security.twoFactor.verifyAndEnable', {
+              defaultValue: 'Xác thực và bật',
+            })}
             onPress={handleVerify2FA}
             loading={loading}
             style={styles.submitButton}
@@ -594,7 +861,10 @@ export default function SecuritySettingsScreen() {
           <Text
             style={[Typography.bodyMedium, { color: theme.colors.success }]}
           >
-            ✓ Two-factor authentication is enabled
+            ✓{' '}
+            {t('security.twoFactor.enabled', {
+              defaultValue: 'Xác thực 2 lớp đã được bật',
+            })}
           </Text>
         </View>
       )}
@@ -637,18 +907,16 @@ export default function SecuritySettingsScreen() {
             { backgroundColor: theme.colors.error + '15' },
           ]}
         >
-          <Text
-            style={[Typography.bodyMedium, { color: theme.colors.error }]}
-          >
+          <Text style={[Typography.bodyMedium, { color: theme.colors.error }]}>
             {faceError}
           </Text>
-            <Button
-              title={t('common.retry', { defaultValue: 'Thử lại' })}
-              onPress={() => loadFaceEncodingStatus(true)}
-              variant="outline"
-              size="small"
-              style={styles.retryButton}
-            />
+          <Button
+            title={t('common.retry', { defaultValue: 'Thử lại' })}
+            onPress={() => loadFaceEncodingStatus(true)}
+            variant="outline"
+            size="small"
+            style={styles.retryButton}
+          />
         </View>
       ) : (
         <>
@@ -660,10 +928,7 @@ export default function SecuritySettingsScreen() {
               ]}
             >
               <Text
-                style={[
-                  Typography.bodyMedium,
-                  { color: theme.colors.success },
-                ]}
+                style={[Typography.bodyMedium, { color: theme.colors.success }]}
               >
                 {t('faceLogin.enrolled', {
                   defaultValue: 'Đã đăng ký khuôn mặt',
@@ -678,10 +943,7 @@ export default function SecuritySettingsScreen() {
               ]}
             >
               <Text
-                style={[
-                  Typography.bodyMedium,
-                  { color: theme.colors.warning },
-                ]}
+                style={[Typography.bodyMedium, { color: theme.colors.warning }]}
               >
                 {t('faceLogin.notEnrolled', {
                   defaultValue: 'Chưa đăng ký khuôn mặt',
@@ -711,7 +973,7 @@ export default function SecuritySettingsScreen() {
               loading={loadingFaceStatus}
               style={styles.submitButton}
             />
-            
+
             <Button
               title={t('common.refresh', { defaultValue: 'Làm mới' })}
               onPress={() => loadFaceEncodingStatus(true)}
@@ -747,7 +1009,9 @@ export default function SecuritySettingsScreen() {
                             const response =
                               await userService.deleteFaceEncoding();
                             if (response.success) {
-                              analytics.trackFeatureUsage('delete_face_encoding_success');
+                              analytics.trackFeatureUsage(
+                                'delete_face_encoding_success'
+                              );
                               setFaceEnrolled(false);
                               // Reload status to ensure consistency
                               await loadFaceEncodingStatus();
@@ -760,11 +1024,17 @@ export default function SecuritySettingsScreen() {
                               const errorMessage =
                                 response.message ||
                                 t('faceLogin.deleteError', {
-                                  defaultValue: 'Không thể xóa khuôn mặt. Vui lòng thử lại.',
+                                  defaultValue:
+                                    'Không thể xóa khuôn mặt. Vui lòng thử lại.',
                                 });
-                              analytics.trackError('delete_face_encoding_failed', errorMessage);
+                              analytics.trackError(
+                                'delete_face_encoding_failed',
+                                errorMessage
+                              );
                               setErrorModalData({
-                                title: t('common.error', { defaultValue: 'Lỗi' }),
+                                title: t('common.error', {
+                                  defaultValue: 'Lỗi',
+                                }),
                                 message: errorMessage,
                                 suggestion: t('faceLogin.retrySuggestion', {
                                   defaultValue: 'Vui lòng thử lại sau',
@@ -778,7 +1048,10 @@ export default function SecuritySettingsScreen() {
                               t('faceLogin.deleteError', {
                                 defaultValue: 'Không thể xóa khuôn mặt',
                               });
-                            analytics.trackError('delete_face_encoding_exception', errorMessage);
+                            analytics.trackError(
+                              'delete_face_encoding_exception',
+                              errorMessage
+                            );
                             setErrorModalData({
                               title: t('common.error', { defaultValue: 'Lỗi' }),
                               message: errorMessage,
@@ -810,7 +1083,7 @@ export default function SecuritySettingsScreen() {
     <View style={styles.tabContent}>
       <View style={styles.section}>
         <Text style={[Typography.h4, { color: theme.colors.text }]}>
-          Active Sessions
+          {t('security.sessions.title', { defaultValue: 'Phiên đăng nhập' })}
         </Text>
         <Text
           style={[
@@ -818,22 +1091,33 @@ export default function SecuritySettingsScreen() {
             { color: theme.colors.textSecondary, marginTop: 4 },
           ]}
         >
-          Manage devices that are currently logged in
+          {t('security.sessions.description', {
+            defaultValue: 'Quản lý các thiết bị đang đăng nhập',
+          })}
         </Text>
       </View>
 
       {activeSessions.length > 0 && (
         <View style={styles.section}>
           <Button
-            title="Logout All Other Sessions"
+            title={t('security.sessions.logoutAll', {
+              defaultValue: 'Đăng xuất tất cả phiên khác',
+            })}
             onPress={() => {
               Alert.alert(
-                'Logout All Sessions',
-                'Are you sure you want to logout all other sessions? You will remain logged in on this device.',
+                t('security.sessions.logoutAllTitle', {
+                  defaultValue: 'Đăng xuất tất cả phiên',
+                }),
+                t('security.sessions.logoutAllConfirm', {
+                  defaultValue:
+                    'Bạn có chắc chắn muốn đăng xuất tất cả phiên khác? Bạn sẽ vẫn đăng nhập trên thiết bị này.',
+                }),
                 [
                   { text: t('common.cancel'), style: 'cancel' },
                   {
-                    text: 'Logout All',
+                    text: t('security.sessions.logoutAll', {
+                      defaultValue: 'Đăng xuất tất cả',
+                    }),
                     style: 'destructive',
                     onPress: async () => {
                       try {
@@ -842,21 +1126,31 @@ export default function SecuritySettingsScreen() {
                         if (response.success) {
                           Alert.alert(
                             t('common.success'),
-                            'All other sessions logged out successfully'
+                            t('security.sessions.logoutAllSuccess', {
+                              defaultValue:
+                                'Đã đăng xuất tất cả phiên khác thành công',
+                            })
                           );
                           // Refresh sessions list
                           await loadSecurityData();
                         } else {
                           Alert.alert(
                             t('common.error'),
-                            response.message || 'Failed to logout all sessions'
+                            response.message ||
+                              t('security.sessions.logoutAllError', {
+                                defaultValue:
+                                  'Không thể đăng xuất tất cả phiên',
+                              })
                           );
                         }
                       } catch (error: any) {
                         console.error('Error revoking all sessions:', error);
                         Alert.alert(
                           t('common.error'),
-                          error.message || 'Failed to logout all sessions'
+                          error.message ||
+                            t('security.sessions.logoutAllError', {
+                              defaultValue: 'Không thể đăng xuất tất cả phiên',
+                            })
                         );
                       } finally {
                         setLoading(false);
@@ -882,7 +1176,9 @@ export default function SecuritySettingsScreen() {
               { color: theme.colors.textSecondary, marginTop: 16 },
             ]}
           >
-            No active sessions found
+            {t('security.sessions.noSessions', {
+              defaultValue: 'Không tìm thấy phiên đăng nhập nào',
+            })}
           </Text>
         </View>
       ) : (
@@ -925,7 +1221,11 @@ export default function SecuritySettingsScreen() {
                       { color: theme.colors.text },
                     ]}
                   >
-                    {session.device_info || session.user_agent || 'Unknown Device'}
+                    {session.device_info ||
+                      session.user_agent ||
+                      t('security.sessions.unknownDevice', {
+                        defaultValue: 'Thiết bị không xác định',
+                      })}
                   </Text>
                   {isCurrentSession && (
                     <View
@@ -944,7 +1244,9 @@ export default function SecuritySettingsScreen() {
                           },
                         ]}
                       >
-                        Current
+                        {t('security.sessions.current', {
+                          defaultValue: 'Hiện tại',
+                        })}
                       </Text>
                     </View>
                   )}
@@ -955,7 +1257,11 @@ export default function SecuritySettingsScreen() {
                     { color: theme.colors.textSecondary, marginTop: 4 },
                   ]}
                 >
-                  {session.location || session.ip_address || 'Unknown Location'}
+                  {session.location ||
+                    session.ip_address ||
+                    t('security.sessions.unknownLocation', {
+                      defaultValue: 'Vị trí không xác định',
+                    })}
                 </Text>
                 <Text
                   style={[
@@ -963,60 +1269,78 @@ export default function SecuritySettingsScreen() {
                     { color: theme.colors.textSecondary, marginTop: 2 },
                   ]}
                 >
-                  Last active: {formattedLastActive}
+                  {t('security.sessions.lastActive', {
+                    defaultValue: 'Hoạt động lần cuối',
+                  })}
+                  : {formattedLastActive}
                 </Text>
               </View>
-            <TouchableOpacity
-              style={styles.logoutButton}
-              onPress={() => {
-                Alert.alert(
-                  'Logout Session',
-                  'Are you sure you want to logout this session?',
-                  [
-                    { text: t('common.cancel'), style: 'cancel' },
-                    {
-                      text: 'Logout',
-                      style: 'destructive',
-                      onPress: async () => {
-                        try {
-                          setLoading(true);
-                          const response = await authService.revokeSession(
-                            session.id
-                          );
-                          if (response.success) {
-                            Alert.alert(
-                              t('common.success'),
-                              'Session logged out successfully'
+              <TouchableOpacity
+                style={styles.logoutButton}
+                onPress={() => {
+                  Alert.alert(
+                    t('security.sessions.logoutTitle', {
+                      defaultValue: 'Đăng xuất phiên',
+                    }),
+                    t('security.sessions.logoutConfirm', {
+                      defaultValue:
+                        'Bạn có chắc chắn muốn đăng xuất phiên này?',
+                    }),
+                    [
+                      { text: t('common.cancel'), style: 'cancel' },
+                      {
+                        text: t('security.sessions.logout', {
+                          defaultValue: 'Đăng xuất',
+                        }),
+                        style: 'destructive',
+                        onPress: async () => {
+                          try {
+                            setLoading(true);
+                            const response = await authService.revokeSession(
+                              session.id
                             );
-                            // Refresh sessions list
-                            await loadSecurityData();
-                          } else {
+                            if (response.success) {
+                              Alert.alert(
+                                t('common.success'),
+                                t('security.sessions.logoutSuccess', {
+                                  defaultValue: 'Đã đăng xuất phiên thành công',
+                                })
+                              );
+                              // Refresh sessions list
+                              await loadSecurityData();
+                            } else {
+                              Alert.alert(
+                                t('common.error'),
+                                response.message ||
+                                  t('security.sessions.logoutError', {
+                                    defaultValue: 'Không thể đăng xuất phiên',
+                                  })
+                              );
+                            }
+                          } catch (error: any) {
+                            console.error('Error revoking session:', error);
                             Alert.alert(
                               t('common.error'),
-                              response.message || 'Failed to logout session'
+                              error.message ||
+                                t('security.sessions.logoutError', {
+                                  defaultValue: 'Không thể đăng xuất phiên',
+                                })
                             );
+                          } finally {
+                            setLoading(false);
                           }
-                        } catch (error: any) {
-                          console.error('Error revoking session:', error);
-                          Alert.alert(
-                            t('common.error'),
-                            error.message || 'Failed to logout session'
-                          );
-                        } finally {
-                          setLoading(false);
-                        }
+                        },
                       },
-                    },
-                  ]
-                );
-              }}
-            >
-              <Text
-                style={[Typography.bodySmall, { color: theme.colors.error }]}
+                    ]
+                  );
+                }}
               >
-                Logout
-              </Text>
-            </TouchableOpacity>
+                <Text
+                  style={[Typography.bodySmall, { color: theme.colors.error }]}
+                >
+                  {t('security.sessions.logout', { defaultValue: 'Đăng xuất' })}
+                </Text>
+              </TouchableOpacity>
             </View>
           );
         })
@@ -1036,11 +1360,16 @@ export default function SecuritySettingsScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h3, { color: theme.colors.text, flex: 1 }]}>
-          Security
+          {t('security.title', { defaultValue: 'Bảo mật' })}
         </Text>
       </View>
 
-      <View style={styles.tabContainer}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={styles.tabScrollContainer}
+        contentContainerStyle={styles.tabContainer}
+      >
         <TouchableOpacity
           style={[
             styles.tab,
@@ -1051,7 +1380,7 @@ export default function SecuritySettingsScreen() {
           onPress={() => setActiveTab('password')}
         >
           <Key
-            size={20}
+            size={18}
             color={
               activeTab === 'password'
                 ? theme.colors.primary
@@ -1060,17 +1389,19 @@ export default function SecuritySettingsScreen() {
           />
           <Text
             style={[
-              Typography.bodyMedium,
+              Typography.bodySmall,
               {
                 color:
                   activeTab === 'password'
                     ? theme.colors.primary
                     : theme.colors.textSecondary,
-                marginLeft: 8,
+                marginLeft: 6,
+                fontSize: 13,
               },
             ]}
+            numberOfLines={1}
           >
-            Password
+            {t('security.tabs.password', { defaultValue: 'Mật khẩu' })}
           </Text>
         </TouchableOpacity>
 
@@ -1084,7 +1415,7 @@ export default function SecuritySettingsScreen() {
           onPress={() => setActiveTab('2fa')}
         >
           <Shield
-            size={20}
+            size={18}
             color={
               activeTab === '2fa'
                 ? theme.colors.primary
@@ -1093,17 +1424,19 @@ export default function SecuritySettingsScreen() {
           />
           <Text
             style={[
-              Typography.bodyMedium,
+              Typography.bodySmall,
               {
                 color:
                   activeTab === '2fa'
                     ? theme.colors.primary
                     : theme.colors.textSecondary,
-                marginLeft: 8,
+                marginLeft: 6,
+                fontSize: 13,
               },
             ]}
+            numberOfLines={1}
           >
-            2FA
+            {t('security.tabs.twoFactor', { defaultValue: 'Xác thực 2 lớp' })}
           </Text>
         </TouchableOpacity>
 
@@ -1117,7 +1450,7 @@ export default function SecuritySettingsScreen() {
           onPress={() => setActiveTab('face')}
         >
           <User
-            size={20}
+            size={18}
             color={
               activeTab === 'face'
                 ? theme.colors.primary
@@ -1126,19 +1459,19 @@ export default function SecuritySettingsScreen() {
           />
           <Text
             style={[
-              Typography.bodyMedium,
+              Typography.bodySmall,
               {
                 color:
                   activeTab === 'face'
                     ? theme.colors.primary
                     : theme.colors.textSecondary,
-                marginLeft: 8,
+                marginLeft: 6,
+                fontSize: 13,
               },
             ]}
+            numberOfLines={1}
           >
-            {t('faceLogin.title', {
-              defaultValue: 'Face',
-            })}
+            {t('security.tabs.face', { defaultValue: 'Khuôn mặt' })}
           </Text>
         </TouchableOpacity>
 
@@ -1152,7 +1485,7 @@ export default function SecuritySettingsScreen() {
           onPress={() => setActiveTab('sessions')}
         >
           <Monitor
-            size={20}
+            size={18}
             color={
               activeTab === 'sessions'
                 ? theme.colors.primary
@@ -1161,20 +1494,22 @@ export default function SecuritySettingsScreen() {
           />
           <Text
             style={[
-              Typography.bodyMedium,
+              Typography.bodySmall,
               {
                 color:
                   activeTab === 'sessions'
                     ? theme.colors.primary
                     : theme.colors.textSecondary,
-                marginLeft: 8,
+                marginLeft: 6,
+                fontSize: 13,
               },
             ]}
+            numberOfLines={1}
           >
-            Sessions
+            {t('security.tabs.sessions', { defaultValue: 'Phiên đăng nhập' })}
           </Text>
         </TouchableOpacity>
-      </View>
+      </ScrollView>
 
       <ScrollView
         style={styles.scrollView}
@@ -1188,14 +1523,16 @@ export default function SecuritySettingsScreen() {
         {activeTab === 'face' && renderFaceTab()}
         {activeTab === 'sessions' && renderSessionsTab()}
       </ScrollView>
-      
+
       {/* Toast Component */}
       <ToastComponent />
-      
+
       {/* Error Modal */}
       <AlertModal
         visible={errorModalVisible}
-        title={errorModalData?.title || t('common.error', { defaultValue: 'Lỗi' })}
+        title={
+          errorModalData?.title || t('common.error', { defaultValue: 'Lỗi' })
+        }
         message={errorModalData?.message || ''}
         suggestion={errorModalData?.suggestion}
         type="error"
@@ -1214,25 +1551,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: 'transparent',
   },
   backButton: {
     padding: 8,
     marginRight: 8,
   },
+  tabScrollContainer: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0, 0, 0, 0.08)',
+    backgroundColor: 'transparent',
+    maxHeight: 50,
+  },
   tabContainer: {
     flexDirection: 'row',
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0, 0, 0, 0.1)',
+    alignItems: 'center',
   },
   tab: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 12,
     borderBottomWidth: 2,
     borderBottomColor: 'transparent',
   },
@@ -1240,10 +1583,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   tabContent: {
-    padding: 16,
+    padding: 20,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -1253,11 +1596,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   input: {
-    padding: 12,
-    borderRadius: 8,
+    padding: 14,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
     fontSize: 16,
+    marginTop: 8,
   },
   passwordInputContainer: {
     flexDirection: 'row',
@@ -1266,12 +1609,12 @@ const styles = StyleSheet.create({
   },
   passwordInput: {
     flex: 1,
-    padding: 12,
+    padding: 14,
     paddingRight: 48,
-    borderRadius: 8,
+    borderRadius: 12,
     borderWidth: 1,
-    borderColor: 'rgba(0, 0, 0, 0.1)',
     fontSize: 16,
+    marginTop: 8,
   },
   eyeIcon: {
     position: 'absolute',
@@ -1279,18 +1622,30 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   submitButton: {
-    marginTop: 8,
+    marginTop: 12,
   },
   qrContainer: {
-    padding: 16,
-    borderRadius: 8,
-    marginTop: 16,
+    padding: 20,
+    borderRadius: 12,
+    marginTop: 20,
     alignItems: 'center',
+    borderWidth: 1,
+  },
+  qrCodeWrapper: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  secretKeyContainer: {
+    width: '100%',
+    marginTop: 8,
   },
   statusCard: {
     padding: 16,
-    borderRadius: 8,
+    borderRadius: 12,
     marginTop: 16,
+    borderWidth: 1,
+    borderColor: 'transparent',
   },
   emptyState: {
     alignItems: 'center',
@@ -1303,6 +1658,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     borderWidth: 1,
     marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
   },
   sessionIcon: {
     marginRight: 12,

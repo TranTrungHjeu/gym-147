@@ -1,9 +1,27 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { scheduleService, GymClass } from '../../services/schedule.service';
-import { Search, Plus, RefreshCw, Edit, Trash2, BookOpen, Users, TrendingUp, Award, Eye } from 'lucide-react';
+import {
+  Search,
+  Plus,
+  RefreshCw,
+  Edit,
+  Trash2,
+  BookOpen,
+  Users,
+  TrendingUp,
+  Award,
+  Eye,
+} from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import ClassFormModal from '../../components/modals/ClassFormModal';
 import ClassDetailModal from '../../components/modals/ClassDetailModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
@@ -16,6 +34,7 @@ import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const ClassManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,13 +59,13 @@ const ClassManagement: React.FC = () => {
       setIsLoading(true);
       const response = await scheduleService.getAllClasses();
       if (response.success) {
-        const classesList = Array.isArray(response.data) 
-          ? response.data 
-          : (response.data?.classes || []);
+        const classesList = Array.isArray(response.data)
+          ? response.data
+          : response.data?.classes || [];
         setClasses(classesList);
       }
     } catch (error: any) {
-      showToast('Không thể tải danh sách lớp học', 'error');
+      showToast(t('classManagement.messages.loadError'), 'error');
       console.error('Error loading classes:', error);
       setClasses([]);
     } finally {
@@ -105,16 +124,16 @@ const ClassManagement: React.FC = () => {
 
   const getCategoryLabel = (category: string) => {
     const categoryMap: { [key: string]: string } = {
-      'CARDIO': 'Cardio',
-      'STRENGTH': 'Sức mạnh',
-      'YOGA': 'Yoga',
-      'PILATES': 'Pilates',
-      'DANCE': 'Khiêu vũ',
-      'MARTIAL_ARTS': 'Võ thuật',
-      'AQUA': 'Thủy sinh',
-      'FUNCTIONAL': 'Chức năng',
-      'RECOVERY': 'Phục hồi',
-      'SPECIALIZED': 'Chuyên biệt',
+      CARDIO: 'Cardio',
+      STRENGTH: 'Sức mạnh',
+      YOGA: 'Yoga',
+      PILATES: 'Pilates',
+      DANCE: 'Khiêu vũ',
+      MARTIAL_ARTS: 'Võ thuật',
+      AQUA: 'Thủy sinh',
+      FUNCTIONAL: 'Chức năng',
+      RECOVERY: 'Phục hồi',
+      SPECIALIZED: 'Chuyên biệt',
     };
     return categoryMap[category] || category;
   };
@@ -132,7 +151,7 @@ const ClassManagement: React.FC = () => {
       return acc;
     }, {} as { [key: string]: number });
     const totalCapacity = classes.reduce((sum, cls) => sum + (cls.max_capacity || 0), 0);
-    
+
     return {
       totalClasses,
       activeClasses,
@@ -144,9 +163,9 @@ const ClassManagement: React.FC = () => {
 
   const filteredClasses = useMemo(() => {
     if (!Array.isArray(classes)) return [];
-    
+
     return classes.filter(cls => {
-      const matchesSearch = 
+      const matchesSearch =
         cls?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         cls?.category?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         cls?.description?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -189,12 +208,12 @@ const ClassManagement: React.FC = () => {
     setIsDeleting(true);
     try {
       await scheduleService.deleteClass(classToDelete.id);
-      showToast('Xóa lớp học thành công', 'success');
+      showToast(t('classManagement.messages.deleteSuccess'), 'success');
       await loadClasses();
       setIsDeleteDialogOpen(false);
       setClassToDelete(null);
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa lớp học', 'error');
+      showToast(error.message || t('classManagement.messages.deleteError'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -204,16 +223,16 @@ const ClassManagement: React.FC = () => {
     try {
       if (selectedClass) {
         await scheduleService.updateClass(selectedClass.id, data);
-        showToast('Cập nhật lớp học thành công', 'success');
+        showToast(t('classManagement.messages.updateSuccess'), 'success');
       } else {
         await scheduleService.createClass(data);
-        showToast('Tạo lớp học thành công', 'success');
+        showToast(t('classManagement.messages.createSuccess'), 'success');
       }
       await loadClasses();
       setIsFormModalOpen(false);
       setSelectedClass(null);
     } catch (error: any) {
-      showToast(error.message || 'Không thể lưu lớp học', 'error');
+      showToast(error.message || t('classManagement.messages.saveError'), 'error');
       throw error;
     }
   };
@@ -224,10 +243,10 @@ const ClassManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Lớp học
+            {t('classManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Quản lý tất cả các lớp học trong phòng gym
+            {t('classManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -236,14 +255,14 @@ const ClassManagement: React.FC = () => {
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <RefreshCw className='w-4 h-4' />
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </button>
           <button
             onClick={handleCreate}
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <Plus className='w-4 h-4' />
-            Thêm lớp học
+            {t('classManagement.addClass')}
           </button>
         </div>
       </div>
@@ -270,7 +289,7 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số lớp học
+                  {t('classManagement.stats.totalClasses')}
                 </div>
               </div>
             </div>
@@ -297,7 +316,7 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Lớp đang hoạt động
+                  {t('classManagement.stats.activeClasses')}
                 </div>
               </div>
             </div>
@@ -324,7 +343,7 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng sức chứa
+                  {t('classManagement.stats.totalCapacity')}
                 </div>
               </div>
             </div>
@@ -351,7 +370,7 @@ const ClassManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Danh mục khác nhau
+                  {t('classManagement.stats.differentCategories')}
                 </div>
               </div>
             </div>
@@ -369,45 +388,45 @@ const ClassManagement: React.FC = () => {
             is_active: '',
           },
         }}
-        onFiltersChange={(newFilters) => {
+        onFiltersChange={newFilters => {
           setSearchTerm(newFilters.search || '');
           setCategoryFilter(newFilters.category || 'all');
           setDifficultyFilter(newFilters.customFilters?.difficulty || 'all');
           setCurrentPage(1);
         }}
         availableCategories={[
-          { value: 'CARDIO', label: 'Cardio' },
-          { value: 'STRENGTH', label: 'Sức mạnh' },
-          { value: 'YOGA', label: 'Yoga' },
-          { value: 'PILATES', label: 'Pilates' },
-          { value: 'DANCE', label: 'Khiêu vũ' },
-          { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
-          { value: 'AQUA', label: 'Bơi lội' },
-          { value: 'FUNCTIONAL', label: 'Chức năng' },
-          { value: 'RECOVERY', label: 'Phục hồi' },
-          { value: 'SPECIALIZED', label: 'Chuyên biệt' },
+          { value: 'CARDIO', label: t('certification.categories.CARDIO') },
+          { value: 'STRENGTH', label: t('certification.categories.STRENGTH') },
+          { value: 'YOGA', label: t('certification.categories.YOGA') },
+          { value: 'PILATES', label: t('certification.categories.PILATES') },
+          { value: 'DANCE', label: t('certification.categories.DANCE') },
+          { value: 'MARTIAL_ARTS', label: t('certification.categories.MARTIAL_ARTS') },
+          { value: 'AQUA', label: t('certification.categories.AQUA') },
+          { value: 'FUNCTIONAL', label: t('certification.categories.FUNCTIONAL') },
+          { value: 'RECOVERY', label: t('certification.categories.RECOVERY') },
+          { value: 'SPECIALIZED', label: t('certification.categories.SPECIALIZED') },
         ]}
         showDateRange={false}
         showCategory={true}
         customFilterFields={[
           {
             key: 'difficulty',
-            label: 'Độ khó',
+            label: t('classManagement.filter.difficulty'),
             type: 'select',
             options: [
-              { value: 'BEGINNER', label: 'Cơ bản' },
-              { value: 'INTERMEDIATE', label: 'Trung bình' },
-              { value: 'ADVANCED', label: 'Nâng cao' },
-              { value: 'ALL_LEVELS', label: 'Tất cả cấp độ' },
+              { value: 'BEGINNER', label: t('classManagement.difficulty.beginner') },
+              { value: 'INTERMEDIATE', label: t('classManagement.difficulty.intermediate') },
+              { value: 'ADVANCED', label: t('classManagement.difficulty.advanced') },
+              { value: 'ALL_LEVELS', label: t('classManagement.difficulty.allLevels') },
             ],
           },
           {
             key: 'is_active',
-            label: 'Trạng thái',
+            label: t('classManagement.filter.status'),
             type: 'select',
             options: [
-              { value: 'true', label: 'Đang hoạt động' },
-              { value: 'false', label: 'Không hoạt động' },
+              { value: 'true', label: t('common.status.active') },
+              { value: 'false', label: t('common.status.inactive') },
             ],
           },
         ]}
@@ -416,7 +435,7 @@ const ClassManagement: React.FC = () => {
       {/* Export and Actions */}
       <div className='flex justify-between items-center'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredClasses.length} lớp học
+          {t('classManagement.total', { count: filteredClasses.length })}
         </div>
         {filteredClasses.length > 0 && (
           <ExportButton
@@ -426,7 +445,7 @@ const ClassManagement: React.FC = () => {
               'Độ khó': getDifficultyLabel(cls.difficulty),
               'Sức chứa': cls.max_capacity,
               'Thời lượng (phút)': cls.duration,
-              'Giá': cls.price ? `${cls.price} VND` : 'Miễn phí',
+              Giá: cls.price ? `${cls.price} VND` : 'Miễn phí',
               'Trạng thái': cls.is_active ? 'Hoạt động' : 'Không hoạt động',
               'Mô tả': cls.description || '',
               'Thiết bị cần thiết': cls.equipment_needed?.join(', ') || '',
@@ -441,8 +460,8 @@ const ClassManagement: React.FC = () => {
               { key: 'Giá', label: 'Giá' },
               { key: 'Trạng thái', label: 'Trạng thái' },
             ]}
-            filename='danh-sach-lop-hoc'
-            title='Danh sách Lớp học'
+            filename={t('classManagement.export.filename')}
+            title={t('classManagement.export.title')}
             variant='outline'
             size='sm'
           />
@@ -451,15 +470,15 @@ const ClassManagement: React.FC = () => {
 
       {/* Classes List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách lớp học...' />
+        <TableLoading text={t('classManagement.messages.loading')} />
       ) : filteredClasses.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <BookOpen className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
               {searchTerm || categoryFilter !== 'all' || difficultyFilter !== 'all'
-                ? 'Không tìm thấy lớp học nào'
-                : 'Không có lớp học nào'}
+                ? t('classManagement.empty.noResults')
+                : t('classManagement.empty.noClasses')}
             </div>
           </div>
         </div>
@@ -474,86 +493,96 @@ const ClassManagement: React.FC = () => {
               <AdminTable>
                 <AdminTableHeader>
                   <AdminTableRow>
-                    <AdminTableCell header>Tên lớp</AdminTableCell>
-                    <AdminTableCell header>Danh mục</AdminTableCell>
-                    <AdminTableCell header>Độ khó</AdminTableCell>
-                    <AdminTableCell header>Sức chứa</AdminTableCell>
-                    <AdminTableCell header>Thời lượng</AdminTableCell>
-                    <AdminTableCell header>Giá</AdminTableCell>
-                    <AdminTableCell header>Trạng thái</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.name')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.category')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.difficulty')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.maxCapacity')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.duration')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.price')}</AdminTableCell>
+                    <AdminTableCell header>{t('classManagement.table.status')}</AdminTableCell>
                   </AdminTableRow>
                 </AdminTableHeader>
                 <AdminTableBody>
-                {paginatedClasses.map((cls, index) => (
-                  <AdminTableRow
-                    key={cls.id}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
-                      index % 2 === 0
-                        ? 'bg-white dark:bg-gray-900'
-                        : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
-                    onClick={(e?: React.MouseEvent) => {
-                      if (e) {
-                        e.stopPropagation();
-                        setSelectedClassForAction(cls);
-                        setMenuPosition({ x: e.clientX, y: e.clientY });
-                        setActionMenuOpen(true);
-                      }
-                    }}
-                  >
-                    <AdminTableCell className='overflow-hidden relative'>
-                      {/* Hover border indicator */}
-                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
-                      <div className='min-w-0 flex-1 relative z-10'>
-                        <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
-                          {cls.name}
-                        </div>
-                        {cls.description && (
-                          <div className='text-[10px] text-gray-500 dark:text-gray-400 font-inter mt-0.5 line-clamp-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                            {cls.description}
+                  {paginatedClasses.map((cls, index) => (
+                    <AdminTableRow
+                      key={cls.id}
+                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                        index % 2 === 0
+                          ? 'bg-white dark:bg-gray-900'
+                          : 'bg-gray-50/50 dark:bg-gray-800/50'
+                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      onClick={(e?: React.MouseEvent) => {
+                        if (e) {
+                          e.stopPropagation();
+                          setSelectedClassForAction(cls);
+                          setMenuPosition({ x: e.clientX, y: e.clientY });
+                          setActionMenuOpen(true);
+                        }
+                      }}
+                    >
+                      <AdminTableCell className='overflow-hidden relative'>
+                        {/* Hover border indicator */}
+                        <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
+                        <div className='min-w-0 flex-1 relative z-10'>
+                          <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
+                            {cls.name}
                           </div>
-                        )}
-                      </div>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                        {getCategoryLabel(cls.category)}
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getDifficultyColor(cls.difficulty)}`}>
-                        {getDifficultyLabel(cls.difficulty)}
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <div className='flex items-center gap-1.5'>
-                        <Users className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200' />
+                          {cls.description && (
+                            <div className='text-[10px] text-gray-500 dark:text-gray-400 font-inter mt-0.5 line-clamp-1 group-hover:text-gray-600 dark:group-hover:text-gray-300 transition-colors duration-200'>
+                              {cls.description}
+                            </div>
+                          )}
+                        </div>
+                      </AdminTableCell>
+                      <AdminTableCell>
                         <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                          {cls.max_capacity || 0} người
+                          {getCategoryLabel(cls.category)}
                         </span>
-                      </div>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                        {cls.duration} phút
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                        {cls.price ? `${cls.price.toLocaleString('vi-VN')} VNĐ` : 'Miễn phí'}
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell>
-                      <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${
-                        cls.is_active
-                          ? 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800'
-                          : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700'
-                      }`}>
-                        {cls.is_active ? 'Hoạt động' : 'Tạm dừng'}
-                      </span>
-                    </AdminTableCell>
-                  </AdminTableRow>
-                ))}
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <span
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getDifficultyColor(
+                            cls.difficulty
+                          )}`}
+                        >
+                          {getDifficultyLabel(cls.difficulty)}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <div className='flex items-center gap-1.5'>
+                          <Users className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200' />
+                          <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
+                            {cls.max_capacity || 0} {t('classManagement.people')}
+                          </span>
+                        </div>
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
+                          {cls.duration} {t('classManagement.minutes')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <span className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
+                          {cls.price
+                            ? `${cls.price.toLocaleString('vi-VN')} ${t('classManagement.vnd')}`
+                            : t('classManagement.free')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell>
+                        <span
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${
+                            cls.is_active
+                              ? 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800'
+                              : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+                          }`}
+                        >
+                          {cls.is_active
+                            ? t('common.status.active')
+                            : t('classManagement.status.paused')}
+                        </span>
+                      </AdminTableCell>
+                    </AdminTableRow>
+                  ))}
                 </AdminTableBody>
               </AdminTable>
             </div>
@@ -566,7 +595,7 @@ const ClassManagement: React.FC = () => {
               totalItems={filteredClasses.length}
               itemsPerPage={itemsPerPage}
               onPageChange={handlePageChange}
-              onItemsPerPageChange={(newItemsPerPage) => {
+              onItemsPerPageChange={newItemsPerPage => {
                 setItemsPerPage(newItemsPerPage);
                 handlePageChange(1);
               }}
@@ -621,7 +650,7 @@ const ClassManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors duration-150'
               >
                 <Eye className='w-3.5 h-3.5' />
-                Xem lớp
+                {t('classManagement.actions.view')}
               </button>
               <button
                 onClick={() => {
@@ -631,7 +660,7 @@ const ClassManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Edit className='w-3.5 h-3.5' />
-                Sửa
+                {t('classManagement.actions.edit')}
               </button>
               <button
                 onClick={() => {
@@ -642,7 +671,7 @@ const ClassManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
               >
                 <Trash2 className='w-3.5 h-3.5' />
-                Xóa
+                {t('classManagement.actions.delete')}
               </button>
             </div>
           </div>
@@ -666,10 +695,10 @@ const ClassManagement: React.FC = () => {
           setClassToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xác nhận xóa lớp học'
-        message={`Bạn có chắc chắn muốn xóa lớp học "${classToDelete?.name}"? Hành động này không thể hoàn tác.`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('classManagement.delete.confirmTitle')}
+        message={t('classManagement.delete.confirmMessage', { name: classToDelete?.name || '' })}
+        confirmText={t('classManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         variant='danger'
         isLoading={isDeleting}
       />

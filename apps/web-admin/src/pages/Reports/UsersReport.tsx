@@ -5,10 +5,12 @@ import UserGrowthChart from '../../components/charts/UserGrowthChart';
 import UserRoleDistributionChart from '../../components/charts/UserRoleDistributionChart';
 import AdminCard from '../../components/common/AdminCard';
 import { useTheme } from '../../context/ThemeContext';
+import useTranslation from '../../hooks/useTranslation';
 import { dashboardService } from '../../services/dashboard.service';
 
 const UsersReport: React.FC = () => {
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [userGrowthData, setUserGrowthData] = useState<{
     dates: string[];
@@ -70,10 +72,10 @@ const UsersReport: React.FC = () => {
       {/* Header */}
       <div>
         <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-          Báo cáo Người dùng
+          {t('reports.users.title')}
         </h1>
         <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-          Thống kê và phân tích về người dùng hệ thống
+          {t('reports.users.subtitle')}
         </p>
       </div>
 
@@ -108,12 +110,12 @@ const UsersReport: React.FC = () => {
                     </div>
                     <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
                       {stat.role === 'SUPER_ADMIN'
-                        ? 'Super Admin'
+                        ? t('reports.users.roles.superAdmin')
                         : stat.role === 'ADMIN'
-                        ? 'Admin'
+                        ? t('reports.users.roles.admin')
                         : stat.role === 'TRAINER'
-                        ? 'Huấn luyện viên'
-                        : 'Thành viên'}
+                        ? t('reports.users.roles.trainer')
+                        : t('reports.users.roles.member')}
                     </div>
                   </div>
                 </div>
@@ -132,21 +134,21 @@ const UsersReport: React.FC = () => {
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-theme-md p-6'>
           <div className='mb-4'>
             <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-              Phân bổ Người dùng theo Vai trò
+              {t('reports.users.roleDistribution.title')}
             </h3>
             <p className='text-sm text-gray-600 dark:text-gray-400 font-inter mt-1'>
-              Biểu đồ thể hiện số lượng người dùng theo từng vai trò trong hệ thống
+              {t('reports.users.roleDistribution.subtitle')}
             </p>
           </div>
           {isLoading ? (
             <div className='text-center py-12 text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-              Đang tải...
+              {t('common.loading')}
             </div>
           ) : userRoleDistributionData ? (
             <UserRoleDistributionChart data={userRoleDistributionData} theme={theme} />
           ) : (
             <div className='text-center py-12 text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-              Chưa có dữ liệu phân bổ người dùng
+              {t('reports.users.roleDistribution.noData')}
             </div>
           )}
         </div>
@@ -157,10 +159,10 @@ const UsersReport: React.FC = () => {
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-theme-md p-6'>
           <div className='mb-4'>
             <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-              Tăng trưởng Người dùng theo Vai trò
+              {t('reports.users.growthByRole.title')}
             </h3>
             <p className='text-sm text-gray-600 dark:text-gray-400 font-inter mt-1'>
-              Biểu đồ thể hiện xu hướng tăng trưởng người dùng theo từng vai trò theo thời gian
+              {t('reports.users.growthByRole.subtitle')}
             </p>
           </div>
           <UserGrowthByRoleChart data={userGrowthByRoleData} theme={theme} />

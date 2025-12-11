@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import ResetPasswordForm from '../../components/auth/ResetPasswordForm';
 import ThemeTogglerTwo from '../../components/common/ThemeTogglerTwo';
+import useTranslation from '../../hooks/useTranslation';
 import AuthAnimation from '@/assets/animation-gym147-2.mp4';
 import LogoText from '@/assets/images/logo-text.png';
 
 export default function ResetPassword() {
+  const { t } = useTranslation();
   const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
@@ -20,13 +22,19 @@ export default function ResetPassword() {
       <div className='absolute inset-0 overflow-hidden'>
         {/* Floating Orbs */}
         <div
-          className={`absolute top-20 left-20 w-32 h-32 bg-blue-400/20 dark:bg-orange-400/30 rounded-full blur-xl transition-all duration-1000 ${isLoaded ? 'animate-pulse' : 'opacity-0'}`}
+          className={`absolute top-20 left-20 w-32 h-32 bg-blue-400/20 dark:bg-orange-400/30 rounded-full blur-xl transition-all duration-1000 ${
+            isLoaded ? 'animate-pulse' : 'opacity-0'
+          }`}
         ></div>
         <div
-          className={`absolute top-40 right-32 w-24 h-24 bg-orange-400/30 dark:bg-orange-300/40 rounded-full blur-lg transition-all duration-1200 delay-300 ${isLoaded ? 'animate-bounce' : 'opacity-0'}`}
+          className={`absolute top-40 right-32 w-24 h-24 bg-orange-400/30 dark:bg-orange-300/40 rounded-full blur-lg transition-all duration-1200 delay-300 ${
+            isLoaded ? 'animate-bounce' : 'opacity-0'
+          }`}
         ></div>
         <div
-          className={`absolute bottom-32 left-1/3 w-40 h-40 bg-purple-400/15 dark:bg-orange-500/25 rounded-full blur-2xl transition-all duration-1500 delay-500 ${isLoaded ? 'animate-pulse' : 'opacity-0'}`}
+          className={`absolute bottom-32 left-1/3 w-40 h-40 bg-purple-400/15 dark:bg-orange-500/25 rounded-full blur-2xl transition-all duration-1500 delay-500 ${
+            isLoaded ? 'animate-pulse' : 'opacity-0'
+          }`}
         ></div>
 
         {/* Grid Pattern */}
@@ -39,14 +47,18 @@ export default function ResetPassword() {
       <div className='relative flex flex-col justify-center w-full h-full lg:flex-row'>
         {/* Left Side - Form */}
         <div
-          className={`flex-1 flex items-center justify-center p-4 py-8 transition-all duration-1000 ${isLoaded ? 'translate-x-0 opacity-100' : '-translate-x-10 opacity-0'}`}
+          className={`flex-1 flex items-center justify-center p-4 py-8 transition-all duration-1000 ${
+            isLoaded ? 'translate-x-0 opacity-100' : '-translate-x-10 opacity-0'
+          }`}
         >
           <ResetPasswordForm />
         </div>
 
         {/* Right Side - Video & Branding */}
         <div
-          className={`hidden lg:flex lg:w-1/2 items-center justify-center relative transition-all duration-1200 delay-300 ${isLoaded ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'}`}
+          className={`hidden lg:flex lg:w-1/2 items-center justify-center relative transition-all duration-1200 delay-300 ${
+            isLoaded ? 'translate-x-0 opacity-100' : 'translate-x-10 opacity-0'
+          }`}
         >
           {/* Video Background */}
           <div className='absolute inset-0 overflow-hidden'>
@@ -99,10 +111,10 @@ export default function ResetPassword() {
                   </svg>
                 </div>
                 <h3 className='text-xl font-bold text-gray-800 dark:text-white/90 mb-2'>
-                  BẢO MẬT TÀI KHOẢN
+                  {t('auth.resetPassword.securityTitle')}
                 </h3>
                 <p className='text-gray-600 dark:text-white/70 text-sm'>
-                  Tạo mật khẩu mạnh để bảo vệ tài khoản của bạn
+                  {t('auth.resetPassword.securityDescription')}
                 </p>
               </div>
 
@@ -116,7 +128,9 @@ export default function ResetPassword() {
                     />
                   </svg>
                 </div>
-                <span className='text-lg font-medium'>MẬT KHẨU MẠNH</span>
+                <span className='text-lg font-medium'>
+                  {t('auth.resetPassword.strongPassword')}
+                </span>
               </div>
 
               <div className='flex items-center space-x-4 text-gray-800 dark:text-white/90 backdrop-blur-sm bg-white/80 dark:bg-white/15 rounded-xl p-3 border border-gray-200 dark:border-white/30'>
@@ -129,7 +143,7 @@ export default function ResetPassword() {
                     />
                   </svg>
                 </div>
-                <span className='text-lg font-medium'>BẢO MẬT CAO</span>
+                <span className='text-lg font-medium'>{t('auth.resetPassword.highSecurity')}</span>
               </div>
 
               <div className='flex items-center space-x-4 text-gray-800 dark:text-white/90 backdrop-blur-sm bg-white/80 dark:bg-white/15 rounded-xl p-3 border border-gray-200 dark:border-white/30'>
@@ -142,17 +156,19 @@ export default function ResetPassword() {
                     />
                   </svg>
                 </div>
-                <span className='text-lg font-medium'>AN TOÀN TUYỆT ĐỐI</span>
+                <span className='text-lg font-medium'>
+                  {t('auth.resetPassword.absoluteSafety')}
+                </span>
               </div>
             </div>
 
             {/* Quote */}
             <div className='backdrop-blur-sm bg-white/10 rounded-2xl p-6 border border-white/20'>
               <blockquote className='text-white/90 text-lg italic leading-relaxed'>
-                "Security is not a product, but a process."
+                {t('auth.resetPassword.quote.text')}
               </blockquote>
               <cite className='text-orange-400 text-sm mt-3 block font-semibold font-space-grotesk'>
-                GYM 147 SECURITY
+                {t('auth.resetPassword.quote.author')}
               </cite>
             </div>
           </div>

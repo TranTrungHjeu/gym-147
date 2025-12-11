@@ -283,21 +283,6 @@ export const AIGenerationModal: React.FC<AIGenerationModalProps> = ({
             )}
           </View>
 
-          {/* Loading Spinner (show only when not completed) */}
-          {status !== 'completed' && (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="small" color={theme.colors.primary} />
-              <Text
-                style={[
-                  styles.loadingText,
-                  { color: theme.colors.textSecondary },
-                  Typography.caption,
-                ]}
-              >
-                {t('workouts.ai.pleaseWait')}
-              </Text>
-            </View>
-          )}
         </Animated.View>
       </Animated.View>
     </Modal>

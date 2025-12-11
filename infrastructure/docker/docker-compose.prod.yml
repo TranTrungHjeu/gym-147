@@ -109,6 +109,7 @@ services:
       - DATABASE_URL=${DATABASE_URL}
       - REDIS_URL=${REDIS_URL}
       - MEMBER_SERVICE_URL=http://member:3002
+      - BILLING_SERVICE_URL=http://billing:3004
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
       - DOCKER_ENV=true
     ports:
@@ -116,6 +117,7 @@ services:
     depends_on:
       - redis
       - member
+      - billing
     restart: unless-stopped
     networks:
       - gym-network

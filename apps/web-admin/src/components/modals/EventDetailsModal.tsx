@@ -36,35 +36,40 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       case 'SCHEDULED':
         return {
           label: 'Đã lên lịch',
-          color: 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+          color:
+            'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
           icon: Calendar,
           dotColor: 'bg-blue-500',
         };
       case 'IN_PROGRESS':
         return {
           label: 'Đang diễn ra',
-          color: 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800',
+          color:
+            'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800',
           icon: Loader2,
           dotColor: 'bg-yellow-500',
         };
       case 'COMPLETED':
         return {
           label: 'Hoàn thành',
-          color: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800',
+          color:
+            'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800',
           icon: CheckCircle2,
           dotColor: 'bg-green-500',
         };
       case 'CANCELLED':
         return {
           label: 'Đã hủy',
-          color: 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800',
+          color:
+            'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800',
           icon: XCircle,
           dotColor: 'bg-red-500',
         };
       default:
         return {
           label: status,
-          color: 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700',
+          color:
+            'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700',
           icon: AlertCircle,
           dotColor: 'bg-gray-500',
         };
@@ -105,9 +110,8 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     return `${mins} phút`;
   };
 
-  const attendancePercentage = event.max_capacity > 0
-    ? Math.round((event.attendees / event.max_capacity) * 100)
-    : 0;
+  const attendancePercentage =
+    event.max_capacity > 0 ? Math.round((event.attendees / event.max_capacity) * 100) : 0;
 
   const getAttendanceColor = () => {
     if (attendancePercentage >= 80) return 'text-green-600 dark:text-green-400';
@@ -118,11 +122,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
   const footer = (
     <div className='flex items-center justify-end gap-3'>
       {onEdit && (
-        <Button
-          variant='outline'
-          onClick={onEdit}
-          className='text-[11px] font-heading px-4 py-2'
-        >
+        <Button variant='outline' onClick={onEdit} className='text-[11px] font-heading px-4 py-2'>
           Chỉnh sửa
         </Button>
       )}
@@ -135,11 +135,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
           Điểm danh
         </Button>
       )}
-      <Button
-        variant='outline'
-        onClick={onClose}
-        className='text-[11px] font-heading px-4 py-2'
-      >
+      <Button variant='outline' onClick={onClose} className='text-[11px] font-heading px-4 py-2'>
         Đóng
       </Button>
     </div>
@@ -158,19 +154,23 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         <div className='flex items-start justify-between gap-4 pb-4 border-b border-gray-200 dark:border-gray-800'>
           <div className='flex-1'>
             <h3 className='text-xl font-bold font-heading text-gray-900 dark:text-white mb-2'>
-              {event.title}
+              {event.class_name || event.title || 'Lớp học'}
             </h3>
-            <div className='flex items-center gap-2'>
-              <BookOpen className='w-4 h-4 text-gray-400 dark:text-gray-500' />
-              <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-                {event.class_name}
-              </span>
-            </div>
+            {event.class_name && event.title && event.class_name !== event.title && (
+              <div className='flex items-center gap-2'>
+                <BookOpen className='w-4 h-4 text-gray-400 dark:text-gray-500' />
+                <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
+                  {event.title}
+                </span>
+              </div>
+            )}
           </div>
           <span
             className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold font-heading tracking-wide flex-shrink-0 ${statusInfo.color}`}
           >
-            <StatusIcon className={`w-3.5 h-3.5 ${statusInfo.icon === Loader2 ? 'animate-spin' : ''}`} />
+            <StatusIcon
+              className={`w-3.5 h-3.5 ${statusInfo.icon === Loader2 ? 'animate-spin' : ''}`}
+            />
             {statusInfo.label}
           </span>
         </div>
@@ -266,7 +266,9 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               <span className='text-xs font-semibold font-heading text-gray-700 dark:text-gray-300'>
                 Trạng thái:
               </span>
-              <span className={`${statusInfo.color} px-2 py-0.5 rounded text-xs font-semibold font-heading`}>
+              <span
+                className={`${statusInfo.color} px-2 py-0.5 rounded text-xs font-semibold font-heading`}
+              >
                 {statusInfo.label}
               </span>
             </div>

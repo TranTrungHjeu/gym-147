@@ -160,7 +160,10 @@ class SepayService {
         params: queryParams,
       });
 
-      console.log('[DATA] Sepay response structure:', JSON.stringify(response.data).substring(0, 500));
+      console.log(
+        '[DATA] Sepay response structure:',
+        JSON.stringify(response.data).substring(0, 500)
+      );
 
       // Log first transaction structure for debugging
       if (response.data?.transactions?.[0]) {
@@ -207,13 +210,19 @@ class SepayService {
       console.log('[SEARCH] Matching with code:', transferCode);
 
       // Filter by content (flexible) and amount
+      // Allow tolerance for rounding: user can transfer slightly more (up to 5 VND) but not less
+      const AMOUNT_TOLERANCE = 5.0; // Allow up to 5 VND difference for rounding
       const matchingTransaction = transactions.find(tx => {
         // Check content in transaction_content field
         const contentMatch = tx.transaction_content?.includes(transferCode);
 
         // Check amount (incoming transactions have amount_in > 0)
         const txAmount = parseFloat(tx.amount_in || 0);
-        const amountMatch = Math.abs(txAmount - amount) < 0.01;
+        const amountDifference = txAmount - amount;
+
+        // Allow if amount matches exactly or user transferred slightly more (rounding)
+        // But don't allow if user transferred less than expected
+        const amountMatch = Math.abs(amountDifference) <= AMOUNT_TOLERANCE && amountDifference >= 0;
 
         // Check if incoming (amount_in > 0, amount_out = 0)
         const isIncoming = txAmount > 0 && parseFloat(tx.amount_out || 0) === 0;
@@ -223,6 +232,8 @@ class SepayService {
           content: tx.transaction_content,
           amount_in: tx.amount_in,
           amount_out: tx.amount_out,
+          expectedAmount: amount,
+          amountDifference: amountDifference.toFixed(2),
           contentMatch,
           amountMatch,
           isIncoming,
@@ -267,27 +278,46 @@ class SepayService {
         console.log('[ERROR] Transaction not found');
         return {
           verified: false,
-          message: 'Transaction not found',
+          message: 'Chưa tìm thấy giao dịch. Vui lòng kiểm tra lại hoặc thử lại sau.',
+          transactionNotFound: true,
         };
       }
 
       console.log('[SUCCESS] Transaction found:', transaction);
 
       // Verify amount matches
+      // Allow tolerance for rounding: user can transfer slightly more (up to 5 VND) but not less
+      const AMOUNT_TOLERANCE = 5.0; // Allow up to 5 VND difference for rounding
       const receivedAmount = parseFloat(transaction.amount_in);
-      const amountMatch = Math.abs(receivedAmount - expectedAmount) < 0.01;
+      const amountDifference = receivedAmount - expectedAmount;
+
+      // Allow if amount matches exactly or user transferred slightly more (rounding)
+      // But don't allow if user transferred less than expected
+      const amountMatch = Math.abs(amountDifference) <= AMOUNT_TOLERANCE && amountDifference >= 0;
 
       if (!amountMatch) {
         console.log('[ERROR] Amount mismatch:', {
           expected: expectedAmount,
           received: receivedAmount,
+          difference: amountDifference.toFixed(2),
+          tolerance: AMOUNT_TOLERANCE,
         });
         return {
           verified: false,
-          message: 'Amount mismatch',
+          message:
+            amountDifference < 0
+              ? `Amount too low. Expected at least ${expectedAmount}, received ${receivedAmount}`
+              : `Amount mismatch. Expected ${expectedAmount}, received ${receivedAmount}`,
           transaction,
         };
       }
+
+      console.log('[SUCCESS] Amount verified:', {
+        expected: expectedAmount,
+        received: receivedAmount,
+        difference: amountDifference.toFixed(2),
+        withinTolerance: true,
+      });
 
       return {
         verified: true,

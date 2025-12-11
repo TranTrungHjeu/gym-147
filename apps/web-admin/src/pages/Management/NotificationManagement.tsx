@@ -22,9 +22,10 @@ import {
 } from '../../components/common/AdminTable';
 import CustomSelect from '../../components/common/CustomSelect';
 import Pagination from '../../components/common/Pagination';
-import RoleBadge from '../../components/common/RoleBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { memberApi, scheduleApi } from '../../services/api';
 import { eventManager } from '../../services/event-manager.service';
 import { notificationService } from '../../services/notification.service';
@@ -69,6 +70,7 @@ interface NotificationHistory {
 
 const NotificationManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState<TabType>('members');
   const [isTabTransitioning, setIsTabTransitioning] = useState(false);
   const [isPageTransitioning, setIsPageTransitioning] = useState(false);
@@ -582,7 +584,7 @@ const NotificationManagement: React.FC = () => {
         needsInitialLoad.current = false;
       }
     } catch (error: any) {
-      showToast('Không thể tải lịch sử thông báo', 'error');
+      showToast(t('notificationManagement.messages.loadHistoryError'), 'error');
       console.error('Error loading history:', error);
       setAllHistory([]);
     } finally {
@@ -809,7 +811,7 @@ const NotificationManagement: React.FC = () => {
   // Send notification to members
   const handleSendToMembers = async () => {
     if (!memberForm.title || !memberForm.message) {
-      showToast('Vui lòng điền đầy đủ tiêu đề và nội dung', 'error');
+      showToast(t('notificationManagement.messages.fillRequiredFields'), 'error');
       return;
     }
 
@@ -819,12 +821,12 @@ const NotificationManagement: React.FC = () => {
       !memberForm.filters.membership_status &&
       !memberForm.filters.search
     ) {
-      showToast('Vui lòng chọn ít nhất một filter', 'error');
+      showToast(t('notificationManagement.messages.selectAtLeastOneFilter'), 'error');
       return;
     }
 
     if (memberForm.sendTo === 'specific' && memberForm.member_ids.length === 0) {
-      showToast('Vui lòng nhập ít nhất một member ID', 'error');
+      showToast(t('notificationManagement.messages.enterAtLeastOneMemberId'), 'error');
       return;
     }
 
@@ -898,10 +900,10 @@ const NotificationManagement: React.FC = () => {
         }
         // If sending to all, keep the preview list visible
       } else {
-        showToast('Gửi thông báo thất bại', 'error');
+        showToast(t('notificationManagement.messages.sendFailed'), 'error');
       }
     } catch (error: any) {
-      showToast(error.message || 'Gửi thông báo thất bại', 'error');
+      showToast(error.message || t('notificationManagement.messages.sendFailed'), 'error');
       console.error('Error sending notification:', error);
     } finally {
       setSending(false);
@@ -911,7 +913,7 @@ const NotificationManagement: React.FC = () => {
   // Send notification to trainers
   const handleSendToTrainers = async () => {
     if (!trainerForm.title || !trainerForm.message) {
-      showToast('Vui lòng điền đầy đủ tiêu đề và nội dung', 'error');
+      showToast(t('notificationManagement.messages.fillRequiredFields'), 'error');
       return;
     }
 
@@ -921,12 +923,12 @@ const NotificationManagement: React.FC = () => {
       !trainerForm.filters.specialization &&
       !trainerForm.filters.search
     ) {
-      showToast('Vui lòng chọn ít nhất một filter', 'error');
+      showToast(t('notificationManagement.messages.selectAtLeastOneFilter'), 'error');
       return;
     }
 
     if (trainerForm.sendTo === 'specific' && trainerForm.trainer_ids.length === 0) {
-      showToast('Vui lòng nhập ít nhất một trainer ID', 'error');
+      showToast(t('notificationManagement.messages.enterAtLeastOneTrainerId'), 'error');
       return;
     }
 
@@ -1000,10 +1002,10 @@ const NotificationManagement: React.FC = () => {
         }
         // If sending to all, keep the preview list visible
       } else {
-        showToast('Gửi thông báo thất bại', 'error');
+        showToast(t('notificationManagement.messages.sendFailed'), 'error');
       }
     } catch (error: any) {
-      showToast(error.message || 'Gửi thông báo thất bại', 'error');
+      showToast(error.message || t('notificationManagement.messages.sendFailed'), 'error');
       console.error('Error sending notification:', error);
     } finally {
       setSending(false);
@@ -1016,10 +1018,10 @@ const NotificationManagement: React.FC = () => {
       <div className='flex items-center justify-between'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Quản lý thông báo
+            {t('notificationManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Gửi thông báo hàng loạt đến members và trainers
+            {t('notificationManagement.subtitle')}
           </p>
         </div>
       </div>
@@ -1051,7 +1053,7 @@ const NotificationManagement: React.FC = () => {
                   activeTab === 'members' ? 'scale-110' : ''
                 }`}
               />
-              <span>Gửi đến Members</span>
+              <span>{t('notificationManagement.tabs.members')}</span>
             </div>
           </button>
           <button
@@ -1078,7 +1080,7 @@ const NotificationManagement: React.FC = () => {
                   activeTab === 'trainers' ? 'scale-110' : ''
                 }`}
               />
-              <span>Gửi đến Trainers</span>
+              <span>{t('notificationManagement.tabs.trainers')}</span>
             </div>
           </button>
           <button
@@ -1105,7 +1107,7 @@ const NotificationManagement: React.FC = () => {
                   activeTab === 'history' ? 'scale-110' : ''
                 }`}
               />
-              <span>Lịch sử</span>
+              <span>{t('notificationManagement.tabs.history')}</span>
             </div>
           </button>
         </div>
@@ -1124,41 +1126,45 @@ const NotificationManagement: React.FC = () => {
               <div className='space-y-4'>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Tiêu đề <span className='text-red-500'>*</span>
+                    {t('notificationManagement.form.title')} <span className='text-red-500'>*</span>
                   </label>
                   <input
                     type='text'
                     value={memberForm.title}
                     onChange={e => setMemberForm({ ...memberForm, title: e.target.value })}
                     className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                    placeholder='Nhập tiêu đề thông báo...'
+                    placeholder={t('notificationManagement.form.titlePlaceholder')}
                   />
                 </div>
 
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Nội dung <span className='text-red-500'>*</span>
+                    {t('notificationManagement.form.message')}{' '}
+                    <span className='text-red-500'>*</span>
                   </label>
                   <textarea
                     value={memberForm.message}
                     onChange={e => setMemberForm({ ...memberForm, message: e.target.value })}
                     rows={4}
                     className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                    placeholder='Nhập nội dung thông báo...'
+                    placeholder={t('notificationManagement.form.messagePlaceholder')}
                   />
                 </div>
 
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Loại thông báo
+                    {t('notificationManagement.form.type')}
                   </label>
                   <div className='w-full'>
                     <CustomSelect
                       value={memberForm.type}
                       onChange={value => setMemberForm({ ...memberForm, type: value })}
                       options={[
-                        { value: 'GENERAL', label: 'Thông báo chung' },
-                        { value: 'SYSTEM_ANNOUNCEMENT', label: 'Thông báo hệ thống' },
+                        { value: 'GENERAL', label: t('notificationManagement.types.GENERAL') },
+                        {
+                          value: 'SYSTEM_ANNOUNCEMENT',
+                          label: t('notificationManagement.types.SYSTEM_ANNOUNCEMENT'),
+                        },
                       ]}
                       className='w-full'
                     />
@@ -1168,7 +1174,7 @@ const NotificationManagement: React.FC = () => {
                 {/* Send To Options */}
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    Gửi đến
+                    {t('notificationManagement.form.sendTo')}
                   </label>
                   <div className='grid grid-cols-3 gap-2'>
                     <button
@@ -1179,7 +1185,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Tất cả
+                      {t('notificationManagement.sendTo.all')}
                     </button>
                     <button
                       onClick={() => setMemberForm({ ...memberForm, sendTo: 'filter' })}
@@ -1189,7 +1195,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Theo filter
+                      {t('notificationManagement.sendTo.filter')}
                     </button>
                     <button
                       onClick={() => setMemberForm({ ...memberForm, sendTo: 'specific' })}
@@ -1199,7 +1205,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      IDs cụ thể
+                      {t('notificationManagement.sendTo.specific')}
                     </button>
                   </div>
                 </div>
@@ -1211,14 +1217,14 @@ const NotificationManagement: React.FC = () => {
                       <div className='flex items-center space-x-2'>
                         <Filter className='w-4 h-4 text-orange-500' />
                         <h3 className='text-sm font-semibold text-gray-900 dark:text-white'>
-                          Bộ lọc
+                          {t('notificationManagement.filters.title')}
                         </h3>
                       </div>
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
                       <div>
                         <label className='block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5'>
-                          Loại membership
+                          {t('notificationManagement.filters.membershipType')}
                         </label>
                         <CustomSelect
                           value={memberForm.filters.membership_type}
@@ -1229,18 +1235,18 @@ const NotificationManagement: React.FC = () => {
                             })
                           }
                           options={[
-                            { value: '', label: 'Tất cả' },
-                            { value: 'BASIC', label: 'Basic' },
-                            { value: 'PREMIUM', label: 'Premium' },
-                            { value: 'VIP', label: 'VIP' },
-                            { value: 'STUDENT', label: 'Student' },
+                            { value: '', label: t('common.all') },
+                            { value: 'BASIC', label: t('common.membershipTypes.BASIC') },
+                            { value: 'PREMIUM', label: t('common.membershipTypes.PREMIUM') },
+                            { value: 'VIP', label: t('common.membershipTypes.VIP') },
+                            { value: 'STUDENT', label: t('common.membershipTypes.STUDENT') },
                           ]}
                           className='w-full'
                         />
                       </div>
                       <div>
                         <label className='block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5'>
-                          Trạng thái
+                          {t('notificationManagement.filters.status')}
                         </label>
                         <CustomSelect
                           value={memberForm.filters.membership_status}
@@ -1251,17 +1257,17 @@ const NotificationManagement: React.FC = () => {
                             })
                           }
                           options={[
-                            { value: '', label: 'Tất cả' },
-                            { value: 'ACTIVE', label: 'Active' },
-                            { value: 'EXPIRED', label: 'Expired' },
-                            { value: 'SUSPENDED', label: 'Suspended' },
+                            { value: '', label: t('common.all') },
+                            { value: 'ACTIVE', label: t('common.status.ACTIVE') },
+                            { value: 'EXPIRED', label: t('common.status.EXPIRED') },
+                            { value: 'SUSPENDED', label: t('common.status.SUSPENDED') },
                           ]}
                           className='w-full'
                         />
                       </div>
                       <div>
                         <label className='block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1.5'>
-                          Tìm kiếm
+                          {t('notificationManagement.filters.search')}
                         </label>
                         <div className='relative'>
                           <Search className='absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400' />
@@ -1275,7 +1281,7 @@ const NotificationManagement: React.FC = () => {
                               })
                             }
                             className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                            placeholder='Tên, email, phone...'
+                            placeholder={t('notificationManagement.filters.searchPlaceholder')}
                           />
                         </div>
                       </div>
@@ -1287,7 +1293,7 @@ const NotificationManagement: React.FC = () => {
                 {memberForm.sendTo === 'specific' && (
                   <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                      Member IDs (phân cách bằng dấu phẩy)
+                      {t('notificationManagement.form.memberIds')}
                     </label>
                     <input
                       type='text'
@@ -1302,7 +1308,7 @@ const NotificationManagement: React.FC = () => {
                         })
                       }
                       className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                      placeholder='id1, id2, id3...'
+                      placeholder={t('notificationManagement.form.memberIdsPlaceholder')}
                     />
                   </div>
                 )}
@@ -1313,7 +1319,11 @@ const NotificationManagement: React.FC = () => {
                   className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-all duration-200 text-sm'
                 >
                   <Send className='w-4 h-4' />
-                  <span>{sending ? 'Đang gửi...' : 'Gửi thông báo'}</span>
+                  <span>
+                    {sending
+                      ? t('notificationManagement.actions.sending')
+                      : t('notificationManagement.actions.send')}
+                  </span>
                 </button>
               </div>
             </AdminCard>
@@ -1646,7 +1656,11 @@ const NotificationManagement: React.FC = () => {
                   className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-all duration-200 text-sm'
                 >
                   <Send className='w-4 h-4' />
-                  <span>{sending ? 'Đang gửi...' : 'Gửi thông báo'}</span>
+                  <span>
+                    {sending
+                      ? t('notificationManagement.actions.sending')
+                      : t('notificationManagement.actions.send')}
+                  </span>
                 </button>
               </div>
             </AdminCard>
@@ -1997,10 +2011,10 @@ const NotificationManagement: React.FC = () => {
                                 </div>
                                 <div>
                                   <p className='text-sm font-semibold text-gray-900 dark:text-white font-heading mb-1'>
-                                    Chưa có lịch sử thông báo
+                                    {t('notificationManagement.history.empty.title')}
                                   </p>
                                   <p className='text-xs text-gray-500 dark:text-gray-400 font-inter'>
-                                    Lịch sử gửi thông báo sẽ hiển thị tại đây
+                                    {t('notificationManagement.history.empty.message')}
                                   </p>
                                 </div>
                               </div>
@@ -2031,10 +2045,20 @@ const NotificationManagement: React.FC = () => {
                                 </div>
                               </AdminTableCell>
                               <AdminTableCell>
-                                <RoleBadge role={item.sender_role} size='sm' />
+                                <EnumBadge
+                                  type='ROLE'
+                                  value={item.sender_role}
+                                  size='sm'
+                                  showIcon={true}
+                                />
                               </AdminTableCell>
                               <AdminTableCell>
-                                <RoleBadge role={item.target_type} size='sm' />
+                                <EnumBadge
+                                  type='ROLE'
+                                  value={item.target_type}
+                                  size='sm'
+                                  showIcon={true}
+                                />
                               </AdminTableCell>
                               <AdminTableCell className='max-w-xs'>
                                 <div className='flex flex-col'>
@@ -2134,22 +2158,24 @@ const NotificationManagement: React.FC = () => {
 
             {/* Title */}
             <h2 className='text-xl font-bold text-center text-gray-900 dark:text-white mb-2 font-heading'>
-              Gửi thông báo thành công!
+              {t('notificationManagement.success.title')}
             </h2>
 
             {/* Stats */}
             <div className='bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4 space-y-2'>
               <div className='flex items-center justify-between'>
                 <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-                  Đối tượng:
+                  {t('notificationManagement.success.target')}:
                 </span>
                 <span className='text-sm font-semibold text-gray-900 dark:text-white font-heading'>
-                  {successData.targetType === 'members' ? 'Thành viên' : 'Huấn luyện viên'}
+                  {successData.targetType === 'members'
+                    ? t('notificationManagement.success.members')
+                    : t('notificationManagement.success.trainers')}
                 </span>
               </div>
               <div className='flex items-center justify-between'>
                 <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-                  Tổng số:
+                  {t('notificationManagement.success.total')}:
                 </span>
                 <span className='text-sm font-semibold text-gray-900 dark:text-white font-heading'>
                   {successData.totalTargets}
@@ -2157,7 +2183,7 @@ const NotificationManagement: React.FC = () => {
               </div>
               <div className='flex items-center justify-between'>
                 <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-                  Gửi thành công:
+                  {t('notificationManagement.success.sent')}:
                 </span>
                 <span className='text-sm font-semibold text-green-600 dark:text-green-400 font-heading'>
                   {successData.sentCount}
@@ -2166,7 +2192,7 @@ const NotificationManagement: React.FC = () => {
               {successData.failedCount > 0 && (
                 <div className='flex items-center justify-between'>
                   <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
-                    Gửi thất bại:
+                    {t('notificationManagement.success.failed')}:
                   </span>
                   <span className='text-sm font-semibold text-red-600 dark:text-red-400 font-heading'>
                     {successData.failedCount}
@@ -2183,7 +2209,7 @@ const NotificationManagement: React.FC = () => {
               }}
               className='w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 font-heading'
             >
-              Đóng
+              {t('common.close')}
             </button>
           </div>
         </div>
@@ -2270,7 +2296,12 @@ const NotificationManagement: React.FC = () => {
                       Đối tượng
                     </div>
                     <div className='flex items-center'>
-                      <RoleBadge role={selectedHistoryItem.target_type} size='sm' />
+                      <EnumBadge
+                        type='ROLE'
+                        value={selectedHistoryItem.target_type}
+                        size='sm'
+                        showIcon={true}
+                      />
                     </div>
                   </div>
                   <div className='bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700'>
@@ -2306,7 +2337,12 @@ const NotificationManagement: React.FC = () => {
                       Người gửi
                     </label>
                     <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
-                      <RoleBadge role={selectedHistoryItem.sender_role} size='sm' />
+                      <EnumBadge
+                        type='ROLE'
+                        value={selectedHistoryItem.sender_role}
+                        size='sm'
+                        showIcon={true}
+                      />
                     </div>
                   </div>
                   <div>

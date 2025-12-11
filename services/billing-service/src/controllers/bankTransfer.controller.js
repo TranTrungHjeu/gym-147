@@ -40,12 +40,37 @@ class BankTransferController {
       });
 
       if (existingTransfer) {
-        // Return existing transfer info
-        console.log('[SUCCESS] Bank transfer already exists:', existingTransfer.id);
+        // Check if existing transfer is expired or in a final state
+        const isExpired = new Date() > new Date(existingTransfer.expires_at);
+        const isFinalState = ['EXPIRED', 'CANCELLED', 'FAILED', 'COMPLETED', 'VERIFIED'].includes(existingTransfer.status);
+        
+        // If expired or in final state, create a new bank transfer
+        if (isExpired || isFinalState) {
+          console.log('[BANK] Existing bank transfer is expired or in final state, creating new one:', {
+            existingId: existingTransfer.id,
+            status: existingTransfer.status,
+            isExpired,
+            expires_at: existingTransfer.expires_at,
+          });
+          
+          // Update old transfer status to CANCELLED if not already in final state
+          if (!isFinalState) {
+            await prisma.bankTransfer.update({
+              where: { id: existingTransfer.id },
+              data: { status: 'CANCELLED' },
+            });
+            console.log('[BANK] Cancelled expired bank transfer:', existingTransfer.id);
+          }
+          
+          // Continue to create new bank transfer below
+        } else {
+          // Return existing transfer info if still valid
+          console.log('[SUCCESS] Bank transfer already exists and is still valid:', existingTransfer.id);
         return res.status(200).json({
           success: true,
           data: existingTransfer,
         });
+        }
       }
 
       // Generate transfer content with unique order ID
@@ -93,14 +118,18 @@ class BankTransferController {
   }
 
   /**
-   * Get bank transfer by payment ID
+   * Get bank transfer by payment ID or bank transfer ID
    * GET /bank-transfers/:paymentId
+   * Supports both payment_id and bank transfer id
    */
   async getBankTransfer(req, res) {
     try {
       const { paymentId } = req.params;
 
-      const bankTransfer = await prisma.bankTransfer.findUnique({
+      console.log('[BANK_TRANSFER] Getting bank transfer for:', paymentId);
+
+      // Try to find by payment_id first
+      let bankTransfer = await prisma.bankTransfer.findUnique({
         where: { payment_id: paymentId },
         include: {
           payment: {
@@ -111,19 +140,36 @@ class BankTransferController {
         },
       });
 
+      // If not found by payment_id, try to find by id (bank transfer ID)
       if (!bankTransfer) {
+        console.log('[BANK_TRANSFER] Not found by payment_id, trying by id...');
+        bankTransfer = await prisma.bankTransfer.findUnique({
+          where: { id: paymentId },
+          include: {
+            payment: {
+              include: {
+                subscription: true,
+              },
+            },
+          },
+        });
+      }
+
+      if (!bankTransfer) {
+        console.log('[BANK_TRANSFER] Bank transfer not found for:', paymentId);
         return res.status(404).json({
           success: false,
           message: 'Bank transfer not found',
         });
       }
 
+      console.log('[BANK_TRANSFER] Bank transfer found:', bankTransfer.id);
       res.status(200).json({
         success: true,
         data: bankTransfer,
       });
     } catch (error) {
-      console.error('Get bank transfer error:', error);
+      console.error('[BANK_TRANSFER] Get bank transfer error:', error);
       res.status(500).json({
         success: false,
         message: 'Failed to get bank transfer',
@@ -165,7 +211,29 @@ class BankTransferController {
         });
       }
 
+      console.log('[VERIFY] Bank transfer status:', {
+        id: bankTransfer.id,
+        status: bankTransfer.status,
+        payment_status: bankTransfer.payment?.status,
+        expires_at: bankTransfer.expires_at,
+        is_expired: new Date() > new Date(bankTransfer.expires_at),
+      });
+
+      // Check if already in a final state (cannot be verified)
+      if (bankTransfer.status === 'EXPIRED' || bankTransfer.status === 'CANCELLED' || bankTransfer.status === 'FAILED') {
+        console.log('[VERIFY] Bank transfer is in final state, cannot verify:', bankTransfer.status);
+        return res.status(400).json({
+          success: false,
+          message: `Transfer cannot be verified. Current status: ${bankTransfer.status}`,
+          data: {
+            status: bankTransfer.status,
+            expires_at: bankTransfer.expires_at,
+          },
+        });
+      }
+
       if (bankTransfer.status === 'COMPLETED' || bankTransfer.status === 'VERIFIED') {
+        console.log('[VERIFY] Bank transfer already verified, returning early');
         // Ensure payment is also completed
         if (bankTransfer.payment && bankTransfer.payment.status !== 'COMPLETED') {
           console.log('[WARNING] BankTransfer verified but Payment not completed, fixing...');
@@ -193,32 +261,58 @@ class BankTransferController {
             console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
 
             // Update member membership if subscription and plan exist
-            if (fixedPayment.subscription && fixedPayment.subscription.plan) {
-              try {
-                const axios = require('axios');
-                const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-                console.log('[LINK] Updating membership for already-verified transfer, using URL:', memberServiceUrl);
+            // Reload subscription with latest plan data (important for upgrade cases)
+            if (fixedPayment.subscription_id) {
+              const updatedSubscription = await prisma.subscription.findUnique({
+                where: { id: fixedPayment.subscription_id },
+                include: {
+                  plan: true, // Include plan to get latest plan type
+                },
+              });
 
-                // Get member to find user_id
-                const memberResponse = await axios.get(`${memberServiceUrl}/members/${fixedPayment.member_id}`, {
-                  timeout: 5000,
-                });
-                const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
-                
-                if (memberData && memberData.user_id) {
-                  const updateResponse = await axios.post(`${memberServiceUrl}/members/create-with-user`, {
-                    user_id: memberData.user_id,
-                    membership_type: fixedPayment.subscription.plan.type,
-                    membership_start_date: fixedPayment.subscription.start_date,
-                    membership_end_date: fixedPayment.subscription.end_date,
-                  }, {
-                    timeout: 10000,
-                  });
+              if (updatedSubscription && updatedSubscription.plan) {
+                try {
+                  const axios = require('axios');
+                  const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+                  console.log(
+                    '[LINK] Updating membership for already-verified transfer, using URL:',
+                    memberServiceUrl
+                  );
 
-                  console.log(`[SUCCESS] Member membership updated (already-verified): ${memberData.user_id} -> ${fixedPayment.subscription.plan.type}`);
+                  // Get member to find user_id
+                  const memberResponse = await axios.get(
+                    `${memberServiceUrl}/members/${fixedPayment.member_id}`,
+                    {
+                      timeout: 5000,
+                    }
+                  );
+                  const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
+
+                  if (memberData && memberData.user_id) {
+                    const updateResponse = await axios.post(
+                      `${memberServiceUrl}/members/create-with-user`,
+                      {
+                        user_id: memberData.user_id,
+                        membership_type: updatedSubscription.plan.type, // Use latest plan type from reloaded subscription
+                        membership_start_date: updatedSubscription.start_date,
+                        membership_end_date:
+                          updatedSubscription.end_date || updatedSubscription.current_period_end,
+                      },
+                      {
+                        timeout: 10000,
+                      }
+                    );
+
+                    console.log(
+                      `[SUCCESS] Member membership updated (already-verified): ${memberData.user_id} -> ${updatedSubscription.plan.type} (upgraded plan)`
+                    );
+                  }
+                } catch (memberError) {
+                  console.error(
+                    '[ERROR] Failed to update member membership (already-verified):',
+                    memberError.message
+                  );
                 }
-              } catch (memberError) {
-                console.error('[ERROR] Failed to update member membership (already-verified):', memberError.message);
               }
             }
           }
@@ -233,8 +327,9 @@ class BankTransferController {
         });
       }
 
-      // Check if expired
-      if (new Date() > new Date(bankTransfer.expires_at)) {
+      // Check if expired (only if status is not already EXPIRED)
+      if (bankTransfer.status !== 'EXPIRED' && new Date() > new Date(bankTransfer.expires_at)) {
+        console.log('[VERIFY] Bank transfer expired, updating status to EXPIRED');
         await prisma.bankTransfer.update({
           where: { id },
           data: { status: 'EXPIRED' },
@@ -243,15 +338,32 @@ class BankTransferController {
         return res.status(400).json({
           success: false,
           message: 'Transfer window expired',
+          data: {
+            status: 'EXPIRED',
+            expires_at: bankTransfer.expires_at,
+          },
         });
       }
 
       // Verify with Sepay
+      console.log('[VERIFY] Starting Sepay verification for bank transfer:', {
+        id: bankTransfer.id,
+        transfer_content: bankTransfer.transfer_content,
+        amount: bankTransfer.amount,
+        status: bankTransfer.status,
+      });
+
       const verificationResult = await sepayService.verifyTransfer(
         bankTransfer.transfer_content,
         parseFloat(bankTransfer.amount),
         bankTransfer.created_at
       );
+
+      console.log('[VERIFY] Verification result:', {
+        verified: verificationResult.verified,
+        message: verificationResult.message,
+        transactionNotFound: verificationResult.transactionNotFound,
+      });
 
       if (verificationResult.verified) {
         // Update bank transfer
@@ -285,92 +397,116 @@ class BankTransferController {
 
         // Update subscription status if applicable
         if (bankTransfer.payment.subscription_id) {
-          await prisma.subscription.update({
+          // Reload subscription with latest plan data (important for upgrade cases)
+          const updatedSubscription = await prisma.subscription.findUnique({
             where: { id: bankTransfer.payment.subscription_id },
-            data: { status: 'ACTIVE' },
-          });
-          console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
-
-          // Update member membership status and type
-          console.log('[SEARCH] Checking subscription for membership update:', {
-            hasSubscription: !!bankTransfer.payment.subscription,
-            hasPlan: !!(bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan),
-            subscriptionId: bankTransfer.payment.subscription_id,
-            memberId: updatedPayment.member_id,
+            include: {
+              plan: true, // Include plan to get latest plan type
+            },
           });
 
-          if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
-            console.log('[SUCCESS] Subscription and plan found, updating membership...', {
-              planType: bankTransfer.payment.subscription.plan.type,
-              startDate: bankTransfer.payment.subscription.start_date,
-              endDate: bankTransfer.payment.subscription.end_date,
+          if (updatedSubscription) {
+            // Update subscription status to ACTIVE
+            await prisma.subscription.update({
+              where: { id: bankTransfer.payment.subscription_id },
+              data: { status: 'ACTIVE' },
             });
-            
-            try {
-              const axios = require('axios');
-              if (!process.env.MEMBER_SERVICE_URL) {
-                throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
+
+            // Update member membership status and type with LATEST plan
+            console.log('[UPGRADE] Updating membership with latest subscription plan:', {
+              subscriptionId: updatedSubscription.id,
+              planId: updatedSubscription.plan_id,
+              planType: updatedSubscription.plan?.type,
+              planName: updatedSubscription.plan?.name,
+              memberId: updatedPayment.member_id,
+              paymentType: updatedPayment.payment_type,
+              paymentDescription: updatedPayment.description,
+            });
+
+            if (updatedSubscription.plan) {
+              try {
+                const axios = require('axios');
+                if (!process.env.MEMBER_SERVICE_URL) {
+                  throw new Error(
+                    'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+                  );
+                }
+                const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+                console.log('[LINK] Using MEMBER_SERVICE_URL:', memberServiceUrl);
+
+                // Get member to find user_id (payment.member_id is Member.id, not user_id)
+                const membersEndpoint = memberServiceUrl.includes('/api')
+                  ? `${memberServiceUrl}/members/${updatedPayment.member_id}`
+                  : `${memberServiceUrl}/members/${updatedPayment.member_id}`;
+
+                const memberResponse = await axios.get(membersEndpoint, {
+                  timeout: 5000,
+                });
+                const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
+
+                if (!memberData || !memberData.user_id) {
+                  console.error('[ERROR] Cannot find user_id from member data:', memberData);
+                  throw new Error('Member data does not contain user_id');
+                }
+
+                // Update member membership with LATEST plan type (important for upgrades)
+                const createEndpoint = `${memberServiceUrl}/members/create-with-user`;
+                console.log('📤 Calling member service to update membership (with latest plan):', {
+                  endpoint: createEndpoint,
+                  user_id: memberData.user_id,
+                  membership_type: updatedSubscription.plan.type, // Use latest plan type
+                  membership_start_date: updatedSubscription.start_date,
+                  membership_end_date:
+                    updatedSubscription.end_date || updatedSubscription.current_period_end,
+                });
+
+                const updateResponse = await axios.post(
+                  createEndpoint,
+                  {
+                    user_id: memberData.user_id,
+                    membership_type: updatedSubscription.plan.type, // Use latest plan type from reloaded subscription
+                    membership_start_date: updatedSubscription.start_date,
+                    membership_end_date:
+                      updatedSubscription.end_date || updatedSubscription.current_period_end,
+                  },
+                  {
+                    timeout: 10000,
+                  }
+                );
+
+                console.log('[SUCCESS] Member membership update response:', {
+                  status: updateResponse.status,
+                  success: updateResponse.data?.success,
+                  message: updateResponse.data?.message,
+                  data: updateResponse.data?.data,
+                });
+
+                console.log(
+                  `[SUCCESS] Member membership updated successfully: ${memberData.user_id} -> ${updatedSubscription.plan.type} (upgraded plan)`
+                );
+              } catch (memberError) {
+                console.error('[ERROR] Failed to update member membership:', memberError.message);
+                console.error('[ERROR] Error details:', {
+                  message: memberError.message,
+                  response: memberError.response?.data,
+                  status: memberError.response?.status,
+                  config: memberError.config?.url,
+                });
+                // Don't fail the verify - payment is still valid
               }
-              const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-              console.log('[LINK] Using MEMBER_SERVICE_URL:', memberServiceUrl);
-
-              // Get member to find user_id (payment.member_id is Member.id, not user_id)
-              // Use /api prefix if needed, or direct /members if no prefix
-              const membersEndpoint = memberServiceUrl.includes('/api') 
-                ? `${memberServiceUrl}/members/${updatedPayment.member_id}`
-                : `${memberServiceUrl}/members/${updatedPayment.member_id}`;
-              
-              const memberResponse = await axios.get(membersEndpoint, {
-                timeout: 5000,
-              });
-              const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
-              
-              if (!memberData || !memberData.user_id) {
-                console.error('[ERROR] Cannot find user_id from member data:', memberData);
-                throw new Error('Member data does not contain user_id');
-              }
-
-              // Update member membership
-              const createEndpoint = `${memberServiceUrl}/members/create-with-user`;
-              console.log('📤 Calling member service to update membership:', {
-                endpoint: createEndpoint,
-                user_id: memberData.user_id,
-                membership_type: bankTransfer.payment.subscription.plan.type,
-                membership_start_date: bankTransfer.payment.subscription.start_date,
-                membership_end_date: bankTransfer.payment.subscription.end_date,
-              });
-              
-              const updateResponse = await axios.post(createEndpoint, {
-                user_id: memberData.user_id,
-                membership_type: bankTransfer.payment.subscription.plan.type,
-                membership_start_date: bankTransfer.payment.subscription.start_date,
-                membership_end_date: bankTransfer.payment.subscription.end_date,
-              }, {
-                timeout: 10000,
-              });
-
-              console.log('[SUCCESS] Member membership update response:', {
-                status: updateResponse.status,
-                success: updateResponse.data?.success,
-                message: updateResponse.data?.message,
-                data: updateResponse.data?.data,
-              });
-              
-              console.log(`[SUCCESS] Member membership updated successfully: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
-            } catch (memberError) {
-              console.error('[ERROR] Failed to update member membership:', memberError.message);
-              console.error('[ERROR] Error details:', {
-                message: memberError.message,
-                response: memberError.response?.data,
-                status: memberError.response?.status,
-                config: memberError.config?.url,
-              });
-              // Don't fail the verify - payment is still valid
+            } else {
+              console.warn(
+                '[WARNING] Cannot update membership: plan not found in reloaded subscription',
+                {
+                  subscriptionId: updatedSubscription.id,
+                  planId: updatedSubscription.plan_id,
+                }
+              );
             }
           } else {
-            console.warn('[WARNING] Cannot update membership: subscription or plan not found', {
-              hasSubscription: !!bankTransfer.payment.subscription,
-              hasPlan: !!(bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan),
+            console.warn('[WARNING] Cannot update membership: subscription not found', {
+              subscriptionId: bankTransfer.payment.subscription_id,
             });
           }
         }
@@ -380,7 +516,9 @@ class BankTransferController {
           try {
             const axios = require('axios');
             if (!process.env.SCHEDULE_SERVICE_URL) {
-              throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              throw new Error(
+                'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+              );
             }
             const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
 
@@ -426,16 +564,41 @@ class BankTransferController {
           data: updatedTransfer,
         });
       } else {
-        // Update status to CHECKING
-        await prisma.bankTransfer.update({
-          where: { id },
-          data: { status: 'CHECKING' },
+        // Check if transaction was not found (vs other verification failures)
+        const isTransactionNotFound = verificationResult.transactionNotFound === true;
+        
+        console.log('[VERIFY] Verification failed:', {
+          isTransactionNotFound,
+          message: verificationResult.message,
+          currentStatus: bankTransfer.status,
+        });
+        
+        // Only update to CHECKING if it's not a "not found" error
+        // If transaction not found, keep status as PENDING so user can retry
+        if (!isTransactionNotFound) {
+          await prisma.bankTransfer.update({
+            where: { id },
+            data: { status: 'CHECKING' },
+          });
+          console.log('[VERIFY] Updated status to CHECKING');
+        } else {
+          console.log('[VERIFY] Transaction not found, keeping status as PENDING');
+        }
+
+        const responseMessage = verificationResult.message || 'Chưa tìm thấy giao dịch. Vui lòng kiểm tra lại hoặc thử lại sau.';
+        
+        console.log('[VERIFY] Returning response:', {
+          success: false,
+          message: responseMessage,
+          checking: !isTransactionNotFound,
+          transactionNotFound: isTransactionNotFound,
         });
 
         return res.status(202).json({
           success: false,
-          message: verificationResult.message || 'Transfer not found yet',
-          checking: true,
+          message: responseMessage,
+          checking: !isTransactionNotFound, // Only set checking if not "not found"
+          transactionNotFound: isTransactionNotFound,
         });
       }
     } catch (error) {
@@ -568,63 +731,95 @@ class BankTransferController {
 
       // Update subscription if applicable
       if (bankTransfer.payment.subscription_id) {
-        await prisma.subscription.update({
+        // Reload subscription with latest plan data (important for upgrade cases)
+        const updatedSubscription = await prisma.subscription.findUnique({
           where: { id: bankTransfer.payment.subscription_id },
-          data: { status: 'ACTIVE' },
+          include: {
+            plan: true, // Include plan to get latest plan type
+          },
         });
 
-        console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
+        if (updatedSubscription) {
+          // Update subscription status to ACTIVE
+          await prisma.subscription.update({
+            where: { id: bankTransfer.payment.subscription_id },
+            data: { status: 'ACTIVE' },
+          });
 
-        // Update member membership status and type
-        if (bankTransfer.payment.subscription && bankTransfer.payment.subscription.plan) {
-          try {
-            const axios = require('axios');
-            if (!process.env.MEMBER_SERVICE_URL) {
-              throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          console.log('[SUCCESS] Subscription activated:', bankTransfer.payment.subscription_id);
+
+          // Update member membership status and type with LATEST plan
+          if (updatedSubscription.plan) {
+            try {
+              const axios = require('axios');
+              if (!process.env.MEMBER_SERVICE_URL) {
+                throw new Error(
+                  'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+                );
+              }
+              const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
+
+              // Get member to find user_id (payment.member_id is Member.id, not user_id)
+              const memberResponse = await axios.get(
+                `${memberServiceUrl}/members/${updatedPayment.member_id}`,
+                {
+                  timeout: 5000,
+                }
+              );
+              const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
+
+              if (!memberData || !memberData.user_id) {
+                console.error('[ERROR] Cannot find user_id from member data:', memberData);
+                throw new Error('Member data does not contain user_id');
+              }
+
+              // Update member membership with LATEST plan type (important for upgrades)
+              await axios.post(
+                `${memberServiceUrl}/members/create-with-user`,
+                {
+                  user_id: memberData.user_id,
+                  membership_type: updatedSubscription.plan.type, // Use latest plan type from reloaded subscription
+                  membership_start_date: updatedSubscription.start_date,
+                  membership_end_date:
+                    updatedSubscription.end_date || updatedSubscription.current_period_end,
+                },
+                {
+                  timeout: 10000,
+                }
+              );
+
+              console.log(
+                `[SUCCESS] Member membership updated via Sepay webhook: ${memberData.user_id} -> ${updatedSubscription.plan.type} (upgraded plan)`
+              );
+            } catch (memberError) {
+              console.error(
+                '[ERROR] Failed to update member membership via Sepay webhook:',
+                memberError.message
+              );
+              console.error('Error details:', memberError.response?.data || memberError.message);
+              // Don't fail the webhook - payment is still valid
             }
-            const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-
-            // Get member to find user_id (payment.member_id is Member.id, not user_id)
-            const memberResponse = await axios.get(`${memberServiceUrl}/members/${updatedPayment.member_id}`, {
-              timeout: 5000,
-            });
-            const memberData = memberResponse.data?.data?.member || memberResponse.data?.data;
-            
-            if (!memberData || !memberData.user_id) {
-              console.error('[ERROR] Cannot find user_id from member data:', memberData);
-              throw new Error('Member data does not contain user_id');
-            }
-
-            // Update member membership
-            await axios.post(`${memberServiceUrl}/members/create-with-user`, {
-              user_id: memberData.user_id,
-              membership_type: bankTransfer.payment.subscription.plan.type,
-              membership_start_date: bankTransfer.payment.subscription.start_date,
-              membership_end_date: bankTransfer.payment.subscription.end_date,
-            }, {
-              timeout: 10000,
-            });
-
-            console.log(`[SUCCESS] Member membership updated via Sepay webhook: ${memberData.user_id} -> ${bankTransfer.payment.subscription.plan.type}`);
-          } catch (memberError) {
-            console.error('[ERROR] Failed to update member membership via Sepay webhook:', memberError.message);
-            console.error('Error details:', memberError.response?.data || memberError.message);
-            // Don't fail the webhook - payment is still valid
           }
         }
 
         // Notify admins about successful subscription payment
         try {
-          console.log('[NOTIFY] Notifying admins about subscription payment success (bank transfer)...');
+          console.log(
+            '[NOTIFY] Notifying admins about subscription payment success (bank transfer)...'
+          );
           if (!process.env.SCHEDULE_SERVICE_URL) {
-            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            throw new Error(
+              'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
           }
           if (!process.env.MEMBER_SERVICE_URL) {
-            throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            throw new Error(
+              'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
           }
           const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
           const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
-          
+
           // Get subscription and plan info
           const subscription = await prisma.subscription.findUnique({
             where: { id: bankTransfer.payment.subscription_id },
@@ -634,20 +829,28 @@ class BankTransferController {
           // Get member info if available
           let memberInfo = null;
           try {
-            const memberResponse = await axios.get(`${memberServiceUrl}/members/${updatedPayment.member_id}`, {
-              timeout: 5000,
-            });
+            const memberResponse = await axios.get(
+              `${memberServiceUrl}/members/${updatedPayment.member_id}`,
+              {
+                timeout: 5000,
+              }
+            );
             memberInfo = memberResponse.data?.data?.member || memberResponse.data?.data;
           } catch (memberInfoError) {
             // Try to get by user_id if member_id fails
             try {
               if (!process.env.IDENTITY_SERVICE_URL) {
-                throw new Error('IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.');
+                throw new Error(
+                  'IDENTITY_SERVICE_URL environment variable is required. Please set it in your .env file.'
+                );
               }
               const identityServiceUrl = process.env.IDENTITY_SERVICE_URL;
-              const userResponse = await axios.get(`${identityServiceUrl}/users/${updatedPayment.member_id}`, {
-                timeout: 5000,
-              });
+              const userResponse = await axios.get(
+                `${identityServiceUrl}/users/${updatedPayment.member_id}`,
+                {
+                  timeout: 5000,
+                }
+              );
               memberInfo = userResponse.data?.data?.user || userResponse.data?.data;
             } catch (userInfoError) {
               console.log('Could not fetch member/user info for notification');
@@ -674,9 +877,14 @@ class BankTransferController {
               timeout: 10000,
             }
           );
-          console.log('[SUCCESS] Successfully notified admins about subscription payment (bank transfer)');
+          console.log(
+            '[SUCCESS] Successfully notified admins about subscription payment (bank transfer)'
+          );
         } catch (notifyError) {
-          console.error('[ERROR] Failed to notify admins about subscription payment (bank transfer):', notifyError.message);
+          console.error(
+            '[ERROR] Failed to notify admins about subscription payment (bank transfer):',
+            notifyError.message
+          );
         }
 
         // Create payment notification for member
@@ -702,7 +910,10 @@ class BankTransferController {
             });
           }
         } catch (notificationError) {
-          console.error('[ERROR] Error creating payment/subscription notification:', notificationError);
+          console.error(
+            '[ERROR] Error creating payment/subscription notification:',
+            notificationError
+          );
           // Don't fail the webhook if notification fails
         }
       }
@@ -712,7 +923,9 @@ class BankTransferController {
         try {
           const axios = require('axios');
           if (!process.env.SCHEDULE_SERVICE_URL) {
-            throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+            throw new Error(
+              'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+            );
           }
           const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
 

@@ -1,6 +1,9 @@
 const { Router } = require('express');
 const trainerController = require('../controllers/trainer.controller.js');
 const certificationController = require('../controllers/certification.controller.js');
+const salaryController = require('../controllers/salary.controller.js');
+const { authenticateToken } = require('../middleware/auth.middleware');
+const { requireRole } = require('../middleware/role.middleware');
 
 const router = Router();
 
@@ -89,6 +92,10 @@ router.post('/user/:user_id/schedules/:schedule_id/request-room-change', (req, r
   trainerController.requestRoomChange(req, res)
 );
 router.get('/user/:user_id/revenue', (req, res) => trainerController.getTrainerRevenue(req, res));
+
+// Salary routes
+router.get('/:trainer_id/salary-status', salaryController.getTrainerSalaryStatus);
+router.put('/:trainer_id/salary', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN']), salaryController.setTrainerSalary);
 
 router.put('/user/:user_id', (req, res) => trainerController.updateTrainerByUserId(req, res));
 router.put('/:id', (req, res) => trainerController.updateTrainer(req, res));

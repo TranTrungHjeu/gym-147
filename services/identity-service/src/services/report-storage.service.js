@@ -32,7 +32,7 @@ class ReportStorageService {
   /**
    * Upload report to S3
    * @param {Buffer} fileBuffer - Report file buffer
-   * @param {string} reportId - Scheduled report ID
+   * @param {string} reportId - Report ID (can be any report type)
    * @param {string} format - File format (PDF, EXCEL, CSV)
    * @param {string} reportType - Report type
    * @returns {Promise<string|null>} S3 URL or null if not configured

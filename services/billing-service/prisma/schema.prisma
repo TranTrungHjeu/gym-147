@@ -15,58 +15,22 @@ model MembershipPlan {
   type              PlanType
   duration_months   Int                 // Plan duration
   price             Decimal             @db.Decimal(10, 2)
-  setup_fee         Decimal?            @db.Decimal(10, 2)
   
   // Access and Benefits
   benefits          String[]            // Array of benefits
-  class_credits     Int?                // Monthly class credits (null = unlimited)
-  guest_passes      Int                 @default(0) // Monthly guest passes
-  access_hours      Json?               // {"start": "05:00", "end": "23:00"}
-  access_areas      String[]            // Areas member can access
-  
-  // IoT Features
-  equipment_priority Boolean           @default(false) // Priority equipment booking
-  personal_training_sessions Int       @default(0) // Included PT sessions
-  nutritionist_consultations Int       @default(0)
   smart_workout_plans Boolean          @default(false) // AI-generated plans
-  wearable_integration Boolean         @default(false)
-  advanced_analytics Boolean           @default(false)
   
   // Plan Management
   is_active         Boolean             @default(true)
   is_featured       Boolean             @default(false)
-  max_members       Int?                // Maximum members for this plan
-  requires_approval Boolean             @default(false)
-  
-  // Billing Configuration
-  billing_interval  BillingInterval     @default(MONTHLY)
-  trial_days        Int                 @default(0)
-  cancellation_policy String?
   
   created_at        DateTime            @default(now())
   updated_at        DateTime            @updatedAt
 
   // Relations
   subscriptions     Subscription[]
-  plan_addons       PlanAddon[]
 
   @@map("membership_plans")
-}
-
-model PlanAddon {
-  id           String    @id @default(cuid())
-  plan_id      String
-  name         String
-  description  String?
-  price        Decimal   @db.Decimal(10, 2)
-  addon_type   AddonType
-  is_recurring Boolean   @default(true)
-  max_quantity Int       @default(1)
-  is_active    Boolean   @default(true)
-  
-  plan MembershipPlan @relation(fields: [plan_id], references: [id], onDelete: Cascade)
-
-  @@map("plan_addons")
 }
 
 model Subscription {
@@ -85,18 +49,9 @@ model Subscription {
   // Pricing and Discounts
   base_amount       Decimal            @db.Decimal(10, 2)
   discount_amount   Decimal?           @db.Decimal(10, 2)
-  tax_amount        Decimal?           @db.Decimal(10, 2)
   total_amount      Decimal            @db.Decimal(10, 2)
   
-  // Usage Tracking
-  classes_used      Int                @default(0)
-  classes_remaining Int?               // For credit-based plans
-  guest_passes_used Int                @default(0)
-  pt_sessions_used  Int                @default(0)
-  
-  // Auto-renewal and Billing
-  auto_renew        Boolean            @default(true)
-  payment_method_id String?            // Default payment method
+  // Billing
   failed_payments   Int                @default(0)
   
   // Cancellation
@@ -107,7 +62,6 @@ model Subscription {
   // Trial Information
   trial_start       DateTime?
   trial_end         DateTime?
-  is_trial          Boolean            @default(false)
   
   created_at        DateTime           @default(now())
   updated_at        DateTime           @updatedAt
@@ -115,26 +69,8 @@ model Subscription {
   // Relations
   plan              MembershipPlan     @relation(fields: [plan_id], references: [id])
   payments          Payment[]
-  invoices          Invoice[]
-  subscription_addons SubscriptionAddon[]
 
   @@map("subscriptions")
-}
-
-model SubscriptionAddon {
-  id              String      @id @default(cuid())
-  subscription_id String
-  addon_id        String
-  quantity        Int         @default(1)
-  price_per_unit  Decimal     @db.Decimal(10, 2)
-  total_price     Decimal     @db.Decimal(10, 2)
-  added_at        DateTime    @default(now())
-  removed_at      DateTime?
-  is_active       Boolean     @default(true)
-
-  subscription Subscription @relation(fields: [subscription_id], references: [id])
-
-  @@map("subscription_addons")
 }
 
 model Payment {
@@ -147,18 +83,12 @@ model Payment {
   currency          String            @default("VND")
   status            PaymentStatus     @default(PENDING)
   payment_method    PaymentMethod
-  
-  // Transaction Information
-  transaction_id    String?           @unique // External payment gateway ID
-  gateway           String?           // "STRIPE", "VNPAY", "MOMO"
-  gateway_fee       Decimal?          @db.Decimal(10, 2)
   net_amount        Decimal           @db.Decimal(10, 2)
   
   // Payment Context
   payment_type      PaymentType
-  reference_id      String?           // Invoice, class booking, etc.
-  description       String?
-  metadata          Json?             // Additional payment data
+  reference_id      String?           // Booking ID, invoice ID, etc. (for CLASS_BOOKING, ADDON_PURCHASE, etc.)
+  description       String?           // Payment description
   
   // Processing
   processed_at      DateTime?
@@ -168,57 +98,21 @@ model Payment {
   
   // Refunds
   refunded_amount   Decimal?          @db.Decimal(10, 2)
-  refunded_at       DateTime?
-  refund_reason     String?
+  
+  // Metadata for additional data (JSON)
+  metadata          Json?             // Store additional metadata like reward_redemption_id, etc.
   
   created_at        DateTime          @default(now())
   updated_at        DateTime          @updatedAt
 
   // Relations
   subscription      Subscription?     @relation(fields: [subscription_id], references: [id])
-  invoices          Invoice[]
   refunds           Refund[]
   bank_transfer     BankTransfer?     // One-to-one for bank transfer payments
 
+  @@index([reference_id])
+  @@index([payment_type, reference_id])
   @@map("payments")
-}
-
-model Invoice {
-  id              String        @id @default(cuid())
-  subscription_id String?
-  payment_id      String?
-  member_id       String        // Reference to member service
-  
-  // Invoice Details
-  invoice_number  String        @unique // Auto-generated
-  status          InvoiceStatus @default(DRAFT)
-  type            InvoiceType   @default(SUBSCRIPTION)
-  
-  // Amounts
-  subtotal        Decimal       @db.Decimal(10, 2)
-  tax_rate        Decimal?      @db.Decimal(5, 4) // e.g., 0.10 for 10%
-  tax_amount      Decimal?      @db.Decimal(10, 2)
-  discount_amount Decimal?      @db.Decimal(10, 2)
-  total_amount    Decimal       @db.Decimal(10, 2)
-  
-  // Dates
-  issued_date     DateTime      @default(now())
-  due_date        DateTime
-  paid_date       DateTime?
-  
-  // Line Items
-  line_items      Json          // Structured invoice items
-  notes           String?
-  terms           String?       // Payment terms
-  
-  created_at      DateTime      @default(now())
-  updated_at      DateTime      @updatedAt
-
-  // Relations
-  subscription    Subscription? @relation(fields: [subscription_id], references: [id])
-  payment         Payment?      @relation(fields: [payment_id], references: [id])
-
-  @@map("invoices")
 }
 
 model Refund {
@@ -238,6 +132,9 @@ model Refund {
   requested_by  String       // Staff/System ID
   approved_by   String?      // Manager ID
   notes         String?
+  
+  // Metadata for timeline tracking
+  metadata      Json?        // Store timeline and additional data
   
   created_at    DateTime     @default(now())
   updated_at    DateTime     @updatedAt
@@ -269,23 +166,16 @@ model BankTransfer {
   qr_data           String?           // QR code data string
   
   // Sepay Integration
-  sepay_account_id  String?           // Sepay account ID
   sepay_transaction_id String?        @unique // Transaction ID from Sepay
-  sepay_webhook_data Json?            // Full webhook payload from Sepay
   
   // Verification
   verified_at       DateTime?
   verified_amount   Decimal?          @db.Decimal(10, 2)
   verified_content  String?           // Actual transfer content received
-  bank_transaction_id String?         // Bank's transaction ID
   
   // Timing
   expires_at        DateTime          // Transfer must complete before this
   completed_at      DateTime?
-  
-  // Notes
-  notes             String?
-  metadata          Json?             // Additional data
   
   created_at        DateTime          @default(now())
   updated_at        DateTime          @updatedAt
@@ -412,54 +302,6 @@ model SubscriptionHistory {
   @@index([member_id])
 }
 
-// Member Lifetime Value & Analytics (Improved)
-model MemberLifetimeValue {
-  member_id           String   @id // Reference to member service
-  
-  // Financial Metrics
-  total_spent         Decimal  @db.Decimal(12, 2) @default(0) // Tổng đã chi
-  avg_monthly_spend   Decimal  @db.Decimal(10, 2) @default(0) // Trung bình/tháng
-  predicted_ltv       Decimal  @db.Decimal(12, 2) @default(0) // Dự đoán lifetime value
-  
-  // Subscription Metrics
-  subscription_months Int      @default(0) // Đã subscribe bao nhiêu tháng
-  total_renewals      Int      @default(0) // Số lần gia hạn
-  total_upgrades      Int      @default(0) // Số lần nâng cấp
-  total_downgrades    Int      @default(0) // Số lần hạ cấp
-  
-  // Dates
-  first_payment_date  DateTime?
-  last_payment_date   DateTime?
-  next_expected_payment DateTime?
-  
-  // Behavior Metrics
-  churn_risk_score    Float?   // 0-1, xác suất member sẽ cancel
-  engagement_score    Float?   // 0-1, mức độ active
-  
-  // Timestamps
-  created_at          DateTime @default(now())
-  updated_at          DateTime @updatedAt
-
-  @@map("member_lifetime_values")
-}
-
-// Cross-service references
-model MemberPaymentMethod {
-  id              String              @id @default(cuid())
-  member_id       String              // Reference to member service
-  type            PaymentMethod
-  provider        String?             // "STRIPE", "VNPAY", etc.
-  external_id     String?             // Provider's ID for this method
-  last_four       String?             // Last 4 digits for cards
-  is_default      Boolean             @default(false)
-  is_active       Boolean             @default(true)
-  expires_at      DateTime?           // For cards
-  created_at      DateTime            @default(now())
-  updated_at      DateTime            @updatedAt
-
-  @@map("member_payment_methods")
-}
-
 // Enums
 enum PlanType {
   BASIC     // Gói cơ bản - 299k/tháng
@@ -467,25 +309,6 @@ enum PlanType {
   VIP       // Gói cao cấp - 999k/tháng
   STUDENT   // Gói sinh viên - 199k/tháng
   // Note: TRIAL, SENIOR, FAMILY, CORPORATE, DAY_PASS được xử lý qua DiscountCode/Addon
-}
-
-enum AddonType {
-  PERSONAL_TRAINING
-  NUTRITION_CONSULTATION
-  GUEST_PASS
-  EQUIPMENT_RENTAL
-  MASSAGE_THERAPY
-  LOCKER_RENTAL
-  PARKING
-  OTHER
-}
-
-enum BillingInterval {
-  DAILY
-  WEEKLY
-  MONTHLY
-  QUARTERLY
-  ANNUALLY
 }
 
 enum SubscriptionStatus {
@@ -525,24 +348,8 @@ enum PaymentType {
   ADDON_PURCHASE
   LATE_FEE
   EQUIPMENT_DAMAGE
-  GUEST_PASS
+  // GUEST_PASS removed
   OTHER
-}
-
-enum InvoiceStatus {
-  DRAFT
-  SENT
-  PAID
-  OVERDUE
-  CANCELLED
-  REFUNDED
-}
-
-enum InvoiceType {
-  SUBSCRIPTION
-  ONE_TIME
-  REFUND
-  ADJUSTMENT
 }
 
 enum RefundReason {

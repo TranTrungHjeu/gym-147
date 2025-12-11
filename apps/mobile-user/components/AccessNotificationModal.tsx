@@ -108,10 +108,7 @@ export default function AccessNotificationModal({
           'Thank you for your visit. See you next time!'
         );
       case 'error':
-        return t(
-          'access.errorMessage',
-          'Unable to process your request. Please try again.'
-        );
+        return t('access.errorMessage', t('access.errorMessage'));
       default:
         return '';
     }
@@ -240,7 +237,7 @@ export default function AccessNotificationModal({
               ]}
             >
               {type === 'error'
-                ? t('common.tryAgain', 'Please try again')
+                ? t('access.tryAgain')
                 : t('access.redirecting', 'Redirecting...')}
             </Text>
           </View>

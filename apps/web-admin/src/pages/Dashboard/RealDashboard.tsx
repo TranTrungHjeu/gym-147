@@ -1,13 +1,17 @@
 import React from 'react';
+import useTranslation from '../../hooks/useTranslation';
 
 const RealDashboard: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
       <div className='container mx-auto px-4 py-8'>
         {/* Header */}
         <div className='mb-8'>
-          <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>Dashboard</h1>
-          <p className='text-gray-600 dark:text-gray-400'>Tổng quan hệ thống Gym 147</p>
+          <h1 className='text-3xl font-bold text-gray-900 dark:text-white mb-2'>
+            {t('common.dashboard')}
+          </h1>
+          <p className='text-gray-600 dark:text-gray-400'>{t('dashboard.real.subtitle')}</p>
         </div>
 
         {/* Stats Grid */}
@@ -30,7 +34,9 @@ const RealDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Tổng thành viên</p>
+                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                  {t('dashboard.real.totalMembers')}
+                </p>
                 <p className='text-2xl font-semibold text-gray-900 dark:text-white'>1,234</p>
               </div>
             </div>
@@ -54,7 +60,9 @@ const RealDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Doanh thu hôm nay</p>
+                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                  {t('dashboard.real.todayRevenue')}
+                </p>
                 <p className='text-2xl font-semibold text-gray-900 dark:text-white'>12.5M</p>
               </div>
             </div>
@@ -78,7 +86,9 @@ const RealDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Lịch tập hôm nay</p>
+                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                  {t('dashboard.real.todaySchedule')}
+                </p>
                 <p className='text-2xl font-semibold text-gray-900 dark:text-white'>45</p>
               </div>
             </div>
@@ -102,7 +112,9 @@ const RealDashboard: React.FC = () => {
                 </svg>
               </div>
               <div className='ml-4'>
-                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>Thiết bị hoạt động</p>
+                <p className='text-sm font-medium text-gray-600 dark:text-gray-400'>
+                  {t('dashboard.real.activeEquipment')}
+                </p>
                 <p className='text-2xl font-semibold text-gray-900 dark:text-white'>98%</p>
               </div>
             </div>
@@ -112,40 +124,58 @@ const RealDashboard: React.FC = () => {
         {/* Charts and Tables */}
         <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>
           <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700'>
-            <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>Biểu đồ doanh thu</h3>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
+              {t('dashboard.real.revenueChart')}
+            </h3>
             <div className='h-64 bg-gray-100 dark:bg-gray-700 rounded-lg flex items-center justify-center'>
-              <p className='text-gray-500 dark:text-gray-400'>Chart placeholder</p>
+              <p className='text-gray-500 dark:text-gray-400'>
+                {t('dashboard.real.chartPlaceholder')}
+              </p>
             </div>
           </div>
 
           <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 border border-gray-200 dark:border-gray-700'>
-            <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>Hoạt động gần đây</h3>
+            <h3 className='text-lg font-semibold text-gray-900 dark:text-white mb-4'>
+              {t('dashboard.real.recentActivity')}
+            </h3>
             <div className='space-y-3'>
               <div className='flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700'>
                 <div>
-                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>Nguyễn Văn A đăng ký gói tập</p>
-                  <p className='text-xs text-gray-500 dark:text-gray-400'>2 phút trước</p>
+                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                    {t('dashboard.real.sampleActivity1')}
+                  </p>
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    {t('dashboard.real.sampleTime1')}
+                  </p>
                 </div>
                 <span className='text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-2 py-1 rounded-full'>
-                  Thành công
+                  {t('common.success')}
                 </span>
               </div>
               <div className='flex items-center justify-between py-2 border-b border-gray-100 dark:border-gray-700'>
                 <div>
-                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>Trần Thị B thanh toán</p>
-                  <p className='text-xs text-gray-500 dark:text-gray-400'>15 phút trước</p>
+                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                    {t('dashboard.real.sampleActivity2')}
+                  </p>
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    {t('dashboard.real.sampleTime2')}
+                  </p>
                 </div>
                 <span className='text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 px-2 py-1 rounded-full'>
-                  Thành công
+                  {t('common.success')}
                 </span>
               </div>
               <div className='flex items-center justify-between py-2'>
                 <div>
-                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>Lê Văn C đặt lịch tập</p>
-                  <p className='text-xs text-gray-500 dark:text-gray-400'>1 giờ trước</p>
+                  <p className='text-sm font-medium text-gray-900 dark:text-gray-100'>
+                    {t('dashboard.real.sampleActivity3')}
+                  </p>
+                  <p className='text-xs text-gray-500 dark:text-gray-400'>
+                    {t('dashboard.real.sampleTime3')}
+                  </p>
                 </div>
                 <span className='text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 px-2 py-1 rounded-full'>
-                  Đang chờ
+                  {t('dashboard.real.pending')}
                 </span>
               </div>
             </div>

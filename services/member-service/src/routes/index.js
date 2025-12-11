@@ -16,7 +16,7 @@ const challengesRoutes = require('./challenges.routes');
 const pointsRoutes = require('./points.routes');
 const rewardsRoutes = require('./rewards.routes');
 const aiRoutes = require('./ai.routes');
-const guestPassesRoutes = require('./guest-passes.routes');
+// Guest passes routes removed - not needed
 
 // ==================== HEALTH CHECK ROUTE ====================
 
@@ -149,7 +149,7 @@ router.get('/api-docs', (req, res) => {
 });
 router.use('/', pointsRoutes);
 router.use('/', rewardsRoutes);
-router.use('/', guestPassesRoutes);
+// Guest passes route removed - not needed
 router.use('/', streaksRoutes);
 router.use('/', challengesRoutes);
 router.use('/', sessionsRoutes);

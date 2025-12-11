@@ -109,6 +109,34 @@ class PointsService {
         };
       });
 
+      // Emit socket event for real-time updates
+      if (global.io) {
+        try {
+          const member = await prisma.member.findUnique({
+            where: { id: memberId },
+            select: { user_id: true },
+          });
+
+          if (member?.user_id) {
+            const roomName = `user:${member.user_id}`;
+            global.io.to(roomName).emit('points:updated', {
+              member_id: memberId,
+              points_earned: points,
+              new_balance: result.newBalance,
+              source: source,
+              source_id: sourceId,
+              description: description || `Earned ${points} points from ${source}`,
+              transaction_id: result.transaction.id,
+              created_at: result.transaction.created_at,
+            });
+            console.log(`[POINTS] Emitted points:updated to ${roomName}: +${points} points`);
+          }
+        } catch (socketError) {
+          console.error('[ERROR] Error emitting points:updated event:', socketError);
+          // Don't fail the award if socket fails
+        }
+      }
+
       return {
         success: true,
         transaction: result.transaction,

@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react';
 import { Upload, X, Image as ImageIcon } from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
 import AdminButton from '../common/AdminButton';
 import { identityApi } from '@/services/api';
 
@@ -22,6 +23,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
   label,
   className = '',
 }) => {
+  const { t } = useTranslation();
   const [preview, setPreview] = useState<string | null>(value || null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -32,13 +34,13 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
 
     // Validate file type
     if (!file.type.startsWith('image/')) {
-      onError?.('File phải là hình ảnh');
+      onError?.(t('imageUpload.errors.mustBeImage'));
       return;
     }
 
     // Validate file size
     if (file.size > maxSize * 1024 * 1024) {
-      onError?.(`File không được vượt quá ${maxSize}MB`);
+      onError?.(t('imageUpload.errors.maxSize', { maxSize }));
       return;
     }
 
@@ -68,7 +70,7 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
       }
     } catch (error: any) {
       console.error('Upload error:', error);
-      onError?.(error.message || 'Không thể tải lên hình ảnh');
+      onError?.(error.message || t('imageUpload.errors.uploadFailed'));
       setPreview(null);
     } finally {
       setIsUploading(false);
@@ -135,10 +137,10 @@ const ImageUpload: React.FC<ImageUploadProps> = ({
             icon={Upload}
             disabled={isUploading}
           >
-            {preview ? 'Thay đổi' : 'Tải lên hình ảnh'}
+            {preview ? t('imageUpload.change') : t('imageUpload.upload')}
           </AdminButton>
           <p className='text-xs text-gray-500 dark:text-gray-400 mt-2 font-inter'>
-            Tối đa {maxSize}MB. Định dạng: JPG, PNG, GIF
+            {t('imageUpload.maxSize', { maxSize, formats: 'JPG, PNG, GIF' })}
           </p>
         </div>
       </div>

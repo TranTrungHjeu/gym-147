@@ -1,5 +1,6 @@
 import * as Device from 'expo-device';
 import * as Notifications from 'expo-notifications';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { identityApiService } from '../identity/api.service';
 
@@ -24,9 +25,16 @@ Notifications.setNotificationHandler({
 class PushNotificationService {
   /**
    * Request notification permissions
+   * NOTE: Push notifications are disabled on Android (Expo 53+)
    */
   async requestPermissions(): Promise<boolean> {
     try {
+      // Skip push notifications on Android
+      if (Platform.OS === 'android') {
+        console.log('[BELL] Push notifications disabled on Android');
+        return false;
+      }
+
       if (!Device.isDevice) {
         console.log('[BELL] Push notifications only work on physical devices');
         return false;
@@ -56,17 +64,34 @@ class PushNotificationService {
 
   /**
    * Get Expo Push Token
+   * NOTE: Push notifications are disabled on Android (Expo 53+)
    */
   async getExpoPushToken(): Promise<string | null> {
     try {
+      // Skip push notifications on Android
+      if (Platform.OS === 'android') {
+        console.log('[BELL] Push notifications disabled on Android');
+        return null;
+      }
+
       if (!Device.isDevice) {
         console.log('[BELL] Cannot get push token on simulator/emulator');
         return null;
       }
 
-      // For Expo Go, don't pass projectId
-      // For standalone app, uncomment and add projectId
-      const token = await Notifications.getExpoPushTokenAsync();
+      // Get projectId from Constants (Expo 53+ requires this for standalone builds)
+      const projectId = Constants.expoConfig?.extra?.eas?.projectId;
+      
+      const tokenOptions: Notifications.ExpoPushTokenOptions = projectId
+        ? { projectId }
+        : {};
+
+      console.log('[BELL] Getting push token with options:', {
+        hasProjectId: !!projectId,
+        isStandalone: Constants.executionEnvironment === 'standalone',
+      });
+
+      const token = await Notifications.getExpoPushTokenAsync(tokenOptions);
 
       console.log('[SUCCESS] Expo Push Token:', token.data);
       return token.data;
@@ -75,6 +100,7 @@ class PushNotificationService {
       console.error('Error details:', {
         message: error.message,
         code: error.code,
+        executionEnvironment: Constants.executionEnvironment,
       });
 
       // Try fallback without options if first attempt fails
@@ -92,9 +118,16 @@ class PushNotificationService {
 
   /**
    * Register push token with backend
+   * NOTE: Push notifications are disabled on Android (Expo 53+)
    */
   async registerPushToken(userId: string): Promise<boolean> {
     try {
+      // Skip push notifications on Android
+      if (Platform.OS === 'android') {
+        console.log('[BELL] Push notifications disabled on Android');
+        return false;
+      }
+
       const hasPermission = await this.requestPermissions();
       if (!hasPermission) {
         console.log('[BELL] No permission to register push token');
@@ -107,7 +140,7 @@ class PushNotificationService {
         return false;
       }
 
-      const pushPlatform = Platform.OS; // 'ios' | 'android'
+      const pushPlatform = Platform.OS; // 'ios' only
 
       console.log('[BELL] Registering push token with backend...');
       console.log('   User ID:', userId);
@@ -223,25 +256,12 @@ class PushNotificationService {
 
   /**
    * Configure notification channels (Android only)
+   * NOTE: Push notifications are disabled on Android, so this is a no-op
    */
   async setupNotificationChannels() {
     if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'Default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#FF231F7C',
-      });
-
-      await Notifications.setNotificationChannelAsync('queue', {
-        name: 'Queue Notifications',
-        importance: Notifications.AndroidImportance.HIGH,
-        vibrationPattern: [0, 500, 250, 500],
-        lightColor: '#00FF00',
-        sound: 'default',
-      });
-
-      console.log('[SUCCESS] Android notification channels configured');
+      console.log('[BELL] Push notifications disabled on Android - skipping channel setup');
+      return;
     }
   }
 }

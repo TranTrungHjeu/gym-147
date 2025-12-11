@@ -248,6 +248,7 @@ export interface TrainerFilters {
 
 // UI Component Props
 export interface ClassCardProps {
+  onScanQR?: () => void;
   schedule: Schedule;
   onPress: () => void;
   onBook?: () => void;

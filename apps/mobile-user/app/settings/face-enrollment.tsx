@@ -46,6 +46,9 @@ export default function FaceEnrollmentScreen() {
   const [message, setMessage] = useState('');
   const [captured, setCaptured] = useState(false);
   const [capturedImageUri, setCapturedImageUri] = useState<string | null>(null);
+  const [capturedImageBase64, setCapturedImageBase64] = useState<string | null>(
+    null
+  );
   const [previewMode, setPreviewMode] = useState(false);
   const [errorModalVisible, setErrorModalVisible] = useState(false);
   const [errorModalData, setErrorModalData] = useState<{
@@ -53,7 +56,9 @@ export default function FaceEnrollmentScreen() {
     message: string;
     suggestion?: string;
   } | null>(null);
-  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const navigationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
 
   // Check if permission is permanently denied
   const isPermanentlyDenied =
@@ -123,23 +128,36 @@ export default function FaceEnrollmentScreen() {
         skipProcessing: false,
       });
 
-      if (photo?.uri) {
-        setCapturedImageUri(photo.uri);
-        setCaptured(true);
-        setPreviewMode(true);
-        setProcessing(false);
-        setMessage('');
-        analytics.trackFeatureUsage('face_capture_success');
-      } else {
-        throw new Error('Failed to capture image');
+      if (!photo) {
+        throw new Error('Failed to capture image: photo is null');
       }
+
+      if (!photo.uri) {
+        throw new Error('Failed to capture image: photo.uri is missing');
+      }
+
+      // Store both URI and base64 if available
+      setCapturedImageUri(photo.uri);
+      if (photo.base64) {
+        // Store base64 directly to avoid reading from file later
+        setCapturedImageBase64(photo.base64);
+      }
+
+      setCaptured(true);
+      setPreviewMode(true);
+      setProcessing(false);
+      setMessage('');
+      analytics.trackFeatureUsage('face_capture_success');
     } catch (error: any) {
-      analytics.trackError('face_capture_failed', error.message || 'Unknown error');
+      analytics.trackError(
+        'face_capture_failed',
+        error.message || 'Unknown error'
+      );
       setProcessing(false);
       setResult('error');
       const errorInfo = parseFaceEnrollmentError(error);
       setMessage(errorInfo.message);
-      
+
       // Show error modal with suggestion if available
       if (errorInfo.suggestion) {
         setErrorModalData({
@@ -157,7 +175,9 @@ export default function FaceEnrollmentScreen() {
   };
 
   // Parse error to get specific error type and message
-  const parseFaceEnrollmentError = (error: any): {
+  const parseFaceEnrollmentError = (
+    error: any
+  ): {
     message: string;
     suggestion?: string;
   } => {
@@ -245,7 +265,9 @@ export default function FaceEnrollmentScreen() {
   };
 
   // Validate image before sending
-  const validateImage = (base64Image: string): { valid: boolean; error?: string } => {
+  const validateImage = (
+    base64Image: string
+  ): { valid: boolean; error?: string } => {
     if (!base64Image || typeof base64Image !== 'string') {
       return {
         valid: false,
@@ -296,13 +318,28 @@ export default function FaceEnrollmentScreen() {
         })
       );
 
-      // Read image as base64
-      const base64Image = await FileSystem.readAsStringAsync(
-        capturedImageUri,
-        {
-          encoding: FileSystem.EncodingType.Base64,
+      // Use base64 if already captured, otherwise read from file
+      let base64Image: string;
+
+      if (capturedImageBase64) {
+        // Use base64 that was captured directly
+        base64Image = capturedImageBase64;
+      } else if (capturedImageUri) {
+        // Fallback: read from file
+        try {
+          base64Image = await FileSystem.readAsStringAsync(capturedImageUri, {
+            encoding: FileSystem.EncodingType.Base64,
+          });
+        } catch (fileError: any) {
+          throw new Error(
+            `Failed to read image file: ${
+              fileError?.message || 'Unknown error'
+            }`
+          );
         }
-      );
+      } else {
+        throw new Error('No image data available');
+      }
 
       const imageDataUri = `data:image/jpeg;base64,${base64Image}`;
 
@@ -338,13 +375,14 @@ export default function FaceEnrollmentScreen() {
         // Parse error for better UX
         const errorInfo = parseFaceEnrollmentError(enrollResponse);
         analytics.trackError('face_enrollment_failed', errorInfo.message);
-        
+
         setResult('error');
         setMessage(errorInfo.message);
         setPreviewMode(false);
         setCaptured(false);
         setCapturedImageUri(null);
-        
+        setCapturedImageBase64(null);
+
         // Show error modal with suggestion
         if (errorInfo.suggestion) {
           setErrorModalData({
@@ -362,13 +400,14 @@ export default function FaceEnrollmentScreen() {
     } catch (error: any) {
       const errorInfo = parseFaceEnrollmentError(error);
       analytics.trackError('face_enrollment_exception', errorInfo.message);
-      
+
       setResult('error');
       setMessage(errorInfo.message);
       setPreviewMode(false);
       setCaptured(false);
       setCapturedImageUri(null);
-      
+      setCapturedImageBase64(null);
+
       // Show error modal with suggestion
       if (errorInfo.suggestion) {
         setErrorModalData({
@@ -391,6 +430,7 @@ export default function FaceEnrollmentScreen() {
     setPreviewMode(false);
     setCaptured(false);
     setCapturedImageUri(null);
+    setCapturedImageBase64(null);
     setResult(null);
     setMessage('');
   };
@@ -401,13 +441,14 @@ export default function FaceEnrollmentScreen() {
       clearTimeout(navigationTimeoutRef.current);
       navigationTimeoutRef.current = null;
     }
-    
+
     setCaptured(false);
     setProcessing(false);
     setResult(null);
     setMessage('');
     setPreviewMode(false);
     setCapturedImageUri(null);
+    setCapturedImageBase64(null);
   };
 
   // Handle back navigation during processing
@@ -493,7 +534,7 @@ export default function FaceEnrollmentScreen() {
                     'Cần quyền truy cập camera để đăng ký khuôn mặt',
                 })}
           </Text>
-          
+
           {!isPermanentlyDenied ? (
             <Button
               title={t('faceLogin.grantPermission', {
@@ -534,13 +575,13 @@ export default function FaceEnrollmentScreen() {
         style={[styles.container, { backgroundColor: theme.colors.background }]}
       >
         <View style={styles.header}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={processing ? handleBackPress : retakePhoto}
-          disabled={processing && !result}
-        >
-          <RotateCcw size={24} color={theme.colors.text} />
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={processing ? handleBackPress : retakePhoto}
+            disabled={processing && !result}
+          >
+            <RotateCcw size={24} color={theme.colors.text} />
+          </TouchableOpacity>
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
             {t('faceLogin.preview', { defaultValue: 'Xem trước' })}
           </Text>
@@ -606,11 +647,7 @@ export default function FaceEnrollmentScreen() {
 
       {/* Camera View */}
       <View style={styles.cameraContainer}>
-        <CameraView
-          ref={cameraRef}
-          style={styles.camera}
-          facing="front"
-        >
+        <CameraView ref={cameraRef} style={styles.camera} facing="front">
           {/* Overlay */}
           <View style={styles.overlay}>
             {/* Top overlay */}
@@ -777,9 +814,7 @@ export default function FaceEnrollmentScreen() {
             ]}
           >
             <ActivityIndicator size="large" color={theme.colors.primary} />
-            <Text
-              style={[styles.processingText, { color: theme.colors.text }]}
-            >
+            <Text style={[styles.processingText, { color: theme.colors.text }]}>
               {message}
             </Text>
           </View>
@@ -792,23 +827,30 @@ export default function FaceEnrollmentScreen() {
       {/* Error Modal with Suggestions */}
       <AlertModal
         visible={errorModalVisible}
-        title={errorModalData?.title || t('common.error', { defaultValue: 'Lỗi' })}
+        title={
+          errorModalData?.title || t('common.error', { defaultValue: 'Lỗi' })
+        }
         message={errorModalData?.message || ''}
         suggestion={errorModalData?.suggestion}
         type="error"
         buttonText={
-          errorModalData?.title === t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })
+          errorModalData?.title ===
+          t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })
             ? t('common.confirm', { defaultValue: 'Xác nhận' })
             : t('common.ok', { defaultValue: 'OK' })
         }
         showCancel={
-          errorModalData?.title === t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })
+          errorModalData?.title ===
+          t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })
         }
         onClose={() => {
           setErrorModalVisible(false);
         }}
         onConfirm={() => {
-          if (errorModalData?.title === t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })) {
+          if (
+            errorModalData?.title ===
+            t('faceLogin.backPressTitle', { defaultValue: 'Đang xử lý' })
+          ) {
             handleConfirmBack();
           }
         }}
@@ -1027,4 +1069,3 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
-

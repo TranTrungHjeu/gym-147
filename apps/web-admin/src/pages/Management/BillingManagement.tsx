@@ -1,9 +1,36 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useToast } from '../../hooks/useToast';
-import { billingService, MembershipPlan, Subscription, Payment, BillingStats } from '../../services/billing.service';
-import { CreditCard, Plus, Search, RefreshCw, DollarSign, Users, TrendingUp, FileText, Edit, Eye, Calendar, Package, Clock } from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
+import {
+  billingService,
+  MembershipPlan,
+  Subscription,
+  Payment,
+  BillingStats,
+} from '../../services/billing.service';
+import {
+  CreditCard,
+  Plus,
+  Search,
+  RefreshCw,
+  DollarSign,
+  Users,
+  TrendingUp,
+  FileText,
+  Edit,
+  Eye,
+  Calendar,
+  Package,
+  Clock,
+} from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import { TableLoading } from '../../components/ui/AppLoading';
 import CustomSelect from '../../components/common/CustomSelect';
 import PlanFormModal from '../../components/modals/PlanFormModal';
@@ -18,29 +45,44 @@ import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const BillingManagement: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'subscriptions' | 'payments'>('overview');
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<'overview' | 'plans' | 'subscriptions' | 'payments'>(
+    'overview'
+  );
   const [stats, setStats] = useState<BillingStats | null>(null);
   const [plans, setPlans] = useState<MembershipPlan[]>([]);
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Analytics data for charts
-  const [revenueTrendData, setRevenueTrendData] = useState<{ dates: string[]; revenues: number[] } | null>(null);
-  const [revenueByPlanData, setRevenueByPlanData] = useState<{ plans: string[]; revenues: number[] } | null>(null);
-  const [subscriptionsByStatusData, setSubscriptionsByStatusData] = useState<{ statuses: string[]; counts: number[] } | null>(null);
-  const [paymentMethodsData, setPaymentMethodsData] = useState<{ methods: string[]; amounts: number[] } | null>(null);
+  const [revenueTrendData, setRevenueTrendData] = useState<{
+    dates: string[];
+    revenues: number[];
+  } | null>(null);
+  const [revenueByPlanData, setRevenueByPlanData] = useState<{
+    plans: string[];
+    revenues: number[];
+  } | null>(null);
+  const [subscriptionsByStatusData, setSubscriptionsByStatusData] = useState<{
+    statuses: string[];
+    counts: number[];
+  } | null>(null);
+  const [paymentMethodsData, setPaymentMethodsData] = useState<{
+    methods: string[];
+    amounts: number[];
+  } | null>(null);
   const [isLoadingAnalytics, setIsLoadingAnalytics] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState<string>('all');
-  
+
   // Context menu states
   const [actionMenuOpen, setActionMenuOpen] = useState(false);
   const [selectedItemForAction, setSelectedItemForAction] = useState<any>(null);
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [actionType, setActionType] = useState<'plan' | 'subscription' | 'payment'>('plan');
-  
+
   // Modal states
   const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<MembershipPlan | null>(null);
@@ -56,23 +98,37 @@ const BillingManagement: React.FC = () => {
   const loadData = async () => {
     try {
       setIsLoading(true);
-      
+
       if (activeTab === 'overview') {
         setIsLoadingAnalytics(true);
         try {
-          const [statsResponse, trendsResponse, revenueByPlanResponse, analyticsResponse, subsResponse, paymentsResponse] = await Promise.all([
+          const [
+            statsResponse,
+            trendsResponse,
+            revenueByPlanResponse,
+            analyticsResponse,
+            subsResponse,
+            paymentsResponse,
+          ] = await Promise.all([
             billingService.getStats(),
-            billingService.getRevenueTrends({ from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], to: new Date().toISOString().split('T')[0] }).catch(() => ({ success: false, data: null })),
-            billingService.getRevenueByPlan({ period: 30 }).catch(() => ({ success: false, data: null })),
+            billingService
+              .getRevenueTrends({
+                from: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+                to: new Date().toISOString().split('T')[0],
+              })
+              .catch(() => ({ success: false, data: null })),
+            billingService
+              .getRevenueByPlan({ period: 30 })
+              .catch(() => ({ success: false, data: null })),
             billingService.getDashboardAnalytics().catch(() => ({ success: false, data: null })),
             billingService.getAllSubscriptions().catch(() => ({ success: false, data: [] })),
             billingService.getAllPayments().catch(() => ({ success: false, data: [] })),
           ]);
-          
+
           if (statsResponse.success) {
             setStats(statsResponse.data);
           }
-          
+
           // Process revenue trends
           if (trendsResponse?.success && trendsResponse.data) {
             const trendData = trendsResponse.data;
@@ -81,7 +137,7 @@ const BillingManagement: React.FC = () => {
               revenues: trendData.revenues || [],
             });
           }
-          
+
           // Process revenue by plan
           if (revenueByPlanResponse?.success && revenueByPlanResponse.data?.plans) {
             const plans = revenueByPlanResponse.data.plans;
@@ -90,17 +146,17 @@ const BillingManagement: React.FC = () => {
               revenues: plans.map((p: any) => Number(p.revenue || 0)),
             });
           }
-          
+
           // Process analytics data
           if (analyticsResponse?.success && analyticsResponse.data?.dashboard) {
             const dashboard = analyticsResponse.data.dashboard;
           }
-          
+
           // Process subscriptions by status
           if (subsResponse?.success) {
             const subsList = Array.isArray(subsResponse.data)
               ? subsResponse.data
-              : (subsResponse.data?.subscriptions || []);
+              : subsResponse.data?.subscriptions || [];
             const statusCounts: Record<string, number> = {};
             subsList.forEach((sub: Subscription) => {
               statusCounts[sub.status] = (statusCounts[sub.status] || 0) + 1;
@@ -112,12 +168,12 @@ const BillingManagement: React.FC = () => {
               });
             }
           }
-          
+
           // Process payment methods
           if (paymentsResponse?.success) {
             const paymentsList = Array.isArray(paymentsResponse.data)
               ? paymentsResponse.data
-              : (paymentsResponse.data?.payments || []);
+              : paymentsResponse.data?.payments || [];
             const methodAmounts: Record<string, number> = {};
             paymentsList.forEach((payment: Payment) => {
               const method = payment.payment_method || 'UNKNOWN';
@@ -132,20 +188,14 @@ const BillingManagement: React.FC = () => {
           }
         } catch (error: any) {
           console.error('Error loading analytics:', error);
-          
+
           // Show user-friendly error message for service unavailable
           if (error.status === 503 || error.isServiceUnavailable) {
-            showToast(
-              error.message || 'Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.',
-              'warning'
-            );
+            showToast(error.message || t('billingManagement.errors.serviceUnavailable'), 'warning');
           } else if (error.status === 504 || error.isTimeout) {
-            showToast(
-              error.message || 'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.',
-              'warning'
-            );
+            showToast(error.message || t('billingManagement.errors.timeout'), 'warning');
           } else {
-            showToast('Không thể tải dữ liệu phân tích. Vui lòng thử lại sau.', 'error');
+            showToast(t('billingManagement.errors.loadAnalyticsError'), 'error');
           }
         } finally {
           setIsLoadingAnalytics(false);
@@ -155,7 +205,7 @@ const BillingManagement: React.FC = () => {
         if (plansResponse.success) {
           const plansList = Array.isArray(plansResponse.data)
             ? plansResponse.data
-            : (plansResponse.data?.plans || []);
+            : plansResponse.data?.plans || [];
           setPlans(plansList);
         }
       } else if (activeTab === 'subscriptions') {
@@ -164,9 +214,9 @@ const BillingManagement: React.FC = () => {
           // Backend returns array directly, not wrapped in subscriptions
           const subsList = Array.isArray(subsResponse.data)
             ? subsResponse.data
-            : (subsResponse.data?.subscriptions || []);
+            : subsResponse.data?.subscriptions || [];
           setSubscriptions(subsList);
-          
+
           // Process subscriptions by status for chart
           const statusCounts: Record<string, number> = {};
           subsList.forEach((sub: Subscription) => {
@@ -185,9 +235,9 @@ const BillingManagement: React.FC = () => {
           // Backend returns array directly, not wrapped in payments
           const paymentsList = Array.isArray(paymentsResponse.data)
             ? paymentsResponse.data
-            : (paymentsResponse.data?.payments || []);
+            : paymentsResponse.data?.payments || [];
           setPayments(paymentsList);
-          
+
           // Process payment methods for chart
           const methodAmounts: Record<string, number> = {};
           paymentsList.forEach((payment: Payment) => {
@@ -205,17 +255,11 @@ const BillingManagement: React.FC = () => {
     } catch (error: any) {
       // Show user-friendly error message based on error type
       if (error.status === 503 || error.isServiceUnavailable) {
-        showToast(
-          error.message || 'Dịch vụ cơ sở dữ liệu tạm thời không khả dụng. Vui lòng thử lại sau.',
-          'warning'
-        );
+        showToast(error.message || t('billingManagement.errors.serviceUnavailable'), 'warning');
       } else if (error.status === 504 || error.isTimeout) {
-        showToast(
-          error.message || 'Yêu cầu mất quá nhiều thời gian. Vui lòng thử lại sau.',
-          'warning'
-        );
+        showToast(error.message || t('billingManagement.errors.timeout'), 'warning');
       } else {
-        showToast(`Không thể tải dữ liệu ${activeTab}`, 'error');
+        showToast(t('billingManagement.errors.loadDataError', { tab: activeTab }), 'error');
       }
       console.error('Error loading data:', error);
     } finally {
@@ -256,32 +300,33 @@ const BillingManagement: React.FC = () => {
 
   // Filter options
   const subscriptionStatusOptions = [
-    { value: 'all', label: 'Tất cả' },
-    { value: 'ACTIVE', label: 'Đang hoạt động' },
-    { value: 'EXPIRED', label: 'Hết hạn' },
-    { value: 'CANCELLED', label: 'Đã hủy' },
-    { value: 'SUSPENDED', label: 'Tạm ngưng' },
+    { value: 'all', label: t('billingManagement.filter.all') },
+    { value: 'ACTIVE', label: t('billingManagement.status.active') },
+    { value: 'EXPIRED', label: t('billingManagement.status.expired') },
+    { value: 'CANCELLED', label: t('billingManagement.status.cancelled') },
+    { value: 'SUSPENDED', label: t('billingManagement.status.suspended') },
   ];
 
   const paymentStatusOptions = [
-    { value: 'all', label: 'Tất cả' },
-    { value: 'PAID', label: 'Đã thanh toán' },
-    { value: 'PENDING', label: 'Chờ xử lý' },
-    { value: 'FAILED', label: 'Thất bại' },
-    { value: 'REFUNDED', label: 'Đã hoàn tiền' },
+    { value: 'all', label: t('billingManagement.filter.all') },
+    { value: 'PAID', label: t('billingManagement.paymentStatus.paid') },
+    { value: 'PENDING', label: t('billingManagement.paymentStatus.pending') },
+    { value: 'FAILED', label: t('billingManagement.paymentStatus.failed') },
+    { value: 'REFUNDED', label: t('billingManagement.paymentStatus.refunded') },
   ];
 
   // Filtered data
   const filteredPlans = useMemo(() => {
-    return plans.filter(plan => 
-      plan.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      plan.description?.toLowerCase().includes(searchTerm.toLowerCase())
+    return plans.filter(
+      plan =>
+        plan.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        plan.description?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [plans, searchTerm]);
 
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter(sub => {
-      const matchesSearch = 
+      const matchesSearch =
         sub.member?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sub.member?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         sub.plan?.name?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -292,7 +337,7 @@ const BillingManagement: React.FC = () => {
 
   const filteredPayments = useMemo(() => {
     return payments.filter(payment => {
-      const matchesSearch = 
+      const matchesSearch =
         payment.member?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.member?.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         payment.transaction_id?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -319,15 +364,21 @@ const BillingManagement: React.FC = () => {
   const getSubscriptionsExportData = useCallback(() => {
     return filteredSubscriptions.map(sub => ({
       'Thành viên': sub.member?.full_name || 'N/A',
-      'Email': sub.member?.email || 'N/A',
+      Email: sub.member?.email || 'N/A',
       'Gói tập': sub.plan?.name || 'N/A',
       'Ngày bắt đầu': sub.start_date ? formatVietnamDateTime(sub.start_date, 'date') : 'N/A',
       'Ngày kết thúc': sub.end_date ? formatVietnamDateTime(sub.end_date, 'date') : 'N/A',
-      'Trạng thái': sub.status === 'ACTIVE' ? 'Đang hoạt động' : 
-                    sub.status === 'EXPIRED' ? 'Hết hạn' : 
-                    sub.status === 'CANCELLED' ? 'Đã hủy' : 
-                    sub.status === 'SUSPENDED' ? 'Tạm ngưng' : sub.status,
-      'Tự động gia hạn': sub.auto_renew ? 'Có' : 'Không',
+      'Trạng thái':
+        sub.status === 'ACTIVE'
+          ? 'Đang hoạt động'
+          : sub.status === 'EXPIRED'
+          ? 'Hết hạn'
+          : sub.status === 'CANCELLED'
+          ? 'Đã hủy'
+          : sub.status === 'SUSPENDED'
+          ? 'Tạm ngưng'
+          : sub.status,
+      'Tự động gia hạn': 'Có', // auto_renew removed from schema
       'Trạng thái thanh toán': sub.payment_status || 'N/A',
       'Ngày tạo': sub.created_at ? formatVietnamDateTime(sub.created_at, 'datetime') : 'N/A',
     }));
@@ -337,17 +388,27 @@ const BillingManagement: React.FC = () => {
   const getPaymentsExportData = useCallback(() => {
     return filteredPayments.map(payment => ({
       'Thành viên': payment.member?.full_name || 'N/A',
-      'Email': payment.member?.email || 'N/A',
+      Email: payment.member?.email || 'N/A',
       'Số tiền (VND)': payment.amount || 0,
       'Số tiền (đã format)': formatCurrency(payment.amount),
       'Phương thức': payment.payment_method || 'N/A',
-      'Trạng thái': payment.status === 'COMPLETED' ? 'Hoàn thành' : 
-                    payment.status === 'PENDING' ? 'Chờ xử lý' : 
-                    payment.status === 'FAILED' ? 'Thất bại' : 
-                    payment.status === 'REFUNDED' ? 'Đã hoàn tiền' : payment.status,
-      'Ngày thanh toán': payment.payment_date ? formatVietnamDateTime(payment.payment_date, 'datetime') : 'N/A',
+      'Trạng thái':
+        payment.status === 'COMPLETED'
+          ? 'Hoàn thành'
+          : payment.status === 'PENDING'
+          ? 'Chờ xử lý'
+          : payment.status === 'FAILED'
+          ? 'Thất bại'
+          : payment.status === 'REFUNDED'
+          ? 'Đã hoàn tiền'
+          : payment.status,
+      'Ngày thanh toán': payment.payment_date
+        ? formatVietnamDateTime(payment.payment_date, 'datetime')
+        : 'N/A',
       'Mã giao dịch': payment.transaction_id || 'N/A',
-      'Ngày tạo': payment.created_at ? formatVietnamDateTime(payment.created_at, 'datetime') : 'N/A',
+      'Ngày tạo': payment.created_at
+        ? formatVietnamDateTime(payment.created_at, 'datetime')
+        : 'N/A',
     }));
   }, [filteredPayments]);
 
@@ -393,10 +454,10 @@ const BillingManagement: React.FC = () => {
       <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Quản lý Thanh toán
+            {t('billingManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Quản lý gói tập, đăng ký và thanh toán
+            {t('billingManagement.subtitle')}
           </p>
         </div>
         <button
@@ -405,13 +466,15 @@ const BillingManagement: React.FC = () => {
               setSelectedPlan(null);
               setIsPlanModalOpen(true);
             } else {
-              showToast('Tính năng đang phát triển', 'info');
+              showToast(t('billingManagement.messages.featureComing'), 'info');
             }
           }}
           className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
         >
           <Plus className='w-4 h-4' />
-          {activeTab === 'plans' ? 'Tạo gói mới' : 'Thêm mới'}
+          {activeTab === 'plans'
+            ? t('billingManagement.actions.createPlan')
+            : t('billingManagement.actions.addNew')}
         </button>
       </div>
 
@@ -419,10 +482,10 @@ const BillingManagement: React.FC = () => {
       <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
         <nav className='flex space-x-1'>
           {[
-            { id: 'overview', name: 'Tổng quan', icon: TrendingUp },
-            { id: 'plans', name: 'Gói tập', icon: FileText },
-            { id: 'subscriptions', name: 'Đăng ký', icon: Users },
-            { id: 'payments', name: 'Thanh toán', icon: CreditCard },
+            { id: 'overview', name: t('billingManagement.tabs.overview'), icon: TrendingUp },
+            { id: 'plans', name: t('billingManagement.tabs.plans'), icon: FileText },
+            { id: 'subscriptions', name: t('billingManagement.tabs.subscriptions'), icon: Users },
+            { id: 'payments', name: t('billingManagement.tabs.payments'), icon: CreditCard },
           ].map(tab => (
             <button
               key={tab.id}
@@ -444,136 +507,136 @@ const BillingManagement: React.FC = () => {
       {activeTab === 'overview' && (
         <div className='space-y-3'>
           {isLoading ? (
-            <TableLoading text='Đang tải dữ liệu tổng quan...' />
+            <TableLoading text={t('billingManagement.messages.loadingOverview')} />
           ) : stats ? (
             <>
               {/* Stats Cards */}
               <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3'>
-              <AdminCard padding='sm' className='relative overflow-hidden group'>
-                <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
-                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
-                <div className='relative'>
-                  <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                      <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-baseline gap-1.5 mb-0.5'>
-                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                          {formatCurrency(stats.total_revenue || 0)}
-                        </div>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
-                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                        Tổng doanh thu
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {formatCurrency(stats.total_revenue || 0)}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          {t('billingManagement.stats.totalRevenue')}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </AdminCard>
-              <AdminCard padding='sm' className='relative overflow-hidden group'>
-                <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
-                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
-                <div className='relative'>
-                  <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                      <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-baseline gap-1.5 mb-0.5'>
-                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                          {formatCurrency(stats.monthly_revenue || 0)}
-                        </div>
+                </AdminCard>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
-                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                        Doanh thu tháng
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {formatCurrency(stats.monthly_revenue || 0)}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          {t('billingManagement.stats.monthlyRevenue')}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </AdminCard>
-              <AdminCard padding='sm' className='relative overflow-hidden group'>
-                <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
-                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
-                <div className='relative'>
-                  <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                      <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-baseline gap-1.5 mb-0.5'>
-                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                          {stats.active_subscriptions || 0}
-                        </div>
+                </AdminCard>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
-                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                        Đăng ký đang hoạt động
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {stats.active_subscriptions || 0}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          {t('billingManagement.stats.activeSubscriptions')}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </AdminCard>
-              <AdminCard padding='sm' className='relative overflow-hidden group'>
-                <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
-                <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
-                <div className='relative'>
-                  <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
-                      <CreditCard className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
-                    </div>
-                    <div className='flex-1 min-w-0'>
-                      <div className='flex items-baseline gap-1.5 mb-0.5'>
-                        <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
-                          {stats.pending_payments || 0}
-                        </div>
+                </AdminCard>
+                <AdminCard padding='sm' className='relative overflow-hidden group'>
+                  <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
+                  <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
+                  <div className='relative'>
+                    <div className='flex items-center gap-3'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                        <CreditCard className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
-                      <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                        Thanh toán chờ xử lý
+                      <div className='flex-1 min-w-0'>
+                        <div className='flex items-baseline gap-1.5 mb-0.5'>
+                          <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
+                            {stats.pending_payments || 0}
+                          </div>
+                        </div>
+                        <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
+                          {t('billingManagement.stats.pendingPayments')}
+                        </div>
                       </div>
                     </div>
                   </div>
-                </div>
-              </AdminCard>
-            </div>
-            
-            {/* Charts Section */}
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
-              {/* Revenue Trends Chart */}
-              <RevenueTrendChart
-                data={revenueTrendData || undefined}
-                loading={isLoadingAnalytics}
-                height={320}
-              />
-              
-              {/* Revenue by Plan Chart */}
-              <RevenueByPlanChart
-                data={revenueByPlanData || undefined}
-                loading={isLoadingAnalytics}
-                height={320}
-              />
-            </div>
-            
-            <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
-              {/* Subscriptions by Status Chart */}
-              <SubscriptionsByStatusChart
-                data={subscriptionsByStatusData || undefined}
-                loading={isLoadingAnalytics}
-                height={320}
-              />
-              
-              {/* Payment Methods Chart */}
-              <PaymentMethodsChart
-                data={paymentMethodsData || undefined}
-                loading={isLoadingAnalytics}
-                height={320}
-              />
-            </div>
+                </AdminCard>
+              </div>
+
+              {/* Charts Section */}
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
+                {/* Revenue Trends Chart */}
+                <RevenueTrendChart
+                  data={revenueTrendData || undefined}
+                  loading={isLoadingAnalytics}
+                  height={320}
+                />
+
+                {/* Revenue by Plan Chart */}
+                <RevenueByPlanChart
+                  data={revenueByPlanData || undefined}
+                  loading={isLoadingAnalytics}
+                  height={320}
+                />
+              </div>
+
+              <div className='grid grid-cols-1 lg:grid-cols-2 gap-3'>
+                {/* Subscriptions by Status Chart */}
+                <SubscriptionsByStatusChart
+                  data={subscriptionsByStatusData || undefined}
+                  loading={isLoadingAnalytics}
+                  height={320}
+                />
+
+                {/* Payment Methods Chart */}
+                <PaymentMethodsChart
+                  data={paymentMethodsData || undefined}
+                  loading={isLoadingAnalytics}
+                  height={320}
+                />
+              </div>
             </>
           ) : (
             <AdminCard>
               <div className='text-center py-12 text-gray-500 dark:text-gray-400 font-inter'>
                 <DollarSign className='w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500' />
                 <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
-                  Không có dữ liệu
+                  {t('common.noData')}
                 </p>
               </div>
             </AdminCard>
@@ -592,7 +655,7 @@ const BillingManagement: React.FC = () => {
                   <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
                   <input
                     type='text'
-                    placeholder='Tìm kiếm gói tập...'
+                    placeholder={t('billingManagement.plans.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
@@ -603,15 +666,15 @@ const BillingManagement: React.FC = () => {
                   className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
-                  Làm mới
+                  {t('equipmentManagement.filter.refresh')}
                 </button>
               </div>
               {filteredPlans.length > 0 && (
                 <ExportButton
                   data={getPlansExportData()}
                   columns={plansExportColumns}
-                  filename='danh-sach-goi-tap'
-                  title='Danh sách Gói tập'
+                  filename={t('billingManagement.plans.export.filename')}
+                  title={t('billingManagement.plans.export.title')}
                   variant='outline'
                   size='sm'
                 />
@@ -620,15 +683,19 @@ const BillingManagement: React.FC = () => {
           </div>
 
           {isLoading ? (
-            <TableLoading text='Đang tải danh sách gói tập...' />
+            <TableLoading text={t('billingManagement.plans.messages.loading')} />
           ) : (
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell header>Tên gói</AdminTableCell>
-                  <AdminTableCell header>Giá</AdminTableCell>
-                  <AdminTableCell header>Thời hạn</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
+                  <AdminTableCell header>{t('billingManagement.plans.table.name')}</AdminTableCell>
+                  <AdminTableCell header>{t('billingManagement.plans.table.price')}</AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.plans.table.duration')}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.plans.table.status')}
+                  </AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
@@ -637,10 +704,10 @@ const BillingManagement: React.FC = () => {
                     <AdminTableCell colSpan={4} className='text-center py-12'>
                       <FileText className='w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500' />
                       <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
-                        Không có gói tập nào
+                        {t('billingManagement.plans.empty.noPlans')}
                       </p>
                       <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
-                        Tạo gói tập mới để bắt đầu
+                        {t('billingManagement.plans.empty.createNew')}
                       </p>
                     </AdminTableCell>
                   </AdminTableRow>
@@ -687,7 +754,11 @@ const BillingManagement: React.FC = () => {
                         <div className='flex items-center gap-1.5'>
                           <Clock className='w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200' />
                           <span className='text-theme-xs font-heading text-gray-900 dark:text-white group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors duration-200'>
-                            {(plan as any).duration_months ? `${(plan as any).duration_months} tháng` : plan.duration_days ? `${plan.duration_days} ngày` : 'N/A'}
+                            {(plan as any).duration_months
+                              ? `${(plan as any).duration_months} tháng`
+                              : plan.duration_days
+                              ? `${plan.duration_days} ngày`
+                              : 'N/A'}
                           </span>
                         </div>
                       </AdminTableCell>
@@ -699,7 +770,9 @@ const BillingManagement: React.FC = () => {
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700'
                           }`}
                         >
-                          {plan.is_active ? 'Đang hoạt động' : 'Ngừng hoạt động'}
+                          {plan.is_active
+                            ? t('common.status.active')
+                            : t('billingManagement.plans.status.inactive')}
                         </span>
                       </AdminTableCell>
                     </AdminTableRow>
@@ -722,7 +795,7 @@ const BillingManagement: React.FC = () => {
                   <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
                   <input
                     type='text'
-                    placeholder='Tìm kiếm đăng ký...'
+                    placeholder={t('billingManagement.subscriptions.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
@@ -740,15 +813,15 @@ const BillingManagement: React.FC = () => {
                   className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
-                  Làm mới
+                  {t('equipmentManagement.filter.refresh')}
                 </button>
               </div>
               {filteredSubscriptions.length > 0 && (
                 <ExportButton
                   data={getSubscriptionsExportData()}
                   columns={subscriptionsExportColumns}
-                  filename='danh-sach-dang-ky'
-                  title='Danh sách Đăng ký'
+                  filename={t('billingManagement.subscriptions.export.filename')}
+                  title={t('billingManagement.subscriptions.export.title')}
                   variant='outline'
                   size='sm'
                 />
@@ -757,16 +830,26 @@ const BillingManagement: React.FC = () => {
           </div>
 
           {isLoading ? (
-            <TableLoading text='Đang tải danh sách đăng ký...' />
+            <TableLoading text={t('billingManagement.subscriptions.messages.loading')} />
           ) : (
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell header>Thành viên</AdminTableCell>
-                  <AdminTableCell header>Gói tập</AdminTableCell>
-                  <AdminTableCell header>Ngày bắt đầu</AdminTableCell>
-                  <AdminTableCell header>Ngày kết thúc</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.subscriptions.table.member')}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.subscriptions.table.plan')}
+                  </AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.subscriptions.table.startDate')}
+                  ></AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.subscriptions.table.endDate')}
+                  ></AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.subscriptions.table.status')}
+                  ></AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
@@ -775,10 +858,12 @@ const BillingManagement: React.FC = () => {
                     <AdminTableCell colSpan={5} className='text-center py-12'>
                       <Users className='w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500' />
                       <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
-                        Không có đăng ký nào
+                        {t('billingManagement.subscriptions.empty.noSubscriptions')}
                       </p>
                       <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
-                        {searchTerm || statusFilter !== 'all' ? 'Thử tìm kiếm hoặc lọc khác' : 'Chưa có đăng ký nào trong hệ thống'}
+                        {searchTerm || statusFilter !== 'all'
+                          ? t('billingManagement.subscriptions.empty.tryDifferentFilters')
+                          : t('billingManagement.subscriptions.empty.noSubscriptionsInSystem')}
                       </p>
                     </AdminTableCell>
                   </AdminTableRow>
@@ -841,11 +926,20 @@ const BillingManagement: React.FC = () => {
                         </div>
                       </AdminTableCell>
                       <AdminTableCell>
-                        <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(sub.status)}`}>
-                          {sub.status === 'ACTIVE' ? 'Đang hoạt động' : 
-                           sub.status === 'EXPIRED' ? 'Hết hạn' :
-                           sub.status === 'CANCELLED' ? 'Đã hủy' :
-                           sub.status === 'SUSPENDED' ? 'Tạm ngưng' : sub.status}
+                        <span
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                            sub.status
+                          )}`}
+                        >
+                          {sub.status === 'ACTIVE'
+                            ? 'Đang hoạt động'
+                            : sub.status === 'EXPIRED'
+                            ? 'Hết hạn'
+                            : sub.status === 'CANCELLED'
+                            ? 'Đã hủy'
+                            : sub.status === 'SUSPENDED'
+                            ? 'Tạm ngưng'
+                            : sub.status}
                         </span>
                       </AdminTableCell>
                     </AdminTableRow>
@@ -868,7 +962,7 @@ const BillingManagement: React.FC = () => {
                   <Search className='absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
                   <input
                     type='text'
-                    placeholder='Tìm kiếm thanh toán...'
+                    placeholder={t('billingManagement.payments.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
@@ -886,15 +980,15 @@ const BillingManagement: React.FC = () => {
                   className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
-                  Làm mới
+                  {t('equipmentManagement.filter.refresh')}
                 </button>
               </div>
               {filteredPayments.length > 0 && (
                 <ExportButton
                   data={getPaymentsExportData()}
                   columns={paymentsExportColumns}
-                  filename='danh-sach-thanh-toan'
-                  title='Danh sách Thanh toán'
+                  filename={t('billingManagement.payments.export.filename')}
+                  title={t('billingManagement.payments.export.title')}
                   variant='outline'
                   size='sm'
                 />
@@ -903,16 +997,26 @@ const BillingManagement: React.FC = () => {
           </div>
 
           {isLoading ? (
-            <TableLoading text='Đang tải danh sách thanh toán...' />
+            <TableLoading text={t('billingManagement.payments.messages.loading')} />
           ) : (
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell header>Thành viên</AdminTableCell>
-                  <AdminTableCell header>Số tiền</AdminTableCell>
-                  <AdminTableCell header>Phương thức</AdminTableCell>
-                  <AdminTableCell header>Ngày thanh toán</AdminTableCell>
-                  <AdminTableCell header>Trạng thái</AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.payments.table.member')}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('billingManagement.payments.table.amount')}
+                  </AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.payments.table.method')}
+                  ></AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.payments.table.date')}
+                  ></AdminTableCell>
+                  <AdminTableCell
+                    header={t('billingManagement.payments.table.status')}
+                  ></AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
               <AdminTableBody>
@@ -921,10 +1025,12 @@ const BillingManagement: React.FC = () => {
                     <AdminTableCell colSpan={5} className='text-center py-12'>
                       <CreditCard className='w-12 h-12 mx-auto mb-3 text-gray-400 dark:text-gray-500' />
                       <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
-                        Không có thanh toán nào
+                        {t('billingManagement.payments.empty.noPayments')}
                       </p>
                       <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
-                        {searchTerm || paymentStatusFilter !== 'all' ? 'Thử tìm kiếm hoặc lọc khác' : 'Chưa có thanh toán nào trong hệ thống'}
+                        {searchTerm || paymentStatusFilter !== 'all'
+                          ? t('billingManagement.payments.empty.tryDifferentFilters')
+                          : t('billingManagement.payments.empty.noPaymentsInSystem')}
                       </p>
                     </AdminTableCell>
                   </AdminTableRow>
@@ -987,11 +1093,20 @@ const BillingManagement: React.FC = () => {
                         </div>
                       </AdminTableCell>
                       <AdminTableCell>
-                        <span className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(payment.status)}`}>
-                          {payment.status === 'PAID' ? 'Đã thanh toán' :
-                           payment.status === 'PENDING' ? 'Chờ xử lý' :
-                           payment.status === 'FAILED' ? 'Thất bại' :
-                           payment.status === 'REFUNDED' ? 'Đã hoàn tiền' : payment.status}
+                        <span
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                            payment.status
+                          )}`}
+                        >
+                          {payment.status === 'PAID'
+                            ? t('billingManagement.paymentStatus.paid')
+                            : payment.status === 'PENDING'
+                            ? t('billingManagement.paymentStatus.pending')
+                            : payment.status === 'FAILED'
+                            ? t('billingManagement.paymentStatus.failed')
+                            : payment.status === 'REFUNDED'
+                            ? t('billingManagement.paymentStatus.refunded')
+                            : payment.status}
                         </span>
                       </AdminTableCell>
                     </AdminTableRow>
@@ -1024,10 +1139,19 @@ const BillingManagement: React.FC = () => {
             onClick={e => e.stopPropagation()}
           >
             <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800'>
-              <p className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]' style={{ fontFamily: 'Space Grotesk, sans-serif' }}>
+              <p
+                className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
                 {actionType === 'plan' && selectedItemForAction?.name}
-                {actionType === 'subscription' && `${selectedItemForAction?.member?.full_name || 'N/A'} - ${selectedItemForAction?.plan?.name || 'N/A'}`}
-                {actionType === 'payment' && `${selectedItemForAction?.member?.full_name || 'N/A'} - ${formatCurrency(selectedItemForAction?.amount || 0)}`}
+                {actionType === 'subscription' &&
+                  `${selectedItemForAction?.member?.full_name || 'N/A'} - ${
+                    selectedItemForAction?.plan?.name || 'N/A'
+                  }`}
+                {actionType === 'payment' &&
+                  `${selectedItemForAction?.member?.full_name || 'N/A'} - ${formatCurrency(
+                    selectedItemForAction?.amount || 0
+                  )}`}
               </p>
             </div>
             <div className='py-1'>
@@ -1041,14 +1165,14 @@ const BillingManagement: React.FC = () => {
                     setSelectedPayment(selectedItemForAction);
                     setIsPaymentDetailOpen(true);
                   } else {
-                    showToast('Tính năng đang phát triển', 'info');
+                    showToast(t('billingManagement.messages.featureComing'), 'info');
                   }
                 }}
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150 min-h-[36px]'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
               >
                 <Eye className='w-3.5 h-3.5 flex-shrink-0' />
-                <span>Xem chi tiết</span>
+                <span>{t('billingManagement.actions.viewDetails')}</span>
               </button>
               {actionType === 'plan' && (
                 <button
@@ -1061,7 +1185,7 @@ const BillingManagement: React.FC = () => {
                   style={{ fontFamily: 'Space Grotesk, sans-serif' }}
                 >
                   <Edit className='w-3.5 h-3.5 flex-shrink-0' />
-                  <span>Sửa</span>
+                  <span>{t('billingManagement.actions.edit')}</span>
                 </button>
               )}
             </div>
@@ -1076,7 +1200,7 @@ const BillingManagement: React.FC = () => {
           setIsPlanModalOpen(false);
           setSelectedPlan(null);
         }}
-        onSave={async (data) => {
+        onSave={async data => {
           try {
             if (selectedPlan) {
               await billingService.updatePlan(selectedPlan.id, data);

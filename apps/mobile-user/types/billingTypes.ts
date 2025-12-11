@@ -18,6 +18,21 @@ export enum PaymentStatus {
   COMPLETED = 'COMPLETED',
   FAILED = 'FAILED',
   REFUNDED = 'REFUNDED',
+  PARTIALLY_REFUNDED = 'PARTIALLY_REFUNDED',
+}
+
+export enum RefundStatus {
+  PENDING = 'PENDING',
+  APPROVED = 'APPROVED',
+  PROCESSED = 'PROCESSED',
+  FAILED = 'FAILED',
+}
+
+export enum RefundReason {
+  CANCELLATION = 'CANCELLATION',
+  SUBSCRIPTION_CANCELLATION = 'SUBSCRIPTION_CANCELLATION',
+  SUBSCRIPTION_DOWNGRADE = 'SUBSCRIPTION_DOWNGRADE',
+  OTHER = 'OTHER',
 }
 
 export enum PaymentMethod {
@@ -40,20 +55,9 @@ export interface MembershipPlan {
   type: PlanType;
   duration_months: number;
   price: number;
-  setup_fee?: number;
   benefits: string[];
-  class_credits?: number;
-  guest_passes?: number;
-  personal_training_sessions?: number;
-  nutritionist_consultations?: number;
   smart_workout_plans: boolean;
-  wearable_integration: boolean;
-  advanced_analytics: boolean;
-  equipment_priority: boolean;
   is_featured: boolean;
-  billing_interval?: 'MONTHLY' | 'YEARLY' | 'QUARTERLY' | 'WEEKLY';
-  access_hours?: any;
-  access_areas?: string[];
 }
 
 export interface Subscription {
@@ -69,8 +73,6 @@ export interface Subscription {
   base_amount: number;
   discount_amount?: number;
   total_amount: number;
-  classes_remaining?: number;
-  auto_renew: boolean;
   plan?: MembershipPlan;
   addons?: any[];
   amount?: number;
@@ -95,12 +97,41 @@ export interface Payment {
   failure_reason?: string;
 }
 
+export interface Refund {
+  id: string;
+  payment_id: string;
+  amount: string | number;
+  reason: RefundReason | string;
+  status: RefundStatus | string;
+  transaction_id?: string;
+  processed_at?: string | Date;
+  failed_at?: string | Date;
+  failure_reason?: string;
+  requested_by: string;
+  approved_by?: string;
+  notes?: string;
+  metadata?: {
+    timeline?: Array<{
+      status: string;
+      timestamp: string;
+      action: string;
+      actor: string;
+      transaction_id?: string;
+      reason?: string;
+    }>;
+  };
+  created_at?: string | Date;
+  updated_at?: string | Date;
+  payment?: Payment;
+}
+
 export interface DiscountCode {
   code: string;
   type: DiscountType;
   value: number;
   maxDiscount?: number;
   bonusDays?: number;
+  isTrialCode?: boolean; // IMPROVEMENT: Flag to indicate trial code
 }
 
 export interface PaymentGatewayResponse {

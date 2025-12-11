@@ -360,30 +360,38 @@ class ScheduleService {
     }
 
     // Calculate date range based on view mode
+    // Use UTC to avoid timezone issues
     let startDate: Date;
     let endDate: Date;
 
     if (viewMode === 'month') {
-      // First day of month
-      startDate = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
-      // Last day of month
-      endDate = new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0);
+      // First day of month (UTC)
+      const year = currentDate.getUTCFullYear();
+      const month = currentDate.getUTCMonth();
+      startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
+      // Last day of month (UTC)
+      endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
     } else if (viewMode === 'week') {
-      // Start of week (Monday)
-      // getDay() returns: 0=Sunday, 1=Monday, ..., 6=Saturday
-      const dayOfWeek = currentDate.getDay();
-      startDate = new Date(currentDate);
-      // If Sunday (0), go back 6 days to previous Monday
-      // Otherwise, go back (dayOfWeek - 1) days to current week's Monday
+      // Start of week (Monday) - UTC
+      const year = currentDate.getUTCFullYear();
+      const month = currentDate.getUTCMonth();
+      const date = currentDate.getUTCDate();
+      const dayOfWeek = currentDate.getUTCDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+
+      // Calculate Monday of the week
       const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-      startDate.setDate(currentDate.getDate() - daysToSubtract);
+      const mondayDate = date - daysToSubtract;
+
+      startDate = new Date(Date.UTC(year, month, mondayDate, 0, 0, 0, 0));
       // End of week (Sunday, 6 days after Monday)
-      endDate = new Date(startDate);
-      endDate.setDate(startDate.getDate() + 6);
+      endDate = new Date(Date.UTC(year, month, mondayDate + 6, 23, 59, 59, 999));
     } else {
-      // Single day
-      startDate = new Date(currentDate);
-      endDate = new Date(currentDate);
+      // Single day (UTC)
+      const year = currentDate.getUTCFullYear();
+      const month = currentDate.getUTCMonth();
+      const date = currentDate.getUTCDate();
+      startDate = new Date(Date.UTC(year, month, date, 0, 0, 0, 0));
+      endDate = new Date(Date.UTC(year, month, date, 23, 59, 59, 999));
     }
 
     const params = new URLSearchParams({
@@ -399,9 +407,13 @@ class ScheduleService {
     console.log('Schedule Service - Fetching trainer calendar:', {
       userId,
       viewMode,
-      startDate: startDate.toISOString().split('T')[0],
-      endDate: endDate.toISOString().split('T')[0],
+      currentDate: currentDate.toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
+      startDateFormatted: startDate.toISOString().split('T')[0],
+      endDateFormatted: endDate.toISOString().split('T')[0],
       params: params.toString(),
+      url: `/trainers/user/${userId}/schedule?${params}`,
     });
 
     // Use trainer-specific endpoint that automatically filters by trainer_id
@@ -409,20 +421,89 @@ class ScheduleService {
       `/trainers/user/${userId}/schedule?${params}`
     );
 
+    // Debug logging
+    console.log('Schedule Service - API Response:', {
+      success: response.success,
+      hasData: !!response.data,
+      dataType: typeof response.data,
+      dataKeys: response.data ? Object.keys(response.data) : [],
+      hasSchedules: !!response.data?.schedules,
+      schedulesCount: response.data?.schedules?.length || 0,
+      fullResponse: response,
+    });
+
+    // Handle different response structures
+    let schedulesArray: any[] = [];
+
+    if (response.success && response.data) {
+      // Check if schedules is directly in data.schedules
+      if (response.data.schedules && Array.isArray(response.data.schedules)) {
+        schedulesArray = response.data.schedules;
+      }
+      // Check if data is directly an array
+      else if (Array.isArray(response.data)) {
+        schedulesArray = response.data;
+      }
+      // Check if schedules is at root level
+      else if ((response as any).schedules && Array.isArray((response as any).schedules)) {
+        schedulesArray = (response as any).schedules;
+      }
+    }
+
+    console.log('Schedule Service - Extracted schedules array:', {
+      count: schedulesArray.length,
+      firstSchedule: schedulesArray[0],
+      allSchedules: schedulesArray,
+    });
+
+    // If no schedules found, log more details for debugging
+    if (schedulesArray.length === 0) {
+      console.warn('Schedule Service - No schedules found. Possible reasons:', {
+        userId,
+        viewMode,
+        dateRange: {
+          start: startDate.toISOString(),
+          end: endDate.toISOString(),
+        },
+        responseStructure: {
+          success: response.success,
+          hasData: !!response.data,
+          dataKeys: response.data ? Object.keys(response.data) : [],
+          schedulesType: typeof response.data?.schedules,
+          schedulesIsArray: Array.isArray(response.data?.schedules),
+        },
+      });
+    }
+
     // Transform schedule data to calendar event format
-    if (response.success && response.data?.schedules) {
-      let calendarEvents: CalendarEvent[] = response.data.schedules.map((schedule: any) => ({
-        id: schedule.id,
-        title: schedule.gym_class?.name || 'Unknown Class',
-        class_name: schedule.gym_class?.name || 'Unknown Class',
-        start: schedule.start_time,
-        end: schedule.end_time,
-        room: schedule.room?.name || 'Unknown Room',
-        status: schedule.status || 'SCHEDULED',
-        attendees: schedule.bookings?.length || 0,
-        max_capacity: schedule.max_capacity || 0,
-        color: this.getStatusColor(schedule.status),
-      }));
+    if (schedulesArray.length > 0) {
+      let calendarEvents: CalendarEvent[] = schedulesArray.map((schedule: any) => {
+        // Debug each schedule
+        if (!schedule.gym_class) {
+          console.warn('Schedule Service - Schedule missing gym_class:', schedule);
+        }
+        if (!schedule.room) {
+          console.warn('Schedule Service - Schedule missing room:', schedule);
+        }
+
+        return {
+          id: schedule.id,
+          title: schedule.gym_class?.name || schedule.class_name || 'Unknown Class',
+          class_name: schedule.gym_class?.name || schedule.class_name || 'Unknown Class',
+          start: schedule.start_time || schedule.start,
+          end: schedule.end_time || schedule.end,
+          room: schedule.room?.name || schedule.room_name || 'Unknown Room',
+          status: schedule.status || 'SCHEDULED',
+          attendees: schedule.bookings?.length || schedule.current_bookings || 0,
+          max_capacity: schedule.max_capacity || 0,
+          color: this.getStatusColor(schedule.status || 'SCHEDULED'),
+        };
+      });
+
+      console.log('Schedule Service - After mapping:', {
+        count: calendarEvents.length,
+        events: calendarEvents,
+      });
 
       // Apply client-side filtering if needed
       if (filters?.status) {
@@ -440,21 +521,47 @@ class ScheduleService {
       }
 
       // Additional client-side date filtering for precision
+      // Note: Backend already filters by date, but we do additional filtering by start_time for precision
+      const beforeDateFilter = calendarEvents.length;
       calendarEvents = calendarEvents.filter(event => {
+        if (!event.start) return false;
         const eventDate = new Date(event.start);
-        return eventDate >= startDate && eventDate <= endDate;
+        // Compare dates only (ignore time for date range check)
+        const eventDateOnly = new Date(
+          eventDate.getFullYear(),
+          eventDate.getMonth(),
+          eventDate.getDate()
+        );
+        const startDateOnly = new Date(
+          startDate.getFullYear(),
+          startDate.getMonth(),
+          startDate.getDate()
+        );
+        const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
+        return eventDateOnly >= startDateOnly && eventDateOnly <= endDateOnly;
+      });
+      console.log('Schedule Service - After date filter:', {
+        before: beforeDateFilter,
+        after: calendarEvents.length,
+        startDate: startDate.toISOString(),
+        endDate: endDate.toISOString(),
       });
 
-      console.log('Schedule Service - Transformed calendar events:', calendarEvents.length);
+      console.log('Schedule Service - Final calendar events:', calendarEvents.length);
 
       return {
         success: true,
         data: calendarEvents,
-        message: response.message,
+        message: response.message || 'Schedules retrieved successfully',
       };
     }
 
-    // If response doesn't have schedules array, return empty array
+    // If no schedules found, return empty array
+    console.warn('Schedule Service - No schedules found:', {
+      success: response.success,
+      data: response.data,
+      message: response.message,
+    });
     return {
       success: true,
       data: [],
@@ -1117,6 +1224,36 @@ class ScheduleService {
   /**
    * Trainer checks in a member
    */
+  /**
+   * Generate QR code for schedule check-in/check-out
+   * POST /schedules/:schedule_id/qr-code?type=check-in|check-out
+   */
+  async generateScheduleQRCode(
+    scheduleId: string,
+    type: 'check-in' | 'check-out',
+    trainerId: string
+  ): Promise<ApiResponse<{
+    schedule_id: string;
+    type: string;
+    qr_data: string;
+    qr_code_data_url: string;
+    qr_code_svg: string;
+    expires_at: string;
+    class_name: string;
+  }>> {
+    return this.request<{
+      schedule_id: string;
+      type: string;
+      qr_data: string;
+      qr_code_data_url: string;
+      qr_code_svg: string;
+      expires_at: string;
+      class_name: string;
+    }>(`/schedules/${scheduleId}/qr-code?type=${type}`, 'POST', {
+      trainer_id: trainerId,
+    });
+  }
+
   async trainerCheckInMember(
     scheduleId: string,
     memberId: string,
@@ -1284,6 +1421,43 @@ class ScheduleService {
       throw new Error('User not authenticated');
     }
     return this.request<void>(`/trainers/user/${user.id}/goals/${goalId}`, 'DELETE');
+  }
+
+  /**
+   * Get salary statistics for all trainers
+   * @param month Month (1-12)
+   * @param year Year
+   * @returns Salary statistics for all trainers
+   */
+  async getAllTrainersSalaryStatistics(
+    month?: number,
+    year?: number
+  ): Promise<
+    ApiResponse<{
+      month: number;
+      year: number;
+      statistics: Array<{
+        trainer: {
+          id: string;
+          full_name: string;
+          email: string;
+          hourly_rate: number | null;
+        };
+        teaching_hours: number;
+        total_classes: number;
+        total_students: number;
+        salary: number | null;
+      }>;
+    }>
+  > {
+    const params = new URLSearchParams();
+    if (month) params.append('month', month.toString());
+    if (year) params.append('year', year.toString());
+
+    const endpoint = params.toString()
+      ? `/salary/statistics?${params}`
+      : '/salary/statistics';
+    return this.request(endpoint);
   }
 }
 

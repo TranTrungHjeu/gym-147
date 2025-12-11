@@ -79,6 +79,58 @@ http {
         }
 
         # Identity Service
+        # Identity Service - Face login endpoint (needs longer timeout)
+        location /identity/auth/login/face {
+            limit_req zone=api burst=500 nodelay;
+            
+            # Handle CORS preflight requests
+            if ($request_method = 'OPTIONS') {
+                add_header 'Access-Control-Allow-Origin' $http_origin always;
+                add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+                add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+                add_header 'Access-Control-Allow-Credentials' 'true' always;
+                add_header 'Access-Control-Max-Age' 1728000 always;
+                add_header 'Content-Type' 'text/plain; charset=utf-8' always;
+                add_header 'Content-Length' 0 always;
+                return 204;
+            }
+            
+            # Proxy to backend service
+            proxy_pass http://identity_service/auth/login/face;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header Origin $http_origin;
+            proxy_http_version 1.1;
+            proxy_set_header Connection "";
+            
+            # Extended timeouts for face recognition processing (load models, detect face, etc.)
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 120s;  # Allow up to 2 minutes for face processing
+            proxy_read_timeout 120s;   # Allow up to 2 minutes for response
+            proxy_buffering off;       # Disable buffering for real-time processing
+            
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
+
+            # Add CORS headers to all responses (including errors)
+            add_header 'Access-Control-Allow-Origin' $http_origin always;
+            add_header 'Access-Control-Allow-Credentials' 'true' always;
+            add_header 'Access-Control-Allow-Methods' 'GET, POST, PUT, DELETE, PATCH, OPTIONS' always;
+            add_header 'Access-Control-Allow-Headers' 'Content-Type, Authorization, X-Requested-With' always;
+            
+            # Handle proxy errors with CORS
+            proxy_intercept_errors on;
+            error_page 502 503 504 = @cors_error;
+        }
+
+        # Identity Service
         location /identity/ {
             limit_req zone=api burst=500 nodelay;
             
@@ -105,7 +157,7 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
-            # Timeout settings
+            # Timeout settings for regular requests
             proxy_connect_timeout 30s;
             proxy_send_timeout 30s;
             proxy_read_timeout 30s;
@@ -129,8 +181,9 @@ http {
             error_page 502 503 504 = @cors_error;
         }
 
-        # Member Service (singular)
-        location /member/ {
+        # Member Service - AI Workout Plan endpoint (needs extended timeout for AI processing)
+        # MUST be placed BEFORE /members/ location to take precedence (regex matches are evaluated first)
+        location ~ ^/members/[^/]+/workout-plans/ai$ {
             limit_req zone=api burst=500 nodelay;
             
             # Handle CORS preflight requests
@@ -145,8 +198,9 @@ http {
                 return 204;
             }
             
-            # Proxy to backend service
-            proxy_pass http://member_service/;
+            # Proxy to backend service - remove /members prefix
+            rewrite ^/members/(.*)$ /$1 break;
+            proxy_pass http://member_service;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -156,11 +210,11 @@ http {
             proxy_http_version 1.1;
             proxy_set_header Connection "";
             
-            # Timeout settings
-            proxy_connect_timeout 30s;
-            proxy_send_timeout 30s;
-            proxy_read_timeout 30s;
-            proxy_buffering off;
+            # Extended timeouts for AI workout plan generation (10 minutes)
+            proxy_connect_timeout 60s;
+            proxy_send_timeout 600s;  # 10 minutes for AI processing
+            proxy_read_timeout 600s;   # 10 minutes for response
+            proxy_buffering off;       # Disable buffering for real-time processing
             
             # Hide CORS headers from backend to avoid duplication
             proxy_hide_header 'Access-Control-Allow-Origin';
@@ -181,7 +235,9 @@ http {
         }
 
         # Member Service (plural) - for /members/equipment endpoint
-        location /members/ {
+        # This location must come AFTER the AI workout plan regex location
+        # Using ^~ modifier to prevent regex matching (but still allow the AI endpoint regex to match first)
+        location ^~ /members/ {
             limit_req zone=api burst=500 nodelay;
             
             # Handle CORS preflight requests

@@ -16,8 +16,8 @@ import {
   User,
   XCircle,
 } from 'lucide-react';
-import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import React, { useEffect, useRef, useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import AdminCard from '../../components/common/AdminCard';
 import {
   AdminTable,
@@ -30,18 +30,21 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
 import ExportButton from '../../components/common/ExportButton';
 import Pagination from '../../components/common/Pagination';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import ReviewCertificationModal from '../../components/modals/ReviewCertificationModal';
 import TrainerFormModal from '../../components/modals/TrainerFormModal';
 import ViewTrainerCertificationsModal from '../../components/modals/ViewTrainerCertificationsModal';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { Certification, certificationService } from '../../services/certification.service';
 import { Trainer, trainerService } from '../../services/trainer.service';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const TrainerManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -65,6 +68,7 @@ const TrainerManagement: React.FC = () => {
   const [selectedCertification, setSelectedCertification] = useState<Certification | null>(null);
   const [selectedTrainerForReview, setSelectedTrainerForReview] = useState<Trainer | null>(null);
   const [isViewCertificationsModalOpen, setIsViewCertificationsModalOpen] = useState(false);
+  const highlightedTrainerId = useRef<string | null>(null);
 
   useEffect(() => {
     loadTrainers();
@@ -112,6 +116,33 @@ const TrainerManagement: React.FC = () => {
       }
     }
   }, [searchParams, trainers, trainerPendingCerts, setSearchParams]);
+
+  // Handle user_id query param to scroll to and highlight specific trainer
+  useEffect(() => {
+    const userId = searchParams.get('user_id');
+    if (!userId || trainers.length === 0) return;
+
+    // Find trainer by user_id
+    const trainer = trainers.find(t => t.user_id === userId);
+    if (trainer) {
+      highlightedTrainerId.current = trainer.id;
+
+      // Wait for next render to ensure row is rendered
+      setTimeout(() => {
+        const rowElement = document.querySelector(
+          `tr[data-trainer-id="${trainer.id}"]`
+        ) as HTMLTableRowElement;
+        if (rowElement) {
+          rowElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          // Remove highlight after 3 seconds
+          setTimeout(() => {
+            highlightedTrainerId.current = null;
+            setSearchParams({}, { replace: true });
+          }, 3000);
+        }
+      }, 100);
+    }
+  }, [searchParams, trainers, setSearchParams]);
 
   // Load pending certifications for all trainers
   const loadPendingCertifications = async () => {
@@ -293,7 +324,10 @@ const TrainerManagement: React.FC = () => {
           Object.keys(newState).forEach(key => {
             newState[key] = [...newState[key]];
           });
-          console.log(`[SUCCESS] [TRAINER_MGMT] Returning new state with keys:`, Object.keys(newState));
+          console.log(
+            `[SUCCESS] [TRAINER_MGMT] Returning new state with keys:`,
+            Object.keys(newState)
+          );
           console.log(
             `[SUCCESS] [TRAINER_MGMT] New state for trainer ${trainerId}:`,
             newState[trainerId]?.length || 0,
@@ -330,7 +364,10 @@ const TrainerManagement: React.FC = () => {
     };
 
     const handleCertificationUpdated = (event: CustomEvent) => {
-      console.log('[NOTIFY] certification:updated event received in TrainerManagement:', event.detail);
+      console.log(
+        '[NOTIFY] certification:updated event received in TrainerManagement:',
+        event.detail
+      );
       const data = event.detail;
 
       // Clear any pending reload
@@ -475,7 +512,10 @@ const TrainerManagement: React.FC = () => {
                         }
                       })
                       .catch(error => {
-                        console.error(`[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                        console.error(
+                          `[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`,
+                          error
+                        );
                         // Ignore error - we already updated from sync response
                       });
                   }, 500);
@@ -530,7 +570,10 @@ const TrainerManagement: React.FC = () => {
                 }
               })
               .catch(syncError => {
-                console.error(`[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+                console.error(
+                  `[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`,
+                  syncError
+                );
                 // Fallback: fetch trainer directly (backend may have already synced)
                 setTimeout(() => {
                   trainerService
@@ -795,7 +838,9 @@ const TrainerManagement: React.FC = () => {
                     );
                     return updated;
                   }
-                  console.warn(`[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list`);
+                  console.warn(
+                    `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list`
+                  );
                   return prev;
                 });
 
@@ -845,7 +890,10 @@ const TrainerManagement: React.FC = () => {
                       }
                     })
                     .catch(error => {
-                      console.error(`[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`, error);
+                      console.error(
+                        `[ERROR] [TRAINER_MGMT] Error fetching full trainer data:`,
+                        error
+                      );
                       // Ignore error - we already updated from sync response
                     });
                 }, 500);
@@ -900,7 +948,10 @@ const TrainerManagement: React.FC = () => {
               }
             })
             .catch(syncError => {
-              console.error(`[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`, syncError);
+              console.error(
+                `[ERROR] [TRAINER_MGMT] Error triggering specialization sync:`,
+                syncError
+              );
               // Fallback: fetch trainer directly (backend may have already synced)
               setTimeout(() => {
                 trainerService
@@ -968,7 +1019,10 @@ const TrainerManagement: React.FC = () => {
     };
 
     const handleCertificationDeleted = (event: CustomEvent) => {
-      console.log('[NOTIFY] certification:deleted event received in TrainerManagement:', event.detail);
+      console.log(
+        '[NOTIFY] certification:deleted event received in TrainerManagement:',
+        event.detail
+      );
       const data = event.detail;
 
       // Remove certification from pending list optimistically (no reload)
@@ -1062,7 +1116,7 @@ const TrainerManagement: React.FC = () => {
         setTrainers([]);
       }
     } catch (error: any) {
-      showToast('Không thể tải danh sách huấn luyện viên', 'error');
+      showToast(t('trainerManagement.messages.loadError'), 'error');
       console.error('Error loading trainers:', error);
       setTrainers([]);
     } finally {
@@ -1190,12 +1244,12 @@ const TrainerManagement: React.FC = () => {
     setIsDeleting(true);
     try {
       await trainerService.deleteTrainer(trainerToDelete.id);
-      showToast('Xóa huấn luyện viên thành công', 'success');
+      showToast(t('trainerManagement.messages.deleteSuccess'), 'success');
       await loadTrainers();
       setIsDeleteDialogOpen(false);
       setTrainerToDelete(null);
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa huấn luyện viên', 'error');
+      showToast(error.message || t('trainerManagement.messages.deleteError'), 'error');
     } finally {
       setIsDeleting(false);
     }
@@ -1240,10 +1294,10 @@ const TrainerManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Huấn luyện viên
+            {t('trainerManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Quản lý tất cả huấn luyện viên trong hệ thống
+            {t('trainerManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
@@ -1252,14 +1306,14 @@ const TrainerManagement: React.FC = () => {
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <RefreshCw className='w-4 h-4' />
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </button>
           <button
             onClick={handleCreate}
             className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <Plus className='w-4 h-4' />
-            Thêm huấn luyện viên
+            {t('trainerManagement.form.addTitle')}
           </button>
         </div>
       </div>
@@ -1286,7 +1340,7 @@ const TrainerManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số huấn luyện viên
+                  {t('trainerManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -1313,7 +1367,7 @@ const TrainerManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đang hoạt động
+                  {t('trainerManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -1340,7 +1394,7 @@ const TrainerManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Không hoạt động
+                  {t('trainerManagement.stats.inactive')}
                 </div>
               </div>
             </div>
@@ -1367,7 +1421,7 @@ const TrainerManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số lớp học
+                  {t('trainerManagement.stats.totalClasses')}
                 </div>
               </div>
             </div>
@@ -1383,7 +1437,7 @@ const TrainerManagement: React.FC = () => {
             <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
             <input
               type='text'
-              placeholder='Tìm kiếm huấn luyện viên...'
+              placeholder={t('trainerManagement.search.placeholder')}
               value={searchTerm}
               onChange={e => {
                 setSearchTerm(e.target.value);
@@ -1397,18 +1451,18 @@ const TrainerManagement: React.FC = () => {
           <div>
             <CustomSelect
               options={[
-                { value: 'all', label: 'Tất cả trạng thái' },
-                { value: 'ACTIVE', label: 'Hoạt động' },
-                { value: 'INACTIVE', label: 'Không hoạt động' },
-                { value: 'ON_LEAVE', label: 'Nghỉ phép' },
-                { value: 'TERMINATED', label: 'Đã chấm dứt' },
+                { value: 'all', label: t('trainerManagement.filter.allStatuses') },
+                { value: 'ACTIVE', label: t('trainerManagement.filter.active') },
+                { value: 'INACTIVE', label: t('trainerManagement.filter.inactive') },
+                { value: 'ON_LEAVE', label: t('common.status.onLeave') },
+                { value: 'TERMINATED', label: t('common.status.terminated') },
               ]}
               value={statusFilter}
               onChange={value => {
                 setStatusFilter(value);
                 setCurrentPage(1);
               }}
-              placeholder='Tất cả trạng thái'
+              placeholder={t('trainerManagement.filter.allStatuses')}
               className='font-inter'
             />
           </div>
@@ -1417,24 +1471,24 @@ const TrainerManagement: React.FC = () => {
           <div>
             <CustomSelect
               options={[
-                { value: 'all', label: 'Tất cả chuyên môn' },
-                { value: 'CARDIO', label: 'Tim mạch' },
-                { value: 'STRENGTH', label: 'Sức mạnh' },
-                { value: 'YOGA', label: 'Yoga' },
-                { value: 'PILATES', label: 'Pilates' },
-                { value: 'DANCE', label: 'Khiêu vũ' },
-                { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
-                { value: 'AQUA', label: 'Bơi lội' },
-                { value: 'FUNCTIONAL', label: 'Chức năng' },
-                { value: 'RECOVERY', label: 'Phục hồi' },
-                { value: 'SPECIALIZED', label: 'Chuyên biệt' },
+                { value: 'all', label: t('trainerManagement.filter.allSpecializations') },
+                { value: 'CARDIO', label: t('certification.categories.CARDIO') },
+                { value: 'STRENGTH', label: t('certification.categories.STRENGTH') },
+                { value: 'YOGA', label: t('certification.categories.YOGA') },
+                { value: 'PILATES', label: t('certification.categories.PILATES') },
+                { value: 'DANCE', label: t('certification.categories.DANCE') },
+                { value: 'MARTIAL_ARTS', label: t('certification.categories.MARTIAL_ARTS') },
+                { value: 'AQUA', label: t('certification.categories.AQUA') },
+                { value: 'FUNCTIONAL', label: t('certification.categories.FUNCTIONAL') },
+                { value: 'RECOVERY', label: t('certification.categories.RECOVERY') },
+                { value: 'SPECIALIZED', label: t('certification.categories.SPECIALIZED') },
               ]}
               value={specializationFilter}
               onChange={value => {
                 setSpecializationFilter(value);
                 setCurrentPage(1);
               }}
-              placeholder='Tất cả chuyên môn'
+              placeholder={t('trainerManagement.filter.allSpecializations')}
               className='font-inter'
             />
           </div>
@@ -1444,7 +1498,7 @@ const TrainerManagement: React.FC = () => {
       {/* Export and Actions */}
       <div className='flex justify-between items-center mb-4'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredTrainers.length} huấn luyện viên
+          {t('trainerManagement.total', { count: filteredTrainers.length })}
         </div>
         {filteredTrainers.length > 0 && (
           <ExportButton
@@ -1480,8 +1534,8 @@ const TrainerManagement: React.FC = () => {
               { key: 'Kinh nghiệm (năm)', label: 'Kinh nghiệm (năm)' },
               { key: 'Đánh giá trung bình', label: 'Đánh giá trung bình' },
             ]}
-            filename='danh-sach-huan-luyen-vien'
-            title='Danh sách Huấn luyện viên'
+            filename={t('trainerManagement.export.filename')}
+            title={t('trainerManagement.export.title')}
             variant='outline'
             size='sm'
           />
@@ -1490,17 +1544,19 @@ const TrainerManagement: React.FC = () => {
 
       {/* Trainers List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách trainer...' />
+        <TableLoading text={t('trainerManagement.messages.loading')} />
       ) : filteredTrainers.length === 0 ? (
         <AdminCard padding='md' className='text-center'>
           <div className='flex flex-col items-center justify-center py-12'>
             <User className='w-20 h-20 text-gray-300 dark:text-gray-700 mb-4' />
             <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-heading mb-2'>
-              {searchTerm ? 'Không tìm thấy huấn luyện viên nào' : 'Không có huấn luyện viên nào'}
+              {searchTerm
+                ? t('trainerManagement.empty.noResults')
+                : t('trainerManagement.empty.noTrainers')}
             </div>
             {!searchTerm && trainers.length === 0 && (
               <div className='text-theme-xs text-gray-400 dark:text-gray-500 font-inter mt-2'>
-                Tạo tài khoản trainer mới để bắt đầu quản lý huấn luyện viên
+                {t('trainerManagement.empty.noTrainersDescription')}
               </div>
             )}
           </div>
@@ -1512,28 +1568,38 @@ const TrainerManagement: React.FC = () => {
               <AdminTableHeader>
                 <AdminTableRow>
                   <AdminTableCell header className='w-[15%]'>
-                    <span className='whitespace-nowrap'>Huấn luyện viên</span>
+                    <span className='whitespace-nowrap'>{t('trainerManagement.table.name')}</span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[13%]'>
-                    <span className='whitespace-nowrap'>Liên hệ</span>
+                    <span className='whitespace-nowrap'>
+                      {t('trainerManagement.table.contact')}
+                    </span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[13%] hidden md:table-cell'>
-                    <span className='whitespace-nowrap'>Chuyên môn</span>
+                    <span className='whitespace-nowrap'>
+                      {t('trainerManagement.table.specializations')}
+                    </span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[10%]'>
-                    <span className='whitespace-nowrap'>Kinh nghiệm</span>
+                    <span className='whitespace-nowrap'>
+                      {t('trainerManagement.table.experience')}
+                    </span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[8%] hidden lg:table-cell'>
-                    <span className='whitespace-nowrap'>Đánh giá</span>
+                    <span className='whitespace-nowrap'>{t('trainerManagement.table.rating')}</span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[8%] hidden lg:table-cell'>
-                    <span className='whitespace-nowrap'>Lớp học</span>
+                    <span className='whitespace-nowrap'>
+                      {t('trainerManagement.table.classes')}
+                    </span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[10%]'>
-                    <span className='whitespace-nowrap'>Trạng thái</span>
+                    <span className='whitespace-nowrap'>{t('trainerManagement.table.status')}</span>
                   </AdminTableCell>
                   <AdminTableCell header className='w-[11%] hidden md:table-cell'>
-                    <span className='whitespace-nowrap'>Giá/giờ</span>
+                    <span className='whitespace-nowrap'>
+                      {t('trainerManagement.table.hourlyRate')}
+                    </span>
                   </AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
@@ -1569,18 +1635,26 @@ const TrainerManagement: React.FC = () => {
                       trainer.user_id ? trainerPendingCerts[trainer.user_id] : 'N/A'
                     );
                   }
+                  const isHighlighted = highlightedTrainerId.current === trainer.id;
                   return (
                     <AdminTableRow
                       key={trainer.id}
+                      data-trainer-id={trainer.id}
                       className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
-                        hasPendingCerts
+                        isHighlighted
+                          ? 'border-l-orange-500 bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500/50'
+                          : hasPendingCerts
                           ? 'border-l-yellow-500 bg-yellow-50/30 dark:bg-yellow-900/10 hover:bg-yellow-50/50 dark:hover:bg-yellow-900/20'
                           : 'border-l-transparent hover:border-l-orange-500'
                       } ${
                         index % 2 === 0
-                          ? hasPendingCerts
+                          ? isHighlighted
+                            ? 'bg-orange-100 dark:bg-orange-900/30'
+                            : hasPendingCerts
                             ? 'bg-yellow-50/30 dark:bg-yellow-900/10'
                             : 'bg-white dark:bg-gray-900'
+                          : isHighlighted
+                          ? 'bg-orange-100 dark:bg-orange-900/30'
                           : hasPendingCerts
                           ? 'bg-yellow-50/40 dark:bg-yellow-900/15'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
@@ -1732,7 +1806,12 @@ const TrainerManagement: React.FC = () => {
                         </div>
                       </AdminTableCell>
                       <AdminTableCell>
-                        <StatusBadge status={trainer.status === 'ACTIVE'} size='sm' />
+                        <EnumBadge
+                          type='TRAINER_STATUS'
+                          value={trainer.status}
+                          size='sm'
+                          showIcon={true}
+                        />
                       </AdminTableCell>
                       <AdminTableCell className='hidden md:table-cell'>
                         <div className='flex items-center gap-1 sm:gap-1.5'>
@@ -1744,9 +1823,16 @@ const TrainerManagement: React.FC = () => {
                               </span>
                             </>
                           ) : (
-                            <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-inter'>
-                              -
-                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                navigate(`/management/salary-requests?trainer_id=${trainer.id}&action=set_salary`);
+                              }}
+                              className='inline-flex items-center gap-1 px-2 py-0.5 text-[8px] sm:text-[9px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-full hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors'
+                            >
+                              <AlertCircle className='w-2.5 h-2.5' />
+                              Chưa có lương
+                            </button>
                           )}
                         </div>
                       </AdminTableCell>
@@ -1841,7 +1927,7 @@ const TrainerManagement: React.FC = () => {
                     className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-warning-600 dark:text-warning-400 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors duration-150'
                   >
                     <AlertCircle className='w-3.5 h-3.5' />
-                    Duyệt chứng chỉ
+                    {t('trainerManagement.actions.reviewCertification')}
                   </button>
                 )}
               <button
@@ -1853,7 +1939,7 @@ const TrainerManagement: React.FC = () => {
                 className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
               >
                 <Trash2 className='w-3.5 h-3.5' />
-                Xóa
+                {t('trainerManagement.actions.delete')}
               </button>
             </div>
           </div>
@@ -1868,10 +1954,12 @@ const TrainerManagement: React.FC = () => {
           setTrainerToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xác nhận xóa huấn luyện viên'
-        message={`Bạn có chắc chắn muốn xóa huấn luyện viên "${trainerToDelete?.full_name}"? Hành động này không thể hoàn tác.`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('trainerManagement.delete.confirmTitle')}
+        message={t('trainerManagement.delete.confirmMessage', {
+          name: trainerToDelete?.full_name || '',
+        })}
+        confirmText={t('trainerManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         variant='danger'
         isLoading={isDeleting}
       />

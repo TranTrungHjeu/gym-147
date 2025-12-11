@@ -34,23 +34,41 @@ export default function CaloriesChart({
 }: CaloriesChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
-  const { user } = useAuth();
+  const { member } = useAuth();
   const [selectedPeriod, setSelectedPeriod] = useState(period);
   const [apiData, setApiData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const themedStyles = styles(theme);
 
   // Fetch real data silently
   useEffect(() => {
     const fetchData = async () => {
-      if (!user?.id) return;
-      const result = await caloriesService.getCaloriesData(
-        user.id,
-        selectedPeriod
-      );
-      if (result) setApiData(result);
+      if (!member?.id) {
+        setError('Member not found');
+        return;
+      }
+      try {
+        setLoading(true);
+        setError(null);
+        const result = await caloriesService.getCaloriesData(
+          member.id,
+          selectedPeriod
+        );
+        if (result) {
+          setApiData(result);
+        } else {
+          setError('No data available');
+        }
+      } catch (err: any) {
+        console.error('[ERROR] Failed to load calories data:', err);
+        setError(err.message || 'Failed to load data');
+      } finally {
+        setLoading(false);
+      }
     };
     fetchData();
-  }, [user?.id, selectedPeriod]);
+  }, [member?.id, selectedPeriod]);
 
   // Get labels based on period
   const getLabels = () => {
@@ -288,9 +306,19 @@ export default function CaloriesChart({
         </>
       ) : (
         <View style={[themedStyles.chartContainer, { height: 220, justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
-            {t('stats.noDataAvailable') || 'No data available'}
-          </Text>
+          {loading ? (
+            <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+              {t('common.loading', 'Loading...')}
+            </Text>
+          ) : error ? (
+            <Text style={[Typography.body, { color: theme.colors.error }]}>
+              {error}
+            </Text>
+          ) : (
+            <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+              {t('stats.chartPlaceholder', 'No data available')}
+            </Text>
+          )}
         </View>
       )}
     </View>

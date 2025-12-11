@@ -1,4 +1,5 @@
 import { MembershipBadge } from '@/components/MembershipBadge';
+import { ConfirmLogoutModal } from '@/components/ConfirmLogoutModal';
 import ProfileSection from '@/components/ProfileSection';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { authService, memberService, pointsService } from '@/services';
@@ -30,7 +31,6 @@ import React, { useCallback, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   Image,
   RefreshControl,
   ScrollView,
@@ -94,6 +94,8 @@ export default function ProfileScreen() {
   const [pointsBalance, setPointsBalance] = useState<number>(0);
   const [expiresAt, setExpiresAt] = useState<string | null>(null);
   const [upgrading, setUpgrading] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const hasLoadedOnce = useRef(false);
   const { unreadCount } = useNotifications();
 
@@ -124,14 +126,19 @@ export default function ProfileScreen() {
 
           // Load subscription to get expires_at
           try {
-            const subscriptionData = await subscriptionService.getMemberSubscription(response.data.id);
+            const subscriptionData =
+              await subscriptionService.getMemberSubscription(response.data.id);
             if (subscriptionData) {
               const expirationDate =
                 subscriptionData.current_period_end ||
                 subscriptionData.end_date ||
                 subscriptionData.next_billing_date;
               if (expirationDate) {
-                setExpiresAt(typeof expirationDate === 'string' ? expirationDate : expirationDate.toISOString());
+                setExpiresAt(
+                  typeof expirationDate === 'string'
+                    ? expirationDate
+                    : expirationDate.toISOString()
+                );
               }
             } else if (response.data.expires_at) {
               // Fallback to member expires_at
@@ -251,23 +258,41 @@ export default function ProfileScreen() {
     );
   }
 
-  const handleLogout = async () => {
-    Alert.alert(t('auth.logout'), t('profile.logoutConfirm'), [
-      { text: t('common.cancel'), style: 'cancel' },
-      {
-        text: t('auth.logout'),
-        style: 'destructive',
-        onPress: async () => {
-          try {
-            await authService.logout();
-            router.replace('/(auth)/login');
-          } catch (error) {
-            console.error('Logout error:', error);
-            Alert.alert(t('common.error'), t('profile.logoutFailed'));
-          }
-        },
-      },
-    ]);
+  const handleLogout = () => {
+    setShowLogoutModal(true);
+  };
+
+  const handleCloseLogoutModal = () => {
+    if (!isLoggingOut) {
+      setShowLogoutModal(false);
+    }
+  };
+
+  const handleConfirmLogout = async () => {
+    try {
+      await authService.logout();
+      setShowLogoutModal(false);
+      router.replace('/(auth)/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Vẫn đóng modal và redirect về login ngay cả khi logout API fail
+      setShowLogoutModal(false);
+      router.replace('/(auth)/login');
+    }
+  };
+
+  const handleLogoutStart = () => {
+    setIsLoggingOut(true);
+  };
+
+  const handleLogoutComplete = () => {
+    setIsLoggingOut(false);
+  };
+
+  const handleLogoutError = (error: Error) => {
+    setIsLoggingOut(false);
+    console.error('Logout error:', error);
+    // Modal sẽ được đóng trong handleConfirmLogout
   };
 
   const healthItems = [
@@ -355,7 +380,7 @@ export default function ProfileScreen() {
       label: t('profile.upgradeToPremium'),
       icon: <Gift size={20} color={theme.colors.warning} />,
       onPress: () => {
-        Alert.alert(t('profile.premium'), t('profile.premiumComingSoon'));
+        router.push('/subscription/plans');
       },
     },
   ];
@@ -681,105 +706,122 @@ export default function ProfileScreen() {
             </View>
 
             {/* Thời gian còn lại */}
-            {expiresAt && (() => {
-              const expirationDate = new Date(expiresAt);
-              if (isNaN(expirationDate.getTime())) return null;
+            {expiresAt &&
+              (() => {
+                const expirationDate = new Date(expiresAt);
+                if (isNaN(expirationDate.getTime())) return null;
 
-              const now = new Date();
-              const diff = expirationDate.getTime() - now.getTime();
-              const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
-              const monthsLeft = Math.floor(daysLeft / 30);
-              const weeksLeft = Math.floor((daysLeft % 30) / 7);
-              const remainingDays = daysLeft % 7;
+                const now = new Date();
+                const diff = expirationDate.getTime() - now.getTime();
+                const daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24));
+                const monthsLeft = Math.floor(daysLeft / 30);
+                const weeksLeft = Math.floor((daysLeft % 30) / 7);
+                const remainingDays = daysLeft % 7;
 
-              let timeRemainingText = '';
-              // Only add 's' for English, not for Vietnamese
-              const isEnglish = i18n.language === 'en' || i18n.language.startsWith('en');
-              const pluralS = isEnglish ? 's' : '';
-              
-              if (daysLeft < 0) {
-                timeRemainingText = t('subscription.expired') || 'Expired';
-              } else if (daysLeft === 0) {
-                timeRemainingText = t('subscription.expiresToday') || 'Expires today';
-              } else if (monthsLeft > 0) {
-                timeRemainingText = `${monthsLeft} ${t('subscription.month') || 'month'}${monthsLeft > 1 ? pluralS : ''}${
-                  weeksLeft > 0 ? ` ${weeksLeft} ${t('subscription.week') || 'week'}${weeksLeft > 1 ? pluralS : ''}` : ''
-                }`;
-              } else if (weeksLeft > 0) {
-                timeRemainingText = `${weeksLeft} ${t('subscription.week') || 'week'}${weeksLeft > 1 ? pluralS : ''}${
-                  remainingDays > 0 ? ` ${remainingDays} ${t('subscription.day') || 'day'}${remainingDays > 1 ? pluralS : ''}` : ''
-                }`;
-              } else {
-                timeRemainingText = `${daysLeft} ${t('subscription.day') || 'day'}${daysLeft > 1 ? pluralS : ''}`;
-              }
+                let timeRemainingText = '';
+                // Only add 's' for English, not for Vietnamese
+                const isEnglish =
+                  i18n.language === 'en' || i18n.language.startsWith('en');
+                const pluralS = isEnglish ? 's' : '';
 
-              let timeRemainingColor = theme.colors.text;
-              if (daysLeft <= 7 && daysLeft >= 0) {
-                timeRemainingColor = theme.colors.error;
-              } else if (daysLeft <= 30 && daysLeft >= 0) {
-                timeRemainingColor = theme.colors.warning;
-              } else if (daysLeft > 30) {
-                timeRemainingColor = theme.colors.success;
-              }
+                if (daysLeft < 0) {
+                  timeRemainingText = t('subscription.expired') || 'Expired';
+                } else if (daysLeft === 0) {
+                  timeRemainingText =
+                    t('subscription.expiresToday') || 'Expires today';
+                } else if (monthsLeft > 0) {
+                  timeRemainingText = `${monthsLeft} ${
+                    t('subscription.month') || 'month'
+                  }${monthsLeft > 1 ? pluralS : ''}${
+                    weeksLeft > 0
+                      ? ` ${weeksLeft} ${t('subscription.week') || 'week'}${
+                          weeksLeft > 1 ? pluralS : ''
+                        }`
+                      : ''
+                  }`;
+                } else if (weeksLeft > 0) {
+                  timeRemainingText = `${weeksLeft} ${
+                    t('subscription.week') || 'week'
+                  }${weeksLeft > 1 ? pluralS : ''}${
+                    remainingDays > 0
+                      ? ` ${remainingDays} ${t('subscription.day') || 'day'}${
+                          remainingDays > 1 ? pluralS : ''
+                        }`
+                      : ''
+                  }`;
+                } else {
+                  timeRemainingText = `${daysLeft} ${
+                    t('subscription.day') || 'day'
+                  }${daysLeft > 1 ? pluralS : ''}`;
+                }
 
-              return (
-                <View style={themedStyles.timeRemainingContainer}>
-                  <View style={themedStyles.timeRemainingItem}>
-                    <Text
-                      style={[
-                        Typography.caption,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {t('subscription.timeRemaining') || 'Time Remaining'}
-                    </Text>
-                    <Text
-                      style={[
-                        Typography.bodyMedium,
-                        {
-                          color: timeRemainingColor,
-                          fontWeight: '700',
-                        },
-                      ]}
-                    >
-                      {timeRemainingText}
-                    </Text>
+                let timeRemainingColor = theme.colors.text;
+                if (daysLeft <= 7 && daysLeft >= 0) {
+                  timeRemainingColor = theme.colors.error;
+                } else if (daysLeft <= 30 && daysLeft >= 0) {
+                  timeRemainingColor = theme.colors.warning;
+                } else if (daysLeft > 30) {
+                  timeRemainingColor = theme.colors.success;
+                }
+
+                return (
+                  <View style={themedStyles.timeRemainingContainer}>
+                    <View style={themedStyles.timeRemainingItem}>
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('subscription.timeRemaining') || 'Time Remaining'}
+                      </Text>
+                      <Text
+                        style={[
+                          Typography.bodyMedium,
+                          {
+                            color: timeRemainingColor,
+                            fontWeight: '700',
+                          },
+                        ]}
+                      >
+                        {timeRemainingText}
+                      </Text>
+                    </View>
+                    <View style={themedStyles.timeRemainingItem}>
+                      <Text
+                        style={[
+                          Typography.caption,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('subscription.expiresOn') || 'Expires On'}
+                      </Text>
+                      <Text
+                        style={[
+                          Typography.bodyMedium,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {expirationDate.toLocaleDateString(
+                          i18n.language === 'vi' ? 'vi-VN' : i18n.language,
+                          {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            timeZone: 'Asia/Ho_Chi_Minh',
+                          }
+                        )}
+                      </Text>
+                    </View>
                   </View>
-                  <View style={themedStyles.timeRemainingItem}>
-                    <Text
-                      style={[
-                        Typography.caption,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {t('subscription.expiresOn') || 'Expires On'}
-                    </Text>
-                    <Text
-                      style={[
-                        Typography.bodyMedium,
-                        { color: theme.colors.text },
-                      ]}
-                    >
-                      {expirationDate.toLocaleDateString(
-                        i18n.language === 'vi' ? 'vi-VN' : i18n.language,
-                        {
-                          year: 'numeric',
-                          month: 'long',
-                          day: 'numeric',
-                          timeZone: 'Asia/Ho_Chi_Minh',
-                        }
-                      )}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })()}
+                );
+              })()}
 
             {userProfile.membership_type !== MembershipType.VIP && (
               <TouchableOpacity
                 style={[
                   themedStyles.upgradeButton,
-                  { 
+                  {
                     backgroundColor: theme.colors.primary,
                     opacity: upgrading ? 0.7 : 1,
                   },
@@ -797,7 +839,10 @@ export default function ProfileScreen() {
                 disabled={upgrading}
               >
                 {upgrading ? (
-                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textInverse}
+                  />
                 ) : (
                   <Gift size={20} color={theme.colors.textInverse} />
                 )}
@@ -834,6 +879,17 @@ export default function ProfileScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Logout Confirmation Modal */}
+      <ConfirmLogoutModal
+        visible={showLogoutModal}
+        onClose={handleCloseLogoutModal}
+        onConfirm={handleConfirmLogout}
+        loading={isLoggingOut}
+        onLogoutStart={handleLogoutStart}
+        onLogoutComplete={handleLogoutComplete}
+        onLogoutError={handleLogoutError}
+      />
     </SafeAreaView>
   );
 }

@@ -15,7 +15,8 @@ try {
   }
 }
 const pointsService = require('./points.service.js');
-const notificationService = require('./notification.service.js');
+// Lazy require notificationService to avoid circular dependency
+// const notificationService = require('./notification.service.js');
 const rewardSocketHelper = require('../utils/reward-socket.helper.js');
 
 /**
@@ -519,6 +520,15 @@ class RewardService {
           },
         });
 
+        console.log('[REDEMPTION] Created redemption record:', {
+          id: redemption.id,
+          member_id: memberId,
+          reward_id: rewardId,
+          code,
+          status: redemption.status,
+          redeemed_at: redemption.redeemed_at,
+        });
+
         // 9. Deduct points (atomic - has its own transaction)
         const spendResult = await pointsService.spendPoints(
           memberId,
@@ -533,21 +543,35 @@ class RewardService {
         }
 
         // 10. Send notification (async, don't wait)
-        notificationService
-          .sendNotification({
-            userId: null, // Will be looked up from member
-            memberId,
-            type: 'REWARD',
-            title: 'Reward Redeemed!',
-            message: `You've successfully redeemed: ${reward.title}. Your code: ${code}`,
-            data: {
-              reward_id: rewardId,
-              redemption_id: redemption.id,
-              code,
-            },
-            channels: ['IN_APP', 'PUSH'],
-          })
-          .catch(err => console.error('Notification error:', err));
+        // Get user_id from member for notification
+        const memberForNotification = await tx.member.findUnique({
+          where: { id: memberId },
+          select: {
+            user_id: true,
+          },
+        });
+
+        // Lazy require notificationService to avoid circular dependency
+        const notificationService = require('./notification.service.js');
+        if (memberForNotification?.user_id) {
+          notificationService
+            .sendNotification({
+              userId: memberForNotification.user_id,
+              memberId,
+              type: 'REWARD',
+              title: 'Reward Redeemed!',
+              message: `You've successfully redeemed: ${reward.title}. Your code: ${code}`,
+              data: {
+                reward_id: rewardId,
+                redemption_id: redemption.id,
+                code,
+              },
+              channels: ['IN_APP', 'PUSH'],
+            })
+            .catch(err => console.error('Notification error:', err));
+        } else {
+          console.warn('[WARNING] Cannot send notification: member user_id not found');
+        }
 
         // 11. Emit socket event for real-time update (async, don't wait)
         rewardSocketHelper
@@ -567,23 +591,69 @@ class RewardService {
           })
           .catch(err => console.error('Socket emit error:', err));
 
-        // 12. Emit socket event to admin/super admin (async, don't wait)
-        rewardSocketHelper
-          .emitRewardRedeemedToAdmin(memberId, {
-            id: redemption.id,
-            reward_id: rewardId,
-            reward: {
-              id: reward.id,
-              title: reward.title,
-              category: reward.category,
-            },
-            reward_title: reward.title,
-            reward_category: reward.category,
-            points_spent: reward.points_cost,
-            code,
-            redeemed_at: redemption.redeemed_at,
-          })
-          .catch(err => console.error('Socket emit to admin error:', err));
+        // 12. Create database notification and emit socket event to admin/super admin (async, don't wait)
+        // Use tx instead of prisma to ensure consistency within transaction
+        const member = await tx.member.findUnique({
+          where: { id: memberId },
+          select: {
+            id: true,
+            full_name: true,
+            email: true,
+            phone: true,
+            membership_number: true,
+          },
+        });
+
+        // Reuse notificationService already required above (line 547)
+
+        if (member) {
+          // Create database notification for admins
+          notificationService
+            .createRewardRedemptionNotificationForAdmin({
+              memberId: member.id,
+              memberName: member.full_name,
+              memberData: {
+                email: member.email,
+                phone: member.phone,
+                membership_number: member.membership_number,
+              },
+              rewardId: rewardId,
+              rewardTitle: reward.title,
+              rewardCategory: reward.category,
+              pointsSpent: reward.points_cost,
+              redemptionCode: code,
+            })
+            .catch(err =>
+              console.error(
+                '[ERROR] Failed to create reward redemption notification for admin:',
+                err
+              )
+            );
+
+          // Also emit socket event (for real-time updates)
+          rewardSocketHelper
+            .emitRewardRedeemedToAdmin(memberId, {
+              id: redemption.id,
+              reward_id: rewardId,
+              reward: {
+                id: reward.id,
+                title: reward.title,
+                category: reward.category,
+              },
+              reward_title: reward.title,
+              reward_category: reward.category,
+              points_spent: reward.points_cost,
+              code,
+              redeemed_at: redemption.redeemed_at,
+            })
+            .catch(err => console.error('Socket emit to admin error:', err));
+        }
+
+        console.log('[REDEMPTION] Transaction completed successfully, returning redemption:', {
+          id: redemption.id,
+          member_id: memberId,
+          reward_id: rewardId,
+        });
 
         return {
           success: true,
@@ -593,8 +663,32 @@ class RewardService {
           },
         };
       });
+
+      console.log('[REDEMPTION] Transaction result:', {
+        success: result.success,
+        redemption_id: result.redemption?.id,
+        member_id: memberId,
+        reward_id: rewardId,
+      });
+
+      // Release lock after successful transaction
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('reward', rewardId, lockId).catch(err => {
+          console.error('Failed to release lock:', err);
+        });
+      }
+
+      return result;
     } catch (error) {
       console.error('Redeem reward error:', error);
+
+      // Release lock on error
+      if (lockAcquired && distributedLock && lockId) {
+        await distributedLock.release('reward', rewardId, lockId).catch(err => {
+          console.error('Failed to release lock on error:', err);
+        });
+      }
+
       return { success: false, error: error.message };
     }
   }

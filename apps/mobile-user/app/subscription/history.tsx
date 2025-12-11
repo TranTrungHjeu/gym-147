@@ -79,14 +79,16 @@ export default function PaymentHistoryScreen() {
     if (!user?.id) return;
 
     try {
-      const paymentsData = await paymentService.getMemberPayments(user.id, {
+      // IMPROVEMENT: Use new payment history endpoint
+      const response = await paymentService.getPaymentHistory(user.id, {
         limit: 50,
       });
+      const paymentsData = response.data || [];
       setPayments(paymentsData);
       setFilteredPayments(paymentsData);
     } catch (error) {
       console.error('Error loading payment history:', error);
-      Alert.alert('Error', 'Failed to load payment history');
+      Alert.alert(t('common.error'), t('subscription.history.failedToLoad'));
     }
   };
 
@@ -132,20 +134,43 @@ export default function PaymentHistoryScreen() {
 
   const handleDownloadReceipt = async (payment: Payment) => {
     try {
-      const receiptData = await paymentService.downloadReceipt(payment.id);
-      if (receiptData.receiptUrl) {
+      // IMPROVEMENT: Use new receipt endpoint
+      const response = await paymentService.downloadReceipt(payment.id);
+
+      // Check if receipt_url is in payment metadata or response
+      const receiptUrl =
+        response.data?.receiptUrl ||
+        (payment as any).metadata?.receipt_url ||
+        (payment as any).receipt_url;
+
+      if (receiptUrl) {
         const { Linking } = require('expo-linking');
-        const canOpen = await Linking.canOpenURL(receiptData.receiptUrl);
+        const canOpen = await Linking.canOpenURL(receiptUrl);
         if (canOpen) {
-          await Linking.openURL(receiptData.receiptUrl);
-          Alert.alert('Success', 'Receipt opened in browser');
+          await Linking.openURL(receiptUrl);
+          Alert.alert(
+            t('common.success'),
+            t('subscription.history.receiptOpened') || 'Đã mở hóa đơn'
+          );
         } else {
-          Alert.alert('Error', 'Cannot open receipt URL');
+          Alert.alert(
+            t('common.error'),
+            t('subscription.history.cannotOpenReceipt') ||
+              'Không thể mở hóa đơn'
+          );
         }
+      } else {
+        Alert.alert(
+          t('common.info'),
+          t('subscription.history.receiptNotAvailable') || 'Hóa đơn chưa có sẵn'
+        );
       }
     } catch (error: any) {
       console.error('Error downloading receipt:', error);
-      Alert.alert('Error', error.message || 'Failed to download receipt');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('subscription.history.failedToDownloadReceipt')
+      );
     }
   };
 
@@ -153,12 +178,25 @@ export default function PaymentHistoryScreen() {
     if (payment.status !== 'FAILED') return;
 
     try {
-      await paymentService.retryPayment(payment.id);
-      Alert.alert('Success', 'Payment retry initiated');
-      loadData();
-    } catch (error) {
+      // IMPROVEMENT: Use new retry payment endpoint
+      const response = await paymentService.retryPayment(payment.id);
+
+      if (response.success) {
+        Alert.alert(
+          t('common.success'),
+          t('subscription.history.paymentRetryInitiated') ||
+            'Đang thử lại thanh toán...'
+        );
+        await loadData(); // Refresh the list
+      } else {
+        throw new Error(response.message || 'Failed to retry payment');
+      }
+    } catch (error: any) {
       console.error('Error retrying payment:', error);
-      Alert.alert('Error', 'Failed to retry payment');
+      Alert.alert(
+        t('common.error'),
+        error.message || t('subscription.history.failedToRetryPayment')
+      );
     }
   };
 
@@ -227,7 +265,7 @@ export default function PaymentHistoryScreen() {
               { color: theme.colors.textSecondary },
             ]}
           >
-            Loading payment history...
+            {t('subscription.history.loading')}
           </Text>
         </View>
       </View>
@@ -246,14 +284,14 @@ export default function PaymentHistoryScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[Typography.h2, { color: theme.colors.text, flex: 1 }]}>
-          Payment History
+          {t('subscription.history.title')}
         </Text>
       </View>
 
       <View style={styles.filters}>
         <View style={styles.filterGroup}>
           <Text style={[Typography.label, { color: theme.colors.text }]}>
-            Status
+            {t('subscription.history.status')}
           </Text>
           <Picker
             selectedValue={selectedStatus}
@@ -263,7 +301,7 @@ export default function PaymentHistoryScreen() {
         </View>
         <View style={styles.filterGroup}>
           <Text style={[Typography.label, { color: theme.colors.text }]}>
-            Method
+            {t('subscription.history.method')}
           </Text>
           <Picker
             selectedValue={selectedMethod}
@@ -295,7 +333,8 @@ export default function PaymentHistoryScreen() {
               <View style={styles.paymentHeader}>
                 <View style={styles.paymentInfo}>
                   <Text style={[Typography.h4, { color: theme.colors.text }]}>
-                    {payment.description || 'Subscription Payment'}
+                    {payment.description ||
+                      t('subscription.history.subscriptionPayment')}
                   </Text>
                   <Text
                     style={[
@@ -341,7 +380,8 @@ export default function PaymentHistoryScreen() {
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      Transaction ID: {payment.transactionId}
+                      {t('subscription.history.transactionId')}:{' '}
+                      {payment.transactionId}
                     </Text>
                   </View>
                 )}
@@ -362,7 +402,7 @@ export default function PaymentHistoryScreen() {
                       { color: theme.colors.primary },
                     ]}
                   >
-                    View Details
+                    {t('subscription.history.viewDetails')}
                   </Text>
                 </TouchableOpacity>
 
@@ -381,7 +421,7 @@ export default function PaymentHistoryScreen() {
                         { color: theme.colors.primary },
                       ]}
                     >
-                      Receipt
+                      {t('subscription.history.receipt')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -401,7 +441,7 @@ export default function PaymentHistoryScreen() {
                         { color: theme.colors.error },
                       ]}
                     >
-                      Retry
+                      {t('subscription.history.retry')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -412,7 +452,8 @@ export default function PaymentHistoryScreen() {
                   <Text
                     style={[Typography.caption, { color: theme.colors.error }]}
                   >
-                    Failed: {payment.processing.failureReason}
+                    {t('subscription.history.failedPrefix')}:{' '}
+                    {payment.processing.failureReason}
                   </Text>
                 </View>
               )}
@@ -422,14 +463,14 @@ export default function PaymentHistoryScreen() {
           <View style={styles.emptyContainer}>
             <CreditCard size={48} color={theme.colors.textSecondary} />
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              No Payments Found
+              {t('subscription.history.noPaymentsFound')}
             </Text>
             <Text
               style={[Typography.body, { color: theme.colors.textSecondary }]}
             >
               {payments.length === 0
-                ? "You haven't made any payments yet"
-                : 'No payments match your current filters'}
+                ? t('subscription.history.noPaymentsYet')
+                : t('subscription.history.noPaymentsMatchFilters')}
             </Text>
           </View>
         )}

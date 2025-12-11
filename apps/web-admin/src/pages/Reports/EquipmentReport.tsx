@@ -3,6 +3,7 @@ import React, { useEffect, useState } from 'react';
 import EquipmentUsageChart from '../../components/charts/EquipmentUsageChart';
 import AdminCard from '../../components/common/AdminCard';
 import { TableLoading } from '../../components/ui/AppLoading';
+import useTranslation from '../../hooks/useTranslation';
 import { equipmentService } from '../../services/equipment.service';
 
 interface EquipmentStats {
@@ -16,6 +17,7 @@ interface EquipmentStats {
 }
 
 const EquipmentReport: React.FC = () => {
+  const { t } = useTranslation();
   const [isLoading, setIsLoading] = useState(true);
   const [equipmentUsageData, setEquipmentUsageData] = useState<
     | {
@@ -88,16 +90,16 @@ const EquipmentReport: React.FC = () => {
       {/* Header */}
       <div>
         <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-          Báo cáo Thiết bị
+          {t('reports.equipment.title')}
         </h1>
         <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-          Thống kê và phân tích về tình trạng và sử dụng thiết bị
+          {t('reports.equipment.subtitle')}
         </p>
       </div>
 
       {/* Stats Cards */}
       {isLoading ? (
-        <TableLoading text='Đang tải dữ liệu thiết bị...' />
+        <TableLoading text={t('reports.equipment.loading')} />
       ) : (
         <>
           {/* Main Stats */}
@@ -118,7 +120,7 @@ const EquipmentReport: React.FC = () => {
                       </div>
                     </div>
                     <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                      Tổng thiết bị
+                      {t('reports.equipment.stats.total')}
                     </div>
                   </div>
                 </div>
@@ -141,11 +143,12 @@ const EquipmentReport: React.FC = () => {
                       </div>
                     </div>
                     <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                      Sẵn sàng
+                      {t('reports.equipment.stats.available')}
                     </div>
                     {stats.total > 0 && (
                       <div className='text-[10px] text-orange-600 dark:text-orange-400 font-inter mt-1 font-medium'>
-                        {Math.round((stats.available / stats.total) * 100)}% tổng số
+                        {Math.round((stats.available / stats.total) * 100)}%{' '}
+                        {t('reports.equipment.stats.ofTotal')}
                       </div>
                     )}
                   </div>
@@ -169,11 +172,11 @@ const EquipmentReport: React.FC = () => {
                       </div>
                     </div>
                     <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                      Đang sử dụng
+                      {t('reports.equipment.stats.inUse')}
                     </div>
                     {stats.total > 0 && (
                       <div className='text-[10px] text-orange-600 dark:text-orange-400 font-inter mt-1 font-medium'>
-                        {stats.utilizationRate}% tỷ lệ sử dụng
+                        {stats.utilizationRate}% {t('reports.equipment.stats.utilizationRate')}
                       </div>
                     )}
                   </div>
@@ -197,11 +200,11 @@ const EquipmentReport: React.FC = () => {
                       </div>
                     </div>
                     <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                      Cần bảo trì
+                      {t('reports.equipment.stats.needsMaintenance')}
                     </div>
                     {stats.total > 0 && (
                       <div className='text-[10px] text-orange-600 dark:text-orange-400 font-inter mt-1 font-medium'>
-                        {stats.maintenanceRate}% tổng số
+                        {stats.maintenanceRate}% {t('reports.equipment.stats.ofTotal')}
                       </div>
                     )}
                   </div>
@@ -222,7 +225,7 @@ const EquipmentReport: React.FC = () => {
                 <div className='flex items-center justify-between mb-2'>
                   <div>
                     <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
-                      Tỷ lệ sử dụng
+                      {t('reports.equipment.stats.utilizationRate')}
                     </p>
                     <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white'>
                       {stats.utilizationRate}%
@@ -251,7 +254,7 @@ const EquipmentReport: React.FC = () => {
                 <div className='flex items-center justify-between mb-2'>
                   <div>
                     <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
-                      Bảo trì / Hỏng
+                      {t('reports.equipment.stats.maintenanceOrBroken')}
                     </p>
                     <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white'>
                       {stats.maintenance + stats.outOfOrder}
@@ -263,10 +266,10 @@ const EquipmentReport: React.FC = () => {
                 </div>
                 <div className='flex gap-2 text-[10px] font-inter'>
                   <span className='px-2 py-0.5 bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 rounded font-medium'>
-                    Bảo trì: {stats.maintenance}
+                    {t('reports.equipment.stats.maintenance')}: {stats.maintenance}
                   </span>
                   <span className='px-2 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300 rounded font-medium'>
-                    Hỏng: {stats.outOfOrder}
+                    {t('reports.equipment.stats.broken')}: {stats.outOfOrder}
                   </span>
                 </div>
               </div>
@@ -282,7 +285,7 @@ const EquipmentReport: React.FC = () => {
                 <div className='flex items-center justify-between mb-2'>
                   <div>
                     <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
-                      Tỷ lệ khả dụng
+                      {t('reports.equipment.stats.availabilityRate')}
                     </p>
                     <p className='text-2xl font-bold font-heading text-gray-900 dark:text-white'>
                       {stats.total > 0 ? Math.round((stats.available / stats.total) * 100) : 0}%
@@ -318,10 +321,10 @@ const EquipmentReport: React.FC = () => {
             <AdminCard>
               <div className='mb-4'>
                 <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-                  Phân bổ Trạng thái
+                  {t('reports.equipment.statusBreakdown.title')}
                 </h3>
                 <p className='text-sm text-gray-600 dark:text-gray-400 font-inter mt-1'>
-                  Chi tiết số lượng thiết bị theo từng trạng thái
+                  {t('reports.equipment.statusBreakdown.subtitle')}
                 </p>
               </div>
               {equipmentUsageData && equipmentUsageData.length > 0 ? (
@@ -339,10 +342,10 @@ const EquipmentReport: React.FC = () => {
                     };
 
                     const statusLabels: { [key: string]: string } = {
-                      AVAILABLE: 'Sẵn sàng',
-                      IN_USE: 'Đang sử dụng',
-                      MAINTENANCE: 'Bảo trì',
-                      OUT_OF_ORDER: 'Hỏng',
+                      AVAILABLE: t('reports.equipment.status.available'),
+                      IN_USE: t('reports.equipment.status.inUse'),
+                      MAINTENANCE: t('reports.equipment.status.maintenance'),
+                      OUT_OF_ORDER: t('reports.equipment.status.outOfOrder'),
                     };
 
                     const statusIcons: { [key: string]: React.ReactNode } = {
@@ -371,13 +374,15 @@ const EquipmentReport: React.FC = () => {
                                 {statusLabels[item.status] || item.status}
                               </p>
                               <p className='text-xs font-inter opacity-80 mt-0.5'>
-                                {percentage}% tổng số
+                                {percentage}% {t('reports.equipment.stats.ofTotal')}
                               </p>
                             </div>
                           </div>
                           <div className='text-right'>
                             <p className='text-2xl font-bold font-heading'>{item.count}</p>
-                            <p className='text-xs font-inter opacity-80'>thiết bị</p>
+                            <p className='text-xs font-inter opacity-80'>
+                              {t('reports.equipment.stats.equipment')}
+                            </p>
                           </div>
                         </div>
                         <div className='mt-3'>
@@ -394,7 +399,7 @@ const EquipmentReport: React.FC = () => {
                 </div>
               ) : (
                 <div className='text-center py-12 text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-                  Chưa có dữ liệu phân bổ trạng thái
+                  {t('reports.equipment.statusBreakdown.noData')}
                 </div>
               )}
             </AdminCard>

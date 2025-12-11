@@ -188,8 +188,24 @@ class UserService {
     return this.request<UserResponse>(`/auth/users/${id}`, 'PUT', data);
   }
 
+  // Change user password (admin only, no OTP required)
+  async changeUserPassword(
+    id: string,
+    newPassword: string
+  ): Promise<{
+    success: boolean;
+    message: string;
+    data: null;
+  }> {
+    return this.request(`/auth/users/${id}/password`, 'PUT', { newPassword });
+  }
+
   // Send OTP for email/phone change
-  async sendOTPForEmailPhoneChange(verificationMethod: 'EMAIL' | 'PHONE', newEmail?: string, newPhone?: string): Promise<ApiResponse<any>> {
+  async sendOTPForEmailPhoneChange(
+    verificationMethod: 'EMAIL' | 'PHONE',
+    newEmail?: string,
+    newPhone?: string
+  ): Promise<ApiResponse<any>> {
     return this.request<ApiResponse<any>>('/profile/send-otp-for-email-phone-change', 'POST', {
       verificationMethod,
       newEmail,

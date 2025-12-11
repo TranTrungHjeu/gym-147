@@ -163,16 +163,31 @@ class AnalyticsController {
       // Queries are wrapped in functions to allow retry on connection errors
       const results = await Promise.allSettled([
         // Total revenue
+        // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
+        // because refunds will be subtracted separately later
+        // Use findMany + reduce instead of aggregate to avoid Prisma Decimal issues
         this.withTimeout(
-          () =>
-            prisma.payment.aggregate({
+          async () => {
+            const payments = await prisma.payment.findMany({
               where: {
-                status: 'COMPLETED',
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
                 created_at: { gte: startDate },
               },
-              _sum: { amount: true },
-              _count: { id: true },
-            }),
+              select: {
+                amount: true,
+              },
+            });
+            return {
+              _sum: {
+                amount: payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0),
+              },
+              _count: {
+                id: payments.length,
+              },
+            };
+          },
           15000, // 15 seconds timeout
           'Total revenue aggregate',
           1 // 1 retry for connection errors
@@ -204,12 +219,16 @@ class AnalyticsController {
         ),
 
         // Revenue by type
+        // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
+        // because refunds will be subtracted separately later
         this.withTimeout(
           () =>
             prisma.payment.groupBy({
               by: ['payment_type'],
               where: {
-                status: 'COMPLETED',
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
                 created_at: { gte: startDate },
               },
               _sum: { amount: true },
@@ -374,40 +393,135 @@ class AnalyticsController {
    */
   async getRevenueReports(req, res) {
     try {
-      const { startDate, endDate, period = '30' } = req.query;
+      // Support both 'from'/'to' (frontend) and 'startDate'/'endDate' (backward compatibility)
+      const { from, to, startDate, endDate, period = '30' } = req.query;
 
       let start, end;
-      if (startDate && endDate) {
+      if (from && to) {
+        // Frontend sends 'from' and 'to'
+        start = new Date(from);
+        end = new Date(to);
+        
+        // Validate dates
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid date format. Use ISO format (YYYY-MM-DD)',
+            data: null,
+          });
+        }
+
+        // Prevent future dates - cap to today
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (end > today) {
+          end = today;
+        }
+        if (start > today) {
+          start = today;
+          start.setHours(0, 0, 0, 0);
+        }
+
+        // Set to start/end of day
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+      } else if (startDate && endDate) {
+        // Backward compatibility
         start = new Date(startDate);
         end = new Date(endDate);
+        
+        // Validate dates
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          return res.status(400).json({
+            success: false,
+            message: 'Invalid date format. Use ISO format (YYYY-MM-DD)',
+            data: null,
+          });
+        }
+
+        // Prevent future dates
+        const today = new Date();
+        today.setHours(23, 59, 59, 999);
+        if (end > today) {
+          end = today;
+        }
+        if (start > today) {
+          start = today;
+          start.setHours(0, 0, 0, 0);
+        }
       } else {
         end = new Date();
         start = new Date();
         start.setDate(start.getDate() - parseInt(period));
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
       }
 
-      const result = await revenueReportService.getReports(start, end);
-
-      if (!result.success) {
-        return res.status(500).json({
-          success: false,
-          message: result.error,
-          data: null,
-        });
+      // Calculate revenue directly from payments (more accurate than relying on revenue reports)
+      // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
+      // because refunds will be subtracted separately later
+      // Wrap with timeout to handle slow queries gracefully
+      let payments;
+      try {
+        payments = await this.withTimeout(
+          () =>
+            prisma.payment.findMany({
+              where: {
+                created_at: {
+                  gte: start,
+                  lte: end,
+                },
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
+              },
+              select: {
+                amount: true,
+                created_at: true,
+                status: true,
+              },
+            }),
+          20000, // 20 seconds timeout
+          'Get revenue reports payments',
+          1 // 1 retry for connection errors
+        );
+      } catch (error) {
+        // If query times out or fails, return empty result instead of failing completely
+        console.warn('[WARNING] Failed to fetch payments for revenue reports:', error.message);
+        payments = [];
       }
+
+      // Calculate totals
+      // Include all payments (even refunded ones) because refunds will be subtracted separately
+      const total_revenue = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+      const total_transactions = payments.length;
+      const average_revenue = total_transactions > 0 ? total_revenue / total_transactions : 0;
+
+      // Also try to get from revenue reports if available (for additional context)
+      // Wrap with timeout and catch errors gracefully
+      const result = await this.withTimeout(
+        () => revenueReportService.getReports(start, end),
+        15000, // 15 seconds timeout
+        'Get revenue reports service',
+        1 // 1 retry for connection errors
+      ).catch((error) => {
+        console.warn('[WARNING] Revenue report service failed:', error.message);
+        return { success: false };
+      });
 
       res.json({
         success: true,
         message: 'Revenue reports retrieved successfully',
-        data: result,
+        data: {
+          total_revenue,
+          average_revenue,
+          total_transactions,
+          // Include revenue report data if available
+          ...(result.success ? { reports: result.reports, totals: result.totals } : {}),
+        },
       });
     } catch (error) {
-      console.error('Get revenue reports error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Internal server error',
-        data: null,
-      });
+      return this.handleDatabaseError(error, res, 'Get revenue reports');
     }
   }
 
@@ -746,11 +860,15 @@ class AnalyticsController {
       console.log('[DATE] Date range:', { startDate, endDate });
 
       // Get daily revenue data
+      // Only include COMPLETED payments (gross revenue before refunds)
+      // Note: Refunds are NOT subtracted here - they are only subtracted in "Doanh thu sau chi phí" section
+      // This ensures "Tổng doanh thu" shows gross revenue (before refunds)
+      // Refunds will be subtracted separately in the net revenue calculation
       // Limit to prevent loading too much data for large date ranges
       // For analytics, we can use aggregation instead of loading all records
       const payments = await prisma.payment.findMany({
         where: {
-          status: 'COMPLETED', // PaymentStatus enum: PENDING, PROCESSING, COMPLETED, FAILED, CANCELLED, REFUNDED, PARTIALLY_REFUNDED
+          status: 'COMPLETED', // Only count completed payments (gross revenue)
           created_at: {
             gte: startDate,
             lte: endDate,
@@ -768,7 +886,7 @@ class AnalyticsController {
 
       console.log(`[STATS] Found ${payments.length} payments`);
 
-      // Group by date
+      // Group payments by date
       const revenueByDate = {};
       payments.forEach(payment => {
         const dateKey = payment.created_at.toISOString().split('T')[0];
@@ -854,6 +972,8 @@ class AnalyticsController {
       console.log('[DATE] Date range:', { startDate, endDate });
 
       // Get payments with subscription and plan information
+      // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
+      // because refunds will be subtracted separately later
       // Wrap with timeout to handle slow queries gracefully
       let payments;
       try {
@@ -861,7 +981,9 @@ class AnalyticsController {
           () =>
             prisma.payment.findMany({
               where: {
-                status: 'COMPLETED',
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
                 created_at: {
                   gte: startDate,
                   lte: endDate,

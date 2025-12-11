@@ -1,4 +1,4 @@
-﻿const { Router } = require('express');
+const { Router } = require('express');
 const { AuthController } = require('../controllers/auth.controller.js');
 const { authMiddleware } = require('../middleware/auth.middleware.js');
 const { requireSuperAdmin, requireAdmin } = require('../middleware/role.middleware.js');
@@ -68,6 +68,9 @@ router.get('/users/:id', authMiddleware, requireAdmin, (req, res) =>
 );
 router.put('/users/:id', authMiddleware, requireAdmin, (req, res) =>
   authController.updateUser(req, res)
+);
+router.put('/users/:id/password', authMiddleware, requireAdmin, (req, res) =>
+  authController.changeUserPassword(req, res)
 );
 router.delete('/users/:id', authMiddleware, requireAdmin, (req, res) =>
   authController.deleteUser(req, res)

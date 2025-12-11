@@ -1,4 +1,6 @@
+import { ErrorModal } from '@/components/ErrorModal';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/useToast';
 import {
   challengeService,
   type Challenge,
@@ -7,12 +9,19 @@ import {
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, CheckCircle, Clock, Target, Trophy, Zap } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Calendar,
+  CheckCircle,
+  Clock,
+  Target,
+  Trophy,
+  Zap,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
-  Alert,
   RefreshControl,
   SafeAreaView,
   ScrollView,
@@ -27,12 +36,18 @@ export default function ChallengesScreen() {
   const { theme } = useTheme();
   const { user, member } = useAuth();
   const { t } = useTranslation();
+  const { showSuccess, ToastComponent } = useToast();
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'available' | 'my'>('available');
-  const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>([]);
+  const [availableChallenges, setAvailableChallenges] = useState<Challenge[]>(
+    []
+  );
   const [myChallenges, setMyChallenges] = useState<ChallengeProgress[]>([]);
+  const [showErrorModal, setShowErrorModal] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string>('');
+  const [isAlreadyJoinedError, setIsAlreadyJoinedError] = useState(false);
 
   const themedStyles = styles(theme);
 
@@ -47,18 +62,24 @@ export default function ChallengesScreen() {
       setLoading(true);
 
       if (activeTab === 'available') {
-        const response = await challengeService.getChallenges({ is_active: true });
+        const response = await challengeService.getChallenges({
+          is_active: true,
+        });
         if (response.success && response.data) {
           setAvailableChallenges(response.data);
         }
       } else {
-        const response = await challengeService.getMemberChallenges(member.id, 'all');
+        const response = await challengeService.getMemberChallenges(
+          member.id,
+          'all'
+        );
         if (response.success && response.data) {
           setMyChallenges(response.data);
         }
       }
     } catch (error) {
-      console.error('Error loading challenges:', error);
+      // Use console.log to avoid triggering alerts in dev mode
+      console.log('Error loading challenges:', error);
     } finally {
       setLoading(false);
     }
@@ -74,15 +95,74 @@ export default function ChallengesScreen() {
     if (!member?.id) return;
 
     try {
-      const response = await challengeService.joinChallenge(challengeId, member.id);
+      const response = await challengeService.joinChallenge(
+        challengeId,
+        member.id
+      );
       if (response.success) {
-        Alert.alert('Thành công', 'Đã tham gia thử thách!');
+        // Show success toast
+        showSuccess(
+          t('challenges.joinSuccess', {
+            defaultValue: 'Đã tham gia thử thách thành công!',
+          }),
+          3000
+        );
         loadData();
       } else {
-        Alert.alert('Lỗi', response.error || 'Không thể tham gia thử thách');
+        // Check if it's an "already joined" error
+        const isAlreadyJoined =
+          response.error?.toLowerCase().includes('already joined') ||
+          response.error?.toLowerCase().includes('đã tham gia');
+
+        if (isAlreadyJoined) {
+          setIsAlreadyJoinedError(true);
+          setErrorMessage(
+            t('challenges.alreadyJoined', {
+              defaultValue:
+                'Bạn đã tham gia thử thách này rồi. Hãy xem tiến độ của bạn ở phía trên để theo dõi quá trình hoàn thành thử thách.',
+            })
+          );
+        } else {
+          setIsAlreadyJoinedError(false);
+          setErrorMessage(
+            response.error ||
+              t('challenges.joinError', {
+                defaultValue:
+                  'Không thể tham gia thử thách. Vui lòng thử lại sau.',
+              })
+          );
+        }
+        setShowErrorModal(true);
       }
     } catch (error: any) {
-      Alert.alert('Lỗi', error.message || 'Không thể tham gia thử thách');
+      // Only show modal, no toast
+      console.log('Join challenge error caught:', error);
+      setIsAlreadyJoinedError(false);
+
+      // Check error message for already joined
+      const errorMessage = error.message || error.toString() || '';
+      const isAlreadyJoined =
+        errorMessage.toLowerCase().includes('already joined') ||
+        errorMessage.toLowerCase().includes('đã tham gia');
+
+      if (isAlreadyJoined) {
+        setIsAlreadyJoinedError(true);
+        setErrorMessage(
+          t('challenges.alreadyJoined', {
+            defaultValue:
+              'Bạn đã tham gia thử thách này rồi. Hãy xem tiến độ của bạn ở phía trên để theo dõi quá trình hoàn thành thử thách.',
+          })
+        );
+      } else {
+        setErrorMessage(
+          errorMessage ||
+            t('challenges.joinError', {
+              defaultValue:
+                'Không thể tham gia thử thách. Vui lòng thử lại sau.',
+            })
+        );
+      }
+      setShowErrorModal(true);
     }
   };
 
@@ -102,7 +182,10 @@ export default function ChallengesScreen() {
   };
 
   const getProgressPercentage = (progress: ChallengeProgress) => {
-    return Math.min((progress.current_value / progress.target_value) * 100, 100);
+    return Math.min(
+      (progress.current_value / progress.target_value) * 100,
+      100
+    );
   };
 
   const formatDate = (dateString: string) => {
@@ -111,7 +194,9 @@ export default function ChallengesScreen() {
 
   if (loading && !refreshing) {
     return (
-      <SafeAreaView style={[themedStyles.container, themedStyles.centerContent]}>
+      <SafeAreaView
+        style={[themedStyles.container, themedStyles.centerContent]}
+      >
         <ActivityIndicator size="large" color={theme.colors.primary} />
       </SafeAreaView>
     );
@@ -135,18 +220,34 @@ export default function ChallengesScreen() {
       {/* Tab Selector */}
       <View style={themedStyles.tabContainer}>
         <TouchableOpacity
-          style={[themedStyles.tab, activeTab === 'available' && themedStyles.activeTab]}
+          style={[
+            themedStyles.tab,
+            activeTab === 'available' && themedStyles.activeTab,
+          ]}
           onPress={() => setActiveTab('available')}
         >
-          <Text style={[themedStyles.tabText, activeTab === 'available' && themedStyles.activeTabText]}>
+          <Text
+            style={[
+              themedStyles.tabText,
+              activeTab === 'available' && themedStyles.activeTabText,
+            ]}
+          >
             Có sẵn
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[themedStyles.tab, activeTab === 'my' && themedStyles.activeTab]}
+          style={[
+            themedStyles.tab,
+            activeTab === 'my' && themedStyles.activeTab,
+          ]}
           onPress={() => setActiveTab('my')}
         >
-          <Text style={[themedStyles.tabText, activeTab === 'my' && themedStyles.activeTabText]}>
+          <Text
+            style={[
+              themedStyles.tabText,
+              activeTab === 'my' && themedStyles.activeTabText,
+            ]}
+          >
             Của tôi
           </Text>
         </TouchableOpacity>
@@ -154,7 +255,9 @@ export default function ChallengesScreen() {
 
       <ScrollView
         style={themedStyles.scrollView}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
         {activeTab === 'available' ? (
           <>
@@ -168,17 +271,24 @@ export default function ChallengesScreen() {
                   <View style={themedStyles.challengeHeader}>
                     {getChallengeIcon(challenge.category)}
                     <View style={themedStyles.challengeTitleContainer}>
-                      <Text style={themedStyles.challengeTitle}>{challenge.title}</Text>
-                      <Text style={themedStyles.challengeType}>{challenge.type}</Text>
+                      <Text style={themedStyles.challengeTitle}>
+                        {challenge.title}
+                      </Text>
+                      <Text style={themedStyles.challengeType}>
+                        {challenge.type}
+                      </Text>
                     </View>
                   </View>
 
-                  <Text style={themedStyles.challengeDescription}>{challenge.description}</Text>
+                  <Text style={themedStyles.challengeDescription}>
+                    {challenge.description}
+                  </Text>
 
                   <View style={themedStyles.challengeTarget}>
                     <Target size={16} color={theme.colors.textSecondary} />
                     <Text style={themedStyles.targetText}>
-                      Mục tiêu: {challenge.target_value} {challenge.target_unit || 'điểm'}
+                      Mục tiêu: {challenge.target_value}{' '}
+                      {challenge.target_unit || 'điểm'}
                     </Text>
                   </View>
 
@@ -186,13 +296,16 @@ export default function ChallengesScreen() {
                     <View style={themedStyles.challengeInfo}>
                       <Calendar size={14} color={theme.colors.textSecondary} />
                       <Text style={themedStyles.challengeDate}>
-                        {formatDate(challenge.start_date)} - {formatDate(challenge.end_date)}
+                        {formatDate(challenge.start_date)} -{' '}
+                        {formatDate(challenge.end_date)}
                       </Text>
                     </View>
                     {challenge.reward_points > 0 && (
                       <View style={themedStyles.rewardBadge}>
                         <Trophy size={14} color="#FFD700" />
-                        <Text style={themedStyles.rewardText}>{challenge.reward_points} điểm</Text>
+                        <Text style={themedStyles.rewardText}>
+                          {challenge.reward_points} điểm
+                        </Text>
                       </View>
                     )}
                   </View>
@@ -207,7 +320,9 @@ export default function ChallengesScreen() {
               ))
             ) : (
               <View style={themedStyles.emptyContainer}>
-                <Text style={themedStyles.emptyText}>Không có thử thách nào</Text>
+                <Text style={themedStyles.emptyText}>
+                  Không có thử thách nào
+                </Text>
               </View>
             )}
           </>
@@ -229,17 +344,23 @@ export default function ChallengesScreen() {
                     <View style={themedStyles.challengeHeader}>
                       {getChallengeIcon(challenge.category)}
                       <View style={themedStyles.challengeTitleContainer}>
-                        <Text style={themedStyles.challengeTitle}>{challenge.title}</Text>
+                        <Text style={themedStyles.challengeTitle}>
+                          {challenge.title}
+                        </Text>
                         {progress.completed && (
                           <View style={themedStyles.completedBadge}>
                             <CheckCircle size={14} color="#4CAF50" />
-                            <Text style={themedStyles.completedText}>Hoàn thành</Text>
+                            <Text style={themedStyles.completedText}>
+                              Hoàn thành
+                            </Text>
                           </View>
                         )}
                       </View>
                     </View>
 
-                    <Text style={themedStyles.challengeDescription}>{challenge.description}</Text>
+                    <Text style={themedStyles.challengeDescription}>
+                      {challenge.description}
+                    </Text>
 
                     {/* Progress Bar */}
                     <View style={themedStyles.progressContainer}>
@@ -247,12 +368,18 @@ export default function ChallengesScreen() {
                         <View
                           style={[
                             themedStyles.progressFill,
-                            { width: `${progressPercentage}%`, backgroundColor: progress.completed ? '#4CAF50' : theme.colors.primary },
+                            {
+                              width: `${progressPercentage}%`,
+                              backgroundColor: progress.completed
+                                ? '#4CAF50'
+                                : theme.colors.primary,
+                            },
                           ]}
                         />
                       </View>
                       <Text style={themedStyles.progressText}>
-                        {progress.current_value} / {progress.target_value} {challenge.target_unit || 'điểm'}
+                        {progress.current_value} / {progress.target_value}{' '}
+                        {challenge.target_unit || 'điểm'}
                       </Text>
                     </View>
 
@@ -266,7 +393,9 @@ export default function ChallengesScreen() {
                       {challenge.reward_points > 0 && (
                         <View style={themedStyles.rewardBadge}>
                           <Trophy size={14} color="#FFD700" />
-                          <Text style={themedStyles.rewardText}>{challenge.reward_points} điểm</Text>
+                          <Text style={themedStyles.rewardText}>
+                            {challenge.reward_points} điểm
+                          </Text>
                         </View>
                       )}
                     </View>
@@ -275,12 +404,53 @@ export default function ChallengesScreen() {
               })
             ) : (
               <View style={themedStyles.emptyContainer}>
-                <Text style={themedStyles.emptyText}>Bạn chưa tham gia thử thách nào</Text>
+                <Text style={themedStyles.emptyText}>
+                  Bạn chưa tham gia thử thách nào
+                </Text>
               </View>
             )}
           </>
         )}
       </ScrollView>
+
+      {/* Error Modal */}
+      <ErrorModal
+        visible={showErrorModal}
+        onClose={() => {
+          setShowErrorModal(false);
+          setIsAlreadyJoinedError(false);
+        }}
+        title={
+          isAlreadyJoinedError
+            ? t('challenges.alreadyJoinedTitle', {
+                defaultValue: 'Đã tham gia thử thách',
+              })
+            : t('challenges.errorTitle', {
+                defaultValue: 'Không thể tham gia',
+              })
+        }
+        message={errorMessage}
+        type={isAlreadyJoinedError ? 'info' : 'warning'}
+        actionButton={
+          isAlreadyJoinedError
+            ? {
+                label: t('challenges.viewProgress', {
+                  defaultValue: 'Xem tiến độ',
+                }),
+                onPress: () => {
+                  setShowErrorModal(false);
+                  setIsAlreadyJoinedError(false);
+                  // Switch to "my" tab to show user's challenges
+                  setActiveTab('my');
+                },
+                variant: 'primary',
+              }
+            : undefined
+        }
+      />
+
+      {/* Toast Component */}
+      <ToastComponent />
     </SafeAreaView>
   );
 }
@@ -469,4 +639,3 @@ const styles = (theme: any) =>
       textAlign: 'center',
     },
   });
-

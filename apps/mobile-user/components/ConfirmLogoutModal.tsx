@@ -16,8 +16,11 @@ import {
 interface ConfirmLogoutModalProps {
   visible: boolean;
   onClose: () => void;
-  onConfirm: () => void;
+  onConfirm: () => void | Promise<void>;
   loading?: boolean;
+  onLogoutStart?: () => void;
+  onLogoutComplete?: () => void;
+  onLogoutError?: (error: Error) => void;
 }
 
 export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
@@ -25,10 +28,36 @@ export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
   onClose,
   onConfirm,
   loading = false,
+  onLogoutStart,
+  onLogoutComplete,
+  onLogoutError,
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
   const themedStyles = styles(theme);
+  const [internalLoading, setInternalLoading] = React.useState(false);
+
+  const handleConfirm = async () => {
+    try {
+      // Notify parent that logout is starting
+      onLogoutStart?.();
+      setInternalLoading(true);
+
+      // Execute the confirm callback
+      await onConfirm();
+
+      // Notify parent that logout completed successfully
+      onLogoutComplete?.();
+    } catch (error) {
+      // Notify parent about error
+      onLogoutError?.(error as Error);
+      console.error('Logout error in modal:', error);
+    } finally {
+      setInternalLoading(false);
+    }
+  };
+
+  const isLoading = loading || internalLoading;
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -64,7 +93,7 @@ export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
       visible={visible}
       transparent
       animationType="none"
-      onRequestClose={loading ? undefined : onClose}
+      onRequestClose={isLoading ? undefined : onClose}
     >
       <Animated.View
         style={[
@@ -103,7 +132,7 @@ export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
 
           {/* Message */}
           <Text style={[Typography.bodySmall, themedStyles.message]}>
-            {t('registration.backToLoginConfirm') ||
+            {t('profile.logoutConfirm') ||
               'Bạn có chắc muốn đăng xuất? Bạn sẽ cần đăng nhập lại để tiếp tục.'}
           </Text>
 
@@ -115,7 +144,7 @@ export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
                 { borderColor: theme.colors.border },
               ]}
               onPress={onClose}
-              disabled={loading}
+              disabled={isLoading}
               activeOpacity={0.7}
             >
               <Text
@@ -128,14 +157,14 @@ export const ConfirmLogoutModal: React.FC<ConfirmLogoutModalProps> = ({
             <TouchableOpacity
               style={[
                 themedStyles.confirmButton,
-                { backgroundColor: theme.colors.primary },
-                loading && themedStyles.buttonDisabled,
+                { backgroundColor: theme.colors.error },
+                isLoading && themedStyles.buttonDisabled,
               ]}
-              onPress={onConfirm}
-              disabled={loading}
+              onPress={handleConfirm}
+              disabled={isLoading}
               activeOpacity={0.8}
             >
-              {loading ? (
+              {isLoading ? (
                 <ActivityIndicator
                   size="small"
                   color={theme.colors.textInverse}

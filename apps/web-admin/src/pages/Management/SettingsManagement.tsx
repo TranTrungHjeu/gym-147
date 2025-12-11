@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { Settings, Save, Bell, Shield, Database } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
@@ -9,7 +10,10 @@ import CustomSelect from '../../components/common/CustomSelect';
 
 const SettingsManagement: React.FC = () => {
   const { showToast } = useToast();
-  const [activeTab, setActiveTab] = useState<'general' | 'notifications' | 'security' | 'integrations'>('general');
+  const { t } = useTranslation();
+  const [activeTab, setActiveTab] = useState<
+    'general' | 'notifications' | 'security' | 'integrations'
+  >('general');
   const [settings, setSettings] = useState({
     gymName: 'GYM 147',
     gymAddress: '',
@@ -25,7 +29,7 @@ const SettingsManagement: React.FC = () => {
     require2FA: false,
     maxLoginAttempts: 5,
     enableAPI: false,
-    enableWebhook: false,
+    // enableWebhook removed - webhook management not needed
   });
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -42,7 +46,7 @@ const SettingsManagement: React.FC = () => {
         setSettings({ ...settings, ...JSON.parse(savedSettings) });
       }
     } catch (error: any) {
-      showToast('Không thể tải cài đặt', 'error');
+      showToast(t('settingsManagement.messages.loadError'), 'error');
       console.error('Error loading settings:', error);
     } finally {
       setIsLoading(false);
@@ -53,9 +57,9 @@ const SettingsManagement: React.FC = () => {
     try {
       setIsSaving(true);
       localStorage.setItem('gymSettings', JSON.stringify(settings));
-      showToast('Đã lưu cài đặt thành công', 'success');
+      showToast(t('settingsManagement.messages.saveSuccess'), 'success');
     } catch (error: any) {
-      showToast('Không thể lưu cài đặt', 'error');
+      showToast(t('settingsManagement.messages.saveError'), 'error');
       console.error('Error saving settings:', error);
     } finally {
       setIsSaving(false);
@@ -72,10 +76,10 @@ const SettingsManagement: React.FC = () => {
       <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Cài đặt Hệ thống
+            {t('settingsManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Cấu hình và quản lý hệ thống
+            {t('settingsManagement.subtitle')}
           </p>
         </div>
         <button
@@ -86,12 +90,12 @@ const SettingsManagement: React.FC = () => {
           {isSaving ? (
             <>
               <ButtonSpinner />
-              Đang lưu...
+              {t('settingsManagement.actions.saving')}
             </>
           ) : (
             <>
               <Save className='w-4 h-4' />
-              Lưu thay đổi
+              {t('settingsManagement.actions.save')}
             </>
           )}
         </button>
@@ -101,10 +105,10 @@ const SettingsManagement: React.FC = () => {
       <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
         <nav className='flex space-x-1'>
           {[
-            { id: 'general', name: 'Tổng quan', icon: Settings },
-            { id: 'notifications', name: 'Thông báo', icon: Bell },
-            { id: 'security', name: 'Bảo mật', icon: Shield },
-            { id: 'integrations', name: 'Tích hợp', icon: Database },
+            { id: 'general', name: t('settingsManagement.tabs.general'), icon: Settings },
+            { id: 'notifications', name: t('settingsManagement.tabs.notifications'), icon: Bell },
+            { id: 'security', name: t('settingsManagement.tabs.security'), icon: Shield },
+            { id: 'integrations', name: t('settingsManagement.tabs.integrations'), icon: Database },
           ].map(tab => (
             <button
               key={tab.id}
@@ -126,34 +130,34 @@ const SettingsManagement: React.FC = () => {
       {activeTab === 'general' && (
         <AdminCard>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
-            Thông tin phòng gym
+            {t('settingsManagement.general.title')}
           </h3>
-          
+
           <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
             <AdminInput
-              label='Tên phòng gym'
+              label={t('settingsManagement.general.gymName')}
               value={settings.gymName}
               onChange={e => handleChange('gymName', e.target.value)}
             />
             <AdminInput
-              label='Số điện thoại'
+              label={t('settingsManagement.general.gymPhone')}
               value={settings.gymPhone}
               onChange={e => handleChange('gymPhone', e.target.value)}
             />
             <AdminInput
-              label='Địa chỉ'
+              label={t('settingsManagement.general.gymAddress')}
               value={settings.gymAddress}
               onChange={e => handleChange('gymAddress', e.target.value)}
             />
             <AdminInput
-              label='Email'
+              label={t('settingsManagement.general.gymEmail')}
               type='email'
               value={settings.gymEmail}
               onChange={e => handleChange('gymEmail', e.target.value)}
             />
             <div>
               <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
-                Múi giờ
+                {t('settingsManagement.general.timezone')}
               </label>
               <CustomSelect
                 options={[
@@ -162,12 +166,12 @@ const SettingsManagement: React.FC = () => {
                 ]}
                 value={settings.timezone}
                 onChange={value => handleChange('timezone', value)}
-                placeholder='Chọn múi giờ'
+                placeholder={t('settingsManagement.general.selectTimezone')}
               />
             </div>
             <div>
               <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
-                Tiền tệ
+                {t('settingsManagement.general.currency')}
               </label>
               <CustomSelect
                 options={[
@@ -177,21 +181,21 @@ const SettingsManagement: React.FC = () => {
                 ]}
                 value={settings.currency}
                 onChange={value => handleChange('currency', value)}
-                placeholder='Chọn tiền tệ'
+                placeholder={t('settingsManagement.general.selectCurrency')}
               />
             </div>
             <div>
               <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
-                Ngôn ngữ
+                {t('settingsManagement.general.language')}
               </label>
               <CustomSelect
                 options={[
-                  { value: 'vi', label: 'Tiếng Việt' },
-                  { value: 'en', label: 'English' },
+                  { value: 'vi', label: t('settingsManagement.general.languages.vi') },
+                  { value: 'en', label: t('settingsManagement.general.languages.en') },
                 ]}
                 value={settings.language}
                 onChange={value => handleChange('language', value)}
-                placeholder='Chọn ngôn ngữ'
+                placeholder={t('settingsManagement.general.selectLanguage')}
               />
             </div>
           </div>
@@ -202,17 +206,17 @@ const SettingsManagement: React.FC = () => {
       {activeTab === 'notifications' && (
         <AdminCard>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
-            Cài đặt thông báo
+            {t('settingsManagement.notifications.title')}
           </h3>
-          
+
           <div className='space-y-3'>
             <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Bật thông báo
+                  {t('settingsManagement.notifications.enableNotifications')}
                 </label>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Cho phép hệ thống gửi thông báo
+                  {t('settingsManagement.notifications.enableNotificationsDesc')}
                 </p>
               </div>
               <input
@@ -225,10 +229,10 @@ const SettingsManagement: React.FC = () => {
             <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Thông báo qua Email
+                  {t('settingsManagement.notifications.enableEmailNotifications')}
                 </label>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Gửi thông báo qua email
+                  {t('settingsManagement.notifications.enableEmailNotificationsDesc')}
                 </p>
               </div>
               <input
@@ -241,10 +245,10 @@ const SettingsManagement: React.FC = () => {
             <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Thông báo qua SMS
+                  {t('settingsManagement.notifications.enableSMSNotifications')}
                 </label>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Gửi thông báo qua SMS
+                  {t('settingsManagement.notifications.enableSMSNotificationsDesc')}
                 </p>
               </div>
               <input
@@ -262,17 +266,17 @@ const SettingsManagement: React.FC = () => {
       {activeTab === 'security' && (
         <AdminCard>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
-            Cài đặt bảo mật
+            {t('settingsManagement.security.title')}
           </h3>
-          
+
           <div className='space-y-3'>
             <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Yêu cầu xác thực 2 bước
+                  {t('settingsManagement.security.require2FA')}
                 </label>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Bắt buộc sử dụng 2FA cho tất cả tài khoản
+                  {t('settingsManagement.security.require2FADesc')}
                 </p>
               </div>
               <input
@@ -283,13 +287,13 @@ const SettingsManagement: React.FC = () => {
               />
             </div>
             <AdminInput
-              label='Thời gian hết hạn phiên (phút)'
+              label={t('settingsManagement.security.sessionTimeout')}
               type='number'
               value={settings.sessionTimeout.toString()}
               onChange={e => handleChange('sessionTimeout', parseInt(e.target.value) || 30)}
             />
             <AdminInput
-              label='Số lần đăng nhập sai tối đa'
+              label={t('settingsManagement.security.maxLoginAttempts')}
               type='number'
               value={settings.maxLoginAttempts.toString()}
               onChange={e => handleChange('maxLoginAttempts', parseInt(e.target.value) || 5)}
@@ -302,17 +306,17 @@ const SettingsManagement: React.FC = () => {
       {activeTab === 'integrations' && (
         <AdminCard>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
-            Tích hợp hệ thống
+            {t('settingsManagement.integrations.title')}
           </h3>
-          
+
           <div className='space-y-3'>
             <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Bật API
+                  {t('settingsManagement.integrations.enableAPI')}
                 </label>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Cho phép truy cập API từ bên ngoài
+                  {t('settingsManagement.integrations.enableAPIDesc')}
                 </p>
               </div>
               <input
@@ -322,22 +326,7 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
-              <div>
-                <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Bật Webhook
-                </label>
-                <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mt-0.5'>
-                  Cho phép gửi webhook events
-                </p>
-              </div>
-              <input
-                type='checkbox'
-                checked={settings.enableWebhook}
-                onChange={e => handleChange('enableWebhook', e.target.checked)}
-                className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
-              />
-            </div>
+            {/* enableWebhook setting removed - webhook management not needed */}
           </div>
         </AdminCard>
       )}

@@ -1,19 +1,27 @@
 import React, { useEffect, useState } from 'react';
 import { useToast } from '../../hooks/useToast';
+import useTranslation from '../../hooks/useTranslation';
 import { Key, Plus, Edit, Trash2, Eye, EyeOff, Copy, Save, RefreshCw } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import AdminButton from '../../components/common/AdminButton';
 import AdminInput from '../../components/common/AdminInput';
-import { AdminTable, AdminTableHeader, AdminTableBody, AdminTableRow, AdminTableCell } from '../../components/common/AdminTable';
+import {
+  AdminTable,
+  AdminTableHeader,
+  AdminTableBody,
+  AdminTableRow,
+  AdminTableCell,
+} from '../../components/common/AdminTable';
 import AdminModal from '../../components/common/AdminModal';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import { apiKeyService, APIKey } from '../../services/apiKey.service';
 import { TableLoading, ButtonSpinner } from '../../components/ui/AppLoading';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const APIKeysManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [apiKeys, setApiKeys] = useState<APIKey[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -60,7 +68,7 @@ const APIKeysManagement: React.FC = () => {
         setApiKeys(maskedKeys);
       }
     } catch (error: any) {
-      showToast('Không thể tải danh sách API keys', 'error');
+      showToast(t('apiKeysManagement.messages.loadError'), 'error');
       console.error('Error fetching API keys:', error);
     } finally {
       setLoading(false);
@@ -95,19 +103,19 @@ const APIKeysManagement: React.FC = () => {
       setIsSaving(true);
       if (selectedKey) {
         await apiKeyService.updateAPIKey(selectedKey.id, formData);
-        showToast('Cập nhật API key thành công', 'success');
+        showToast(t('apiKeysManagement.messages.updateSuccess'), 'success');
       } else {
         const response = await apiKeyService.createAPIKey(formData);
         if (response.success && response.data) {
           setNewKey(response.data.key);
           setIsViewKeyModalOpen(true);
-          showToast('Tạo API key thành công. Vui lòng lưu key này ngay!', 'success');
+          showToast(t('apiKeysManagement.messages.createSuccess'), 'success');
         }
       }
       setIsModalOpen(false);
       fetchAPIKeys();
     } catch (error: any) {
-      showToast(error.message || 'Không thể lưu API key', 'error');
+      showToast(error.message || t('apiKeysManagement.messages.saveError'), 'error');
     } finally {
       setIsSaving(false);
     }
@@ -117,28 +125,28 @@ const APIKeysManagement: React.FC = () => {
     if (!keyToDelete) return;
     try {
       await apiKeyService.deleteAPIKey(keyToDelete.id);
-      showToast('Xóa API key thành công', 'success');
+      showToast(t('apiKeysManagement.messages.deleteSuccess'), 'success');
       setIsDeleteDialogOpen(false);
       setKeyToDelete(null);
       fetchAPIKeys();
     } catch (error: any) {
-      showToast(error.message || 'Không thể xóa API key', 'error');
+      showToast(error.message || t('apiKeysManagement.messages.deleteError'), 'error');
     }
   };
 
   const handleRevoke = async (key: APIKey) => {
     try {
       await apiKeyService.revokeAPIKey(key.id);
-      showToast('Thu hồi API key thành công', 'success');
+      showToast(t('apiKeysManagement.messages.revokeSuccess'), 'success');
       fetchAPIKeys();
     } catch (error: any) {
-      showToast(error.message || 'Không thể thu hồi API key', 'error');
+      showToast(error.message || t('apiKeysManagement.messages.revokeError'), 'error');
     }
   };
 
   const handleCopyKey = (key: string) => {
     navigator.clipboard.writeText(key);
-    showToast('Đã sao chép API key', 'success');
+    showToast(t('apiKeysManagement.messages.copySuccess'), 'success');
   };
 
   const togglePermission = (permission: string) => {
@@ -156,18 +164,14 @@ const APIKeysManagement: React.FC = () => {
       <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
         <div>
           <h1 className='text-xl sm:text-2xl font-bold font-heading text-gray-900 dark:text-white'>
-            Quản Lý API Keys
+            {t('apiKeysManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-0.5 font-inter'>
-            Tạo và quản lý API keys cho truy cập hệ thống
+            {t('apiKeysManagement.subtitle')}
           </p>
         </div>
-        <AdminButton
-          variant='primary'
-          icon={Plus}
-          onClick={handleCreate}
-        >
-          Tạo API key mới
+        <AdminButton variant='primary' icon={Plus} onClick={handleCreate}>
+          {t('apiKeysManagement.addKey')}
         </AdminButton>
       </div>
 
@@ -178,31 +182,38 @@ const APIKeysManagement: React.FC = () => {
         ) : apiKeys.length === 0 ? (
           <div className='text-center py-12'>
             <Key className='w-12 h-12 text-gray-400 mx-auto mb-4' />
-            <p className='text-gray-500 dark:text-gray-400'>Chưa có API key nào</p>
+            <p className='text-gray-500 dark:text-gray-400'>
+              {t('apiKeysManagement.empty.noKeys')}
+            </p>
           </div>
         ) : (
           <AdminTable>
             <AdminTableHeader>
               <AdminTableRow>
-                <AdminTableCell>Tên</AdminTableCell>
-                <AdminTableCell>Key Prefix</AdminTableCell>
-                <AdminTableCell>Quyền</AdminTableCell>
-                <AdminTableCell>Rate Limit</AdminTableCell>
-                <AdminTableCell>Hết hạn</AdminTableCell>
-                <AdminTableCell>Lần sử dụng cuối</AdminTableCell>
-                <AdminTableCell>Trạng thái</AdminTableCell>
-                <AdminTableCell>Thao tác</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.name')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.keyPrefix')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.permissions')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.rateLimit')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.expiresAt')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.lastUsedAt')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.status')}</AdminTableCell>
+                <AdminTableCell>{t('apiKeysManagement.table.actions')}</AdminTableCell>
               </AdminTableRow>
             </AdminTableHeader>
             <AdminTableBody>
               {apiKeys.map(apiKey => (
                 <AdminTableRow key={apiKey.id}>
                   <AdminTableCell className='font-medium'>{apiKey.name}</AdminTableCell>
-                  <AdminTableCell className='font-mono text-sm'>{apiKey.key_prefix || '-'}</AdminTableCell>
+                  <AdminTableCell className='font-mono text-sm'>
+                    {apiKey.key_prefix || '-'}
+                  </AdminTableCell>
                   <AdminTableCell>
                     <div className='flex flex-wrap gap-1'>
                       {apiKey.permissions.slice(0, 2).map(perm => (
-                        <span key={perm} className='px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded text-xs'>
+                        <span
+                          key={perm}
+                          className='px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded text-xs'
+                        >
                           {perm.split(':')[0]}
                         </span>
                       ))}
@@ -215,13 +226,22 @@ const APIKeysManagement: React.FC = () => {
                   </AdminTableCell>
                   <AdminTableCell>{apiKey.rate_limit || '-'}</AdminTableCell>
                   <AdminTableCell>
-                    {apiKey.expires_at ? formatVietnamDateTime(apiKey.expires_at) : 'Không hết hạn'}
+                    {apiKey.expires_at
+                      ? formatVietnamDateTime(apiKey.expires_at)
+                      : t('apiKeysManagement.table.noExpiry')}
                   </AdminTableCell>
                   <AdminTableCell>
-                    {apiKey.last_used_at ? formatVietnamDateTime(apiKey.last_used_at) : 'Chưa sử dụng'}
+                    {apiKey.last_used_at
+                      ? formatVietnamDateTime(apiKey.last_used_at)
+                      : t('apiKeysManagement.table.neverUsed')}
                   </AdminTableCell>
                   <AdminTableCell>
-                    <StatusBadge status={apiKey.is_active ? 'active' : 'inactive'} />
+                    <EnumBadge
+                      type='MEMBERSHIP_STATUS'
+                      value={apiKey.is_active ? 'ACTIVE' : 'INACTIVE'}
+                      size='sm'
+                      showIcon={true}
+                    />
                   </AdminTableCell>
                   <AdminTableCell>
                     <div className='flex items-center gap-2'>
@@ -231,7 +251,7 @@ const APIKeysManagement: React.FC = () => {
                         icon={Edit}
                         onClick={() => handleEdit(apiKey)}
                       >
-                        Sửa
+                        {t('apiKeysManagement.actions.edit')}
                       </AdminButton>
                       <AdminButton
                         variant='danger'
@@ -239,7 +259,7 @@ const APIKeysManagement: React.FC = () => {
                         icon={RefreshCw}
                         onClick={() => handleRevoke(apiKey)}
                       >
-                        Thu hồi
+                        {t('apiKeysManagement.actions.revoke')}
                       </AdminButton>
                       <AdminButton
                         variant='danger'
@@ -250,7 +270,7 @@ const APIKeysManagement: React.FC = () => {
                           setIsDeleteDialogOpen(true);
                         }}
                       >
-                        Xóa
+                        {t('apiKeysManagement.actions.delete')}
                       </AdminButton>
                     </div>
                   </AdminTableCell>
@@ -265,20 +285,22 @@ const APIKeysManagement: React.FC = () => {
       <AdminModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={selectedKey ? 'Sửa API key' : 'Tạo API key mới'}
+        title={
+          selectedKey ? t('apiKeysManagement.form.editTitle') : t('apiKeysManagement.form.addTitle')
+        }
         size='lg'
       >
         <div className='space-y-4'>
           <AdminInput
-            label='Tên API key'
+            label={t('apiKeysManagement.form.name')}
             value={formData.name}
             onChange={e => setFormData({ ...formData, name: e.target.value })}
             required
-            placeholder='Ví dụ: Production API Key'
+            placeholder={t('apiKeysManagement.form.namePlaceholder')}
           />
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              Quyền truy cập
+              {t('apiKeysManagement.form.permissions')}
             </label>
             <div className='grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg max-h-48 overflow-y-auto'>
               {availablePermissions.map(permission => (
@@ -295,23 +317,25 @@ const APIKeysManagement: React.FC = () => {
             </div>
           </div>
           <AdminInput
-            label='Rate Limit (requests/hour)'
+            label={t('apiKeysManagement.form.rateLimit')}
             type='number'
             value={formData.rate_limit.toString()}
-            onChange={e => setFormData({ ...formData, rate_limit: parseInt(e.target.value) || 1000 })}
+            onChange={e =>
+              setFormData({ ...formData, rate_limit: parseInt(e.target.value) || 1000 })
+            }
           />
           <AdminInput
-            label='Ngày hết hạn (tùy chọn)'
+            label={t('apiKeysManagement.form.expiresAt')}
             type='date'
             value={formData.expires_at}
             onChange={e => setFormData({ ...formData, expires_at: e.target.value })}
           />
           <div className='flex justify-end gap-2 pt-4 border-t'>
             <AdminButton variant='outline' onClick={() => setIsModalOpen(false)}>
-              Hủy
+              {t('common.cancel')}
             </AdminButton>
             <AdminButton variant='primary' icon={Save} onClick={handleSave} disabled={isSaving}>
-              {isSaving ? <ButtonSpinner /> : 'Lưu'}
+              {isSaving ? <ButtonSpinner /> : t('apiKeysManagement.actions.save')}
             </AdminButton>
           </div>
         </div>
@@ -321,21 +345,21 @@ const APIKeysManagement: React.FC = () => {
       <AdminModal
         isOpen={isViewKeyModalOpen}
         onClose={() => setIsViewKeyModalOpen(false)}
-        title='API Key đã được tạo'
+        title={t('apiKeysManagement.viewKey.title')}
         size='md'
       >
         <div className='space-y-4'>
           <div className='p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg'>
             <p className='text-sm text-orange-800 dark:text-orange-300 font-medium mb-2'>
-              [WARNING] Lưu ý quan trọng
+              {t('apiKeysManagement.viewKey.warningTitle')}
             </p>
             <p className='text-sm text-orange-700 dark:text-orange-400'>
-              API key này chỉ hiển thị một lần duy nhất. Vui lòng sao chép và lưu trữ an toàn.
+              {t('apiKeysManagement.viewKey.warningMessage')}
             </p>
           </div>
           <div>
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-              API Key
+              {t('apiKeysManagement.viewKey.apiKey')}
             </label>
             <div className='flex items-center gap-2'>
               <input
@@ -356,13 +380,13 @@ const APIKeysManagement: React.FC = () => {
                 icon={Copy}
                 onClick={() => handleCopyKey(newKey)}
               >
-                Copy
+                {t('apiKeysManagement.actions.copy')}
               </AdminButton>
             </div>
           </div>
           <div className='flex justify-end pt-4 border-t'>
             <AdminButton variant='primary' onClick={() => setIsViewKeyModalOpen(false)}>
-              Đã lưu
+              {t('apiKeysManagement.viewKey.saved')}
             </AdminButton>
           </div>
         </div>
@@ -376,10 +400,10 @@ const APIKeysManagement: React.FC = () => {
           setKeyToDelete(null);
         }}
         onConfirm={handleDelete}
-        title='Xóa API key'
-        message={`Bạn có chắc chắn muốn xóa API key "${keyToDelete?.name}"? Hành động này không thể hoàn tác.`}
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('apiKeysManagement.delete.confirmTitle')}
+        message={t('apiKeysManagement.delete.confirmMessage', { name: keyToDelete?.name || '' })}
+        confirmText={t('apiKeysManagement.actions.delete')}
+        cancelText={t('common.cancel')}
         variant='danger'
       />
     </div>
@@ -387,4 +411,3 @@ const APIKeysManagement: React.FC = () => {
 };
 
 export default APIKeysManagement;
-

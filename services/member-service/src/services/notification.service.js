@@ -100,28 +100,41 @@ class NotificationService {
     templateVariables = {},
   }) {
     try {
-      // Check if identityPrisma is initialized and has user model
-      if (!identityPrisma || !identityPrisma.user) {
-        console.error(
-          '[ERROR] Identity PrismaClient not initialized or user model not available, cannot get user preferences'
-        );
-        throw new Error('Identity database not available');
-      }
+      // Determine if we need Identity database access
+      const needsIdentityDb = channels.some(ch => ['PUSH', 'EMAIL', 'SMS'].includes(ch)) && userId;
 
-      // Get user info and preferences
-      const user = await identityPrisma.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          phone: true,
-          push_enabled: true,
-          push_token: true,
-          push_platform: true,
-          email_notifications_enabled: true,
-          sms_notifications_enabled: true,
-        },
-      });
+      let user = null;
+      if (needsIdentityDb) {
+        // Check if identityPrisma is initialized and has user model
+        if (!identityPrisma || !identityPrisma.user) {
+          console.error(
+            '[ERROR] Identity PrismaClient not initialized or user model not available, cannot get user preferences'
+          );
+          // If only IN_APP is needed, continue without Identity DB
+          if (channels.length === 1 && channels[0] === 'IN_APP') {
+            console.warn(
+              '[WARNING] Identity database not available, but only IN_APP notification needed, continuing...'
+            );
+          } else {
+            throw new Error('Identity database not available');
+          }
+        } else {
+          // Get user info and preferences
+          user = await identityPrisma.user.findUnique({
+            where: { id: userId },
+            select: {
+              id: true,
+              email: true,
+              phone: true,
+              push_enabled: true,
+              push_token: true,
+              push_platform: true,
+              email_notifications_enabled: true,
+              sms_notifications_enabled: true,
+            },
+          });
+        }
+      }
 
       // Get member notification preferences if memberId is provided
       let memberPreferences = null;
@@ -145,6 +158,12 @@ class NotificationService {
         try {
           switch (channel) {
             case 'PUSH':
+              if (!user) {
+                results.channels.PUSH = {
+                  skipped: 'User info not available (Identity DB not accessible)',
+                };
+                break;
+              }
               if (user.push_enabled && user.push_token) {
                 const pushResult = await pushNotificationService.sendPushNotification(
                   userId,
@@ -159,6 +178,12 @@ class NotificationService {
               break;
 
             case 'EMAIL':
+              if (!user) {
+                results.channels.EMAIL = {
+                  skipped: 'User info not available (Identity DB not accessible)',
+                };
+                break;
+              }
               if (user.email && user.email_notifications_enabled !== false) {
                 const emailResult = await emailService.sendTemplateEmail(user.email, type, {
                   member_name: user.email.split('@')[0],
@@ -171,6 +196,12 @@ class NotificationService {
               break;
 
             case 'SMS':
+              if (!user) {
+                results.channels.SMS = {
+                  skipped: 'User info not available (Identity DB not accessible)',
+                };
+                break;
+              }
               if (user.phone && user.sms_notifications_enabled !== false) {
                 const smsResult = await smsService.sendTemplateSMS(user.phone, type, {
                   member_name: user.email?.split('@')[0] || 'Bạn',
@@ -748,13 +779,21 @@ class NotificationService {
             ? `${memberName} đã rời hàng chờ thiết bị ${equipmentName}`
             : `Hàng chờ thiết bị ${equipmentName} đã được cập nhật`;
 
+      // Use appropriate notification type based on action
+      const notificationType =
+        action === 'joined'
+          ? 'QUEUE_JOINED'
+          : action === 'left'
+            ? 'QUEUE_POSITION_UPDATED' // Use QUEUE_POSITION_UPDATED for leave action
+            : 'QUEUE_POSITION_UPDATED';
+
       const results = await Promise.allSettled(
         admins.map(admin =>
           axios.post(
             `${IDENTITY_SERVICE_URL}/notifications`,
             {
               user_id: admin.id,
-              type: 'QUEUE_JOINED',
+              type: notificationType,
               title,
               message,
               data: {
@@ -1057,6 +1096,328 @@ class NotificationService {
       };
     } catch (error) {
       console.error(`[ERROR] Create ${eventType} notification for admin error:`, error);
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create reward redemption notification for all admins/super admins
+   * @param {Object} params - { memberId, memberName, memberData, rewardId, rewardTitle, rewardCategory, pointsSpent, redemptionCode }
+   */
+  async createRewardRedemptionNotificationForAdmin({
+    memberId,
+    memberName,
+    memberData = {},
+    rewardId,
+    rewardTitle,
+    rewardCategory,
+    pointsSpent,
+    redemptionCode,
+  }) {
+    try {
+      console.log(
+        `[START] [REWARD_REDEMPTION] createRewardRedemptionNotificationForAdmin called for member ${memberId}`
+      );
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(
+            `[SUCCESS] [REWARD_REDEMPTION] Retrieved ${admins.length} admins from Identity Service API`
+          );
+        } else {
+          console.warn(
+            '[WARNING] [REWARD_REDEMPTION] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] [REWARD_REDEMPTION] Failed to get admins from Identity Service API:',
+          apiError.message || apiError
+        );
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
+
+      if (admins.length === 0) {
+        console.log(
+          '[INFO] [REWARD_REDEMPTION] No active admins found for reward redemption notification'
+        );
+        return { success: true, sent: 0, total: 0 };
+      }
+
+      const title = 'Thành viên đổi điểm lấy phần thưởng';
+      const message = `${memberName || 'Thành viên'} đã đổi ${pointsSpent} điểm để lấy phần thưởng "${rewardTitle || 'N/A'}"`;
+
+      const results = await Promise.allSettled(
+        admins.map(admin => {
+          const payload = {
+            user_id: admin.id,
+            type: 'REWARD_REDEMPTION',
+            title,
+            message,
+            data: {
+              member_id: memberId,
+              member_name: memberName,
+              reward_id: rewardId,
+              reward_title: rewardTitle,
+              reward_category: rewardCategory,
+              points_spent: pointsSpent,
+              redemption_code: redemptionCode,
+              ...memberData,
+              role: 'MEMBER',
+            },
+            channels: ['IN_APP', 'PUSH'],
+          };
+          return axios.post(`${IDENTITY_SERVICE_URL}/notifications`, payload, { timeout: 10000 });
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(
+          `[WARNING] [REWARD_REDEMPTION] Failed to create notification for ${failedCount} admins`
+        );
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(
+              `[ERROR] [REWARD_REDEMPTION] Failed for admin ${admins[index].id}:`,
+              result.reason?.message || result.reason
+            );
+          }
+        });
+      }
+
+      // Emit socket events to admin room (keep existing socket functionality)
+      if (global.io) {
+        try {
+          admins.forEach(admin => {
+            try {
+              global.io.to(`user:${admin.id}`).emit('reward:redemption:new', {
+                member_id: memberId,
+                member_name: memberName,
+                reward_id: rewardId,
+                reward_title: rewardTitle,
+                reward_category: rewardCategory,
+                points_spent: pointsSpent,
+                redemption_code: redemptionCode,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (emitError) {
+              console.error(
+                `[ERROR] [REWARD_REDEMPTION] Error emitting to user:${admin.id}:`,
+                emitError
+              );
+            }
+          });
+          // Also emit to admin room
+          global.io.to('admin').emit('reward:redemption:new', {
+            member_id: memberId,
+            member_name: memberName,
+            reward_id: rewardId,
+            reward_title: rewardTitle,
+            reward_category: rewardCategory,
+            points_spent: pointsSpent,
+            redemption_code: redemptionCode,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (socketError) {
+          console.error('[ERROR] [REWARD_REDEMPTION] Socket emit error:', socketError);
+        }
+      }
+
+      console.log(
+        `[SUCCESS] [REWARD_REDEMPTION] Created notifications for ${successCount}/${admins.length} admins`
+      );
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error(
+        '[ERROR] [REWARD_REDEMPTION] Create reward redemption notification for admin error:',
+        error
+      );
+      return {
+        success: false,
+        error: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create equipment issue report notification for all admins/super admins
+   * @param {Object} params - { equipmentId, equipmentName, memberId, memberName, issueType, severity, description, reportId }
+   */
+  async createEquipmentIssueNotificationForAdmin({
+    equipmentId,
+    equipmentName,
+    memberId,
+    memberName,
+    issueType,
+    severity,
+    description,
+    reportId,
+  }) {
+    try {
+      console.log(
+        `[START] [EQUIPMENT_ISSUE] createEquipmentIssueNotificationForAdmin called for equipment ${equipmentId}`
+      );
+      const axios = require('axios');
+      const IDENTITY_SERVICE_URL = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+
+      // Get all admin users from Identity Service API
+      let admins = [];
+      try {
+        const response = await axios.get(`${IDENTITY_SERVICE_URL}/auth/users/admins`, {
+          timeout: 10000,
+        });
+        if (response.data?.success && response.data?.data?.users) {
+          admins = response.data.data.users.map(admin => ({ id: admin.id }));
+          console.log(
+            `[SUCCESS] [EQUIPMENT_ISSUE] Retrieved ${admins.length} admins from Identity Service API`
+          );
+        } else {
+          console.warn(
+            '[WARNING] [EQUIPMENT_ISSUE] Invalid response from Identity Service /auth/users/admins:',
+            response.data
+          );
+        }
+      } catch (apiError) {
+        console.error(
+          '[ERROR] [EQUIPMENT_ISSUE] Failed to get admins from Identity Service API:',
+          apiError.message || apiError
+        );
+        return { success: false, error: 'Failed to get admins from Identity Service', sent: 0 };
+      }
+
+      if (admins.length === 0) {
+        console.log(
+          '[INFO] [EQUIPMENT_ISSUE] No active admins found for equipment issue notification'
+        );
+        return { success: true, sent: 0, total: 0 };
+      }
+
+      // Map severity to Vietnamese
+      const severityMap = {
+        CRITICAL: 'Nghiêm trọng',
+        HIGH: 'Cao',
+        MEDIUM: 'Trung bình',
+        LOW: 'Thấp',
+      };
+
+      const severityText = severityMap[severity] || severity;
+
+      const title = `Báo cáo sự cố thiết bị - ${equipmentName}`;
+      const message = `${memberName || 'Thành viên'} đã báo cáo sự cố "${issueType}" với mức độ ${severityText} cho thiết bị ${equipmentName}`;
+
+      const results = await Promise.allSettled(
+        admins.map(admin => {
+          const payload = {
+            user_id: admin.id,
+            type: 'EQUIPMENT_MAINTENANCE_SCHEDULED',
+            title,
+            message,
+            data: {
+              equipment_id: equipmentId,
+              equipment_name: equipmentName,
+              member_id: memberId,
+              member_name: memberName,
+              issue_type: issueType,
+              severity,
+              description,
+              report_id: reportId,
+              role: 'MEMBER',
+            },
+            channels: ['IN_APP', 'PUSH'],
+          };
+          return axios.post(`${IDENTITY_SERVICE_URL}/notifications`, payload, { timeout: 10000 });
+        })
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled').length;
+      const failedCount = results.filter(r => r.status === 'rejected').length;
+
+      if (failedCount > 0) {
+        console.warn(
+          `[WARNING] [EQUIPMENT_ISSUE] Failed to create notification for ${failedCount} admins`
+        );
+        results.forEach((result, index) => {
+          if (result.status === 'rejected') {
+            console.error(
+              `[ERROR] [EQUIPMENT_ISSUE] Failed for admin ${admins[index].id}:`,
+              result.reason?.message || result.reason
+            );
+          }
+        });
+      }
+
+      // Emit socket events to admin room
+      if (global.io) {
+        try {
+          admins.forEach(admin => {
+            try {
+              global.io.to(`user:${admin.id}`).emit('equipment:issue:reported', {
+                equipment_id: equipmentId,
+                equipment_name: equipmentName,
+                member_id: memberId,
+                member_name: memberName,
+                issue_type: issueType,
+                severity,
+                report_id: reportId,
+                timestamp: new Date().toISOString(),
+              });
+            } catch (emitError) {
+              console.error(
+                `[ERROR] [EQUIPMENT_ISSUE] Error emitting to user:${admin.id}:`,
+                emitError
+              );
+            }
+          });
+          // Also emit to admin room
+          global.io.to('admin').emit('equipment:issue:reported', {
+            equipment_id: equipmentId,
+            equipment_name: equipmentName,
+            member_id: memberId,
+            member_name: memberName,
+            issue_type: issueType,
+            severity,
+            report_id: reportId,
+            timestamp: new Date().toISOString(),
+          });
+        } catch (socketError) {
+          console.error('[ERROR] [EQUIPMENT_ISSUE] Socket emit error:', socketError);
+        }
+      }
+
+      console.log(
+        `[SUCCESS] [EQUIPMENT_ISSUE] Created notifications for ${successCount}/${admins.length} admins`
+      );
+
+      return {
+        success: true,
+        sent: successCount,
+        total: admins.length,
+      };
+    } catch (error) {
+      console.error(
+        '[ERROR] [EQUIPMENT_ISSUE] Create equipment issue notification for admin error:',
+        error
+      );
       return {
         success: false,
         error: error.message,

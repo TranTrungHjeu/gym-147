@@ -174,40 +174,100 @@ class WorkoutPlanService {
       duration_weeks: number;
       custom_prompt?: string;
     }
-  ): Promise<{ success: boolean; data?: WorkoutPlan; error?: string }> {
+  ): Promise<{
+    success: boolean;
+    data?: WorkoutPlan;
+    error?: string;
+    isMaxPlansReached?: boolean;
+    currentCount?: number;
+    maxAllowed?: number;
+    membershipType?: string;
+  }> {
     try {
+      // Route backend: /members/:id/workout-plans/ai
+      // Use 10 minutes timeout for AI generation (600 seconds) to match backend server timeout
       const response = await memberApiService.post(
         `/members/${memberId}/workout-plans/ai`,
-        params
+        params,
+        { timeout: 600000 } // 10 minutes for AI processing
       );
       return { success: true, data: response.data };
     } catch (error: any) {
-      // Parse error message from backend
-      let errorMessage = error.message || 'Failed to generate AI workout plan';
-      
-      // Check if it's a JSON parsing error from backend
-      if (errorMessage.includes('AI response parsing failed') || 
-          (errorMessage.includes('Expected') && errorMessage.includes('JSON'))) {
-        errorMessage = 'AI generated invalid response format. Please try again with a different prompt.';
-      } else if (errorMessage.includes('500') || errorMessage.includes('Internal Server Error')) {
-        errorMessage = 'Server error occurred. The AI service may be experiencing issues. Please try again later.';
-      } else if (error.response?.data?.error) {
-        // Try to extract error from response
-        const backendError = error.response.data.error;
-        if (backendError.includes('parsing failed') || backendError.includes('JSON')) {
-          errorMessage = 'AI generated invalid response format. Please try again with a different prompt.';
-        } else {
-          errorMessage = backendError;
-        }
-      }
-      
-      console.error('[ERROR] AI Workout Plan Generation Error:', {
-        error: errorMessage,
-        originalError: error.message,
-        response: error.response?.data,
+      console.log('[DEBUG] Error caught in generateAIWorkoutPlan:', {
+        status: error.status,
+        message: error.message,
+        error: error,
+        errorKeys: Object.keys(error),
       });
-      
-      return { success: false, error: errorMessage };
+
+      // Check if it's a max plans limit error (403)
+      // ApiService throws: { message: "...", status: 403, errors: [...] }
+      // Backend message format: "You have reached the maximum number of workout plans (1) for your membership type (PREMIUM). Upgrade to VIP to create up to 3 plans."
+      const errorMessage = error.message || '';
+      const isMaxPlansError =
+        error.status === 403 ||
+        errorMessage.includes('maximum number of workout plans') ||
+        errorMessage.includes('reached the maximum');
+
+      if (isMaxPlansError) {
+        // Parse error message to extract data
+        // Format: "You have reached the maximum number of workout plans (X) for your membership type (TYPE)."
+        const countMatch = errorMessage.match(/workout plans \((\d+)\)/);
+        const typeMatch = errorMessage.match(/membership type \(([A-Z]+)\)/);
+        const upgradeMatch = errorMessage.match(/create up to (\d+) plans/);
+
+        const currentCount = countMatch
+          ? parseInt(countMatch[1], 10)
+          : undefined;
+        const membershipType = typeMatch ? typeMatch[1] : undefined;
+        const maxAllowed = upgradeMatch
+          ? parseInt(upgradeMatch[1], 10)
+          : currentCount || 0;
+
+        console.log('[DEBUG] Detected max plans limit:', {
+          currentCount,
+          maxAllowed,
+          membershipType,
+          errorMessage,
+        });
+
+        return {
+          success: false,
+          isMaxPlansReached: true,
+          currentCount: currentCount || 0,
+          maxAllowed: maxAllowed || 0,
+          membershipType: membershipType || 'BASIC',
+          error: errorMessage || 'Maximum workout plans reached',
+        };
+      }
+
+      // Parse error message from backend
+      let parsedErrorMessage =
+        error.message || 'Failed to generate AI workout plan';
+
+      // Check if it's a JSON parsing error from backend
+      if (
+        parsedErrorMessage.includes('AI response parsing failed') ||
+        (parsedErrorMessage.includes('Expected') &&
+          parsedErrorMessage.includes('JSON'))
+      ) {
+        parsedErrorMessage =
+          'AI generated invalid response format. Please try again with a different prompt.';
+      } else if (
+        parsedErrorMessage.includes('500') ||
+        parsedErrorMessage.includes('Internal Server Error')
+      ) {
+        parsedErrorMessage =
+          'Server error occurred. The AI service may be experiencing issues. Please try again later.';
+      }
+
+      console.error('[ERROR] AI Workout Plan Generation Error:', {
+        error: parsedErrorMessage,
+        originalError: error.message,
+        status: error.status,
+      });
+
+      return { success: false, error: parsedErrorMessage };
     }
   }
 
@@ -254,6 +314,27 @@ class WorkoutPlanService {
         },
       };
     } catch (error: any) {
+      // Handle 503 Service Unavailable gracefully - don't throw error
+      const isServiceUnavailable =
+        error.response?.status === 503 ||
+        error.message?.includes('503') ||
+        error.message?.includes('Service Unavailable') ||
+        error.message?.includes('service unavailable');
+
+      if (isServiceUnavailable) {
+        console.warn(
+          '[WARNING] Recommendations service unavailable:',
+          error.message
+        );
+        // Return empty recommendations instead of error
+        return {
+          success: true, // Return success to avoid showing error to user
+          data: {
+            recommendations: [],
+          },
+        };
+      }
+
       console.error('[ERROR] Error fetching workout recommendations:', error);
       return {
         success: false,
@@ -312,15 +393,59 @@ class WorkoutPlanService {
     error?: string;
   }> {
     try {
+      console.log('[WORKOUT] Completing workout session:', {
+        memberId,
+        workout_plan_id: data.workout_plan_id,
+        completed_exercises_count: data.completed_exercises?.length || 0,
+        duration_minutes: data.duration_minutes,
+      });
+
       const response = await memberApiService.post(
         `/members/${memberId}/workout-sessions/complete`,
         data
       );
-      return { success: true, data: response.data?.data };
+
+      console.log('[WORKOUT] Workout session completed successfully:', {
+        hasData: !!response.data,
+        calories: response.data?.calories,
+      });
+
+      // Check if response has data
+      if (!response.data) {
+        console.warn('[WORKOUT] Response missing data field:', response);
+        return {
+          success: false,
+          error: 'Invalid response from server. Please try again.',
+        };
+      }
+
+      return { success: true, data: response.data };
     } catch (error: any) {
+      console.error('[WORKOUT] Error completing workout session:', {
+        error,
+        message: error.message,
+        status: error.status,
+        responseData: error.response?.data || error.data,
+      });
+
+      // Extract error message from various possible locations
+      let errorMessage = 'Failed to complete workout session';
+
+      if (error.message) {
+        errorMessage = error.message;
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error.response?.data?.error) {
+        errorMessage = error.response.data.error;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+
       return {
         success: false,
-        error: error.message || 'Failed to complete workout session',
+        error: errorMessage,
       };
     }
   }

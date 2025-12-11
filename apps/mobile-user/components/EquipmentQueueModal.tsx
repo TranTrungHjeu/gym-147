@@ -88,7 +88,10 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
         );
         await loadQueueData();
       } else {
-        Alert.alert(t('common.error'), response.message || 'Failed to join queue');
+        Alert.alert(
+          t('common.error'),
+          response.message || 'Failed to join queue'
+        );
       }
     } catch (error: any) {
       Alert.alert(t('common.error'), error.message);
@@ -112,10 +115,16 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
               const response = await queueService.leaveQueue(equipmentId);
 
               if (response.success) {
-                Alert.alert(t('common.success'), response.message || 'Left queue successfully');
+                Alert.alert(
+                  t('common.success'),
+                  response.message || 'Left queue successfully'
+                );
                 await loadQueueData();
               } else {
-                Alert.alert(t('common.error'), response.message || 'Failed to leave queue');
+                Alert.alert(
+                  t('common.error'),
+                  response.message || 'Failed to leave queue'
+                );
               }
             } catch (error: any) {
               Alert.alert(t('common.error'), error.message);
@@ -156,12 +165,28 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
     >
       <View style={styles.overlay}>
         <SafeAreaView edges={['bottom']} style={styles.safeArea}>
-          <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
+          <View
+            style={[
+              styles.container,
+              { backgroundColor: theme.colors.background },
+            ]}
+          >
             {/* Header */}
-            <View style={[styles.header, { borderBottomColor: theme.colors.border }]}>
+            <View
+              style={[
+                styles.header,
+                { borderBottomColor: theme.colors.border },
+              ]}
+            >
               <View style={styles.headerLeft}>
-                <Ionicons name="people" size={24} color={theme.colors.primary} />
-                <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+                <Ionicons
+                  name="people"
+                  size={24}
+                  color={theme.colors.primary}
+                />
+                <Text
+                  style={[styles.headerTitle, { color: theme.colors.text }]}
+                >
                   {t('queue.title')}
                 </Text>
               </View>
@@ -172,7 +197,12 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
 
             {/* Equipment Name */}
             <View style={styles.equipmentInfo}>
-              <Text style={[styles.equipmentName, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.equipmentName,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 {equipmentName}
               </Text>
             </View>
@@ -182,168 +212,244 @@ export const EquipmentQueueModal: React.FC<EquipmentQueueModalProps> = ({
                 <ActivityIndicator size="large" color={theme.colors.primary} />
               </View>
             ) : (
-              <ScrollView 
-                style={styles.content} 
+              <ScrollView
+                style={styles.content}
                 contentContainerStyle={styles.contentContainer}
                 showsVerticalScrollIndicator={false}
               >
-              {/* My Position Card */}
-              {myPosition?.in_queue && (
-                <View
-                  style={[
-                    styles.myPositionCard,
-                    {
-                      backgroundColor: theme.colors.surface,
-                      borderColor:
-                        myPosition.status === 'NOTIFIED'
-                          ? theme.colors.success
-                          : theme.colors.primary,
-                    },
-                  ]}
-                >
-                  <View style={styles.myPositionHeader}>
-                    <Ionicons
-                      name={myPosition.status === 'NOTIFIED' ? 'checkmark-circle' : 'time'}
-                      size={32}
-                      color={
-                        myPosition.status === 'NOTIFIED'
-                          ? theme.colors.success
-                          : theme.colors.primary
-                      }
-                    />
-                    <View style={styles.myPositionInfo}>
-                      <Text style={[styles.myPositionLabel, { color: theme.colors.textSecondary }]}>
-                        {myPosition.status === 'NOTIFIED'
-                          ? t('queue.yourTurn')
-                          : t('queue.yourPosition')}
-                      </Text>
-                      <Text style={[styles.myPositionValue, { color: theme.colors.text }]}>
-                        {myPosition.status === 'NOTIFIED' ? (
-                          <Text style={{ color: theme.colors.success }}>
-                            {t('queue.claimNow')}
-                          </Text>
-                        ) : (
-                          `${myPosition.position} / ${myPosition.total_in_queue}`
-                        )}
-                      </Text>
-                      {myPosition.status === 'NOTIFIED' && myPosition.expires_at && (
-                        <Text style={[styles.expiryText, { color: theme.colors.error }]}>
-                          {t('queue.expiresIn')}: {formatTimeRemaining(myPosition.expires_at)}
-                        </Text>
-                      )}
-                    </View>
-                  </View>
-
-                  <TouchableOpacity
-                    style={[styles.leaveButton, { backgroundColor: theme.colors.error }]}
-                    onPress={handleLeaveQueue}
-                    disabled={loading}
+                {/* My Position Card */}
+                {myPosition?.in_queue && (
+                  <View
+                    style={[
+                      styles.myPositionCard,
+                      {
+                        backgroundColor: theme.colors.surface,
+                        borderColor:
+                          myPosition.status === 'NOTIFIED'
+                            ? theme.colors.success
+                            : theme.colors.primary,
+                      },
+                    ]}
                   >
-                    <Text style={[styles.leaveButtonText, { color: '#fff' }]}>
-                      {t('queue.leave')}
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-
-              {/* Join Queue Button */}
-              {!myPosition?.in_queue && (
-                <TouchableOpacity
-                  style={[styles.joinButton, { backgroundColor: theme.colors.primary }]}
-                  onPress={handleJoinQueue}
-                  disabled={loading}
-                >
-                  <Ionicons name="add-circle-outline" size={20} color="#fff" />
-                  <Text style={[styles.joinButtonText, { color: '#fff' }]}>
-                    {t('queue.join')}
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Queue List */}
-              <View style={styles.queueSection}>
-                <View style={styles.queueHeader}>
-                  <Text style={[styles.queueTitle, { color: theme.colors.text }]}>
-                    {t('queue.peopleWaiting')}
-                  </Text>
-                  <View style={[styles.queueBadge, { backgroundColor: theme.colors.surface }]}>
-                    <Text style={[styles.queueBadgeText, { color: theme.colors.primary }]}>
-                      {queueData?.queue_length || 0}
-                    </Text>
-                  </View>
-                  <TouchableOpacity onPress={handleRefresh} disabled={refreshing}>
-                    <Ionicons
-                      name="refresh"
-                      size={20}
-                      color={refreshing ? theme.colors.textSecondary : theme.colors.primary}
-                    />
-                  </TouchableOpacity>
-                </View>
-
-                {queueData && queueData.queue_length > 0 ? (
-                  <View style={styles.queueList}>
-                    {queueData.queue.map((entry, index) => (
-                      <View
-                        key={entry.id}
-                        style={[
-                          styles.queueItem,
-                          {
-                            backgroundColor: theme.colors.surface,
-                            borderLeftColor:
-                              entry.status === 'NOTIFIED'
-                                ? theme.colors.success
-                                : theme.colors.border,
-                          },
-                        ]}
-                      >
-                        <View style={styles.queueItemLeft}>
-                          <View style={[styles.positionBadge, { backgroundColor: theme.colors.primary }]}>
-                            <Text style={[styles.positionText, { color: '#fff' }]}>
-                              {entry.position}
+                    <View style={styles.myPositionHeader}>
+                      <Ionicons
+                        name={
+                          myPosition.status === 'NOTIFIED'
+                            ? 'checkmark-circle'
+                            : 'time'
+                        }
+                        size={32}
+                        color={
+                          myPosition.status === 'NOTIFIED'
+                            ? theme.colors.success
+                            : theme.colors.primary
+                        }
+                      />
+                      <View style={styles.myPositionInfo}>
+                        <Text
+                          style={[
+                            styles.myPositionLabel,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          {myPosition.status === 'NOTIFIED'
+                            ? t('queue.yourTurn')
+                            : t('queue.yourPosition')}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.myPositionValue,
+                            { color: theme.colors.text },
+                          ]}
+                        >
+                          {myPosition.status === 'NOTIFIED' ? (
+                            <Text style={{ color: theme.colors.success }}>
+                              {t('queue.claimNow')}
                             </Text>
-                          </View>
-                          {entry.member?.profile_photo ? (
-                            <Image
-                              source={{ uri: entry.member.profile_photo }}
-                              style={styles.avatar}
-                            />
                           ) : (
-                            <View
+                            `${myPosition.position} / ${myPosition.total_in_queue}`
+                          )}
+                        </Text>
+                        {myPosition.status === 'NOTIFIED' &&
+                          myPosition.expires_at && (
+                            <Text
                               style={[
-                                styles.avatarPlaceholder,
-                                { backgroundColor: theme.colors.surface },
+                                styles.expiryText,
+                                { color: theme.colors.error },
                               ]}
                             >
-                              <Ionicons
-                                name="person"
-                                size={20}
-                                color={theme.colors.textSecondary}
-                              />
-                            </View>
-                          )}
-                          <View style={styles.memberInfo}>
-                            <Text style={[styles.memberName, { color: theme.colors.text }]}>
-                              {entry.member?.full_name || 'Unknown'}
+                              {t('queue.expiresIn')}:{' '}
+                              {formatTimeRemaining(myPosition.expires_at)}
                             </Text>
-                            {entry.status === 'NOTIFIED' && (
-                              <Text style={[styles.statusText, { color: theme.colors.success }]}>
-                                {t('queue.notified')}
-                              </Text>
-                            )}
-                          </View>
-                        </View>
+                          )}
                       </View>
-                    ))}
-                  </View>
-                ) : (
-                  <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={48} color={theme.colors.textSecondary} />
-                    <Text style={[styles.emptyText, { color: theme.colors.textSecondary }]}>
-                      {t('queue.noOneWaiting')}
-                    </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.leaveButton,
+                        { backgroundColor: theme.colors.error },
+                      ]}
+                      onPress={handleLeaveQueue}
+                      disabled={loading}
+                    >
+                      <Text style={[styles.leaveButtonText, { color: '#fff' }]}>
+                        {t('queue.leave')}
+                      </Text>
+                    </TouchableOpacity>
                   </View>
                 )}
-              </View>
+
+                {/* Join Queue Button */}
+                {!myPosition?.in_queue && (
+                  <TouchableOpacity
+                    style={[
+                      styles.joinButton,
+                      { backgroundColor: theme.colors.primary },
+                    ]}
+                    onPress={handleJoinQueue}
+                    disabled={loading}
+                  >
+                    <Ionicons
+                      name="add-circle-outline"
+                      size={20}
+                      color="#fff"
+                    />
+                    <Text style={[styles.joinButtonText, { color: '#fff' }]}>
+                      {'Vào hàng đợi'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {/* Queue List */}
+                <View style={styles.queueSection}>
+                  <View style={styles.queueHeader}>
+                    <Text
+                      style={[styles.queueTitle, { color: theme.colors.text }]}
+                    >
+                      {t('queue.peopleWaiting')}
+                    </Text>
+                    <View
+                      style={[
+                        styles.queueBadge,
+                        { backgroundColor: theme.colors.surface },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.queueBadgeText,
+                          { color: theme.colors.primary },
+                        ]}
+                      >
+                        {queueData?.queue_length || 0}
+                      </Text>
+                    </View>
+                    <TouchableOpacity
+                      onPress={handleRefresh}
+                      disabled={refreshing}
+                    >
+                      <Ionicons
+                        name="refresh"
+                        size={20}
+                        color={
+                          refreshing
+                            ? theme.colors.textSecondary
+                            : theme.colors.primary
+                        }
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  {queueData && queueData.queue_length > 0 ? (
+                    <View style={styles.queueList}>
+                      {queueData.queue.map((entry, index) => (
+                        <View
+                          key={entry.id}
+                          style={[
+                            styles.queueItem,
+                            {
+                              backgroundColor: theme.colors.surface,
+                              borderLeftColor:
+                                entry.status === 'NOTIFIED'
+                                  ? theme.colors.success
+                                  : theme.colors.border,
+                            },
+                          ]}
+                        >
+                          <View style={styles.queueItemLeft}>
+                            <View
+                              style={[
+                                styles.positionBadge,
+                                { backgroundColor: theme.colors.primary },
+                              ]}
+                            >
+                              <Text
+                                style={[styles.positionText, { color: '#fff' }]}
+                              >
+                                {entry.position}
+                              </Text>
+                            </View>
+                            {entry.member?.profile_photo ? (
+                              <Image
+                                source={{ uri: entry.member.profile_photo }}
+                                style={styles.avatar}
+                              />
+                            ) : (
+                              <View
+                                style={[
+                                  styles.avatarPlaceholder,
+                                  { backgroundColor: theme.colors.surface },
+                                ]}
+                              >
+                                <Ionicons
+                                  name="person"
+                                  size={20}
+                                  color={theme.colors.textSecondary}
+                                />
+                              </View>
+                            )}
+                            <View style={styles.memberInfo}>
+                              <Text
+                                style={[
+                                  styles.memberName,
+                                  { color: theme.colors.text },
+                                ]}
+                              >
+                                {entry.member?.full_name || 'Unknown'}
+                              </Text>
+                              {entry.status === 'NOTIFIED' && (
+                                <Text
+                                  style={[
+                                    styles.statusText,
+                                    { color: theme.colors.success },
+                                  ]}
+                                >
+                                  {t('queue.notified')}
+                                </Text>
+                              )}
+                            </View>
+                          </View>
+                        </View>
+                      ))}
+                    </View>
+                  ) : (
+                    <View style={styles.emptyState}>
+                      <Ionicons
+                        name="people-outline"
+                        size={48}
+                        color={theme.colors.textSecondary}
+                      />
+                      <Text
+                        style={[
+                          styles.emptyText,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('queue.noOneWaiting')}
+                      </Text>
+                    </View>
+                  )}
+                </View>
               </ScrollView>
             )}
           </View>
@@ -536,10 +642,3 @@ const styles = StyleSheet.create({
     marginTop: 12,
   },
 });
-
-
-
-
-
-
-

@@ -9,6 +9,7 @@ import {
   Hash,
   MapPin,
   Plus,
+  QrCode,
   RefreshCw,
   Search,
   Trash2,
@@ -25,11 +26,14 @@ import ConfirmDialog from '../../components/common/ConfirmDialog';
 import CustomSelect from '../../components/common/CustomSelect';
 import EquipmentIcon from '../../components/equipment/EquipmentIcon';
 import EquipmentFormModal from '../../components/modals/EquipmentFormModal';
+import EquipmentQRCodeModal from '../../components/modals/EquipmentQRCodeModal';
 import useTranslation from '../../hooks/useTranslation';
 import { Equipment, equipmentService } from '../../services/equipment.service';
 import { TableLoading } from '../../components/ui/AppLoading';
 import ExportButton from '../../components/common/ExportButton';
 import { formatVietnamDateTime } from '../../utils/dateTime';
+import { EnumBadge } from '../../shared/components/ui';
+import { getEnumBackgroundColor } from '../../shared/config/enumConfig';
 
 const EquipmentManagement: React.FC = () => {
   const { t } = useTranslation();
@@ -51,6 +55,8 @@ const EquipmentManagement: React.FC = () => {
   const [selectedEquipmentForUsers, setSelectedEquipmentForUsers] = useState<Equipment | null>(
     null
   );
+  const [isQRCodeModalOpen, setIsQRCodeModalOpen] = useState(false);
+  const [selectedEquipmentForQR, setSelectedEquipmentForQR] = useState<Equipment | null>(null);
 
   useEffect(() => {
     loadEquipment();
@@ -92,44 +98,6 @@ const EquipmentManagement: React.FC = () => {
       setEquipment([]);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return 'bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 border border-success-200 dark:border-success-800 shadow-sm';
-      case 'IN_USE':
-        return 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-sm';
-      case 'MAINTENANCE':
-        return 'bg-warning-50 dark:bg-warning-900/20 text-warning-700 dark:text-warning-300 border border-warning-200 dark:border-warning-800 shadow-sm';
-      case 'OUT_OF_ORDER':
-        return 'bg-error-50 dark:bg-error-900/20 text-error-700 dark:text-error-300 border border-error-200 dark:border-error-800 shadow-sm';
-      case 'RESERVED':
-        return 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-sm';
-      default:
-        return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700 shadow-sm';
-    }
-  };
-
-  const getCategoryColor = (category: string) => {
-    switch (category) {
-      case 'CARDIO':
-        return 'bg-error-50 dark:bg-error-900/20 text-error-700 dark:text-error-300 border border-error-200 dark:border-error-800';
-      case 'STRENGTH':
-        return 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800';
-      case 'FREE_WEIGHTS':
-        return 'bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800';
-      case 'FUNCTIONAL':
-        return 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800';
-      case 'STRETCHING':
-        return 'bg-success-50 dark:bg-success-900/20 text-success-700 dark:text-success-300 border border-success-200 dark:border-success-800';
-      case 'RECOVERY':
-        return 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800';
-      case 'SPECIALIZED':
-        return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700';
-      default:
-        return 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border border-gray-200 dark:border-gray-700';
     }
   };
 
@@ -304,62 +272,36 @@ const EquipmentManagement: React.FC = () => {
     }
   };
 
-  // Get status label
+  // Get status label (for export only)
   const getStatusLabel = (status: string) => {
-    switch (status) {
-      case 'AVAILABLE':
-        return 'Sẵn sàng';
-      case 'IN_USE':
-        return 'Đang sử dụng';
-      case 'MAINTENANCE':
-        return 'Bảo trì';
-      case 'OUT_OF_ORDER':
-        return 'Hỏng';
-      case 'RESERVED':
-        return 'Đã đặt';
-      default:
-        return status;
-    }
+    return t(`enum.equipmentStatus.${status.toLowerCase()}`) || status;
   };
 
-  // Get category label
+  // Get category label (for export only)
   const getCategoryLabel = (category: string) => {
-    switch (category) {
-      case 'CARDIO':
-        return 'Cardio';
-      case 'STRENGTH':
-        return 'Sức mạnh';
-      case 'FREE_WEIGHTS':
-        return 'Tạ tự do';
-      case 'FUNCTIONAL':
-        return 'Chức năng';
-      case 'STRETCHING':
-        return 'Kéo giãn';
-      case 'RECOVERY':
-        return 'Phục hồi';
-      case 'SPECIALIZED':
-        return 'Chuyên dụng';
-      default:
-        return category;
-    }
+    return t(`enum.equipmentCategory.${category.toLowerCase()}`) || category;
   };
 
   // Prepare export data
   const getExportData = useCallback(() => {
     const exportEquipment = filteredEquipment.length > 0 ? filteredEquipment : equipment;
-    
+
     return exportEquipment.map(eq => ({
       'Tên thiết bị': eq.name || 'N/A',
       'Danh mục': getCategoryLabel(eq.category || ''),
       'Trạng thái': getStatusLabel(eq.status || ''),
       'Vị trí': eq.location || 'N/A',
       'Thương hiệu': eq.brand || 'N/A',
-      'Model': eq.model || 'N/A',
+      Model: eq.model || 'N/A',
       'Giờ sử dụng': eq.usage_hours || 0,
       'Ngày mua': eq.purchase_date ? formatVietnamDateTime(eq.purchase_date, 'date') : 'N/A',
       'Bảo hành đến': eq.warranty_until ? formatVietnamDateTime(eq.warranty_until, 'date') : 'N/A',
-      'Bảo trì cuối': eq.last_maintenance ? formatVietnamDateTime(eq.last_maintenance, 'date') : 'N/A',
-      'Bảo trì tiếp theo': eq.next_maintenance ? formatVietnamDateTime(eq.next_maintenance, 'date') : 'N/A',
+      'Bảo trì cuối': eq.last_maintenance
+        ? formatVietnamDateTime(eq.last_maintenance, 'date')
+        : 'N/A',
+      'Bảo trì tiếp theo': eq.next_maintenance
+        ? formatVietnamDateTime(eq.next_maintenance, 'date')
+        : 'N/A',
       'Ngày tạo': eq.created_at ? formatVietnamDateTime(eq.created_at, 'datetime') : 'N/A',
     }));
   }, [filteredEquipment, equipment]);
@@ -404,8 +346,8 @@ const EquipmentManagement: React.FC = () => {
             <ExportButton
               data={getExportData()}
               columns={exportColumns}
-              filename='danh-sach-thiet-bi'
-              title='Danh sách Thiết bị'
+              filename={t('equipmentManagement.export.filename')}
+              title={t('equipmentManagement.export.title')}
               variant='outline'
               size='sm'
             />
@@ -514,7 +456,8 @@ const EquipmentManagement: React.FC = () => {
                   <div className='flex items-start justify-between gap-3 mb-3'>
                     {/* Category Icon - 3D Icon from Figma */}
                     <div
-                      className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${getCategoryColor(
+                      className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${getEnumBackgroundColor(
+                        'EQUIPMENT_CATEGORY',
                         eq.category
                       )} p-3 shadow-md transition-all duration-300 group-hover:shadow-lg group-hover:scale-105`}
                     >
@@ -526,13 +469,12 @@ const EquipmentManagement: React.FC = () => {
                     </div>
 
                     {/* Status Badge */}
-                    <span
-                      className={`inline-flex items-center px-3 py-1.5 rounded-full text-theme-xs font-semibold font-heading tracking-wide flex-shrink-0 transition-all duration-200 ${getStatusColor(
-                        eq.status
-                      )}`}
-                    >
-                      {t(`equipmentManagement.statuses.${eq.status}`) || eq.status}
-                    </span>
+                    <EnumBadge
+                      type='EQUIPMENT_STATUS'
+                      value={eq.status}
+                      size='sm'
+                      showIcon={true}
+                    />
                   </div>
 
                   {/* Equipment Name */}
@@ -542,13 +484,12 @@ const EquipmentManagement: React.FC = () => {
 
                   {/* Category Badge */}
                   <div>
-                    <span
-                      className={`inline-flex items-center px-3 py-1 rounded-full text-theme-xs font-semibold font-heading tracking-wide transition-all duration-200 ${getCategoryColor(
-                        eq.category
-                      )}`}
-                    >
-                      {t(`equipmentManagement.categories.${eq.category}`) || eq.category}
-                    </span>
+                    <EnumBadge
+                      type='EQUIPMENT_CATEGORY'
+                      value={eq.category}
+                      size='sm'
+                      showIcon={true}
+                    />
                   </div>
                 </div>
 
@@ -620,7 +561,9 @@ const EquipmentManagement: React.FC = () => {
                       <Wrench className='w-4 h-4 flex-shrink-0 text-yellow-600 dark:text-yellow-400' />
                       <div className='min-w-0'>
                         <div className='text-[11px] font-bold font-heading text-yellow-700 dark:text-yellow-300'>
-                          {eq._count?.maintenance_logs !== undefined ? eq._count.maintenance_logs : 0}
+                          {eq._count?.maintenance_logs !== undefined
+                            ? eq._count.maintenance_logs
+                            : 0}
                         </div>
                         <div className='text-[9px] font-medium font-inter text-yellow-600 dark:text-yellow-400'>
                           {t('equipmentManagement.details.maintenanceCount')}
@@ -771,7 +714,17 @@ const EquipmentManagement: React.FC = () => {
                 </div>
 
                 {/* Card Footer - Actions */}
-                <div className='px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2.5'>
+                <div className='px-5 py-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800/50 dark:to-gray-900/50 border-t border-gray-200 dark:border-gray-700 flex items-center gap-2'>
+                  <button
+                    onClick={() => {
+                      setSelectedEquipmentForQR(eq);
+                      setIsQRCodeModalOpen(true);
+                    }}
+                    className='inline-flex items-center justify-center gap-2 px-3 py-2.5 text-theme-xs font-semibold font-heading text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-700 hover:text-blue-800 dark:hover:text-blue-200 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+                    title={t('equipmentManagement.actions.generateQR')}
+                  >
+                    <QrCode className='w-4 h-4' />
+                  </button>
                   <button
                     onClick={() => handleEdit(eq)}
                     className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:border-orange-400 dark:hover:border-orange-700 hover:text-orange-800 dark:hover:text-orange-200 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
@@ -938,6 +891,17 @@ const EquipmentManagement: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* QR Code Modal */}
+      <EquipmentQRCodeModal
+        isOpen={isQRCodeModalOpen}
+        onClose={() => {
+          setIsQRCodeModalOpen(false);
+          setSelectedEquipmentForQR(null);
+        }}
+        equipmentId={selectedEquipmentForQR?.id || ''}
+        equipmentName={selectedEquipmentForQR?.name}
+      />
 
       {/* Delete Confirm Dialog */}
       <ConfirmDialog

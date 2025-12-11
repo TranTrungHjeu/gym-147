@@ -15,7 +15,9 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 interface AIWorkoutPromptModalProps {
   visible: boolean;
@@ -34,6 +36,7 @@ export const AIWorkoutPromptModal: React.FC<AIWorkoutPromptModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const [customPrompt, setCustomPrompt] = useState('');
 
   const handleGenerate = () => {
@@ -57,189 +60,212 @@ export const AIWorkoutPromptModal: React.FC<AIWorkoutPromptModalProps> = ({
       animationType="slide"
       onRequestClose={handleClose}
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}
-      >
-        <View style={[styles.overlay, { backgroundColor: 'rgba(0,0,0,0.7)' }]}>
-          <View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: theme.colors.surface,
-              },
-            ]}
+      <View style={styles.container}>
+        <TouchableOpacity
+          style={styles.overlay}
+          activeOpacity={1}
+          onPress={handleClose}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            style={styles.keyboardAvoidingView}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
           >
-            {/* Header */}
-            <View style={styles.header}>
-              <View style={styles.headerLeft}>
-                <View
-                  style={[
-                    styles.iconContainer,
-                    { backgroundColor: theme.colors.primary + '15' },
-                  ]}
-                >
-                  <Sparkles size={24} color={theme.colors.primary} />
+            <View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: theme.colors.surface,
+                  paddingBottom: Math.max(insets.bottom, 24),
+                },
+              ]}
+              onStartShouldSetResponder={() => true}
+            >
+              <ScrollView
+                style={styles.scrollView}
+                contentContainerStyle={styles.scrollContent}
+                keyboardShouldPersistTaps="handled"
+                showsVerticalScrollIndicator={false}
+                nestedScrollEnabled={true}
+              >
+                {/* Header */}
+                <View style={styles.header}>
+                  <View style={styles.headerLeft}>
+                    <View
+                      style={[
+                        styles.iconContainer,
+                        { backgroundColor: theme.colors.primary + '15' },
+                      ]}
+                    >
+                      <Sparkles size={24} color={theme.colors.primary} />
+                    </View>
+                    <Text
+                      style={[
+                        styles.title,
+                        { color: theme.colors.text },
+                        Typography.h4,
+                      ]}
+                    >
+                      {t('workouts.aiWorkoutPrompt.title')}
+                    </Text>
+                  </View>
+                  {!generating && (
+                    <TouchableOpacity
+                      onPress={handleClose}
+                      style={styles.closeButton}
+                    >
+                      <X size={24} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                  )}
                 </View>
+
+                {/* Description */}
                 <Text
                   style={[
-                    styles.title,
-                    { color: theme.colors.text },
-                    Typography.h4,
+                    styles.description,
+                    { color: theme.colors.textSecondary },
+                    Typography.bodyRegular,
                   ]}
                 >
-                  {t('workouts.aiWorkoutPrompt.title')}
+                  {t('workouts.aiWorkoutPrompt.description')}
                 </Text>
-              </View>
-              {!generating && (
-                <TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-                  <X size={24} color={theme.colors.textSecondary} />
-                </TouchableOpacity>
-              )}
-            </View>
 
-            {/* Description */}
-            <Text
-              style={[
-                styles.description,
-                { color: theme.colors.textSecondary },
-                Typography.bodyRegular,
-              ]}
-            >
-              {t('workouts.aiWorkoutPrompt.description')}
-            </Text>
-
-            {/* Examples */}
-            <View style={styles.examplesContainer}>
-              <Text
-                style={[
-                  styles.examplesTitle,
-                  { color: theme.colors.text },
-                  Typography.bodySmall,
-                ]}
-              >
-                {t('workouts.aiWorkoutPrompt.examples')}
-              </Text>
-              <View style={styles.examplesList}>
-                {[
-                  t('workouts.aiWorkoutPrompt.example1'),
-                  t('workouts.aiWorkoutPrompt.example2'),
-                  t('workouts.aiWorkoutPrompt.example3'),
-                ].map((example, index) => (
-                  <TouchableOpacity
-                    key={index}
+                {/* Examples */}
+                <View style={styles.examplesContainer}>
+                  <Text
                     style={[
-                      styles.exampleButton,
+                      styles.examplesTitle,
+                      { color: theme.colors.text },
+                      Typography.bodySmall,
+                    ]}
+                  >
+                    {t('workouts.aiWorkoutPrompt.examples')}
+                  </Text>
+                  <View style={styles.examplesList}>
+                    {[
+                      t('workouts.aiWorkoutPrompt.example1'),
+                      t('workouts.aiWorkoutPrompt.example2'),
+                      t('workouts.aiWorkoutPrompt.example3'),
+                    ].map((example, index) => (
+                      <TouchableOpacity
+                        key={index}
+                        style={[
+                          styles.exampleButton,
+                          {
+                            backgroundColor: theme.colors.background,
+                            borderColor: theme.colors.border,
+                          },
+                        ]}
+                        onPress={() => setCustomPrompt(example)}
+                        disabled={generating}
+                      >
+                        <Text
+                          style={[
+                            styles.exampleText,
+                            { color: theme.colors.textSecondary },
+                            Typography.caption,
+                          ]}
+                        >
+                          {example}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+
+                {/* Input */}
+                <View style={styles.inputContainer}>
+                  <TextInput
+                    style={[
+                      styles.input,
+                      {
+                        backgroundColor: theme.colors.background,
+                        borderColor: theme.colors.border,
+                        color: theme.colors.text,
+                      },
+                      Typography.bodyRegular,
+                    ]}
+                    placeholder={t('workouts.aiWorkoutPrompt.placeholder')}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    value={customPrompt}
+                    onChangeText={setCustomPrompt}
+                    multiline
+                    numberOfLines={4}
+                    editable={!generating}
+                    autoFocus
+                  />
+                  <Text
+                    style={[
+                      styles.inputHint,
+                      { color: theme.colors.textSecondary },
+                      Typography.caption,
+                    ]}
+                  >
+                    {t('workouts.aiWorkoutPrompt.hint')}
+                  </Text>
+                </View>
+              </ScrollView>
+
+              {/* Actions - Fixed at bottom */}
+              <View style={[styles.actions, { marginBottom: 0 }]}>
+                {!generating && (
+                  <TouchableOpacity
+                    style={[
+                      styles.cancelButton,
                       {
                         backgroundColor: theme.colors.background,
                         borderColor: theme.colors.border,
                       },
                     ]}
-                    onPress={() => setCustomPrompt(example)}
-                    disabled={generating}
+                    onPress={handleClose}
                   >
                     <Text
                       style={[
-                        styles.exampleText,
-                        { color: theme.colors.textSecondary },
-                        Typography.caption,
+                        styles.cancelButtonText,
+                        { color: theme.colors.text },
+                        Typography.bodyMedium,
                       ]}
                     >
-                      {example}
+                      {t('common.cancel')}
                     </Text>
                   </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Input */}
-            <View style={styles.inputContainer}>
-              <TextInput
-                style={[
-                  styles.input,
-                  {
-                    backgroundColor: theme.colors.background,
-                    borderColor: theme.colors.border,
-                    color: theme.colors.text,
-                  },
-                  Typography.bodyRegular,
-                ]}
-                placeholder={t('workouts.aiWorkoutPrompt.placeholder')}
-                placeholderTextColor={theme.colors.textSecondary}
-                value={customPrompt}
-                onChangeText={setCustomPrompt}
-                multiline
-                numberOfLines={4}
-                editable={!generating}
-                autoFocus
-              />
-              <Text
-                style={[
-                  styles.inputHint,
-                  { color: theme.colors.textSecondary },
-                  Typography.caption,
-                ]}
-              >
-                {t('workouts.aiWorkoutPrompt.hint')}
-              </Text>
-            </View>
-
-            {/* Actions */}
-            <View style={styles.actions}>
-              {!generating && (
+                )}
                 <TouchableOpacity
                   style={[
-                    styles.cancelButton,
+                    styles.generateButton,
                     {
-                      backgroundColor: theme.colors.background,
-                      borderColor: theme.colors.border,
+                      backgroundColor:
+                        customPrompt.trim() && !generating
+                          ? theme.colors.primary
+                          : theme.colors.border,
                     },
+                    !generating && styles.generateButtonFlex,
                   ]}
-                  onPress={handleClose}
+                  onPress={handleGenerate}
+                  disabled={!customPrompt.trim() || generating}
                 >
-                  <Text
-                    style={[
-                      styles.cancelButtonText,
-                      { color: theme.colors.text },
-                      Typography.bodyMedium,
-                    ]}
-                  >
-                    {t('common.cancel')}
-                  </Text>
+                  {generating ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.colors.textInverse}
+                    />
+                  ) : (
+                    <Text
+                      style={[
+                        styles.generateButtonText,
+                        { color: theme.colors.textInverse },
+                        Typography.bodyMedium,
+                      ]}
+                    >
+                      {t('workouts.aiWorkoutPrompt.generate')}
+                    </Text>
+                  )}
                 </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[
-                  styles.generateButton,
-                  {
-                    backgroundColor:
-                      customPrompt.trim() && !generating
-                        ? theme.colors.primary
-                        : theme.colors.border,
-                  },
-                  !generating && styles.generateButtonFlex,
-                ]}
-                onPress={handleGenerate}
-                disabled={!customPrompt.trim() || generating}
-              >
-                {generating ? (
-                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
-                ) : (
-                  <Text
-                    style={[
-                      styles.generateButtonText,
-                      { color: theme.colors.textInverse },
-                      Typography.bodyMedium,
-                    ]}
-                  >
-                    {t('workouts.aiWorkoutPrompt.generate')}
-                  </Text>
-                )}
-              </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        </View>
-      </KeyboardAvoidingView>
+          </KeyboardAvoidingView>
+        </TouchableOpacity>
+      </View>
     </Modal>
   );
 };
@@ -251,17 +277,31 @@ const styles = StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0,0,0,0.7)',
+  },
+  keyboardAvoidingView: {
+    width: '100%',
   },
   modalContent: {
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
+    minHeight: 600,
     padding: 24,
+    paddingTop: 24,
     maxHeight: '90%',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.25,
     shadowRadius: 12,
     elevation: 10,
+    justifyContent: 'space-between',
+  },
+  scrollView: {
+    flex: 1,
+    maxHeight: 400,
+  },
+  scrollContent: {
+    paddingBottom: 16,
   },
   header: {
     flexDirection: 'row',
@@ -330,6 +370,11 @@ const styles = StyleSheet.create({
   actions: {
     flexDirection: 'row',
     gap: 12,
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0, 0, 0, 0.1)',
+    zIndex: 10,
   },
   cancelButton: {
     flex: 1,
@@ -356,4 +401,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-

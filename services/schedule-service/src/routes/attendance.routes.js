@@ -21,6 +21,11 @@ router.post('/schedules/:schedule_id/attendance/check-out', (req, res) =>
   attendanceController.memberCheckOut(req, res)
 );
 
+// IMPROVEMENT: Checkout confirmation route
+router.post('/schedules/:schedule_id/attendance/check-out/confirm', (req, res) =>
+  attendanceController.confirmCheckout(req, res)
+);
+
 // Trainer manual check-in/check-out routes
 router.post('/schedules/:schedule_id/attendance/:member_id/check-in', (req, res) =>
   attendanceController.trainerCheckInMember(req, res)
@@ -38,6 +43,22 @@ router.post('/schedules/:schedule_id/attendance/checkout-all', (req, res) =>
 // Status and info routes
 router.get('/schedules/:schedule_id/check-in/status', (req, res) =>
   attendanceController.getCheckInStatus(req, res)
+);
+
+// QR Code routes
+// Trainer generates QR code for check-in/check-out
+router.post('/schedules/:schedule_id/qr-code', (req, res) =>
+  attendanceController.generateScheduleQRCode(req, res)
+);
+
+// Member scans QR code to check-in/check-out
+router.post('/qr-scan', (req, res) =>
+  attendanceController.scanQRCodeCheckInOut(req, res)
+);
+
+// Submit rating for class and trainer
+router.post('/schedules/:schedule_id/attendance/:member_id/rating', (req, res) =>
+  attendanceController.submitRating(req, res)
 );
 
 module.exports = router;

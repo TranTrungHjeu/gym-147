@@ -1,6 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Save, CheckCircle, AlertCircle, Award, Sparkles, Brain, Edit2, Lock, FileText } from 'lucide-react';
-import { certificationService, CreateCertificationData, AIScanResult, UploadResult } from '../../services/certification.service';
+import {
+  Plus,
+  Save,
+  CheckCircle,
+  AlertCircle,
+  Award,
+  Sparkles,
+  Brain,
+  Edit2,
+  Lock,
+  FileText,
+} from 'lucide-react';
+import useTranslation from '../../hooks/useTranslation';
+import {
+  certificationService,
+  CreateCertificationData,
+  AIScanResult,
+  UploadResult,
+} from '../../services/certification.service';
 import CertificationUpload from './CertificationUpload';
 import ManualCertificationUpload from './ManualCertificationUpload';
 import Modal from '../Modal/Modal';
@@ -21,25 +38,7 @@ interface AddCertificationModalProps {
   onSuccess: () => void;
 }
 
-const CATEGORIES = [
-  { value: 'CARDIO', label: 'Tim mạch' },
-  { value: 'STRENGTH', label: 'Sức mạnh' },
-  { value: 'YOGA', label: 'Yoga' },
-  { value: 'PILATES', label: 'Pilates' },
-  { value: 'DANCE', label: 'Khiêu vũ' },
-  { value: 'MARTIAL_ARTS', label: 'Võ thuật' },
-  { value: 'AQUA', label: 'Bơi lội' },
-  { value: 'FUNCTIONAL', label: 'Chức năng' },
-  { value: 'RECOVERY', label: 'Phục hồi' },
-  { value: 'SPECIALIZED', label: 'Chuyên biệt' },
-];
-
-const LEVELS = [
-  { value: 'BASIC', label: 'Cơ bản' },
-  { value: 'INTERMEDIATE', label: 'Trung cấp' },
-  { value: 'ADVANCED', label: 'Nâng cao' },
-  { value: 'EXPERT', label: 'Chuyên gia' }
-];
+// CATEGORIES và LEVELS sẽ được tạo trong component để có access đến t()
 
 const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   isOpen,
@@ -47,7 +46,28 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   trainerId,
   onSuccess,
 }) => {
+  const { t } = useTranslation();
   const { showToast } = useToast();
+
+  const CATEGORIES = [
+    { value: 'CARDIO', label: t('addCertificationModal.categories.cardio') },
+    { value: 'STRENGTH', label: t('addCertificationModal.categories.strength') },
+    { value: 'YOGA', label: t('addCertificationModal.categories.yoga') },
+    { value: 'PILATES', label: t('addCertificationModal.categories.pilates') },
+    { value: 'DANCE', label: t('addCertificationModal.categories.dance') },
+    { value: 'MARTIAL_ARTS', label: t('addCertificationModal.categories.martialArts') },
+    { value: 'AQUA', label: t('addCertificationModal.categories.aqua') },
+    { value: 'FUNCTIONAL', label: t('addCertificationModal.categories.functional') },
+    { value: 'RECOVERY', label: t('addCertificationModal.categories.recovery') },
+    { value: 'SPECIALIZED', label: t('addCertificationModal.categories.specialized') },
+  ];
+
+  const LEVELS = [
+    { value: 'BASIC', label: t('addCertificationModal.levels.basic') },
+    { value: 'INTERMEDIATE', label: t('addCertificationModal.levels.intermediate') },
+    { value: 'ADVANCED', label: t('addCertificationModal.levels.advanced') },
+    { value: 'EXPERT', label: t('addCertificationModal.levels.expert') },
+  ];
   const [formData, setFormData] = useState<CreateCertificationData>({
     category: '',
     certification_name: '',
@@ -68,11 +88,11 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   const [autoFilled, setAutoFilled] = useState(false);
   const [fieldsLocked, setFieldsLocked] = useState(false); // Lock fields when AI auto-fills
   const [activeTab, setActiveTab] = useState<'ai' | 'manual'>('ai'); // Tab state: 'ai' or 'manual'
-  
+
   // Determine if fields should be disabled
   // In AI tab: disable fields until file is uploaded and scanned (or user unlocks)
   // In manual tab: fields are always enabled
-  const areFieldsDisabled = activeTab === 'ai' ? (fieldsLocked || !scanResult) : false;
+  const areFieldsDisabled = activeTab === 'ai' ? fieldsLocked || !scanResult : false;
 
   useEffect(() => {
     if (isOpen) {
@@ -134,19 +154,19 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   // Helper function to normalize date input (handle DD/MM/YYYY format)
   const normalizeDateInput = (dateStr: string): string => {
     if (!dateStr) return '';
-    
+
     // If input is in format DD/MM/YYYY or DD-MM-YYYY, convert to YYYY-MM-DD
     const dateMatch = dateStr.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
     if (dateMatch) {
       const [, day, month, year] = dateMatch;
       return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
     }
-    
+
     // If already in YYYY-MM-DD format, return as is
     if (dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
       return dateStr;
     }
-    
+
     // Try to parse as date and convert to YYYY-MM-DD
     try {
       const date = new Date(dateStr);
@@ -160,7 +180,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     } catch (error) {
       // Ignore parsing errors
     }
-    
+
     return dateStr;
   };
 
@@ -170,7 +190,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     if ((field === 'issued_date' || field === 'expiration_date') && value) {
       normalizedValue = normalizeDateInput(value);
     }
-    
+
     setFormData(prev => ({
       ...prev,
       [field]: normalizedValue,
@@ -185,17 +205,17 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     const newErrors: Record<string, string> = {};
 
     if (!formData.category) {
-      newErrors.category = 'Danh mục là bắt buộc';
+      newErrors.category = t('addCertificationModal.validation.categoryRequired');
     }
 
     if (!formData.certification_name || formData.certification_name.trim().length === 0) {
-      newErrors.certification_name = 'Tên chứng chỉ là bắt buộc';
+      newErrors.certification_name = t('addCertificationModal.validation.nameRequired');
     } else if (formData.certification_name.length < 3) {
-      newErrors.certification_name = 'Tên chứng chỉ phải có ít nhất 3 ký tự';
+      newErrors.certification_name = t('addCertificationModal.validation.nameMinLength');
     }
 
     if (!formData.certification_issuer || formData.certification_issuer.trim().length === 0) {
-      newErrors.certification_issuer = 'Tổ chức cấp chứng chỉ là bắt buộc';
+      newErrors.certification_issuer = t('addCertificationModal.validation.issuerRequired');
     }
 
     // Helper function to get current date in Vietnam timezone (GMT+7) - date only (no time)
@@ -206,33 +226,36 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     // Helper function to parse date string in Vietnam timezone - date only (no time)
     const parseDateVietnam = (dateStr: string) => {
       if (!dateStr) return null;
-      
+
       try {
         // Normalize date string first
         const normalized = normalizeDateInput(dateStr);
-        
+
         // Parse as date in Vietnam timezone
         // If format is YYYY-MM-DD, parse it as Vietnam timezone at 00:00:00
         if (/^\d{4}-\d{2}-\d{2}$/.test(normalized)) {
           const [year, month, day] = normalized.split('-').map(Number);
-          const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+          const vnDate = dayjs.tz(
+            `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`,
+            'Asia/Ho_Chi_Minh'
+          );
           if (vnDate.isValid()) {
             return vnDate.startOf('day');
           }
         }
-        
+
         // Try parsing as-is
         const vnDate = dayjs.tz(normalized, 'Asia/Ho_Chi_Minh');
         if (vnDate.isValid()) {
           return vnDate.startOf('day');
         }
-        
+
         // Try parsing as UTC, then convert to Vietnam timezone
         const utcDate = dayjs.utc(normalized);
         if (utcDate.isValid()) {
           return utcDate.tz('Asia/Ho_Chi_Minh').startOf('day');
         }
-        
+
         return null;
       } catch (error) {
         return null;
@@ -240,18 +263,21 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     };
 
     if (!formData.issued_date) {
-      newErrors.issued_date = 'Ngày cấp là bắt buộc';
+      newErrors.issued_date = t('addCertificationModal.validation.issuedDateRequired');
     } else {
       const issuedDateVietnam = parseDateVietnam(formData.issued_date);
       if (!issuedDateVietnam || !issuedDateVietnam.isValid()) {
-        newErrors.issued_date = 'Ngày cấp không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)';
+        newErrors.issued_date = t('addCertificationModal.validation.issuedDateInvalid');
       } else {
         const nowVietnam = getVietnamDateOnly();
         // Compare dates only (not time) in Vietnam timezone
         if (issuedDateVietnam.isAfter(nowVietnam)) {
           const issuedDateStr = issuedDateVietnam.format('DD/MM/YYYY');
           const todayStr = nowVietnam.format('DD/MM/YYYY');
-          newErrors.issued_date = `Ngày cấp (${issuedDateStr}) không được là ngày tương lai (hôm nay là ${todayStr} theo giờ Việt Nam)`;
+          newErrors.issued_date = t('addCertificationModal.validation.issuedDateFuture', {
+            issuedDate: issuedDateStr,
+            today: todayStr,
+          });
         }
       }
     }
@@ -259,29 +285,38 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     if (formData.expiration_date) {
       const expirationDateVietnam = parseDateVietnam(formData.expiration_date);
       if (!expirationDateVietnam || !expirationDateVietnam.isValid()) {
-        newErrors.expiration_date = 'Ngày hết hạn không hợp lệ. Vui lòng nhập đúng định dạng (DD/MM/YYYY hoặc YYYY-MM-DD)';
+        newErrors.expiration_date = t('addCertificationModal.validation.expirationDateInvalid');
       } else {
         const nowVietnam = getVietnamDateOnly();
-        
+
         // Check if expiration_date is after issued_date
         if (formData.issued_date) {
           const issuedDateVietnam = parseDateVietnam(formData.issued_date);
           if (issuedDateVietnam && issuedDateVietnam.isValid()) {
             // Use isBefore or isSame instead of isSameOrBefore if plugin not available
-            if (expirationDateVietnam.isBefore(issuedDateVietnam) || expirationDateVietnam.isSame(issuedDateVietnam)) {
+            if (
+              expirationDateVietnam.isBefore(issuedDateVietnam) ||
+              expirationDateVietnam.isSame(issuedDateVietnam)
+            ) {
               const expirationDateStr = expirationDateVietnam.format('DD/MM/YYYY');
               const issuedDateStr = issuedDateVietnam.format('DD/MM/YYYY');
-              newErrors.expiration_date = `Ngày hết hạn (${expirationDateStr}) phải sau ngày cấp (${issuedDateStr})`;
+              newErrors.expiration_date = t(
+                'addCertificationModal.validation.expirationDateBeforeIssued',
+                { expirationDate: expirationDateStr, issuedDate: issuedDateStr }
+              );
             }
           }
         }
-        
+
         // Check if expiration_date is in the past (certification already expired)
         // Compare dates only (not time) in Vietnam timezone
         if (expirationDateVietnam.isBefore(nowVietnam)) {
           const expirationDateStr = expirationDateVietnam.format('DD/MM/YYYY');
           const todayStr = nowVietnam.format('DD/MM/YYYY');
-          newErrors.expiration_date = `Chứng chỉ đã hết hạn. Ngày hết hạn (${expirationDateStr}) đã qua (hôm nay là ${todayStr} theo giờ Việt Nam)`;
+          newErrors.expiration_date = t('addCertificationModal.validation.expirationDateExpired', {
+            expirationDate: expirationDateStr,
+            today: todayStr,
+          });
         }
       }
     }
@@ -294,21 +329,21 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
   const handleManualUploadComplete = (upload: UploadResult) => {
     setUploadResult(upload);
     setScanResult(null); // No AI scan for manual entry
-    
+
     // Clear all errors and reset submitted state
     setErrors({});
     setHasSubmitted(false);
-    
+
     // Set file URL in form data - use publicUrl if available, otherwise use url
     const fileUrl = upload.publicUrl || upload.url;
     setFormData(prev => ({
       ...prev,
       certificate_file_url: fileUrl,
     }));
-    
+
     // Show success toast
     showToast({
-      message: 'Đã tải lên chứng chỉ thành công',
+      message: t('addCertificationModal.messages.uploadSuccess'),
       type: 'success',
       duration: 3000,
     });
@@ -319,23 +354,23 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
     setUploadResult(upload);
     // Don't set scanResult to hide the AI verification card
     // We'll use scan parameter directly for auto-submit
-    
+
     // Clear all errors and reset submitted state - no validation when uploading file
     setErrors({});
     setHasSubmitted(false);
-    
+
     // Auto-fill form fields from AI extracted data
     if (scan.extractedData) {
       const extracted = scan.extractedData;
       let hasFilled = false;
-      
+
       setFormData(prev => {
         // Determine certification_level: always use extracted value if available (since default is BASIC)
         const defaultLevel = 'BASIC';
-        const finalLevel = extracted.certification_level 
+        const finalLevel = extracted.certification_level
           ? (extracted.certification_level as 'BASIC' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT')
           : prev.certification_level || defaultLevel;
-        
+
         // Normalize date format if needed
         const normalizeDate = (dateStr: string | null | undefined): string => {
           if (!dateStr) return '';
@@ -356,49 +391,60 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         const normalizeCategory = (categoryStr: string | null | undefined): string => {
           if (!categoryStr) return '';
           const upperCategory = categoryStr.toUpperCase().trim();
-          
+
           // Direct enum match
-          const validCategories = ['CARDIO', 'STRENGTH', 'YOGA', 'PILATES', 'DANCE', 'MARTIAL_ARTS', 'AQUA', 'FUNCTIONAL', 'RECOVERY', 'SPECIALIZED'];
+          const validCategories = [
+            'CARDIO',
+            'STRENGTH',
+            'YOGA',
+            'PILATES',
+            'DANCE',
+            'MARTIAL_ARTS',
+            'AQUA',
+            'FUNCTIONAL',
+            'RECOVERY',
+            'SPECIALIZED',
+          ];
           if (validCategories.includes(upperCategory)) {
             return upperCategory;
           }
-          
+
           // Map Vietnamese and alternative names
           const categoryMap: Record<string, string> = {
             'TIM MẠCH': 'CARDIO',
-            'CARDIO': 'CARDIO',
-            'CARDIOVASCULAR': 'CARDIO',
+            CARDIO: 'CARDIO',
+            CARDIOVASCULAR: 'CARDIO',
             'SỨC MẠNH': 'STRENGTH',
-            'STRENGTH': 'STRENGTH',
-            'BODYBUILDING': 'STRENGTH',
-            'WEIGHTLIFTING': 'STRENGTH',
-            'YOGA': 'YOGA',
-            'PILATES': 'PILATES',
+            STRENGTH: 'STRENGTH',
+            BODYBUILDING: 'STRENGTH',
+            WEIGHTLIFTING: 'STRENGTH',
+            YOGA: 'YOGA',
+            PILATES: 'PILATES',
             'KHIÊU VŨ': 'DANCE',
-            'DANCE': 'DANCE',
-            'DANCING': 'DANCE',
+            DANCE: 'DANCE',
+            DANCING: 'DANCE',
             'VÕ THUẬT': 'MARTIAL_ARTS',
             'MARTIAL ARTS': 'MARTIAL_ARTS',
-            'MARTIAL_ARTS': 'MARTIAL_ARTS',
-            'BOXING': 'MARTIAL_ARTS',
+            MARTIAL_ARTS: 'MARTIAL_ARTS',
+            BOXING: 'MARTIAL_ARTS',
             'MUAY THAI': 'MARTIAL_ARTS',
-            'KARATE': 'MARTIAL_ARTS',
-            'TAEKWONDO': 'MARTIAL_ARTS',
+            KARATE: 'MARTIAL_ARTS',
+            TAEKWONDO: 'MARTIAL_ARTS',
             'THỦY SINH': 'AQUA',
-            'AQUA': 'AQUA',
-            'SWIMMING': 'AQUA',
+            AQUA: 'AQUA',
+            SWIMMING: 'AQUA',
             'BƠI LỘI': 'AQUA',
             'CHỨC NĂNG': 'FUNCTIONAL',
-            'FUNCTIONAL': 'FUNCTIONAL',
+            FUNCTIONAL: 'FUNCTIONAL',
             'FUNCTIONAL TRAINING': 'FUNCTIONAL',
             'PHỤC HỒI': 'RECOVERY',
-            'RECOVERY': 'RECOVERY',
-            'REHABILITATION': 'RECOVERY',
+            RECOVERY: 'RECOVERY',
+            REHABILITATION: 'RECOVERY',
             'CHUYÊN BIỆT': 'SPECIALIZED',
-            'SPECIALIZED': 'SPECIALIZED',
-            'OTHER': 'SPECIALIZED',
+            SPECIALIZED: 'SPECIALIZED',
+            OTHER: 'SPECIALIZED',
           };
-          
+
           return categoryMap[upperCategory] || '';
         };
 
@@ -418,31 +464,32 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
           // Always use extracted expiration_date if available, even if prev has value (since expiration_date is optional)
           expiration_date: normalizedExpirationDate || prev.expiration_date || '',
         };
-        
+
         // Check if any field was auto-filled
         hasFilled = !!(
           (normalizedCategory && normalizedCategory !== prev.category) ||
           (!prev.certification_name && extracted.certification_name) ||
           (!prev.certification_issuer && extracted.certification_issuer) ||
-          (extracted.certification_level && extracted.certification_level !== prev.certification_level) ||
+          (extracted.certification_level &&
+            extracted.certification_level !== prev.certification_level) ||
           (!prev.issued_date && normalizedIssuedDate) ||
           (!prev.expiration_date && normalizedExpirationDate)
         );
-        
+
         return newData;
       });
-      
+
       // Clear errors again after auto-fill to ensure no validation errors show
       setTimeout(() => {
         setErrors({});
         setHasSubmitted(false);
       }, 0);
-      
+
       if (hasFilled) {
         setAutoFilled(true);
         setFieldsLocked(true); // Lock fields when AI auto-fills
         showToast({
-          message: 'Đã tự động điền thông tin từ chứng chỉ. Các trường đã bị khóa để đảm bảo tính chính xác.',
+          message: t('addCertificationModal.messages.autoFillSuccess'),
           type: 'success',
           duration: 4000,
         });
@@ -458,16 +505,16 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         setHasSubmitted(false);
       }, 0);
     }
-    
+
     // Show toast for successful scan after all processing is done
     setTimeout(() => {
       showToast({
-        message: 'Đã quét chứng chỉ thành công',
+        message: t('addCertificationModal.messages.scanSuccess'),
         type: 'success',
         duration: 3000,
       });
     }, 200);
-    
+
     // Auto-submit form after AI scan completes
     // Wait a bit for form fields to be populated
     setTimeout(async () => {
@@ -480,14 +527,17 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             aiScanResult: scan,
             skipAiScan: false,
           };
-          
-          const createdCert = await certificationService.createCertification(trainerId, dataToSubmit);
+
+          const createdCert = await certificationService.createCertification(
+            trainerId,
+            dataToSubmit
+          );
           showToast({
-            message: 'Tạo chứng chỉ thành công',
+            message: t('addCertificationModal.messages.createSuccess'),
             type: 'success',
             duration: 3000,
           });
-          
+
           // Optimistic update: Dispatch event immediately for instant UI update
           const createdEvent = new CustomEvent('certification:created', {
             detail: {
@@ -509,45 +559,50 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             bubbles: true,
             cancelable: true,
           });
-          
+
           // Dispatch on both window and document for better compatibility
           const dispatchedWindow = window.dispatchEvent(createdEvent);
-          const dispatchedDocument = document.dispatchEvent(new CustomEvent('certification:created', {
-            detail: createdEvent.detail,
-            bubbles: true,
-            cancelable: true,
-          }));
-          
-          console.log(`[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`, {
-            trainer_id: createdCert.trainer_id,
-            certification_id: createdCert.id,
-            verification_status: createdCert.verification_status,
-            dispatched_window: dispatchedWindow,
-            dispatched_document: dispatchedDocument,
-            event_detail: createdEvent.detail
-          });
-          
+          const dispatchedDocument = document.dispatchEvent(
+            new CustomEvent('certification:created', {
+              detail: createdEvent.detail,
+              bubbles: true,
+              cancelable: true,
+            })
+          );
+
+          console.log(
+            `[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`,
+            {
+              trainer_id: createdCert.trainer_id,
+              certification_id: createdCert.id,
+              verification_status: createdCert.verification_status,
+              dispatched_window: dispatchedWindow,
+              dispatched_document: dispatchedDocument,
+              event_detail: createdEvent.detail,
+            }
+          );
+
           // Reset submitting state before closing modal
           setIsSubmitting(false);
-          
+
           onSuccess();
           setTimeout(() => {
             onClose();
           }, 100);
         } catch (error: any) {
           console.error('Error creating certification:', error);
-          
-          const errorMessage = 
-            error?.response?.data?.message || 
-            error?.message || 
-            'Có lỗi xảy ra khi tạo chứng chỉ. Vui lòng thử lại.';
-          
+
+          const errorMessage =
+            error?.response?.data?.message ||
+            error?.message ||
+            t('addCertificationModal.errors.createFailed');
+
           showToast({
             message: errorMessage,
             type: 'error',
             duration: 5000,
           });
-          
+
           setIsSubmitting(false);
         }
       }
@@ -573,7 +628,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Mark form as submitted to show errors
     setHasSubmitted(true);
 
@@ -592,67 +647,72 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         // Flag to skip AI scan for manual entry
         skipAiScan: activeTab === 'manual',
       };
-      
-          const createdCert = await certificationService.createCertification(trainerId, dataToSubmit);
-          showToast({
-            message: 'Tạo chứng chỉ thành công',
-            type: 'success',
-            duration: 3000,
-          });
-          
-          // Optimistic update: Dispatch event immediately for instant UI update
-          const createdEvent = new CustomEvent('certification:created', {
-            detail: {
-              id: createdCert.id,
-              certification_id: createdCert.id,
-              trainer_id: createdCert.trainer_id,
-              category: createdCert.category,
-              certification_name: createdCert.certification_name,
-              certification_issuer: createdCert.certification_issuer,
-              certification_level: createdCert.certification_level,
-              issued_date: createdCert.issued_date,
-              expiration_date: createdCert.expiration_date,
-              verification_status: createdCert.verification_status,
-              certificate_file_url: createdCert.certificate_file_url,
-              is_active: createdCert.is_active,
-              created_at: createdCert.created_at,
-              updated_at: createdCert.updated_at,
-            },
-          });
-          
-          // Dispatch on both window and document for better compatibility
-          const dispatchedWindow = window.dispatchEvent(createdEvent);
-          const dispatchedDocument = document.dispatchEvent(new CustomEvent('certification:created', {
-            detail: createdEvent.detail,
-            bubbles: true,
-            cancelable: true,
-          }));
-          
-          console.log(`[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`, {
-            trainer_id: createdCert.trainer_id,
-            certification_id: createdCert.id,
-            verification_status: createdCert.verification_status,
-            dispatched_window: dispatchedWindow,
-            dispatched_document: dispatchedDocument,
-            event_detail: createdEvent.detail
-          });
-          
-          // Reset submitting state before closing modal
-          setIsSubmitting(false);
-          
-          onSuccess();
-          setTimeout(() => {
-            onClose();
-          }, 100);
+
+      const createdCert = await certificationService.createCertification(trainerId, dataToSubmit);
+      showToast({
+        message: t('addCertificationModal.messages.createSuccess'),
+        type: 'success',
+        duration: 3000,
+      });
+
+      // Optimistic update: Dispatch event immediately for instant UI update
+      const createdEvent = new CustomEvent('certification:created', {
+        detail: {
+          id: createdCert.id,
+          certification_id: createdCert.id,
+          trainer_id: createdCert.trainer_id,
+          category: createdCert.category,
+          certification_name: createdCert.certification_name,
+          certification_issuer: createdCert.certification_issuer,
+          certification_level: createdCert.certification_level,
+          issued_date: createdCert.issued_date,
+          expiration_date: createdCert.expiration_date,
+          verification_status: createdCert.verification_status,
+          certificate_file_url: createdCert.certificate_file_url,
+          is_active: createdCert.is_active,
+          created_at: createdCert.created_at,
+          updated_at: createdCert.updated_at,
+        },
+      });
+
+      // Dispatch on both window and document for better compatibility
+      const dispatchedWindow = window.dispatchEvent(createdEvent);
+      const dispatchedDocument = document.dispatchEvent(
+        new CustomEvent('certification:created', {
+          detail: createdEvent.detail,
+          bubbles: true,
+          cancelable: true,
+        })
+      );
+
+      console.log(
+        `[SUCCESS] [ADD_CERT_MODAL] [STAR] Dispatched optimistic certification:created event for ${createdCert.id}`,
+        {
+          trainer_id: createdCert.trainer_id,
+          certification_id: createdCert.id,
+          verification_status: createdCert.verification_status,
+          dispatched_window: dispatchedWindow,
+          dispatched_document: dispatchedDocument,
+          event_detail: createdEvent.detail,
+        }
+      );
+
+      // Reset submitting state before closing modal
+      setIsSubmitting(false);
+
+      onSuccess();
+      setTimeout(() => {
+        onClose();
+      }, 100);
     } catch (error: any) {
       console.error('Error creating certification:', error);
-      
+
       // Extract error message from response
-      const errorMessage = 
-        error?.response?.data?.message || 
-        error?.message || 
+      const errorMessage =
+        error?.response?.data?.message ||
+        error?.message ||
         'Có lỗi xảy ra khi tạo chứng chỉ. Vui lòng thử lại.';
-      
+
       // Show error toast with message from backend
       // This includes validation errors like "Đã có chứng chỉ X đã được xác thực cho Y. Chỉ chấp nhận cấp độ cao hơn."
       showToast({
@@ -660,7 +720,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         type: 'error',
         duration: 5000, // Show for 5 seconds for validation errors
       });
-      
+
       // Reset submitting state
       setIsSubmitting(false);
     }
@@ -668,27 +728,27 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
 
   const getVerificationStatus = () => {
     if (!scanResult) return null;
-    
+
     if (scanResult.hasRedSeal && scanResult.confidence > 0.7) {
       return {
         status: 'verified',
-        icon: <CheckCircle className="w-5 h-5 text-green-500" />,
-        text: 'Sẽ được xác thực tự động',
-        color: 'text-green-600'
+        icon: <CheckCircle className='w-5 h-5 text-green-500' />,
+        text: t('addCertificationModal.verification.autoVerified'),
+        color: 'text-green-600',
       };
     } else if (scanResult.hasRedSeal && scanResult.confidence > 0.4) {
       return {
         status: 'pending',
-        icon: <AlertCircle className="w-5 h-5 text-yellow-500" />,
-        text: 'Cần xem xét thủ công',
-        color: 'text-yellow-600'
+        icon: <AlertCircle className='w-5 h-5 text-yellow-500' />,
+        text: t('addCertificationModal.verification.manualReview'),
+        color: 'text-yellow-600',
       };
     } else {
       return {
         status: 'pending',
-        icon: <AlertCircle className="w-5 h-5 text-orange-500" />,
-        text: 'Cần xem xét thủ công',
-        color: 'text-orange-600'
+        icon: <AlertCircle className='w-5 h-5 text-orange-500' />,
+        text: t('addCertificationModal.verification.manualReview'),
+        color: 'text-orange-600',
       };
     }
   };
@@ -703,10 +763,10 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
             </div>
             <h2 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
-              Thêm chứng chỉ mới
+              {t('addCertificationModal.title')}
             </h2>
           </div>
-          
+
           {/* Tabs */}
           <div className='flex gap-2 border-b border-orange-200 dark:border-orange-700'>
             <button
@@ -719,7 +779,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               }`}
             >
               <Sparkles className='w-4 h-4' />
-              <span>Quét bằng AI</span>
+              <span>{t('addCertificationModal.tabs.aiScan')}</span>
             </button>
             <button
               type='button'
@@ -731,7 +791,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               }`}
             >
               <FileText className='w-4 h-4' />
-              <span>Nhập thủ công</span>
+              <span>{t('addCertificationModal.tabs.manual')}</span>
             </button>
           </div>
         </div>
@@ -778,7 +838,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   onClick={() => {
                     setFieldsLocked(false);
                     showToast({
-                      message: 'Đã mở khóa các trường. Bạn có thể chỉnh sửa thông tin.',
+                      message: t('addCertificationModal.messages.fieldsUnlocked'),
                       type: 'info',
                       duration: 3000,
                     });
@@ -786,17 +846,16 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   className='inline-flex items-center justify-center gap-2 min-w-[120px] h-9 px-4 py-2 text-[11px] font-semibold font-heading text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
                 >
                   <Edit2 className='w-3.5 h-3.5 flex-shrink-0' />
-                  <span>Chỉnh sửa</span>
+                  <span>{t('addCertificationModal.edit')}</span>
                 </button>
               </div>
             )}
-
 
             <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                    Danh mục *
+                    {t('addCertificationModal.form.category')} *
                   </label>
                   {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0' />
@@ -806,7 +865,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   options={CATEGORIES}
                   value={formData.category}
                   onChange={value => handleInputChange('category', value)}
-                  placeholder='Chọn danh mục'
+                  placeholder={t('addCertificationModal.form.categoryPlaceholder')}
                   className='font-inter'
                   disabled={areFieldsDisabled}
                 />
@@ -820,7 +879,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                    Cấp độ chứng chỉ *
+                    {t('addCertificationModal.form.level')} *
                   </label>
                   {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400 flex-shrink-0' />
@@ -829,8 +888,13 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 <CustomSelect
                   options={LEVELS}
                   value={formData.certification_level}
-                  onChange={value => handleInputChange('certification_level', value as 'BASIC' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT')}
-                  placeholder='Chọn cấp độ'
+                  onChange={value =>
+                    handleInputChange(
+                      'certification_level',
+                      value as 'BASIC' | 'INTERMEDIATE' | 'ADVANCED' | 'EXPERT'
+                    )
+                  }
+                  placeholder={t('addCertificationModal.form.levelPlaceholder')}
                   className='font-inter'
                   disabled={areFieldsDisabled}
                 />
@@ -840,7 +904,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             <div>
               <div className='flex items-center justify-between mb-2'>
                 <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Tên chứng chỉ *
+                  {t('addCertificationModal.form.name')} *
                 </label>
                 {areFieldsDisabled && (
                   <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
@@ -850,7 +914,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 type='text'
                 value={formData.certification_name || ''}
                 onChange={e => handleInputChange('certification_name', e.target.value)}
-                placeholder='Ví dụ: Yoga Alliance RYT-500'
+                placeholder={t('addCertificationModal.form.namePlaceholder')}
                 disabled={areFieldsDisabled}
                 className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
                   areFieldsDisabled
@@ -874,7 +938,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
             <div>
               <div className='flex items-center justify-between mb-2'>
                 <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                  Tổ chức cấp chứng chỉ *
+                  {t('addCertificationModal.form.issuer')} *
                 </label>
                 {areFieldsDisabled && (
                   <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
@@ -884,7 +948,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 type='text'
                 value={formData.certification_issuer || ''}
                 onChange={e => handleInputChange('certification_issuer', e.target.value)}
-                placeholder='Ví dụ: Yoga Alliance International'
+                placeholder={t('addCertificationModal.form.issuerPlaceholder')}
                 disabled={areFieldsDisabled}
                 className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
                   areFieldsDisabled
@@ -909,7 +973,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                    Ngày cấp *
+                    {t('addCertificationModal.form.issuedDate')} *
                   </label>
                   {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
@@ -952,7 +1016,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               <div>
                 <div className='flex items-center justify-between mb-2'>
                   <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
-                    Ngày hết hạn
+                    {t('addCertificationModal.form.expirationDate')}
                   </label>
                   {areFieldsDisabled && (
                     <Lock className='w-3.5 h-3.5 text-purple-600 dark:text-purple-400' />
@@ -997,7 +1061,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
           {/* File Upload Section */}
           <div className='min-h-[200px]'>
             <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-3'>
-              Upload chứng chỉ
+              {t('addCertificationModal.form.upload')}
             </label>
             <div className='min-h-[200px]'>
               {activeTab === 'ai' ? (
@@ -1009,7 +1073,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                     setHasSubmitted(false);
                     handleUploadComplete(upload, scan);
                   }}
-                  onUploadError={(error) => {
+                  onUploadError={error => {
                     // Clear all validation errors, only show file error
                     setErrors({ certificate_file: error });
                     setHasSubmitted(false);
@@ -1023,13 +1087,13 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               ) : (
                 <ManualCertificationUpload
                   trainerId={trainerId}
-                  onUploadComplete={(upload) => {
+                  onUploadComplete={upload => {
                     // Clear all errors and reset submitted state before handling upload complete
                     setErrors({});
                     setHasSubmitted(false);
                     handleManualUploadComplete(upload);
                   }}
-                  onUploadError={(error) => {
+                  onUploadError={error => {
                     // Clear all validation errors, only show file error
                     setErrors({ certificate_file: error });
                     setHasSubmitted(false);
@@ -1051,10 +1115,10 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 <CheckCircle className='w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5' />
                 <div className='flex-1'>
                   <p className='text-[11px] font-medium text-green-800 dark:text-green-300 font-heading mb-1'>
-                    Đã tự động điền thông tin từ chứng chỉ
+                    {t('addCertificationModal.autoFill.title')}
                   </p>
                   <p className='text-[10px] text-green-700 dark:text-green-400 font-inter'>
-                    Vui lòng kiểm tra và chỉnh sửa nếu cần thiết
+                    {t('addCertificationModal.autoFill.message')}
                   </p>
                 </div>
               </div>
@@ -1071,23 +1135,29 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
               disabled={isSubmitting}
               className='inline-flex items-center justify-center min-w-[100px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
-              <span>Hủy</span>
+              <span>{t('common.cancel')}</span>
             </button>
             <button
               type='submit'
               onClick={handleSubmit}
-              disabled={isSubmitting || !formData.category || !formData.certification_name || !formData.certification_issuer || !formData.issued_date}
+              disabled={
+                isSubmitting ||
+                !formData.category ||
+                !formData.certification_name ||
+                !formData.certification_issuer ||
+                !formData.issued_date
+              }
               className='inline-flex items-center justify-center gap-2 min-w-[140px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
               {isSubmitting ? (
                 <>
                   <ButtonSpinner />
-                  <span>Đang tạo...</span>
+                  <span>{t('addCertificationModal.creating')}</span>
                 </>
               ) : (
                 <>
                   <Save className='w-4 h-4 flex-shrink-0' />
-                  <span>Tạo chứng chỉ</span>
+                  <span>{t('addCertificationModal.create')}</span>
                 </>
               )}
             </button>

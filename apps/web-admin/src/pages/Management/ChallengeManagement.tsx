@@ -19,6 +19,7 @@ import ExportButton from '../../components/common/ExportButton';
 import Pagination from '../../components/common/Pagination';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../context/ToastContext';
+import useTranslation from '../../hooks/useTranslation';
 import challengeService, {
   Challenge,
   CreateChallengeRequest,
@@ -28,6 +29,7 @@ import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const ChallengeManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [challenges, setChallenges] = useState<Challenge[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -70,7 +72,7 @@ const ChallengeManagement: React.FC = () => {
         setChallenges(challengesList);
       }
     } catch (error: any) {
-      showToast({ message: 'Không thể tải danh sách thử thách', type: 'error' });
+      showToast({ message: t('challengeManagement.messages.loadError'), type: 'error' });
       console.error('Error loading challenges:', error);
       setChallenges([]);
     } finally {
@@ -81,7 +83,6 @@ const ChallengeManagement: React.FC = () => {
   useEffect(() => {
     loadChallenges();
   }, [loadChallenges]);
-
 
   // Client-side filtering - no API call needed
   const filteredChallenges = useMemo(() => {
@@ -180,13 +181,24 @@ const ChallengeManagement: React.FC = () => {
       setIsDeleting(true);
       const response = await challengeService.deleteChallenge(challengeToDelete.id);
       if (response.success) {
-        showToast({ message: `Xóa thử thách "${challengeToDelete.title}" thành công!`, type: 'success' });
+        showToast({
+          message: t('challengeManagement.messages.deleteSuccess', {
+            name: challengeToDelete.title,
+          }),
+          type: 'success',
+        });
         loadChallenges();
       } else {
-        showToast({ message: response.message || 'Không thể xóa thử thách', type: 'error' });
+        showToast({
+          message: response.message || t('challengeManagement.messages.deleteError'),
+          type: 'error',
+        });
       }
     } catch (error: any) {
-      showToast({ message: error.message || 'Không thể xóa thử thách', type: 'error' });
+      showToast({
+        message: error.message || t('challengeManagement.messages.deleteError'),
+        type: 'error',
+      });
     } finally {
       setIsDeleting(false);
       setIsDeleteDialogOpen(false);
@@ -198,23 +210,23 @@ const ChallengeManagement: React.FC = () => {
     const errors: Record<string, string> = {};
 
     if (!formData.title.trim()) {
-      errors.title = 'Tiêu đề là bắt buộc';
+      errors.title = t('challengeManagement.form.titleRequired');
     }
 
     if (!formData.description.trim()) {
-      errors.description = 'Mô tả là bắt buộc';
+      errors.description = t('challengeManagement.form.descriptionRequired');
     }
 
     if (formData.target_value <= 0) {
-      errors.target_value = 'Giá trị mục tiêu phải lớn hơn 0';
+      errors.target_value = t('challengeManagement.form.targetValueRequired');
     }
 
     if (formData.reward_points < 0) {
-      errors.reward_points = 'Điểm thưởng không được âm';
+      errors.reward_points = t('challengeManagement.form.rewardPointsInvalid');
     }
 
     if (new Date(formData.start_date) >= new Date(formData.end_date)) {
-      errors.end_date = 'Ngày kết thúc phải sau ngày bắt đầu';
+      errors.end_date = t('challengeManagement.form.endDateAfterStart');
     }
 
     setFormErrors(errors);
@@ -231,7 +243,7 @@ const ChallengeManagement: React.FC = () => {
       if (editingChallenge) {
         if (!editingChallenge.id) {
           showToast({
-            message: 'Lỗi: Không tìm thấy ID thử thách. Vui lòng làm mới trang và thử lại.',
+            message: t('challengeManagement.messages.idNotFound'),
             type: 'error',
           });
           return;
@@ -252,28 +264,42 @@ const ChallengeManagement: React.FC = () => {
         console.log('Updating challenge:', { id: editingChallenge.id, updateData });
         response = await challengeService.updateChallenge(editingChallenge.id, updateData);
         if (response.success) {
-          showToast({ message: `Cập nhật thử thách "${formData.title}" thành công!`, type: 'success' });
+          showToast({
+            message: t('challengeManagement.messages.updateSuccess', { name: formData.title }),
+            type: 'success',
+          });
           setIsFormModalOpen(false);
           setEditingChallenge(null);
           loadChallenges();
         } else {
-          showToast({ message: response.message || 'Không thể cập nhật thử thách', type: 'error' });
+          showToast({
+            message: response.message || t('challengeManagement.messages.updateError'),
+            type: 'error',
+          });
         }
       } else {
         response = await challengeService.createChallenge(formData);
         if (response.success) {
-          showToast({ message: `Tạo thử thách "${formData.title}" thành công!`, type: 'success' });
+          showToast({
+            message: t('challengeManagement.messages.createSuccess', { name: formData.title }),
+            type: 'success',
+          });
           setIsFormModalOpen(false);
           setEditingChallenge(null);
           loadChallenges();
         } else {
-          showToast({ message: response.message || 'Không thể tạo thử thách', type: 'error' });
+          showToast({
+            message: response.message || t('challengeManagement.messages.createError'),
+            type: 'error',
+          });
         }
       }
     } catch (error: any) {
       console.error('Save challenge error:', error);
       const errorMessage =
-        error.response?.data?.message || error.message || 'Không thể lưu thử thách';
+        error.response?.data?.message ||
+        error.message ||
+        t('challengeManagement.messages.saveError');
       showToast({ message: errorMessage, type: 'error' });
     }
   };
@@ -281,13 +307,13 @@ const ChallengeManagement: React.FC = () => {
   const getCategoryLabel = (category: string) => {
     switch (category) {
       case 'ATTENDANCE':
-        return 'Tham gia';
+        return t('challengeManagement.categories.ATTENDANCE');
       case 'FITNESS':
-        return 'Thể lực';
+        return t('challengeManagement.categories.FITNESS');
       case 'EQUIPMENT':
-        return 'Thiết bị';
+        return t('challengeManagement.categories.EQUIPMENT');
       case 'SOCIAL':
-        return 'Xã hội';
+        return t('challengeManagement.categories.SOCIAL');
       default:
         return category;
     }
@@ -296,13 +322,13 @@ const ChallengeManagement: React.FC = () => {
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'DAILY':
-        return 'Hàng ngày';
+        return t('challengeManagement.types.DAILY');
       case 'WEEKLY':
-        return 'Hàng tuần';
+        return t('challengeManagement.types.WEEKLY');
       case 'MONTHLY':
-        return 'Hàng tháng';
+        return t('challengeManagement.types.MONTHLY');
       case 'CUSTOM':
-        return 'Tùy chỉnh';
+        return t('challengeManagement.types.CUSTOM');
       default:
         return type;
     }
@@ -340,18 +366,18 @@ const ChallengeManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Thử thách
+            {t('challengeManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Tạo động lực cho thành viên với các thử thách hấp dẫn
+            {t('challengeManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
           <AdminButton onClick={loadChallenges} icon={RefreshCw} variant='outline' size='sm'>
-            Làm mới
+            {t('equipmentManagement.filter.refresh')}
           </AdminButton>
           <AdminButton onClick={handleCreate} icon={Plus} size='sm'>
-            Tạo thử thách mới
+            {t('challengeManagement.addChallenge')}
           </AdminButton>
         </div>
       </div>
@@ -374,7 +400,7 @@ const ChallengeManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số thử thách
+                  {t('challengeManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -397,7 +423,7 @@ const ChallengeManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đang hoạt động
+                  {t('challengeManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -420,7 +446,7 @@ const ChallengeManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Người tham gia
+                  {t('challengeManagement.stats.participants')}
                 </div>
               </div>
             </div>
@@ -443,7 +469,7 @@ const ChallengeManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng điểm thưởng
+                  {t('challengeManagement.stats.totalRewards')}
                 </div>
               </div>
             </div>
@@ -470,10 +496,10 @@ const ChallengeManagement: React.FC = () => {
           setCurrentPage(1);
         }}
         availableCategories={[
-          { value: 'ATTENDANCE', label: 'Tham gia' },
-          { value: 'FITNESS', label: 'Thể lực' },
-          { value: 'EQUIPMENT', label: 'Thiết bị' },
-          { value: 'SOCIAL', label: 'Xã hội' },
+          { value: 'ATTENDANCE', label: t('challengeManagement.categories.ATTENDANCE') },
+          { value: 'FITNESS', label: t('challengeManagement.categories.FITNESS') },
+          { value: 'EQUIPMENT', label: t('challengeManagement.categories.EQUIPMENT') },
+          { value: 'SOCIAL', label: t('challengeManagement.categories.SOCIAL') },
         ]}
         showDateRange={false}
         showCategory={true}
@@ -483,10 +509,10 @@ const ChallengeManagement: React.FC = () => {
             label: 'Loại',
             type: 'select',
             options: [
-              { value: 'DAILY', label: 'Hàng ngày' },
-              { value: 'WEEKLY', label: 'Hàng tuần' },
-              { value: 'MONTHLY', label: 'Hàng tháng' },
-              { value: 'CUSTOM', label: 'Tùy chỉnh' },
+              { value: 'DAILY', label: t('challengeManagement.types.DAILY') },
+              { value: 'WEEKLY', label: t('challengeManagement.types.WEEKLY') },
+              { value: 'MONTHLY', label: t('challengeManagement.types.MONTHLY') },
+              { value: 'CUSTOM', label: t('challengeManagement.types.CUSTOM') },
             ],
           },
           {
@@ -494,8 +520,8 @@ const ChallengeManagement: React.FC = () => {
             label: 'Trạng thái',
             type: 'select',
             options: [
-              { value: 'true', label: 'Đang hoạt động' },
-              { value: 'false', label: 'Không hoạt động' },
+              { value: 'true', label: t('common.status.active') },
+              { value: 'false', label: t('common.status.inactive') },
             ],
           },
         ]}
@@ -504,7 +530,7 @@ const ChallengeManagement: React.FC = () => {
       {/* Export and Actions */}
       <div className='flex justify-between items-center'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredChallenges.length} thử thách
+          {t('challengeManagement.stats.totalCount', { count: filteredChallenges.length })}
         </div>
         {filteredChallenges.length > 0 && (
           <ExportButton
@@ -517,8 +543,8 @@ const ChallengeManagement: React.FC = () => {
               { key: 'Điểm thưởng', label: 'Điểm thưởng' },
               { key: 'Trạng thái', label: 'Trạng thái' },
             ]}
-            filename='danh-sach-thu-thach'
-            title='Danh sách Thử thách'
+            filename={t('challengeManagement.export.filename')}
+            title={t('challengeManagement.export.title')}
             variant='outline'
             size='sm'
           />
@@ -527,15 +553,15 @@ const ChallengeManagement: React.FC = () => {
 
       {/* Challenges List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách thử thách...' />
+        <TableLoading text={t('challengeManagement.messages.loading')} />
       ) : filteredChallenges.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Target className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
               {filters.search || filters.category !== 'all' || filters.type !== 'all'
-                ? 'Không tìm thấy thử thách nào'
-                : 'Không có thử thách nào'}
+                ? t('challengeManagement.empty.noResults')
+                : t('challengeManagement.empty.noChallenges')}
             </div>
           </div>
         </div>
@@ -1173,8 +1199,14 @@ const ChallengeManagement: React.FC = () => {
               </label>
               <div className='relative flex-1'>
                 <DatePicker
-                  value={formData.start_date ? formData.start_date.split('T')[0] + ' ' + formData.start_date.split('T')[1]?.substring(0, 5) : undefined}
-                  onChange={(date) => {
+                  value={
+                    formData.start_date
+                      ? formData.start_date.split('T')[0] +
+                        ' ' +
+                        formData.start_date.split('T')[1]?.substring(0, 5)
+                      : undefined
+                  }
+                  onChange={date => {
                     if (typeof date === 'string') {
                       // Parse date string (YYYY-MM-DD HH:mm format)
                       const [datePart, timePart] = date.split(' ');
@@ -1208,8 +1240,14 @@ const ChallengeManagement: React.FC = () => {
               </label>
               <div className='relative flex-1'>
                 <DatePicker
-                  value={formData.end_date ? formData.end_date.split('T')[0] + ' ' + formData.end_date.split('T')[1]?.substring(0, 5) : undefined}
-                  onChange={(date) => {
+                  value={
+                    formData.end_date
+                      ? formData.end_date.split('T')[0] +
+                        ' ' +
+                        formData.end_date.split('T')[1]?.substring(0, 5)
+                      : undefined
+                  }
+                  onChange={date => {
                     if (typeof date === 'string') {
                       // Parse date string (YYYY-MM-DD HH:mm format)
                       const [datePart, timePart] = date.split(' ');

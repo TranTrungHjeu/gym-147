@@ -71,7 +71,8 @@ class RoomController {
 
   async createRoom(req, res) {
     try {
-      const { name, capacity, area_sqm, equipment, amenities, status, maintenance_notes } = req.body;
+      const { name, capacity, area_sqm, equipment, amenities, status, maintenance_notes } =
+        req.body;
 
       const errors = [];
 
@@ -121,14 +122,26 @@ class RoomController {
       }
 
       // Validate amenities
-      const validAmenities = ['MIRRORS', 'PROJECTOR', 'SOUND_SYSTEM', 'AIR_CONDITIONING', 'VENTILATION', 'LIGHTING', 'FLOORING'];
+      const validAmenities = [
+        'MIRRORS',
+        'PROJECTOR',
+        'SOUND_SYSTEM',
+        'AIR_CONDITIONING',
+        'VENTILATION',
+        'LIGHTING',
+        'FLOORING',
+      ];
       if (amenities !== undefined && amenities !== null) {
         if (!Array.isArray(amenities)) {
           errors.push('Tiện ích phải là một mảng');
         } else {
           amenities.forEach((amenity, index) => {
             if (!validAmenities.includes(amenity)) {
-              errors.push(`Tiện ích thứ ${index + 1} không hợp lệ. Các giá trị hợp lệ: ${validAmenities.join(', ')}`);
+              errors.push(
+                `Tiện ích thứ ${index + 1} không hợp lệ. Các giá trị hợp lệ: ${validAmenities.join(
+                  ', '
+                )}`
+              );
             }
           });
         }
@@ -184,7 +197,7 @@ class RoomController {
       });
     } catch (error) {
       console.error('Create room error:', error);
-      
+
       // Handle Prisma unique constraint error
       if (error.code === 'P2002') {
         return res.status(400).json({
@@ -280,14 +293,26 @@ class RoomController {
       }
 
       // Validate amenities if provided
-      const validAmenities = ['MIRRORS', 'PROJECTOR', 'SOUND_SYSTEM', 'AIR_CONDITIONING', 'VENTILATION', 'LIGHTING', 'FLOORING'];
+      const validAmenities = [
+        'MIRRORS',
+        'PROJECTOR',
+        'SOUND_SYSTEM',
+        'AIR_CONDITIONING',
+        'VENTILATION',
+        'LIGHTING',
+        'FLOORING',
+      ];
       if (amenities !== undefined && amenities !== null) {
         if (!Array.isArray(amenities)) {
           errors.push('Tiện ích phải là một mảng');
         } else {
           amenities.forEach((amenity, index) => {
             if (!validAmenities.includes(amenity)) {
-              errors.push(`Tiện ích thứ ${index + 1} không hợp lệ. Các giá trị hợp lệ: ${validAmenities.join(', ')}`);
+              errors.push(
+                `Tiện ích thứ ${index + 1} không hợp lệ. Các giá trị hợp lệ: ${validAmenities.join(
+                  ', '
+                )}`
+              );
             }
           });
         }
@@ -342,7 +367,7 @@ class RoomController {
       });
     } catch (error) {
       console.error('Update room error:', error);
-      
+
       // Handle Prisma unique constraint error
       if (error.code === 'P2002') {
         return res.status(400).json({
@@ -383,7 +408,6 @@ class RoomController {
             },
             select: {
               id: true,
-              date: true,
               start_time: true,
               end_time: true,
               gym_class: {
@@ -406,12 +430,20 @@ class RoomController {
 
       // Check if room has active schedules
       if (room.schedules && room.schedules.length > 0) {
-        const scheduleDetails = room.schedules.map(s => {
-          const date = new Date(s.date).toLocaleDateString('vi-VN');
-          const startTime = new Date(s.start_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-          const endTime = new Date(s.end_time).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-          return `${s.gym_class?.name || 'Lớp học'} - ${date} (${startTime} - ${endTime})`;
-        }).join(', ');
+        const scheduleDetails = room.schedules
+          .map(s => {
+            const date = new Date(s.start_time).toLocaleDateString('vi-VN');
+            const startTime = new Date(s.start_time).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            const endTime = new Date(s.end_time).toLocaleTimeString('vi-VN', {
+              hour: '2-digit',
+              minute: '2-digit',
+            });
+            return `${s.gym_class?.name || 'Lớp học'} - ${date} (${startTime} - ${endTime})`;
+          })
+          .join(', ');
 
         return res.status(400).json({
           success: false,
@@ -436,7 +468,7 @@ class RoomController {
       });
     } catch (error) {
       console.error('Delete room error:', error);
-      
+
       // Handle Prisma not found error
       if (error.code === 'P2025') {
         return res.status(404).json({
@@ -489,22 +521,13 @@ class RoomController {
           status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
           OR: [
             {
-              AND: [
-                { start_time: { lte: startDateTime } },
-                { end_time: { gt: startDateTime } },
-              ],
+              AND: [{ start_time: { lte: startDateTime } }, { end_time: { gt: startDateTime } }],
             },
             {
-              AND: [
-                { start_time: { lt: endDateTime } },
-                { end_time: { gte: endDateTime } },
-              ],
+              AND: [{ start_time: { lt: endDateTime } }, { end_time: { gte: endDateTime } }],
             },
             {
-              AND: [
-                { start_time: { gte: startDateTime } },
-                { end_time: { lte: endDateTime } },
-              ],
+              AND: [{ start_time: { gte: startDateTime } }, { end_time: { lte: endDateTime } }],
             },
           ],
         },

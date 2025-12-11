@@ -43,17 +43,20 @@ class EquipmentService {
   // Subscribe to user-specific queue notifications
   // Note: Socket rooms use user_id (from Identity Service), not member_id
   // REST API endpoints use member_id (Member.id)
-  subscribeToUserQueue(userId: string, callbacks: {
-    onYourTurn?: (data: any) => void;
-    onEquipmentAvailable?: (data: any) => void;
-    onPositionChanged?: (data: any) => void;
-  }) {
+  subscribeToUserQueue(
+    userId: string,
+    callbacks: {
+      onYourTurn?: (data: any) => void;
+      onEquipmentAvailable?: (data: any) => void;
+      onPositionChanged?: (data: any) => void;
+    }
+  ) {
     if (!this.socket) this.initWebSocket();
-    
+
     // Subscribe to user-specific room (uses user_id from Identity Service)
     // Backend emits to user:${user_id} room
     this.socket?.emit('subscribe:user', userId);
-    
+
     // Listen for queue events
     if (callbacks.onYourTurn) {
       this.socket?.on('queue:your_turn', callbacks.onYourTurn);
@@ -100,6 +103,21 @@ class EquipmentService {
     return apiService.post<{ usage: EquipmentUsage }>(
       `/members/${memberId}/equipment/start`,
       { equipment_id: equipmentId, ...data }
+    );
+  }
+
+  async updateActivityData(
+    memberId: string,
+    usageId: string,
+    data?: {
+      heart_rate_avg?: number;
+      heart_rate_max?: number;
+      sensor_data?: any;
+    }
+  ) {
+    return apiService.post<{ usage: EquipmentUsage }>(
+      `/members/${memberId}/equipment/update-activity`,
+      { usage_id: usageId, ...data }
     );
   }
 
@@ -193,6 +211,49 @@ class EquipmentService {
     return apiService.get<{ logs: any[] }>(
       `/equipment/${equipmentId}/maintenance`
     );
+  }
+
+  /**
+   * IMPROVEMENT: Get equipment availability prediction
+   * GET /equipment/:id/availability
+   */
+  async getEquipmentAvailability(equipmentId: string) {
+    return apiService.get<{
+      available: boolean;
+      estimatedAvailableAt?: string;
+      estimatedWaitTime?: number; // in minutes
+      currentUser?: {
+        member_id: string;
+        started_at: string;
+        estimated_end_at: string;
+      };
+    }>(`/equipment/${equipmentId}/availability`);
+  }
+
+  /**
+   * IMPROVEMENT: Get queue analytics
+   * GET /equipment/:id/queue/analytics
+   */
+  async getQueueAnalytics(equipmentId: string) {
+    return apiService.get<{
+      averageWaitTime: number; // in minutes
+      averageDuration: number; // in minutes
+      currentQueueLength: number;
+      historicalSessionsCount: number;
+      peakHours?: Array<{ hour: number; count: number }>;
+    }>(`/equipment/${equipmentId}/queue/analytics`);
+  }
+
+  /**
+   * IMPROVEMENT: Get queue position prediction
+   * GET /equipment/:id/queue/prediction?position=[position]
+   */
+  async getQueuePositionPrediction(equipmentId: string, position: number) {
+    return apiService.get<{
+      estimatedWaitTime: number; // in minutes
+      estimatedTurnAt: string; // ISO timestamp
+      confidence: number; // 0-1
+    }>(`/equipment/${equipmentId}/queue/prediction`, { position });
   }
 }
 

@@ -28,6 +28,7 @@ const RegisterCouponScreen = () => {
   const [discount, setDiscount] = useState<DiscountCode | null>(null);
   const [isValidating, setIsValidating] = useState(false);
   const [error, setError] = useState('');
+  const [isTrialCode, setIsTrialCode] = useState(false); // IMPROVEMENT: Track if trial code
   const [accessToken, setAccessToken] = useState<string>(params.accessToken as string);
   const [refreshToken, setRefreshToken] = useState<string>(params.refreshToken as string);
 
@@ -36,7 +37,7 @@ const RegisterCouponScreen = () => {
   const planName = params.planName as string;
   const planType = params.planType as string;
   const planPrice = parseFloat(params.planPrice as string);
-  const setupFee = parseFloat(params.setupFee as string);
+  const setupFee = 0; // setup_fee removed from schema
   const durationMonths = parseInt(params.durationMonths as string);
 
   // Load tokens from storage if params are empty
@@ -70,7 +71,20 @@ const RegisterCouponScreen = () => {
       );
 
       setDiscount(validatedDiscount);
-      Alert.alert(t('common.success'), t('registration.couponValid'));
+      // IMPROVEMENT: Check if this is a trial code
+      const isTrial = validatedDiscount.isTrialCode || 
+                      couponCode.trim().toUpperCase().startsWith('TRIAL-') ||
+                      validatedDiscount.type === 'FREE_TRIAL';
+      setIsTrialCode(isTrial);
+      
+      if (isTrial) {
+        Alert.alert(
+          t('registration.trialCodeValid') || 'Mã trial hợp lệ',
+          t('registration.trialCodeMessage') || 'Bạn sẽ được dùng thử 7 ngày miễn phí với gói Basic. Sau đó bạn có thể nâng cấp lên gói khác.'
+        );
+      } else {
+        Alert.alert(t('common.success'), t('registration.couponValid'));
+      }
     } catch (error: any) {
       console.error('Coupon validation error:', error);
       setError(
@@ -83,6 +97,31 @@ const RegisterCouponScreen = () => {
   };
 
   const handleContinue = () => {
+    // IMPROVEMENT: If trial code, skip payment and go directly to create subscription
+    if (isTrialCode && discount) {
+      // For trial, we'll create subscription directly without payment
+      // The backend will handle trial subscription creation
+      router.push({
+        pathname: '/(auth)/register-payment',
+        params: {
+          userId,
+          accessToken,
+          refreshToken,
+          planId,
+          planName,
+          planType,
+          planPrice: '0', // Trial is free
+          durationMonths: durationMonths.toString(),
+          discountCode: discount.code,
+          discountType: discount.type || 'FREE_TRIAL',
+          discountValue: '0',
+          bonusDays: '0',
+          isTrial: 'true', // Flag to indicate trial
+        },
+      });
+      return;
+    }
+
     router.push({
       pathname: '/(auth)/register-payment',
       params: {
@@ -93,12 +132,12 @@ const RegisterCouponScreen = () => {
         planName,
         planType,
         planPrice: planPrice.toString(),
-        setupFee: setupFee.toString(),
         durationMonths: durationMonths.toString(),
         discountCode: discount?.code || '',
         discountType: discount?.type || '',
         discountValue: discount?.value?.toString() || '0',
         bonusDays: discount?.bonusDays?.toString() || '0',
+        isTrial: 'false',
       },
     });
   };
@@ -113,7 +152,7 @@ const RegisterCouponScreen = () => {
   const calculateDiscount = () => {
     if (!discount) return 0;
 
-    const subtotal = planPrice + setupFee;
+    const subtotal = planPrice;
 
     if (discount.type === 'PERCENTAGE') {
       const discountAmount = (subtotal * discount.value) / 100;
@@ -128,7 +167,7 @@ const RegisterCouponScreen = () => {
   };
 
   const discountAmount = calculateDiscount();
-  const finalPrice = Math.max(0, planPrice + setupFee - discountAmount);
+    const finalPrice = Math.max(0, planPrice - discountAmount);
 
   const themedStyles = StyleSheet.create({
     container: {
@@ -396,7 +435,7 @@ const RegisterCouponScreen = () => {
         <View style={themedStyles.planInfoCard}>
           <Text style={themedStyles.planName}>{planName}</Text>
           <Text style={themedStyles.planPrice}>
-            {formatPrice(planPrice + setupFee)}
+            {formatPrice(planPrice)}
           </Text>
         </View>
 
@@ -441,8 +480,32 @@ const RegisterCouponScreen = () => {
 
         {error ? <Text style={themedStyles.errorText}>{error}</Text> : null}
 
+        {/* IMPROVEMENT: Trial Code Info Card */}
+        {isTrialCode && discount ? (
+          <View style={[themedStyles.discountCard, { 
+            backgroundColor: `${theme.colors.primary}15`,
+            borderColor: theme.colors.primary,
+            borderWidth: 2,
+          }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+              <Ionicons name="gift" size={24} color={theme.colors.primary} />
+              <Text style={[themedStyles.discountTitle, { color: theme.colors.primary, marginLeft: 8 }]}>
+                {t('registration.trialCode') || 'Mã Trial'}
+              </Text>
+            </View>
+            <Text style={[themedStyles.discountDescription, { color: theme.colors.text }]}>
+              {t('registration.trialCodeDescription') || 'Bạn sẽ được dùng thử miễn phí 7 ngày với gói Basic. Sau thời gian trial, bạn có thể nâng cấp lên gói khác.'}
+            </Text>
+            <View style={{ marginTop: 12, padding: 12, backgroundColor: `${theme.colors.primary}10`, borderRadius: 8 }}>
+              <Text style={[themedStyles.discountCode, { color: theme.colors.primary }]}>
+                {discount.code}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+
         {/* Discount Applied Card */}
-        {discount ? (
+        {discount && !isTrialCode ? (
           <View style={themedStyles.discountCard}>
             <Text style={themedStyles.discountTitle}>
               ✓ {t('registration.discountApplied')}
@@ -469,7 +532,7 @@ const RegisterCouponScreen = () => {
               {t('registration.subtotal')}
             </Text>
             <Text style={themedStyles.summaryValue}>
-              {formatPrice(planPrice + setupFee)}
+              {formatPrice(planPrice)}
             </Text>
           </View>
 

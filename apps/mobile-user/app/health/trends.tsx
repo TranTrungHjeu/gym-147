@@ -140,7 +140,9 @@ export default function HealthTrendsScreen() {
           <Text
             style={[Typography.body, { color: theme.colors.textSecondary }]}
           >
-            Loading health trends...
+            {t('health.trends.loading', {
+              defaultValue: 'Đang tải xu hướng sức khỏe...',
+            })}
           </Text>
         </View>
       </View>
@@ -221,15 +223,22 @@ export default function HealthTrendsScreen() {
         ) : (
           <View style={styles.emptyContainer}>
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              No Data Available
+              {t('health.trends.noData', {
+                defaultValue: 'Không có dữ liệu',
+              })}
             </Text>
             <Text
               style={[Typography.body, { color: theme.colors.textSecondary }]}
             >
-              Start recording your health metrics to see trends
+              {t('health.trends.startRecording', {
+                defaultValue:
+                  'Bắt đầu ghi nhận chỉ số sức khỏe để xem xu hướng',
+              })}
             </Text>
             <Button
-              title="Add First Metric"
+              title={t('health.trends.addFirstMetric', {
+                defaultValue: 'Thêm chỉ số đầu tiên',
+              })}
               onPress={handleAddMetric}
               style={styles.emptyButton}
             />
@@ -239,14 +248,22 @@ export default function HealthTrendsScreen() {
         {selectedTrend && (
           <View style={styles.trendContainer}>
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              Trend Analysis
+              {t('health.trends.analysis', {
+                defaultValue: 'Phân tích xu hướng',
+              })}
             </Text>
             <View style={styles.trendItem}>
               <Text style={[Typography.body, { color: theme.colors.text }]}>
-                Current Value: {selectedTrend.currentValue.toFixed(1)}
+                {t('health.trends.currentValue', {
+                  defaultValue: 'Giá trị hiện tại',
+                })}
+                : {selectedTrend.currentValue.toFixed(1)}
               </Text>
               <Text style={[Typography.body, { color: theme.colors.text }]}>
-                Previous Value: {selectedTrend.previousValue.toFixed(1)}
+                {t('health.trends.previousValue', {
+                  defaultValue: 'Giá trị trước',
+                })}
+                : {selectedTrend.previousValue.toFixed(1)}
               </Text>
               <Text
                 style={[
@@ -261,8 +278,9 @@ export default function HealthTrendsScreen() {
                   },
                 ]}
               >
-                Change: {selectedTrend.change > 0 ? '+' : ''}
-                {selectedTrend.change.toFixed(1)}(
+                {t('health.trends.change', { defaultValue: 'Thay đổi' })}:{' '}
+                {selectedTrend.change > 0 ? '+' : ''}
+                {selectedTrend.change.toFixed(1)} (
                 {selectedTrend.changePercentage > 0 ? '+' : ''}
                 {selectedTrend.changePercentage.toFixed(1)}%)
               </Text>
@@ -273,7 +291,9 @@ export default function HealthTrendsScreen() {
         {selectedMetrics.length > 0 && (
           <View style={styles.metricsContainer}>
             <Text style={[Typography.h3, { color: theme.colors.text }]}>
-              Recent Measurements
+              {t('health.trends.recentMeasurements', {
+                defaultValue: 'Đo lường gần đây',
+              })}
             </Text>
             {selectedMetrics.slice(0, 5).map((metric, index) => (
               <TouchableOpacity

@@ -2,7 +2,11 @@ import { PaymentSummary } from '@/components/PaymentSummary';
 import { useAuth } from '@/contexts/AuthContext';
 import { billingService } from '@/services/billing/billing.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
-import type { DiscountCode, MembershipPlan, PaymentMethod } from '@/types/billingTypes';
+import type {
+  DiscountCode,
+  MembershipPlan,
+  PaymentMethod,
+} from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { FontFamily } from '@/utils/typography';
 import { Ionicons } from '@expo/vector-icons';
@@ -71,7 +75,9 @@ export default function SubscriptionPaymentScreen() {
           setOriginalAmount(calculatedAmount);
           return;
         } catch (parseError) {
-          console.warn('Failed to parse plan from JSON, falling back to planId');
+          console.warn(
+            'Failed to parse plan from JSON, falling back to planId'
+          );
         }
       }
 
@@ -90,7 +96,10 @@ export default function SubscriptionPaymentScreen() {
       }
     } catch (error) {
       console.error('Error loading plan:', error);
-      Alert.alert(t('common.error'), 'Failed to load plan details');
+      Alert.alert(
+        t('common.error'),
+        t('subscription.payment.failedToLoadPlanDetails')
+      );
     }
   };
 
@@ -110,7 +119,9 @@ export default function SubscriptionPaymentScreen() {
 
   const handleValidateDiscount = async () => {
     if (!discountCode.trim() || !plan || !member?.id) {
-      setDiscountError(t('registration.enterCouponCode') || 'Vui lòng nhập mã giảm giá');
+      setDiscountError(
+        t('registration.enterCouponCode') || 'Vui lòng nhập mã giảm giá'
+      );
       return;
     }
 
@@ -128,11 +139,16 @@ export default function SubscriptionPaymentScreen() {
       const discountAmount = calculateDiscountAmount(originalAmount);
       const newAmount = Math.max(0, originalAmount - discountAmount);
       setAmount(newAmount);
-      Alert.alert(t('common.success'), t('registration.couponValid') || 'Áp dụng mã thành công!');
+      Alert.alert(
+        t('common.success'),
+        t('registration.couponValid') || 'Áp dụng mã thành công!'
+      );
     } catch (error: any) {
       console.error('Discount validation error:', error);
       setDiscountError(
-        error.response?.data?.message || t('registration.couponInvalid') || 'Mã không hợp lệ hoặc đã hết hạn'
+        error.response?.data?.message ||
+          t('registration.couponInvalid') ||
+          'Mã không hợp lệ hoặc đã hết hạn'
       );
       setDiscount(null);
     } finally {
@@ -158,7 +174,8 @@ export default function SubscriptionPaymentScreen() {
       method: 'VNPAY',
       icon: 'card-outline',
       label: 'VNPAY',
-      description: t('payment.vnpayDesc') || 'Thanh toán qua thẻ ATM, Visa, MasterCard',
+      description:
+        t('payment.vnpayDesc') || 'Thanh toán qua thẻ ATM, Visa, MasterCard',
     },
     {
       method: 'MOMO',
@@ -170,7 +187,8 @@ export default function SubscriptionPaymentScreen() {
       method: 'BANK_TRANSFER',
       icon: 'business-outline',
       label: t('payment.bankTransfer') || 'Chuyển khoản ngân hàng',
-      description: t('payment.bankTransferDesc') || 'Chuyển khoản trực tiếp qua ngân hàng',
+      description:
+        t('payment.bankTransferDesc') || 'Chuyển khoản trực tiếp qua ngân hàng',
     },
   ];
 
@@ -196,8 +214,9 @@ export default function SubscriptionPaymentScreen() {
         });
 
         // Get subscription details to get correct amount
-        const subscriptionDetails = await subscriptionService.getSubscriptionById(subscription.id);
-        const paymentAmount = subscriptionDetails.total_amount 
+        const subscriptionDetails =
+          await subscriptionService.getSubscriptionById(subscription.id);
+        const paymentAmount = subscriptionDetails.total_amount
           ? parseFloat(subscriptionDetails.total_amount.toString())
           : amount;
 
@@ -213,7 +232,7 @@ export default function SubscriptionPaymentScreen() {
         // 1. Create payment first (with PENDING status)
         // 2. Update subscription after payment is created
         // This ensures payment exists before subscription is updated
-        
+
         const priceDifference = amount; // Amount is already the difference
 
         if (priceDifference > 0) {
@@ -257,8 +276,11 @@ export default function SubscriptionPaymentScreen() {
         }
       } else if (action === 'RENEW' && subscriptionId) {
         // Renew subscription - backend creates payment with PENDING status if payment_method provided
-        console.log('[RENEW] Renewing subscription with payment method:', selectedMethod);
-        
+        console.log(
+          '[RENEW] Renewing subscription with payment method:',
+          selectedMethod
+        );
+
         // Note: renewSubscription doesn't support discount_code directly
         // Discount would need to be applied at payment level if supported
         const renewResponse = await subscriptionService.renewSubscription(
@@ -281,12 +303,17 @@ export default function SubscriptionPaymentScreen() {
               payment_method: selectedMethod,
             });
           } catch (paymentError: any) {
-            console.error('Error initiating payment after renewal:', paymentError);
+            console.error(
+              'Error initiating payment after renewal:',
+              paymentError
+            );
             // If payment initiation fails, subscription is still renewed
             // Show success message
             Alert.alert(
               t('common.success'),
-              t('subscription.plans.subscriptionRenewed') + '. ' + (paymentError?.message || ''),
+              t('subscription.plans.subscriptionRenewed') +
+                '. ' +
+                (paymentError?.message || ''),
               [
                 {
                   text: t('common.ok'),
@@ -333,7 +360,8 @@ export default function SubscriptionPaymentScreen() {
             // In a real app, you would use Linking.openURL or WebBrowser
             Alert.alert(
               t('common.info'),
-              t('payment.redirectingToGateway') || 'Redirecting to payment gateway...',
+              t('payment.redirectingToGateway') ||
+                'Redirecting to payment gateway...',
               [
                 {
                   text: t('common.ok'),
@@ -355,7 +383,9 @@ export default function SubscriptionPaymentScreen() {
       console.error('Payment error:', error);
       Alert.alert(
         t('common.error'),
-        error?.response?.data?.message || t('payment.paymentFailed') || 'Payment failed'
+        error?.response?.data?.message ||
+          t('payment.paymentFailed') ||
+          'Payment failed'
       );
     } finally {
       setLoading(false);
@@ -378,13 +408,24 @@ export default function SubscriptionPaymentScreen() {
   const getActionSubtitle = () => {
     switch (action) {
       case 'SUBSCRIBE':
-        return t('payment.subscribeSubtitle') || 'Chọn phương thức thanh toán để đăng ký gói thành viên';
+        return (
+          t('payment.subscribeSubtitle') ||
+          'Chọn phương thức thanh toán để đăng ký gói thành viên'
+        );
       case 'UPGRADE':
-        return t('payment.upgradeSubtitle') || 'Chọn phương thức thanh toán để nâng cấp gói thành viên';
+        return (
+          t('payment.upgradeSubtitle') ||
+          'Chọn phương thức thanh toán để nâng cấp gói thành viên'
+        );
       case 'RENEW':
-        return t('payment.renewSubtitle') || 'Chọn phương thức thanh toán để gia hạn gói thành viên';
+        return (
+          t('payment.renewSubtitle') ||
+          'Chọn phương thức thanh toán để gia hạn gói thành viên'
+        );
       default:
-        return t('payment.selectPaymentMethod') || 'Chọn phương thức thanh toán';
+        return (
+          t('payment.selectPaymentMethod') || 'Chọn phương thức thanh toán'
+        );
     }
   };
 
@@ -649,7 +690,10 @@ export default function SubscriptionPaymentScreen() {
   if (!plan) {
     return (
       <SafeAreaView
-        style={[themedStyles.container, { justifyContent: 'center', alignItems: 'center' }]}
+        style={[
+          themedStyles.container,
+          { justifyContent: 'center', alignItems: 'center' },
+        ]}
         edges={['top']}
       >
         <ActivityIndicator size="large" color={theme.colors.primary} />
@@ -672,16 +716,17 @@ export default function SubscriptionPaymentScreen() {
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
 
-          <Text style={themedStyles.title}>
-            {getActionTitle()}
-          </Text>
-          <Text style={themedStyles.subtitle}>
-            {getActionSubtitle()}
-          </Text>
+          <Text style={themedStyles.title}>{getActionTitle()}</Text>
+          <Text style={themedStyles.subtitle}>{getActionSubtitle()}</Text>
         </View>
 
         <View style={themedStyles.summaryContainer}>
-          <PaymentSummary plan={plan} totalAmount={amount} discount={discount} bonusDays={discount?.bonusDays} />
+          <PaymentSummary
+            plan={plan}
+            totalAmount={amount}
+            discount={discount}
+            bonusDays={discount?.bonusDays}
+          />
         </View>
 
         {/* Discount Code Input */}
@@ -700,7 +745,9 @@ export default function SubscriptionPaymentScreen() {
                   themedStyles.discountInput,
                   discountError && themedStyles.discountInputError,
                 ]}
-                placeholder={t('registration.enterCouponPlaceholder') || 'Nhập mã'}
+                placeholder={
+                  t('registration.enterCouponPlaceholder') || 'Nhập mã'
+                }
                 placeholderTextColor={theme.colors.textSecondary}
                 value={discountCode}
                 onChangeText={(text) => {
@@ -713,14 +760,18 @@ export default function SubscriptionPaymentScreen() {
               <TouchableOpacity
                 style={[
                   themedStyles.validateDiscountButton,
-                  (!discountCode.trim() || isValidating) && themedStyles.validateDiscountButtonDisabled,
+                  (!discountCode.trim() || isValidating) &&
+                    themedStyles.validateDiscountButtonDisabled,
                 ]}
                 onPress={handleValidateDiscount}
                 disabled={!discountCode.trim() || isValidating}
                 activeOpacity={0.8}
               >
                 {isValidating ? (
-                  <ActivityIndicator size="small" color={theme.colors.textInverse} />
+                  <ActivityIndicator
+                    size="small"
+                    color={theme.colors.textInverse}
+                  />
                 ) : (
                   <Text style={themedStyles.validateDiscountButtonText}>
                     {t('registration.apply') || 'Áp dụng'}
@@ -738,17 +789,24 @@ export default function SubscriptionPaymentScreen() {
                   onPress={handleRemoveDiscount}
                   style={themedStyles.removeDiscountButton}
                 >
-                  <Ionicons name="close-circle" size={24} color={theme.colors.error} />
+                  <Ionicons
+                    name="close-circle"
+                    size={24}
+                    color={theme.colors.error}
+                  />
                 </TouchableOpacity>
               </View>
               <Text style={themedStyles.discountAppliedCode}>
                 {discount.name || discount.code}
               </Text>
               {discount.bonusDays && discount.bonusDays > 0 && (
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                <View
+                  style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+                >
                   <PartyPopper size={16} color={theme.colors.primary} />
                   <Text style={themedStyles.bonusDaysText}>
-                    +{discount.bonusDays} {t('registration.bonusDays') || 'ngày thưởng'}
+                    +{discount.bonusDays}{' '}
+                    {t('registration.bonusDays') || 'ngày thưởng'}
                   </Text>
                 </View>
               )}

@@ -63,11 +63,11 @@ async function sendPushNotification(userId, title, body, data = {}) {
     }
 
     // Get user's push token from identity service using raw SQL
-    // Note: Prisma maps User model to "users" table (lowercase, plural)
+    // Note: Identity service uses identity_schema schema
     let user;
     try {
       const dbResult = await client.query(
-        'SELECT push_token, push_enabled, push_platform FROM users WHERE id = $1',
+        'SELECT push_token, push_enabled, push_platform FROM identity_schema.users WHERE id = $1',
         [userId]
       );
       user = dbResult.rows[0];
@@ -150,10 +150,10 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
     }
 
     // Get all users' push tokens using raw SQL
-    // Note: Prisma maps User model to "users" table (lowercase, plural)
+    // Note: Identity service uses identity_schema schema
     const placeholders = userIds.map((_, index) => `$${index + 1}`).join(', ');
     const dbResult = await client.query(
-      `SELECT id, push_token FROM users WHERE id IN (${placeholders}) AND push_enabled = true AND push_token IS NOT NULL`,
+      `SELECT id, push_token FROM identity_schema.users WHERE id IN (${placeholders}) AND push_enabled = true AND push_token IS NOT NULL`,
       userIds
     );
     

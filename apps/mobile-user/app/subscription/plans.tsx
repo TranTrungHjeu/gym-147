@@ -1,5 +1,6 @@
 import PlanCard from '@/components/PlanCard';
 import PremiumFeatureCard from '@/components/PremiumFeatureCard';
+import UpgradeDowngradeModal from '@/components/UpgradeDowngradeModal'; // IMPROVEMENT: Upgrade/downgrade modal
 import { useAuth } from '@/contexts/AuthContext';
 import { subscriptionService } from '@/services/billing/subscription.service';
 import { memberService } from '@/services/member/member.service';
@@ -334,71 +335,124 @@ export default function PlansScreen() {
       return;
     }
 
-    const priceDifference = selectedPlanData.price - currentPlanData.price;
+    // IMPROVEMENT: Calculate prorated amount
+    const now = new Date();
+    const periodStart = new Date(currentSubscription.current_period_start || currentSubscription.start_date);
+    const periodEnd = new Date(currentSubscription.current_period_end || currentSubscription.end_date || new Date());
+    const totalPeriodDays = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
+    const daysRemaining = (periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+    
+    const oldPrice = currentPlanData.price;
+    const newPrice = selectedPlanData.price;
+    const unusedAmount = (daysRemaining / totalPeriodDays) * oldPrice;
+    const newPlanCost = (daysRemaining / totalPeriodDays) * newPrice;
+    const priceDifference = newPlanCost - unusedAmount;
+    const isUpgrade = newPrice > oldPrice;
 
-    // If no additional cost, upgrade directly
-    if (priceDifference <= 0) {
-      Alert.alert(
-        t('subscription.plans.upgradeConfirm') || 'Upgrade Subscription',
-        `Upgrade from ${currentPlanData?.name || 'Current Plan'} to ${
-          selectedPlanData.name
-        }?`,
-        [
-          { text: t('common.cancel'), style: 'cancel' },
-          {
-            text: t('common.confirm') || 'Confirm',
-            onPress: async () => {
-              try {
-                setUpgrading(planId);
-                await subscriptionService.updateSubscription(
-                  currentSubscription.id,
-                  {
-                    plan_id: planId,
-                  }
-                );
-
-                await loadData();
-
-                Alert.alert(
-                  t('common.success'),
-                  t('subscription.plans.subscriptionUpgraded') ||
-                    `Successfully upgraded to ${selectedPlanData.name}!`,
-                  [
-                    {
-                      text: t('common.ok'),
-                      onPress: () => {
-                        router.back();
-                      },
-                    },
-                  ]
-                );
-              } catch (error: any) {
-                console.error('Error upgrading subscription:', error);
-                const errorMessage =
-                  error?.message ||
-                  error?.response?.data?.message ||
-                  t('subscription.plans.failedToUpgrade');
-                Alert.alert(t('common.error'), errorMessage);
-              } finally {
-                setUpgrading(null);
-              }
-            },
-          },
-        ]
-      );
-      return;
-    }
-
-    // Navigate to payment screen for upgrade with additional cost
-    router.push({
-      pathname: '/subscription/payment',
-      params: {
-        plan: JSON.stringify(selectedPlanData),
-        subscriptionId: currentSubscription.id,
-        action: 'UPGRADE',
-        amount: priceDifference.toString(),
+    // IMPROVEMENT: Show upgrade/downgrade modal with prorated calculation
+    setShowUpgradeModal(true);
+    setUpgradeData({
+      currentPlan: currentPlanData,
+      newPlan: selectedPlanData,
+      proratedCalculation: {
+        unusedAmount,
+        newPlanCost,
+        priceDifference,
+        daysRemaining,
+        totalPeriodDays,
       },
+      isUpgrade,
     });
+  };
+
+  // IMPROVEMENT: State for upgrade/downgrade modal
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [upgradeData, setUpgradeData] = useState<{
+    currentPlan: MembershipPlan;
+    newPlan: MembershipPlan;
+    proratedCalculation: {
+      unusedAmount: number;
+      newPlanCost: number;
+      priceDifference: number;
+      daysRemaining: number;
+      totalPeriodDays: number;
+    };
+    isUpgrade: boolean;
+  } | null>(null);
+
+  const handleConfirmUpgradeDowngrade = async () => {
+    if (!upgradeData || !currentSubscription) return;
+
+    try {
+      setUpgrading(upgradeData.newPlan.id);
+      setShowUpgradeModal(false);
+
+      // Log detailed information for debugging
+      const currentPlanId = getCurrentPlanId();
+      console.log('[UPGRADE] Upgrade request details:', {
+        subscriptionId: currentSubscription.id,
+        currentPlanId,
+        currentPlanIdType: typeof currentPlanId,
+        newPlanId: upgradeData.newPlan.id,
+        newPlanIdType: typeof upgradeData.newPlan.id,
+        newPlanType: upgradeData.newPlan.type,
+        currentPlanType: upgradeData.currentPlan.type,
+        subscriptionPlanId: currentSubscription.plan_id,
+        subscriptionPlanIdType: typeof currentSubscription.plan_id,
+        planObjectId: currentSubscription.plan?.id,
+        planObjectIdType: typeof currentSubscription.plan?.id,
+      });
+
+      // IMPROVEMENT: Use upgrade-downgrade endpoint
+      const result = await subscriptionService.upgradeDowngradeSubscription(
+        currentSubscription.id,
+        {
+          new_plan_id: String(upgradeData.newPlan.id), // Ensure it's a string
+          change_reason: upgradeData.isUpgrade ? 'UPGRADE' : 'DOWNGRADE',
+        }
+      );
+
+      await loadData();
+
+      // Show success message
+      if (result.change_type === 'UPGRADE' && result.price_difference > 0) {
+        // Navigate to payment for upgrade
+        router.push({
+          pathname: '/subscription/payment',
+          params: {
+            plan: JSON.stringify(upgradeData.newPlan),
+            subscriptionId: currentSubscription.id,
+            action: 'UPGRADE',
+            amount: result.price_difference.toString(),
+          },
+        });
+      } else {
+        // Downgrade or free upgrade - show success
+        Alert.alert(
+          t('common.success'),
+          t('subscription.plans.subscriptionUpgraded') ||
+            `Successfully ${upgradeData.isUpgrade ? 'upgraded' : 'downgraded'} to ${upgradeData.newPlan.name}!`,
+          [
+            {
+              text: t('common.ok'),
+              onPress: () => {
+                router.back();
+              },
+            },
+          ]
+        );
+      }
+    } catch (error: any) {
+      console.error('Error upgrading/downgrading subscription:', error);
+      const errorMessage =
+        error?.message ||
+        error?.response?.data?.message ||
+        t('subscription.plans.failedToUpgrade');
+      Alert.alert(t('common.error'), errorMessage);
+    } finally {
+      setUpgrading(null);
+      setUpgradeData(null);
+    }
   };
 
   const getPlanIcon = (planType: string) => {
@@ -764,6 +818,23 @@ export default function PlansScreen() {
           />
         )}
       </ScrollView>
+
+      {/* IMPROVEMENT: Upgrade/Downgrade Modal */}
+      {upgradeData && (
+        <UpgradeDowngradeModal
+          visible={showUpgradeModal}
+          onClose={() => {
+            setShowUpgradeModal(false);
+            setUpgradeData(null);
+          }}
+          onConfirm={handleConfirmUpgradeDowngrade}
+          currentPlan={upgradeData.currentPlan}
+          newPlan={upgradeData.newPlan}
+          proratedCalculation={upgradeData.proratedCalculation}
+          isUpgrade={upgradeData.isUpgrade}
+          loading={upgrading !== null}
+        />
+      )}
     </SafeAreaView>
   );
 }

@@ -14,14 +14,16 @@ import AdvancedFilters from '../../components/common/AdvancedFilters';
 import ConfirmDialog from '../../components/common/ConfirmDialog';
 import ExportButton from '../../components/common/ExportButton';
 import Pagination from '../../components/common/Pagination';
-import StatusBadge from '../../components/common/StatusBadge';
+import { EnumBadge } from '../../shared/components/ui';
 import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../context/ToastContext';
+import useTranslation from '../../hooks/useTranslation';
 import rewardService, { RewardRedemption } from '../../services/reward.service';
 import { formatVietnamDateTime } from '../../utils/dateTime';
 
 const RedemptionManagement: React.FC = () => {
   const { showToast } = useToast();
+  const { t } = useTranslation();
   const [redemptions, setRedemptions] = useState<RewardRedemption[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filters, setFilters] = useState({
@@ -52,7 +54,7 @@ const RedemptionManagement: React.FC = () => {
         setRedemptions(redemptionsList);
       }
     } catch (error: any) {
-      showToast({ message: 'Không thể tải danh sách đổi thưởng', type: 'error' });
+      showToast({ message: t('redemptionManagement.messages.loadError'), type: 'error' });
       console.error('Error loading redemptions:', error);
       setRedemptions([]);
     } finally {
@@ -144,17 +146,23 @@ const RedemptionManagement: React.FC = () => {
       const response = await rewardService.refundRedemption(redemptionToRefund.id, refundReason);
       if (response.success) {
         showToast({
-          message: `Hoàn trả ${
-            response.data?.refunded_points || redemptionToRefund.points_spent
-          } điểm thành công`,
+          message: t('redemptionManagement.messages.refundSuccess', {
+            points: response.data?.refunded_points || redemptionToRefund.points_spent,
+          }),
           type: 'success',
         });
         loadRedemptions();
       } else {
-        showToast({ message: response.message || 'Không thể hoàn trả', type: 'error' });
+        showToast({
+          message: response.message || t('redemptionManagement.messages.refundError'),
+          type: 'error',
+        });
       }
     } catch (error: any) {
-      showToast({ message: error.message || 'Không thể hoàn trả', type: 'error' });
+      showToast({
+        message: error.message || t('redemptionManagement.messages.refundError'),
+        type: 'error',
+      });
     } finally {
       setIsRefunding(false);
       setIsRefundDialogOpen(false);
@@ -165,51 +173,61 @@ const RedemptionManagement: React.FC = () => {
 
   const handleCopyCode = (code: string) => {
     navigator.clipboard.writeText(code);
-    showToast({ message: 'Đã copy mã!', type: 'success' });
+    showToast({ message: t('redemptionManagement.messages.copyCodeSuccess'), type: 'success' });
   };
 
   const handleMarkAsUsed = async (redemption: RewardRedemption) => {
     try {
       const response = await rewardService.markAsUsed(redemption.id);
       if (response.success) {
-        showToast({ message: 'Đã đánh dấu đã sử dụng', type: 'success' });
+        showToast({
+          message: t('redemptionManagement.messages.markAsUsedSuccess'),
+          type: 'success',
+        });
         loadRedemptions();
         if (isDetailModalOpen && selectedRedemption?.id === redemption.id) {
           setSelectedRedemption(response.data as RewardRedemption);
         }
       } else {
-        showToast({ message: response.message || 'Không thể đánh dấu', type: 'error' });
+        showToast({
+          message: response.message || t('redemptionManagement.messages.markAsUsedError'),
+          type: 'error',
+        });
       }
     } catch (error: any) {
-      showToast({ message: error.message || 'Không thể đánh dấu', type: 'error' });
+      showToast({
+        message: error.message || t('redemptionManagement.messages.markAsUsedError'),
+        type: 'error',
+      });
     }
   };
 
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
-      PENDING: 'Chờ xử lý',
-      ACTIVE: 'Đang hoạt động',
-      USED: 'Đã sử dụng',
-      EXPIRED: 'Hết hạn',
-      CANCELLED: 'Đã hủy',
-      REFUNDED: 'Đã hoàn trả',
+      PENDING: t('redemptionManagement.status.PENDING'),
+      ACTIVE: t('redemptionManagement.status.ACTIVE'),
+      USED: t('redemptionManagement.status.USED'),
+      EXPIRED: t('redemptionManagement.status.EXPIRED'),
+      CANCELLED: t('redemptionManagement.status.CANCELLED'),
+      REFUNDED: t('redemptionManagement.status.REFUNDED'),
     };
     return labels[status] || status;
   };
 
-  const getStatusColor = (status: string) => {
+  const getStatusEnumType = (
+    status: string
+  ): { type: 'MEMBERSHIP_STATUS' | 'BOOKING_STATUS' | 'PAYMENT_STATUS'; value: string } => {
     switch (status) {
       case 'ACTIVE':
-        return 'success';
+        return { type: 'MEMBERSHIP_STATUS', value: 'ACTIVE' };
       case 'USED':
-        return 'info';
+        return { type: 'BOOKING_STATUS', value: 'COMPLETED' };
       case 'EXPIRED':
-        return 'warning';
-      case 'CANCELLED':
+        return { type: 'MEMBERSHIP_STATUS', value: 'EXPIRED' };
       case 'REFUNDED':
-        return 'danger';
+        return { type: 'PAYMENT_STATUS', value: 'REFUNDED' };
       default:
-        return 'secondary';
+        return { type: 'MEMBERSHIP_STATUS', value: 'INACTIVE' };
     }
   };
 
@@ -244,16 +262,16 @@ const RedemptionManagement: React.FC = () => {
       <div className='flex justify-between items-start'>
         <div>
           <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Quản lý Đổi thưởng
+            {t('redemptionManagement.title')}
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Theo dõi và quản lý lịch sử đổi quà của thành viên
+            {t('redemptionManagement.subtitle')}
           </p>
         </div>
         <div className='flex items-center gap-3'>
           <AdminButton onClick={loadRedemptions} icon={RefreshCw} variant='outline' size='sm'>
-            Làm mới
-        </AdminButton>
+            {t('equipmentManagement.filter.refresh')}
+          </AdminButton>
         </div>
       </div>
 
@@ -275,7 +293,7 @@ const RedemptionManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng số đơn
+                  {t('redemptionManagement.stats.total')}
                 </div>
               </div>
             </div>
@@ -298,7 +316,7 @@ const RedemptionManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đang hoạt động
+                  {t('redemptionManagement.stats.active')}
                 </div>
               </div>
             </div>
@@ -321,7 +339,7 @@ const RedemptionManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Đã sử dụng
+                  {t('redemptionManagement.stats.used')}
                 </div>
               </div>
             </div>
@@ -344,7 +362,7 @@ const RedemptionManagement: React.FC = () => {
                   </div>
                 </div>
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter leading-tight font-medium'>
-                  Tổng điểm đổi
+                  {t('redemptionManagement.stats.totalPointsSpent')}
                 </div>
               </div>
             </div>
@@ -353,111 +371,123 @@ const RedemptionManagement: React.FC = () => {
       </div>
 
       {/* Advanced Filters */}
-              <AdvancedFilters
-                filters={{
-                  search: filters.search,
+      <AdvancedFilters
+        filters={{
+          search: filters.search,
           dateRange: {
             from: filters.startDate || undefined,
             to: filters.endDate || undefined,
           },
-                  customFilters: {
-                    status: filters.status !== 'all' ? filters.status : '',
-                    memberId: filters.memberId,
-                    rewardId: filters.rewardId,
-                  },
-                }}
-                onFiltersChange={newFilters => {
-                  setFilters({
-                    search: newFilters.search || '',
-                    status: newFilters.customFilters?.status || 'all',
-                    memberId: newFilters.customFilters?.memberId || '',
-                    rewardId: newFilters.customFilters?.rewardId || '',
+          customFilters: {
+            status: filters.status !== 'all' ? filters.status : '',
+            memberId: filters.memberId,
+            rewardId: filters.rewardId,
+          },
+        }}
+        onFiltersChange={newFilters => {
+          setFilters({
+            search: newFilters.search || '',
+            status: newFilters.customFilters?.status || 'all',
+            memberId: newFilters.customFilters?.memberId || '',
+            rewardId: newFilters.customFilters?.rewardId || '',
             startDate: newFilters.dateRange?.from || '',
             endDate: newFilters.dateRange?.to || '',
-                  });
-                  setCurrentPage(1);
-                }}
-                showDateRange={true}
-                showCategory={false}
-                customFilterFields={[
-                  {
-                    key: 'status',
-                    label: 'Trạng thái',
-                    type: 'select',
-                    options: [
-                      { value: 'PENDING', label: 'Chờ xử lý' },
-                      { value: 'ACTIVE', label: 'Đang hoạt động' },
-                      { value: 'USED', label: 'Đã sử dụng' },
-                      { value: 'EXPIRED', label: 'Hết hạn' },
-                      { value: 'CANCELLED', label: 'Đã hủy' },
-                      { value: 'REFUNDED', label: 'Đã hoàn trả' },
-                    ],
-                  },
-                  {
-                    key: 'memberId',
-                    label: 'ID Thành viên',
-                    type: 'text',
-                  },
-                  {
-                    key: 'rewardId',
-                    label: 'ID Phần thưởng',
-                    type: 'text',
-                  },
-                ]}
-              />
+          });
+          setCurrentPage(1);
+        }}
+        showDateRange={true}
+        showCategory={false}
+        customFilterFields={[
+          {
+            key: 'status',
+            label: t('redemptionManagement.table.status'),
+            type: 'select',
+            options: [
+              { value: 'PENDING', label: t('redemptionManagement.status.PENDING') },
+              { value: 'ACTIVE', label: t('redemptionManagement.status.ACTIVE') },
+              { value: 'USED', label: t('redemptionManagement.status.USED') },
+              { value: 'EXPIRED', label: t('redemptionManagement.status.EXPIRED') },
+              { value: 'CANCELLED', label: t('redemptionManagement.status.CANCELLED') },
+              { value: 'REFUNDED', label: t('redemptionManagement.status.REFUNDED') },
+            ],
+          },
+          {
+            key: 'memberId',
+            label: t('redemptionManagement.filter.memberId'),
+            type: 'text',
+          },
+          {
+            key: 'rewardId',
+            label: t('redemptionManagement.filter.rewardId'),
+            type: 'text',
+          },
+        ]}
+      />
 
       {/* Export and Actions */}
       <div className='flex justify-between items-center'>
         <div className='text-sm text-gray-600 dark:text-gray-400'>
-          Tổng cộng: {filteredRedemptions.length} đơn đổi thưởng
-            </div>
+          {t('redemptionManagement.stats.totalCount', { count: filteredRedemptions.length })}
+        </div>
         {filteredRedemptions.length > 0 && (
-              <ExportButton
-                data={getExportData()}
-                columns={[
-                  { key: 'Mã đổi', label: 'Mã đổi' },
-                  { key: 'Thành viên', label: 'Thành viên' },
-                  { key: 'Phần thưởng', label: 'Phần thưởng' },
-                  { key: 'Điểm đã đổi', label: 'Điểm đã đổi' },
-                  { key: 'Trạng thái', label: 'Trạng thái' },
-                  { key: 'Ngày đổi', label: 'Ngày đổi' },
-                ]}
-                filename='danh-sach-doi-thuong'
-            title='Danh sách Đổi thưởng'
-                variant='outline'
-                size='sm'
-              />
+          <ExportButton
+            data={getExportData()}
+            columns={[
+              { key: 'Mã đổi', label: t('redemptionManagement.table.code') },
+              { key: 'Thành viên', label: t('redemptionManagement.table.member') },
+              { key: 'Phần thưởng', label: t('redemptionManagement.table.reward') },
+              { key: 'Điểm đã đổi', label: t('redemptionManagement.table.pointsSpent') },
+              { key: 'Trạng thái', label: t('redemptionManagement.table.status') },
+              { key: 'Ngày đổi', label: t('redemptionManagement.table.redeemedAt') },
+            ]}
+            filename={t('redemptionManagement.export.filename')}
+            title={t('redemptionManagement.export.title')}
+            variant='outline'
+            size='sm'
+          />
         )}
       </div>
 
       {/* Redemptions List */}
       {isLoading ? (
-        <TableLoading text='Đang tải danh sách đổi thưởng...' />
+        <TableLoading text={t('redemptionManagement.messages.loading')} />
       ) : filteredRedemptions.length === 0 ? (
         <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Gift className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
               {filters.search || filters.status !== 'all'
-                ? 'Không tìm thấy đơn đổi thưởng nào'
-                : 'Không có đơn đổi thưởng nào'}
+                ? t('redemptionManagement.empty.noResults')
+                : t('redemptionManagement.empty.noRedemptions')}
             </div>
           </div>
-          </div>
-        ) : (
+        </div>
+      ) : (
         <>
           <AdminCard padding='sm' className='p-0'>
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell header>MÃ ĐỔI THƯỞNG</AdminTableCell>
-                  <AdminTableCell header>THÀNH VIÊN</AdminTableCell>
-                  <AdminTableCell header>PHẦN THƯỞNG</AdminTableCell>
-                  <AdminTableCell header>ĐIỂM</AdminTableCell>
-                  <AdminTableCell header>THỜI GIAN</AdminTableCell>
-                  <AdminTableCell header>TRẠNG THÁI</AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.code').toUpperCase()}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.member').toUpperCase()}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.reward').toUpperCase()}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.pointsSpent').toUpperCase()}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.time').toUpperCase()}
+                  </AdminTableCell>
+                  <AdminTableCell header>
+                    {t('redemptionManagement.table.status').toUpperCase()}
+                  </AdminTableCell>
                   <AdminTableCell header className='text-right'>
-                    THAO TÁC
+                    {t('redemptionManagement.table.actions').toUpperCase()}
                   </AdminTableCell>
                 </AdminTableRow>
               </AdminTableHeader>
@@ -474,19 +504,19 @@ const RedemptionManagement: React.FC = () => {
                     <AdminTableCell className='overflow-hidden relative'>
                       <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
                       <div className='min-w-0 flex-1 relative z-10'>
-                      <div className='flex items-center gap-2 group'>
-                        <code className='text-sm font-mono font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-900/30'>
-                          {redemption.code || 'N/A'}
-                        </code>
-                        {redemption.code && (
-                          <button
-                            onClick={() => handleCopyCode(redemption.code!)}
-                            className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity'
-                            title='Copy mã'
-                          >
-                            <Copy className='w-4 h-4' />
-                          </button>
-                        )}
+                        <div className='flex items-center gap-2 group'>
+                          <code className='text-sm font-mono font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-900/30'>
+                            {redemption.code || 'N/A'}
+                          </code>
+                          {redemption.code && (
+                            <button
+                              onClick={() => handleCopyCode(redemption.code!)}
+                              className='text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 opacity-0 group-hover:opacity-100 transition-opacity'
+                              title={t('redemptionManagement.actions.copyCode')}
+                            >
+                              <Copy className='w-4 h-4' />
+                            </button>
+                          )}
                         </div>
                       </div>
                     </AdminTableCell>
@@ -527,13 +557,24 @@ const RedemptionManagement: React.FC = () => {
                                 : 'text-gray-500'
                             }`}
                           >
-                            Hết hạn: {formatVietnamDateTime(redemption.expires_at).split(' ')[0]}
+                            {t('redemptionManagement.table.expiresAt')}:{' '}
+                            {formatVietnamDateTime(redemption.expires_at).split(' ')[0]}
                           </div>
                         )}
                       </div>
                     </AdminTableCell>
                     <AdminTableCell>
-                      <StatusBadge status={getStatusColor(redemption.status) as any} />
+                      {(() => {
+                        const statusEnum = getStatusEnumType(redemption.status);
+                        return (
+                          <EnumBadge
+                            type={statusEnum.type}
+                            value={statusEnum.value}
+                            size='sm'
+                            showIcon={true}
+                          />
+                        );
+                      })()}
                     </AdminTableCell>
                     <AdminTableCell className='text-right'>
                       <div className='flex items-center justify-end gap-2'>
@@ -544,7 +585,7 @@ const RedemptionManagement: React.FC = () => {
                           size='sm'
                           className='text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-900/20 border-none'
                         >
-                          Chi tiết
+                          {t('redemptionManagement.actions.viewDetails')}
                         </AdminButton>
                         {redemption.status === 'ACTIVE' && (
                           <>
@@ -554,7 +595,7 @@ const RedemptionManagement: React.FC = () => {
                               variant='outline'
                               size='sm'
                               className='text-green-600 hover:text-green-700 hover:bg-green-50 dark:hover:bg-green-900/20 border-none'
-                              title='Đánh dấu đã dùng'
+                              title={t('redemptionManagement.actions.markAsUsed')}
                             />
                             <AdminButton
                               onClick={() => handleRefund(redemption)}
@@ -562,7 +603,7 @@ const RedemptionManagement: React.FC = () => {
                               variant='outline'
                               size='sm'
                               className='text-orange-600 hover:text-orange-700 hover:bg-orange-50 dark:hover:bg-orange-900/20 border-none'
-                              title='Hoàn trả'
+                              title={t('redemptionManagement.actions.refund')}
                             />
                           </>
                         )}
@@ -574,19 +615,19 @@ const RedemptionManagement: React.FC = () => {
             </AdminTable>
           </AdminCard>
         </>
-        )}
+      )}
 
-        {totalPages > 1 && (
+      {totalPages > 1 && (
         <div className='flex justify-center'>
-            <Pagination
-              currentPage={currentPage}
-              totalPages={totalPages}
+          <Pagination
+            currentPage={currentPage}
+            totalPages={totalPages}
             totalItems={filteredRedemptions.length}
-              itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
-            />
-          </div>
-        )}
+            itemsPerPage={itemsPerPage}
+            onPageChange={setCurrentPage}
+          />
+        </div>
+      )}
 
       {/* Detail Modal */}
       <AdminModal
@@ -619,7 +660,7 @@ const RedemptionManagement: React.FC = () => {
                   }}
                   className='bg-orange-500 hover:bg-orange-600 text-white border-none'
                 >
-                  Hoàn trả
+                  {t('redemptionManagement.actions.refund')}
                 </AdminButton>
               </>
             )}
@@ -631,9 +672,19 @@ const RedemptionManagement: React.FC = () => {
             <div className='bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
               <div className='flex items-center justify-between mb-1.5'>
                 <span className='text-[10px] font-medium text-gray-500 dark:text-gray-400 font-inter uppercase tracking-wide'>
-                  Mã đổi thưởng
+                  {t('redemptionManagement.table.code')}
                 </span>
-                <StatusBadge status={getStatusColor(selectedRedemption.status) as any} />
+                {(() => {
+                  const statusEnum = getStatusEnumType(selectedRedemption.status);
+                  return (
+                    <EnumBadge
+                      type={statusEnum.type}
+                      value={statusEnum.value}
+                      size='sm'
+                      showIcon={true}
+                    />
+                  );
+                })()}
               </div>
               <div className='flex items-center gap-2'>
                 <code className='text-base font-mono font-bold text-orange-600 tracking-wider font-inter'>
@@ -658,7 +709,7 @@ const RedemptionManagement: React.FC = () => {
                 </div>
                 <div className='flex-1 min-w-0'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 font-inter mb-0.5 uppercase tracking-wide'>
-                    Phần thưởng
+                    {t('redemptionManagement.table.reward')}
                   </p>
                   <p className='font-semibold text-gray-900 dark:text-white text-xs'>
                     {selectedRedemption.reward?.title || 'N/A'}
@@ -674,7 +725,7 @@ const RedemptionManagement: React.FC = () => {
               <div className='grid grid-cols-2 gap-2.5'>
                 <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
-                    Thành viên
+                    {t('redemptionManagement.table.member')}
                   </p>
                   <p className='font-semibold text-gray-900 dark:text-white text-xs'>
                     {selectedRedemption.member?.full_name || 'N/A'}
@@ -685,7 +736,7 @@ const RedemptionManagement: React.FC = () => {
                 </div>
                 <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
-                    Điểm chi tiêu
+                    {t('redemptionManagement.table.pointsSpent')}
                   </p>
                   <p className='font-bold text-yellow-600 dark:text-yellow-400 text-sm'>
                     -{selectedRedemption.points_spent}
@@ -696,7 +747,7 @@ const RedemptionManagement: React.FC = () => {
               <div className='grid grid-cols-2 gap-2.5'>
                 <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
-                    Ngày đổi
+                    {t('redemptionManagement.table.redeemedAt')}
                   </p>
                   <p className='font-semibold text-gray-900 dark:text-white text-xs'>
                     {formatVietnamDateTime(selectedRedemption.redeemed_at)}
@@ -705,7 +756,7 @@ const RedemptionManagement: React.FC = () => {
                 {selectedRedemption.expires_at && (
                   <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
                     <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
-                      Hết hạn
+                      {t('redemptionManagement.table.expiresAt')}
                     </p>
                     <p className='font-semibold text-gray-900 dark:text-white text-xs'>
                       {formatVietnamDateTime(selectedRedemption.expires_at)}
@@ -715,7 +766,7 @@ const RedemptionManagement: React.FC = () => {
                 {selectedRedemption.used_at && (
                   <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
                     <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
-                      Ngày sử dụng
+                      {t('redemptionManagement.table.usedAt')}
                     </p>
                     <p className='font-semibold text-gray-900 dark:text-white text-xs'>
                       {formatVietnamDateTime(selectedRedemption.used_at)}
@@ -727,7 +778,7 @@ const RedemptionManagement: React.FC = () => {
               {selectedRedemption.notes && (
                 <div className='p-2.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg'>
                   <p className='text-[10px] font-medium text-gray-900 dark:text-white mb-1 font-inter uppercase tracking-wide'>
-                    Ghi chú
+                    {t('redemptionManagement.table.notes')}
                   </p>
                   <p className='text-[10px] text-gray-600 dark:text-gray-400 font-inter'>
                     {selectedRedemption.notes}
@@ -744,7 +795,7 @@ const RedemptionManagement: React.FC = () => {
         isOpen={isRefundDialogOpen}
         onClose={() => setIsRefundDialogOpen(false)}
         onConfirm={confirmRefund}
-        title='Hoàn trả Điểm'
+        title={t('redemptionManagement.refund.title')}
         message={
           <div className='space-y-3'>
             <p>
@@ -757,20 +808,20 @@ const RedemptionManagement: React.FC = () => {
             </p>
             <div>
               <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                Lý do hoàn trả
+                {t('redemptionManagement.refund.reason')}
               </label>
               <textarea
                 value={refundReason}
                 onChange={e => setRefundReason(e.target.value)}
                 rows={3}
                 className='w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all'
-                placeholder='Nhập lý do hoàn trả...'
+                placeholder={t('redemptionManagement.refund.reasonPlaceholder')}
               />
             </div>
           </div>
         }
-        confirmText='Hoàn trả ngay'
-        cancelText='Hủy bỏ'
+        confirmText={t('redemptionManagement.refund.confirmText')}
+        cancelText={t('common.cancel')}
         isLoading={isRefunding}
         variant='warning'
       />

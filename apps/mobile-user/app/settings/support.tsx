@@ -55,79 +55,129 @@ export default function SupportScreen() {
   const faqItems: FAQItem[] = [
     {
       id: '1',
-      question: 'How do I check in to the gym?',
-      answer:
-        'You can check in using QR code scanning, RFID card, or face recognition. Tap the "Check In" button on the home screen and choose your preferred method.',
+      question: t('settings.support.faq.checkIn.question', {
+        defaultValue: 'Làm thế nào để check-in tại phòng gym?',
+      }),
+      answer: t('settings.support.faq.checkIn.answer', {
+        defaultValue:
+          'Bạn có thể check-in bằng cách quét mã QR, thẻ RFID hoặc nhận diện khuôn mặt. Nhấn nút "Check In" trên màn hình chính và chọn phương thức bạn muốn.',
+      }),
     },
     {
       id: '2',
-      question: 'How do I update my profile information?',
-      answer:
-        'Go to the Profile tab and tap on "Personal", "Health", or "Goals" to edit different sections of your profile. Make sure to save your changes.',
+      question: t('settings.support.faq.updateProfile.question', {
+        defaultValue: 'Làm thế nào để cập nhật thông tin hồ sơ?',
+      }),
+      answer: t('settings.support.faq.updateProfile.answer', {
+        defaultValue:
+          'Vào tab Hồ sơ và nhấn vào "Cá nhân", "Sức khỏe" hoặc "Mục tiêu" để chỉnh sửa các phần khác nhau của hồ sơ. Nhớ lưu các thay đổi của bạn.',
+      }),
     },
     {
       id: '3',
-      question: 'How do I track my workouts?',
-      answer:
-        'Your workouts are automatically tracked when you check in and out of the gym. You can view your workout history in the Stats tab.',
+      question: t('settings.support.faq.trackWorkouts.question', {
+        defaultValue: 'Làm thế nào để theo dõi bài tập?',
+      }),
+      answer: t('settings.support.faq.trackWorkouts.answer', {
+        defaultValue:
+          'Bài tập của bạn được tự động theo dõi khi bạn check-in và check-out tại phòng gym. Bạn có thể xem lịch sử bài tập trong tab Thống kê.',
+      }),
     },
     {
       id: '4',
-      question: 'How do I change my membership plan?',
-      answer:
-        'Contact our support team or visit the gym reception to discuss membership plan changes. You can also check available plans in the app.',
+      question: t('settings.support.faq.changeMembership.question', {
+        defaultValue: 'Làm thế nào để thay đổi gói thành viên?',
+      }),
+      answer: t('settings.support.faq.changeMembership.answer', {
+        defaultValue:
+          'Liên hệ đội hỗ trợ của chúng tôi hoặc đến quầy lễ tân phòng gym để thảo luận về việc thay đổi gói thành viên. Bạn cũng có thể xem các gói có sẵn trong ứng dụng.',
+      }),
     },
     {
       id: '5',
-      question: 'What if I forget my password?',
-      answer:
-        'On the login screen, tap "Forgot Password" and enter your email address. You will receive a password reset link via email.',
+      question: t('settings.support.faq.forgotPassword.question', {
+        defaultValue: 'Nếu tôi quên mật khẩu thì sao?',
+      }),
+      answer: t('settings.support.faq.forgotPassword.answer', {
+        defaultValue:
+          'Trên màn hình đăng nhập, nhấn "Quên mật khẩu" và nhập địa chỉ email của bạn. Bạn sẽ nhận được liên kết đặt lại mật khẩu qua email.',
+      }),
     },
     {
       id: '6',
-      question: 'How do I enable notifications?',
-      answer:
-        'Go to Settings > Notifications to customize which notifications you want to receive. Make sure push notifications are enabled in your device settings.',
+      question: t('settings.support.faq.enableNotifications.question', {
+        defaultValue: 'Làm thế nào để bật thông báo?',
+      }),
+      answer: t('settings.support.faq.enableNotifications.answer', {
+        defaultValue:
+          'Vào Cài đặt > Thông báo để tùy chỉnh thông báo bạn muốn nhận. Đảm bảo thông báo đẩy được bật trong cài đặt thiết bị của bạn.',
+      }),
     },
     {
       id: '7',
-      question: 'How do I contact customer support?',
-      answer:
-        'You can contact us through this support screen, call us at +1 (555) 123-4567, or email us at support@gymapp.com.',
+      question: t('settings.support.faq.contactSupport.question', {
+        defaultValue: 'Làm thế nào để liên hệ hỗ trợ khách hàng?',
+      }),
+      answer: t('settings.support.faq.contactSupport.answer', {
+        defaultValue:
+          'Bạn có thể liên hệ chúng tôi qua màn hình hỗ trợ này, gọi cho chúng tôi hoặc gửi email cho chúng tôi.',
+      }),
     },
     {
       id: '8',
-      question: 'How do I cancel my membership?',
-      answer:
-        'To cancel your membership, please contact our support team at least 30 days before your next billing cycle. We will guide you through the cancellation process.',
+      question: t('settings.support.faq.cancelMembership.question', {
+        defaultValue: 'Làm thế nào để hủy thành viên?',
+      }),
+      answer: t('settings.support.faq.cancelMembership.answer', {
+        defaultValue:
+          'Để hủy thành viên, vui lòng liên hệ đội hỗ trợ của chúng tôi ít nhất 30 ngày trước chu kỳ thanh toán tiếp theo. Chúng tôi sẽ hướng dẫn bạn qua quy trình hủy.',
+      }),
     },
   ];
 
   const contactMethods = [
     {
       id: 'phone',
-      title: 'Call Us',
-      description: '+1 (555) 123-4567',
+      title: t('settings.support.callUs', {
+        defaultValue: 'Gọi cho chúng tôi',
+      }),
+      description: t('settings.support.phoneNumber', {
+        defaultValue: '+84 123 456 789',
+      }),
       icon: <Phone size={20} color={theme.colors.primary} />,
-      action: () => Linking.openURL('tel:+15551234567'),
+      action: () => Linking.openURL('tel:+84123456789'),
     },
     {
       id: 'email',
-      title: 'Email Us',
-      description: 'support@gymapp.com',
+      title: t('settings.support.emailUs', {
+        defaultValue: 'Gửi email cho chúng tôi',
+      }),
+      description: t('settings.support.emailAddress', {
+        defaultValue: 'support@gym147.com',
+      }),
       icon: <Mail size={20} color={theme.colors.primary} />,
-      action: () => Linking.openURL('mailto:support@gymapp.com'),
+      action: () => Linking.openURL('mailto:support@gym147.com'),
     },
     {
       id: 'chat',
-      title: 'Live Chat',
-      description: 'Available 24/7',
+      title: t('settings.support.liveChat', {
+        defaultValue: 'Trò chuyện trực tiếp',
+      }),
+      description: t('settings.support.available247', {
+        defaultValue: 'Có sẵn 24/7',
+      }),
       icon: <MessageCircle size={20} color={theme.colors.primary} />,
       action: () => {
         if (user?.id) {
           router.push('/settings/chat');
         } else {
-          Alert.alert(t('common.error'), 'Please login to use live chat');
+          Alert.alert(
+            t('common.error'),
+            t('settings.support.loginRequired', {
+              defaultValue:
+                'Vui lòng đăng nhập để sử dụng trò chuyện trực tiếp',
+            })
+          );
         }
       },
     },
@@ -179,7 +229,9 @@ export default function SupportScreen() {
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-          Help & Support
+          {t('settings.support.title', {
+            defaultValue: 'Trợ giúp & Hỗ trợ',
+          })}
         </Text>
         <View style={styles.headerSpacer} />
       </View>
@@ -188,7 +240,9 @@ export default function SupportScreen() {
         {/* Contact Methods */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Contact Us
+            {t('settings.support.contactUs', {
+              defaultValue: 'Liên hệ chúng tôi',
+            })}
           </Text>
           {contactMethods.map((method) => (
             <TouchableOpacity
@@ -238,7 +292,9 @@ export default function SupportScreen() {
                 { color: theme.colors.textInverse },
               ]}
             >
-              Submit Support Ticket
+              {t('settings.support.submitTicket', {
+                defaultValue: 'Gửi yêu cầu hỗ trợ',
+              })}
             </Text>
           </TouchableOpacity>
 
@@ -250,12 +306,17 @@ export default function SupportScreen() {
               ]}
             >
               <Text style={[styles.formTitle, { color: theme.colors.text }]}>
-                Submit a Support Ticket
+                {t('settings.support.submitTicketTitle', {
+                  defaultValue: 'Gửi yêu cầu hỗ trợ',
+                })}
               </Text>
 
               <View style={styles.formField}>
                 <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>
-                  Subject *
+                  {t('settings.support.subject', {
+                    defaultValue: 'Chủ đề',
+                  })}{' '}
+                  *
                 </Text>
                 <TextInput
                   style={[
@@ -277,7 +338,10 @@ export default function SupportScreen() {
 
               <View style={styles.formField}>
                 <Text style={[styles.fieldLabel, { color: theme.colors.text }]}>
-                  Message *
+                  {t('settings.support.message', {
+                    defaultValue: 'Tin nhắn',
+                  })}{' '}
+                  *
                 </Text>
                 <TextInput
                   style={[
@@ -318,7 +382,13 @@ export default function SupportScreen() {
                     { color: theme.colors.textInverse },
                   ]}
                 >
-                  {submitting ? 'Submitting...' : 'Submit Ticket'}
+                  {submitting
+                    ? t('settings.support.submitting', {
+                        defaultValue: 'Đang gửi...',
+                      })
+                    : t('settings.support.submitTicket', {
+                        defaultValue: 'Gửi yêu cầu',
+                      })}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -328,7 +398,9 @@ export default function SupportScreen() {
         {/* FAQ Section */}
         <View style={styles.section}>
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
-            Frequently Asked Questions
+            {t('settings.support.faq.title', {
+              defaultValue: 'Câu hỏi thường gặp',
+            })}
           </Text>
           {faqItems.map((item) => (
             <View

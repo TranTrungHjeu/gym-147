@@ -1,10 +1,8 @@
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect, useRef } from 'react';
 import {
   Animated,
-  Easing,
   Modal,
   StyleSheet,
   Text,
@@ -38,17 +36,15 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 }) => {
   const { theme } = useTheme();
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.8)).current;
 
   useEffect(() => {
     if (visible) {
       // Reset animations
       fadeAnim.setValue(0);
-      scaleAnim.setValue(0.9);
-      slideAnim.setValue(50);
+      scaleAnim.setValue(0.8);
 
-      // Start animations
+      // Start animations - center modal with scale and fade
       Animated.parallel([
         Animated.timing(fadeAnim, {
           toValue: 1,
@@ -61,12 +57,6 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           friction: 7,
           useNativeDriver: true,
         }),
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 250,
-          easing: Easing.out(Easing.ease),
-          useNativeDriver: true,
-        }),
       ]).start();
     } else {
       // Fade out animation
@@ -77,12 +67,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           useNativeDriver: true,
         }),
         Animated.timing(scaleAnim, {
-          toValue: 0.9,
-          duration: 150,
-          useNativeDriver: true,
-        }),
-        Animated.timing(slideAnim, {
-          toValue: 50,
+          toValue: 0.8,
           duration: 150,
           useNativeDriver: true,
         }),
@@ -113,16 +98,13 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           activeOpacity={1}
           onPress={onCancel}
         />
-        <SafeAreaView style={styles.safeArea} edges={['bottom']}>
+        <SafeAreaView style={styles.safeArea} edges={[]}>
           <Animated.View
             style={[
               styles.container,
               {
                 backgroundColor: theme.colors.surface,
-                transform: [
-                  { scale: scaleAnim },
-                  { translateY: slideAnim },
-                ],
+                transform: [{ scale: scaleAnim }],
               },
             ]}
           >
@@ -135,7 +117,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
             {/* Message */}
             <View style={styles.content}>
-              <Text style={[styles.message, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[styles.message, { color: theme.colors.textSecondary }]}
+              >
                 {message}
               </Text>
             </View>
@@ -155,7 +139,12 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
                 disabled={loading}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.cancelButtonText, { color: theme.colors.text }]}>
+                <Text
+                  style={[
+                    styles.cancelButtonText,
+                    { color: theme.colors.text },
+                  ]}
+                >
                   {cancelText}
                 </Text>
               </TouchableOpacity>
@@ -197,26 +186,31 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   safeArea: {
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
   },
   container: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     paddingTop: 24,
-    paddingBottom: 20,
+    paddingBottom: 24,
     paddingHorizontal: 20,
     maxHeight: '80%',
+    width: '90%',
+    maxWidth: 400,
+    minWidth: 280,
     shadowColor: '#000',
     shadowOffset: {
       width: 0,
-      height: -2,
+      height: 2,
     },
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
@@ -240,6 +234,8 @@ const styles = StyleSheet.create({
   buttons: {
     flexDirection: 'row',
     gap: 12,
+    width: '100%',
+    alignItems: 'stretch',
   },
   button: {
     flex: 1,
@@ -262,4 +258,3 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 });
-
