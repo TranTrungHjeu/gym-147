@@ -278,7 +278,8 @@ class ClassService {
   async getClassRecommendations(
     memberId: string,
     useAI: boolean = true,
-    useVector: boolean = true
+    useVector: boolean = true,
+    skipCache: boolean = false
   ): Promise<{
     success: boolean;
     data?: {
@@ -293,34 +294,51 @@ class ClassService {
       const params: any = {
         useAI: useAI ? 'true' : 'false',
         useVector: useVector ? 'true' : 'false',
+        skipCache: skipCache ? 'true' : 'false',
       };
       console.log('[API] [getClassRecommendations] Calling API:', {
         memberId,
         params,
         endpoint: `/classes/members/${memberId}/recommendations`,
       });
-      
+
+      // Pass params directly, not wrapped in { params }
       const response = await scheduleApiService.get(
         `/classes/members/${memberId}/recommendations`,
-        { params }
+        params
       );
 
       console.log('[DATA] [getClassRecommendations] API Response:', {
         hasResponse: !!response,
         hasData: !!response.data,
         responseData: response.data,
+        skipCache: skipCache,
       });
 
       // Extract recommendations from response
       const data = response.data?.data || response.data || {};
       const recommendations = data.recommendations || [];
+      const isCached = data.cached === true;
 
       console.log('[DATA] [getClassRecommendations] Extracted data:', {
         hasData: !!data,
         recommendationsCount: recommendations.length,
         method: data.method,
+        isCached: isCached,
+        skipCache: skipCache,
+        wasCached:
+          isCached && skipCache
+            ? 'WARNING: Got cached data even with skipCache=true!'
+            : 'OK',
         recommendations: recommendations.slice(0, 2), // Log first 2 for debugging
       });
+
+      // Warn if we got cached data when skipCache was true
+      if (skipCache && isCached) {
+        console.warn(
+          '[WARNING] [getClassRecommendations] Got cached data even though skipCache=true!'
+        );
+      }
 
       return {
         success: true,
@@ -332,12 +350,15 @@ class ClassService {
         },
       };
     } catch (error: any) {
-      console.error('[ERROR] [getClassRecommendations] Error fetching class recommendations:', {
-        message: error.message,
-        status: error.status,
-        response: error.response?.data,
-        memberId,
-      });
+      console.error(
+        '[ERROR] [getClassRecommendations] Error fetching class recommendations:',
+        {
+          message: error.message,
+          status: error.status,
+          response: error.response?.data,
+          memberId,
+        }
+      );
       return {
         success: false,
         error: error.message || 'Failed to fetch recommendations',

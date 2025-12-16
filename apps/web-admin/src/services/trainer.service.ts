@@ -120,6 +120,18 @@ class TrainerService {
       data
     );
   }
+
+  async cancelTrainerSchedule(
+    userId: string,
+    scheduleId: string,
+    cancellationReason?: string
+  ): Promise<ApiResponse<{ schedule: any; cancelled_bookings: number; notified_members: string[] }>> {
+    return this.request<{ schedule: any; cancelled_bookings: number; notified_members: string[] }>(
+      `/trainers/user/${userId}/schedules/${scheduleId}`,
+      'DELETE',
+      { cancellation_reason: cancellationReason }
+    );
+  }
 }
 
 export const trainerService = new TrainerService();

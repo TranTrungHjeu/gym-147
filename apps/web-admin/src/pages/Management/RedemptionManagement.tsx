@@ -245,7 +245,7 @@ const RedemptionManagement: React.FC = () => {
   const getExportData = () => {
     return filteredRedemptions.map(redemption => ({
       'Mã đổi': redemption.code || '',
-      'Thành viên': redemption.member?.full_name || '',
+      'Hội viên': redemption.member?.full_name || '',
       'Phần thưởng': redemption.reward?.title || '',
       'Điểm đã đổi': redemption.points_spent,
       'Trạng thái': getStatusLabel(redemption.status),
@@ -434,7 +434,7 @@ const RedemptionManagement: React.FC = () => {
             data={getExportData()}
             columns={[
               { key: 'Mã đổi', label: t('redemptionManagement.table.code') },
-              { key: 'Thành viên', label: t('redemptionManagement.table.member') },
+              { key: 'Hội viên', label: t('redemptionManagement.table.member') },
               { key: 'Phần thưởng', label: t('redemptionManagement.table.reward') },
               { key: 'Điểm đã đổi', label: t('redemptionManagement.table.pointsSpent') },
               { key: 'Trạng thái', label: t('redemptionManagement.table.status') },
@@ -803,7 +803,7 @@ const RedemptionManagement: React.FC = () => {
               <span className='font-bold text-orange-600'>
                 {redemptionToRefund?.points_spent} điểm
               </span>{' '}
-              cho thành viên{' '}
+              cho hội viên{' '}
               <span className='font-bold'>{redemptionToRefund?.member?.full_name}</span>?
             </p>
             <div>

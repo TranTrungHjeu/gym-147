@@ -681,6 +681,7 @@
     "next": "Next",
     "page": "Page",
     "of": "of",
+    "unlimited": "Unlimited",
     "processing": "Processing...",
     "enterToConfirm": "Enter \"{{text}}\" to confirm",
     "pleaseEnterCorrect": "Please enter the correct \"{{text}}\"",
@@ -773,6 +774,7 @@
       "submit": "Submit",
       "reset": "Reset"
     },
+    "all": "All",
     "status": {
       "active": "Active",
       "inactive": "Inactive",
@@ -782,7 +784,34 @@
       "processing": "Processing",
       "failed": "Failed",
       "success": "Success",
-      "error": "Error"
+      "error": "Error",
+      "ACTIVE": "Active",
+      "EXPIRED": "Expired",
+      "SUSPENDED": "Suspended"
+    },
+    "membershipTypes": {
+      "BASIC": "Basic",
+      "PREMIUM": "Premium",
+      "VIP": "VIP",
+      "STUDENT": "Student"
+    },
+    "trainerStatus": {
+      "active": "Active",
+      "inactive": "Inactive",
+      "onLeave": "On Leave",
+      "terminated": "Terminated"
+    },
+    "classCategory": {
+      "cardio": "Cardio",
+      "strength": "Strength",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Dance",
+      "martialArts": "Martial Arts",
+      "aqua": "Aqua",
+      "functional": "Functional",
+      "recovery": "Recovery",
+      "specialized": "Specialized"
     }
   },
   "personalTraining": {
@@ -1435,6 +1464,30 @@
         "endDate": "End Date",
         "status": "Status",
         "actions": "Actions"
+      },
+      "refundTimeline": {
+        "title": "Refund Timeline",
+        "noTimeline": "No refund timeline available",
+        "loading": "Loading refund timeline...",
+        "error": "Failed to load refund timeline",
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "processed": "Processed",
+          "failed": "Failed",
+          "cancelled": "Cancelled"
+        },
+        "actions": {
+          "created": "Refund request created",
+          "approved": "Refund request approved",
+          "processed": "Refund processed",
+          "cancelled": "Refund request cancelled",
+          "failed": "Refund processing failed"
+        },
+        "by": "By",
+        "at": "At",
+        "amount": "Amount",
+        "reason": "Reason"
       }
     },
     "payments": {
@@ -1592,12 +1645,14 @@
     "table": {
       "title": "Title",
       "category": "Category",
+      "type": "Type",
       "pointsCost": "Points Cost",
       "stock": "Stock",
       "validFrom": "Valid From",
       "validUntil": "Valid Until",
       "status": "Status",
-      "actions": "Actions"
+      "actions": "Actions",
+      "redemptions": "Redemptions"
     },
     "form": {
       "addTitle": "Add New Reward",
@@ -1614,17 +1669,82 @@
       "redemptionLimit": "Redemption Limit",
       "validFrom": "Valid From",
       "validUntil": "Valid Until",
-      "termsConditions": "Terms & Conditions"
+      "termsConditions": "Terms & Conditions",
+      "titleRequired": "Title is required",
+      "descriptionRequired": "Description is required",
+      "pointsCostRequired": "Points must be greater than 0",
+      "onlyOneDiscountType": "Only one discount type allowed (percentage OR amount)",
+      "discountPercentRange": "Discount percentage must be between 0 and 100",
+      "discountAmountInvalid": "Discount amount cannot be negative",
+      "stockQuantityInvalid": "Stock quantity cannot be negative",
+      "redemptionLimitInvalid": "Redemption limit cannot be negative",
+      "validUntilAfterValidFrom": "End date must be after start date",
+      "selectCategory": "Select category",
+      "selectType": "Select type",
+      "changeImage": "Change",
+      "uploadImage": "Upload Image",
+      "imageUploadHint": "Max 5MB. Formats: JPG, PNG, GIF, WebP",
+      "termsConditionsPlaceholder": "Terms and conditions...",
+      "imageFileTypeError": "File must be an image",
+      "imageFileSizeError": "File must not exceed 5MB"
+    },
+    "stats": {
+      "total": "Total Rewards",
+      "active": "Active",
+      "totalRedemptions": "Total Redemptions",
+      "totalPointsSpent": "Total Points Spent",
+      "totalCount": "Total: {{count}} rewards"
+    },
+    "categories": {
+      "DISCOUNT": "Discount",
+      "FREE_CLASS": "Free Class",
+      "MERCHANDISE": "Merchandise",
+      "MEMBERSHIP_EXTENSION": "Membership Extension",
+      "PREMIUM_FEATURE": "Premium Feature",
+      "OTHER": "Other"
+    },
+    "rewardTypes": {
+      "PERCENTAGE_DISCOUNT": "Percentage Discount",
+      "FIXED_AMOUNT_DISCOUNT": "Fixed Amount Discount",
+      "FREE_ITEM": "Free Item",
+      "MEMBERSHIP_UPGRADE": "Membership Upgrade",
+      "PREMIUM_FEATURE_ACCESS": "Premium Feature Access",
+      "CASHBACK": "Cashback",
+      "OTHER": "Other"
     },
     "empty": {
-      "noRewards": "No rewards found"
+      "noRewards": "No rewards found",
+      "noResults": "No rewards found"
     },
     "messages": {
       "loadError": "Failed to load reward list",
-      "createSuccess": "Reward created successfully",
-      "updateSuccess": "Reward updated successfully",
-      "deleteSuccess": "Reward deleted successfully",
-      "deleteError": "Failed to delete reward"
+      "loading": "Loading rewards...",
+      "createSuccess": "Reward \"{{name}}\" created successfully!",
+      "createError": "Failed to create reward",
+      "updateSuccess": "Reward \"{{name}}\" updated successfully!",
+      "updateError": "Failed to update reward",
+      "deleteSuccess": "Reward \"{{name}}\" deleted successfully!",
+      "deleteError": "Failed to delete reward",
+      "saveError": "Failed to save reward",
+      "uploadImageError": "Failed to upload image",
+      "statusUpdateSuccess": "Successfully {{action}} reward \"{{name}}\"!",
+      "statusUpdateError": "Failed to update status"
+    },
+    "actions": {
+      "edit": "Edit",
+      "delete": "Delete",
+      "create": "Create",
+      "update": "Update",
+      "activate": "activate",
+      "deactivate": "deactivate"
+    },
+    "delete": {
+      "confirmTitle": "Delete Reward",
+      "confirmMessage": "Are you sure you want to delete reward \"{{name}}\"?"
+    },
+    "export": {
+      "filename": "rewards-list",
+      "title": "Rewards List"
     }
   },
   "redemptionManagement": {
@@ -1798,7 +1918,9 @@
       },
       "preview": {
         "title": "Preview Recipients",
-        "count": "{{count}} members will receive this notification"
+        "count": "{{count}} members will receive this notification",
+        "willSendTo": "Will send to",
+        "moreMembers": "... and {{count}} more members"
       }
     },
     "trainers": {
@@ -1813,13 +1935,19 @@
         "specific": "Specific Trainers"
       },
       "filters": {
+        "title": "Filters",
         "status": "Status",
         "specialization": "Specialization",
-        "search": "Search"
+        "search": "Search",
+        "statusLabel": "Status",
+        "specializationLabel": "Specialization",
+        "searchPlaceholder": "Name, email, phone..."
       },
       "preview": {
         "title": "Preview Recipients",
-        "count": "{{count}} trainers will receive this notification"
+        "count": "{{count}} trainers will receive this notification",
+        "willSendTo": "Will send to",
+        "moreTrainers": "... and {{count}} more trainers"
       }
     },
     "history": {
@@ -1834,9 +1962,35 @@
         "actions": "Actions"
       },
       "filters": {
+        "title": "Filters",
         "targetType": "Target Type",
+        "targetTypeLabel": "Target",
         "startDate": "Start Date",
-        "endDate": "End Date"
+        "endDate": "End Date",
+        "all": "All",
+        "member": "Member",
+        "trainer": "Trainer",
+        "clearAll": "Clear All",
+        "clearFilter": "Clear Filter"
+      },
+      "table": {
+        "sendDate": "Send Date",
+        "sender": "Sender",
+        "target": "Target",
+        "title": "Title",
+        "total": "Total",
+        "success": "Success",
+        "failed": "Failed"
+      },
+      "detail": {
+        "title": "Title",
+        "message": "Message",
+        "target": "Target",
+        "total": "Total",
+        "success": "Success",
+        "failed": "Failed",
+        "sender": "Sender",
+        "notificationType": "Notification Type"
       }
     },
     "actions": {
@@ -1852,9 +2006,31 @@
     },
     "success": {
       "title": "Notification Sent",
+      "target": "Target",
+      "members": "Members",
+      "trainers": "Trainers",
+      "total": "Total",
+      "sent": "Sent",
+      "failed": "Failed",
       "sentCount": "Sent: {{count}}",
       "failedCount": "Failed: {{count}}",
       "totalTargets": "Total: {{count}}"
+    },
+    "filters": {
+      "title": "Filters",
+      "membershipType": "Membership Type",
+      "status": "Status",
+      "search": "Search",
+      "searchPlaceholder": "Name, email, phone...",
+      "clearFilters": "Clear Filters",
+      "selectFilterOrIds": "Select filter or enter IDs to view list"
+    },
+    "preview": {
+      "title": "Preview",
+      "expandList": "View List",
+      "collapseList": "Collapse",
+      "loading": "Loading list...",
+      "noData": "No data available for preview"
     }
   },
   "emailTemplatesManagement": {
@@ -2239,13 +2415,73 @@
   },
   "notifications": {
     "title": "Notifications",
-    "markAllRead": "Mark All as Read",
+    "subtitle": "View and manage all your notifications",
+    "searchPlaceholder": "Search notifications...",
+    "actions": {
+      "refresh": "Refresh",
+      "selectionMode": "Selection Mode",
+      "settings": "Settings",
+      "markAllRead": "Mark All as Read",
+      "markAsRead": "Mark as Read",
+      "deleteNotification": "Delete Notification",
+      "delete": "Delete",
+      "deleteAllRead": "Delete All Read"
+    },
+    "filters": {
+      "allTypes": "All Types",
+      "workoutReminder": "Workout Reminder",
+      "membershipExpiry": "Membership Expiry",
+      "paymentDue": "Payment Due",
+      "classBooking": "Class Booking",
+      "achievement": "Achievement",
+      "maintenance": "Maintenance",
+      "promotion": "Promotion",
+      "system": "System",
+      "allStatuses": "All Statuses",
+      "unread": "Unread",
+      "read": "Read"
+    },
+    "messages": {
+      "loadError": "Failed to load notifications",
+      "markAsReadSuccess": "Marked as read",
+      "markAsReadError": "Failed to mark as read",
+      "deleteSuccess": "Notification deleted",
+      "deleteError": "Failed to delete notification",
+      "markAllAsReadSuccess": "All marked as read",
+      "markAllAsReadError": "Failed to mark all as read",
+      "deleteAllReadSuccess": "All read notifications deleted",
+      "deleteAllReadError": "Failed to delete all read notifications",
+      "bulkMarkAsReadSuccess": "Marked {{count}} notifications as read",
+      "bulkMarkAsReadError": "Failed to mark selected notifications",
+      "bulkDeleteSuccess": "Deleted {{count}} notifications",
+      "bulkDeleteError": "Failed to delete selected notifications"
+    },
     "noNotifications": "No notifications",
     "newNotification": "New notification",
-    "markAsRead": "Mark as Read",
-    "deleteNotification": "Delete Notification",
     "marking": "Marking...",
-    "empty": "No notifications yet"
+    "empty": {
+      "noNotifications": "You don't have any notifications yet",
+      "noFilterMatch": "No notifications match the filters"
+    },
+    "bulkActions": {
+      "selectedCount": "{{count}} notifications selected"
+    },
+    "timeAgo": {
+      "hoursAgo": "{{hours}}h ago",
+      "daysAgo": "{{days}}d ago"
+    },
+    "loadMore": {
+      "loading": "Loading...",
+      "loadMore": "Load More (Page {{page}}/{{totalPages}})"
+    },
+    "dialogs": {
+      "deleteAllRead": {
+        "title": "Delete All Read Notifications",
+        "message": "Are you sure you want to delete all read notifications? This action cannot be undone.",
+        "confirm": "Delete",
+        "cancel": "Cancel"
+      }
+    }
   },
   "userProfiles": {
     "title": "User Profiles",
@@ -2652,6 +2888,32 @@
     },
     "successModal": {
       "title": "Trainer Account Created"
+    }
+  },
+  "subscription": {
+    "refundTimeline": {
+      "title": "Refund Timeline",
+      "noTimeline": "No refund timeline available",
+      "loading": "Loading refund timeline...",
+      "error": "Failed to load refund timeline",
+      "status": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "processed": "Processed",
+        "failed": "Failed",
+        "cancelled": "Cancelled"
+      },
+      "actions": {
+        "created": "Refund request created",
+        "approved": "Refund request approved",
+        "processed": "Refund processed",
+        "cancelled": "Refund request cancelled",
+        "failed": "Refund processing failed"
+      },
+      "by": "By",
+      "at": "At",
+      "amount": "Amount",
+      "reason": "Reason"
     }
   }
 }

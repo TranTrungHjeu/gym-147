@@ -11,7 +11,13 @@ import { Refund } from '@/types/billingTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, Calendar, Clock, DollarSign, FileText } from 'lucide-react-native';
+import {
+  ArrowLeft,
+  Calendar,
+  Clock,
+  DollarSign,
+  FileText,
+} from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -43,7 +49,9 @@ export default function CancellationHistoryScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cancellations, setCancellations] = useState<CancellationHistoryItem[]>([]);
+  const [cancellations, setCancellations] = useState<CancellationHistoryItem[]>(
+    []
+  );
   const [refundMap, setRefundMap] = useState<Record<string, Refund | null>>({});
 
   useEffect(() => {
@@ -59,28 +67,39 @@ export default function CancellationHistoryScreen() {
       setLoading(true);
       setError(null);
 
-      const response = await bookingService.getCancellationHistory(member.id, 50);
+      const response = await bookingService.getCancellationHistory(
+        member.id,
+        50
+      );
 
       if (response.success && response.data) {
         setCancellations(response.data);
-        
+
         // Load refund info for each cancellation
         const refundPromises = response.data.map(async (item) => {
           try {
-            const refundResponse = await paymentService.getRefundByBookingId(item.booking_id);
+            const refundResponse = await paymentService.getRefundByBookingId(
+              item.booking_id
+            );
             return {
               bookingId: item.booking_id,
-              refund: refundResponse.success && refundResponse.data ? refundResponse.data : null,
+              refund:
+                refundResponse.success && refundResponse.data
+                  ? refundResponse.data
+                  : null,
             };
           } catch (error) {
-            console.error(`[ERROR] Failed to load refund for booking ${item.booking_id}:`, error);
+            console.error(
+              `[ERROR] Failed to load refund for booking ${item.booking_id}:`,
+              error
+            );
             return {
               bookingId: item.booking_id,
               refund: null,
             };
           }
         });
-        
+
         const refundResults = await Promise.all(refundPromises);
         const newRefundMap: Record<string, Refund | null> = {};
         refundResults.forEach(({ bookingId, refund }) => {
@@ -343,27 +362,11 @@ export default function CancellationHistoryScreen() {
                     onViewTimeline={async () => {
                       const refund = refundMap[item.booking_id];
                       if (refund?.id) {
-                        try {
-                          const timelineResponse = await paymentService.getRefundTimeline(refund.id);
-                          if (timelineResponse.success && timelineResponse.data) {
-                            const timeline = timelineResponse.data.timeline || [];
-                            const timelineText = timeline
-                              .map((item: any) => {
-                                const date = new Date(item.timestamp).toLocaleString('vi-VN');
-                                return `${date}: ${item.action} (${item.actor})`;
-                              })
-                              .join('\n');
-                            
-                            const { Alert } = require('react-native');
-                            Alert.alert(
-                              t('classes.refund.viewTimeline'),
-                              timelineText || t('classes.refund.noRefund'),
-                              [{ text: t('common.ok') }]
-                            );
-                          }
-                        } catch (error) {
-                          console.error('[ERROR] Failed to load refund timeline:', error);
-                        }
+                        // Navigate to refund timeline page instead of showing alert
+                        router.push({
+                          pathname: '/subscription/refund-timeline',
+                          params: { refundId: refund.id },
+                        });
                       }
                     }}
                     showTimelineButton={!!refundMap[item.booking_id]?.id}
@@ -387,4 +390,3 @@ export default function CancellationHistoryScreen() {
     </SafeAreaView>
   );
 }
-

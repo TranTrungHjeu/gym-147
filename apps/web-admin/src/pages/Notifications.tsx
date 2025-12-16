@@ -223,7 +223,7 @@ export default function NotificationsPage() {
       showToast(t('notifications.messages.markAsReadSuccess'), 'success');
     } catch (error) {
       console.error('Error marking notification as read:', error);
-      showToast('Không thể đánh dấu đã đọc', 'error');
+      showToast(t('notifications.messages.markAsReadError'), 'error');
     }
   };
 
@@ -358,7 +358,7 @@ export default function NotificationsPage() {
       console.error('Error bulk deleting:', error);
       // Revert on error
       await loadData(page, false);
-      showToast(error.message || 'Không thể xóa các thông báo đã chọn', 'error');
+      showToast(error.message || t('notifications.messages.bulkDeleteError'), 'error');
     }
   };
 
@@ -495,7 +495,9 @@ export default function NotificationsPage() {
                   transition={{ delay: 0.1 }}
                   className='text-sm font-medium text-gray-900 dark:text-white font-inter'
                 >
-                  Đã chọn {selectedNotifications.length} thông báo
+                  {t('notifications.bulkActions.selectedCount', {
+                    count: selectedNotifications.length,
+                  })}
                 </motion.span>
                 <div className='flex gap-2'>
                   <motion.button
@@ -646,7 +648,7 @@ export default function NotificationsPage() {
                                 whileHover={{ scale: 1.1 }}
                                 whileTap={{ scale: 0.9 }}
                                 className='p-1.5 rounded-sm text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-all'
-                                title='Đánh dấu đã đọc'
+                                title={t('notifications.actions.markAsRead')}
                               >
                                 <Check size={14} />
                               </motion.button>
@@ -659,7 +661,7 @@ export default function NotificationsPage() {
                               whileHover={{ scale: 1.1 }}
                               whileTap={{ scale: 0.9 }}
                               className='p-1.5 rounded-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-all'
-                              title='Xóa'
+                              title={t('notifications.actions.delete')}
                             >
                               <Trash2 size={14} />
                             </motion.button>
@@ -690,12 +692,12 @@ export default function NotificationsPage() {
           <AdminCard padding='lg' className='text-center mt-3 !rounded-sm'>
             <Bell size={48} className='mx-auto mb-4 text-gray-400 dark:text-gray-500' />
             <h3 className='text-lg font-semibold mb-2 font-heading text-gray-900 dark:text-white'>
-              Không có thông báo nào
+              {t('notifications.noNotifications')}
             </h3>
             <p className='text-sm text-gray-500 dark:text-gray-400 font-inter'>
               {notifications.length === 0
-                ? 'Bạn chưa có thông báo nào'
-                : 'Không tìm thấy thông báo phù hợp với bộ lọc'}
+                ? t('notifications.empty.noNotifications')
+                : t('notifications.empty.noFilterMatch')}
             </p>
           </AdminCard>
         )}
@@ -709,7 +711,9 @@ export default function NotificationsPage() {
             disabled={loading || refreshing}
             className='w-full py-2 px-4 text-sm font-medium text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-sm hover:bg-orange-100 dark:hover:bg-orange-900/30 transition-colors disabled:opacity-50 disabled:cursor-not-allowed font-inter'
           >
-            {loading || refreshing ? 'Đang tải...' : `Tải thêm (Trang ${page}/${totalPages})`}
+            {loading || refreshing
+              ? t('notifications.loadMore.loading')
+              : t('notifications.loadMore.loadMore', { page, totalPages })}
           </button>
         </div>
       )}
@@ -744,10 +748,10 @@ export default function NotificationsPage() {
         isOpen={isDeleteAllDialogOpen}
         onClose={() => setIsDeleteAllDialogOpen(false)}
         onConfirm={handleDeleteAllRead}
-        title='Xóa tất cả thông báo đã đọc'
-        message='Bạn có chắc chắn muốn xóa tất cả thông báo đã đọc? Hành động này không thể hoàn tác.'
-        confirmText='Xóa'
-        cancelText='Hủy'
+        title={t('notifications.dialogs.deleteAllRead.title')}
+        message={t('notifications.dialogs.deleteAllRead.message')}
+        confirmText={t('notifications.dialogs.deleteAllRead.confirm')}
+        cancelText={t('notifications.dialogs.deleteAllRead.cancel')}
         isLoading={isDeleting}
         variant='danger'
       />

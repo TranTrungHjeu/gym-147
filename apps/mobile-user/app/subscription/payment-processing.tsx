@@ -81,15 +81,29 @@ export default function SubscriptionPaymentProcessingScreen() {
   // Auto-navigate when payment is verified (from auto-verify)
   useEffect(() => {
     if (isVerified) {
-      console.log('[AUTO-NAVIGATE] Payment verified, navigating to subscription page...');
+      console.log('[AUTO-NAVIGATE] Payment verified, navigating...', {
+        action,
+        paymentId,
+        bankTransferId,
+      });
       // Small delay to ensure backend has updated membership
+      // For UPGRADE, navigate to profile page and refresh subscription
+      // For other actions, navigate to subscription page
+      const delay = action === 'UPGRADE' ? 2000 : 1500;
       const navigateTimer = setTimeout(() => {
-        router.replace('/subscription');
-      }, 1500); // 1.5 seconds delay to ensure backend processing is complete
+        console.log('[AUTO-NAVIGATE] Executing navigation now...');
+        if (action === 'UPGRADE') {
+          // Navigate to profile page for upgrade
+          router.replace('/(tabs)/profile');
+        } else {
+          // Navigate to subscription page for other actions
+          router.replace('/subscription');
+        }
+      }, delay);
 
       return () => clearTimeout(navigateTimer);
     }
-  }, [isVerified]);
+  }, [isVerified, action, paymentId, bankTransferId, router]);
 
   useEffect(() => {
     // Auto-verify every 10 seconds (silent mode)
@@ -108,7 +122,7 @@ export default function SubscriptionPaymentProcessingScreen() {
   const loadBankTransferInfo = async () => {
     try {
       setIsLoading(true);
-      
+
       // Try to get bank transfer by bankTransferId first
       if (bankTransferId) {
         try {
@@ -118,10 +132,13 @@ export default function SubscriptionPaymentProcessingScreen() {
             return;
           }
         } catch (error) {
-          console.log('[BANK] Failed to get by bankTransferId, trying paymentId...', error);
+          console.log(
+            '[BANK] Failed to get by bankTransferId, trying paymentId...',
+            error
+          );
         }
       }
-      
+
       // Fallback: try to get by paymentId
       if (paymentId) {
         try {
@@ -148,50 +165,89 @@ export default function SubscriptionPaymentProcessingScreen() {
 
     try {
       setIsVerifying(true);
-      const response = await paymentService.verifyBankTransfer(finalBankTransferId);
+      const response = await paymentService.verifyBankTransfer(
+        finalBankTransferId
+      );
 
-      if (response.success && response.data?.status === 'COMPLETED') {
+      console.log('[VERIFY] Response from backend:', {
+        success: response.success,
+        data_status: response.data?.status,
+        data_payment_status: response.data?.payment?.status,
+        data_payment_status_at_root: response.data?.payment_status,
+        message: response.message,
+        fullData: response.data,
+      });
+
+      // Check if transfer is verified (status = VERIFIED or COMPLETED)
+      // AND payment is completed (payment.status = COMPLETED or payment_status = COMPLETED)
+      const bankTransferStatus = response.data?.status;
+      const paymentStatusAtRoot = response.data?.payment_status;
+      const paymentStatusNested = response.data?.payment?.status;
+
+      const isBankTransferVerified =
+        bankTransferStatus === 'VERIFIED' || bankTransferStatus === 'COMPLETED';
+      const isPaymentCompleted =
+        paymentStatusAtRoot === 'COMPLETED' ||
+        paymentStatusNested === 'COMPLETED';
+
+      console.log('[VERIFY] Verification flags:', {
+        isBankTransferVerified,
+        isPaymentCompleted,
+        bankTransferStatus,
+        paymentStatusAtRoot,
+        paymentStatusNested,
+      });
+
+      if (response.success && isBankTransferVerified && isPaymentCompleted) {
+        console.log('[VERIFY] Payment verified successfully!');
         setIsVerified(true);
-        
+
         // Show appropriate success message based on action
         let successTitle = t('common.success') || 'Success';
         let successMessage = '';
-        
+
         if (action === 'UPGRADE') {
-          successMessage = t('subscription.upgradeSuccess') || 
+          successMessage =
+            t('subscription.upgradeSuccess') ||
             'Nâng cấp gói thành công! Gói của bạn đã được cập nhật.';
         } else if (action === 'RENEW') {
-          successMessage = t('subscription.renewSuccess') || 
+          successMessage =
+            t('subscription.renewSuccess') ||
             'Gia hạn gói thành công! Gói của bạn đã được gia hạn.';
         } else if (action === 'SUBSCRIBE') {
-          successMessage = t('subscription.subscribeSuccess') || 
+          successMessage =
+            t('subscription.subscribeSuccess') ||
             'Đăng ký gói thành công! Gói của bạn đã được kích hoạt.';
         } else {
-          successMessage = t('payment.paymentVerified') || 
-            'Thanh toán thành công!';
+          successMessage =
+            t('payment.paymentVerified') || 'Thanh toán thành công!';
         }
-        
+
         // If auto-verify (silent), navigate automatically after short delay
         // If manual verify, show alert first
         if (isManual) {
-          Alert.alert(
-            successTitle,
-            successMessage,
-            [
-              {
-                text: t('common.ok'),
-                onPress: async () => {
-                  // Small delay to ensure backend has updated membership
-                  await new Promise(resolve => setTimeout(resolve, 500));
-                  // Reload subscription data and navigate back
+          Alert.alert(successTitle, successMessage, [
+            {
+              text: t('common.ok'),
+              onPress: async () => {
+                // Small delay to ensure backend has updated membership
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                // Navigate based on action
+                if (action === 'UPGRADE') {
+                  // Navigate to profile page for upgrade
+                  router.replace('/(tabs)/profile');
+                } else {
+                  // Navigate to subscription page for other actions
                   router.replace('/subscription');
-                },
+                }
               },
-            ]
-          );
+            },
+          ]);
         } else {
           // Auto-verify: just set isVerified, useEffect will handle navigation
-          console.log('[AUTO-VERIFY] Payment verified successfully, will auto-navigate...');
+          console.log(
+            '[AUTO-VERIFY] Payment verified successfully, will auto-navigate...'
+          );
         }
       }
     } catch (error) {
@@ -200,7 +256,8 @@ export default function SubscriptionPaymentProcessingScreen() {
       if (isManual) {
         Alert.alert(
           t('common.error') || 'Error',
-          t('payment.verificationFailed') || 'Không thể xác minh thanh toán. Vui lòng thử lại.'
+          t('payment.verificationFailed') ||
+            'Không thể xác minh thanh toán. Vui lòng thử lại.'
         );
       }
     } finally {
@@ -213,7 +270,10 @@ export default function SubscriptionPaymentProcessingScreen() {
       await Clipboard.setStringAsync(text);
       setCopiedField(field);
       setTimeout(() => setCopiedField(null), 2000);
-      Alert.alert(t('common.success') || 'Copied', t('payment.copiedToClipboard') || 'Copied to clipboard');
+      Alert.alert(
+        t('common.success') || 'Copied',
+        t('payment.copiedToClipboard') || 'Copied to clipboard'
+      );
     } catch (error) {
       console.error('Error copying:', error);
     }
@@ -231,7 +291,9 @@ export default function SubscriptionPaymentProcessingScreen() {
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, '0')}:${secs
+      .toString()
+      .padStart(2, '0')}`;
   };
 
   const displayBankTransfer = bankTransfer || {
@@ -323,10 +385,7 @@ export default function SubscriptionPaymentProcessingScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-      >
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Countdown Timer */}
         <View
           style={[
@@ -344,7 +403,8 @@ export default function SubscriptionPaymentProcessingScreen() {
               { color: theme.colors.warning, marginLeft: 8 },
             ]}
           >
-            {t('payment.timeRemaining') || 'Time Remaining'}: {formatTime(countdown)}
+            {t('payment.timeRemaining') || 'Time Remaining'}:{' '}
+            {formatTime(countdown)}
           </Text>
         </View>
 
@@ -421,12 +481,10 @@ export default function SubscriptionPaymentProcessingScreen() {
             ]}
           >
             <Text
-              style={[
-                Typography.bodyMedium,
-                { color: theme.colors.warning },
-              ]}
+              style={[Typography.bodyMedium, { color: theme.colors.warning }]}
             >
-              [WARNING] {t('payment.exactAmountWarning') ||
+              [WARNING]{' '}
+              {t('payment.exactAmountWarning') ||
                 'Please transfer the exact amount shown above'}
             </Text>
           </View>
@@ -460,9 +518,7 @@ export default function SubscriptionPaymentProcessingScreen() {
             >
               {t('payment.bankName') || 'Bank Name'}
             </Text>
-            <Text
-              style={[Typography.bodyMedium, { color: theme.colors.text }]}
-            >
+            <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
               {displayBankTransfer.bank_name}
             </Text>
           </View>
@@ -504,9 +560,7 @@ export default function SubscriptionPaymentProcessingScreen() {
             >
               {t('payment.accountName') || 'Account Name'}
             </Text>
-            <Text
-              style={[Typography.bodyMedium, { color: theme.colors.text }]}
-            >
+            <Text style={[Typography.bodyMedium, { color: theme.colors.text }]}>
               {displayBankTransfer.account_name}
             </Text>
           </View>
@@ -565,10 +619,21 @@ export default function SubscriptionPaymentProcessingScreen() {
               { color: theme.colors.textSecondary, lineHeight: 24 },
             ]}
           >
-            1. {t('payment.instruction1') || 'Scan the QR code or copy bank information'}{'\n'}
-            2. {t('payment.instruction2') || 'Transfer the exact amount shown above'}{'\n'}
-            3. {t('payment.instruction3') || 'Include the transfer content in your transfer note'}{'\n'}
-            4. {t('payment.instruction4') || 'Payment will be verified automatically within a few minutes'}
+            1.{' '}
+            {t('payment.instruction1') ||
+              'Scan the QR code or copy bank information'}
+            {'\n'}
+            2.{' '}
+            {t('payment.instruction2') ||
+              'Transfer the exact amount shown above'}
+            {'\n'}
+            3.{' '}
+            {t('payment.instruction3') ||
+              'Include the transfer content in your transfer note'}
+            {'\n'}
+            4.{' '}
+            {t('payment.instruction4') ||
+              'Payment will be verified automatically within a few minutes'}
           </Text>
         </View>
 
@@ -669,4 +734,3 @@ const styles = StyleSheet.create({
     padding: 32,
   },
 });
-

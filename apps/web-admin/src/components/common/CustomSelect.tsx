@@ -149,7 +149,7 @@ export default function CustomSelect({
     if (isOpen) {
       // Update position immediately when opening
       updateDropdownPosition();
-      
+
       // Use requestAnimationFrame to ensure DOM is ready
       requestAnimationFrame(() => {
         updateDropdownPosition();
@@ -160,12 +160,12 @@ export default function CustomSelect({
         // Update position on any scroll (including modal scroll)
         updateDropdownPosition();
       };
-      
+
       window.addEventListener('resize', handleResize);
       // Listen to scroll on all scrollable containers (window, modal, etc.)
       window.addEventListener('scroll', handleScroll, true);
       document.addEventListener('scroll', handleScroll, true);
-      
+
       return () => {
         window.removeEventListener('resize', handleResize);
         window.removeEventListener('scroll', handleScroll, true);
@@ -184,16 +184,12 @@ export default function CustomSelect({
 
   // Ensure width is applied to container if w-full is in className
   const hasFullWidth = baseClassName.includes('w-full');
-  const containerClassName = `relative ${hasFullHeight ? 'h-full' : ''} ${hasFullWidth ? 'w-full' : ''} ${baseClassName
-    .replace('h-full', '')
-    .replace('w-full', '')
-    .trim()}`;
+  const containerClassName = `relative ${hasFullHeight ? 'h-full' : ''} ${
+    hasFullWidth ? 'w-full' : ''
+  } ${baseClassName.replace('h-full', '').replace('w-full', '').trim()}`;
 
   return (
-    <div
-      ref={selectRef}
-      className={containerClassName}
-    >
+    <div ref={selectRef} className={containerClassName}>
       {/* Select Button */}
       <button
         type='button'
@@ -202,7 +198,9 @@ export default function CustomSelect({
         style={fixedHeight ? { height: fixedHeight } : {}}
         className={`group relative w-full ${
           hasFullHeight ? 'h-full' : fixedHeight ? '' : 'h-[30px]'
-        } ${fixedHeight ? 'py-1.5' : ''} pl-9 pr-9 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-left transition-all duration-200 font-inter appearance-none shadow-sm ${
+        } ${
+          fixedHeight ? 'py-1.5' : ''
+        } pl-9 pr-9 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-left transition-all duration-200 font-inter appearance-none shadow-sm ${
           disabled
             ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
             : 'cursor-pointer hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500'
@@ -259,7 +257,14 @@ export default function CustomSelect({
           >
             <div
               ref={listRef}
-              className='custom-select-scrollbar max-h-60 overflow-y-auto scrollbar-hide'
+              className='max-h-60 overflow-y-auto scrollbar-hide'
+              style={{
+                scrollbarWidth: 'none',
+                msOverflowStyle: 'none',
+                WebkitOverflowScrolling: 'touch',
+                overflowY: 'auto',
+                overflowX: 'hidden',
+              }}
             >
               {options.map((option, index) => {
                 const isSelected = option.value === value;

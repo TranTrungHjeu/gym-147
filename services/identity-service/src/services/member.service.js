@@ -212,9 +212,12 @@ class MemberService {
       // Notifications are stored in schedule service with user_id
       // Call schedule service instead of member service
       const scheduleService = require('./schedule.service');
-      const response = await axios.delete(`${scheduleService.baseURL}/notifications/${notificationId}`, {
-        timeout: 5000,
-      });
+      const response = await axios.delete(
+        `${scheduleService.baseURL}/notifications/${notificationId}`,
+        {
+          timeout: 5000,
+        }
+      );
       return response.data;
     } catch (error) {
       console.error('Delete notification error:', error.message);
@@ -229,6 +232,24 @@ class MemberService {
       });
       return response.data;
     } catch (error) {
+      // If member not found (404), return default preferences instead of throwing
+      if (error.response?.status === 404) {
+        console.log(
+          `[INFO] Member not found for userId ${userId}, returning default notification preferences`
+        );
+        return {
+          success: true,
+          message: 'Notification preferences retrieved successfully (default)',
+          data: {
+            preferences: {
+              push: true,
+              email: true,
+              sms: false,
+              in_app: true,
+            },
+          },
+        };
+      }
       console.error('Get notification preferences error:', error.message);
       throw error;
     }
@@ -257,9 +278,12 @@ class MemberService {
       // Notifications are stored in schedule service with user_id
       // Call schedule service instead of member service
       const scheduleService = require('./schedule.service');
-      const response = await axios.get(`${scheduleService.baseURL}/notifications/unread-count/${userId}`, {
-        timeout: 5000,
-      });
+      const response = await axios.get(
+        `${scheduleService.baseURL}/notifications/unread-count/${userId}`,
+        {
+          timeout: 5000,
+        }
+      );
       return response.data;
     } catch (error) {
       console.error('Get unread notification count error:', error.message);

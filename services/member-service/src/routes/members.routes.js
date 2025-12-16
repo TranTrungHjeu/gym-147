@@ -73,6 +73,18 @@ router.patch('/members/onboarding/progress', (req, res) =>
 router.get('/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
 router.get('/members/user/:user_id', (req, res) => memberController.getMemberByUserId(req, res));
 
+// Get notification preferences by user_id (MUST be before /members/:id route)
+// Support both /members/user/:user_id/preferences (via gateway) and /members/user/:user_id/preferences (direct access)
+router.get('/members/user/:user_id/preferences', (req, res) =>
+  memberController.getNotificationPreferencesByUserId(req, res)
+);
+
+// Update notification preferences by user_id (MUST be before /members/:id route)
+// Support both /members/user/:user_id/preferences (via gateway) and /members/user/:user_id/preferences (direct access)
+router.put('/members/user/:user_id/preferences', (req, res) =>
+  memberController.updateNotificationPreferencesByUserId(req, res)
+);
+
 // Get member by ID (dynamic route)
 router.get('/members/:id', (req, res) => memberController.getMemberById(req, res));
 
@@ -130,6 +142,11 @@ router.post('/members/:id/qr-code', (req, res) => memberController.generateQRCod
 
 // Toggle access
 router.put('/members/:id/access', (req, res) => memberController.toggleAccess(req, res));
+
+// Generate profile embedding for member
+router.post('/members/:id/generate-embedding', (req, res) =>
+  memberController.generateMemberEmbedding(req, res)
+);
 
 // ==================== ADMIN NOTIFICATION ROUTES ====================
 

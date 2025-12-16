@@ -139,6 +139,7 @@ class NotificationWorker {
         const socketPayload = {
           notification_id: notification.id,
           id: notification.id,
+          user_id: actualUserId,
           type: notification.type,
           title: notification.title,
           message: notification.message,
@@ -146,8 +147,11 @@ class NotificationWorker {
           created_at: notification.created_at,
           is_read: notification.is_read,
         };
-        global.io.to(`user:${user_id}`).emit('notification:new', socketPayload);
-        console.log(`[SOCKET] Emitted notification:new to user:${user_id} with notification_id: ${notification.id}`);
+        const roomName = `user:${actualUserId}`;
+        global.io.to(roomName).emit('notification:new', socketPayload);
+        // Also emit admin:bulk:notification for consistency with bulk notification service
+        global.io.to(roomName).emit('admin:bulk:notification', socketPayload);
+        console.log(`[SOCKET] [WORKER] Emitted notification:new and admin:bulk:notification to ${roomName} with notification_id: ${notification.id}`);
       }
 
       return { success: true, notification };

@@ -1,4 +1,5 @@
 const { Client } = require('pg');
+const axios = require('axios');
 
 // Connect to Identity Service database to get push tokens
 // Note: Prisma doesn't support multiple databases in the same client
@@ -16,7 +17,7 @@ async function getIdentityClient() {
   }
 
   const identityDbUrl = process.env.IDENTITY_DATABASE_URL;
-  
+
   if (!identityDbUrl) {
     console.warn('[WARNING] IDENTITY_DATABASE_URL not set, push notifications may not work');
     return null;
@@ -28,7 +29,7 @@ async function getIdentityClient() {
       identityClient = new Client({
         connectionString: identityDbUrl,
       });
-      
+
       // Test connection
       await identityClient.connect();
       console.log('[SUCCESS] Connected to Identity database for push notifications');
@@ -56,9 +57,11 @@ async function getIdentityClient() {
 async function sendPushNotification(userId, title, body, data = {}) {
   try {
     const client = await getIdentityClient();
-    
+
     if (!client) {
-      console.log(`[WARNING] Identity database client not available, skipping push notification for user ${userId}`);
+      console.log(
+        `[WARNING] Identity database client not available, skipping push notification for user ${userId}`
+      );
       return { success: false, error: 'Identity database not configured' };
     }
 
@@ -108,16 +111,14 @@ async function sendPushNotification(userId, title, body, data = {}) {
     };
 
     // Send to Expo Push Notification Service
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
+    const response = await axios.post('https://exp.host/--/api/v2/push/send', message, {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(message),
     });
 
-    const result = await response.json();
+    const result = response.data;
 
     if (result.data && result.data.status === 'ok') {
       console.log(`[SUCCESS] Push notification sent to user ${userId}: ${title}`);
@@ -143,10 +144,17 @@ async function sendPushNotification(userId, title, body, data = {}) {
 async function sendBulkPushNotifications(userIds, title, body, data = {}) {
   try {
     const client = await getIdentityClient();
-    
+
     if (!client) {
-      console.log(`[WARNING] Identity database client not available, skipping bulk push notifications`);
-      return { success: false, sent: 0, total: userIds.length, error: 'Identity database not configured' };
+      console.log(
+        `[WARNING] Identity database client not available, skipping bulk push notifications`
+      );
+      return {
+        success: false,
+        sent: 0,
+        total: userIds.length,
+        error: 'Identity database not configured',
+      };
     }
 
     // Get all users' push tokens using raw SQL
@@ -156,7 +164,7 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
       `SELECT id, push_token FROM identity_schema.users WHERE id IN (${placeholders}) AND push_enabled = true AND push_token IS NOT NULL`,
       userIds
     );
-    
+
     const users = dbResult.rows;
 
     if (users.length === 0) {
@@ -177,18 +185,18 @@ async function sendBulkPushNotifications(userIds, title, body, data = {}) {
     }));
 
     // Send to Expo Push Notification Service
-    const response = await fetch('https://exp.host/--/api/v2/push/send', {
-      method: 'POST',
+    const response = await axios.post('https://exp.host/--/api/v2/push/send', messages, {
       headers: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify(messages),
     });
 
-    const result = await response.json();
+    const result = response.data;
 
-    console.log(`[SUCCESS] Bulk push notifications sent to ${users.length}/${userIds.length} users`);
+    console.log(
+      `[SUCCESS] Bulk push notifications sent to ${users.length}/${userIds.length} users`
+    );
     return { success: true, sent: users.length, total: userIds.length, result };
   } catch (error) {
     console.error('[ERROR] Send bulk push notifications error:', error);
@@ -200,9 +208,3 @@ module.exports = {
   sendPushNotification,
   sendBulkPushNotifications,
 };
-
-
-
-
-
-

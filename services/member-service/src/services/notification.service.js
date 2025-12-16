@@ -767,9 +767,9 @@ class NotificationService {
 
       const title =
         action === 'joined'
-          ? 'Thành viên tham gia hàng chờ'
+          ? 'Hội viên tham gia hàng chờ'
           : action === 'left'
-            ? 'Thành viên rời hàng chờ'
+            ? 'Hội viên rời hàng chờ'
             : 'Cập nhật hàng chờ';
 
       const message =
@@ -888,8 +888,8 @@ class NotificationService {
         return { success: true, sent: 0 };
       }
 
-      const title = 'Thành viên hoàn tất đăng ký';
-      const message = `${memberName || 'Thành viên'} đã hoàn tất đăng ký và sẵn sàng sử dụng dịch vụ`;
+      const title = 'Hội viên hoàn tất đăng ký';
+      const message = `${memberName || 'Hội viên'} đã hoàn tất đăng ký và sẵn sàng sử dụng dịch vụ`;
 
       const results = await Promise.allSettled(
         admins.map(admin =>
@@ -1022,8 +1022,8 @@ class NotificationService {
           const payload = {
             user_id: admin.id,
             type: eventType,
-            title: title || 'Thông báo thành viên',
-            message: message || `${memberName || 'Thành viên'} đã được cập nhật`,
+            title: title || 'Thông báo hội viên',
+            message: message || `${memberName || 'Hội viên'} đã được cập nhật`,
             data: {
               member_id: memberId,
               member_name: memberName,
@@ -1156,8 +1156,8 @@ class NotificationService {
         return { success: true, sent: 0, total: 0 };
       }
 
-      const title = 'Thành viên đổi điểm lấy phần thưởng';
-      const message = `${memberName || 'Thành viên'} đã đổi ${pointsSpent} điểm để lấy phần thưởng "${rewardTitle || 'N/A'}"`;
+      const title = 'Hội viên đổi điểm lấy phần thưởng';
+      const message = `${memberName || 'Hội viên'} đã đổi ${pointsSpent} điểm để lấy phần thưởng "${rewardTitle || 'N/A'}"`;
 
       const results = await Promise.allSettled(
         admins.map(admin => {
@@ -1323,7 +1323,7 @@ class NotificationService {
       const severityText = severityMap[severity] || severity;
 
       const title = `Báo cáo sự cố thiết bị - ${equipmentName}`;
-      const message = `${memberName || 'Thành viên'} đã báo cáo sự cố "${issueType}" với mức độ ${severityText} cho thiết bị ${equipmentName}`;
+      const message = `${memberName || 'Hội viên'} đã báo cáo sự cố "${issueType}" với mức độ ${severityText} cho thiết bị ${equipmentName}`;
 
       const results = await Promise.allSettled(
         admins.map(admin => {
@@ -1543,9 +1543,7 @@ class NotificationService {
       }
 
       const title =
-        daysUntilExpiry <= 3
-          ? '[WARNING] Gói thành viên sắp hết hạn'
-          : 'Gói thành viên sắp hết hạn';
+        daysUntilExpiry <= 3 ? '[WARNING] Gói hội viên sắp hết hạn' : 'Gói hội viên sắp hết hạn';
 
       const message =
         daysUntilExpiry <= 3

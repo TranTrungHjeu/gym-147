@@ -29,7 +29,7 @@ const NetRevenueChart: React.FC<NetRevenueChartProps> = ({
   const months = data.map(item => `${item.month} ${item.year}`);
   const revenues = data.map(item => item.revenue);
   const netRevenues = data.map(item => item.net);
-  const expenses = data.map(item => item.salaries + item.refunds);
+  const expenses = data.map(item => item.salaries); // Chỉ tính lương trainer, không tính hoàn tiền
 
   const hasData = netRevenues.some(val => val !== 0) || revenues.some(val => val > 0);
 
@@ -44,7 +44,7 @@ const NetRevenueChart: React.FC<NetRevenueChartProps> = ({
     legend: {
       top: 10,
       right: 10,
-      data: ['Doanh thu', 'Chi phí (Lương + Hoàn tiền)', 'Lợi nhuận'],
+      data: ['Doanh thu', 'Chi phí (Lương trainer)', 'Lợi nhuận'],
     },
     grid: {
       left: 50,
@@ -91,7 +91,7 @@ const NetRevenueChart: React.FC<NetRevenueChartProps> = ({
         },
       },
       {
-        name: 'Chi phí (Lương + Hoàn tiền)',
+        name: 'Chi phí (Lương trainer)',
         type: 'bar',
         barMaxWidth: 28,
         data: expenses,
@@ -180,6 +180,8 @@ const NetRevenueChart: React.FC<NetRevenueChartProps> = ({
 };
 
 export default NetRevenueChart;
+
+
 
 
 

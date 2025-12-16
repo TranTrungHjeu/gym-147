@@ -1,5 +1,15 @@
 import React from 'react';
-import { X, Calendar, Package, User, DollarSign, Clock, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import {
+  X,
+  Calendar,
+  Package,
+  User,
+  DollarSign,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+} from 'lucide-react';
 import AdminModal from '../common/AdminModal';
 import { Subscription } from '../../services/billing.service';
 import { formatCurrency } from '../../shared/utils/utils';
@@ -10,7 +20,11 @@ interface SubscriptionDetailModalProps {
   subscription: Subscription | null;
 }
 
-const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({ isOpen, onClose, subscription }) => {
+const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({
+  isOpen,
+  onClose,
+  subscription,
+}) => {
   if (!subscription) return null;
 
   const formatDateVN = (dateString: string | Date): string => {
@@ -71,7 +85,7 @@ const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({ isOpe
         <div className='bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3'>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white flex items-center gap-2'>
             <User className='w-4 h-4 text-orange-600 dark:text-orange-400' />
-            Thông tin thành viên
+            Thông tin hội viên
           </h3>
           <div className='grid grid-cols-2 gap-3'>
             <div>
@@ -97,7 +111,9 @@ const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({ isOpe
           </h3>
           <div className='grid grid-cols-2 gap-3'>
             <div>
-              <p className='text-[11px] text-gray-500 dark:text-gray-400 font-inter mb-1'>Tên gói</p>
+              <p className='text-[11px] text-gray-500 dark:text-gray-400 font-inter mb-1'>
+                Tên gói
+              </p>
               <p className='text-theme-xs font-heading text-gray-900 dark:text-white'>
                 {subscription.plan?.name || 'N/A'}
               </p>
@@ -188,4 +204,3 @@ const SubscriptionDetailModal: React.FC<SubscriptionDetailModalProps> = ({ isOpe
 };
 
 export default SubscriptionDetailModal;
-

@@ -61,7 +61,10 @@ class UserService {
    */
   async updateProfile(data: UpdateProfileData): Promise<ApiResponse<User>> {
     try {
-      console.log('[SEARCH] Updating profile with SERVICE_URLS.IDENTITY:', this.baseUrl);
+      console.log(
+        '[SEARCH] Updating profile with SERVICE_URLS.IDENTITY:',
+        this.baseUrl
+      );
       const response = await identityApiService.put('/profile', data);
       return {
         success: true,
@@ -370,7 +373,8 @@ class UserService {
       return {
         success: true,
         data: response.data?.data || response.data,
-        message: response.data?.message || 'Face encoding enrolled successfully',
+        message:
+          response.data?.message || 'Face encoding enrolled successfully',
       };
     } catch (error: any) {
       return {
@@ -411,7 +415,9 @@ class UserService {
    */
   async deleteFaceEncoding(): Promise<ApiResponse<void>> {
     try {
-      const response = await identityApiService.delete('/profile/face-encoding');
+      const response = await identityApiService.delete(
+        '/profile/face-encoding'
+      );
       return {
         success: true,
         message: response.data?.message || 'Face encoding deleted successfully',
@@ -439,7 +445,7 @@ class UserService {
   > {
     try {
       const response = await identityApiService.post(
-        '/profile/send-otp-email-phone-change',
+        '/profile/send-otp-for-email-phone-change',
         {
           verificationMethod,
           newEmail,
@@ -471,8 +477,8 @@ class UserService {
     lastName?: string;
   }): Promise<ApiResponse<User>> {
     try {
-      const response = await identityApiService.post(
-        '/profile/update-email-phone-otp',
+      const response = await identityApiService.put(
+        '/profile/update-email-phone-with-otp',
         data
       );
       return {

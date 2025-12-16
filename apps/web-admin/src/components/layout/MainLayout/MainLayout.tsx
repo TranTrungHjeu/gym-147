@@ -30,7 +30,7 @@ interface MainLayoutProps {
 
 const navigation = [
   { name: 'Dashboard', href: '/', icon: Home, gradient: 'from-blue-500 to-purple-600' },
-  { name: 'Thành viên', href: '/members', icon: Users, gradient: 'from-green-500 to-teal-600' },
+  { name: 'Hội viên', href: '/members', icon: Users, gradient: 'from-green-500 to-teal-600' },
   { name: 'Gói tập', href: '/packages', icon: Package, gradient: 'from-orange-500 to-red-600' },
   { name: 'Lịch tập', href: '/schedule', icon: Calendar, gradient: 'from-pink-500 to-rose-600' },
   {
@@ -254,7 +254,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({
                   </div>
                   <input
                     type='text'
-                    placeholder='Tìm kiếm thành viên, lớp học...'
+                    placeholder='Tìm kiếm hội viên, lớp học...'
                     className='block w-80 pl-10 pr-4 py-2 glass-card border-white/20 rounded-xl text-sm text-white placeholder-white/40 focus:outline-none focus:ring-2 focus:ring-purple-500/50 focus:border-purple-500/50 transition-all'
                   />
                 </div>

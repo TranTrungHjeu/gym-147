@@ -185,7 +185,7 @@ class EquipmentController {
 
       // Calculate accurate queue count (only WAITING and NOTIFIED status)
       // Use a single query to get all queue counts at once to avoid N+1
-      const equipmentIds = equipmentList.map((eq) => eq.id);
+      const equipmentIds = equipmentList.map(eq => eq.id);
       const queueCounts = await prisma.equipmentQueue.groupBy({
         by: ['equipment_id'],
         where: {
@@ -200,12 +200,10 @@ class EquipmentController {
       });
 
       // Create a map for quick lookup
-      const queueCountMap = new Map(
-        queueCounts.map((qc) => [qc.equipment_id, qc._count.id])
-      );
+      const queueCountMap = new Map(queueCounts.map(qc => [qc.equipment_id, qc._count.id]));
 
       // Update equipment with accurate queue counts
-      const equipment = equipmentList.map((eq) => ({
+      const equipment = equipmentList.map(eq => ({
         ...eq,
         _count: {
           ...eq._count,
@@ -1183,7 +1181,7 @@ class EquipmentController {
             await notificationService.createQueueNotification({
               memberId: nextInQueue.member.id,
               type: 'QUEUE_YOUR_TURN',
-              title: "[CELEBRATE] Đến lượt bạn!",
+              title: '[CELEBRATE] Đến lượt bạn!',
               message: `${activeUsage.equipment.name} đã có sẵn. Bạn có 5 phút để sử dụng.`,
               data: {
                 equipment_id: activeUsage.equipment_id,
@@ -1194,7 +1192,9 @@ class EquipmentController {
                 expires_in_minutes: 5,
               },
             });
-            console.log(`[SUCCESS] Created database notification for member ${nextInQueue.member.id}`);
+            console.log(
+              `[SUCCESS] Created database notification for member ${nextInQueue.member.id}`
+            );
           } catch (notifError) {
             console.error('[ERROR] Failed to create queue notification in database:', notifError);
             // Continue even if notification creation fails

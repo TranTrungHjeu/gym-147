@@ -52,9 +52,7 @@ router.post('/schedules/:schedule_id/qr-code', (req, res) =>
 );
 
 // Member scans QR code to check-in/check-out
-router.post('/qr-scan', (req, res) =>
-  attendanceController.scanQRCodeCheckInOut(req, res)
-);
+router.post('/qr-scan', (req, res) => attendanceController.scanQRCodeCheckInOut(req, res));
 
 // Submit rating for class and trainer
 router.post('/schedules/:schedule_id/attendance/:member_id/rating', (req, res) =>

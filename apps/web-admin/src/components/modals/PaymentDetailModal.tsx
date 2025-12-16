@@ -1,5 +1,15 @@
 import React from 'react';
-import { X, Calendar, CreditCard, User, DollarSign, CheckCircle2, XCircle, AlertCircle, FileText } from 'lucide-react';
+import {
+  X,
+  Calendar,
+  CreditCard,
+  User,
+  DollarSign,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  FileText,
+} from 'lucide-react';
 import AdminModal from '../common/AdminModal';
 import { Payment } from '../../services/billing.service';
 import { formatCurrency } from '../../shared/utils/utils';
@@ -75,7 +85,7 @@ const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({ isOpen, onClose
         <div className='bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3'>
           <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white flex items-center gap-2'>
             <User className='w-4 h-4 text-orange-600 dark:text-orange-400' />
-            Thông tin thành viên
+            Thông tin hội viên
           </h3>
           <div className='grid grid-cols-2 gap-3'>
             <div>
@@ -162,4 +172,3 @@ const PaymentDetailModal: React.FC<PaymentDetailModalProps> = ({ isOpen, onClose
 };
 
 export default PaymentDetailModal;
-

@@ -8,6 +8,7 @@ const rateLimitService = require('../services/rate-limit.service.js');
 const waitlistService = require('../services/waitlist.service.js');
 const notificationService = require('../services/notification.service.js');
 const s3UploadService = require('../services/s3-upload.service.js');
+const bookingImprovementsService = require('../services/booking-improvements.service.js');
 
 const toMemberMap = members =>
   members.reduce((acc, member) => {
@@ -1868,13 +1869,36 @@ class TrainerController {
         });
       }
 
-      // Parse and validate dates
+      // Parse and validate dates using dayjs with Vietnam timezone
+      const dayjs = require('dayjs');
+      const utc = require('dayjs/plugin/utc');
+      const timezone = require('dayjs/plugin/timezone');
+      dayjs.extend(utc);
+      dayjs.extend(timezone);
+
       // Convert DD/MM/YYYY to YYYY-MM-DD for proper Date parsing
       const [day, month, year] = date.split('/');
       const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
-      const scheduleDate = new Date(isoDate);
-      const startDateTime = new Date(start_time);
-      const endDateTime = new Date(end_time);
+
+      // Parse datetime strings - treat as Vietnam timezone
+      // If start_time/end_time has 'Z' (UTC), convert to Vietnam time
+      // Otherwise, treat as Vietnam local time
+      let startDateTime, endDateTime;
+
+      if (start_time.includes('Z')) {
+        // Has UTC timezone - parse as UTC then convert to Vietnam time
+        startDateTime = dayjs.utc(start_time).tz('Asia/Ho_Chi_Minh').toDate();
+      } else {
+        // No timezone - treat as Vietnam local time
+        // Parse the datetime string and set timezone to Vietnam
+        startDateTime = dayjs.tz(start_time, 'Asia/Ho_Chi_Minh').toDate();
+      }
+
+      if (end_time.includes('Z')) {
+        endDateTime = dayjs.utc(end_time).tz('Asia/Ho_Chi_Minh').toDate();
+      } else {
+        endDateTime = dayjs.tz(end_time, 'Asia/Ho_Chi_Minh').toDate();
+      }
 
       // Validate time logic
       if (startDateTime >= endDateTime) {
@@ -1907,7 +1931,11 @@ class TrainerController {
       }
 
       // Check if time is in the past
-      if (startDateTime <= new Date()) {
+      // Use Vietnam timezone for comparison
+      const nowVN = dayjs().tz('Asia/Ho_Chi_Minh');
+      const startDateTimeVN = dayjs(startDateTime).tz('Asia/Ho_Chi_Minh');
+
+      if (startDateTimeVN.isBefore(nowVN) || startDateTimeVN.isSame(nowVN)) {
         return res.status(400).json({
           success: false,
           message: 'Không thể tạo lịch dạy trong quá khứ',
@@ -1916,16 +1944,15 @@ class TrainerController {
       }
 
       // Check if time is at least 3 days in the future
-      const threeDaysFromNow = new Date();
-      threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+      const threeDaysFromNowVN = nowVN.add(3, 'day');
 
-      if (startDateTime < threeDaysFromNow) {
+      if (startDateTimeVN.isBefore(threeDaysFromNowVN)) {
         return res.status(400).json({
           success: false,
           message: 'Lịch dạy phải được tạo trước ít nhất 3 ngày để chuẩn bị',
           data: {
-            earliestDate: threeDaysFromNow.toISOString(),
-            requestedDate: startDateTime.toISOString(),
+            earliestDate: threeDaysFromNowVN.toISOString(),
+            requestedDate: startDateTimeVN.toISOString(),
           },
         });
       }
@@ -2105,6 +2132,28 @@ class TrainerController {
           data: null,
         });
       }
+
+      // Validate minimum_participants if provided
+      if (minimum_participants !== null && minimum_participants !== undefined) {
+        if (minimum_participants < 1) {
+          return res.status(400).json({
+            success: false,
+            message: 'Số học viên tối thiểu phải lớn hơn 0',
+            data: null,
+          });
+        }
+        if (minimum_participants > max_capacity) {
+          return res.status(400).json({
+            success: false,
+            message: `Số học viên tối thiểu không được vượt quá số lượng tối đa (${max_capacity} người)`,
+            data: null,
+          });
+        }
+      }
+
+      // Note: When creating a new schedule, there are no existing bookings,
+      // so we don't need to validate "max_capacity >= current_bookings"
+      // This validation is only needed when updating an existing schedule.
 
       // Create schedule
       const schedule = await prisma.schedule.create({
@@ -2677,28 +2726,47 @@ class TrainerController {
         }
       }
 
-      // Check if schedule can be modified (at least 7 days in advance)
-      // Use new date if provided, otherwise use current schedule date
-      const dateToCheck = date
-        ? new Date(date)
-        : schedule.start_time
-        ? new Date(schedule.start_time)
-        : new Date();
-      const sevenDaysFromNow = new Date();
-      sevenDaysFromNow.setDate(sevenDaysFromNow.getDate() + 7);
+      // Date validation: Cannot change to a date earlier than original date
+      if (date) {
+        const dayjs = require('dayjs');
+        const utc = require('dayjs/plugin/utc');
+        const timezone = require('dayjs/plugin/timezone');
+        dayjs.extend(utc);
+        dayjs.extend(timezone);
 
-      if (dateToCheck < sevenDaysFromNow) {
-        return res.status(400).json({
-          success: false,
-          message: 'Chỉ có thể sửa lịch dạy trước ít nhất 7 ngày',
-          data: null,
-        });
+        // Parse new date
+        const [day, month, year] = date.split('/');
+        const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        const newDate = dayjs.tz(isoDate, 'Asia/Ho_Chi_Minh');
+
+        // Get original date from schedule
+        const originalDate = schedule.start_time
+          ? dayjs(schedule.start_time).tz('Asia/Ho_Chi_Minh')
+          : null;
+
+        if (originalDate) {
+          // Extract only date part (ignore time) for comparison
+          const newDateOnly = newDate.startOf('day');
+          const originalDateOnly = originalDate.startOf('day');
+
+          if (newDateOnly.isBefore(originalDateOnly)) {
+            const originalDateStr = originalDateOnly.format('DD/MM/YYYY');
+            return res.status(400).json({
+              success: false,
+              message: `Không thể đổi ngày thành ngày sớm hơn ngày ban đầu (${originalDateStr})`,
+              data: {
+                originalDate: originalDateOnly.toISOString(),
+                requestedDate: newDateOnly.toISOString(),
+              },
+            });
+          }
+        }
       }
 
       // Parse and validate date/time if provided
       // Initialize parsedDate from schedule start_time (extract date part only)
-      let parsedDate = schedule.start_time 
-        ? new Date(new Date(schedule.start_time).toISOString().split('T')[0]) 
+      let parsedDate = schedule.start_time
+        ? new Date(new Date(schedule.start_time).toISOString().split('T')[0])
         : null;
       let parsedStartTime = new Date(schedule.start_time);
       let parsedEndTime = new Date(schedule.end_time);
@@ -2717,7 +2785,7 @@ class TrainerController {
           parsedDate = dateObj;
         } else {
           // If date not provided, extract date from schedule start_time
-          parsedDate = schedule.start_time 
+          parsedDate = schedule.start_time
             ? new Date(new Date(schedule.start_time).toISOString().split('T')[0])
             : new Date();
         }
@@ -2792,14 +2860,14 @@ class TrainerController {
           });
         }
 
-        // Validate duration (15 minutes to 3 hours)
+        // Validate duration (30 minutes to 3 hours)
         if (parsedStartTime && parsedEndTime) {
           const durationMs = parsedEndTime.getTime() - parsedStartTime.getTime();
           const durationMinutes = Math.round(durationMs / (1000 * 60));
-          if (durationMinutes < 15) {
+          if (durationMinutes < 30) {
             return res.status(400).json({
               success: false,
-              message: 'Thời lượng lớp học tối thiểu 15 phút',
+              message: 'Thời lượng lớp học tối thiểu 30 phút',
               data: null,
             });
           }
@@ -2942,7 +3010,9 @@ class TrainerController {
             additionalSlots
           );
           console.log(
-            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${waitlistNotificationResult.notified || 0} waitlist members.`
+            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${
+              waitlistNotificationResult.notified || 0
+            } waitlist members.`
           );
         } catch (waitlistError) {
           console.error('[ERROR] Failed to notify waitlist members:', waitlistError);
@@ -3326,7 +3396,12 @@ class TrainerController {
       res.json({
         success: true,
         message: 'Cập nhật lịch dạy thành công',
-        data: { schedule: updatedSchedule },
+        data: {
+          schedule: updatedSchedule,
+          cancelled_bookings: cancelledBookings.length,
+          refunds_processed: refundResults.filter(r => r.refundResult?.success).length,
+          refunds_failed: refundResults.filter(r => !r.refundResult?.success).length,
+        },
       });
     } catch (error) {
       console.error('Update trainer schedule error:', error);
@@ -3376,6 +3451,8 @@ class TrainerController {
               member_id: true,
               status: true,
               booked_at: true,
+              payment_status: true,
+              amount_paid: true,
             },
           },
         },
@@ -3412,9 +3489,12 @@ class TrainerController {
         });
       }
 
-      // Cancel all bookings and notify members
+      // Cancel all bookings, process refunds, and notify members
       const cancelledBookings = [];
+      const refundResults = [];
+
       for (const booking of schedule.bookings) {
+        // Update booking status
         await prisma.booking.update({
           where: { id: booking.id },
           data: {
@@ -3425,6 +3505,48 @@ class TrainerController {
             }`,
           },
         });
+
+        // Process refund for paid bookings (trainer cancellation = 100% refund)
+        let refundResult = null;
+        const isPaid = booking.payment_status === 'PAID' || booking.payment_status === 'COMPLETED';
+
+        if (isPaid && booking.amount_paid > 0) {
+          try {
+            // When trainer cancels, member gets 100% refund regardless of timing
+            const refundInfo = {
+              refundPercentage: 100,
+              refundAmount: booking.amount_paid,
+              refundPolicy: 'FULL_REFUND',
+              hoursUntilStart: 0,
+              originalAmount: booking.amount_paid,
+            };
+
+            console.log('[REFUND] Processing refund for booking cancelled by trainer:', {
+              bookingId: booking.id,
+              refundAmount: refundInfo.refundAmount,
+              refundPolicy: refundInfo.refundPolicy,
+            });
+
+            refundResult = await bookingImprovementsService.processRefund(booking, refundInfo);
+            refundResults.push({
+              bookingId: booking.id,
+              memberId: booking.member_id,
+              refundResult,
+            });
+
+            console.log('[REFUND] Refund result for booking:', booking.id, refundResult);
+          } catch (refundError) {
+            console.error('[REFUND] Error processing refund for booking:', booking.id, refundError);
+            refundResults.push({
+              bookingId: booking.id,
+              memberId: booking.member_id,
+              refundResult: {
+                success: false,
+                message: refundError.message || 'Failed to process refund',
+              },
+            });
+          }
+        }
 
         // Send notification to member
         try {
@@ -3437,6 +3559,8 @@ class TrainerController {
               trainer_name: trainer.full_name,
               start_time: schedule.start_time,
               cancellation_reason: cancellation_reason || 'Không có lý do',
+              refundAmount: refundResult?.refundAmount || 0,
+              refundStatus: refundResult?.refundStatus || null,
             },
           });
         } catch (notificationError) {
@@ -3459,6 +3583,114 @@ class TrainerController {
           room: true,
         },
       });
+
+      // Notify admins about schedule cancellation
+      if (global.io) {
+        try {
+          console.log('[BELL] Starting admin notification process for schedule cancellation...');
+          const admins = await notificationService.getAdminsAndSuperAdmins();
+          console.log(
+            `[LIST] Found ${admins.length} admin/super-admin users:`,
+            admins.map(a => ({ user_id: a.user_id, email: a.email, role: a.role }))
+          );
+
+          // Create notifications for all admins
+          const adminNotifications = admins.map(admin => ({
+            user_id: admin.user_id,
+            type: 'GENERAL',
+            title: 'Lịch dạy bị hủy bởi trainer',
+            message: `${trainer.full_name} đã hủy lớp ${updatedSchedule.gym_class.name} (${updatedSchedule.bookings.length} hội viên đã đăng ký)`,
+            data: {
+              schedule_id: updatedSchedule.id,
+              class_id: updatedSchedule.gym_class.id,
+              class_name: updatedSchedule.gym_class.name,
+              trainer_id: trainer.id,
+              trainer_name: trainer.full_name,
+              room_id: updatedSchedule.room.id,
+              room_name: updatedSchedule.room.name,
+              date: updatedSchedule.start_time
+                ? new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+                : null,
+              start_time: updatedSchedule.start_time,
+              end_time: updatedSchedule.end_time,
+              max_capacity: updatedSchedule.max_capacity,
+              cancelled_bookings: cancelledBookings.length,
+              cancellation_reason: cancellation_reason || 'Không có lý do',
+              role: 'TRAINER', // Role indicates who performed the action
+            },
+            channels: ['IN_APP', 'PUSH'],
+          }));
+
+          // Create notifications in identity service
+          if (adminNotifications.length > 0) {
+            console.log(
+              `💾 Creating ${adminNotifications.length} notifications in identity service for admins...`
+            );
+
+            const createdAdminNotifications = [];
+            for (const notificationData of adminNotifications) {
+              try {
+                const created = await notificationService.createNotificationInIdentityService(
+                  notificationData,
+                  'normal'
+                );
+                if (created) {
+                  createdAdminNotifications.push(created);
+                }
+              } catch (error) {
+                console.error(
+                  `[ERROR] Failed to create notification for admin ${notificationData.user_id}:`,
+                  error.message
+                );
+              }
+            }
+
+            console.log(
+              `[SUCCESS] Created ${createdAdminNotifications.length} notifications in Identity Service for admins`
+            );
+
+            // Emit socket events to admins
+            for (const notification of createdAdminNotifications) {
+              try {
+                const adminRoomName = `user:${notification.user_id}`;
+                const adminSocketData = {
+                  notification_id: notification.id || notification.notification_id,
+                  type: notification.type,
+                  title: notification.title,
+                  message: notification.message,
+                  data: notification.data,
+                  created_at: notification.created_at,
+                };
+
+                const adminRoom = global.io.sockets.adapter.rooms.get(adminRoomName);
+                const adminSocketCount = adminRoom ? adminRoom.size : 0;
+
+                console.log(
+                  `[EMIT] Emitting notification:new to admin room ${adminRoomName} (${adminSocketCount} socket(s) connected)`,
+                  adminSocketData
+                );
+                global.io.to(adminRoomName).emit('notification:new', adminSocketData);
+              } catch (socketError) {
+                console.error(
+                  `[ERROR] Error emitting socket event to admin ${notification.user_id}:`,
+                  socketError
+                );
+              }
+            }
+
+            console.log(
+              `[SUCCESS] Sent ${createdAdminNotifications.length} notifications to admins about schedule cancellation`
+            );
+          }
+        } catch (notifError) {
+          console.error(
+            '[ERROR] Error sending notifications to admins for schedule cancellation:',
+            notifError
+          );
+          console.error('Error stack:', notifError.stack);
+          // Don't fail the request if notification fails
+        }
+      }
 
       res.json({
         success: true,

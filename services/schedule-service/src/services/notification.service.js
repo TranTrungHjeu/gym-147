@@ -2219,7 +2219,13 @@ class NotificationService {
         },
         CLASS_BOOKING: {
           title: title || 'Đặt lớp mới',
-          message: message || `Có thành viên đã đặt lớp ${data?.class_name || 'Lớp học'}`,
+          message: message || `Có hội viên đã đặt lớp ${data?.class_name || 'Lớp học'}`,
+        },
+        BOOKING_CANCELLED: {
+          title: 'Đặt lớp đã bị hủy',
+          message: `Đặt lớp ${data?.class_name || 'học'} của bạn đã bị hủy${
+            data?.cancellation_reason ? `. Lý do: ${data.cancellation_reason}` : ''
+          }`,
         },
       };
 
@@ -2574,7 +2580,7 @@ class NotificationService {
       const createdNotification = await this.createNotificationInIdentityService({
         user_id: trainerId,
         type: 'MEMBER_CHECKED_IN',
-        title: 'Thành viên đã check-in',
+        title: 'Hội viên đã check-in',
         message: `${memberName} đã check-in vào lớp ${className}`,
         data: notificationData,
         channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications
@@ -2832,7 +2838,7 @@ class NotificationService {
       const createdNotification = await this.createNotificationInIdentityService({
         user_id: trainerId,
         type: 'MEMBER_CHECKED_OUT',
-        title: 'Thành viên đã check-out',
+        title: 'Hội viên đã check-out',
         message: `${memberName} đã check-out khỏi lớp ${className}`,
         data: notificationData,
         channels: ['IN_APP', 'PUSH'], // Ensure both in-app and push notifications

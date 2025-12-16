@@ -24,12 +24,12 @@ class CronService {
     }
 
     const intervalMs = intervalMinutes * 60 * 1000; // Convert to milliseconds
-    
+
     console.log(`[START] Starting auto-update cron job (every ${intervalMinutes} minute(s))`);
-    
+
     // Run immediately on start
     this.runAutoUpdate();
-    
+
     // Then run at intervals
     const intervalId = setInterval(() => {
       this.runAutoUpdate();
@@ -37,7 +37,7 @@ class CronService {
 
     this.intervals.set('autoUpdate', intervalId);
     this.isRunning = true;
-    
+
     console.log('[SUCCESS] Auto-update cron job started successfully');
   }
 
@@ -46,7 +46,7 @@ class CronService {
    */
   stopAutoUpdateCron() {
     const intervalId = this.intervals.get('autoUpdate');
-    
+
     if (intervalId) {
       clearInterval(intervalId);
       this.intervals.delete('autoUpdate');
@@ -105,13 +105,17 @@ class CronService {
       }, intervalMs);
 
       this.intervals.set('certificationExpiryWarning', intervalId);
-      console.log('[SUCCESS] Certification expiry warning cron job started successfully (TEST MODE)');
+      console.log(
+        '[SUCCESS] Certification expiry warning cron job started successfully (TEST MODE)'
+      );
       return;
     }
 
     // Production mode: run daily at specified time
     console.log(
-      `[START] Starting certification expiry warning cron job (daily at ${hour}:${minutes.toString().padStart(2, '0')}, ${daysBeforeExpiry} days before expiry)`
+      `[START] Starting certification expiry warning cron job (daily at ${hour}:${minutes
+        .toString()
+        .padStart(2, '0')}, ${daysBeforeExpiry} days before expiry)`
     );
 
     // Calculate milliseconds until next run
@@ -135,7 +139,9 @@ class CronService {
     const scheduleNextRun = () => {
       const msUntilNextRun = getNextRunTime();
       console.log(
-        `[TIMER] Next certification expiry check scheduled in ${Math.round(msUntilNextRun / (1000 * 60 * 60))} hour(s)`
+        `[TIMER] Next certification expiry check scheduled in ${Math.round(
+          msUntilNextRun / (1000 * 60 * 60)
+        )} hour(s)`
       );
 
       setTimeout(() => {
@@ -159,7 +165,7 @@ class CronService {
    */
   stopCertificationExpiryWarningCron() {
     const intervalId = this.intervals.get('certificationExpiryWarning');
-    
+
     if (intervalId) {
       clearInterval(intervalId);
       this.intervals.delete('certificationExpiryWarning');
@@ -181,13 +187,17 @@ class CronService {
       // Only log detailed messages if in test mode or if there are expiring certifications
       // In production mode, reduce logging to avoid spam
       const isTestMode = !!process.env.CERTIFICATION_EXPIRY_WARNING_INTERVAL_SECONDS;
-      
+
       if (isTestMode) {
-        console.log(`[SEARCH] Running certification expiry warning check (${daysBeforeExpiry} days before expiry)...`);
+        console.log(
+          `[SEARCH] Running certification expiry warning check (${daysBeforeExpiry} days before expiry)...`
+        );
       }
-      
-      const result = await certificationExpiryWarningService.checkExpiringCertifications(daysBeforeExpiry);
-      
+
+      const result = await certificationExpiryWarningService.checkExpiringCertifications(
+        daysBeforeExpiry
+      );
+
       if (result.success) {
         // Only log if in test mode or if there are expiring certifications
         if (isTestMode || result.expiringCount > 0) {
@@ -241,13 +251,17 @@ class CronService {
       this.intervals.set('autoCancelLowParticipants', intervalId);
       this.isRunning = true;
 
-      console.log('[SUCCESS] Auto-cancel low participants cron job started successfully (TEST MODE)');
+      console.log(
+        '[SUCCESS] Auto-cancel low participants cron job started successfully (TEST MODE)'
+      );
       return;
     }
 
     // Production mode: Use scheduled times (3 times per day)
     console.log(
-      `[START] Starting auto-cancel low participants cron job (PRODUCTION MODE: daily at ${scheduleTimes.join(', ')})`
+      `[START] Starting auto-cancel low participants cron job (PRODUCTION MODE: daily at ${scheduleTimes.join(
+        ', '
+      )})`
     );
 
     const cronJobs = [];
@@ -268,9 +282,7 @@ class CronService {
       const cronJob = cron.schedule(
         cronPattern,
         async () => {
-          console.log(
-            `[AUTO-CANCEL] Scheduled run triggered at ${time} (GMT+7)`
-          );
+          console.log(`[AUTO-CANCEL] Scheduled run triggered at ${time} (GMT+7)`);
           await this.runAutoCancelLowParticipants();
         },
         {
@@ -389,52 +401,83 @@ class CronService {
 
   /**
    * Run booking reminder process
+   * Sends reminders at 3 times: 1 hour, 30 minutes, and 15 minutes before class starts
    */
   async runBookingReminder() {
     try {
       const bookingImprovementsService = require('./booking-improvements.service.js');
       const { prisma } = require('../lib/prisma.js');
 
-      // Find bookings that start in approximately 1 hour (55-65 minutes)
       const now = new Date();
-      const oneHourFromNow = new Date(now.getTime() + 60 * 60 * 1000); // 1 hour from now
-      const fiftyFiveMinutesFromNow = new Date(now.getTime() + 55 * 60 * 1000); // 55 minutes from now
-      const sixtyFiveMinutesFromNow = new Date(now.getTime() + 65 * 60 * 1000); // 65 minutes from now
+      const reminderTimes = [
+        { minutes: 60, label: '1 hour' },
+        { minutes: 30, label: '30 minutes' },
+        { minutes: 15, label: '15 minutes' },
+      ];
 
-      const bookings = await prisma.booking.findMany({
-        where: {
-          status: 'CONFIRMED',
-          is_waitlist: false,
-          schedule: {
-            start_time: {
-              gte: fiftyFiveMinutesFromNow,
-              lte: sixtyFiveMinutesFromNow,
-            },
-            status: 'SCHEDULED',
-          },
-        },
-        include: {
-          schedule: {
-            include: {
-              gym_class: true,
-              room: true,
-            },
-          },
-        },
-      });
+      let totalSent = 0;
 
-      // Send reminder for each booking
-      for (const booking of bookings) {
+      // Process each reminder time window
+      for (const { minutes, label } of reminderTimes) {
         try {
-          await bookingImprovementsService.sendBookingReminder(booking, booking.schedule);
+          // Calculate time window (with 2-minute buffer for cron timing)
+          const minMinutes = minutes - 2;
+          const maxMinutes = minutes + 2;
+          const minTime = new Date(now.getTime() + minMinutes * 60 * 1000);
+          const maxTime = new Date(now.getTime() + maxMinutes * 60 * 1000);
+
+          const bookings = await prisma.booking.findMany({
+            where: {
+              status: 'CONFIRMED',
+              is_waitlist: false,
+              schedule: {
+                start_time: {
+                  gte: minTime,
+                  lte: maxTime,
+                },
+                status: 'SCHEDULED',
+              },
+            },
+            include: {
+              schedule: {
+                include: {
+                  gym_class: true,
+                  room: true,
+                },
+              },
+            },
+          });
+
+          // Send reminder for each booking
+          for (const booking of bookings) {
+            try {
+              await bookingImprovementsService.sendBookingReminder(
+                booking,
+                booking.schedule,
+                minutes
+              );
+              totalSent++;
+            } catch (error) {
+              console.error(
+                `[ERROR] Failed to send ${label} reminder for booking ${booking.id}:`,
+                error
+              );
+              // Continue with next booking
+            }
+          }
+
+          if (bookings.length > 0) {
+            console.log(
+              `[BOOKING_REMINDER] Processed ${bookings.length} booking(s) for ${label} reminder`
+            );
+          }
         } catch (error) {
-          console.error(`[ERROR] Failed to send reminder for booking ${booking.id}:`, error);
-          // Continue with next booking
+          console.error(`[ERROR] Error processing ${label} reminder:`, error);
         }
       }
 
-      if (bookings.length > 0) {
-        console.log(`[BOOKING_REMINDER] Sent ${bookings.length} reminder(s)`);
+      if (totalSent > 0) {
+        console.log(`[BOOKING_REMINDER] Total reminders sent: ${totalSent}`);
       }
     } catch (error) {
       console.error('[ERROR] Error in booking reminder cron:', error);
@@ -527,14 +570,18 @@ class CronService {
             cronJob.stop();
           }
         });
-      } else if (typeof intervalId === 'object' && intervalId !== null && typeof intervalId.stop === 'function') {
+      } else if (
+        typeof intervalId === 'object' &&
+        intervalId !== null &&
+        typeof intervalId.stop === 'function'
+      ) {
         intervalId.stop();
       } else {
         clearInterval(intervalId);
       }
       console.log(`[STOP] Stopped cron job: ${jobName}`);
     });
-    
+
     this.intervals.clear();
     this.isRunning = false;
     console.log('[STOP] All cron jobs stopped');
@@ -542,4 +589,3 @@ class CronService {
 }
 
 module.exports = new CronService();
-

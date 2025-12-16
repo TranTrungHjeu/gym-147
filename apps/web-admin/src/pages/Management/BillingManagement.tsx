@@ -363,7 +363,7 @@ const BillingManagement: React.FC = () => {
   // Prepare export data for subscriptions
   const getSubscriptionsExportData = useCallback(() => {
     return filteredSubscriptions.map(sub => ({
-      'Thành viên': sub.member?.full_name || 'N/A',
+      'Hội viên': sub.member?.full_name || 'N/A',
       Email: sub.member?.email || 'N/A',
       'Gói tập': sub.plan?.name || 'N/A',
       'Ngày bắt đầu': sub.start_date ? formatVietnamDateTime(sub.start_date, 'date') : 'N/A',
@@ -387,7 +387,7 @@ const BillingManagement: React.FC = () => {
   // Prepare export data for payments
   const getPaymentsExportData = useCallback(() => {
     return filteredPayments.map(payment => ({
-      'Thành viên': payment.member?.full_name || 'N/A',
+      'Hội viên': payment.member?.full_name || 'N/A',
       Email: payment.member?.email || 'N/A',
       'Số tiền (VND)': payment.amount || 0,
       'Số tiền (đã format)': formatCurrency(payment.amount),
@@ -425,7 +425,7 @@ const BillingManagement: React.FC = () => {
   ];
 
   const subscriptionsExportColumns = [
-    { key: 'Thành viên', label: 'Thành viên' },
+    { key: 'Hội viên', label: 'Hội viên' },
     { key: 'Email', label: 'Email' },
     { key: 'Gói tập', label: 'Gói tập' },
     { key: 'Ngày bắt đầu', label: 'Ngày bắt đầu' },
@@ -437,7 +437,7 @@ const BillingManagement: React.FC = () => {
   ];
 
   const paymentsExportColumns = [
-    { key: 'Thành viên', label: 'Thành viên' },
+    { key: 'Hội viên', label: 'Hội viên' },
     { key: 'Email', label: 'Email' },
     { key: 'Số tiền (VND)', label: 'Số tiền (VND)' },
     { key: 'Số tiền (đã format)', label: 'Số tiền (đã format)' },

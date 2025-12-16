@@ -42,7 +42,10 @@ export function AnalyticsDashboard({ period = 30 }: AnalyticsDashboardProps) {
       <div className='flex items-center justify-center py-16'>
         <div className='flex flex-col items-center gap-4'>
           <Loader2 className='h-8 w-8 animate-spin text-brand-500' />
-          <p className='text-sm font-medium text-text-secondary' style={{ fontFamily: 'Inter, sans-serif' }}>
+          <p
+            className='text-sm font-medium text-text-secondary'
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
             Đang tải dữ liệu...
           </p>
         </div>
@@ -55,7 +58,10 @@ export function AnalyticsDashboard({ period = 30 }: AnalyticsDashboardProps) {
       <div className='flex items-center justify-center py-16'>
         <div className='text-center'>
           <BarChart3 className='h-12 w-12 mx-auto text-text-muted mb-4' />
-          <p className='text-sm font-medium text-text-muted' style={{ fontFamily: 'Inter, sans-serif' }}>
+          <p
+            className='text-sm font-medium text-text-muted'
+            style={{ fontFamily: 'Inter, sans-serif' }}
+          >
             Không có dữ liệu
           </p>
         </div>
@@ -120,7 +126,7 @@ export function AnalyticsDashboard({ period = 30 }: AnalyticsDashboardProps) {
                 className='text-xs font-medium uppercase tracking-wider text-text-muted'
                 style={{ fontFamily: 'Inter, sans-serif' }}
               >
-                Thành viên mới
+                Hội viên mới
               </p>
               <p
                 className='mt-3 text-3xl font-bold text-text-primary'

@@ -40,20 +40,29 @@ export default function SessionDetailModal({
   const { t, i18n } = useTranslation();
 
   // Handle API response structure: { session: {...}, equipmentUsage: {...}, caloriesBreakdown: {...} }
-  const sessionData = session?.session || session;
-  const equipmentUsage = session?.equipmentUsage;
-  const caloriesBreakdown = session?.caloriesBreakdown;
+  const sessionData = session?.session || session || null;
+  const equipmentUsage = session?.equipmentUsage || null;
+  const caloriesBreakdown = session?.caloriesBreakdown || null;
 
-  if (!sessionData) return null;
+  if (!sessionData) {
+    return null;
+  }
 
-  const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleString(i18n.language, {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const formatTime = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return 'N/A';
+      return date.toLocaleString(i18n.language, {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+    } catch (error) {
+      return 'N/A';
+    }
   };
 
   const formatDuration = (minutes: number | null | undefined) => {
@@ -66,8 +75,17 @@ export default function SessionDetailModal({
     return `${mins}m`;
   };
 
-  const getAccessMethodText = (method: string) => {
-    return t(`session.methods.${method}`) || method;
+  const getAccessMethodText = (method: string | null | undefined): string => {
+    if (!method) return 'Unknown';
+    try {
+      const translated = t(`session.methods.${method}`);
+      if (translated && translated !== `session.methods.${method}`) {
+        return translated;
+      }
+      return method || 'Unknown';
+    } catch (error) {
+      return method || 'Unknown';
+    }
   };
 
   return (
@@ -89,7 +107,7 @@ export default function SessionDetailModal({
           ]}
         >
           <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-            {t('session.title')}
+            {t('session.title') || 'Session Details'}
           </Text>
           <TouchableOpacity
             style={[
@@ -112,7 +130,7 @@ export default function SessionDetailModal({
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={theme.colors.primary} />
               <Text style={[styles.loadingText, { color: theme.colors.text }]}>
-                {t('session.loading')}
+                {t('session.loading') || 'Loading...'}
               </Text>
             </View>
           ) : (
@@ -128,7 +146,7 @@ export default function SessionDetailModal({
                 <Text
                   style={[styles.sectionTitle, { color: theme.colors.text }]}
                 >
-                  {t('session.overview')}
+                  {t('session.overview') || 'Overview'}
                 </Text>
 
                 <View style={styles.infoRow}>
@@ -140,7 +158,7 @@ export default function SessionDetailModal({
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {t('session.entryTime')}
+                      {t('session.entryTime') || 'Entry Time'}
                     </Text>
                     <Text
                       style={[styles.infoValue, { color: theme.colors.text }]}
@@ -160,7 +178,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.exitTime')}
+                        {t('session.exitTime') || 'Exit Time'}
                       </Text>
                       <Text
                         style={[styles.infoValue, { color: theme.colors.text }]}
@@ -181,7 +199,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.duration')}
+                        {t('session.duration') || 'Duration'}
                       </Text>
                       <Text
                         style={[styles.infoValue, { color: theme.colors.text }]}
@@ -201,12 +219,12 @@ export default function SessionDetailModal({
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {t('session.entryMethod')}
+                      {t('session.entryMethod') || 'Entry Method'}
                     </Text>
                     <Text
                       style={[styles.infoValue, { color: theme.colors.text }]}
                     >
-                      {getAccessMethodText(sessionData.entry_method)}
+                      {getAccessMethodText(sessionData?.entry_method)}
                     </Text>
                   </View>
                 </View>
@@ -221,12 +239,12 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.exitMethod')}
+                        {t('session.exitMethod') || 'Exit Method'}
                       </Text>
                       <Text
                         style={[styles.infoValue, { color: theme.colors.text }]}
                       >
-                        {getAccessMethodText(sessionData.exit_method)}
+                        {getAccessMethodText(sessionData?.exit_method)}
                       </Text>
                     </View>
                   </View>
@@ -242,12 +260,12 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.entryGate')}
+                        {t('session.entryGate') || 'Entry Gate'}
                       </Text>
                       <Text
                         style={[styles.infoValue, { color: theme.colors.text }]}
                       >
-                        {sessionData.entry_gate}
+                        {sessionData.entry_gate || 'N/A'}
                       </Text>
                     </View>
                   </View>
@@ -263,12 +281,12 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.exitGate')}
+                        {t('session.exitGate') || 'Exit Gate'}
                       </Text>
                       <Text
                         style={[styles.infoValue, { color: theme.colors.text }]}
                       >
-                        {sessionData.exit_gate}
+                        {sessionData.exit_gate || 'N/A'}
                       </Text>
                     </View>
                   </View>
@@ -286,7 +304,7 @@ export default function SessionDetailModal({
                 <Text
                   style={[styles.sectionTitle, { color: theme.colors.text }]}
                 >
-                  {t('session.statistics')}
+                  {t('session.statistics') || 'Statistics'}
                 </Text>
 
                 <View style={styles.statsGrid}>
@@ -307,7 +325,7 @@ export default function SessionDetailModal({
                     <Text
                       style={[styles.statValue, { color: theme.colors.text }]}
                     >
-                      {sessionData.calories_burned || 0}
+                      {String(sessionData?.calories_burned || 0)}
                     </Text>
                     <Text
                       style={[
@@ -315,7 +333,7 @@ export default function SessionDetailModal({
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {t('session.caloriesBurned')}
+                      {t('session.caloriesBurned') || 'Calories Burned'}
                     </Text>
                   </View>
 
@@ -354,7 +372,7 @@ export default function SessionDetailModal({
                       style={[styles.statValue, { color: theme.colors.text }]}
                     >
                       {sessionData.session_rating
-                        ? `${sessionData.session_rating.toFixed(1)}/5`
+                        ? `${(sessionData.session_rating || 0).toFixed(1)}/5`
                         : 'N/A'}
                     </Text>
                     <Text
@@ -363,7 +381,7 @@ export default function SessionDetailModal({
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      {t('session.rating')}
+                      {t('session.rating') || 'Rating'}
                     </Text>
                   </View>
                 </View>
@@ -391,7 +409,7 @@ export default function SessionDetailModal({
                         { color: theme.colors.text },
                       ]}
                     >
-                      {t('session.caloriesBreakdown', 'Calories Breakdown')}
+                      {t('session.caloriesBreakdown') || 'Calories Breakdown'}
                     </Text>
                     <View style={styles.breakdownRow}>
                       <Text
@@ -400,12 +418,17 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.caloriesFromWorkout', 'From Workout')}:
+                        {`${
+                          t('session.caloriesFromWorkout') || 'From Workout'
+                        }:`}
                       </Text>
                       <Text
-                        style={[styles.breakdownValue, { color: theme.colors.text }]}
+                        style={[
+                          styles.breakdownValue,
+                          { color: theme.colors.text },
+                        ]}
                       >
-                        {caloriesBreakdown.fromWorkout || 0} cal
+                        {`${caloriesBreakdown?.fromWorkout || 0} cal`}
                       </Text>
                     </View>
                     <View style={styles.breakdownRow}>
@@ -415,12 +438,17 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.caloriesFromEquipment', 'From Equipment')}:
+                        {`${
+                          t('session.caloriesFromEquipment') || 'From Equipment'
+                        }:`}
                       </Text>
                       <Text
-                        style={[styles.breakdownValue, { color: theme.colors.text }]}
+                        style={[
+                          styles.breakdownValue,
+                          { color: theme.colors.text },
+                        ]}
                       >
-                        {caloriesBreakdown.fromEquipment || 0} cal
+                        {`${caloriesBreakdown?.fromEquipment || 0} cal`}
                       </Text>
                     </View>
                     <View
@@ -442,7 +470,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.text },
                         ]}
                       >
-                        {t('session.total', 'Total')}:
+                        {`${t('session.total') || 'Total'}:`}
                       </Text>
                       <Text
                         style={[
@@ -451,7 +479,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.primary },
                         ]}
                       >
-                        {caloriesBreakdown.total || 0} cal
+                        {`${caloriesBreakdown?.total || 0} cal`}
                       </Text>
                     </View>
                   </View>
@@ -470,8 +498,9 @@ export default function SessionDetailModal({
                   <Text
                     style={[styles.sectionTitle, { color: theme.colors.text }]}
                   >
-                    {t('session.equipmentUsed')} ({equipmentUsage.totalSessions || 0}{' '}
-                    {t('session.device')})
+                    {`${t('session.equipmentUsed') || 'Equipment Used'} (${
+                      equipmentUsage?.totalSessions || 0
+                    } ${t('session.device') || 'devices'})`}
                   </Text>
 
                   {/* Equipment Usage Summary */}
@@ -497,7 +526,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.totalDuration')}:
+                        {`${t('session.totalDuration') || 'Total Duration'}:`}
                       </Text>
                       <Text
                         style={[
@@ -505,7 +534,9 @@ export default function SessionDetailModal({
                           { color: theme.colors.text },
                         ]}
                       >
-                        {equipmentUsage.totalDuration ? formatDuration(equipmentUsage.totalDuration) : '0m'}
+                        {equipmentUsage.totalDuration
+                          ? formatDuration(equipmentUsage.totalDuration)
+                          : '0m'}
                       </Text>
                     </View>
                     <View style={styles.summaryRow}>
@@ -515,7 +546,7 @@ export default function SessionDetailModal({
                           { color: theme.colors.textSecondary },
                         ]}
                       >
-                        {t('session.totalCalories')}:
+                        {`${t('session.totalCalories') || 'Total Calories'}:`}
                       </Text>
                       <Text
                         style={[
@@ -523,11 +554,11 @@ export default function SessionDetailModal({
                           { color: theme.colors.text },
                         ]}
                       >
-                        {equipmentUsage.totalCalories || 0} cal
+                        {equipmentUsage?.totalCalories || 0} cal
                       </Text>
                     </View>
                   </View>
-                  {equipmentUsage.details.map(
+                  {equipmentUsage?.details?.map(
                     (equipment: any, index: number) => (
                       <View
                         key={index}
@@ -547,7 +578,9 @@ export default function SessionDetailModal({
                               { color: theme.colors.text },
                             ]}
                           >
-                            {equipment.equipment?.name || t('common.unknownEquipment') || ''}
+                            {equipment.equipment?.name ||
+                              t('common.unknownEquipment') ||
+                              'Unknown Equipment'}
                           </Text>
                           <Text
                             style={[
@@ -555,7 +588,9 @@ export default function SessionDetailModal({
                               { color: theme.colors.textSecondary },
                             ]}
                           >
-                            {equipment.equipment?.category || t('common.unknown') || ''}
+                            {equipment.equipment?.category ||
+                              t('common.unknown') ||
+                              'Unknown'}
                           </Text>
                           <View style={styles.equipmentLocationRow}>
                             <MapPin
@@ -568,7 +603,9 @@ export default function SessionDetailModal({
                                 { color: theme.colors.textSecondary },
                               ]}
                             >
-                              {equipment.equipment?.location || t('common.unknown') || ''}
+                              {equipment.equipment?.location ||
+                                t('common.unknown') ||
+                                'Unknown'}
                             </Text>
                           </View>
                         </View>
@@ -586,7 +623,10 @@ export default function SessionDetailModal({
                                   {formatDuration(equipment.duration)}
                                 </Text>
                                 <View style={styles.statIconContainer}>
-                                  <Clock size={14} color={theme.colors.primary} />
+                                  <Clock
+                                    size={14}
+                                    color={theme.colors.primary}
+                                  />
                                 </View>
                               </View>
                             )}
@@ -599,7 +639,7 @@ export default function SessionDetailModal({
                                     { color: theme.colors.text },
                                   ]}
                                 >
-                                  {equipment.calories_burned || 0} cal
+                                  {`${equipment?.calories_burned || 0} cal`}
                                 </Text>
                                 <View style={styles.statIconContainer}>
                                   <Flame size={14} color="#FF6B6B" />
@@ -616,7 +656,9 @@ export default function SessionDetailModal({
                                     { color: theme.colors.text },
                                   ]}
                                 >
-                                  {equipment.sets_completed} {t('session.sets')}
+                                  {`${equipment.sets_completed || 0} ${
+                                    t('session.sets') || 'sets'
+                                  }`}
                                 </Text>
                                 <View style={styles.statIconContainer}>
                                   <Dumbbell size={14} color="#4ECDC4" />
@@ -633,7 +675,7 @@ export default function SessionDetailModal({
                                     { color: theme.colors.text },
                                   ]}
                                 >
-                                  {equipment.weight_used}kg
+                                  {`${equipment?.weight_used || 0}kg`}
                                 </Text>
                                 <View style={styles.statIconContainer}>
                                   <Scale size={14} color="#9B59B6" />
@@ -659,12 +701,12 @@ export default function SessionDetailModal({
                   <Text
                     style={[styles.sectionTitle, { color: theme.colors.text }]}
                   >
-                    {t('session.notes')}
+                    {t('session.notes') || 'Notes'}
                   </Text>
                   <Text
                     style={[styles.notesText, { color: theme.colors.text }]}
                   >
-                    {sessionData.notes}
+                    {sessionData.notes || ''}
                   </Text>
                 </View>
               )}

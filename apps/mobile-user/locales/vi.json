@@ -190,11 +190,11 @@
     "otpResent": "Đã gửi lại mã OTP!",
     "otpResendFailed": "Không thể gửi lại OTP",
     "accountCreated": "Tạo tài khoản thành công!",
-    "chooseMembershipPlan": "Chọn gói thành viên",
+    "chooseMembershipPlan": "Chọn gói hội viên",
     "choosePlanSubtitle": "Chọn gói phù hợp với nhu cầu của bạn",
     "loadingPlans": "Đang tải gói...",
     "plansFetchFailed": "Không thể tải danh sách gói",
-    "selectPlanWarning": "Vui lòng chọn một gói thành viên",
+    "selectPlanWarning": "Vui lòng chọn một gói hội viên",
     "popular": "Phổ biến",
     "setupFee": "Phí thiết lập",
     "classCredits": "Lượt lớp học",
@@ -225,7 +225,7 @@
     "startTrial": "Bắt đầu dùng thử",
     "skipCoupon": "Bỏ qua bước này",
     "paymentSummary": "Tóm tắt thanh toán",
-    "membershipFee": "Phí thành viên",
+    "membershipFee": "Phí hội viên",
     "subtotal": "Tạm tính",
     "discount": "Giảm giá",
     "total": "Tổng cộng",
@@ -380,12 +380,15 @@
     "addExerciseButton": "Thêm động tác",
     "createWorkoutButton": "Tạo bài tập",
     "premiumFeature": "Tính năng cao cấp",
-    "premiumRequired": "Tính năng này yêu cầu thành viên Cao cấp",
+    "premiumRequired": "Tính năng này yêu cầu hội viên Cao cấp",
     "upgradeMessage": "Nâng cấp lên Cao cấp hoặc VIP để mở khóa kế hoạch tập AI, phân tích nâng cao và nhiều tính năng khác!",
     "upgradeBenefits": "Quyền lợi Cao cấp:",
     "generateAIPlan": "Tạo kế hoạch AI",
     "aiPlanDescription": "AI sẽ phân tích hồ sơ của bạn và tạo kế hoạch tập luyện cá nhân hóa dựa trên mục tiêu, trình độ và tình trạng sức khỏe của bạn.",
     "aiSuccess": "Kế hoạch tập luyện AI đã được tạo thành công!",
+    "aiPlanCreatedDesc": "Kế hoạch tập luyện AI của bạn đã được tạo. Hãy kiểm tra phần đề xuất bài tập!",
+    "aiPlanCreatedWithName": "Kế hoạch \"{{name}}\" đã sẵn sàng cho bạn!",
+    "viewWorkouts": "Xem kế hoạch tập luyện",
     "recommendations": "Gợi ý AI",
     "recommendationsTitle": "Gợi ý cá nhân hóa",
     "recommendationsDescription": "Dựa trên hoạt động và tiến trình của bạn",
@@ -409,7 +412,7 @@
     "currentPlan": "Gói hiện tại của bạn",
     "aiGeneration": "AI Tập luyện",
     "aiRecommendations": "Gợi ý AI",
-    "memberNotFound": "Không tìm thấy thành viên",
+    "memberNotFound": "Không tìm thấy hội viên",
     "failedToToggleAI": "Không thể thay đổi trạng thái gợi ý AI",
     "enableAIForRecommendations": "Bật AI để nhận gợi ý cá nhân hóa",
     "toggleAIForRecommendations": "Bật/tắt AI ở trên để nhận gợi ý cá nhân hóa",
@@ -445,7 +448,7 @@
       "generate": "Tạo Kế Hoạch"
     },
     "aiPlanCreatedDesc": "Kế hoạch tập luyện AI của bạn đã được tạo. Kiểm tra các đề xuất bài tập trên màn hình chủ!",
-    "maxWorkoutPlansReached": "Bạn đã đạt đến số lượng kế hoạch tập luyện tối đa cho loại thành viên của bạn.",
+    "maxWorkoutPlansReached": "Bạn đã đạt đến số lượng kế hoạch tập luyện tối đa cho loại hội viên của bạn.",
     "upgradeForMorePlans": "Nâng cấp lên VIP để tạo tối đa 3 kế hoạch tập luyện.",
     "readyToStart": "Sẵn sàng bắt đầu bài tập này?",
     "noExercisesCompleted": "Chưa Hoàn Thành Bài Tập Nào",
@@ -574,12 +577,12 @@
     "avatarUpdated": "Cập nhật ảnh đại diện thành công",
     "profilePhoto": "Ảnh đại diện",
     "failedToUpdateProfile": "Không thể cập nhật hồ sơ",
-    "membershipTier": "Hạng thành viên",
+    "membershipTier": "Hạng hội viên",
     "membershipStatus": "Trạng thái",
-    "memberSince": "Thành viên từ",
+    "memberSince": "Hội viên từ",
     "expiresOn": "Hết hạn",
     "membershipBenefits": {
-      "title": "Quyền lợi thành viên",
+      "title": "Quyền lợi hội viên",
       "BASIC": [
         "Truy cập phòng tập",
         "Theo dõi sử dụng thiết bị cơ bản",
@@ -604,7 +607,7 @@
       ],
       "STUDENT": [
         "Tất cả tính năng Cơ bản",
-        "Giảm giá thành viên",
+        "Giảm giá hội viên",
         "Truy cập cộng đồng sinh viên",
         "Phòng học"
       ]
@@ -783,8 +786,8 @@
           "answer": "Bài tập của bạn được tự động theo dõi khi bạn check-in và check-out tại phòng gym. Bạn có thể xem lịch sử bài tập trong tab Thống kê."
         },
         "changeMembership": {
-          "question": "Làm thế nào để thay đổi gói thành viên?",
-          "answer": "Liên hệ đội hỗ trợ của chúng tôi hoặc đến quầy lễ tân phòng gym để thảo luận về việc thay đổi gói thành viên. Bạn cũng có thể xem các gói có sẵn trong ứng dụng."
+          "question": "Làm thế nào để thay đổi gói hội viên?",
+          "answer": "Liên hệ đội hỗ trợ của chúng tôi hoặc đến quầy lễ tân phòng gym để thảo luận về việc thay đổi gói hội viên. Bạn cũng có thể xem các gói có sẵn trong ứng dụng."
         },
         "forgotPassword": {
           "question": "Nếu tôi quên mật khẩu thì sao?",
@@ -795,12 +798,12 @@
           "answer": "Vào Cài đặt > Thông báo để tùy chỉnh thông báo bạn muốn nhận. Đảm bảo thông báo đẩy được bật trong cài đặt thiết bị của bạn."
         },
         "contactSupport": {
-          "question": "Làm thế nào để liên hệ hỗ trợ khách hàng?",
+          "question": "Làm thế nào để liên hệ hỗ trợ hội viên?",
           "answer": "Bạn có thể liên hệ chúng tôi qua màn hình hỗ trợ này, gọi cho chúng tôi hoặc gửi email cho chúng tôi."
         },
         "cancelMembership": {
-          "question": "Làm thế nào để hủy thành viên?",
-          "answer": "Để hủy thành viên, vui lòng liên hệ đội hỗ trợ của chúng tôi ít nhất 30 ngày trước chu kỳ thanh toán tiếp theo. Chúng tôi sẽ hướng dẫn bạn qua quy trình hủy."
+          "question": "Làm thế nào để hủy hội viên?",
+          "answer": "Để hủy hội viên, vui lòng liên hệ đội hỗ trợ của chúng tôi ít nhất 30 ngày trước chu kỳ thanh toán tiếp theo. Chúng tôi sẽ hướng dẫn bạn qua quy trình hủy."
         }
       }
     },
@@ -909,6 +912,8 @@
       "onWaitlist": "Đang ở danh sách chờ",
       "onWaitlistWithPosition": "Đang ở danh sách chờ (Vị trí {{position}})",
       "cancelConfirm": "Bạn có chắc muốn hủy đặt lịch này?",
+      "deadlinePassed": "Hết thời gian đăng ký",
+      "deadlineSoon": "Còn {{minutes}} phút để đăng ký",
       "cancelSuccess": "Hủy đặt lịch thành công",
       "cancelSuccessWithRefund": "Hủy lớp thành công! Bạn sẽ được hoàn {{amount}}",
       "cancelFailed": "Không thể hủy đặt lịch",
@@ -1049,6 +1054,10 @@
     "vectorRecommendationsDescription": "Gợi ý lớp học dựa trên vector embedding, phân tích sâu về mục tiêu và sở thích của bạn",
     "loadingVectorRecommendations": "Đang tải gợi ý AI...",
     "noVectorRecommendations": "Chưa có gợi ý vector embedding. Vui lòng cập nhật profile để nhận gợi ý.",
+    "createEmbedding": "Tạo Vector Embedding",
+    "embeddingCreated": "Vector embedding đã được tạo thành công! Gợi ý sẽ được cập nhật sau vài giây.",
+    "embeddingError": "Không thể tạo vector embedding",
+    "memberNotFound": "Không tìm thấy thành viên",
     "recommendationPriorityHigh": "Ưu tiên cao",
     "recommendationPriorityMedium": "Ưu tiên trung bình",
     "recommendationPriorityLow": "Ưu tiên thấp",
@@ -1058,7 +1067,7 @@
     "aiRecommendationsEnabled": "Đã bật gợi ý AI",
     "aiRecommendationsDisabled": "Đã tắt gợi ý AI",
     "toggleFailed": "Không thể thay đổi trạng thái gợi ý AI",
-    "memberNotFound": "Không tìm thấy thành viên",
+    "memberNotFound": "Không tìm thấy hội viên",
     "viewSchedule": "Xem lịch",
     "exploreCategory": "Khám phá danh mục",
     "bookClass": "Đặt lớp",
@@ -1092,7 +1101,7 @@
       "failedToLoadDetails": "Không thể tải chi tiết lớp học",
       "loginRequiredForBooking": "Bạn cần đăng nhập để đặt lịch",
       "scheduleNotFound": "Không tìm thấy thông tin lịch học",
-      "memberRegistrationRequired": "Vui lòng đăng ký thành viên trước khi đặt lịch. Đang tải thông tin thành viên...",
+      "memberRegistrationRequired": "Vui lòng đăng ký hội viên trước khi đặt lịch. Đang tải thông tin hội viên...",
       "missingRequiredFields": "Thiếu các trường bắt buộc",
       "failedToRemoveFavorite": "Không thể xóa yêu thích",
       "failedToAddFavorite": "Không thể thêm yêu thích",
@@ -1138,7 +1147,7 @@
     },
     "statusMessages": {
       "available": "Thiết bị đã sẵn sàng sử dụng. Bạn có thể bắt đầu tập luyện ngay.",
-      "inuse": "Thiết bị đang được sử dụng bởi thành viên khác. Vui lòng vào hàng đợi để đặt lượt.",
+      "inuse": "Thiết bị đang được sử dụng bởi hội viên khác. Vui lòng vào hàng đợi để đặt lượt.",
       "maintenance": "Thiết bị đang được bảo trì. Vui lòng quay lại sau hoặc liên hệ nhân viên để được hỗ trợ.",
       "outoforder": "Thiết bị tạm thời ngưng hoạt động. Vui lòng sử dụng thiết bị thay thế hoặc thông báo cho nhân viên.",
       "reserved": "Thiết bị đã được đặt trước. Bạn có thể vào hàng đợi để được thông báo khi có sẵn.",
@@ -1201,7 +1210,7 @@
     },
     "maxWeight": "Tối đa: {{weight}}kg",
     "live": "ĐANG PHÁT",
-    "member": "Thành viên",
+    "member": "Hội viên",
     "tryAdjustingFilters": "Thử điều chỉnh tìm kiếm hoặc bộ lọc",
     "inQueue": "đang chờ",
     "queue": {
@@ -1540,7 +1549,7 @@
       "pending": "Chờ xử lý"
     },
     "plans": {
-      "title": "Gói thành viên",
+      "title": "Gói hội viên",
       "subtitle": "Chọn gói phù hợp với nhu cầu của bạn",
       "loading": "Đang tải gói...",
       "basic": "Cơ bản",
@@ -1693,7 +1702,7 @@
     "expired": "Đã hết hạn",
     "expiresToday": "Hết hạn hôm nay",
     "expiredTitle": "Gói đã hết hạn",
-    "expiredMessage": "Gói thành viên của bạn đã hết hạn. Vui lòng chọn gói mới để tiếp tục sử dụng dịch vụ.",
+    "expiredMessage": "Gói hội viên của bạn đã hết hạn. Vui lòng chọn gói mới để tiếp tục sử dụng dịch vụ.",
     "month": "tháng",
     "week": "tuần",
     "day": "ngày",
@@ -1772,7 +1781,7 @@
     "leaderboardLoading": "Đang tải bảng xếp hạng...",
     "leaderboardLoadFailed": "Không thể tải bảng xếp hạng",
     "yourRank": "Xếp hạng của bạn",
-    "topPerformers": "Thành viên xuất sắc",
+    "topPerformers": "Hội viên xuất sắc",
     "achievements": "thành tích",
     "workouts": "bài tập",
     "noDataAvailable": "Không có dữ liệu",
@@ -1825,9 +1834,9 @@
   "payment": {
     "title": "Thanh toán",
     "selectPaymentMethod": "Chọn phương thức thanh toán",
-    "subscribeSubtitle": "Chọn phương thức thanh toán để đăng ký gói thành viên",
-    "upgradeSubtitle": "Chọn phương thức thanh toán để nâng cấp gói thành viên",
-    "renewSubtitle": "Chọn phương thức thanh toán để gia hạn gói thành viên",
+    "subscribeSubtitle": "Chọn phương thức thanh toán để đăng ký gói hội viên",
+    "upgradeSubtitle": "Chọn phương thức thanh toán để nâng cấp gói hội viên",
+    "renewSubtitle": "Chọn phương thức thanh toán để gia hạn gói hội viên",
     "bankTransfer": "Chuyển khoản ngân hàng",
     "bankTransferDesc": "Chuyển khoản trực tiếp qua ngân hàng",
     "vnpayDesc": "Thanh toán an toàn qua VNPay",

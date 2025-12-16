@@ -1,12 +1,78 @@
 import * as Device from 'expo-device';
-import * as Notifications from 'expo-notifications';
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { identityApiService } from '../identity/api.service';
 
 // ============================================
+//  HELPER: Check if running in Expo Go
+// ============================================
+
+/**
+ * Check if the app is running in Expo Go
+ * Remote push notifications are not supported in Expo Go (SDK 53+)
+ * Local notifications (scheduleNotificationAsync) still work in Expo Go
+ */
+function isExpoGo(): boolean {
+  return Constants.executionEnvironment === 'storeClient';
+}
+
+// ============================================
+//  SUPPRESS EXPO GO WARNING
+// ============================================
+// Suppress the Expo Go push notification warning that appears on import
+// This warning is expected and harmless - local notifications still work in Expo Go
+// NOTE: The warning may still appear in the console as it's logged from native code,
+// but we suppress JavaScript-level warnings here
+
+const originalWarn = console.warn;
+const originalError = console.error;
+const suppressedPatterns = [
+  /expo-notifications.*Expo Go.*SDK 53/i,
+  /Android Push notifications.*removed from Expo Go/i,
+  /expo-notifications.*functionality.*not fully supported.*Expo Go/i,
+];
+
+function shouldSuppressWarning(message: string): boolean {
+  return suppressedPatterns.some((pattern) => pattern.test(message));
+}
+
+// Override console.warn to suppress Expo Go warnings
+console.warn = (...args: any[]) => {
+  const message = args.join(' ');
+  if (shouldSuppressWarning(message)) {
+    // Suppress the warning - it's expected in Expo Go
+    return;
+  }
+  originalWarn.apply(console, args);
+};
+
+// Also override console.error in case warning is logged as error
+console.error = (...args: any[]) => {
+  const message = args.join(' ');
+  if (shouldSuppressWarning(message)) {
+    // Suppress the warning - it's expected in Expo Go
+    return;
+  }
+  originalError.apply(console, args);
+};
+
+// ============================================
+//  IMPORT NOTIFICATIONS MODULE
+// ============================================
+// Import with warning suppression in place
+// The warning may still appear from native code, but we suppress JS-level warnings
+import * as Notifications from 'expo-notifications';
+
+// Restore original console methods after import
+// (Keep suppression active for any delayed warnings)
+// console.warn = originalWarn;
+// console.error = originalError;
+
+// ============================================
 //  CONFIGURE NOTIFICATION BEHAVIOR
 // ============================================
+// NOTE: Local notifications (scheduleNotificationAsync) work in Expo Go
+// Remote push notifications (getExpoPushTokenAsync) do NOT work in Expo Go (SDK 53+)
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
@@ -24,19 +90,39 @@ Notifications.setNotificationHandler({
 
 class PushNotificationService {
   /**
+   * Check if push notifications are supported
+   */
+  private isPushSupported(): boolean {
+    // Push notifications are not supported in Expo Go
+    if (isExpoGo()) {
+      console.log(
+        '[BELL] Push notifications not supported in Expo Go. Use a development build instead.'
+      );
+      return false;
+    }
+
+    // Skip push notifications on Android (Expo 53+)
+    if (Platform.OS === 'android') {
+      console.log('[BELL] Push notifications disabled on Android');
+      return false;
+    }
+
+    // Push notifications only work on physical devices
+    if (!Device.isDevice) {
+      console.log('[BELL] Push notifications only work on physical devices');
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
    * Request notification permissions
-   * NOTE: Push notifications are disabled on Android (Expo 53+)
+   * NOTE: Push notifications are disabled on Android (Expo 53+) and Expo Go
    */
   async requestPermissions(): Promise<boolean> {
     try {
-      // Skip push notifications on Android
-      if (Platform.OS === 'android') {
-        console.log('[BELL] Push notifications disabled on Android');
-        return false;
-      }
-
-      if (!Device.isDevice) {
-        console.log('[BELL] Push notifications only work on physical devices');
+      if (!this.isPushSupported()) {
         return false;
       }
 
@@ -64,24 +150,17 @@ class PushNotificationService {
 
   /**
    * Get Expo Push Token
-   * NOTE: Push notifications are disabled on Android (Expo 53+)
+   * NOTE: Push notifications are disabled on Android (Expo 53+) and Expo Go
    */
   async getExpoPushToken(): Promise<string | null> {
     try {
-      // Skip push notifications on Android
-      if (Platform.OS === 'android') {
-        console.log('[BELL] Push notifications disabled on Android');
-        return null;
-      }
-
-      if (!Device.isDevice) {
-        console.log('[BELL] Cannot get push token on simulator/emulator');
+      if (!this.isPushSupported()) {
         return null;
       }
 
       // Get projectId from Constants (Expo 53+ requires this for standalone builds)
       const projectId = Constants.expoConfig?.extra?.eas?.projectId;
-      
+
       const tokenOptions: Notifications.ExpoPushTokenOptions = projectId
         ? { projectId }
         : {};
@@ -107,7 +186,10 @@ class PushNotificationService {
       try {
         console.log('[RETRY] Retrying without projectId...');
         const fallbackToken = await Notifications.getExpoPushTokenAsync();
-        console.log('[SUCCESS] Expo Push Token (fallback):', fallbackToken.data);
+        console.log(
+          '[SUCCESS] Expo Push Token (fallback):',
+          fallbackToken.data
+        );
         return fallbackToken.data;
       } catch (fallbackError) {
         console.error('[ERROR] Fallback also failed:', fallbackError);
@@ -118,13 +200,11 @@ class PushNotificationService {
 
   /**
    * Register push token with backend
-   * NOTE: Push notifications are disabled on Android (Expo 53+)
+   * NOTE: Push notifications are disabled on Android (Expo 53+) and Expo Go
    */
   async registerPushToken(userId: string): Promise<boolean> {
     try {
-      // Skip push notifications on Android
-      if (Platform.OS === 'android') {
-        console.log('[BELL] Push notifications disabled on Android');
+      if (!this.isPushSupported()) {
         return false;
       }
 
@@ -187,7 +267,10 @@ class PushNotificationService {
         console.log(`[SUCCESS] Push preference updated: ${enabled}`);
         return true;
       } else {
-        console.log('[ERROR] Failed to update push preference:', response.message);
+        console.log(
+          '[ERROR] Failed to update push preference:',
+          response.message
+        );
         return false;
       }
     } catch (error: any) {
@@ -208,10 +291,13 @@ class PushNotificationService {
         `/auth/users/${userId}/push-settings`
       );
 
-      if (response.success) {
+      if (response.success && response.data) {
         return {
           success: true,
-          data: response.data,
+          data: response.data as {
+            push_enabled: boolean;
+            push_platform?: string;
+          },
         };
       } else {
         return {
@@ -256,11 +342,20 @@ class PushNotificationService {
 
   /**
    * Configure notification channels (Android only)
-   * NOTE: Push notifications are disabled on Android, so this is a no-op
+   * NOTE: Push notifications are disabled on Android and Expo Go, so this is a no-op
    */
   async setupNotificationChannels() {
+    if (isExpoGo()) {
+      console.log(
+        '[BELL] Running in Expo Go - push notifications not supported'
+      );
+      return;
+    }
+
     if (Platform.OS === 'android') {
-      console.log('[BELL] Push notifications disabled on Android - skipping channel setup');
+      console.log(
+        '[BELL] Push notifications disabled on Android - skipping channel setup'
+      );
       return;
     }
   }

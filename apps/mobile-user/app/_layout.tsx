@@ -5,6 +5,7 @@ import '@/locales/i18n'; // Initialize i18n';
 import { ThemeProvider, useTheme } from '@/utils/theme';
 import { AppEvents } from '@/utils/eventEmitter';
 import { AccountDeletedModal } from '@/components/AccountDeletedModal';
+import { NotificationBanner } from '@/components/NotificationBanner';
 import {
   Inter_400Regular,
   Inter_500Medium,
@@ -20,7 +21,10 @@ import {
   SpaceGrotesk_700Bold,
 } from '@expo-google-fonts/space-grotesk';
 import { pushNotificationService } from '@/services/notification/push.service';
-import { validateNotificationData, type NotificationData } from '@/types/notificationTypes';
+import {
+  validateNotificationData,
+  type NotificationData,
+} from '@/types/notificationTypes';
 import { SplashScreen, Stack, useRouter } from 'expo-router';
 import * as Notifications from 'expo-notifications';
 import { StatusBar } from 'expo-status-bar';
@@ -33,10 +37,12 @@ SplashScreen.preventAutoHideAsync().catch((error) => {
   // Ignore errors - splash screen may already be prevented or not available
   if (error?.message?.includes('No native splash screen registered')) {
     // This is expected in some cases (e.g., web, development)
-    console.log('[SPLASH] Splash screen not available (expected in some environments)');
+    console.log(
+      '[SPLASH] Splash screen not available (expected in some environments)'
+    );
   } else {
-  console.warn('[SPLASH] Error preventing auto-hide:', error);
-}
+    console.warn('[SPLASH] Error preventing auto-hide:', error);
+  }
 });
 
 function AppContent() {
@@ -47,7 +53,10 @@ function AppContent() {
   // Listen for user:deleted event
   React.useEffect(() => {
     const handleUserDeleted = (data: any) => {
-      console.log('[AUTH] User account deleted event received in AppContent:', data);
+      console.log(
+        '[AUTH] User account deleted event received in AppContent:',
+        data
+      );
       setShowDeletedModal(true);
     };
 
@@ -68,12 +77,10 @@ function AppContent() {
         <Stack.Screen name="index" options={{ headerShown: false }} />
         <Stack.Screen name="(auth)" options={{ headerShown: false }} />
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="settings/index"
-          options={{ headerShown: false }}
-        />
+        <Stack.Screen name="settings/index" options={{ headerShown: false }} />
       </Stack>
       <AccountDeletedModal visible={showDeletedModal} onLogout={handleLogout} />
+      <NotificationBanner />
     </>
   );
 }
@@ -104,16 +111,18 @@ export default function RootLayout() {
         try {
           await SplashScreen.hideAsync();
         } catch (error: any) {
-        // Ignore errors if splash screen is already hidden or not registered
+          // Ignore errors if splash screen is already hidden or not registered
           if (
             error?.message?.includes('No native splash screen registered') ||
             error?.message?.includes('SplashScreen.show')
           ) {
             // This is expected in some cases (e.g., web, development, or already hidden)
-            console.log('[SPLASH] Splash screen not available or already hidden (expected)');
-        } else {
-          console.warn('[SPLASH] Error hiding splash screen:', error);
-        }
+            console.log(
+              '[SPLASH] Splash screen not available or already hidden (expected)'
+            );
+          } else {
+            console.warn('[SPLASH] Error hiding splash screen:', error);
+          }
         }
       };
 
@@ -127,6 +136,9 @@ export default function RootLayout() {
   // Setup push notification listeners for navigation
   useEffect(() => {
     // Setup notification channels (Android)
+    // NOTE: If you see a warning about Expo Go and push notifications, this is expected.
+    // Remote push notifications don't work in Expo Go (SDK 53+), but local notifications still work.
+    // Use a development build for full push notification support.
     pushNotificationService.setupNotificationChannels();
 
     // Listen for user interaction with notifications (when app is in background/closed)
@@ -139,7 +151,9 @@ export default function RootLayout() {
         try {
           // Validate notification data
           if (!validateNotificationData(data)) {
-            console.warn('[WARN] Invalid notification data, navigating to notifications list');
+            console.warn(
+              '[WARN] Invalid notification data, navigating to notifications list'
+            );
             router.push('/notifications');
             return;
           }
@@ -167,10 +181,16 @@ export default function RootLayout() {
             case 'WAITLIST_PROMOTE': // IMPROVEMENT: Waitlist promotion
               // If requires_payment is true, navigate to my-bookings so user can pay
               if (data?.requires_payment && data?.booking_id) {
-                console.log('   → Navigating to my-bookings to complete payment for booking:', data.booking_id);
+                console.log(
+                  '   → Navigating to my-bookings to complete payment for booking:',
+                  data.booking_id
+                );
                 router.push('/classes/my-bookings');
               } else if (data?.schedule_id) {
-                console.log('   → Navigating to class schedule:', data.schedule_id);
+                console.log(
+                  '   → Navigating to class schedule:',
+                  data.schedule_id
+                );
                 router.push(`/classes/${data.schedule_id}`);
               } else if (data?.class_id) {
                 router.push(`/classes/${data.class_id}`);
@@ -188,7 +208,10 @@ export default function RootLayout() {
 
             case 'ACHIEVEMENT_UNLOCKED':
               if (data?.achievement_id) {
-                console.log('   → Navigating to achievement:', data.achievement_id);
+                console.log(
+                  '   → Navigating to achievement:',
+                  data.achievement_id
+                );
                 router.push(`/achievements/${data.achievement_id}`);
               } else {
                 router.push('/achievements');
@@ -197,7 +220,10 @@ export default function RootLayout() {
 
             case 'REWARD_REDEMPTION':
               if (data?.reward_id || data?.redemption_id) {
-                console.log('   → Navigating to reward:', data.reward_id || data.redemption_id);
+                console.log(
+                  '   → Navigating to reward:',
+                  data.reward_id || data.redemption_id
+                );
                 router.push(`/rewards/${data.reward_id || data.redemption_id}`);
               } else {
                 router.push('/rewards');
@@ -221,12 +247,17 @@ export default function RootLayout() {
 
             default:
               // For unknown types, navigate to notifications list
-              console.log('   → Unknown notification type, navigating to notifications');
+              console.log(
+                '   → Unknown notification type, navigating to notifications'
+              );
               router.push('/notifications');
               break;
           }
         } catch (navigationError) {
-          console.error('[ERROR] Error navigating from notification:', navigationError);
+          console.error(
+            '[ERROR] Error navigating from notification:',
+            navigationError
+          );
           // Fallback to notifications list
           router.push('/notifications');
         }

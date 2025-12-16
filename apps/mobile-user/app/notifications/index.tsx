@@ -30,6 +30,7 @@ import {
   Filter,
   X,
   CheckCircle2,
+  AlertTriangle,
 } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -366,9 +367,25 @@ export default function NotificationCenterScreen() {
       console.log('[NOTIFICATIONS] filterNotifications result:', {
         outputCount: filtered.length,
         filteredIds: filtered.map((n) => n.id).slice(0, 5),
+        firstNotification: filtered[0]
+          ? {
+              id: filtered[0].id,
+              title: filtered[0].title,
+              status: filtered[0].status,
+              type: filtered[0].type,
+            }
+          : null,
       });
 
       setFilteredNotifications(filtered);
+      console.log(
+        '[NOTIFICATIONS] ✅ setFilteredNotifications called, new count:',
+        filtered.length,
+        {
+          firstFilteredId: filtered[0]?.id,
+          firstFilteredTitle: filtered[0]?.title,
+        }
+      );
     },
     []
   );
@@ -854,9 +871,140 @@ export default function NotificationCenterScreen() {
   }, [user?.id]);
 
   // Sync unreadCount from context (real-time updates from socket)
+  // This ensures badge is always in sync with NotificationContext which listens to socket events
+  // Also trigger optimistic update when count increases
+  const previousUnreadCountRef = useRef(unreadCount);
+
   useEffect(() => {
-    setUnreadCount(contextUnreadCount);
-  }, [contextUnreadCount]);
+    const previousCount = previousUnreadCountRef.current;
+    const newCount = contextUnreadCount;
+
+    console.log('[NOTIFICATIONS] 🔄 Syncing unreadCount from context:', {
+      contextUnreadCount: newCount,
+      currentLocalCount: unreadCount,
+      previousCountFromRef: previousCount,
+      willUpdate: newCount !== unreadCount,
+      countIncreased: newCount > previousCount,
+    });
+
+    if (newCount !== unreadCount) {
+      console.log(
+        '[NOTIFICATIONS] ✅ Updating local unreadCount from',
+        unreadCount,
+        'to',
+        newCount
+      );
+      setUnreadCount(newCount);
+
+      // If count increased, fetch the latest notification and add it optimistically
+      if (newCount > previousCount) {
+        console.log(
+          '[NOTIFICATIONS] 🔄 Count increased from',
+          previousCount,
+          'to',
+          newCount,
+          '- fetching latest notification for optimistic update'
+        );
+        // Fetch only the latest notification (limit: 1) and add it to the list
+        if (user?.id) {
+          notificationService
+            .getMemberNotifications(user.id, { limit: 1 })
+            .then((latestNotifications) => {
+              if (latestNotifications && latestNotifications.length > 0) {
+                const newNotification = mapNotificationFromAPI(
+                  latestNotifications[0]
+                );
+                console.log('[NOTIFICATIONS] ✅ Fetched latest notification:', {
+                  id: newNotification.id,
+                  title: newNotification.title,
+                  status: newNotification.status,
+                  createdAt: newNotification.createdAt,
+                });
+
+                // Check if notification already exists
+                setNotifications((prev) => {
+                  const exists = prev.some((n) => n.id === newNotification.id);
+                  if (exists) {
+                    console.log(
+                      '[NOTIFICATIONS] ⚠️ Notification already exists, skipping:',
+                      newNotification.id
+                    );
+                    return prev;
+                  }
+
+                  console.log(
+                    '[NOTIFICATIONS] ✅ Adding latest notification to list optimistically. Previous count:',
+                    prev.length
+                  );
+                  const updated = [newNotification, ...prev].slice(0, 100);
+                  console.log(
+                    '[NOTIFICATIONS] ✅ Updated notifications list count:',
+                    updated.length
+                  );
+
+                  // Force filter update
+                  setTimeout(() => {
+                    console.log(
+                      '[NOTIFICATIONS] 🔄 Force filtering after adding notification from count sync'
+                    );
+                    filterNotifications(
+                      searchQueryRef.current,
+                      selectedTypeRef.current,
+                      selectedStatusRef.current,
+                      updated
+                    );
+                  }, 50);
+
+                  return updated;
+                });
+
+                // Animate the new notification entry
+                setTimeout(() => {
+                  animateNotificationEntry(newNotification.id, 0);
+                }, 100);
+              } else {
+                console.warn(
+                  '[NOTIFICATIONS] ⚠️ No notifications returned from API'
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(
+                '[NOTIFICATIONS] ❌ Error fetching latest notification:',
+                err
+              );
+            });
+        } else {
+          console.warn(
+            '[NOTIFICATIONS] ⚠️ No user ID available for fetching notification'
+          );
+        }
+      } else {
+        console.log(
+          '[NOTIFICATIONS] ⚠️ Count did not increase (newCount:',
+          newCount,
+          'previousCount:',
+          previousCount,
+          '), skipping fetch. Condition check:',
+          newCount > previousCount
+        );
+      }
+
+      // Update ref after checking count increase
+      previousUnreadCountRef.current = newCount;
+      console.log(
+        '[NOTIFICATIONS] ✅ Updated previousUnreadCountRef to:',
+        newCount
+      );
+    } else {
+      // Update ref even if count didn't change (to track the current value)
+      previousUnreadCountRef.current = newCount;
+      console.log(
+        '[NOTIFICATIONS] ⚠️ Count unchanged, updated previousUnreadCountRef to:',
+        newCount
+      );
+    }
+  }, [contextUnreadCount, unreadCount, user?.id]);
 
   // Apply filters whenever notifications or filter criteria change
   useEffect(() => {
@@ -950,7 +1098,26 @@ export default function NotificationCenterScreen() {
             prev.length
           );
 
-          if (prev.some((n) => n.id === newNotification.id)) {
+          // Check for duplicate by ID or by title+message+createdAt (for queued notifications)
+          const isDuplicate = prev.some((n) => {
+            // Exact ID match
+            if (n.id === newNotification.id) return true;
+            // For queued notifications, check if same notification was already created
+            if (
+              newNotification.id.startsWith('queued_') &&
+              n.title === newNotification.title &&
+              n.message === newNotification.message &&
+              Math.abs(
+                new Date(n.createdAt).getTime() -
+                  new Date(newNotification.createdAt).getTime()
+              ) < 5000
+            ) {
+              return true;
+            }
+            return false;
+          });
+
+          if (isDuplicate) {
             console.log(
               '[NOTIFICATIONS] ⚠️ Notification already exists, skipping:',
               newNotification.id
@@ -964,7 +1131,9 @@ export default function NotificationCenterScreen() {
             'New notification ID:',
             newNotification.id,
             'Title:',
-            newNotification.title
+            newNotification.title,
+            'Status:',
+            newNotification.status
           );
 
           const updated = [newNotification, ...prev].slice(0, 100);
@@ -973,20 +1142,62 @@ export default function NotificationCenterScreen() {
             updated.length,
             'New notification will trigger filter useEffect'
           );
+
+          // Force filter update immediately to ensure new notification appears
+          // This ensures the notification appears even if filters are active
+          // Use setTimeout to ensure state update is complete
+          setTimeout(() => {
+            console.log(
+              '[NOTIFICATIONS] 🔄 Force filtering after adding new notification:',
+              {
+                newNotificationId: newNotification.id,
+                newNotificationStatus: newNotification.status,
+                newNotificationType: newNotification.type,
+                newNotificationTitle: newNotification.title,
+                currentFilters: {
+                  search: searchQueryRef.current,
+                  type: selectedTypeRef.current,
+                  status: selectedStatusRef.current,
+                },
+                updatedCount: updated.length,
+                willShow:
+                  (!searchQueryRef.current ||
+                    newNotification.title
+                      .toLowerCase()
+                      .includes(searchQueryRef.current.toLowerCase()) ||
+                    newNotification.message
+                      .toLowerCase()
+                      .includes(searchQueryRef.current.toLowerCase())) &&
+                  (selectedTypeRef.current === 'ALL' ||
+                    newNotification.type === selectedTypeRef.current) &&
+                  (selectedStatusRef.current === 'ALL' ||
+                    newNotification.status === selectedStatusRef.current),
+              }
+            );
+            filterNotifications(
+              searchQueryRef.current,
+              selectedTypeRef.current,
+              selectedStatusRef.current,
+              updated
+            );
+          }, 100);
+
           return updated;
         });
 
         // Update unread count if notification is unread
+        // Note: The badge will be updated via contextUnreadCount sync (useEffect above)
+        // We should rely on contextUnreadCount from socket, not local optimistic update
+        // because context is the source of truth from socket events
         if (newNotification.status === 'UNREAD') {
-          setUnreadCount((prevCount) => {
-            const newCount = prevCount + 1;
-            console.log(
-              '[NOTIFICATIONS] Updated unread count:',
-              prevCount,
-              '->',
-              newCount
-            );
-            return newCount;
+          console.log(
+            '[NOTIFICATIONS] New UNREAD notification added, context will update badge via socket'
+          );
+          // Don't update local unreadCount here - let it sync from contextUnreadCount
+          // This ensures consistency with socket events
+          // Just refresh context count to ensure we're in sync
+          refreshCount().catch((err) => {
+            console.error('[NOTIFICATIONS] Error refreshing count:', err);
           });
         }
 
@@ -1058,8 +1269,118 @@ export default function NotificationCenterScreen() {
       }
     };
 
-    const handleCountUpdated = () => {
-      refreshCount();
+    const handleCountUpdated = (data?: any) => {
+      console.log(
+        '[NOTIFICATIONS] 🔔 notification:count_updated event received:',
+        {
+          newCount: data?.count,
+          currentLocalCount: unreadCount,
+          currentContextCount: contextUnreadCount,
+          countIncreased: data?.count && data.count > unreadCount,
+        }
+      );
+
+      // Store the previous count before refresh
+      const previousCount = unreadCount;
+
+      // Refresh context count and sync to local state
+      refreshCount().then(() => {
+        // Local state will be updated via useEffect that syncs from contextUnreadCount
+        console.log('[NOTIFICATIONS] Count refreshed from context');
+
+        // If count increased, it means there's a new notification
+        // The notification should be added via notification:new event, but if that fails,
+        // we should fetch the latest notification and add it optimistically
+        // Compare with previousCount (before refresh) to detect increase
+        if (data?.count && data.count > previousCount) {
+          console.log(
+            '[NOTIFICATIONS] 🔄 Count increased from',
+            previousCount,
+            'to',
+            data.count,
+            '- fetching latest notification for optimistic update'
+          );
+          // Fetch only the latest notification (limit: 1) and add it to the list
+          if (user?.id) {
+            notificationService
+              .getMemberNotifications(user.id, { limit: 1 })
+              .then((latestNotifications) => {
+                if (latestNotifications && latestNotifications.length > 0) {
+                  const newNotification = mapNotificationFromAPI(
+                    latestNotifications[0]
+                  );
+                  console.log(
+                    '[NOTIFICATIONS] ✅ Fetched latest notification:',
+                    {
+                      id: newNotification.id,
+                      title: newNotification.title,
+                      status: newNotification.status,
+                      createdAt: newNotification.createdAt,
+                    }
+                  );
+
+                  // Check if notification already exists
+                  setNotifications((prev) => {
+                    const exists = prev.some(
+                      (n) => n.id === newNotification.id
+                    );
+                    if (exists) {
+                      console.log(
+                        '[NOTIFICATIONS] ⚠️ Notification already exists, skipping:',
+                        newNotification.id
+                      );
+                      return prev;
+                    }
+
+                    console.log(
+                      '[NOTIFICATIONS] ✅ Adding latest notification to list optimistically. Previous count:',
+                      prev.length
+                    );
+                    const updated = [newNotification, ...prev].slice(0, 100);
+                    console.log(
+                      '[NOTIFICATIONS] ✅ Updated notifications list count:',
+                      updated.length
+                    );
+
+                    // Force filter update
+                    setTimeout(() => {
+                      console.log(
+                        '[NOTIFICATIONS] 🔄 Force filtering after adding notification from count update'
+                      );
+                      filterNotifications(
+                        searchQueryRef.current,
+                        selectedTypeRef.current,
+                        selectedStatusRef.current,
+                        updated
+                      );
+                    }, 50);
+
+                    return updated;
+                  });
+
+                  // Animate the new notification entry
+                  setTimeout(() => {
+                    animateNotificationEntry(newNotification.id, 0);
+                  }, 100);
+                } else {
+                  console.warn(
+                    '[NOTIFICATIONS] ⚠️ No notifications returned from API'
+                  );
+                }
+              })
+              .catch((err) => {
+                console.error(
+                  '[NOTIFICATIONS] ❌ Error fetching latest notification:',
+                  err
+                );
+              });
+          }
+        } else {
+          console.log(
+            '[NOTIFICATIONS] Count did not increase or no count data, skipping fetch'
+          );
+        }
+      });
     };
 
     console.log('[NOTIFICATIONS] 🔌 Registering AppEvents listeners...', {
@@ -1070,15 +1391,24 @@ export default function NotificationCenterScreen() {
 
     // Wrap handler to ensure it's always called
     const wrappedHandleNotificationNew = (data: any) => {
-      console.log('[NOTIFICATIONS] Wrapped handler called with data:', {
+      console.log('[NOTIFICATIONS] 🔔 Wrapped handler called with data:', {
         hasData: !!data,
         notificationId: data?.notification_id || data?.id,
         title: data?.title,
+        type: data?.type,
+        status: data?.status || data?.is_read === false ? 'UNREAD' : 'READ',
+        fullData: JSON.stringify(data, null, 2),
       });
       try {
         handleNotificationNew(data);
+        console.log(
+          '[NOTIFICATIONS] ✅ handleNotificationNew completed successfully'
+        );
       } catch (error) {
-        console.error('[NOTIFICATIONS] Error in handleNotificationNew:', error);
+        console.error(
+          '[NOTIFICATIONS] ❌ Error in handleNotificationNew:',
+          error
+        );
       }
     };
 
@@ -1097,12 +1427,28 @@ export default function NotificationCenterScreen() {
     );
     console.log('[NOTIFICATIONS] Registered listener for notification:read');
 
+    const handleCountUpdatedWrapped = (data?: any) => {
+      console.log(
+        '[NOTIFICATIONS] 🔔 Wrapped handleCountUpdated called with data:',
+        data
+      );
+      try {
+        handleCountUpdated(data);
+      } catch (error) {
+        console.error('[NOTIFICATIONS] ❌ Error in handleCountUpdated:', error);
+      }
+    };
+
     const unsubscribe3 = AppEvents.on(
       'notification:count_updated',
-      handleCountUpdated
+      handleCountUpdatedWrapped
     );
     console.log(
-      '[NOTIFICATIONS] Registered listener for notification:count_updated'
+      '[NOTIFICATIONS] ✅ Registered listener for notification:count_updated',
+      {
+        handlerType: typeof handleCountUpdatedWrapped,
+        unsubscribeType: typeof unsubscribe3,
+      }
     );
 
     console.log(
@@ -1455,8 +1801,13 @@ export default function NotificationCenterScreen() {
                 style={[
                   styles.badge,
                   {
-                    backgroundColor: theme.colors.primary,
+                    backgroundColor: theme.colors.error || '#EF4444',
                     marginLeft: 10,
+                    shadowColor: theme.colors.error || '#EF4444',
+                    shadowOffset: { width: 0, height: 2 },
+                    shadowOpacity: 0.4,
+                    shadowRadius: 4,
+                    elevation: 6,
                   },
                 ]}
               >
@@ -1464,8 +1815,10 @@ export default function NotificationCenterScreen() {
                   style={[
                     Typography.captionMedium,
                     {
-                      color: theme.colors.surface,
-                      fontWeight: '700',
+                      color: '#FFFFFF',
+                      fontWeight: '800',
+                      fontSize: 12,
+                      letterSpacing: 0.5,
                     },
                   ]}
                 >
@@ -1937,11 +2290,11 @@ const createStyles = (theme: any) =>
       borderRadius: 12,
     },
     badge: {
-      paddingHorizontal: 10,
-      paddingVertical: 4,
-      borderRadius: 12,
-      minWidth: 24,
-      height: 24,
+      paddingHorizontal: 12,
+      paddingVertical: 5,
+      borderRadius: 14,
+      minWidth: 26,
+      height: 26,
       alignItems: 'center',
       justifyContent: 'center',
     },

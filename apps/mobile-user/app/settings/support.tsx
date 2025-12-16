@@ -86,11 +86,11 @@ export default function SupportScreen() {
     {
       id: '4',
       question: t('settings.support.faq.changeMembership.question', {
-        defaultValue: 'Làm thế nào để thay đổi gói thành viên?',
+        defaultValue: 'Làm thế nào để thay đổi gói hội viên?',
       }),
       answer: t('settings.support.faq.changeMembership.answer', {
         defaultValue:
-          'Liên hệ đội hỗ trợ của chúng tôi hoặc đến quầy lễ tân phòng gym để thảo luận về việc thay đổi gói thành viên. Bạn cũng có thể xem các gói có sẵn trong ứng dụng.',
+          'Liên hệ đội hỗ trợ của chúng tôi hoặc đến quầy lễ tân phòng gym để thảo luận về việc thay đổi gói hội viên. Bạn cũng có thể xem các gói có sẵn trong ứng dụng.',
       }),
     },
     {
@@ -116,7 +116,7 @@ export default function SupportScreen() {
     {
       id: '7',
       question: t('settings.support.faq.contactSupport.question', {
-        defaultValue: 'Làm thế nào để liên hệ hỗ trợ khách hàng?',
+        defaultValue: 'Làm thế nào để liên hệ hỗ trợ hội viên?',
       }),
       answer: t('settings.support.faq.contactSupport.answer', {
         defaultValue:
@@ -126,11 +126,11 @@ export default function SupportScreen() {
     {
       id: '8',
       question: t('settings.support.faq.cancelMembership.question', {
-        defaultValue: 'Làm thế nào để hủy thành viên?',
+        defaultValue: 'Làm thế nào để hủy hội viên?',
       }),
       answer: t('settings.support.faq.cancelMembership.answer', {
         defaultValue:
-          'Để hủy thành viên, vui lòng liên hệ đội hỗ trợ của chúng tôi ít nhất 30 ngày trước chu kỳ thanh toán tiếp theo. Chúng tôi sẽ hướng dẫn bạn qua quy trình hủy.',
+          'Để hủy hội viên, vui lòng liên hệ đội hỗ trợ của chúng tôi ít nhất 30 ngày trước chu kỳ thanh toán tiếp theo. Chúng tôi sẽ hướng dẫn bạn qua quy trình hủy.',
       }),
     },
   ];

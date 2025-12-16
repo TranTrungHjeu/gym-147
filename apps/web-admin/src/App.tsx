@@ -18,7 +18,6 @@ import AppLayout from './layout/AppLayout';
 import TrainerLayout from './layout/TrainerLayout';
 import RewardAnalytics from './pages/Analytics/RewardAnalytics';
 import TrainerSalaryStatistics from './pages/Analytics/TrainerSalaryStatistics';
-import SalaryRequestManagement from './pages/Management/SalaryRequestManagement';
 import Auth from './pages/AuthPages/Auth';
 import OAuthCallback from './pages/AuthPages/OAuthCallback';
 import ResetPassword from './pages/AuthPages/ResetPassword';
@@ -48,6 +47,7 @@ import AuditLogsManagement from './pages/Management/AuditLogsManagement';
 // BackupRestoreManagement removed - not needed
 import BillingManagement from './pages/Management/BillingManagement';
 import RefundManagement from './pages/Management/RefundManagement';
+import CouponManagement from './pages/Management/CouponManagement';
 import ChallengeManagement from './pages/Management/ChallengeManagement';
 import ClassManagement from './pages/Management/ClassManagement';
 // EmailTemplatesManagement removed - not needed
@@ -300,6 +300,16 @@ export default function App() {
             }
           />
           <Route
+            path='/management/coupons'
+            element={
+              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
+                <AppLayout>
+                  <CouponManagement />
+                </AppLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path='/management/reports'
             element={
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
@@ -439,16 +449,6 @@ export default function App() {
               <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
                 <AppLayout>
                   <TrainerSalaryStatistics />
-                </AppLayout>
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path='/management/salary-requests'
-            element={
-              <ProtectedRoute requiredRole={['SUPER_ADMIN', 'ADMIN']}>
-                <AppLayout>
-                  <SalaryRequestManagement />
                 </AppLayout>
               </ProtectedRoute>
             }

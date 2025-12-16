@@ -1504,11 +1504,11 @@ export default function NotificationDropdown({ userId }: NotificationDropdownPro
 
     // Priority 2: Check message content for role hints (before type inference)
     // Only check if message explicitly says "admin đã" or "quản trị viên đã" (admin did something)
-    // NOT if it says "thành viên đã" or "member đã" (member did something)
+    // NOT if it says "hội viên đã" or "member đã" (member did something)
     const messageLower = message?.toLowerCase() || '';
     if (
       (messageLower.includes('admin đã') || messageLower.includes('quản trị viên đã')) &&
-      !messageLower.includes('thành viên đã') &&
+      !messageLower.includes('hội viên đã') &&
       !messageLower.includes('member đã')
     ) {
       return 'ADMIN';

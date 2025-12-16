@@ -306,9 +306,7 @@ export default function RefundTimelineScreen() {
         >
           <ArrowLeft size={24} color={theme.colors.text} />
         </TouchableOpacity>
-        <Text style={themedStyles.headerTitle}>
-          {t('subscription.refundTimeline') || 'Lịch sử hoàn tiền'}
-        </Text>
+        <Text style={themedStyles.headerTitle}>{'Lịch sử hoàn tiền'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -326,7 +324,7 @@ export default function RefundTimelineScreen() {
                 { color: getStatusColor(timeline.status) },
               ]}
             >
-              {timeline.status || 'Unknown'}
+              {timeline.refund?.status || 'Unknown'}
             </Text>
           </View>
         </View>
@@ -344,9 +342,9 @@ export default function RefundTimelineScreen() {
 
           {timeline.timeline.map((item, index) => {
             const isLast = index === timeline.timeline.length - 1;
-            const isActive = 
-              item.status && 
-              timeline.status && 
+            const isActive =
+              item.status &&
+              timeline.status &&
               item.status.toUpperCase() === timeline.status.toUpperCase();
 
             return (
@@ -398,8 +396,7 @@ export default function RefundTimelineScreen() {
         {timeline.estimated_completion && (
           <View style={themedStyles.estimatedCompletion}>
             <Text style={themedStyles.estimatedText}>
-              {t('subscription.estimatedCompletion') ||
-                'Dự kiến hoàn thành'}
+              {t('subscription.estimatedCompletion') || 'Dự kiến hoàn thành'}
             </Text>
             <Text style={themedStyles.estimatedDate}>
               {formatDate(timeline.estimated_completion)}
@@ -410,4 +407,3 @@ export default function RefundTimelineScreen() {
     </SafeAreaView>
   );
 }
-

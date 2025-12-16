@@ -1232,15 +1232,17 @@ class ScheduleService {
     scheduleId: string,
     type: 'check-in' | 'check-out',
     trainerId: string
-  ): Promise<ApiResponse<{
-    schedule_id: string;
-    type: string;
-    qr_data: string;
-    qr_code_data_url: string;
-    qr_code_svg: string;
-    expires_at: string;
-    class_name: string;
-  }>> {
+  ): Promise<
+    ApiResponse<{
+      schedule_id: string;
+      type: string;
+      qr_data: string;
+      qr_code_data_url: string;
+      qr_code_svg: string;
+      expires_at: string;
+      class_name: string;
+    }>
+  > {
     return this.request<{
       schedule_id: string;
       type: string;
@@ -1317,6 +1319,15 @@ class ScheduleService {
    */
   async getBookingById(bookingId: string): Promise<ApiResponse<any>> {
     return this.request<any>(`/bookings/${bookingId}`);
+  }
+
+  /**
+   * Cancel a booking
+   */
+  async cancelBooking(bookingId: string, cancellationReason?: string): Promise<ApiResponse<any>> {
+    return this.request<any>(`/bookings/${bookingId}/cancel`, 'PUT', {
+      cancellation_reason: cancellationReason || 'Đã bị xóa bởi trainer',
+    });
   }
 
   /**
@@ -1454,9 +1465,7 @@ class ScheduleService {
     if (month) params.append('month', month.toString());
     if (year) params.append('year', year.toString());
 
-    const endpoint = params.toString()
-      ? `/salary/statistics?${params}`
-      : '/salary/statistics';
+    const endpoint = params.toString() ? `/salary/statistics?${params}` : '/salary/statistics';
     return this.request(endpoint);
   }
 }

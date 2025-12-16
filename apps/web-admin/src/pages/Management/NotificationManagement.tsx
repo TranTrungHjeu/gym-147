@@ -1336,14 +1336,16 @@ const NotificationManagement: React.FC = () => {
                 <div className='flex items-center justify-between'>
                   <h3 className='text-sm font-semibold text-gray-900 dark:text-white flex items-center space-x-2'>
                     <Eye className='w-4 h-4 text-orange-500' />
-                    <span>Xem trước</span>
+                    <span>{t('notificationManagement.preview.title')}</span>
                   </h3>
                   {memberPreviewList.length > 0 && (
                     <button
                       onClick={() => setShowPreviewList(!showPreviewList)}
                       className='text-xs text-orange-600 dark:text-orange-400 hover:underline'
                     >
-                      {showPreviewList ? 'Thu gọn' : 'Xem danh sách'}
+                      {showPreviewList
+                        ? t('notificationManagement.preview.collapseList')
+                        : t('notificationManagement.preview.expandList')}
                     </button>
                   )}
                 </div>
@@ -1355,7 +1357,7 @@ const NotificationManagement: React.FC = () => {
                       <div className='absolute inset-0 animate-ping rounded-full border-2 border-orange-400 opacity-20'></div>
                     </div>
                     <span className='mt-3 text-xs font-medium text-gray-600 dark:text-gray-400'>
-                      Đang tải danh sách...
+                      {t('notificationManagement.preview.loading')}
                     </span>
                   </div>
                 ) : memberPreviewList.length > 0 ? (
@@ -1368,11 +1370,12 @@ const NotificationManagement: React.FC = () => {
                           </div>
                           <div>
                             <p className='text-[10px] font-medium text-orange-700 dark:text-orange-300 uppercase tracking-wide'>
-                              Sẽ gửi đến
+                              {t('notificationManagement.members.preview.willSendTo')}
                             </p>
                             <p className='text-base font-bold text-orange-900 dark:text-orange-100 font-heading'>
-                              {memberPreviewList.length} member
-                              {memberPreviewList.length > 1 ? 's' : ''}
+                              {t('notificationManagement.members.preview.count', {
+                                count: memberPreviewList.length,
+                              })}
                             </p>
                           </div>
                         </div>
@@ -1420,8 +1423,9 @@ const NotificationManagement: React.FC = () => {
                             <div className='p-3 text-center'>
                               <span className='inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 animate-fade-in'>
                                 <Users className='w-3 h-3 mr-1.5' />
-                                ... và {memberPreviewList.length - 100} member
-                                {memberPreviewList.length - 100 > 1 ? 's' : ''} khác
+                                {t('notificationManagement.members.preview.moreMembers', {
+                                  count: memberPreviewList.length - 100,
+                                })}
                               </span>
                             </div>
                           )}
@@ -1435,10 +1439,10 @@ const NotificationManagement: React.FC = () => {
                       <Users className='w-6 h-6 text-gray-400 dark:text-gray-600' />
                     </div>
                     <p className='text-xs font-medium text-gray-500 dark:text-gray-400'>
-                      Chưa có dữ liệu để xem trước
+                      {t('notificationManagement.preview.noData')}
                     </p>
                     <p className='text-[10px] text-gray-400 dark:text-gray-500 mt-1'>
-                      Chọn filter hoặc nhập IDs để xem danh sách
+                      {t('notificationManagement.filters.selectFilterOrIds')}
                     </p>
                   </div>
                 )}
@@ -1460,41 +1464,46 @@ const NotificationManagement: React.FC = () => {
               <div className='space-y-4'>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Tiêu đề <span className='text-red-500'>*</span>
+                    {t('notificationManagement.trainers.form.title')}{' '}
+                    <span className='text-red-500'>*</span>
                   </label>
                   <input
                     type='text'
                     value={trainerForm.title}
                     onChange={e => setTrainerForm({ ...trainerForm, title: e.target.value })}
                     className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                    placeholder='Nhập tiêu đề thông báo...'
+                    placeholder={t('notificationManagement.form.titlePlaceholder')}
                   />
                 </div>
 
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Nội dung <span className='text-red-500'>*</span>
+                    {t('notificationManagement.trainers.form.message')}{' '}
+                    <span className='text-red-500'>*</span>
                   </label>
                   <textarea
                     value={trainerForm.message}
                     onChange={e => setTrainerForm({ ...trainerForm, message: e.target.value })}
                     rows={4}
                     className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                    placeholder='Nhập nội dung thông báo...'
+                    placeholder={t('notificationManagement.form.messagePlaceholder')}
                   />
                 </div>
 
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                    Loại thông báo
+                    {t('notificationManagement.trainers.form.type')}
                   </label>
                   <div className='w-full'>
                     <CustomSelect
                       value={trainerForm.type}
                       onChange={value => setTrainerForm({ ...trainerForm, type: value })}
                       options={[
-                        { value: 'GENERAL', label: 'Thông báo chung' },
-                        { value: 'SYSTEM_ANNOUNCEMENT', label: 'Thông báo hệ thống' },
+                        { value: 'GENERAL', label: t('notificationManagement.types.GENERAL') },
+                        {
+                          value: 'SYSTEM_ANNOUNCEMENT',
+                          label: t('notificationManagement.types.SYSTEM_ANNOUNCEMENT'),
+                        },
                       ]}
                       className='w-full'
                     />
@@ -1504,7 +1513,7 @@ const NotificationManagement: React.FC = () => {
                 {/* Send To Options */}
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                    Gửi đến
+                    {t('notificationManagement.trainers.form.sendTo')}
                   </label>
                   <div className='grid grid-cols-3 gap-2'>
                     <button
@@ -1515,7 +1524,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Tất cả
+                      {t('notificationManagement.trainers.form.all')}
                     </button>
                     <button
                       onClick={() => setTrainerForm({ ...trainerForm, sendTo: 'filter' })}
@@ -1525,7 +1534,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      Theo filter
+                      {t('notificationManagement.trainers.form.filter')}
                     </button>
                     <button
                       onClick={() => setTrainerForm({ ...trainerForm, sendTo: 'specific' })}
@@ -1535,7 +1544,7 @@ const NotificationManagement: React.FC = () => {
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
                       }`}
                     >
-                      IDs cụ thể
+                      {t('notificationManagement.trainers.form.specific')}
                     </button>
                   </div>
                 </div>
@@ -1547,14 +1556,14 @@ const NotificationManagement: React.FC = () => {
                       <div className='flex items-center space-x-2'>
                         <Filter className='w-4 h-4 text-orange-500' />
                         <h3 className='text-sm font-semibold text-gray-900 dark:text-white font-heading'>
-                          Bộ lọc
+                          {t('notificationManagement.trainers.filters.title')}
                         </h3>
                       </div>
                     </div>
                     <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
                       <div>
                         <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                          Tìm kiếm
+                          {t('notificationManagement.trainers.filters.search')}
                         </label>
                         <div className='relative'>
                           <Search className='absolute left-2 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400' />
@@ -1568,13 +1577,15 @@ const NotificationManagement: React.FC = () => {
                               })
                             }
                             className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                            placeholder='Tên, email, phone...'
+                            placeholder={t(
+                              'notificationManagement.trainers.filters.searchPlaceholder'
+                            )}
                           />
                         </div>
                       </div>
                       <div>
                         <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                          Trạng thái
+                          {t('notificationManagement.trainers.filters.statusLabel')}
                         </label>
                         <CustomSelect
                           value={trainerForm.filters.status}
@@ -1585,18 +1596,18 @@ const NotificationManagement: React.FC = () => {
                             })
                           }
                           options={[
-                            { value: '', label: 'Tất cả' },
-                            { value: 'ACTIVE', label: 'Active' },
-                            { value: 'INACTIVE', label: 'Inactive' },
-                            { value: 'ON_LEAVE', label: 'On Leave' },
-                            { value: 'TERMINATED', label: 'Terminated' },
+                            { value: '', label: t('common.all') },
+                            { value: 'ACTIVE', label: t('common.trainerStatus.active') },
+                            { value: 'INACTIVE', label: t('common.trainerStatus.inactive') },
+                            { value: 'ON_LEAVE', label: t('common.trainerStatus.onLeave') },
+                            { value: 'TERMINATED', label: t('common.trainerStatus.terminated') },
                           ]}
                           className='w-full'
                         />
                       </div>
                       <div>
                         <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 font-inter'>
-                          Chuyên môn
+                          {t('notificationManagement.trainers.filters.specializationLabel')}
                         </label>
                         <CustomSelect
                           value={trainerForm.filters.specialization}
@@ -1607,17 +1618,17 @@ const NotificationManagement: React.FC = () => {
                             })
                           }
                           options={[
-                            { value: '', label: 'Tất cả' },
-                            { value: 'CARDIO', label: 'Cardio' },
-                            { value: 'STRENGTH', label: 'Strength' },
-                            { value: 'YOGA', label: 'Yoga' },
-                            { value: 'PILATES', label: 'Pilates' },
-                            { value: 'DANCE', label: 'Dance' },
-                            { value: 'MARTIAL_ARTS', label: 'Martial Arts' },
-                            { value: 'AQUA', label: 'Aqua' },
-                            { value: 'FUNCTIONAL', label: 'Functional' },
-                            { value: 'RECOVERY', label: 'Recovery' },
-                            { value: 'SPECIALIZED', label: 'Specialized' },
+                            { value: '', label: t('common.all') },
+                            { value: 'CARDIO', label: t('common.classCategory.cardio') },
+                            { value: 'STRENGTH', label: t('common.classCategory.strength') },
+                            { value: 'YOGA', label: t('common.classCategory.yoga') },
+                            { value: 'PILATES', label: t('common.classCategory.pilates') },
+                            { value: 'DANCE', label: t('common.classCategory.dance') },
+                            { value: 'MARTIAL_ARTS', label: t('common.classCategory.martialArts') },
+                            { value: 'AQUA', label: t('common.classCategory.aqua') },
+                            { value: 'FUNCTIONAL', label: t('common.classCategory.functional') },
+                            { value: 'RECOVERY', label: t('common.classCategory.recovery') },
+                            { value: 'SPECIALIZED', label: t('common.classCategory.specialized') },
                           ]}
                           className='w-full'
                         />
@@ -1630,7 +1641,7 @@ const NotificationManagement: React.FC = () => {
                 {trainerForm.sendTo === 'specific' && (
                   <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
-                      Trainer IDs (phân cách bằng dấu phẩy)
+                      {t('notificationManagement.form.trainerIds')}
                     </label>
                     <input
                       type='text'
@@ -1645,7 +1656,7 @@ const NotificationManagement: React.FC = () => {
                         })
                       }
                       className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
-                      placeholder='id1, id2, id3...'
+                      placeholder={t('notificationManagement.form.trainerIdsPlaceholder')}
                     />
                   </div>
                 )}
@@ -1680,7 +1691,9 @@ const NotificationManagement: React.FC = () => {
                       onClick={() => setShowPreviewList(!showPreviewList)}
                       className='text-xs text-orange-600 dark:text-orange-400 hover:underline'
                     >
-                      {showPreviewList ? 'Thu gọn' : 'Xem danh sách'}
+                      {showPreviewList
+                        ? t('notificationManagement.preview.collapseList')
+                        : t('notificationManagement.preview.expandList')}
                     </button>
                   )}
                 </div>
@@ -1692,7 +1705,7 @@ const NotificationManagement: React.FC = () => {
                       <div className='absolute inset-0 animate-ping rounded-full border-2 border-orange-400 opacity-20'></div>
                     </div>
                     <span className='mt-3 text-xs font-medium text-gray-600 dark:text-gray-400'>
-                      Đang tải danh sách...
+                      {t('notificationManagement.preview.loading')}
                     </span>
                   </div>
                 ) : trainerPreviewList.length > 0 ? (
@@ -1705,11 +1718,12 @@ const NotificationManagement: React.FC = () => {
                           </div>
                           <div>
                             <p className='text-[10px] font-medium text-orange-700 dark:text-orange-300 uppercase tracking-wide'>
-                              Sẽ gửi đến
+                              {t('notificationManagement.trainers.preview.willSendTo')}
                             </p>
                             <p className='text-base font-bold text-orange-900 dark:text-orange-100 font-heading'>
-                              {trainerPreviewList.length} trainer
-                              {trainerPreviewList.length > 1 ? 's' : ''}
+                              {t('notificationManagement.trainers.preview.count', {
+                                count: trainerPreviewList.length,
+                              })}
                             </p>
                           </div>
                         </div>
@@ -1762,8 +1776,9 @@ const NotificationManagement: React.FC = () => {
                             <div className='p-3 text-center'>
                               <span className='inline-flex items-center px-3 py-1.5 rounded-full text-[10px] font-medium bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-700 animate-fade-in'>
                                 <UserCheck className='w-3 h-3 mr-1.5' />
-                                ... và {trainerPreviewList.length - 100} trainer
-                                {trainerPreviewList.length - 100 > 1 ? 's' : ''} khác
+                                {t('notificationManagement.trainers.preview.moreTrainers', {
+                                  count: trainerPreviewList.length - 100,
+                                })}
                               </span>
                             </div>
                           )}
@@ -1777,10 +1792,10 @@ const NotificationManagement: React.FC = () => {
                       <UserCheck className='w-6 h-6 text-gray-400 dark:text-gray-600' />
                     </div>
                     <p className='text-xs font-medium text-gray-500 dark:text-gray-400'>
-                      Chưa có dữ liệu để xem trước
+                      {t('notificationManagement.preview.noData')}
                     </p>
                     <p className='text-[10px] text-gray-400 dark:text-gray-500 mt-1'>
-                      Chọn filter hoặc nhập IDs để xem danh sách
+                      {t('notificationManagement.filters.selectFilterOrIds')}
                     </p>
                   </div>
                 )}
@@ -1878,7 +1893,7 @@ const NotificationManagement: React.FC = () => {
                   <div className='flex items-center space-x-2'>
                     <Filter className='w-4 h-4 text-orange-500' />
                     <h3 className='text-sm font-semibold text-gray-900 dark:text-white font-heading'>
-                      Bộ lọc
+                      {t('notificationManagement.history.filters.title')}
                     </h3>
                   </div>
                   {(historyFilters.target_type ||
@@ -1891,14 +1906,14 @@ const NotificationManagement: React.FC = () => {
                       }}
                       className='text-xs text-orange-600 dark:text-orange-400 hover:underline font-medium transition-opacity duration-200'
                     >
-                      Xóa tất cả
+                      {t('notificationManagement.history.filters.clearAll')}
                     </button>
                   )}
                 </div>
                 <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
                   <div>
                     <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5'>
-                      Đối tượng
+                      {t('notificationManagement.history.filters.targetTypeLabel')}
                     </label>
                     <CustomSelect
                       value={historyFilters.target_type}
@@ -1907,9 +1922,15 @@ const NotificationManagement: React.FC = () => {
                         setHistoryPagination(prev => ({ ...prev, page: 1 }));
                       }}
                       options={[
-                        { value: '', label: 'Tất cả' },
-                        { value: 'MEMBER', label: 'Member' },
-                        { value: 'TRAINER', label: 'Trainer' },
+                        { value: '', label: t('notificationManagement.history.filters.all') },
+                        {
+                          value: 'MEMBER',
+                          label: t('notificationManagement.history.filters.member'),
+                        },
+                        {
+                          value: 'TRAINER',
+                          label: t('notificationManagement.history.filters.trainer'),
+                        },
                       ]}
                       className='w-full'
                     />
@@ -1917,7 +1938,7 @@ const NotificationManagement: React.FC = () => {
                   <div>
                     <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center space-x-1'>
                       <Calendar className='w-3.5 h-3.5 text-orange-500' />
-                      <span>Từ ngày</span>
+                      <span>{t('notificationManagement.history.filters.startDate')}</span>
                     </label>
                     <input
                       type='date'
@@ -1932,7 +1953,7 @@ const NotificationManagement: React.FC = () => {
                   <div>
                     <label className='block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1.5 flex items-center space-x-1'>
                       <Calendar className='w-3.5 h-3.5 text-orange-500' />
-                      <span>Đến ngày</span>
+                      <span>{t('notificationManagement.history.filters.endDate')}</span>
                     </label>
                     <input
                       type='date'
@@ -1953,7 +1974,7 @@ const NotificationManagement: React.FC = () => {
                       className='w-full h-[30px] px-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-all duration-200 text-[11px] flex items-center justify-center'
                     >
                       <X className='w-3 h-3 mr-1' />
-                      Xóa filter
+                      {t('notificationManagement.history.filters.clearFilter')}
                     </button>
                   </div>
                 </div>
@@ -1975,25 +1996,25 @@ const NotificationManagement: React.FC = () => {
                       <AdminTableHeader>
                         <AdminTableRow className='bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900'>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading'>
-                            Ngày gửi
+                            {t('notificationManagement.history.table.sendDate')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading'>
-                            Người gửi
+                            {t('notificationManagement.history.table.sender')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading'>
-                            Đối tượng
+                            {t('notificationManagement.history.table.target')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading'>
-                            Tiêu đề
+                            {t('notificationManagement.history.table.title')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading text-center'>
-                            Tổng
+                            {t('notificationManagement.history.table.total')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading text-center'>
-                            Thành công
+                            {t('notificationManagement.history.table.success')}
                           </AdminTableCell>
                           <AdminTableCell className='font-semibold text-[11px] text-gray-900 dark:text-white font-heading text-center'>
-                            Thất bại
+                            {t('notificationManagement.history.table.failed')}
                           </AdminTableCell>
                         </AdminTableRow>
                       </AdminTableHeader>
@@ -2268,7 +2289,7 @@ const NotificationManagement: React.FC = () => {
                 {/* Title */}
                 <div>
                   <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
-                    Tiêu đề
+                    {t('notificationManagement.history.detail.title')}
                   </label>
                   <div className='px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
                     <p className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
@@ -2293,7 +2314,7 @@ const NotificationManagement: React.FC = () => {
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
                   <div className='bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10 rounded-lg p-3 border border-blue-200 dark:border-blue-700/50'>
                     <div className='text-xs text-blue-600 dark:text-blue-400 font-medium font-heading mb-1'>
-                      Đối tượng
+                      {t('notificationManagement.history.detail.target')}
                     </div>
                     <div className='flex items-center'>
                       <EnumBadge
@@ -2306,7 +2327,7 @@ const NotificationManagement: React.FC = () => {
                   </div>
                   <div className='bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700'>
                     <div className='text-xs text-gray-600 dark:text-gray-400 font-medium font-heading mb-1'>
-                      Tổng số
+                      {t('notificationManagement.history.detail.total')}
                     </div>
                     <div className='text-sm font-bold text-gray-900 dark:text-white font-heading'>
                       {selectedHistoryItem.total_targets}
@@ -2322,7 +2343,7 @@ const NotificationManagement: React.FC = () => {
                   </div>
                   <div className='bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 rounded-lg p-3 border border-red-200 dark:border-red-700/50'>
                     <div className='text-xs text-red-600 dark:text-red-400 font-medium font-heading mb-1'>
-                      Thất bại
+                      {t('notificationManagement.history.detail.failed')}
                     </div>
                     <div className='text-sm font-bold text-red-900 dark:text-red-100 font-heading'>
                       {selectedHistoryItem.failed_count}
@@ -2334,7 +2355,7 @@ const NotificationManagement: React.FC = () => {
                 <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
                   <div>
                     <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
-                      Người gửi
+                      {t('notificationManagement.history.detail.sender')}
                     </label>
                     <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
                       <EnumBadge
@@ -2347,7 +2368,7 @@ const NotificationManagement: React.FC = () => {
                   </div>
                   <div>
                     <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
-                      Loại thông báo
+                      {t('notificationManagement.history.detail.notificationType')}
                     </label>
                     <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
                       <span className='text-sm text-gray-900 dark:text-white font-inter'>
@@ -2368,7 +2389,7 @@ const NotificationManagement: React.FC = () => {
                 }}
                 className='px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 font-heading text-sm'
               >
-                Đóng
+                {t('common.close')}
               </button>
             </div>
           </div>

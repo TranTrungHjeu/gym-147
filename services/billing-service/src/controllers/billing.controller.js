@@ -55,11 +55,15 @@ class BillingController {
           error.message?.includes('pool_size');
 
         if (isConnectionError && attempt < maxRetries) {
-          const retryDelay = 1000 * (attempt + 1); // Exponential backoff: 1s, 2s, 3s...
+          // Exponential backoff with jitter: 1s, 2s, 4s...
+          const baseDelay = 1000 * Math.pow(2, attempt);
+          const jitter = Math.random() * 500; // Add random 0-500ms to prevent thundering herd
+          const retryDelay = baseDelay + jitter;
+
           console.log(
             `[RETRY] Retrying ${queryName} after connection error (attempt ${
               attempt + 1
-            }/${maxRetries}, delay ${retryDelay}ms)`
+            }/${maxRetries}, delay ${Math.round(retryDelay)}ms)`
           );
           await new Promise(resolve => setTimeout(resolve, retryDelay));
           return executeQuery(attempt + 1);
@@ -161,15 +165,27 @@ class BillingController {
         where.is_active = is_active === 'true' || is_active === true;
       }
 
-      const [plans, total] = await Promise.all([
-        prisma.membershipPlan.findMany({
-          where,
-          orderBy: { created_at: 'desc' },
-          take: parsedLimit,
-          skip: parsedOffset,
-        }),
-        prisma.membershipPlan.count({ where }),
-      ]);
+      // Use sequential queries to reduce connection pool pressure
+      // Count query first (lighter), then fetch data
+      const total = await this.withTimeout(
+        () => prisma.membershipPlan.count({ where }),
+        10000,
+        'Count membership plans',
+        2
+      );
+
+      const plans = await this.withTimeout(
+        () =>
+          prisma.membershipPlan.findMany({
+            where,
+            orderBy: { created_at: 'desc' },
+            take: parsedLimit,
+            skip: parsedOffset,
+          }),
+        10000,
+        'Get membership plans',
+        2
+      );
 
       res.json({
         success: true,
@@ -299,7 +315,9 @@ class BillingController {
             plan: true,
             payments: {
               orderBy: { created_at: 'desc' },
-              take: 1, // Get latest payment
+              // Get all payments to check for COMPLETED payments
+              // Frontend needs to check if there's at least one COMPLETED payment
+              // for ACTIVE subscriptions, even if latest payment is PENDING
             },
           },
           orderBy: { created_at: 'desc' },
@@ -646,12 +664,23 @@ class BillingController {
         });
       }
 
-      // Get current subscription
+      // Get current subscription with payments
       const currentSubscription = await prisma.subscription.findUnique({
         where: { id },
         include: {
           plan: true,
+          payments: {
+            orderBy: { created_at: 'desc' },
+            // Get all payments to check for COMPLETED payments
+          },
         },
+      });
+
+      // Get subscription history separately (no relation defined in schema)
+      const subscriptionHistory = await prisma.subscriptionHistory.findMany({
+        where: { subscription_id: id },
+        orderBy: { created_at: 'desc' },
+        take: 1, // Get latest history entry
       });
 
       if (!currentSubscription) {
@@ -684,29 +713,115 @@ class BillingController {
         });
       }
 
-      // Check if plan is actually different
-      // Convert both to strings for comparison to handle type mismatches
-      const currentPlanId = String(currentSubscription.plan_id);
+      // IMPORTANT: Determine actual current plan based on payment status
+      // If there's a PENDING payment for upgrade, subscription.plan_id may already be updated
+      // but payment not completed yet, so current plan = from_plan_id from subscriptionHistory
+      const payments = currentSubscription.payments || [];
+      const completedPayments = payments.filter(p => p.status === 'COMPLETED');
+      const pendingPayments = payments.filter(
+        p => p.status === 'PENDING' || p.status === 'PROCESSING'
+      );
+
+      // Check if there's a PENDING payment for upgrade
+      const pendingUpgradePayments = pendingPayments.filter(p => {
+        const isUpgradePayment =
+          p.description?.includes('UPGRADE') ||
+          (p.payment_type === 'SUBSCRIPTION' && p.subscription_id === id);
+        return isUpgradePayment;
+      });
+
+      // Determine actual current plan:
+      // - If there's a PENDING upgrade payment AND latest subscriptionHistory is UPGRADE to current plan_id,
+      //   use from_plan_id from subscriptionHistory (plan before upgrade that was actually paid)
+      // - Otherwise, use subscription.plan_id (plan that's actually paid for)
+      let actualCurrentPlanId = String(currentSubscription.plan_id);
+
+      if (pendingUpgradePayments.length > 0 && subscriptionHistory?.length > 0) {
+        const latestHistory = subscriptionHistory[0];
+        // Only use from_plan_id if:
+        // 1. Latest history is an UPGRADE
+        // 2. The upgrade is to the current subscription.plan_id (meaning plan_id was updated but not paid)
+        // 3. from_plan_id exists
+        if (
+          latestHistory.change_reason === 'UPGRADE' &&
+          String(latestHistory.to_plan_id) === String(currentSubscription.plan_id) &&
+          latestHistory.from_plan_id
+        ) {
+          actualCurrentPlanId = String(latestHistory.from_plan_id);
+          console.log('[UPGRADE] Using from_plan_id from history because PENDING payment exists:', {
+            subscriptionPlanId: currentSubscription.plan_id,
+            actualCurrentPlanId,
+            from_plan_id: latestHistory.from_plan_id,
+            to_plan_id: latestHistory.to_plan_id,
+            change_reason: latestHistory.change_reason,
+          });
+        }
+      }
+
+      // Convert both to strings for comparison
       const newPlanIdStr = String(new_plan_id);
 
       console.log('[UPGRADE] Plan comparison:', {
-        currentPlanId,
+        subscriptionPlanId: currentSubscription.plan_id,
+        actualCurrentPlanId,
         newPlanIdStr,
         currentPlanType: currentSubscription.plan?.type,
         newPlanType: newPlan.type,
-        areEqual: currentPlanId === newPlanIdStr,
+        areEqual: actualCurrentPlanId === newPlanIdStr,
+        pendingUpgradePaymentsCount: pendingUpgradePayments.length,
+        pendingPaymentsCount: pendingPayments.length,
+        completedPaymentsCount: completedPayments.length,
       });
 
-      if (currentPlanId === newPlanIdStr) {
-        return res.status(400).json({
+      // Check if plan is actually different
+      if (actualCurrentPlanId === newPlanIdStr) {
+        if (pendingUpgradePayments.length > 0) {
+          // There's a PENDING upgrade payment for the same plan - allow to proceed (will reuse existing payment)
+          console.log(
+            '[UPGRADE] Actual current plan matches new plan but PENDING upgrade payment exists - allowing to proceed to reuse payment:',
+            {
+              subscriptionId: id,
+              actualCurrentPlanId,
+              newPlanIdStr,
+              pendingPaymentIds: pendingUpgradePayments.map(p => p.id),
+              pendingPaymentAmounts: pendingUpgradePayments.map(p => p.amount),
+            }
+          );
+          // Continue with upgrade - existing payment will be reused
+        } else {
+          // Plans are same and no PENDING payment - upgrade was already completed
+          return res.status(400).json({
+            success: false,
+            message: 'New plan is the same as current plan',
+            data: null,
+          });
+        }
+      }
+
+      // Determine if upgrade or downgrade
+      // Use actual current plan (from_plan_id if PENDING payment exists, otherwise subscription.plan_id)
+      // Need to get the actual current plan's price
+      let actualCurrentPlan;
+      if (actualCurrentPlanId !== String(currentSubscription.plan_id)) {
+        // Current plan is different from subscription.plan_id (has PENDING payment)
+        // Get the actual current plan from database
+        actualCurrentPlan = await prisma.membershipPlan.findUnique({
+          where: { id: actualCurrentPlanId },
+        });
+      } else {
+        // Current plan matches subscription.plan_id
+        actualCurrentPlan = currentSubscription.plan;
+      }
+
+      if (!actualCurrentPlan) {
+        return res.status(404).json({
           success: false,
-          message: 'New plan is the same as current plan',
+          message: 'Current plan not found',
           data: null,
         });
       }
 
-      // Determine if upgrade or downgrade
-      const oldPrice = parseFloat(currentSubscription.plan.price);
+      const oldPrice = parseFloat(actualCurrentPlan.price);
       const newPrice = parseFloat(newPlan.price);
       const isUpgrade = newPrice > oldPrice;
       const changeType = isUpgrade ? 'UPGRADE' : 'DOWNGRADE';
@@ -1561,7 +1676,6 @@ class BillingController {
                 plan: true,
               },
             },
-            invoices: true,
             refunds: {
               orderBy: { created_at: 'desc' },
             },
@@ -1720,7 +1834,7 @@ class BillingController {
       }
 
       // Get member info for notification message
-      let memberName = 'Thành viên';
+      let memberName = 'Hội viên';
       try {
         const memberResponse = await axios.get(
           `${MEMBER_SERVICE_URL}/members/${payment.member_id}`,
@@ -2205,10 +2319,10 @@ class BillingController {
       if (reason) where.reason = reason;
       if (requested_by) where.requested_by = requested_by;
       if (approved_by) where.approved_by = approved_by;
-      
+
       // Admin can view all refunds with all=true parameter
       const isAdminView = all === 'true' || all === true;
-      
+
       if (isAdminView) {
         // Admin view: allow viewing all refunds without member_id/payment_id
         console.log('[REFUND] Admin view: Loading all refunds');
@@ -2218,18 +2332,18 @@ class BillingController {
         if (member_id) {
           console.log('[REFUND] Filtering by member_id:', member_id);
           const memberPaymentsWhere = { member_id };
-          
+
           // If payment_id is also provided, verify it belongs to this member
           if (payment_id) {
             memberPaymentsWhere.id = payment_id;
           }
-          
+
           const memberPayments = await prisma.payment.findMany({
             where: memberPaymentsWhere,
             select: { id: true },
           });
           paymentIds = memberPayments.map(p => p.id);
-          
+
           console.log('[REFUND] Found payments for member:', {
             member_id,
             paymentCount: paymentIds.length,
@@ -2252,7 +2366,7 @@ class BillingController {
               },
             });
           }
-          
+
           // Filter refunds by payment_ids (if payment_id was provided, paymentIds will have only one item)
           where.payment_id = paymentIds.length === 1 ? paymentIds[0] : { in: paymentIds };
           console.log('[REFUND] Filtering refunds by payment_ids:', paymentIds.length, 'payments');
@@ -2263,7 +2377,9 @@ class BillingController {
         } else {
           // If neither member_id nor payment_id is provided, return error
           // This prevents returning all refunds which is a security issue
-          console.error('[REFUND] ERROR: Neither member_id nor payment_id provided (and all=true not set)');
+          console.error(
+            '[REFUND] ERROR: Neither member_id nor payment_id provided (and all=true not set)'
+          );
           return res.status(400).json({
             success: false,
             message: 'member_id or payment_id is required (or use all=true for admin view)',
@@ -2309,7 +2425,7 @@ class BillingController {
       // This ensures we only return refunds for the requested member
       let filteredRefunds = refunds;
       if (member_id) {
-        filteredRefunds = refunds.filter((refund) => {
+        filteredRefunds = refunds.filter(refund => {
           const refundMemberId = refund.payment?.member_id;
           const matches = refundMemberId === member_id;
           if (!matches) {
@@ -2733,7 +2849,7 @@ class BillingController {
             },
           },
           bank_transfer: true,
-          invoice: true,
+          refunds: true,
         },
       });
 
@@ -2870,6 +2986,81 @@ class BillingController {
     }
   }
 
+  /**
+   * Get invoices for a specific member
+   * GET /members/:member_id/invoices
+   * Note: If Invoice model doesn't exist, return empty array
+   */
+  async getMemberInvoices(req, res) {
+    try {
+      const { member_id } = req.params;
+      const { status, type, limit = 50, offset = 0 } = req.query;
+
+      // Check if Invoice model exists in Prisma
+      // If not, return empty array (invoices feature not implemented yet)
+      try {
+        const where = { member_id };
+        if (status) where.status = status;
+        if (type) where.type = type;
+
+        // Parse and limit pagination parameters
+        const parsedLimit = Math.min(parseInt(limit) || 50, 100); // Max 100 per page
+        const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+        const [invoices, total] = await Promise.all([
+          prisma.invoice.findMany({
+            where,
+            include: {
+              subscription: {
+                include: {
+                  plan: true,
+                },
+              },
+              payment: true,
+            },
+            orderBy: { created_at: 'desc' },
+            take: parsedLimit,
+            skip: parsedOffset,
+          }),
+          prisma.invoice.count({ where }),
+        ]);
+
+        res.json({
+          success: true,
+          message: 'Member invoices retrieved successfully',
+          data: invoices,
+          pagination: {
+            total,
+            limit: parsedLimit,
+            offset: parsedOffset,
+            hasMore: parsedOffset + parsedLimit < total,
+          },
+        });
+      } catch (prismaError) {
+        // If Invoice model doesn't exist, return empty array
+        if (prismaError.message?.includes('invoice') || prismaError.code === 'P2001') {
+          console.log('[INFO] Invoice model not found, returning empty array');
+          res.json({
+            success: true,
+            message: 'Member invoices retrieved successfully',
+            data: [],
+            pagination: {
+              total: 0,
+              limit: parseInt(limit) || 50,
+              offset: parseInt(offset) || 0,
+              hasMore: false,
+            },
+          });
+        } else {
+          throw prismaError;
+        }
+      }
+    } catch (error) {
+      console.error('Get member invoices error:', error);
+      return this.handleDatabaseError(error, res, 'Get member invoices');
+    }
+  }
+
   async createInvoice(req, res) {
     try {
       const {
@@ -2954,9 +3145,54 @@ class BillingController {
         });
       }
 
-      // Find discount code
+      const codeUpper = code.toUpperCase().trim();
+
+      // Check if this is a reward redemption code (format: REWARD-XXXX-XXXX)
+      if (codeUpper.startsWith('REWARD-')) {
+        console.log('[GIFT] Validating reward redemption code:', codeUpper);
+
+        if (!member_id) {
+          return res.status(400).json({
+            success: false,
+            message: 'Member ID is required for reward redemption codes',
+            data: null,
+          });
+        }
+
+        const rewardCodeResult = await rewardDiscountService.verifyRewardCode(codeUpper, member_id);
+
+        if (rewardCodeResult.success && rewardCodeResult.discount) {
+          const rewardDiscount = rewardCodeResult.discount;
+          const redemption = rewardCodeResult.redemption;
+
+          // Return discount details in same format as regular discount codes
+          return res.json({
+            success: true,
+            message: 'Mã đổi thưởng hợp lệ',
+            data: {
+              code: codeUpper,
+              type: rewardDiscount.type === 'PERCENTAGE' ? 'PERCENTAGE' : 'FIXED_AMOUNT',
+              value: rewardDiscount.value,
+              maxDiscount: rewardDiscount.max_discount || null,
+              bonusDays: 0,
+              isTrialCode: false,
+              isRewardCode: true, // Flag to indicate this is a reward redemption code
+              redemption_id: redemption.id,
+              reward_id: rewardDiscount.reward_id,
+            },
+          });
+        } else {
+          return res.status(400).json({
+            success: false,
+            message: rewardCodeResult.error || 'Mã đổi thưởng không hợp lệ',
+            data: null,
+          });
+        }
+      }
+
+      // Regular discount code from billing service
       const discountCode = await prisma.discountCode.findUnique({
-        where: { code: code.toUpperCase() },
+        where: { code: codeUpper },
       });
 
       if (!discountCode) {
@@ -3078,6 +3314,390 @@ class BillingController {
         message: 'Lỗi khi xác thực mã giảm giá',
         data: null,
       });
+    }
+  }
+
+  // Discount Codes Management - CRUD Operations
+  async getAllDiscountCodes(req, res) {
+    try {
+      const { limit = 100, offset = 0, is_active, search } = req.query;
+
+      const parsedLimit = Math.min(parseInt(limit) || 100, 200);
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      const where = {};
+      if (is_active !== undefined) {
+        where.is_active = is_active === 'true' || is_active === true;
+      }
+      if (search) {
+        where.OR = [
+          { code: { contains: search, mode: 'insensitive' } },
+          { name: { contains: search, mode: 'insensitive' } },
+          { description: { contains: search, mode: 'insensitive' } },
+        ];
+      }
+
+      const [discountCodes, total] = await Promise.all([
+        prisma.discountCode.findMany({
+          where,
+          orderBy: { created_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+          include: {
+            _count: {
+              select: { usage_history: true },
+            },
+          },
+        }),
+        prisma.discountCode.count({ where }),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Discount codes retrieved successfully',
+        data: discountCodes,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
+      });
+    } catch (error) {
+      console.error('Get all discount codes error:', error);
+      return this.handleDatabaseError(error, res, 'Get all discount codes');
+    }
+  }
+
+  async getDiscountCodeById(req, res) {
+    try {
+      const { id } = req.params;
+
+      const discountCode = await prisma.discountCode.findUnique({
+        where: { id },
+        include: {
+          usage_history: {
+            orderBy: { used_at: 'desc' },
+            take: 100,
+            include: {
+              discount_code: {
+                select: {
+                  code: true,
+                  name: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: { usage_history: true },
+          },
+        },
+      });
+
+      if (!discountCode) {
+        return res.status(404).json({
+          success: false,
+          message: 'Discount code not found',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Discount code retrieved successfully',
+        data: discountCode,
+      });
+    } catch (error) {
+      console.error('Get discount code by id error:', error);
+      return this.handleDatabaseError(error, res, 'Get discount code by id');
+    }
+  }
+
+  async createDiscountCode(req, res) {
+    try {
+      const {
+        code,
+        name,
+        description,
+        type,
+        value,
+        max_discount,
+        usage_limit,
+        usage_limit_per_member,
+        valid_from,
+        valid_until,
+        is_active = true,
+        applicable_plans = [],
+        minimum_amount,
+        first_time_only = false,
+        referrer_member_id,
+        bonus_days,
+        referral_reward,
+      } = req.body;
+
+      if (!code || !name || !type || value === undefined) {
+        return res.status(400).json({
+          success: false,
+          message: 'Code, name, type, and value are required',
+          data: null,
+        });
+      }
+
+      // Check if code already exists
+      const existingCode = await prisma.discountCode.findUnique({
+        where: { code: code.toUpperCase().trim() },
+      });
+
+      if (existingCode) {
+        return res.status(400).json({
+          success: false,
+          message: 'Discount code already exists',
+          data: null,
+        });
+      }
+
+      const discountCode = await prisma.discountCode.create({
+        data: {
+          code: code.toUpperCase().trim(),
+          name,
+          description,
+          type,
+          value,
+          max_discount: max_discount ? parseFloat(max_discount) : null,
+          usage_limit: usage_limit ? parseInt(usage_limit) : null,
+          usage_limit_per_member: usage_limit_per_member ? parseInt(usage_limit_per_member) : null,
+          valid_from: valid_from ? new Date(valid_from) : new Date(),
+          valid_until: valid_until ? new Date(valid_until) : null,
+          is_active,
+          applicable_plans: Array.isArray(applicable_plans) ? applicable_plans : [],
+          minimum_amount: minimum_amount ? parseFloat(minimum_amount) : null,
+          first_time_only,
+          referrer_member_id: referrer_member_id || null,
+          bonus_days: bonus_days ? parseInt(bonus_days) : null,
+          referral_reward: referral_reward ? parseFloat(referral_reward) : null,
+        },
+      });
+
+      res.status(201).json({
+        success: true,
+        message: 'Discount code created successfully',
+        data: discountCode,
+      });
+    } catch (error) {
+      console.error('Create discount code error:', error);
+      return this.handleDatabaseError(error, res, 'Create discount code');
+    }
+  }
+
+  async updateDiscountCode(req, res) {
+    try {
+      const { id } = req.params;
+      const {
+        code,
+        name,
+        description,
+        type,
+        value,
+        max_discount,
+        usage_limit,
+        usage_limit_per_member,
+        valid_from,
+        valid_until,
+        is_active,
+        applicable_plans,
+        minimum_amount,
+        first_time_only,
+        referrer_member_id,
+        bonus_days,
+        referral_reward,
+      } = req.body;
+
+      // Check if discount code exists
+      const existingCode = await prisma.discountCode.findUnique({
+        where: { id },
+      });
+
+      if (!existingCode) {
+        return res.status(404).json({
+          success: false,
+          message: 'Discount code not found',
+          data: null,
+        });
+      }
+
+      // Check if new code conflicts with existing code
+      if (code && code.toUpperCase().trim() !== existingCode.code) {
+        const codeConflict = await prisma.discountCode.findUnique({
+          where: { code: code.toUpperCase().trim() },
+        });
+
+        if (codeConflict) {
+          return res.status(400).json({
+            success: false,
+            message: 'Discount code already exists',
+            data: null,
+          });
+        }
+      }
+
+      const updateData = {};
+      if (code !== undefined) updateData.code = code.toUpperCase().trim();
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (type !== undefined) updateData.type = type;
+      if (value !== undefined) updateData.value = parseFloat(value);
+      if (max_discount !== undefined)
+        updateData.max_discount = max_discount ? parseFloat(max_discount) : null;
+      if (usage_limit !== undefined)
+        updateData.usage_limit = usage_limit ? parseInt(usage_limit) : null;
+      if (usage_limit_per_member !== undefined)
+        updateData.usage_limit_per_member = usage_limit_per_member
+          ? parseInt(usage_limit_per_member)
+          : null;
+      if (valid_from !== undefined) updateData.valid_from = new Date(valid_from);
+      if (valid_until !== undefined)
+        updateData.valid_until = valid_until ? new Date(valid_until) : null;
+      if (is_active !== undefined) updateData.is_active = is_active;
+      if (applicable_plans !== undefined)
+        updateData.applicable_plans = Array.isArray(applicable_plans) ? applicable_plans : [];
+      if (minimum_amount !== undefined)
+        updateData.minimum_amount = minimum_amount ? parseFloat(minimum_amount) : null;
+      if (first_time_only !== undefined) updateData.first_time_only = first_time_only;
+      if (referrer_member_id !== undefined)
+        updateData.referrer_member_id = referrer_member_id || null;
+      if (bonus_days !== undefined)
+        updateData.bonus_days = bonus_days ? parseInt(bonus_days) : null;
+      if (referral_reward !== undefined)
+        updateData.referral_reward = referral_reward ? parseFloat(referral_reward) : null;
+
+      const discountCode = await prisma.discountCode.update({
+        where: { id },
+        data: updateData,
+      });
+
+      res.json({
+        success: true,
+        message: 'Discount code updated successfully',
+        data: discountCode,
+      });
+    } catch (error) {
+      console.error('Update discount code error:', error);
+      return this.handleDatabaseError(error, res, 'Update discount code');
+    }
+  }
+
+  async deleteDiscountCode(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Check if discount code exists
+      const existingCode = await prisma.discountCode.findUnique({
+        where: { id },
+        include: {
+          _count: {
+            select: { usage_history: true },
+          },
+        },
+      });
+
+      if (!existingCode) {
+        return res.status(404).json({
+          success: false,
+          message: 'Discount code not found',
+          data: null,
+        });
+      }
+
+      // Check if code has been used
+      if (existingCode._count.usage_history > 0) {
+        // Instead of deleting, just deactivate
+        const discountCode = await prisma.discountCode.update({
+          where: { id },
+          data: { is_active: false },
+        });
+
+        return res.json({
+          success: true,
+          message:
+            'Discount code has been used and cannot be deleted. It has been deactivated instead.',
+          data: discountCode,
+        });
+      }
+
+      // Delete if not used
+      await prisma.discountCode.delete({
+        where: { id },
+      });
+
+      res.json({
+        success: true,
+        message: 'Discount code deleted successfully',
+        data: null,
+      });
+    } catch (error) {
+      console.error('Delete discount code error:', error);
+      return this.handleDatabaseError(error, res, 'Delete discount code');
+    }
+  }
+
+  async getDiscountCodeUsageHistory(req, res) {
+    try {
+      const { id } = req.params;
+      const { limit = 100, offset = 0, member_id } = req.query;
+
+      const parsedLimit = Math.min(parseInt(limit) || 100, 200);
+      const parsedOffset = Math.max(parseInt(offset) || 0, 0);
+
+      // Check if discount code exists
+      const discountCode = await prisma.discountCode.findUnique({
+        where: { id },
+      });
+
+      if (!discountCode) {
+        return res.status(404).json({
+          success: false,
+          message: 'Discount code not found',
+          data: null,
+        });
+      }
+
+      const where = {
+        discount_code_id: id,
+        ...(member_id && { member_id }),
+      };
+
+      const [usageHistory, total] = await Promise.all([
+        prisma.discountUsage.findMany({
+          where,
+          orderBy: { used_at: 'desc' },
+          take: parsedLimit,
+          skip: parsedOffset,
+          include: {
+            discount_code: {
+              select: {
+                code: true,
+                name: true,
+              },
+            },
+          },
+        }),
+        prisma.discountUsage.count({ where }),
+      ]);
+
+      res.json({
+        success: true,
+        message: 'Discount code usage history retrieved successfully',
+        data: usageHistory,
+        pagination: {
+          total,
+          limit: parsedLimit,
+          offset: parsedOffset,
+          hasMore: parsedOffset + parsedLimit < total,
+        },
+      });
+    } catch (error) {
+      console.error('Get discount code usage history error:', error);
+      return this.handleDatabaseError(error, res, 'Get discount code usage history');
     }
   }
 
@@ -3386,7 +4006,7 @@ class BillingController {
           if (pointsToAward > 0) {
             const axios = require('axios');
             const memberServiceUrl = process.env.MEMBER_SERVICE_URL || 'http://member:3002';
-            
+
             const pointsResponse = await axios.post(
               `${memberServiceUrl}/members/${payment.member_id}/points/award`,
               {
@@ -3404,9 +4024,15 @@ class BillingController {
             );
 
             if (pointsResponse.data?.success) {
-              console.log(`[POINTS] Awarded ${pointsToAward} points to member ${payment.member_id} for payment ${payment.id}`);
+              console.log(
+                `[POINTS] Awarded ${pointsToAward} points to member ${payment.member_id} for payment ${payment.id}`
+              );
             } else {
-              console.warn(`[WARNING] Failed to award points for payment: ${pointsResponse.data?.message || 'Unknown error'}`);
+              console.warn(
+                `[WARNING] Failed to award points for payment: ${
+                  pointsResponse.data?.message || 'Unknown error'
+                }`
+              );
             }
           }
         } catch (pointsError) {
@@ -3941,7 +4567,7 @@ class BillingController {
       if (!plan) {
         return res.status(404).json({
           success: false,
-          message: 'Không tìm thấy gói thành viên',
+          message: 'Không tìm thấy gói hội viên',
           data: null,
         });
       }
@@ -4335,36 +4961,67 @@ class BillingController {
       // Use findMany + reduce instead of aggregate to avoid Prisma Decimal issues
       // Include all successful payment statuses, including REFUNDED and PARTIALLY_REFUNDED
       // because refunds will be subtracted separately later
-      const [totalPlans, activeSubscriptions, totalRevenuePayments, monthlyRevenuePayments, pendingPayments] =
-        await Promise.all([
-          prisma.membershipPlan.count({ where: { is_active: true } }),
-          prisma.subscription.count({ where: { status: 'ACTIVE' } }),
-          prisma.payment.findMany({
-            where: {
-              status: {
-                in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+      // Execute queries sequentially to reduce connection pool pressure
+      // Start with lighter queries first
+      const totalPlans = await this.withTimeout(
+        () => prisma.membershipPlan.count({ where: { is_active: true } }),
+        10000,
+        'Count active plans',
+        2
+      );
+
+      const activeSubscriptions = await this.withTimeout(
+        () => prisma.subscription.count({ where: { status: 'ACTIVE' } }),
+        10000,
+        'Count active subscriptions',
+        2
+      );
+
+      // Heavier queries can run in parallel as they're fewer (3 queries)
+      const [totalRevenuePayments, monthlyRevenuePayments, pendingPayments] = await Promise.all([
+        this.withTimeout(
+          () =>
+            prisma.payment.findMany({
+              where: {
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
               },
-            },
-            select: {
-              amount: true,
-            },
-          }),
-          prisma.payment.findMany({
-            where: {
-              status: {
-                in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+              select: {
+                amount: true,
               },
-              created_at: {
-                gte: startOfMonth,
-                lte: endOfMonth,
+            }),
+          15000,
+          'Get total revenue payments',
+          2
+        ),
+        this.withTimeout(
+          () =>
+            prisma.payment.findMany({
+              where: {
+                status: {
+                  in: ['COMPLETED', 'REFUNDED', 'PARTIALLY_REFUNDED'],
+                },
+                created_at: {
+                  gte: startOfMonth,
+                  lte: endOfMonth,
+                },
               },
-            },
-            select: {
-              amount: true,
-            },
-          }),
-          prisma.payment.count({ where: { status: 'PENDING' } }),
-        ]);
+              select: {
+                amount: true,
+              },
+            }),
+          15000,
+          'Get monthly revenue payments',
+          2
+        ),
+        this.withTimeout(
+          () => prisma.payment.count({ where: { status: 'PENDING' } }),
+          10000,
+          'Count pending payments',
+          2
+        ),
+      ]);
 
       // Calculate totals from payments
       const totalRevenue = {

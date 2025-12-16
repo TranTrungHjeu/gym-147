@@ -811,7 +811,7 @@ export default function TrainerAttendance() {
             {memberDetails && (
               <AdminCard>
                 <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3 font-heading'>
-                  Thông tin thành viên
+                  Thông tin hội viên
                 </h3>
                 <div className='grid grid-cols-2 gap-4'>
                   <div>
@@ -840,7 +840,7 @@ export default function TrainerAttendance() {
                   </div>
                   <div>
                     <label className='text-sm font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] font-sans'>
-                      Trạng thái thành viên
+                      Trạng thái hội viên
                     </label>
                     <p className='text-sm text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
                       {memberDetails.membership_status || 'N/A'}

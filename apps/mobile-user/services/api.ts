@@ -146,6 +146,8 @@ class ApiService {
       '/auth/reset-password',
       '/auth/refresh-token',
       '/auth/verify-2fa-login',
+      '/auth/oauth/google',
+      '/auth/oauth/facebook',
     ];
 
     // Skip Authorization header for public endpoints
@@ -197,6 +199,8 @@ class ApiService {
       '/auth/reset-password',
       '/auth/refresh-token',
       '/auth/verify-2fa-login',
+      '/auth/oauth/google',
+      '/auth/oauth/facebook',
     ];
     const isPublicEndpoint =
       endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));

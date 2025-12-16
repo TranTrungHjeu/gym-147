@@ -63,7 +63,10 @@ class MemberService {
         const identityResponse = await memberApiService.get('/profile', {
           baseURL: SERVICE_URLS.IDENTITY,
         });
-        console.log('[AUTH] Identity Service profile response:', identityResponse);
+        console.log(
+          '[AUTH] Identity Service profile response:',
+          identityResponse
+        );
 
         // If we get user profile, try to get member data
         if (
@@ -389,6 +392,25 @@ class MemberService {
       return { success: true, data: response.data };
     } catch (error: any) {
       console.error('Upload avatar error:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
+  /**
+   * Generate profile embedding for member
+   */
+  async generateMemberEmbedding(memberId: string): Promise<{
+    success: boolean;
+    data?: { memberId: string; embeddingGenerated: boolean };
+    error?: string;
+  }> {
+    try {
+      const response = await memberApiService.post(
+        `/members/${memberId}/generate-embedding`
+      );
+      return { success: true, data: response.data };
+    } catch (error: any) {
+      console.error('Generate embedding error:', error);
       return { success: false, error: error.message };
     }
   }

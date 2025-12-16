@@ -1670,13 +1670,13 @@ const TrainerManagement: React.FC = () => {
                     >
                       <AdminTableCell className='overflow-hidden'>
                         <div className='flex items-center gap-1.5 sm:gap-2'>
-                          <div className='relative flex-shrink-0'>
+                          <div className='relative flex-shrink-0 group'>
                             {trainer.profile_photo ? (
                               <>
                                 <img
                                   src={trainer.profile_photo}
                                   alt={trainer.full_name}
-                                  className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
+                                  className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm cursor-help'
                                   onError={e => {
                                     e.currentTarget.style.display = 'none';
                                     const fallback = e.currentTarget
@@ -1687,19 +1687,36 @@ const TrainerManagement: React.FC = () => {
                                     }
                                   }}
                                 />
-                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden cursor-help'>
                                   <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
                                 </div>
+                                {(trainer.bio || trainer.full_name) && (
+                                  <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
+                                    {trainer.bio || trainer.full_name}
+                                    <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
+                                  </div>
+                                )}
                               </>
                             ) : (
-                              <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
-                                <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                              </div>
+                              <>
+                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm cursor-help'>
+                                  <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                                </div>
+                                {(trainer.bio || trainer.full_name) && (
+                                  <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
+                                    {trainer.bio || trainer.full_name}
+                                    <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
+                                  </div>
+                                )}
+                              </>
                             )}
                           </div>
                           <div className='min-w-0 flex-1 overflow-hidden'>
                             <div className='flex items-center gap-1.5'>
-                              <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
+                              <div
+                                className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight max-w-[120px] sm:max-w-[150px] md:max-w-[200px]'
+                                title={trainer.full_name}
+                              >
                                 {trainer.full_name}
                               </div>
                               {hasPendingCerts && (
@@ -1709,11 +1726,6 @@ const TrainerManagement: React.FC = () => {
                                 </span>
                               )}
                             </div>
-                            {trainer.bio && (
-                              <div className='text-[8px] sm:text-[9px] text-gray-500 dark:text-gray-400 font-inter truncate mt-0.5 leading-tight'>
-                                {trainer.bio}
-                              </div>
-                            )}
                           </div>
                         </div>
                       </AdminTableCell>
@@ -1822,18 +1834,7 @@ const TrainerManagement: React.FC = () => {
                                 {trainer.hourly_rate.toLocaleString()} VNĐ
                               </span>
                             </>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                navigate(`/management/salary-requests?trainer_id=${trainer.id}&action=set_salary`);
-                              }}
-                              className='inline-flex items-center gap-1 px-2 py-0.5 text-[8px] sm:text-[9px] bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-300 rounded-full hover:bg-yellow-200 dark:hover:bg-yellow-900/50 transition-colors'
-                            >
-                              <AlertCircle className='w-2.5 h-2.5' />
-                              Chưa có lương
-                            </button>
-                          )}
+                          ) : null}
                         </div>
                       </AdminTableCell>
                     </AdminTableRow>

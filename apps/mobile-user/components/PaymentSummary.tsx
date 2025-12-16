@@ -36,13 +36,16 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
 
     // If totalAmount is provided (for upgrade/renew), use it as base
     // Otherwise calculate from plan price + setup fee
-    const basePrice = totalAmount !== undefined 
-      ? totalAmount
-      : (() => {
-          const priceNum =
-            typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
-          return priceNum;
-        })();
+    const basePrice =
+      totalAmount !== undefined
+        ? totalAmount
+        : (() => {
+            const priceNum =
+              typeof plan.price === 'string'
+                ? parseFloat(plan.price)
+                : plan.price;
+            return priceNum;
+          })();
 
     if (discount.type === 'PERCENTAGE') {
       const discountAmount = (basePrice * discount.value) / 100;
@@ -64,7 +67,8 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
   const setupFeeNum = 0; // setup_fee removed from schema
   const priceNum =
     typeof plan.price === 'string' ? parseFloat(plan.price) : plan.price;
-  const subtotal = totalAmount !== undefined ? totalAmount : (priceNum + setupFeeNum);
+  const subtotal =
+    totalAmount !== undefined ? totalAmount : priceNum + setupFeeNum;
   const discountAmount = calculateDiscount();
   const total = Math.max(0, subtotal - discountAmount);
 
@@ -231,7 +235,9 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
                 : ''}
             </Text>
             {bonusDays > 0 ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}
+              >
                 <PartyPopper size={16} color={theme.colors.primary} />
                 <Text style={themedStyles.bonusText}>
                   {t('registration.bonusDaysApplied', { days: bonusDays }) ||
@@ -245,7 +251,7 @@ export const PaymentSummary: React.FC<PaymentSummaryProps> = ({
 
       <View style={themedStyles.row}>
         <Text style={themedStyles.label}>
-          {String(t('registration.membershipFee') || 'Phí thành viên')}
+          {String(t('registration.membershipFee') || 'Phí hội viên')}
         </Text>
         <Text style={themedStyles.value}>{formatPrice(plan.price)}</Text>
       </View>

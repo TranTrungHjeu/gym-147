@@ -12,10 +12,12 @@ class OAuthService {
   constructor() {
     this.googleClientId = process.env.GOOGLE_CLIENT_ID;
     this.googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
-    this.googleRedirectUri = process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/auth/oauth/google/callback';
+    this.googleRedirectUri =
+      process.env.GOOGLE_REDIRECT_URI || 'http://localhost:3001/auth/oauth/google/callback';
     this.facebookAppId = process.env.FACEBOOK_APP_ID;
     this.facebookAppSecret = process.env.FACEBOOK_APP_SECRET;
-    this.facebookRedirectUri = process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:3001/auth/oauth/facebook/callback';
+    this.facebookRedirectUri =
+      process.env.FACEBOOK_REDIRECT_URI || 'http://localhost:3001/auth/oauth/facebook/callback';
   }
 
   /**
@@ -28,9 +30,27 @@ class OAuthService {
   /**
    * Store state token in Redis with 10 minute expiry
    */
-  async storeStateToken(state, userId = null) {
+  async storeStateToken(state, userId = null, redirectUri = null) {
     const key = `oauth:state:${state}`;
-    await redisService.set(key, JSON.stringify({ userId, timestamp: Date.now() }), 600); // 10 minutes
+    const data = { userId, redirectUri, timestamp: Date.now() };
+    await redisService.set(key, JSON.stringify(data), 600); // 10 minutes
+    console.log('[OAUTH_SERVICE] Stored state token in Redis:', {
+      key: key.substring(0, 30) + '...',
+      hasRedirectUri: !!redirectUri,
+      redirectUri: redirectUri ? redirectUri.substring(0, 50) + '...' : null,
+    });
+  }
+
+  /**
+   * Get state token data without deleting (for error handling)
+   */
+  async getStateTokenData(state) {
+    const key = `oauth:state:${state}`;
+    const data = await redisService.get(key);
+    if (!data) {
+      return null;
+    }
+    return JSON.parse(data);
   }
 
   /**
@@ -48,11 +68,24 @@ class OAuthService {
 
   /**
    * Get Google OAuth authorization URL
+   * @param {string} state - OAuth state token
+   * @param {string|null} customRedirectUri - Custom redirect URI (for mobile apps - stored in state, not used in Google OAuth URL)
+   * Note: Google OAuth only accepts HTTP/HTTPS URLs, so we always use backend callback URL.
+   * The customRedirectUri (deep link) is stored in state token and used later when redirecting back to mobile app.
    */
-  getGoogleAuthUrl(state) {
+  getGoogleAuthUrl(state, customRedirectUri = null) {
+    // Always use backend callback URL for Google OAuth (Google only accepts HTTP/HTTPS)
+    // The customRedirectUri (deep link) is stored in state token and will be used when redirecting back to mobile app
+    console.log('[OAUTH] Google OAuth Configuration:', {
+      clientId: this.googleClientId ? `${this.googleClientId.substring(0, 20)}...` : 'NOT SET',
+      redirectUri: this.googleRedirectUri,
+      customRedirectUri: customRedirectUri,
+      note: 'Google OAuth requires redirect_uri to match exactly with registered URIs in Google Cloud Console',
+    });
+
     const params = new URLSearchParams({
       client_id: this.googleClientId,
-      redirect_uri: this.googleRedirectUri,
+      redirect_uri: this.googleRedirectUri, // Always use backend callback URL
       response_type: 'code',
       scope: 'openid email profile',
       access_type: 'offline',
@@ -60,20 +93,39 @@ class OAuthService {
       state: state,
     });
 
-    return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
+
+    // Verify that redirect_uri in the URL is the backend callback URL, not the mobile deep link
+    const urlObj = new URL(authUrl);
+    const redirectUriInUrl = urlObj.searchParams.get('redirect_uri');
+    console.log('[OAUTH] Generated Google OAuth URL:', {
+      redirectUriInUrl: redirectUriInUrl,
+      expectedBackendRedirectUri: this.googleRedirectUri,
+      matches: redirectUriInUrl === this.googleRedirectUri,
+      warning:
+        redirectUriInUrl !== this.googleRedirectUri
+          ? 'WARNING: redirect_uri does not match backend callback URL!'
+          : 'OK',
+    });
+
+    return authUrl;
   }
 
   /**
    * Exchange Google authorization code for access token
+   * @param {string} code - Authorization code from Google
+   * @param {string|null} customRedirectUri - Custom redirect URI (for mobile apps)
    */
-  async exchangeGoogleCode(code) {
+  async exchangeGoogleCode(code, customRedirectUri = null) {
     try {
+      // Always use backend callback URL for token exchange (must match the redirect_uri in authorization request)
+      // The customRedirectUri (deep link) is stored in state token and will be used when redirecting back to mobile app
       const response = await axios.post('https://oauth2.googleapis.com/token', {
         client_id: this.googleClientId,
         client_secret: this.googleClientSecret,
         code: code,
         grant_type: 'authorization_code',
-        redirect_uri: this.googleRedirectUri,
+        redirect_uri: this.googleRedirectUri, // Always use backend callback URL
       });
 
       return {
@@ -341,5 +393,3 @@ class OAuthService {
 }
 
 module.exports = { OAuthService };
-
-

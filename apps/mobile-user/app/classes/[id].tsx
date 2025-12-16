@@ -69,7 +69,7 @@ export default function ClassDetailScreen() {
   const { user, member, loadMemberProfile } = useAuth(); // Get member.id from AuthContext
   const { t, i18n } = useTranslation();
   const router = useRouter();
-  const { id, refresh, paymentVerified } = useLocalSearchParams<{ 
+  const { id, refresh, paymentVerified } = useLocalSearchParams<{
     id: string;
     refresh?: string;
     paymentVerified?: string;
@@ -110,258 +110,273 @@ export default function ClassDetailScreen() {
   const lastLoadedIdRef = useRef<string | null>(null);
 
   // Memoize loadScheduleData to prevent infinite loops
-  const loadScheduleData = useCallback(async (force = false) => {
-    // Prevent multiple simultaneous calls
-    if (isLoadingRef.current) {
-      console.log('[SKIP] Already loading schedule data, skipping...');
-      return;
-    }
-
-    // Skip if we've already loaded for this id (unless forced)
-    if (!force && lastLoadedIdRef.current === id) {
-      console.log('[SKIP] Already loaded schedule data for this id, skipping...');
-      return;
-    }
-
-    try {
-      isLoadingRef.current = true;
-      setLoading(true);
-      setError(null);
-
-      if (!user?.id) {
-        setError(t('classes.errors.loginRequired'));
+  const loadScheduleData = useCallback(
+    async (force = false) => {
+      // Prevent multiple simultaneous calls
+      if (isLoadingRef.current) {
+        console.log('[SKIP] Already loading schedule data, skipping...');
         return;
       }
 
-      // Validate id exists
-      if (!id) {
-        setError(t('classes.errors.scheduleIdRequired'));
-        setLoading(false);
-        return;
-      }
-
-      // Load schedule details first
-      const scheduleResponse = await scheduleService.getScheduleById(id);
-
-      if (!scheduleResponse.success || !scheduleResponse.data) {
-        setError(scheduleResponse.error || t('classes.classNotFound'));
-        setLoading(false);
-        return;
-      }
-
-      setSchedule(scheduleResponse.data);
-      lastLoadedIdRef.current = id; // Track that we've loaded for this id
-
-      // Load bookings and favorite status in parallel (after schedule is loaded)
-      // Only check favorite if class_id is valid
-      const classId =
-        scheduleResponse.data?.gym_class?.id || scheduleResponse.data?.class_id;
-      const favoriteCheckPromise =
-        classId && classId.trim()
-          ? favoriteService
-              .checkFavorite(user.id, FavoriteType.CLASS, classId)
-              .catch(() => ({
-                success: false,
-                error: t('classes.errors.failedToCheckFavorite'),
-              }))
-          : Promise.resolve({
-              success: false,
-              error: t('classes.errors.invalidClassId'),
-            });
-
-      // Use member.id from AuthContext (not user.id) for getMemberBookings
-      const memberIdForBookings = member?.id || user.id;
-
-      const [bookingsResponse, favoriteResponse] = await Promise.all([
-        bookingService.getMemberBookings(memberIdForBookings),
-        favoriteCheckPromise,
-      ]);
-
-      console.log('[DATE] Bookings response:', {
-        success: bookingsResponse.success,
-        bookingsCount: bookingsResponse.data?.length || 0,
-        bookings: bookingsResponse.data?.map((b) => ({
-          id: b.id,
-          schedule_id: b.schedule_id,
-          status: b.status,
-          payment_status: b.payment_status,
-        })),
-        currentScheduleId: id,
-      });
-
-      // Check if user has booked this schedule
-      if (bookingsResponse.success && bookingsResponse.data) {
-        const foundBooking = bookingsResponse.data.find(
-          (booking) => booking.schedule_id === id || booking.schedule?.id === id
+      // Skip if we've already loaded for this id (unless forced)
+      if (!force && lastLoadedIdRef.current === id) {
+        console.log(
+          '[SKIP] Already loaded schedule data for this id, skipping...'
         );
+        return;
+      }
 
-        console.log('[SEARCH] Found booking check:', {
-          foundBooking: !!foundBooking,
-          bookingId: foundBooking?.id,
-          bookingScheduleId: foundBooking?.schedule_id,
-          scheduleIdInBooking: foundBooking?.schedule?.id,
+      try {
+        isLoadingRef.current = true;
+        setLoading(true);
+        setError(null);
+
+        if (!user?.id) {
+          setError(t('classes.errors.loginRequired'));
+          return;
+        }
+
+        // Validate id exists
+        if (!id) {
+          setError(t('classes.errors.scheduleIdRequired'));
+          setLoading(false);
+          return;
+        }
+
+        // Load schedule details first
+        const scheduleResponse = await scheduleService.getScheduleById(id);
+
+        if (!scheduleResponse.success || !scheduleResponse.data) {
+          setError(scheduleResponse.error || t('classes.classNotFound'));
+          setLoading(false);
+          return;
+        }
+
+        setSchedule(scheduleResponse.data);
+        lastLoadedIdRef.current = id; // Track that we've loaded for this id
+
+        // Load bookings and favorite status in parallel (after schedule is loaded)
+        // Only check favorite if class_id is valid
+        const classId =
+          scheduleResponse.data?.gym_class?.id ||
+          scheduleResponse.data?.class_id;
+        const favoriteCheckPromise =
+          classId && classId.trim()
+            ? favoriteService
+                .checkFavorite(user.id, FavoriteType.CLASS, classId)
+                .catch(() => ({
+                  success: false,
+                  error: t('classes.errors.failedToCheckFavorite'),
+                }))
+            : Promise.resolve({
+                success: false,
+                error: t('classes.errors.invalidClassId'),
+              });
+
+        // Use member.id from AuthContext (not user.id) for getMemberBookings
+        const memberIdForBookings = member?.id || user.id;
+
+        const [bookingsResponse, favoriteResponse] = await Promise.all([
+          bookingService.getMemberBookings(memberIdForBookings),
+          favoriteCheckPromise,
+        ]);
+
+        console.log('[DATE] Bookings response:', {
+          success: bookingsResponse.success,
+          bookingsCount: bookingsResponse.data?.length || 0,
+          bookings: bookingsResponse.data?.map((b) => ({
+            id: b.id,
+            schedule_id: b.schedule_id,
+            status: b.status,
+            payment_status: b.payment_status,
+          })),
           currentScheduleId: id,
-          payment_status: foundBooking?.payment_status,
-          status: foundBooking?.status,
         });
-        if (foundBooking) {
-          // Set foundBooking first (it already has payment_status)
-          setUserBooking(foundBooking);
-          setIsBooked(foundBooking.status === 'CONFIRMED' && !foundBooking.is_waitlist);
-          setIsWaitlisted(foundBooking.is_waitlist === true || foundBooking.status === 'WAITLIST');
 
-          // Load refund info if booking is cancelled
-          if (foundBooking.status === 'CANCELLED' && foundBooking.id) {
-            loadRefundInfo(foundBooking.id);
-          }
+        // Check if user has booked this schedule
+        if (bookingsResponse.success && bookingsResponse.data) {
+          const foundBooking = bookingsResponse.data.find(
+            (booking) =>
+              booking.schedule_id === id || booking.schedule?.id === id
+          );
 
-          // If payment_status is PENDING, try to fetch full booking details for payment_id
-          if (
-            foundBooking.payment_status === 'PENDING' ||
-            foundBooking.payment_status?.toUpperCase() === 'PENDING'
-          ) {
-            // Try to fetch full booking details to get payment_id
-            if (foundBooking.id) {
-              try {
-                const bookingDetailResponse =
-                  await bookingService.getBookingById(foundBooking.id);
+          console.log('[SEARCH] Found booking check:', {
+            foundBooking: !!foundBooking,
+            bookingId: foundBooking?.id,
+            bookingScheduleId: foundBooking?.schedule_id,
+            scheduleIdInBooking: foundBooking?.schedule?.id,
+            currentScheduleId: id,
+            payment_status: foundBooking?.payment_status,
+            status: foundBooking?.status,
+          });
+          if (foundBooking) {
+            // Set foundBooking first (it already has payment_status)
+            setUserBooking(foundBooking);
+            setIsBooked(
+              foundBooking.status === 'CONFIRMED' && !foundBooking.is_waitlist
+            );
+            setIsWaitlisted(
+              foundBooking.is_waitlist === true ||
+                foundBooking.status === 'WAITLIST'
+            );
 
-                // Only use fullBooking if it has valid data
-                if (
-                  bookingDetailResponse.success &&
-                  bookingDetailResponse.data &&
-                  bookingDetailResponse.data.id
-                ) {
-                  const fullBooking = bookingDetailResponse.data;
+            // Load refund info if booking is cancelled
+            if (foundBooking.status === 'CANCELLED' && foundBooking.id) {
+              loadRefundInfo(foundBooking.id);
+            }
 
-                  // Update userBooking with full details
-                  setUserBooking(fullBooking);
+            // If payment_status is PENDING, try to fetch full booking details for payment_id
+            if (
+              foundBooking.payment_status === 'PENDING' ||
+              foundBooking.payment_status?.toUpperCase() === 'PENDING'
+            ) {
+              // Try to fetch full booking details to get payment_id
+              if (foundBooking.id) {
+                try {
+                  const bookingDetailResponse =
+                    await bookingService.getBookingById(foundBooking.id);
 
-                  // Try to get payment_id and bank transfer
-                  try {
-                    // First, try to get payment_id from booking object (if exists)
-                    let bookingPaymentId = (fullBooking as any).payment_id;
+                  // Only use fullBooking if it has valid data
+                  if (
+                    bookingDetailResponse.success &&
+                    bookingDetailResponse.data &&
+                    bookingDetailResponse.data.id
+                  ) {
+                    const fullBooking = bookingDetailResponse.data;
 
-                    // If booking doesn't have payment_id, query payment by reference_id
-                    if (!bookingPaymentId && fullBooking.id) {
-                      console.log(
-                        '[SEARCH] Booking has no payment_id, querying by reference_id:',
-                        fullBooking.id
-                      );
-                      const payment =
-                        await paymentService.getPaymentByReferenceId(
-                          fullBooking.id,
-                          'CLASS_BOOKING'
+                    // Update userBooking with full details
+                    setUserBooking(fullBooking);
+
+                    // Try to get payment_id and bank transfer
+                    try {
+                      // First, try to get payment_id from booking object (if exists)
+                      let bookingPaymentId = (fullBooking as any).payment_id;
+
+                      // If booking doesn't have payment_id, query payment by reference_id
+                      if (!bookingPaymentId && fullBooking.id) {
+                        console.log(
+                          '[SEARCH] Booking has no payment_id, querying by reference_id:',
+                          fullBooking.id
                         );
-                      if (payment?.id) {
-                        bookingPaymentId = payment.id;
-                        console.log('[SUCCESS] Found payment:', {
-                          paymentId: payment.id,
-                          status: payment.status,
-                          referenceId: (payment as any).reference_id,
-                        });
-                      }
-                    }
-
-                    if (bookingPaymentId) {
-                      setPaymentId(bookingPaymentId);
-
-                      // Try to get bank transfer from payment
-                      try {
-                        const bankTransfer =
-                          await paymentService.getBankTransfer(
-                            bookingPaymentId
+                        const payment =
+                          await paymentService.getPaymentByReferenceId(
+                            fullBooking.id,
+                            'CLASS_BOOKING'
                           );
-                        if (bankTransfer?.id) {
-                          setBankTransferId(bankTransfer.id);
-                          console.log('[SUCCESS] Found bank transfer:', {
-                            bankTransferId: bankTransfer.id,
-                            paymentId: bookingPaymentId,
+                        if (payment?.id) {
+                          bookingPaymentId = payment.id;
+                          console.log('[SUCCESS] Found payment:', {
+                            paymentId: payment.id,
+                            status: payment.status,
+                            referenceId: (payment as any).reference_id,
                           });
                         }
-                      } catch (btErr: any) {
-                        // Bank transfer might not exist yet, that's okay
+                      }
+
+                      if (bookingPaymentId) {
+                        setPaymentId(bookingPaymentId);
+
+                        // Try to get bank transfer from payment
+                        try {
+                          const bankTransfer =
+                            await paymentService.getBankTransfer(
+                              bookingPaymentId
+                            );
+                          if (bankTransfer?.id) {
+                            setBankTransferId(bankTransfer.id);
+                            console.log('[SUCCESS] Found bank transfer:', {
+                              bankTransferId: bankTransfer.id,
+                              paymentId: bookingPaymentId,
+                            });
+                          }
+                        } catch (btErr: any) {
+                          // Bank transfer might not exist yet, that's okay
+                          console.log(
+                            '[WARNING] Bank transfer not found or error:',
+                            btErr?.message || btErr
+                          );
+                        }
+                      } else {
                         console.log(
-                          '[WARNING] Bank transfer not found or error:',
-                          btErr?.message || btErr
+                          '[WARNING] No payment_id found for booking:',
+                          fullBooking.id
                         );
                       }
-                    } else {
-                      console.log(
-                        '[WARNING] No payment_id found for booking:',
-                        fullBooking.id
-                      );
+                    } catch (paymentErr) {
+                      // If fetching payment fails, continue with booking data
+                      console.log('[WARN] Error fetching payment:', paymentErr);
                     }
-                  } catch (paymentErr) {
-                    // If fetching payment fails, continue with booking data
-                    console.log('[WARN] Error fetching payment:', paymentErr);
+                  } else {
+                    // Full booking fetch failed or invalid, keep using foundBooking
+                    console.log(
+                      '[WARNING] Full booking fetch invalid, using foundBooking:',
+                      {
+                        foundBookingId: foundBooking.id,
+                        foundBookingPaymentStatus: foundBooking.payment_status,
+                      }
+                    );
                   }
-                } else {
-                  // Full booking fetch failed or invalid, keep using foundBooking
+                } catch (err) {
+                  // If fetching fails, keep using foundBooking
                   console.log(
-                    '[WARNING] Full booking fetch invalid, using foundBooking:',
-                    {
-                      foundBookingId: foundBooking.id,
-                      foundBookingPaymentStatus: foundBooking.payment_status,
-                    }
+                    '[WARNING] Error fetching booking details, keeping foundBooking:',
+                    err
                   );
                 }
-              } catch (err) {
-                // If fetching fails, keep using foundBooking
-                console.log(
-                  '[WARNING] Error fetching booking details, keeping foundBooking:',
-                  err
-                );
               }
+            } else {
+              // Clear payment info if not pending
+              setPaymentId(null);
+              setBankTransferId(null);
             }
           } else {
-            // Clear payment info if not pending
-            setPaymentId(null);
-            setBankTransferId(null);
+            setUserBooking(null);
+            setIsBooked(false);
+            setIsWaitlisted(false);
           }
         } else {
           setUserBooking(null);
           setIsBooked(false);
           setIsWaitlisted(false);
         }
-      } else {
-        setUserBooking(null);
-        setIsBooked(false);
-        setIsWaitlisted(false);
-      }
 
-      // Check favorite status (handle errors gracefully - not critical)
-      if (favoriteResponse.success && 'data' in favoriteResponse) {
-        setIsFavorite(favoriteResponse.data || false);
-        // Get favorite ID if favorited
-        if (favoriteResponse.data) {
-          try {
-            const favoritesResponse = await favoriteService.getMemberFavorites(
-              user.id,
-              FavoriteType.CLASS
-            );
-            if (favoritesResponse.success && favoritesResponse.data) {
-              const classId = scheduleResponse.data?.gym_class?.id || scheduleResponse.data?.class_id;
-              const favorite = favoritesResponse.data.find(
-                (fav) => fav.favorite_id === classId
-              );
-              if (favorite) {
-                setFavoriteId(favorite.id);
+        // Check favorite status (handle errors gracefully - not critical)
+        if (favoriteResponse.success && 'data' in favoriteResponse) {
+          setIsFavorite(favoriteResponse.data || false);
+          // Get favorite ID if favorited
+          if (favoriteResponse.data) {
+            try {
+              const favoritesResponse =
+                await favoriteService.getMemberFavorites(
+                  user.id,
+                  FavoriteType.CLASS
+                );
+              if (favoritesResponse.success && favoritesResponse.data) {
+                const classId =
+                  scheduleResponse.data?.gym_class?.id ||
+                  scheduleResponse.data?.class_id;
+                const favorite = favoritesResponse.data.find(
+                  (fav) => fav.favorite_id === classId
+                );
+                if (favorite) {
+                  setFavoriteId(favorite.id);
+                }
               }
+            } catch (error) {
+              // Silent fail - favorite ID lookup is not critical
             }
-          } catch (error) {
-            // Silent fail - favorite ID lookup is not critical
           }
         }
+      } catch (err: any) {
+        console.error('[ERROR] Error loading schedule data:', err);
+        setError(err.message || t('classes.errors.failedToLoadDetails'));
+      } finally {
+        setLoading(false);
+        isLoadingRef.current = false;
       }
-    } catch (err: any) {
-      console.error('[ERROR] Error loading schedule data:', err);
-      setError(err.message || t('classes.errors.failedToLoadDetails'));
-    } finally {
-      setLoading(false);
-      isLoadingRef.current = false;
-    }
-  }, [id, user?.id, member?.id, t]);
+    },
+    [id, user?.id, member?.id, t]
+  );
 
   // Force refresh function (for manual refreshes)
   const forceRefreshScheduleData = useCallback(() => {
@@ -380,7 +395,12 @@ export default function ClassDetailScreen() {
   // Only refresh if id changed or we need to force refresh
   useFocusEffect(
     useCallback(() => {
-      if (id && user?.id && lastLoadedIdRef.current !== id && !isLoadingRef.current) {
+      if (
+        id &&
+        user?.id &&
+        lastLoadedIdRef.current !== id &&
+        !isLoadingRef.current
+      ) {
         console.log('[REFRESH] Refreshing schedule data on focus');
         loadScheduleData();
       }
@@ -392,7 +412,7 @@ export default function ClassDetailScreen() {
     if (refresh === 'true' && id && user?.id) {
       console.log('[REFRESH] Refresh param detected, reloading schedule data');
       loadScheduleData(true); // Force refresh after payment
-      
+
       // Show success message if payment was verified
       if (paymentVerified === 'true') {
         // Small delay to ensure data is loaded
@@ -407,7 +427,6 @@ export default function ClassDetailScreen() {
   useEffect(() => {
     setTrainerAvatarError(false);
   }, [schedule?.trainer?.id]);
-
 
   const handleBookClass = () => {
     if (!schedule) return;
@@ -486,7 +505,9 @@ export default function ClassDetailScreen() {
         if ((response as any).existingBooking && response.data) {
           // Set userBooking from response
           setUserBooking(response.data);
-          setIsBooked(response.data.status === 'CONFIRMED' && !response.data.is_waitlist);
+          setIsBooked(
+            response.data.status === 'CONFIRMED' && !response.data.is_waitlist
+          );
           setIsWaitlisted(response.data.is_waitlist === true);
 
           // Reload schedule data to update UI
@@ -530,8 +551,11 @@ export default function ClassDetailScreen() {
         }
 
         // Check if this is a waitlist booking
-        const isWaitlistBooking = (response as any).is_waitlist || response.data?.is_waitlist;
-        const waitlistPosition = (response as any).waitlist_position || response.data?.waitlist_position;
+        const isWaitlistBooking =
+          (response as any).is_waitlist || response.data?.is_waitlist;
+        const waitlistPosition =
+          (response as any).waitlist_position ||
+          response.data?.waitlist_position;
 
         // Check if payment is required
         if (response.paymentRequired && response.paymentInitiation) {
@@ -575,14 +599,18 @@ export default function ClassDetailScreen() {
           setSuccessTitle(t('common.success'));
           setSuccessMessage(
             waitlistPosition
-              ? t('classes.booking.waitlistSuccessWithPosition', { position: waitlistPosition }) ||
-                `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistPosition}`
+              ? t('classes.booking.waitlistSuccessWithPosition', {
+                  position: waitlistPosition,
+                }) ||
+                  `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistPosition}`
               : t('classes.booking.waitlistSuccess') ||
-                'Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ'
+                  'Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ'
           );
         } else {
           setSuccessTitle(t('common.success'));
-          setSuccessMessage(t('classes.booking.bookingSuccess') || 'Đặt lớp thành công!');
+          setSuccessMessage(
+            t('classes.booking.bookingSuccess') || 'Đặt lớp thành công!'
+          );
         }
         setShowSuccessModal(true);
 
@@ -614,24 +642,27 @@ export default function ClassDetailScreen() {
   const [isCancelling, setIsCancelling] = useState(false);
 
   // Load refund info for cancelled booking
-  const loadRefundInfo = useCallback(async (bookingId: string) => {
-    if (!bookingId || loadingRefund) return;
-    
-    try {
-      setLoadingRefund(true);
-      const response = await paymentService.getRefundByBookingId(bookingId);
-      if (response.success && response.data) {
-        setRefundInfo(response.data);
-      } else {
+  const loadRefundInfo = useCallback(
+    async (bookingId: string) => {
+      if (!bookingId || loadingRefund) return;
+
+      try {
+        setLoadingRefund(true);
+        const response = await paymentService.getRefundByBookingId(bookingId);
+        if (response.success && response.data) {
+          setRefundInfo(response.data);
+        } else {
+          setRefundInfo(null);
+        }
+      } catch (error) {
+        console.error('[ERROR] Failed to load refund info:', error);
         setRefundInfo(null);
+      } finally {
+        setLoadingRefund(false);
       }
-    } catch (error) {
-      console.error('[ERROR] Failed to load refund info:', error);
-      setRefundInfo(null);
-    } finally {
-      setLoadingRefund(false);
-    }
-  }, [loadingRefund]);
+    },
+    [loadingRefund]
+  );
 
   const handleCancelBooking = async () => {
     if (!schedule || !user?.id) return;
@@ -663,11 +694,12 @@ export default function ClassDetailScreen() {
             setIsBooked(false);
             setIsWaitlisted(false);
             setShowCancellationModal(false);
-            
+
             // Show success modal with refund button if refund is available
-            const hasRefund = cancelResponse.refund && cancelResponse.refund.refundId;
+            const hasRefund =
+              cancelResponse.refund && cancelResponse.refund.refundId;
             const refundAmount = cancelResponse.refund?.refundAmount || 0;
-            
+
             setSuccessTitle(t('common.success') || 'Thành công');
             setSuccessMessage(
               hasRefund
@@ -676,10 +708,14 @@ export default function ClassDetailScreen() {
                       style: 'currency',
                       currency: 'VND',
                     }).format(refundAmount),
-                  }) || `Hủy lớp thành công! Bạn sẽ được hoàn ${new Intl.NumberFormat('vi-VN', {
-                    style: 'currency',
-                    currency: 'VND',
-                  }).format(refundAmount)}`
+                  }) ||
+                    `Hủy lớp thành công! Bạn sẽ được hoàn ${new Intl.NumberFormat(
+                      'vi-VN',
+                      {
+                        style: 'currency',
+                        currency: 'VND',
+                      }
+                    ).format(refundAmount)}`
                 : t('classes.booking.bookingCancelled') || 'Hủy lớp thành công!'
             );
             setShowSuccessModal(true);
@@ -688,7 +724,7 @@ export default function ClassDetailScreen() {
             } else {
               setRefundInfo(null);
             }
-            
+
             // Reload schedule data to get updated booking status
             loadScheduleData(true);
           } else {
@@ -1055,6 +1091,26 @@ export default function ClassDetailScreen() {
     schedule.current_bookings !== undefined
       ? schedule.max_capacity - schedule.current_bookings
       : undefined;
+
+  // Check booking deadline: Cannot book within 1.5 hours (90 minutes) before class starts
+  const now = new Date();
+  const startTime = schedule?.start_time ? new Date(schedule.start_time) : null;
+  const deadlineMinutes = 90; // 1.5 hours = 90 minutes
+  const deadlineMs = deadlineMinutes * 60 * 1000;
+
+  let isBookingDeadlinePassed = false;
+  let timeUntilDeadline: number | null = null;
+  let remainingMinutes: number | null = null;
+
+  if (startTime) {
+    const timeUntilStart = startTime.getTime() - now.getTime();
+    timeUntilDeadline = timeUntilStart - deadlineMs;
+    remainingMinutes =
+      timeUntilDeadline > 0 ? Math.ceil(timeUntilDeadline / (60 * 1000)) : null;
+
+    // Deadline passed if class starts within 90 minutes (and hasn't started yet)
+    isBookingDeadlinePassed = timeUntilStart > 0 && timeUntilStart < deadlineMs;
+  }
 
   const themedStyles = styles(theme);
 
@@ -1673,28 +1729,11 @@ export default function ClassDetailScreen() {
               refund={refundInfo}
               onViewTimeline={async () => {
                 if (refundInfo?.id) {
-                  try {
-                    const timelineResponse = await paymentService.getRefundTimeline(refundInfo.id);
-                    if (timelineResponse.success && timelineResponse.data) {
-                      // Show timeline in alert or modal
-                      const timeline = timelineResponse.data.timeline || [];
-                      const timelineText = timeline
-                        .map((item: any) => {
-                          const date = new Date(item.timestamp).toLocaleString('vi-VN');
-                          return `${date}: ${item.action} (${item.actor})`;
-                        })
-                        .join('\n');
-                      
-                      Alert.alert(
-                        t('classes.refund.viewTimeline'),
-                        timelineText || t('classes.refund.noRefund'),
-                        [{ text: t('common.ok') }]
-                      );
-                    }
-                  } catch (error) {
-                    console.error('[ERROR] Failed to load refund timeline:', error);
-                    Alert.alert(t('common.error'), t('classes.refund.noRefund'));
-                  }
+                  // Navigate to refund timeline page instead of showing alert
+                  router.push({
+                    pathname: '/subscription/refund-timeline',
+                    params: { refundId: refundInfo.id },
+                  });
                 }
               }}
               showTimelineButton={!!refundInfo?.id}
@@ -1731,6 +1770,37 @@ export default function ClassDetailScreen() {
           // User has a booking for this schedule
           // Priority 0: Check if booking is cancelled - allow re-booking
           if (userBooking.status === 'CANCELLED') {
+            // Check if booking deadline has passed
+            if (isBookingDeadlinePassed) {
+              return (
+                <View
+                  style={[
+                    themedStyles.bookButton,
+                    {
+                      backgroundColor: theme.colors.textSecondary + '20',
+                      borderWidth: 1,
+                      borderColor: theme.colors.textSecondary,
+                      ...theme.shadows.md,
+                    },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      themedStyles.bookButtonText,
+                      { color: theme.colors.textSecondary },
+                    ]}
+                  >
+                    {remainingMinutes !== null && remainingMinutes > 0
+                      ? t('classes.booking.deadlineSoon', {
+                          minutes: remainingMinutes,
+                        }) || `Còn ${remainingMinutes} phút để đăng ký`
+                      : t('classes.booking.deadlinePassed') ||
+                        'Hết thời gian đăng ký'}
+                  </Text>
+                </View>
+              );
+            }
+
             // Show book button if class is not fully booked
             if (!isFullyBooked) {
               return (
@@ -1756,7 +1826,7 @@ export default function ClassDetailScreen() {
                 </TouchableOpacity>
               );
             }
-            // If class is fully booked, show waitlist button
+            // If class is fully booked, show waitlist button (only if deadline hasn't passed)
             return (
               <TouchableOpacity
                 style={[
@@ -1946,7 +2016,11 @@ export default function ClassDetailScreen() {
           }
 
           // Priority 3: Check if waitlisted
-          if (isWaitlisted || userBooking.is_waitlist || userBooking.status === 'WAITLIST') {
+          if (
+            isWaitlisted ||
+            userBooking.is_waitlist ||
+            userBooking.status === 'WAITLIST'
+          ) {
             // Waitlisted - show position if available
             const waitlistPos = userBooking.waitlist_position;
             return (
@@ -1968,8 +2042,9 @@ export default function ClassDetailScreen() {
                   ]}
                 >
                   {waitlistPos
-                    ? t('classes.booking.onWaitlistWithPosition', { position: waitlistPos }) ||
-                      `Đang ở danh sách chờ (Vị trí ${waitlistPos})`
+                    ? t('classes.booking.onWaitlistWithPosition', {
+                        position: waitlistPos,
+                      }) || `Đang ở danh sách chờ (Vị trí ${waitlistPos})`
                     : t('classes.booking.onWaitlist') || 'Đang ở danh sách chờ'}
                 </Text>
               </TouchableOpacity>
@@ -2004,30 +2079,59 @@ export default function ClassDetailScreen() {
 
         {!userBooking ? (
           // No booking - show "Đặt lịch" or "Tham gia danh sách chờ" button
-          <TouchableOpacity
-            style={[
-              themedStyles.bookButton,
-              {
-                backgroundColor: isFullyBooked
-                  ? theme.colors.warning
-                  : theme.colors.primary,
-                ...theme.shadows.md,
-              },
-            ]}
-            onPress={handleBookClass}
-            activeOpacity={0.8}
-          >
-            <Text
+          // Check if booking deadline has passed first
+          isBookingDeadlinePassed ? (
+            <View
               style={[
-                themedStyles.bookButtonText,
-                { color: theme.colors.textInverse },
+                themedStyles.bookButton,
+                {
+                  backgroundColor: theme.colors.textSecondary + '20',
+                  borderWidth: 1,
+                  borderColor: theme.colors.textSecondary,
+                  ...theme.shadows.md,
+                },
               ]}
             >
-              {isFullyBooked
-                ? t('classes.joinWaitlist') || 'Tham gia danh sách chờ'
-                : t('classes.booking.book')}
-            </Text>
-          </TouchableOpacity>
+              <Text
+                style={[
+                  themedStyles.bookButtonText,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {remainingMinutes !== null && remainingMinutes > 0
+                  ? t('classes.booking.deadlineSoon', {
+                      minutes: remainingMinutes,
+                    }) || `Còn ${remainingMinutes} phút để đăng ký`
+                  : t('classes.booking.deadlinePassed') ||
+                    'Hết thời gian đăng ký'}
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[
+                themedStyles.bookButton,
+                {
+                  backgroundColor: isFullyBooked
+                    ? theme.colors.warning
+                    : theme.colors.primary,
+                  ...theme.shadows.md,
+                },
+              ]}
+              onPress={handleBookClass}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  themedStyles.bookButtonText,
+                  { color: theme.colors.textInverse },
+                ]}
+              >
+                {isFullyBooked
+                  ? t('classes.joinWaitlist') || 'Tham gia danh sách chờ'
+                  : t('classes.booking.book')}
+              </Text>
+            </TouchableOpacity>
+          )
         ) : null}
       </View>
 
@@ -2069,7 +2173,9 @@ export default function ClassDetailScreen() {
         actionButton={
           refundInfo && (refundInfo as any)?.refundId
             ? {
-                label: t('classes.refund.viewRefund', 'Xem hoàn tiền') || 'Xem hoàn tiền',
+                label:
+                  t('classes.refund.viewRefund', 'Xem hoàn tiền') ||
+                  'Xem hoàn tiền',
                 onPress: () => {
                   setShowSuccessModal(false);
                   router.push({

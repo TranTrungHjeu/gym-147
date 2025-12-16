@@ -25,10 +25,7 @@
     },
     "android": {
       "package": "com.gym147.mobile",
-      "permissions": [
-        "RECEIVE_BOOT_COMPLETED",
-        "VIBRATE"
-      ],
+      "permissions": ["RECEIVE_BOOT_COMPLETED", "VIBRATE"],
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",

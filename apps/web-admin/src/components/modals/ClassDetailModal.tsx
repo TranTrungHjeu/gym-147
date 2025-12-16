@@ -169,26 +169,30 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                       key={trainer?.id}
                       role='button'
                       tabIndex={0}
-                      onClick={(e) => {
+                      onClick={e => {
                         e.preventDefault();
                         e.stopPropagation();
                         console.log('👨‍🏫 Trainer clicked:', trainer);
                         if (trainer?.user_id || trainer?.full_name) {
                           const searchName = trainer.full_name || '';
-                          const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
+                          const url = `/management/users?search=${encodeURIComponent(
+                            searchName
+                          )}&role=TRAINER`;
                           console.log('[LINK] Navigating to:', url);
                           navigate(url);
                           onClose();
                         }
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={e => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           e.stopPropagation();
                           console.log('👨‍🏫 Trainer key pressed:', trainer);
                           if (trainer?.user_id || trainer?.full_name) {
                             const searchName = trainer.full_name || '';
-                            const url = `/management/users?search=${encodeURIComponent(searchName)}&role=TRAINER`;
+                            const url = `/management/users?search=${encodeURIComponent(
+                              searchName
+                            )}&role=TRAINER`;
                             console.log('[LINK] Navigating to:', url);
                             navigate(url);
                             onClose();
@@ -196,7 +200,9 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         }
                       }}
                       className={`p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 ${
-                        trainer?.user_id || trainer?.full_name ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2' : ''
+                        trainer?.user_id || trainer?.full_name
+                          ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
+                          : ''
                       }`}
                     >
                       <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
@@ -213,12 +219,12 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
               <div className='flex items-center gap-2 mb-4'>
                 <Users className='w-5 h-5 text-blue-600 dark:text-blue-400' />
                 <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white'>
-                  Thành viên đã đăng ký ({members.length})
+                  Hội viên đã đăng ký ({members.length})
                 </h3>
               </div>
               {members.length === 0 ? (
                 <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter py-4'>
-                  Chưa có thành viên đăng ký
+                  Chưa có hội viên đăng ký
                 </div>
               ) : (
                 <div className='space-y-2 max-h-[400px] overflow-y-auto custom-scrollbar'>
@@ -227,26 +233,30 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                       key={member?.id}
                       role='button'
                       tabIndex={0}
-                      onClick={(e) => {
+                      onClick={e => {
                         e.preventDefault();
                         e.stopPropagation();
                         console.log('👥 Member clicked:', member);
                         if (member?.user_id || member?.id || member?.full_name) {
                           const searchName = member.full_name || '';
-                          const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
+                          const url = `/management/users?search=${encodeURIComponent(
+                            searchName
+                          )}&role=MEMBER`;
                           console.log('[LINK] Navigating to:', url);
                           navigate(url);
                           onClose();
                         }
                       }}
-                      onKeyDown={(e) => {
+                      onKeyDown={e => {
                         if (e.key === 'Enter' || e.key === ' ') {
                           e.preventDefault();
                           e.stopPropagation();
                           console.log('👥 Member key pressed:', member);
                           if (member?.user_id || member?.id || member?.full_name) {
                             const searchName = member.full_name || '';
-                            const url = `/management/users?search=${encodeURIComponent(searchName)}&role=MEMBER`;
+                            const url = `/management/users?search=${encodeURIComponent(
+                              searchName
+                            )}&role=MEMBER`;
                             console.log('[LINK] Navigating to:', url);
                             navigate(url);
                             onClose();
@@ -254,7 +264,9 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
                         }
                       }}
                       className={`p-3 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 ${
-                        member?.user_id || member?.id || member?.full_name ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2' : ''
+                        member?.user_id || member?.id || member?.full_name
+                          ? 'cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700/70 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2'
+                          : ''
                       }`}
                     >
                       <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
@@ -273,4 +285,3 @@ const ClassDetailModal: React.FC<ClassDetailModalProps> = ({ isOpen, onClose, gy
 };
 
 export default ClassDetailModal;
-

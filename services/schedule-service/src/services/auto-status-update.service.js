@@ -47,6 +47,26 @@ class AutoStatusUpdateService {
         );
       }
 
+      // First, get schedules that need to be updated
+      const schedulesToUpdate = await prisma.schedule.findMany({
+        where: {
+          status: 'SCHEDULED',
+          start_time: { lte: now },
+        },
+        include: {
+          gym_class: true,
+          trainer: true,
+          room: true,
+          bookings: {
+            where: {
+              status: {
+                not: 'CANCELLED',
+              },
+            },
+          },
+        },
+      });
+
       const result = await prisma.schedule.updateMany({
         where: {
           status: 'SCHEDULED',
@@ -57,6 +77,62 @@ class AutoStatusUpdateService {
 
       if (result.count > 0) {
         console.log(`[SUCCESS] Updated ${result.count} schedules from SCHEDULED to IN_PROGRESS`);
+
+        // Emit socket events for each updated schedule
+        if (global.io && schedulesToUpdate.length > 0) {
+          for (const schedule of schedulesToUpdate) {
+            try {
+              // Emit to schedule room (for all connected clients viewing this schedule)
+              const scheduleRoom = `schedule:${schedule.id}`;
+              const socketPayload = {
+                schedule_id: schedule.id,
+                status: 'IN_PROGRESS',
+                updated_at: new Date().toISOString(),
+                schedule: {
+                  id: schedule.id,
+                  status: 'IN_PROGRESS',
+                  start_time: schedule.start_time,
+                  end_time: schedule.end_time,
+                  gym_class: schedule.gym_class,
+                  trainer: schedule.trainer,
+                  room: schedule.room,
+                },
+              };
+
+              global.io.to(scheduleRoom).emit('schedule:updated', socketPayload);
+              console.log(
+                `[SOCKET] Emitted schedule:updated to room ${scheduleRoom} for schedule ${schedule.id}`
+              );
+
+              // Emit to trainer if exists
+              if (schedule.trainer?.user_id) {
+                global.io
+                  .to(`user:${schedule.trainer.user_id}`)
+                  .emit('schedule:updated', socketPayload);
+                console.log(
+                  `[SOCKET] Emitted schedule:updated to trainer user:${schedule.trainer.user_id}`
+                );
+              }
+
+              // Emit to all members who booked this schedule
+              if (schedule.bookings && schedule.bookings.length > 0) {
+                for (const booking of schedule.bookings) {
+                  if (booking.member_id) {
+                    global.io
+                      .to(`member:${booking.member_id}`)
+                      .emit('schedule:updated', socketPayload);
+                    console.log(`[SOCKET] Emitted schedule:updated to member:${booking.member_id}`);
+                  }
+                }
+              }
+            } catch (socketError) {
+              console.error(
+                `[ERROR] Failed to emit socket event for schedule ${schedule.id}:`,
+                socketError
+              );
+            }
+          }
+        }
       }
 
       return result.count;
@@ -84,6 +160,26 @@ class AutoStatusUpdateService {
       );
       console.log(`[SYNC] Now UTC: ${now.toISOString()}`);
 
+      // First, get schedules that need to be updated
+      const schedulesToUpdate = await prisma.schedule.findMany({
+        where: {
+          status: 'IN_PROGRESS',
+          end_time: { lt: now },
+        },
+        include: {
+          gym_class: true,
+          trainer: true,
+          room: true,
+          bookings: {
+            where: {
+              status: {
+                not: 'CANCELLED',
+              },
+            },
+          },
+        },
+      });
+
       const result = await prisma.schedule.updateMany({
         where: {
           status: 'IN_PROGRESS',
@@ -94,6 +190,62 @@ class AutoStatusUpdateService {
 
       if (result.count > 0) {
         console.log(`[SUCCESS] Updated ${result.count} schedules from IN_PROGRESS to COMPLETED`);
+
+        // Emit socket events for each updated schedule
+        if (global.io && schedulesToUpdate.length > 0) {
+          for (const schedule of schedulesToUpdate) {
+            try {
+              // Emit to schedule room (for all connected clients viewing this schedule)
+              const scheduleRoom = `schedule:${schedule.id}`;
+              const socketPayload = {
+                schedule_id: schedule.id,
+                status: 'COMPLETED',
+                updated_at: new Date().toISOString(),
+                schedule: {
+                  id: schedule.id,
+                  status: 'COMPLETED',
+                  start_time: schedule.start_time,
+                  end_time: schedule.end_time,
+                  gym_class: schedule.gym_class,
+                  trainer: schedule.trainer,
+                  room: schedule.room,
+                },
+              };
+
+              global.io.to(scheduleRoom).emit('schedule:updated', socketPayload);
+              console.log(
+                `[SOCKET] Emitted schedule:updated to room ${scheduleRoom} for schedule ${schedule.id}`
+              );
+
+              // Emit to trainer if exists
+              if (schedule.trainer?.user_id) {
+                global.io
+                  .to(`user:${schedule.trainer.user_id}`)
+                  .emit('schedule:updated', socketPayload);
+                console.log(
+                  `[SOCKET] Emitted schedule:updated to trainer user:${schedule.trainer.user_id}`
+                );
+              }
+
+              // Emit to all members who booked this schedule
+              if (schedule.bookings && schedule.bookings.length > 0) {
+                for (const booking of schedule.bookings) {
+                  if (booking.member_id) {
+                    global.io
+                      .to(`member:${booking.member_id}`)
+                      .emit('schedule:updated', socketPayload);
+                    console.log(`[SOCKET] Emitted schedule:updated to member:${booking.member_id}`);
+                  }
+                }
+              }
+            } catch (socketError) {
+              console.error(
+                `[ERROR] Failed to emit socket event for schedule ${schedule.id}:`,
+                socketError
+              );
+            }
+          }
+        }
       }
 
       return result.count;

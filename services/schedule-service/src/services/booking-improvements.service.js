@@ -173,39 +173,119 @@ class BookingImprovementsService {
 
   /**
    * Send booking reminder notification
-   * Sends reminder 1 hour before class starts
+   * Sends reminder at 3 times: 1 hour, 30 minutes, and 15 minutes before class starts
+   * Only sends once per time window to avoid duplicates
    */
-  async sendBookingReminder(booking, schedule) {
+  async sendBookingReminder(booking, schedule, reminderMinutes) {
     try {
       const notificationService = require('./notification.service.js');
 
       const scheduleStartTime = new Date(schedule.start_time);
       const now = new Date();
-      const hoursUntilStart = (scheduleStartTime - now) / (1000 * 60 * 60);
+      const minutesUntilStart = (scheduleStartTime - now) / (1000 * 60);
 
-      // Only send if within 1 hour window (55-65 minutes before)
-      if (hoursUntilStart >= 0.9 && hoursUntilStart <= 1.1) {
+      // Define time windows for each reminder (with 2-minute buffer to account for cron timing)
+      const timeWindows = {
+        60: { min: 58, max: 62 }, // 1 hour: 58-62 minutes
+        30: { min: 28, max: 32 }, // 30 minutes: 28-32 minutes
+        15: { min: 13, max: 17 }, // 15 minutes: 13-17 minutes
+      };
+
+      const window = timeWindows[reminderMinutes];
+      if (!window) {
+        console.warn(
+          `[WARNING] Invalid reminder minutes: ${reminderMinutes}. Only 60, 30, or 15 are supported.`
+        );
+        return;
+      }
+
+      // Only send if within the time window
+      if (minutesUntilStart >= window.min && minutesUntilStart <= window.max) {
+        // Check if reminder has already been sent for this booking and time window
+        // Query identity service to check for existing notification
+        try {
+          const identityServiceUrl = process.env.IDENTITY_SERVICE_URL || 'http://localhost:3001';
+          const memberService = require('./member.service.js');
+          const member = await memberService.getMemberById(booking.member_id);
+
+          if (!member?.user_id) {
+            console.warn(
+              `[WARNING] Cannot send reminder: member ${booking.member_id} has no user_id`
+            );
+            return;
+          }
+
+          // Check if notification already exists for this booking and reminder time
+          const checkResponse = await axios.get(
+            `${identityServiceUrl}/notifications/user/${member.user_id}`,
+            {
+              params: {
+                type: 'CLASS_REMINDER',
+                limit: 100,
+              },
+              timeout: 5000,
+            }
+          );
+
+          if (checkResponse.data?.success && checkResponse.data?.data) {
+            const notifications = Array.isArray(checkResponse.data.data)
+              ? checkResponse.data.data
+              : checkResponse.data.data.notifications || [];
+
+            // Check if reminder for this schedule and time window already exists
+            const existingReminder = notifications.find(
+              notif =>
+                notif.type === 'CLASS_REMINDER' &&
+                notif.data?.schedule_id === schedule.id &&
+                notif.data?.reminder_minutes === reminderMinutes &&
+                // Check if notification was created recently (within last 10 minutes)
+                new Date(notif.created_at) > new Date(now.getTime() - 10 * 60 * 1000)
+            );
+
+            if (existingReminder) {
+              console.log(
+                `[SKIP] Reminder for booking ${booking.id} at ${reminderMinutes} minutes already sent`
+              );
+              return;
+            }
+          }
+        } catch (checkError) {
+          // If check fails, continue to send reminder (fail-safe)
+          console.warn(
+            `[WARNING] Failed to check existing reminders, proceeding to send:`,
+            checkError.message
+          );
+        }
+
         // Get member info
         const memberService = require('./member.service.js');
         const member = await memberService.getMemberById(booking.member_id);
 
         if (member?.user_id) {
+          const timeText =
+            reminderMinutes === 60 ? '1 giờ' : reminderMinutes === 30 ? '30 phút' : '15 phút';
+
           await notificationService.sendNotification({
             user_id: member.user_id,
             type: 'CLASS_REMINDER',
-            title: 'Nhắc nhở lớp học',
+            title: `Nhắc nhở lớp học - ${timeText}`,
             message: `Lớp ${
               schedule.gym_class?.name || 'Lớp học'
-            } sẽ bắt đầu sau 1 giờ. Vui lòng đến đúng giờ!`,
+            } sẽ bắt đầu sau ${timeText}. Vui lòng đến đúng giờ!`,
             data: {
               booking_id: booking.id,
               schedule_id: schedule.id,
               class_name: schedule.gym_class?.name || 'Lớp học',
               start_time: schedule.start_time,
               room_name: schedule.room?.name || 'Phòng tập',
+              reminder_minutes: reminderMinutes,
             },
             channels: ['IN_APP', 'PUSH', 'EMAIL'],
           });
+
+          console.log(
+            `[SUCCESS] Sent ${reminderMinutes}-minute reminder for booking ${booking.id}`
+          );
         }
       }
     } catch (error) {
@@ -436,10 +516,10 @@ class BookingImprovementsService {
           p =>
             p.reference_id === booking.id &&
             p.payment_type === 'CLASS_BOOKING' &&
-            (p.status === 'COMPLETED' || 
-             p.status === 'PAID' || 
-             p.status === 'PROCESSING' || 
-             p.status === 'PENDING')
+            (p.status === 'COMPLETED' ||
+              p.status === 'PAID' ||
+              p.status === 'PROCESSING' ||
+              p.status === 'PENDING')
         );
 
         // If not found with status filter, try without status filter
@@ -458,9 +538,9 @@ class BookingImprovementsService {
               paymentWithoutStatus.status !== 'FAILED' &&
               paymentWithoutStatus.status !== 'CANCELLED' &&
               (paymentWithoutStatus.status === 'PAID' ||
-               paymentWithoutStatus.status === 'COMPLETED' ||
-               paymentWithoutStatus.status === 'PROCESSING' ||
-               paymentWithoutStatus.status === 'PENDING')
+                paymentWithoutStatus.status === 'COMPLETED' ||
+                paymentWithoutStatus.status === 'PROCESSING' ||
+                paymentWithoutStatus.status === 'PENDING')
             ) {
               payment = paymentWithoutStatus;
               console.log('[REFUND] Using payment with status:', payment.status);
@@ -522,9 +602,7 @@ class BookingImprovementsService {
               const matchingPayment = allPayments.find(
                 p =>
                   parseFloat(p.amount) === parseFloat(booking.amount_paid) &&
-                  (p.status === 'COMPLETED' || 
-                   p.status === 'PAID' || 
-                   p.status === 'PROCESSING') &&
+                  (p.status === 'COMPLETED' || p.status === 'PAID' || p.status === 'PROCESSING') &&
                   p.payment_type === 'CLASS_BOOKING'
               );
 

@@ -143,7 +143,7 @@ const RecentPayments: React.FC<RecentPaymentsProps> = ({ limit = 5 }) => {
           </h3>
         </div>
         <div className='space-y-2'>
-          {payments.map((payment) => (
+          {payments.map(payment => (
             <div
               key={payment.id}
               className='flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group'
@@ -158,7 +158,7 @@ const RecentPayments: React.FC<RecentPaymentsProps> = ({ limit = 5 }) => {
                       {formatCurrency(payment.amount)}
                     </p>
                     <p className='text-[11px] text-gray-600 dark:text-gray-400 font-inter truncate mt-0.5'>
-                      {payment.member?.full_name || 'Thành viên không xác định'}
+                      {payment.member?.full_name || 'Hội viên không xác định'}
                     </p>
                     <div className='flex items-center gap-2 mt-1'>
                       <span className='text-[11px] text-gray-500 dark:text-gray-400 font-inter'>
@@ -197,4 +197,3 @@ const RecentPayments: React.FC<RecentPaymentsProps> = ({ limit = 5 }) => {
 };
 
 export default RecentPayments;
-
