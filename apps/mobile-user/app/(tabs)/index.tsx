@@ -16,9 +16,9 @@ import {
 } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { Bell, CreditCard, QrCode, Search, User } from 'lucide-react-native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import {
@@ -36,6 +36,11 @@ import {
 export default function HomeScreen() {
   const { theme } = useTheme();
   const { unreadCount } = useNotifications();
+
+  // Debug: Log unreadCount changes
+  useEffect(() => {
+    console.log('[HOME] Badge unreadCount updated:', unreadCount);
+  }, [unreadCount]);
   const { t, i18n } = useTranslation();
   const router = useRouter();
   const { user, member } = useAuth();
@@ -68,6 +73,44 @@ export default function HomeScreen() {
     loadData();
     checkFaceEncodingStatus();
   }, []);
+
+  // Refresh workouts when screen comes into focus (e.g., after creating a new workout plan)
+  useFocusEffect(
+    useCallback(() => {
+      // Only refresh workouts, not all data, to avoid unnecessary API calls
+      const refreshWorkouts = async () => {
+        try {
+          const memberId = userProfile?.id || member?.id || user?.id;
+
+          if (memberId) {
+            setWorkoutsLoading(true);
+            const workoutsResponse = await workoutPlanService.getWorkoutPlans(
+              memberId,
+              {
+                active_only: true,
+              }
+            );
+
+            if (workoutsResponse.success && workoutsResponse.data) {
+              setWorkouts(workoutsResponse.data.slice(0, 4));
+              setWorkoutsError(null);
+            }
+          }
+        } catch (error) {
+          console.warn('[HOME] Error refreshing workouts on focus:', error);
+        } finally {
+          setWorkoutsLoading(false);
+        }
+      };
+
+      // Small delay to avoid refreshing too frequently
+      const timer = setTimeout(() => {
+        refreshWorkouts();
+      }, 300);
+
+      return () => clearTimeout(timer);
+    }, [userProfile?.id, member?.id, user?.id])
+  );
 
   const checkFaceEncodingStatus = async () => {
     // Only check once per session
@@ -176,7 +219,10 @@ export default function HomeScreen() {
           };
 
           setUserProfile(profileData as any);
-          console.log('[AUTH] Profile data created from dashboard:', profileData);
+          console.log(
+            '[AUTH] Profile data created from dashboard:',
+            profileData
+          );
         } else {
           // If authentication error, check remember me before redirecting
           if (
@@ -200,9 +246,9 @@ export default function HomeScreen() {
                 setError('Authentication error. Please try again.');
               }
             } catch (error) {
-                console.log(
-                  '[AUTH] Failed to check remember me, redirecting to login'
-                );
+              console.log(
+                '[AUTH] Failed to check remember me, redirecting to login'
+              );
               router.replace('/(auth)/login');
               return;
             }
@@ -261,7 +307,7 @@ export default function HomeScreen() {
         profileResponse.data?.id ||
         dashboardResponse.data?.dashboard?.member?.id ||
         member?.id; // Fallback to member from AuthContext
-      
+
       console.log('[WORKOUTS] Member ID for workouts:', {
         fromProfile: profileResponse.data?.id,
         fromDashboard: dashboardResponse.data?.dashboard?.member?.id,
@@ -319,7 +365,7 @@ export default function HomeScreen() {
     try {
       // Get member ID from multiple sources with priority
       const memberId = userProfile?.id || member?.id;
-      
+
       console.log('[WORKOUTS] Retry - Member ID:', {
         fromUserProfile: userProfile?.id,
         fromAuthContext: member?.id,
@@ -496,17 +542,22 @@ export default function HomeScreen() {
                     style={[
                       {
                         position: 'absolute',
-                        top: -4,
-                        right: -4,
-                        minWidth: 18,
-                        height: 18,
-                        borderRadius: 9,
-                        backgroundColor: theme.colors.error,
+                        top: -6,
+                        right: -6,
+                        minWidth: 20,
+                        height: 20,
+                        borderRadius: 10,
+                        backgroundColor: theme.colors.error || '#EF4444',
                         justifyContent: 'center',
                         alignItems: 'center',
-                        paddingHorizontal: 4,
-                        borderWidth: 2,
-                        borderColor: theme.colors.background,
+                        paddingHorizontal: 5,
+                        borderWidth: 2.5,
+                        borderColor: theme.colors.background || '#FFFFFF',
+                        shadowColor: theme.colors.error || '#EF4444',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.4,
+                        shadowRadius: 4,
+                        elevation: 6,
                       },
                     ]}
                   >
@@ -514,9 +565,10 @@ export default function HomeScreen() {
                       style={[
                         Typography.caption,
                         {
-                          color: theme.colors.textInverse,
-                          fontWeight: '700',
-                          fontSize: 10,
+                          color: '#FFFFFF',
+                          fontWeight: '800',
+                          fontSize: 11,
+                          letterSpacing: 0.3,
                         },
                       ]}
                     >

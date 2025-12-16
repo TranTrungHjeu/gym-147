@@ -129,7 +129,10 @@ class AttendanceService {
 
       // Don't log early checkout errors as errors (they're expected business logic)
       if (isEarlyCheckoutError) {
-        console.log('[ATTENDANCE] Early checkout attempt (expected):', errorMessage);
+        console.log(
+          '[ATTENDANCE] Early checkout attempt (expected):',
+          errorMessage
+        );
       } else {
         console.error('[ATTENDANCE] Scan QR code error:', error);
       }
@@ -179,4 +182,3 @@ class AttendanceService {
 }
 
 export const attendanceService = new AttendanceService();
-

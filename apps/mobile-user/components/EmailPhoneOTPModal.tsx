@@ -8,8 +8,10 @@ import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -45,7 +47,9 @@ export default function EmailPhoneOTPModal({
   const { theme } = useTheme();
 
   const [currentStep, setCurrentStep] = useState<1 | 2>(1);
-  const [verificationMethod, setVerificationMethod] = useState<'EMAIL' | 'PHONE'>('EMAIL');
+  const [verificationMethod, setVerificationMethod] = useState<
+    'EMAIL' | 'PHONE'
+  >('EMAIL');
   const [otp, setOtp] = useState('');
   const [otpVerified, setOtpVerified] = useState(false);
   const [otpError, setOtpError] = useState('');
@@ -107,7 +111,14 @@ export default function EmailPhoneOTPModal({
         setVerificationMethod('PHONE');
       }
     }
-  }, [visible, currentStep, userEmail, userPhone, emailChanging, phoneChanging]);
+  }, [
+    visible,
+    currentStep,
+    userEmail,
+    userPhone,
+    emailChanging,
+    phoneChanging,
+  ]);
 
   const handleSendOTP = async () => {
     if (otpLoading || otpCooldown > 0) {
@@ -151,7 +162,10 @@ export default function EmailPhoneOTPModal({
       const errorMessage =
         error.response?.data?.message || error.message || 'Không thể gửi OTP';
       setOtpError(errorMessage);
-      if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
+      if (
+        error.response?.status === 429 &&
+        error.response?.data?.data?.retryAfter
+      ) {
         setOtpCooldown(error.response.data.data.retryAfter);
       }
     } finally {
@@ -201,9 +215,7 @@ export default function EmailPhoneOTPModal({
   if (!visible) return null;
 
   const identifier =
-    verificationMethod === 'EMAIL'
-      ? userEmail || ''
-      : userPhone || '';
+    verificationMethod === 'EMAIL' ? userEmail || '' : userPhone || '';
 
   const maskedIdentifier =
     verificationMethod === 'EMAIL'
@@ -217,283 +229,306 @@ export default function EmailPhoneOTPModal({
       animationType="slide"
       onRequestClose={onClose}
     >
-      <SafeAreaView
+      <View
         style={[styles.modalOverlay, { backgroundColor: 'rgba(0, 0, 0, 0.5)' }]}
       >
-        <View
-          style={[
-            styles.modalContent,
-            { backgroundColor: theme.colors.background },
-          ]}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.keyboardAvoidingView}
+          keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
         >
-          {/* Header */}
           <View
             style={[
-              styles.header,
-              { borderBottomColor: theme.colors.border },
+              styles.modalContent,
+              { backgroundColor: theme.colors.background },
             ]}
           >
-            <View style={styles.headerLeft}>
-              <View
-                style={[
-                  styles.iconContainer,
-                  { backgroundColor: theme.colors.primary + '15' },
-                ]}
-              >
-                <Shield size={24} color={theme.colors.primary} />
-              </View>
-              <Text
-                style={[styles.headerTitle, { color: theme.colors.text }]}
-              >
-                {currentStep === 1
-                  ? 'Xác thực danh tính'
-                  : 'Nhập mã OTP'}
-              </Text>
-            </View>
-            <TouchableOpacity
-              style={styles.closeButton}
-              onPress={onClose}
-              activeOpacity={0.7}
+            {/* Header */}
+            <View
+              style={[
+                styles.header,
+                { borderBottomColor: theme.colors.border },
+              ]}
             >
-              <X size={24} color={theme.colors.text} />
-            </TouchableOpacity>
-          </View>
-
-          {/* Content */}
-          <View style={styles.content}>
-            {currentStep === 1 ? (
-              <>
+              <View style={styles.headerLeft}>
+                <View
+                  style={[
+                    styles.iconContainer,
+                    { backgroundColor: theme.colors.primary + '15' },
+                  ]}
+                >
+                  <Shield size={24} color={theme.colors.primary} />
+                </View>
                 <Text
-                  style={[
-                    styles.description,
-                    { color: theme.colors.textSecondary },
-                  ]}
+                  style={[styles.headerTitle, { color: theme.colors.text }]}
                 >
-                  Để thay đổi {emailChanging ? 'email' : 'số điện thoại'}, bạn
-                  cần xác thực qua{' '}
-                  {verificationMethod === 'EMAIL' ? 'email' : 'số điện thoại'}{' '}
-                  hiện tại.
+                  {currentStep === 1 ? 'Xác thực danh tính' : 'Nhập mã OTP'}
                 </Text>
+              </View>
+              <TouchableOpacity
+                style={styles.closeButton}
+                onPress={onClose}
+                activeOpacity={0.7}
+              >
+                <X size={24} color={theme.colors.text} />
+              </TouchableOpacity>
+            </View>
 
-                {/* Verification Method Selection */}
-                {(emailChanging && phoneChanging) ||
-                (userEmail && userPhone) ? (
-                  <View style={styles.methodContainer}>
-                    <TouchableOpacity
-                      style={[
-                        styles.methodOption,
-                        {
-                          backgroundColor:
-                            verificationMethod === 'EMAIL'
-                              ? theme.colors.primary
-                              : theme.colors.surface,
-                          borderColor:
-                            verificationMethod === 'EMAIL'
-                              ? theme.colors.primary
-                              : theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setVerificationMethod('EMAIL')}
-                      disabled={!userEmail}
-                    >
-                      <Mail
-                        size={20}
-                        color={
-                          verificationMethod === 'EMAIL'
-                            ? theme.colors.textInverse
-                            : theme.colors.textSecondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.methodText,
-                          {
-                            color:
-                              verificationMethod === 'EMAIL'
-                                ? theme.colors.textInverse
-                                : theme.colors.text,
-                          },
-                        ]}
-                      >
-                        Email
-                      </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.methodOption,
-                        {
-                          backgroundColor:
-                            verificationMethod === 'PHONE'
-                              ? theme.colors.primary
-                              : theme.colors.surface,
-                          borderColor:
-                            verificationMethod === 'PHONE'
-                              ? theme.colors.primary
-                              : theme.colors.border,
-                        },
-                      ]}
-                      onPress={() => setVerificationMethod('PHONE')}
-                      disabled={!userPhone}
-                    >
-                      <Phone
-                        size={20}
-                        color={
-                          verificationMethod === 'PHONE'
-                            ? theme.colors.textInverse
-                            : theme.colors.textSecondary
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.methodText,
-                          {
-                            color:
-                              verificationMethod === 'PHONE'
-                                ? theme.colors.textInverse
-                                : theme.colors.text,
-                          },
-                        ]}
-                      >
-                        Số điện thoại
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                ) : null}
-
-                {/* Send OTP Button */}
-                <TouchableOpacity
-                  style={[
-                    styles.sendButton,
-                    {
-                      backgroundColor:
-                        otpLoading || otpCooldown > 0
-                          ? theme.colors.surface
-                          : theme.colors.primary,
-                    },
-                  ]}
-                  onPress={handleSendOTP}
-                  disabled={otpLoading || otpCooldown > 0}
-                >
-                  {otpLoading ? (
-                    <ActivityIndicator
-                      size="small"
-                      color={theme.colors.textInverse}
-                    />
-                  ) : (
+            {/* Content */}
+            <ScrollView
+              style={styles.scrollView}
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.content}>
+                {currentStep === 1 ? (
+                  <>
                     <Text
                       style={[
-                        styles.sendButtonText,
-                        {
-                          color:
-                            otpLoading || otpCooldown > 0
-                              ? theme.colors.textSecondary
-                              : theme.colors.textInverse,
-                        },
-                      ]}
-                    >
-                      {otpCooldown > 0
-                        ? `Gửi lại sau ${otpCooldown}s`
-                        : 'Gửi mã OTP'}
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                {otpError && (
-                  <Text
-                    style={[styles.errorText, { color: theme.colors.error }]}
-                  >
-                    {otpError}
-                  </Text>
-                )}
-              </>
-            ) : (
-              <>
-                <Text
-                  style={[
-                    styles.description,
-                    { color: theme.colors.textSecondary },
-                  ]}
-                >
-                  Mã OTP đã được gửi đến{' '}
-                  {verificationMethod === 'EMAIL' ? 'email' : 'số điện thoại'}{' '}
-                  <Text style={{ fontWeight: '600' }}>{maskedIdentifier}</Text>
-                </Text>
-
-                <OTPInput
-                  key={`otp-input-${currentStep}`}
-                  length={6}
-                  onComplete={handleVerifyOTP}
-                  onResend={handleResendOTP}
-                  isLoading={otpSuccessLoading}
-                  error={otpError}
-                  resendDelay={otpCooldown}
-                  autoFocus={true}
-                  disabled={otpSuccessLoading || otpVerified}
-                />
-
-                {otpError && (
-                  <Text
-                    style={[styles.errorText, { color: theme.colors.error }]}
-                  >
-                    {otpError}
-                  </Text>
-                )}
-
-                {otpVerified && (
-                  <Text
-                    style={[
-                      styles.successText,
-                      { color: theme.colors.success },
-                    ]}
-                  >
-                    Xác thực thành công!
-                  </Text>
-                )}
-
-                <TouchableOpacity
-                  style={styles.resendButton}
-                  onPress={handleResendOTP}
-                  disabled={otpCooldown > 0 || otpSuccessLoading}
-                >
-                  <Text
-                    style={[
-                      styles.resendText,
-                      {
-                        color:
-                          otpCooldown > 0
-                            ? theme.colors.textSecondary
-                            : theme.colors.primary,
-                      },
-                    ]}
-                  >
-                    {otpCooldown > 0
-                      ? `Gửi lại sau ${otpCooldown}s`
-                      : 'Gửi lại mã OTP'}
-                  </Text>
-                </TouchableOpacity>
-
-                {otpSuccessLoading && (
-                  <View style={styles.loadingContainer}>
-                    <ActivityIndicator
-                      size="small"
-                      color={theme.colors.primary}
-                    />
-                    <Text
-                      style={[
-                        styles.loadingText,
+                        styles.description,
                         { color: theme.colors.textSecondary },
                       ]}
                     >
-                      Đang xác thực...
+                      Để thay đổi {emailChanging ? 'email' : 'số điện thoại'},
+                      bạn cần xác thực qua{' '}
+                      {verificationMethod === 'EMAIL'
+                        ? 'email'
+                        : 'số điện thoại'}{' '}
+                      hiện tại.
                     </Text>
-                  </View>
+
+                    {/* Verification Method Selection */}
+                    {(emailChanging && phoneChanging) ||
+                    (userEmail && userPhone) ? (
+                      <View style={styles.methodContainer}>
+                        <TouchableOpacity
+                          style={[
+                            styles.methodOption,
+                            {
+                              backgroundColor:
+                                verificationMethod === 'EMAIL'
+                                  ? theme.colors.primary
+                                  : theme.colors.surface,
+                              borderColor:
+                                verificationMethod === 'EMAIL'
+                                  ? theme.colors.primary
+                                  : theme.colors.border,
+                            },
+                          ]}
+                          onPress={() => setVerificationMethod('EMAIL')}
+                          disabled={!userEmail}
+                        >
+                          <Mail
+                            size={20}
+                            color={
+                              verificationMethod === 'EMAIL'
+                                ? theme.colors.textInverse
+                                : theme.colors.textSecondary
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.methodText,
+                              {
+                                color:
+                                  verificationMethod === 'EMAIL'
+                                    ? theme.colors.textInverse
+                                    : theme.colors.text,
+                              },
+                            ]}
+                          >
+                            Email
+                          </Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[
+                            styles.methodOption,
+                            {
+                              backgroundColor:
+                                verificationMethod === 'PHONE'
+                                  ? theme.colors.primary
+                                  : theme.colors.surface,
+                              borderColor:
+                                verificationMethod === 'PHONE'
+                                  ? theme.colors.primary
+                                  : theme.colors.border,
+                            },
+                          ]}
+                          onPress={() => setVerificationMethod('PHONE')}
+                          disabled={!userPhone}
+                        >
+                          <Phone
+                            size={20}
+                            color={
+                              verificationMethod === 'PHONE'
+                                ? theme.colors.textInverse
+                                : theme.colors.textSecondary
+                            }
+                          />
+                          <Text
+                            style={[
+                              styles.methodText,
+                              {
+                                color:
+                                  verificationMethod === 'PHONE'
+                                    ? theme.colors.textInverse
+                                    : theme.colors.text,
+                              },
+                            ]}
+                          >
+                            Số điện thoại
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                    ) : null}
+
+                    {/* Send OTP Button */}
+                    <TouchableOpacity
+                      style={[
+                        styles.sendButton,
+                        {
+                          backgroundColor:
+                            otpLoading || otpCooldown > 0
+                              ? theme.colors.surface
+                              : theme.colors.primary,
+                        },
+                      ]}
+                      onPress={handleSendOTP}
+                      disabled={otpLoading || otpCooldown > 0}
+                    >
+                      {otpLoading ? (
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.colors.textInverse}
+                        />
+                      ) : (
+                        <Text
+                          style={[
+                            styles.sendButtonText,
+                            {
+                              color:
+                                otpLoading || otpCooldown > 0
+                                  ? theme.colors.textSecondary
+                                  : theme.colors.textInverse,
+                            },
+                          ]}
+                        >
+                          {otpCooldown > 0
+                            ? `Gửi lại sau ${otpCooldown}s`
+                            : 'Gửi mã OTP'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+
+                    {otpError && (
+                      <Text
+                        style={[
+                          styles.errorText,
+                          { color: theme.colors.error },
+                        ]}
+                      >
+                        {otpError}
+                      </Text>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <Text
+                      style={[
+                        styles.description,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      Mã OTP đã được gửi đến{' '}
+                      {verificationMethod === 'EMAIL'
+                        ? 'email'
+                        : 'số điện thoại'}{' '}
+                      <Text style={{ fontWeight: '600' }}>
+                        {maskedIdentifier}
+                      </Text>
+                    </Text>
+
+                    <OTPInput
+                      key={`otp-input-${currentStep}`}
+                      length={6}
+                      onComplete={handleVerifyOTP}
+                      onResend={handleResendOTP}
+                      isLoading={otpSuccessLoading}
+                      error={otpError}
+                      resendDelay={otpCooldown}
+                      autoFocus={true}
+                      disabled={otpSuccessLoading || otpVerified}
+                    />
+
+                    {otpError && (
+                      <Text
+                        style={[
+                          styles.errorText,
+                          { color: theme.colors.error },
+                        ]}
+                      >
+                        {otpError}
+                      </Text>
+                    )}
+
+                    {otpVerified && (
+                      <Text
+                        style={[
+                          styles.successText,
+                          { color: theme.colors.success },
+                        ]}
+                      >
+                        Xác thực thành công!
+                      </Text>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.resendButton}
+                      onPress={handleResendOTP}
+                      disabled={otpCooldown > 0 || otpSuccessLoading}
+                    >
+                      <Text
+                        style={[
+                          styles.resendText,
+                          {
+                            color:
+                              otpCooldown > 0
+                                ? theme.colors.textSecondary
+                                : theme.colors.primary,
+                          },
+                        ]}
+                      >
+                        {otpCooldown > 0
+                          ? `Gửi lại sau ${otpCooldown}s`
+                          : 'Gửi lại mã OTP'}
+                      </Text>
+                    </TouchableOpacity>
+
+                    {otpSuccessLoading && (
+                      <View style={styles.loadingContainer}>
+                        <ActivityIndicator
+                          size="small"
+                          color={theme.colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.loadingText,
+                            { color: theme.colors.textSecondary },
+                          ]}
+                        >
+                          Đang xác thực...
+                        </Text>
+                      </View>
+                    )}
+                  </>
                 )}
-              </>
-            )}
+              </View>
+            </ScrollView>
           </View>
-        </View>
-      </SafeAreaView>
+        </KeyboardAvoidingView>
+      </View>
     </Modal>
   );
 }
@@ -501,14 +536,28 @@ export default function EmailPhoneOTPModal({
 const styles = StyleSheet.create({
   modalOverlay: {
     flex: 1,
-    justifyContent: 'flex-end',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  keyboardAvoidingView: {
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   modalContent: {
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderRadius: 20,
     paddingTop: 20,
     paddingBottom: 40,
-    maxHeight: '90%',
+    width: '100%',
+    maxWidth: 400,
+    maxHeight: '100%',
+  },
+  scrollView: {
+    maxHeight: 500,
+  },
+  scrollContent: {
+    paddingBottom: 20,
   },
   header: {
     flexDirection: 'row',
@@ -606,4 +655,3 @@ const styles = StyleSheet.create({
     ...Typography.bodySmall,
   },
 });
-

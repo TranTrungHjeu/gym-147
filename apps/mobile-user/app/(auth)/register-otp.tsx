@@ -1,6 +1,7 @@
 import { OTPInput } from '@/components/OTPInput';
 import { SuccessModal } from '@/components/SuccessModal';
 import { ErrorModal } from '@/components/ErrorModal';
+import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -21,6 +22,7 @@ const RegisterOTPScreen = () => {
   const params = useLocalSearchParams();
   const { theme } = useTheme();
   const { t } = useTranslation();
+  const { setTokens } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -140,6 +142,19 @@ const RegisterOTPScreen = () => {
         otp,
       });
 
+      // IMPORTANT: Save tokens to AuthContext immediately after registration
+      // This ensures all subsequent screens have access to the token for API calls
+      if (response.data?.accessToken && response.data?.refreshToken) {
+        await setTokens(response.data.accessToken, response.data.refreshToken);
+
+        // Also save user if available in response
+        // setTokens will automatically load user profile, but we save it here too for immediate access
+        if (response.data?.user) {
+          const { storeUser } = await import('@/utils/auth/storage');
+          await storeUser(response.data.user);
+        }
+      }
+
       // Navigate to plan selection with user data
       router.push({
         pathname: '/(auth)/register-plan',
@@ -189,12 +204,15 @@ const RegisterOTPScreen = () => {
       });
     } catch (error: any) {
       const errorMessage =
-        error.response?.data?.message || 
-        error.message || 
+        error.response?.data?.message ||
+        error.message ||
         t('registration.otpResendFailed');
 
       // Handle rate limit error - extract cooldown from response
-      if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
+      if (
+        error.response?.status === 429 &&
+        error.response?.data?.data?.retryAfter
+      ) {
         const retryAfter = error.response.data.data.retryAfter;
         setOtpCooldown(retryAfter);
       }
@@ -287,11 +305,7 @@ const RegisterOTPScreen = () => {
           style={themedStyles.backButton}
           onPress={() => router.back()}
         >
-          <Ionicons
-            name="arrow-back"
-            size={24}
-            color={theme.colors.text}
-          />
+          <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
         </TouchableOpacity>
 
         <View style={themedStyles.iconContainer}>

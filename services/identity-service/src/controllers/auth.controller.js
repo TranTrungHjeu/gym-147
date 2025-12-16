@@ -289,7 +289,8 @@ class AuthController {
   async login(req, res) {
     try {
       logger.request(req, 'Login attempt');
-      const { identifier, password, twoFactorToken, push_token, push_platform, rememberMe } = req.body; // identifier can be email or phone
+      const { identifier, password, twoFactorToken, push_token, push_platform, rememberMe } =
+        req.body; // identifier can be email or phone
 
       if (!identifier || !password) {
         logger.warn('Login failed: missing credentials', {
@@ -448,10 +449,13 @@ class AuthController {
           if (retryCount >= maxRetries) {
             // TC-AUTH-003: If session creation fails after retries, return error
             // User is already created but cannot login - this is a critical error
-            console.error('[CRITICAL] Session creation failed after all retries. User created but cannot login.');
+            console.error(
+              '[CRITICAL] Session creation failed after all retries. User created but cannot login.'
+            );
             return res.status(500).json({
               success: false,
-              message: 'Đăng nhập thành công nhưng không thể tạo phiên đăng nhập. Vui lòng thử lại.',
+              message:
+                'Đăng nhập thành công nhưng không thể tạo phiên đăng nhập. Vui lòng thử lại.',
               errorCode: 'SESSION_CREATION_FAILED',
               data: null,
             });
@@ -560,7 +564,10 @@ class AuthController {
                 );
               }
             } catch (salaryError) {
-              console.error('[ERROR] Error fetching salary status during login:', salaryError.message);
+              console.error(
+                '[ERROR] Error fetching salary status during login:',
+                salaryError.message
+              );
               // Continue without salary status - don't fail login
               userData.hasSalary = false;
             }
@@ -859,7 +866,8 @@ class AuthController {
             // Instead, we return error and user can try to login manually
             return res.status(500).json({
               success: false,
-              message: 'Đăng ký thành công nhưng không thể tạo phiên đăng nhập. Vui lòng đăng nhập lại.',
+              message:
+                'Đăng ký thành công nhưng không thể tạo phiên đăng nhập. Vui lòng đăng nhập lại.',
               errorCode: 'SESSION_CREATION_FAILED',
               data: null,
             });
@@ -2706,7 +2714,9 @@ class AuthController {
                 const bookings = bookingsResponse.data.data.bookings;
                 // TC-USER-003: Cancel bookings that are CONFIRMED or have PENDING payment
                 const pendingBookings = bookings.filter(
-                  b => b.status === 'CONFIRMED' && (b.payment_status === 'PENDING' || b.payment_status === 'PAID')
+                  b =>
+                    b.status === 'CONFIRMED' &&
+                    (b.payment_status === 'PENDING' || b.payment_status === 'PAID')
                 );
 
                 if (pendingBookings.length > 0) {
@@ -3336,12 +3346,10 @@ class AuthController {
       }
 
       // Get user details
+      // Note: member_profile and staff_profile relations were removed
+      // Member and Staff services have their own databases
       const user = await prisma.user.findUnique({
         where: { id: verificationResult.userId },
-        include: {
-          member_profile: true,
-          staff_profile: true,
-        },
       });
 
       if (!user) {

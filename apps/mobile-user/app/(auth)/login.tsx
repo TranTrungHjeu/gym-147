@@ -180,33 +180,75 @@ export default function LoginScreen() {
 
       // For mobile, we'll use a web-based OAuth flow
       // In production, you might want to use @react-native-google-signin/google-signin for native experience
-      const redirectUri = AuthSession.makeRedirectUri({
+      // Force use 'gym147' scheme even in Expo development mode
+      let redirectUri = AuthSession.makeRedirectUri({
         scheme: 'gym147',
         path: 'auth/callback',
       });
 
-      // Get OAuth URL from backend
-      const response = await fetch(
-        `${
-          process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
-        }/auth/oauth/google`,
-        {
-          method: 'GET',
-        }
+      // In Expo development, makeRedirectUri might return exp:// scheme
+      // Force it to use gym147:// scheme
+      if (redirectUri.startsWith('exp://')) {
+        redirectUri = redirectUri.replace('exp://', 'gym147://');
+        console.log(
+          '[GOOGLE_OAUTH] Converted exp:// to gym147://:',
+          redirectUri
+        );
+      }
+
+      console.log('[GOOGLE_OAUTH] Using redirect URI:', redirectUri);
+
+      // Get OAuth URL from backend using API service
+      // Pass redirect_uri so backend can redirect back to mobile app
+      const { identityApiService } = await import(
+        '@/services/identity/api.service'
+      );
+      const response = await identityApiService.get<{
+        authUrl: string;
+        state: string;
+      }>('/auth/oauth/google', {
+        redirect_uri: redirectUri,
+      });
+
+      console.log(
+        '[GOOGLE_OAUTH] Full response:',
+        JSON.stringify(response, null, 2)
+      );
+      console.log('[GOOGLE_OAUTH] Response success:', response.success);
+      console.log('[GOOGLE_OAUTH] Response data:', response.data);
+      console.log('[GOOGLE_OAUTH] Response data type:', typeof response.data);
+      console.log(
+        '[GOOGLE_OAUTH] Response data keys:',
+        response.data ? Object.keys(response.data) : 'null/undefined'
       );
 
-      if (!response.ok) {
-        throw new Error('Failed to get OAuth URL');
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to get OAuth URL');
       }
 
-      const data = await response.json();
-      if (!data.success || !data.data?.authUrl) {
-        throw new Error('Invalid OAuth response');
+      if (!response.data) {
+        throw new Error('Response data is null or undefined');
       }
+
+      // Handle both nested and flat response structures
+      const authUrl =
+        (response.data as any).authUrl || (response.data as any).data?.authUrl;
+
+      if (!authUrl) {
+        console.error('[GOOGLE_OAUTH] authUrl not found in response:', {
+          responseData: response.data,
+          responseDataType: typeof response.data,
+          responseDataKeys: response.data ? Object.keys(response.data) : [],
+        });
+        throw new Error('authUrl not found in response');
+      }
+
+      const data = { authUrl };
 
       // Open OAuth URL in browser
+      console.log('[GOOGLE_OAUTH] Opening auth URL:', data.authUrl);
       const result = await WebBrowser.openAuthSessionAsync(
-        data.data.authUrl,
+        data.authUrl,
         redirectUri
       );
 
@@ -220,37 +262,23 @@ export default function LoginScreen() {
         if (token && refreshToken) {
           // Store tokens and login
           const { storeTokens } = await import('@/utils/auth/storage');
-          await storeTokens({
-            token,
-            refreshToken,
-          });
+          await storeTokens(token, refreshToken);
 
-          // Get user profile
-          const profileResponse = await fetch(
-            `${
-              process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
-            }/auth/profile`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+          // Get user profile using API service
+          const { identityApiService } = await import(
+            '@/services/identity/api.service'
           );
+          const profileResponse = await identityApiService.get('/auth/profile');
 
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            if (profileData.success) {
-              // If new user, navigate to profile completion
-              // If existing user, navigate to tabs
-              if (isNewUser) {
-                // Navigate to profile completion for new users
-                router.replace('/(auth)/register-profile');
-              } else {
-                // Existing user, go to main app
-                router.replace('/(tabs)');
-              }
+          if (profileResponse.success && profileResponse.data) {
+            // If new user, navigate to profile completion
+            // If existing user, navigate to tabs
+            if (isNewUser) {
+              // Navigate to profile completion for new users
+              router.replace('/(auth)/register-profile');
             } else {
-              Alert.alert(t('common.error'), t('auth.oauthFailed'));
+              // Existing user, go to main app
+              router.replace('/(tabs)');
             }
           } else {
             Alert.alert(t('common.error'), t('auth.oauthFailed'));

@@ -378,7 +378,7 @@ class SessionController {
       // Session may already have calories from workout plans completed during this session
       // Sum equipment calories with existing session calories (which includes workout calories)
       const currentSessionCalories = activeSession.calories_burned || 0;
-      
+
       // Total calories = equipment calories + existing session calories (workout + previous equipment)
       // But we don't want to double count equipment, so we check:
       // - If session already has calories > equipment calories, keep session calories (includes workout)
@@ -432,11 +432,9 @@ class SessionController {
 
       // [SUCCESS] Fix: Auto-update FITNESS challenges with total calories from session (async, don't wait)
       if (calories_burned > 0) {
-        challengeService
-          .autoUpdateFitnessChallenges(memberId, calories_burned, 0)
-          .catch((err) => {
-            console.error('Auto-update fitness challenges error:', err);
-          });
+        challengeService.autoUpdateFitnessChallenges(memberId, calories_burned, 0).catch(err => {
+          console.error('Auto-update fitness challenges error:', err);
+        });
       }
 
       res.json({

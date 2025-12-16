@@ -501,20 +501,69 @@ class MemberController {
         // Don't fail member creation if membership record creation fails
       }
 
+      // Generate and update profile_embedding after member creation
+      try {
+        const embeddingService = require('../services/embedding.service.js');
+
+        // Get member data (attendance history will be empty for new members)
+        const memberWithData = await prisma.member.findUnique({
+          where: { id: newMember.id },
+        });
+
+        // Get attendance history (will be empty for new members)
+        const attendanceHistory = [];
+
+        // Build profile text for embedding
+        const profileText = embeddingService.buildMemberProfileText(
+          memberWithData,
+          attendanceHistory
+        );
+
+        if (profileText && profileText.trim().length > 0) {
+          console.log(`[EMBEDDING] Generating profile embedding for new member ${newMember.id}...`);
+          const embedding = await embeddingService.generateEmbedding(profileText);
+
+          // Format vector for PostgreSQL
+          const vectorString = embeddingService.formatVectorForPostgres(embedding);
+
+          // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
+          await prisma.$executeRaw`
+            UPDATE member_schema.members 
+            SET profile_embedding = ${vectorString}::vector 
+            WHERE id = ${newMember.id}
+          `;
+
+          console.log(
+            `[SUCCESS] [EMBEDDING] Created profile_embedding for new member ${newMember.id}`
+          );
+        } else {
+          console.warn(
+            `[WARNING] [EMBEDDING] Profile text is empty for new member ${newMember.id}, skipping embedding generation`
+          );
+        }
+      } catch (embeddingError) {
+        // Don't fail the creation if embedding generation fails
+        console.error('[ERROR] [EMBEDDING] Failed to generate profile embedding for new member:', {
+          memberId: newMember.id,
+          error: embeddingError.message,
+          stack: embeddingError.stack,
+        });
+      }
+
       // Cache the new member
       const cacheKey = cacheService.generateKey('member', `user:${user_id}`);
       await cacheService.set(cacheKey, newMember, 600);
 
       res.status(201).json({
         success: true,
-        message: 'Tạo thành viên thành công',
+        message: 'Tạo hội viên thành công',
         data: newMember,
       });
     } catch (error) {
       console.error('Create member with user error:', error);
       res.status(500).json({
         success: false,
-        message: 'Lỗi khi tạo thành viên',
+        message: 'Lỗi khi tạo hội viên',
         data: null,
       });
     }
@@ -833,7 +882,7 @@ class MemberController {
         if (phoneExists) {
           return res.status(400).json({
             success: false,
-            message: 'Số điện thoại này đã được sử dụng bởi thành viên khác',
+            message: 'Số điện thoại này đã được sử dụng bởi hội viên khác',
             data: null,
           });
         }
@@ -851,7 +900,7 @@ class MemberController {
         if (emailExists) {
           return res.status(400).json({
             success: false,
-            message: 'Email này đã được sử dụng bởi thành viên khác',
+            message: 'Email này đã được sử dụng bởi hội viên khác',
             data: null,
           });
         }
@@ -1253,8 +1302,8 @@ class MemberController {
                 updatedAt: member.updated_at?.toISOString(),
               },
               eventType: 'MEMBER_UPDATED',
-              title: 'Cập nhật thông tin thành viên',
-              message: `Thông tin của ${member.full_name || 'thành viên'} đã được cập nhật`,
+              title: 'Cập nhật thông tin hội viên',
+              message: `Thông tin của ${member.full_name || 'hội viên'} đã được cập nhật`,
             });
             console.log(
               `[SUCCESS] [MEMBER_UPDATED] [updateCurrentMemberProfile] Notification creation result:`,
@@ -1380,6 +1429,73 @@ class MemberController {
             price: 0, // Will be set by billing service
             benefits: [],
           },
+        });
+      }
+
+      // Generate and update profile_embedding after member creation
+      try {
+        const embeddingService = require('../services/embedding.service.js');
+
+        // Get member data (attendance history will be empty for new members)
+        const memberWithData = await prisma.member.findUnique({
+          where: { id: member.id },
+        });
+
+        // Get attendance history (will be empty for new members, but included for consistency)
+        const attendanceHistory = await prisma.attendance.findMany({
+          where: { member_id: member.id },
+          include: {
+            schedule: {
+              include: {
+                gym_class: {
+                  select: {
+                    id: true,
+                    name: true,
+                    category: true,
+                    difficulty: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { created_at: 'desc' },
+          take: 20, // Last 20 attendances
+        });
+
+        // Build profile text for embedding
+        const profileText = embeddingService.buildMemberProfileText(
+          memberWithData,
+          attendanceHistory
+        );
+
+        if (profileText && profileText.trim().length > 0) {
+          console.log(`[EMBEDDING] Generating profile embedding for new member ${member.id}...`);
+          const embedding = await embeddingService.generateEmbedding(profileText);
+
+          // Format vector for PostgreSQL
+          const vectorString = embeddingService.formatVectorForPostgres(embedding);
+
+          // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
+          await prisma.$executeRaw`
+            UPDATE member_schema.members 
+            SET profile_embedding = ${vectorString}::vector 
+            WHERE id = ${member.id}
+          `;
+
+          console.log(
+            `[SUCCESS] [EMBEDDING] Created profile_embedding for new member ${member.id}`
+          );
+        } else {
+          console.warn(
+            `[WARNING] [EMBEDDING] Profile text is empty for new member ${member.id}, skipping embedding generation`
+          );
+        }
+      } catch (embeddingError) {
+        // Don't fail the creation if embedding generation fails
+        console.error('[ERROR] [EMBEDDING] Failed to generate profile embedding for new member:', {
+          memberId: member.id,
+          error: embeddingError.message,
+          stack: embeddingError.stack,
         });
       }
 
@@ -1751,8 +1867,8 @@ class MemberController {
               membership_type: member.membership_type,
             },
             eventType: 'MEMBER_DELETED',
-            title: 'Xóa thành viên',
-            message: `Thành viên ${member.full_name || 'N/A'} đã bị xóa khỏi hệ thống`,
+            title: 'Xóa hội viên',
+            message: `Hội viên ${member.full_name || 'N/A'} đã bị xóa khỏi hệ thống`,
           });
           console.log(
             `[SUCCESS] [MEMBER_DELETED] Created notifications in database for member ${id}`
@@ -3441,7 +3557,7 @@ class MemberController {
       const severityText = severity || 'MEDIUM';
       const issueTypeText = issue_type || 'GENERAL';
       const notificationTitle = `Báo cáo sự cố - ${title}`;
-      const notificationMessage = `${member.full_name || 'Thành viên'} đã báo cáo sự cố: ${title}`;
+      const notificationMessage = `${member.full_name || 'Hội viên'} đã báo cáo sự cố: ${title}`;
 
       // Create notifications for all admins
       const createdNotifications = [];
@@ -3540,6 +3656,120 @@ class MemberController {
       });
     } catch (error) {
       console.error('[ERROR] Report issue error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Get notification preferences by user_id
+   * GET /members/user/:user_id/preferences
+   */
+  async getNotificationPreferencesByUserId(req, res) {
+    try {
+      const { user_id } = req.params;
+      const notificationService = require('../services/notification.service');
+
+      // First, get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Get notification preferences using memberId
+      const result = await notificationService.getNotificationPreferences(member.id);
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: result.error || 'Failed to get notification preferences',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: 'Notification preferences retrieved successfully',
+        data: {
+          preferences: result.preferences,
+        },
+      });
+    } catch (error) {
+      console.error('[ERROR] Get notification preferences by user_id error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
+   * Update notification preferences by user_id
+   * PUT /members/user/:user_id/preferences
+   */
+  async updateNotificationPreferencesByUserId(req, res) {
+    try {
+      const { user_id } = req.params;
+      const { preferences } = req.body;
+      const notificationService = require('../services/notification.service');
+
+      if (!preferences) {
+        return res.status(400).json({
+          success: false,
+          message: 'Notification preferences are required',
+          data: null,
+        });
+      }
+
+      // First, get member by user_id
+      const member = await prisma.member.findUnique({
+        where: { user_id },
+        select: { id: true },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Update notification preferences using memberId
+      const result = await notificationService.updateNotificationPreferences(
+        member.id,
+        preferences
+      );
+
+      if (!result.success) {
+        return res.status(500).json({
+          success: false,
+          message: result.error || 'Failed to update notification preferences',
+          data: null,
+        });
+      }
+
+      res.json({
+        success: true,
+        message: result.message || 'Notification preferences updated successfully',
+        data: {
+          preferences: result.preferences,
+        },
+      });
+    } catch (error) {
+      console.error('[ERROR] Update notification preferences by user_id error:', error);
       res.status(500).json({
         success: false,
         message: 'Internal server error',

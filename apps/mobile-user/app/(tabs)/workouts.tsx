@@ -377,14 +377,17 @@ export default function WorkoutsScreen() {
       }
     } catch (err: any) {
       // Handle 503 errors gracefully - don't show error to user
-      const isServiceUnavailable = 
-        err.response?.status === 503 || 
+      const isServiceUnavailable =
+        err.response?.status === 503 ||
         err.message?.includes('503') ||
         err.message?.includes('Service Unavailable') ||
         err.message?.includes('service unavailable');
-      
+
       if (isServiceUnavailable) {
-        console.warn('[WARNING] Recommendations service unavailable:', err.message);
+        console.warn(
+          '[WARNING] Recommendations service unavailable:',
+          err.message
+        );
         // Silently fail - recommendations are optional
         setRecommendations([]);
       } else {
@@ -493,7 +496,7 @@ export default function WorkoutsScreen() {
       if (response.success) {
         // Step 4: Completed - show completed status briefly then close
         setAIGenerationStatus('completed');
-        
+
         // Wait a moment to show completed status, then close modal
         setTimeout(() => {
           setGeneratingAI(false);
@@ -519,14 +522,22 @@ export default function WorkoutsScreen() {
           // This ensures the new workout plan and updated recommendations are visible
           Promise.allSettled([
             loadData().catch((err) => {
-              console.warn('[WARNING] Error reloading data after workout creation:', err);
+              console.warn(
+                '[WARNING] Error reloading data after workout creation:',
+                err
+              );
             }),
             loadRecommendations(memberId).catch((err) => {
-              console.warn('[WARNING] Error loading recommendations after workout creation:', err);
+              console.warn(
+                '[WARNING] Error loading recommendations after workout creation:',
+                err
+              );
               // Don't show error to user - workout was created successfully
             }),
           ]).then(() => {
-            console.log('[SUCCESS] Workout plans and recommendations reloaded after AI generation');
+            console.log(
+              '[SUCCESS] Workout plans and recommendations reloaded after AI generation'
+            );
           });
         }, 1500); // Show completed status for 1.5 seconds
       } else {
@@ -630,7 +641,9 @@ export default function WorkoutsScreen() {
         ]}
       >
         <View style={themedStyles.header}>
-          <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
+          <Text
+            style={[themedStyles.headerTitle, { color: theme.colors.text }]}
+          >
             {t('workouts.title')}
           </Text>
         </View>

@@ -13,6 +13,7 @@ import {
   Save,
   CircleUser as UserCircle,
   Send,
+  CheckCircle,
 } from 'lucide-react-native';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -94,6 +95,9 @@ export default function EditPersonalScreen() {
   const [originalEmail, setOriginalEmail] = useState<string>('');
   const [originalPhone, setOriginalPhone] = useState<string>('');
   const [otpVerified, setOtpVerified] = useState(false);
+
+  // Success Modal state
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
 
   useEffect(() => {
     loadProfile();
@@ -504,7 +508,9 @@ export default function EditPersonalScreen() {
         }
       }
 
-      const identityResponse = await userService.updateProfile(identityUpdateData);
+      const identityResponse = await userService.updateProfile(
+        identityUpdateData
+      );
 
       // Check if identity update failed
       if (!identityResponse.success) {
@@ -571,13 +577,15 @@ export default function EditPersonalScreen() {
       }
 
       // Then save profile data to Member Service
-      const response = await memberService.updateMemberProfile(memberUpdateData);
+      const response = await memberService.updateMemberProfile(
+        memberUpdateData
+      );
 
       if (response.success) {
         // Reset OTP verification state
         setOtpVerified(false);
-        // Navigate back immediately
-        router.back();
+        // Show success modal
+        setShowSuccessModal(true);
       } else {
         Alert.alert(
           t('common.error'),
@@ -593,8 +601,22 @@ export default function EditPersonalScreen() {
 
   const handleOTPSuccess = () => {
     setOtpVerified(true);
+    setShowOTPModal(false);
     // Reload profile to get updated email/phone from Identity Service
     loadProfile();
+    // Show success message
+    Alert.alert(
+      t('common.success', { defaultValue: 'Thành công' }),
+      t('profile.otpVerified', {
+        defaultValue: 'Xác thực OTP thành công. Bạn có thể lưu thay đổi.',
+      })
+    );
+  };
+
+  const handleOTPModalClose = () => {
+    setShowOTPModal(false);
+    // Don't reset otpVerified here - keep it if user already verified
+    // Only reset if user explicitly wants to change again
   };
 
   const updateField = (field: keyof PersonalInfo, value: string) => {
@@ -839,16 +861,28 @@ export default function EditPersonalScreen() {
               )}
               {formData.phone !== originalPhone &&
                 formData.phone.trim() !== '' &&
-                originalPhone &&
-                !otpVerified && (
-                  <Text
-                    style={[
-                      styles.warningText,
-                      { color: theme.colors.warning },
-                    ]}
-                  >
-                    Cần xác thực OTP để thay đổi số điện thoại
-                  </Text>
+                originalPhone && (
+                  <View style={{ marginTop: 4 }}>
+                    {otpVerified ? (
+                      <Text
+                        style={[
+                          styles.successText,
+                          { color: theme.colors.success },
+                        ]}
+                      >
+                        ✓ Đã xác thực OTP - Có thể lưu thay đổi
+                      </Text>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.warningText,
+                          { color: theme.colors.warning },
+                        ]}
+                      >
+                        ⚠ Cần xác thực OTP để thay đổi số điện thoại
+                      </Text>
+                    )}
+                  </View>
                 )}
             </View>
 
@@ -916,16 +950,28 @@ export default function EditPersonalScreen() {
               )}
               {formData.email !== originalEmail &&
                 formData.email.trim() !== '' &&
-                originalEmail &&
-                !otpVerified && (
-                  <Text
-                    style={[
-                      styles.warningText,
-                      { color: theme.colors.warning },
-                    ]}
-                  >
-                    Cần xác thực OTP để thay đổi email
-                  </Text>
+                originalEmail && (
+                  <View style={{ marginTop: 4 }}>
+                    {otpVerified ? (
+                      <Text
+                        style={[
+                          styles.successText,
+                          { color: theme.colors.success },
+                        ]}
+                      >
+                        ✓ Đã xác thực OTP - Có thể lưu thay đổi
+                      </Text>
+                    ) : (
+                      <Text
+                        style={[
+                          styles.warningText,
+                          { color: theme.colors.warning },
+                        ]}
+                      >
+                        ⚠ Cần xác thực OTP để thay đổi email
+                      </Text>
+                    )}
+                  </View>
                 )}
             </View>
 
@@ -1249,7 +1295,7 @@ export default function EditPersonalScreen() {
       {/* OTP Modal */}
       <EmailPhoneOTPModal
         visible={showOTPModal}
-        onClose={() => setShowOTPModal(false)}
+        onClose={handleOTPModalClose}
         onSuccess={handleOTPSuccess}
         userEmail={originalEmail}
         userPhone={originalPhone}
@@ -1266,6 +1312,69 @@ export default function EditPersonalScreen() {
         firstName={formData.first_name}
         lastName={formData.last_name}
       />
+
+      {/* Success Modal */}
+      <Modal
+        visible={showSuccessModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          setShowSuccessModal(false);
+          router.back();
+        }}
+      >
+        <View style={styles.successModalOverlay}>
+          <View
+            style={[
+              styles.successModalContent,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <View
+              style={[
+                styles.successIconContainer,
+                { backgroundColor: theme.colors.success + '20' },
+              ]}
+            >
+              <CheckCircle size={64} color={theme.colors.success} />
+            </View>
+            <Text
+              style={[styles.successModalTitle, { color: theme.colors.text }]}
+            >
+              {t('common.success', { defaultValue: 'Thành công' })}
+            </Text>
+            <Text
+              style={[
+                styles.successModalMessage,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {t('profile.personalInfoUpdated', {
+                defaultValue: 'Cập nhật thông tin cá nhân thành công',
+              })}
+            </Text>
+            <TouchableOpacity
+              style={[
+                styles.successModalButton,
+                { backgroundColor: theme.colors.primary },
+              ]}
+              onPress={() => {
+                setShowSuccessModal(false);
+                router.back();
+              }}
+            >
+              <Text
+                style={[
+                  styles.successModalButtonText,
+                  { color: theme.colors.textInverse },
+                ]}
+              >
+                {t('common.ok', { defaultValue: 'OK' })}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1476,5 +1585,59 @@ const styles = StyleSheet.create({
   warningText: {
     ...Typography.bodySmall,
     marginTop: 6,
+  },
+  successText: {
+    ...Typography.bodySmall,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  successModalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  successModalContent: {
+    width: '100%',
+    maxWidth: 320,
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  successIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  successModalTitle: {
+    ...Typography.h3,
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  successModalMessage: {
+    ...Typography.bodyMedium,
+    textAlign: 'center',
+    marginBottom: 24,
+    lineHeight: 22,
+  },
+  successModalButton: {
+    width: '100%',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  successModalButtonText: {
+    ...Typography.buttonLarge,
+    fontWeight: '600',
   },
 });

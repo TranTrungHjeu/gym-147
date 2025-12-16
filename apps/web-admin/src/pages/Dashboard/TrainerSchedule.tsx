@@ -8,14 +8,18 @@ import {
   QrCode,
   RefreshCw,
   Search,
+  Trash2,
+  XCircle,
 } from 'lucide-react';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import AdminModal from '../../components/common/AdminModal';
+import ConfirmModal from '../../components/common/ConfirmModal';
 import CustomSelect from '../../components/common/CustomSelect';
 import DatePicker from '../../components/common/DatePicker';
 import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
 import EditScheduleModal from '../../components/trainer/EditScheduleModal';
+import CancelScheduleModal from '../../components/trainer/CancelScheduleModal';
 import ScheduleQRCodeModal from '../../components/trainer/ScheduleQRCodeModal';
 import Button from '../../components/ui/Button/Button';
 import { Dropdown } from '../../components/ui/dropdown/Dropdown';
@@ -115,32 +119,34 @@ interface ScheduleItem {
 }
 
 // Separate Header Component - Memoized to prevent re-renders
-const ScheduleHeader = React.memo(({ onRefresh, isLoading }: { onRefresh: () => void; isLoading: boolean }) => {
-  return (
-    <div className='p-6 pb-0'>
-      <div className='flex justify-between items-start'>
-        <div>
-          <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
-            Lịch dạy chi tiết
-          </h1>
-          <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Xem và quản lý lịch dạy của bạn
-          </p>
+const ScheduleHeader = React.memo(
+  ({ onRefresh, isLoading }: { onRefresh: () => void; isLoading: boolean }) => {
+    return (
+      <div className='p-6 pb-0'>
+        <div className='flex justify-between items-start'>
+          <div>
+            <h1 className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-tight'>
+              Lịch dạy chi tiết
+            </h1>
+            <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+              Xem và quản lý lịch dạy của bạn
+            </p>
+          </div>
+          <Button
+            onClick={onRefresh}
+            disabled={isLoading}
+            variant='outline'
+            size='sm'
+            className='flex items-center gap-2'
+          >
+            <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Làm mới</span>
+          </Button>
         </div>
-        <Button
-          onClick={onRefresh}
-          disabled={isLoading}
-          variant='outline'
-          size='sm'
-          className='flex items-center gap-2'
-        >
-          <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-          <span>Làm mới</span>
-        </Button>
       </div>
-    </div>
-  );
-});
+    );
+  }
+);
 ScheduleHeader.displayName = 'ScheduleHeader';
 
 // Separate Controls Component - Memoized to prevent re-renders when only table data changes
@@ -383,6 +389,7 @@ const ScheduleTable = ({
   onSort,
   onAttendanceClick,
   onEditClick,
+  onCancelClick,
   getCheckInButton,
   updatedScheduleIds,
   openPopupId,
@@ -405,6 +412,7 @@ const ScheduleTable = ({
   onSort: (column: string) => void;
   onAttendanceClick: (schedule: ScheduleItem) => void;
   onEditClick: (schedule: ScheduleItem) => void;
+  onCancelClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
   updatedScheduleIds?: Set<string>;
   openPopupId: string | null;
@@ -487,7 +495,7 @@ const ScheduleTable = ({
     try {
       // Handle both date strings (YYYY-MM-DD) and datetime strings
       let date: Date;
-      
+
       if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         // This is just a date string (YYYY-MM-DD), parse it as UTC to avoid timezone issues
         const [year, month, day] = dateString.split('-').map(Number);
@@ -496,12 +504,12 @@ const ScheduleTable = ({
         // It's a full datetime string
         date = new Date(dateString);
       }
-      
+
       if (isNaN(date.getTime())) {
         console.warn('[WARNING] Invalid date string:', dateString);
         return dateString || 'N/A';
       }
-      
+
       return date.toLocaleDateString('vi-VN', {
         weekday: 'long',
         year: 'numeric',
@@ -520,9 +528,12 @@ const ScheduleTable = ({
     try {
       // Handle both ISO datetime strings and time-only strings (HH:mm)
       let date: Date;
-      
+
       // Check if it's an ISO datetime string (contains 'T' or is a full datetime)
-      if (typeof timeString === 'string' && (timeString.includes('T') || timeString.includes('Z') || timeString.includes('+'))) {
+      if (
+        typeof timeString === 'string' &&
+        (timeString.includes('T') || timeString.includes('Z') || timeString.includes('+'))
+      ) {
         // It's a full ISO datetime string - parse it directly
         date = new Date(timeString);
       } else if (typeof timeString === 'string' && timeString.match(/^\d{2}:\d{2}(:\d{2})?$/)) {
@@ -534,12 +545,12 @@ const ScheduleTable = ({
         // Try to parse as datetime
         date = new Date(timeString);
       }
-      
+
       if (isNaN(date.getTime())) {
         console.warn('[WARNING] Invalid time string:', timeString);
         return timeString; // Fallback: return original string if can't parse
       }
-      
+
       // Format with Vietnam timezone
       const formatted = date.toLocaleTimeString('vi-VN', {
         hour: '2-digit',
@@ -547,7 +558,7 @@ const ScheduleTable = ({
         hour12: false,
         timeZone: 'Asia/Ho_Chi_Minh',
       });
-      
+
       return formatted || timeString; // Fallback to original if formatting fails
     } catch (error) {
       console.error('[ERROR] Error formatting time:', error, 'Input:', timeString);
@@ -730,6 +741,32 @@ const ScheduleTable = ({
                                     <Eye className='w-3.5 h-3.5' />
                                     <span>Xem điểm danh</span>
                                   </DropdownItem>
+                                  {/* Cancel option - only show if schedule can be cancelled */}
+                                  {(() => {
+                                    const canCancel = () => {
+                                      if (!schedule.start_time || schedule.status !== 'SCHEDULED')
+                                        return false;
+                                      const scheduleStartTime = new Date(schedule.start_time);
+                                      const twentyFourHoursFromNow = new Date();
+                                      twentyFourHoursFromNow.setHours(
+                                        twentyFourHoursFromNow.getHours() + 24
+                                      );
+                                      return scheduleStartTime > twentyFourHoursFromNow;
+                                    };
+                                    return canCancel() ? (
+                                      <DropdownItem
+                                        onClick={() => {
+                                          onCancelClick(schedule);
+                                          setOpenPopupId(null);
+                                          setPopupPosition(null);
+                                        }}
+                                        className='flex items-center gap-2 px-4 py-2.5 text-[11px] text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-600 dark:hover:text-red-400 transition-colors'
+                                      >
+                                        <XCircle className='w-3.5 h-3.5' />
+                                        <span>Hủy lớp</span>
+                                      </DropdownItem>
+                                    ) : null;
+                                  })()}
                                 </div>
                               </Dropdown>
                             </div>
@@ -824,6 +861,7 @@ const ScheduleTableSection = ({
   onSort,
   onAttendanceClick,
   onEditClick,
+  onCancelClick,
   getCheckInButton,
   updatedScheduleIds,
   openPopupId,
@@ -846,6 +884,7 @@ const ScheduleTableSection = ({
   onSort: (column: string) => void;
   onAttendanceClick: (schedule: ScheduleItem) => void;
   onEditClick: (schedule: ScheduleItem) => void;
+  onCancelClick: (schedule: ScheduleItem) => void;
   getCheckInButton: (schedule: ScheduleItem) => React.ReactNode;
   updatedScheduleIds?: Set<string>;
   openPopupId: string | null;
@@ -871,6 +910,7 @@ const ScheduleTableSection = ({
         onSort={onSort}
         onAttendanceClick={onAttendanceClick}
         onEditClick={onEditClick}
+        onCancelClick={onCancelClick}
         getCheckInButton={getCheckInButton}
         updatedScheduleIds={updatedScheduleIds}
         openPopupId={openPopupId}
@@ -909,12 +949,12 @@ const getVietnamTime = (): Date => {
     second: '2-digit',
     hour12: false,
   });
-  
+
   // Parse: "MM/DD/YYYY, HH:mm:ss"
   const [datePart, timePart] = vnTimeString.split(', ');
   const [month, day, year] = datePart.split('/');
   const [hours, minutes, seconds] = timePart.split(':');
-  
+
   // Create a Date object in local timezone with VN time components
   // This will be used for comparison after converting schedule times to VN timezone
   return new Date(
@@ -940,12 +980,12 @@ const convertUTCToVietnamTime = (utcDate: Date): Date => {
     second: '2-digit',
     hour12: false,
   });
-  
+
   // Parse and create Date in local timezone
   const [datePart, timePart] = vnTimeString.split(', ');
   const [month, day, year] = datePart.split('/');
   const [hours, minutes, seconds] = timePart.split(':');
-  
+
   return new Date(
     parseInt(year),
     parseInt(month) - 1,
@@ -991,6 +1031,10 @@ export default function TrainerSchedule() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedScheduleForEdit, setSelectedScheduleForEdit] = useState<ScheduleItem | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedScheduleForCancel, setSelectedScheduleForCancel] = useState<ScheduleItem | null>(
+    null
+  );
   const [openPopupId, setOpenPopupId] = useState<string | null>(null);
   const [popupPosition, setPopupPosition] = useState<{ x: number; y: number } | null>(null);
   const popupRef = useRef<HTMLDivElement>(null);
@@ -1023,6 +1067,14 @@ export default function TrainerSchedule() {
   // Modal filters
   const [modalSearchTerm, setModalSearchTerm] = useState('');
   const [modalStatusFilter, setModalStatusFilter] = useState('all');
+
+  // Cancel booking confirmation modal state
+  const [showCancelBookingModal, setShowCancelBookingModal] = useState(false);
+  const [bookingToCancel, setBookingToCancel] = useState<{
+    bookingId: string;
+    memberName: string;
+  } | null>(null);
+  const [isCancellingBooking, setIsCancellingBooking] = useState(false);
 
   // Real-time notifications - Disabled to prevent unnecessary re-renders
   // If needed, uncomment and use the values
@@ -1378,7 +1430,7 @@ export default function TrainerSchedule() {
     try {
       // Handle both date strings (YYYY-MM-DD) and datetime strings
       let date: Date;
-      
+
       if (typeof dateString === 'string' && dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
         // This is just a date string (YYYY-MM-DD), parse it as UTC to avoid timezone issues
         const [year, month, day] = dateString.split('-').map(Number);
@@ -1387,12 +1439,12 @@ export default function TrainerSchedule() {
         // It's a full datetime string
         date = new Date(dateString);
       }
-      
+
       if (isNaN(date.getTime())) {
         console.warn('[WARNING] Invalid date string:', dateString);
         return dateString || 'N/A';
       }
-      
+
       return date.toLocaleDateString('vi-VN', {
         weekday: 'long',
         year: 'numeric',
@@ -1558,6 +1610,63 @@ export default function TrainerSchedule() {
     setModalStatusFilter('all');
   };
 
+  // Handler to reload attendance/member list in modal
+  const handleReloadAttendanceModal = useCallback(async () => {
+    if (!selectedSchedule) return;
+
+    try {
+      setLoadingMembers(true);
+
+      // Refresh schedule data to get latest bookings/attendance
+      const updatedSchedules = await scheduleService.getTrainerScheduleList(selectedDate, viewMode);
+
+      if (updatedSchedules.success) {
+        let data = [];
+        if (
+          updatedSchedules.data &&
+          typeof updatedSchedules.data === 'object' &&
+          'schedules' in updatedSchedules.data
+        ) {
+          data = Array.isArray(updatedSchedules.data.schedules)
+            ? updatedSchedules.data.schedules
+            : [];
+        } else if (Array.isArray(updatedSchedules.data)) {
+          data = updatedSchedules.data;
+        }
+
+        // Find updated schedule
+        const updatedSchedule = data.find((s: ScheduleItem) => s.id === selectedSchedule.id);
+
+        if (updatedSchedule) {
+          setSelectedSchedule(updatedSchedule);
+
+          // Reload member data
+          const memberIds =
+            updatedSchedule.attendance?.map((a: any) => a.member_id) ||
+            updatedSchedule.bookings?.map((b: any) => b.member_id) ||
+            [];
+
+          if (memberIds.length > 0) {
+            await fetchMemberData(memberIds);
+          } else {
+            setMemberData({});
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[ERROR] Error reloading attendance modal:', error);
+      if (window.showToast) {
+        window.showToast({
+          type: 'error',
+          message: 'Lỗi khi tải lại danh sách hội viên',
+          duration: 3000,
+        });
+      }
+    } finally {
+      setLoadingMembers(false);
+    }
+  }, [selectedSchedule, selectedDate, viewMode, fetchMemberData]);
+
   // Table sorting logic
   const handleSort = useCallback(
     (column: string) => {
@@ -1576,6 +1685,12 @@ export default function TrainerSchedule() {
     setSelectedScheduleForEdit(schedule);
     setShowEditModal(true);
     setOpenPopupId(null); // Close popup when opening edit modal
+  }, []);
+
+  const handleCancelClick = useCallback((schedule: ScheduleItem) => {
+    setSelectedScheduleForCancel(schedule);
+    setShowCancelModal(true);
+    setOpenPopupId(null); // Close popup when opening cancel modal
   }, []);
 
   // Handle row click to show popup
@@ -1774,7 +1889,7 @@ export default function TrainerSchedule() {
           if (window.showToast) {
             window.showToast({
               type: 'success',
-              message: 'Đã kết thúc lớp và điểm danh tất cả thành viên',
+              message: 'Đã kết thúc lớp và điểm danh tất cả hội viên',
               duration: 3000,
             });
           }
@@ -1816,7 +1931,7 @@ export default function TrainerSchedule() {
     (schedule: ScheduleItem) => {
       // Get current time in Vietnam timezone
       const nowVN = getVietnamTime();
-      
+
       // Schedule times from database are in UTC, convert to Vietnam timezone for comparison
       const startTimeUTC = new Date(schedule.start_time);
       const endTimeUTC = new Date(schedule.end_time);
@@ -1882,7 +1997,7 @@ export default function TrainerSchedule() {
             </Button>
           );
         }
-        
+
         // If class has ended but status is not COMPLETED yet, still show button but check time
         // If time window has passed, show disabled
         if (nowVN > tenMinAfter && schedule.status !== 'COMPLETED') {
@@ -1968,7 +2083,7 @@ export default function TrainerSchedule() {
         if (window.showToast) {
           window.showToast({
             type: 'success',
-            message: 'Đã điểm danh thành viên',
+            message: 'Đã điểm danh hội viên',
             duration: 3000,
           });
         }
@@ -1982,7 +2097,7 @@ export default function TrainerSchedule() {
         if (window.showToast) {
           window.showToast({
             type: 'error',
-            message: 'Không thể điểm danh thành viên',
+            message: 'Không thể điểm danh hội viên',
             duration: 3000,
           });
         }
@@ -1992,7 +2107,7 @@ export default function TrainerSchedule() {
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Lỗi khi điểm danh thành viên',
+          message: 'Lỗi khi điểm danh hội viên',
           duration: 3000,
         });
       }
@@ -2028,7 +2143,7 @@ export default function TrainerSchedule() {
         if (window.showToast) {
           window.showToast({
             type: 'success',
-            message: 'Đã check-out thành viên',
+            message: 'Đã check-out hội viên',
             duration: 3000,
           });
         }
@@ -2042,7 +2157,7 @@ export default function TrainerSchedule() {
         if (window.showToast) {
           window.showToast({
             type: 'error',
-            message: 'Không thể check-out thành viên',
+            message: 'Không thể check-out hội viên',
             duration: 3000,
           });
         }
@@ -2052,12 +2167,105 @@ export default function TrainerSchedule() {
       if (window.showToast) {
         window.showToast({
           type: 'error',
-          message: 'Lỗi khi check-out thành viên',
+          message: 'Lỗi khi check-out hội viên',
           duration: 3000,
         });
       }
     }
   }, []);
+
+  // Handler to open cancel booking confirmation modal
+  const handleOpenCancelBookingModal = useCallback((bookingId: string, memberName: string) => {
+    setBookingToCancel({ bookingId, memberName });
+    setShowCancelBookingModal(true);
+  }, []);
+
+  // Handler to cancel booking (remove member from class)
+  const handleConfirmCancelBooking = useCallback(async () => {
+    if (!selectedSchedule || !bookingToCancel) return;
+
+    setIsCancellingBooking(true);
+    try {
+      const response = await scheduleService.cancelBooking(
+        bookingToCancel.bookingId,
+        'Đã bị xóa bởi trainer do chưa thanh toán'
+      );
+
+      if (response.success) {
+        if (window.showToast) {
+          window.showToast({
+            type: 'success',
+            message: `Đã xóa ${bookingToCancel.memberName} ra khỏi lớp`,
+            duration: 3000,
+          });
+        }
+
+        // Close modal
+        setShowCancelBookingModal(false);
+        setBookingToCancel(null);
+
+        // Refresh schedule data
+        await fetchSchedules(false);
+
+        // Refresh attendance modal if it's open
+        if (selectedSchedule?.id) {
+          // Wait a bit for schedules to update
+          setTimeout(async () => {
+            const updatedSchedules = await scheduleService.getTrainerScheduleList(
+              selectedDate,
+              viewMode
+            );
+            if (updatedSchedules.success) {
+              let data = [];
+              if (
+                updatedSchedules.data &&
+                typeof updatedSchedules.data === 'object' &&
+                'schedules' in updatedSchedules.data
+              ) {
+                data = Array.isArray(updatedSchedules.data.schedules)
+                  ? updatedSchedules.data.schedules
+                  : [];
+              } else if (Array.isArray(updatedSchedules.data)) {
+                data = updatedSchedules.data;
+              }
+              const updatedSchedule = data.find((s: ScheduleItem) => s.id === selectedSchedule.id);
+              if (updatedSchedule) {
+                setSelectedSchedule(updatedSchedule);
+                // Reload member data
+                const memberIds =
+                  updatedSchedule.bookings?.map((b: any) => b.member_id) ||
+                  updatedSchedule.attendance?.map((a: any) => a.member_id) ||
+                  [];
+                if (memberIds.length > 0) {
+                  await fetchMemberData(memberIds);
+                }
+              }
+            }
+          }, 500);
+        }
+      } else {
+        console.error('[ERROR] Failed to cancel booking:', response.message);
+        if (window.showToast) {
+          window.showToast({
+            type: 'error',
+            message: response.message || 'Không thể xóa hội viên',
+            duration: 3000,
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error('[ERROR] Error canceling booking:', error);
+      if (window.showToast) {
+        window.showToast({
+          type: 'error',
+          message: error.message || 'Lỗi khi xóa hội viên',
+          duration: 3000,
+        });
+      }
+    } finally {
+      setIsCancellingBooking(false);
+    }
+  }, [selectedSchedule, bookingToCancel, fetchSchedules, fetchMemberData, selectedDate, viewMode]);
 
   // Function to get member check-in button
   const getMemberCheckInButton = (record: any, attendance: any, schedule: ScheduleItem | null) => {
@@ -2065,7 +2273,7 @@ export default function TrainerSchedule() {
 
     // Get current time in Vietnam timezone
     const nowVN = getVietnamTime();
-    
+
     // Schedule times from database are in UTC, convert to Vietnam timezone for comparison
     const startTimeUTC = new Date(schedule.start_time);
     const endTimeUTC = new Date(schedule.end_time);
@@ -2213,11 +2421,15 @@ export default function TrainerSchedule() {
         const booking = record as any;
         const isWaitlist = booking.is_waitlist === true || booking.status === 'WAITLIST';
         const isConfirmed = !isWaitlist && booking.status === 'CONFIRMED';
-        
+        const isPaid = booking.payment_status === 'PAID' || booking.payment_status === 'COMPLETED';
+        const isPending = booking.payment_status === 'PENDING';
+
         const matchesStatus =
           modalStatusFilter === 'all' ||
           (modalStatusFilter === 'confirmed' && isConfirmed) ||
           (modalStatusFilter === 'waitlist' && isWaitlist) ||
+          (modalStatusFilter === 'paid' && isPaid) ||
+          (modalStatusFilter === 'pending' && isPending) ||
           (modalStatusFilter === 'present' && booking.status === 'CONFIRMED') ||
           (modalStatusFilter === 'absent' && booking.status === 'CANCELLED') ||
           (modalStatusFilter === 'late' && booking.status === 'LATE');
@@ -2283,8 +2495,8 @@ export default function TrainerSchedule() {
   return (
     <>
       {/* Header */}
-      <ScheduleHeader 
-        onRefresh={() => fetchSchedules(false)} 
+      <ScheduleHeader
+        onRefresh={() => fetchSchedules(false)}
         isLoading={tableLoading || initialLoading}
       />
 
@@ -2329,6 +2541,7 @@ export default function TrainerSchedule() {
         onSort={handleSort}
         onAttendanceClick={openAttendanceModal}
         onEditClick={handleEditClick}
+        onCancelClick={handleCancelClick}
         getCheckInButton={getCheckInButton}
         updatedScheduleIds={updatedScheduleIds}
       />
@@ -2340,8 +2553,8 @@ export default function TrainerSchedule() {
         title={
           selectedSchedule
             ? selectedSchedule?.attendance && selectedSchedule.attendance.length > 0
-              ? 'Danh sách thành viên đã điểm danh'
-              : 'Danh sách thành viên đã đăng ký'
+              ? 'Danh sách hội viên đã điểm danh'
+              : 'Danh sách hội viên đã đăng ký'
             : ''
         }
         size='xl'
@@ -2370,6 +2583,15 @@ export default function TrainerSchedule() {
                 <QrCode className='w-4 h-4' />
                 QR Check-out
               </Button>
+              <Button
+                variant='outline'
+                onClick={handleReloadAttendanceModal}
+                disabled={loadingMembers}
+                className='text-sm font-inter flex items-center gap-2'
+              >
+                <RefreshCw className={`w-4 h-4 ${loadingMembers ? 'animate-spin' : ''}`} />
+                Làm mới
+              </Button>
             </div>
             <Button variant='outline' onClick={closeAttendanceModal} className='text-sm font-inter'>
               Đóng
@@ -2393,7 +2615,7 @@ export default function TrainerSchedule() {
                   <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200' />
                   <input
                     type='text'
-                    placeholder='Tìm kiếm thành viên...'
+                    placeholder='Tìm kiếm hội viên...'
                     value={modalSearchTerm}
                     onChange={e => setModalSearchTerm(e.target.value)}
                     className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
@@ -2413,6 +2635,8 @@ export default function TrainerSchedule() {
                             { value: 'all', label: 'Tất cả' },
                             { value: 'confirmed', label: 'Đang tham gia' },
                             { value: 'waitlist', label: 'Danh sách chờ' },
+                            { value: 'paid', label: 'Đã thanh toán' },
+                            { value: 'pending', label: 'Chưa thanh toán' },
                             { value: 'present', label: 'Có mặt' },
                             { value: 'absent', label: 'Vắng mặt' },
                           ]
@@ -2434,7 +2658,7 @@ export default function TrainerSchedule() {
                     <div className='flex items-center justify-center py-6'>
                       <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600'></div>
                       <span className='ml-2 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
-                        Đang tải thông tin thành viên...
+                        Đang tải thông tin hội viên...
                       </span>
                     </div>
                   );
@@ -2461,8 +2685,10 @@ export default function TrainerSchedule() {
                             </div>
                             {(() => {
                               // Check if we're using attendance records or bookings
-                              const hasAttendance = selectedSchedule?.attendance && selectedSchedule.attendance.length > 0;
-                              
+                              const hasAttendance =
+                                selectedSchedule?.attendance &&
+                                selectedSchedule.attendance.length > 0;
+
                               // Calculate confirmed vs waitlist counts
                               const confirmedCount = filteredMembers.filter((record: any) => {
                                 if (hasAttendance) return true; // All attendance records are confirmed
@@ -2472,9 +2698,26 @@ export default function TrainerSchedule() {
                               const waitlistCount = filteredMembers.filter((record: any) => {
                                 if (hasAttendance) return false; // Attendance records are not waitlist
                                 const booking = record as any;
-                                return booking.is_waitlist === true || booking.status === 'WAITLIST';
+                                return (
+                                  booking.is_waitlist === true || booking.status === 'WAITLIST'
+                                );
                               }).length;
-                              
+
+                              // Calculate payment status counts
+                              const paidCount = filteredMembers.filter((record: any) => {
+                                if (hasAttendance) return false; // Attendance records don't have payment status
+                                const booking = record as any;
+                                return (
+                                  booking.payment_status === 'PAID' ||
+                                  booking.payment_status === 'COMPLETED'
+                                );
+                              }).length;
+                              const pendingCount = filteredMembers.filter((record: any) => {
+                                if (hasAttendance) return false; // Attendance records don't have payment status
+                                const booking = record as any;
+                                return booking.payment_status === 'PENDING';
+                              }).length;
+
                               return (
                                 <>
                                   <div className='flex items-center gap-2'>
@@ -2492,6 +2735,26 @@ export default function TrainerSchedule() {
                                       </span>
                                       <span className='px-2 py-0.5 bg-yellow-500 dark:bg-yellow-600 text-white text-[11px] font-bold rounded-md font-heading'>
                                         {waitlistCount}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {!hasAttendance && paidCount > 0 && (
+                                    <div className='flex items-center gap-2'>
+                                      <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
+                                        Đã thanh toán:
+                                      </span>
+                                      <span className='px-2 py-0.5 bg-blue-500 dark:bg-blue-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                        {paidCount}
+                                      </span>
+                                    </div>
+                                  )}
+                                  {!hasAttendance && pendingCount > 0 && (
+                                    <div className='flex items-center gap-2'>
+                                      <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
+                                        Chưa thanh toán:
+                                      </span>
+                                      <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                        {pendingCount}
                                       </span>
                                     </div>
                                   )}
@@ -2529,7 +2792,8 @@ export default function TrainerSchedule() {
                           const booking = !isAttendanceRecord ? (record as any) : null;
 
                           // Check if member is on waitlist
-                          const isWaitlist = booking?.is_waitlist === true || booking?.status === 'WAITLIST';
+                          const isWaitlist =
+                            booking?.is_waitlist === true || booking?.status === 'WAITLIST';
                           const waitlistPosition = booking?.waitlist_position;
 
                           return (
@@ -2540,9 +2804,7 @@ export default function TrainerSchedule() {
                                   ? 'border-l-yellow-500 dark:border-l-yellow-600'
                                   : 'border-l-transparent hover:border-l-orange-500'
                               } border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 group ${
-                                isWaitlist
-                                  ? 'bg-yellow-50/30 dark:bg-yellow-900/10'
-                                  : ''
+                                isWaitlist ? 'bg-yellow-50/30 dark:bg-yellow-900/10' : ''
                               }`}
                             >
                               {/* Content */}
@@ -2653,6 +2915,26 @@ export default function TrainerSchedule() {
                                           Đang tham gia
                                         </span>
                                       )}
+                                      {/* Payment Status Badge */}
+                                      {booking && booking.payment_status && (
+                                        <span
+                                          className={`px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md border ${
+                                            booking.payment_status === 'PAID' ||
+                                            booking.payment_status === 'COMPLETED'
+                                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                                              : booking.payment_status === 'PENDING'
+                                              ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700'
+                                              : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'
+                                          }`}
+                                        >
+                                          {booking.payment_status === 'PAID' ||
+                                          booking.payment_status === 'COMPLETED'
+                                            ? 'Đã thanh toán'
+                                            : booking.payment_status === 'PENDING'
+                                            ? 'Chưa thanh toán'
+                                            : booking.payment_status}
+                                        </span>
+                                      )}
                                       <span className='text-[9px] font-heading font-medium text-gray-600 dark:text-gray-400 leading-tight px-1.5 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700'>
                                         {member?.membership_type || 'BASIC'}
                                       </span>
@@ -2715,8 +2997,29 @@ export default function TrainerSchedule() {
                                     </div>
 
                                     {/* Check-in/Check-out Button */}
-                                    <div className='mt-2'>
+                                    <div className='mt-2 flex items-center gap-2'>
                                       {getMemberCheckInButton(record, attendance, selectedSchedule)}
+                                      {/* Remove button for unpaid bookings */}
+                                      {!isAttendanceRecord &&
+                                        booking &&
+                                        booking.payment_status === 'PENDING' &&
+                                        booking.status === 'CONFIRMED' && (
+                                          <Button
+                                            size='sm'
+                                            variant='outline'
+                                            onClick={e => {
+                                              e.stopPropagation();
+                                              handleOpenCancelBookingModal(
+                                                booking.id,
+                                                member?.full_name || 'Hội viên'
+                                              );
+                                            }}
+                                            className='text-[10px] px-2 py-1 font-inter text-red-600 dark:text-red-400 border-red-300 dark:border-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-400 dark:hover:border-red-600'
+                                          >
+                                            <Trash2 className='w-3 h-3 mr-1' />
+                                            Xóa
+                                          </Button>
+                                        )}
                                     </div>
                                   </div>
                                 </div>
@@ -2733,13 +3036,13 @@ export default function TrainerSchedule() {
                   <div className='text-center py-6'>
                     <div className='text-sm text-gray-500 dark:text-gray-400 font-inter mb-2'>
                       {selectedSchedule?.attendance && selectedSchedule.attendance.length > 0
-                        ? 'Chưa có thành viên nào điểm danh'
-                        : 'Chưa có thành viên nào đăng ký'}
+                        ? 'Chưa có hội viên nào điểm danh'
+                        : 'Chưa có hội viên nào đăng ký'}
                     </div>
                     <p className='text-xs font-inter text-gray-400 dark:text-gray-500'>
                       {selectedSchedule?.attendance && selectedSchedule.attendance.length > 0
-                        ? 'Lớp học này chưa có thành viên nào điểm danh tham gia.'
-                        : 'Lớp học này chưa có thành viên nào đăng ký tham gia.'}
+                        ? 'Lớp học này chưa có hội viên nào điểm danh tham gia.'
+                        : 'Lớp học này chưa có hội viên nào đăng ký tham gia.'}
                     </p>
                   </div>
                 );
@@ -2787,6 +3090,21 @@ export default function TrainerSchedule() {
         userId={userId}
       />
 
+      {/* Cancel Schedule Modal */}
+      <CancelScheduleModal
+        isOpen={showCancelModal}
+        onClose={() => {
+          setShowCancelModal(false);
+          setSelectedScheduleForCancel(null);
+        }}
+        onSuccess={() => {
+          // Refresh schedules to get updated data
+          fetchSchedules();
+        }}
+        schedule={selectedScheduleForCancel}
+        userId={userId}
+      />
+
       {/* QR Code Modal */}
       {selectedSchedule && (
         <ScheduleQRCodeModal
@@ -2798,6 +3116,28 @@ export default function TrainerSchedule() {
           trainerId={userId || ''}
         />
       )}
+
+      {/* Cancel Booking Confirmation Modal */}
+      <ConfirmModal
+        isOpen={showCancelBookingModal}
+        onClose={() => {
+          if (!isCancellingBooking) {
+            setShowCancelBookingModal(false);
+            setBookingToCancel(null);
+          }
+        }}
+        onConfirm={handleConfirmCancelBooking}
+        title='Xác nhận xóa hội viên'
+        message={
+          bookingToCancel
+            ? `Bạn có chắc chắn muốn xóa ${bookingToCancel.memberName} ra khỏi lớp này? Hội viên sẽ nhận được thông báo về việc hủy đặt lớp.`
+            : ''
+        }
+        confirmText='Xác nhận xóa'
+        cancelText='Hủy'
+        variant='danger'
+        isLoading={isCancellingBooking}
+      />
     </>
   );
 }

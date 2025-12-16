@@ -10,6 +10,7 @@ import { paymentService } from '@/services/billing/payment.service';
 import { Refund } from '@/types/billingTypes';
 import { Attendance } from '@/types/classTypes';
 import { useTheme } from '@/utils/theme';
+import { AppEvents } from '@/utils/eventEmitter';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, Star } from 'lucide-react-native';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
@@ -46,8 +47,12 @@ export default function MyBookingsScreen() {
   const [loadingRefunds, setLoadingRefunds] = useState(false);
 
   // Attendance and rating state
-  const [attendanceMap, setAttendanceMap] = useState<Record<string, Attendance | null>>({});
-  const [loadingAttendance, setLoadingAttendance] = useState<Record<string, boolean>>({});
+  const [attendanceMap, setAttendanceMap] = useState<
+    Record<string, Attendance | null>
+  >({});
+  const [loadingAttendance, setLoadingAttendance] = useState<
+    Record<string, boolean>
+  >({});
 
   // Class rating modal state
   const [showRatingModal, setShowRatingModal] = useState(false);
@@ -226,11 +231,87 @@ export default function MyBookingsScreen() {
     }
   }, [activeTab, member?.id, loadRefunds]);
 
+  // Listen for schedule:updated events to update optimistic class cards
+  useEffect(() => {
+    const handleScheduleUpdated = (data: any) => {
+      console.log('[MY_BOOKINGS] schedule:updated event received:', data);
+
+      if (!data?.schedule_id) {
+        console.warn(
+          '[MY_BOOKINGS] schedule:updated event missing schedule_id'
+        );
+        return;
+      }
+
+      // Update optimistic booking schedule data
+      setBookings((prevBookings) => {
+        return prevBookings.map((booking) => {
+          // Only update if this booking matches the updated schedule
+          if (booking.schedule_id === data.schedule_id && booking.schedule) {
+            console.log(
+              '[MY_BOOKINGS] Updating optimistic schedule for booking:',
+              booking.id
+            );
+
+            // Create updated schedule object with new data
+            const updatedSchedule = {
+              ...booking.schedule,
+              ...(data.start_time && { start_time: data.start_time }),
+              ...(data.end_time && { end_time: data.end_time }),
+              ...(data.room_name &&
+                booking.schedule.room && {
+                  room: {
+                    ...booking.schedule.room,
+                    name: data.room_name,
+                  },
+                }),
+              ...(data.max_capacity !== undefined && {
+                max_capacity: data.max_capacity,
+              }),
+              ...(data.status && { status: data.status }),
+              ...(data.updated_at && { updated_at: data.updated_at }),
+            };
+
+            return {
+              ...booking,
+              schedule: updatedSchedule,
+            };
+          }
+          return booking;
+        });
+      });
+
+      // Show toast notification if changes were made
+      if (
+        data.changes &&
+        Array.isArray(data.changes) &&
+        data.changes.length > 0
+      ) {
+        const changesText = data.changes.join(', ');
+        console.log(
+          '[MY_BOOKINGS] Schedule updated with changes:',
+          changesText
+        );
+        // Optionally show a toast here if you have a toast system
+      }
+    };
+
+    // Register listener
+    const unsubscribe = AppEvents.on('schedule:updated', handleScheduleUpdated);
+    console.log('[MY_BOOKINGS] Registered listener for schedule:updated');
+
+    // Cleanup
+    return () => {
+      unsubscribe();
+      console.log('[MY_BOOKINGS] Unregistered listener for schedule:updated');
+    };
+  }, []);
+
   // IMPROVEMENT: State for cancellation reason modal
   const [showCancellationModal, setShowCancellationModal] = useState(false);
   const [bookingToCancel, setBookingToCancel] = useState<Booking | null>(null);
   const [isCancelling, setIsCancelling] = useState(false);
-  
+
   // Success modal state
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState('');
@@ -253,11 +334,11 @@ export default function MyBookingsScreen() {
       if (response.success) {
         setShowCancellationModal(false);
         setBookingToCancel(null);
-        
+
         // Show success modal with refund button if refund is available
         const hasRefund = response.refund && response.refund.refundId;
         const refundAmount = response.refund?.refundAmount || 0;
-        
+
         setSuccessMessage(
           hasRefund
             ? t('classes.booking.cancelSuccessWithRefund', {
@@ -265,15 +346,19 @@ export default function MyBookingsScreen() {
                   style: 'currency',
                   currency: 'VND',
                 }).format(refundAmount),
-              }) || `Hủy lớp thành công! Bạn sẽ được hoàn ${new Intl.NumberFormat('vi-VN', {
-                style: 'currency',
-                currency: 'VND',
-              }).format(refundAmount)}`
+              }) ||
+                `Hủy lớp thành công! Bạn sẽ được hoàn ${new Intl.NumberFormat(
+                  'vi-VN',
+                  {
+                    style: 'currency',
+                    currency: 'VND',
+                  }
+                ).format(refundAmount)}`
             : t('classes.booking.cancelSuccess') || 'Hủy lớp thành công!'
         );
         setShowSuccessModal(true);
         setRefundInfo(hasRefund ? response.refund : null);
-        
+
         await loadBookings(true); // Force refresh after cancellation
       } else {
         Alert.alert(
@@ -384,14 +469,16 @@ export default function MyBookingsScreen() {
     const [datePart, timePart] = vnTimeString.split(', ');
     const [month, day, year] = datePart.split('/');
     const [hours, minutes, seconds] = timePart.split(':');
-    const nowVN = new Date(Date.UTC(
-      parseInt(year),
-      parseInt(month) - 1,
-      parseInt(day),
-      parseInt(hours),
-      parseInt(minutes),
-      parseInt(seconds || '0')
-    ));
+    const nowVN = new Date(
+      Date.UTC(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hours),
+        parseInt(minutes),
+        parseInt(seconds || '0')
+      )
+    );
 
     switch (activeTab) {
       case 'upcoming':
@@ -443,14 +530,16 @@ export default function MyBookingsScreen() {
     const [datePart, timePart] = vnTimeString.split(', ');
     const [month, day, year] = datePart.split('/');
     const [hours, minutes, seconds] = timePart.split(':');
-    const nowVN = new Date(Date.UTC(
-      parseInt(year),
-      parseInt(month) - 1,
-      parseInt(day),
-      parseInt(hours),
-      parseInt(minutes),
-      parseInt(seconds || '0')
-    ));
+    const nowVN = new Date(
+      Date.UTC(
+        parseInt(year),
+        parseInt(month) - 1,
+        parseInt(day),
+        parseInt(hours),
+        parseInt(minutes),
+        parseInt(seconds || '0')
+      )
+    );
 
     switch (tab) {
       case 'upcoming':
@@ -666,32 +755,11 @@ export default function MyBookingsScreen() {
                   showTimelineButton={true}
                   onViewTimeline={async () => {
                     if (refund.id) {
-                      try {
-                        const timelineResponse =
-                          await paymentService.getRefundTimeline(refund.id);
-                        if (timelineResponse.success && timelineResponse.data) {
-                          const timeline = timelineResponse.data.timeline || [];
-                          const timelineText = timeline
-                            .map((item: any) => {
-                              const date = new Date(
-                                item.timestamp
-                              ).toLocaleString('vi-VN');
-                              return `${date}: ${item.action} (${item.actor})`;
-                            })
-                            .join('\n');
-
-                          Alert.alert(
-                            t('classes.refund.viewTimeline'),
-                            timelineText || t('classes.refund.noRefund'),
-                            [{ text: t('common.ok') }]
-                          );
-                        }
-                      } catch (error) {
-                        console.error(
-                          '[ERROR] Failed to load refund timeline:',
-                          error
-                        );
-                      }
+                      // Navigate to refund timeline page instead of showing alert
+                      router.push({
+                        pathname: '/subscription/refund-timeline',
+                        params: { refundId: refund.id },
+                      });
                     }
                   }}
                 />
@@ -774,14 +842,24 @@ export default function MyBookingsScreen() {
             }
 
             // Load attendance for past bookings to show rating
-            const loadAttendanceForBooking = async (scheduleId: string, bookingId: string) => {
-              if (!member?.id || attendanceMap[bookingId] !== undefined || loadingAttendance[bookingId]) {
+            const loadAttendanceForBooking = async (
+              scheduleId: string,
+              bookingId: string
+            ) => {
+              if (
+                !member?.id ||
+                attendanceMap[bookingId] !== undefined ||
+                loadingAttendance[bookingId]
+              ) {
                 return;
               }
 
               setLoadingAttendance((prev) => ({ ...prev, [bookingId]: true }));
               try {
-                const response = await attendanceService.getMemberAttendance(scheduleId, member.id);
+                const response = await attendanceService.getMemberAttendance(
+                  scheduleId,
+                  member.id
+                );
                 if (response.success && response.data) {
                   setAttendanceMap((prev) => ({
                     ...prev,
@@ -800,7 +878,10 @@ export default function MyBookingsScreen() {
                   [bookingId]: null,
                 }));
               } finally {
-                setLoadingAttendance((prev) => ({ ...prev, [bookingId]: false }));
+                setLoadingAttendance((prev) => ({
+                  ...prev,
+                  [bookingId]: false,
+                }));
               }
             };
 
@@ -817,8 +898,12 @@ export default function MyBookingsScreen() {
 
             const refund = refundMap[item.id];
             const attendance = attendanceMap[item.id];
-            const hasCheckedOut = attendance?.checked_out_at !== null && attendance?.checked_out_at !== undefined;
-            const hasRating = attendance && (attendance.class_rating || attendance.trainer_rating);
+            const hasCheckedOut =
+              attendance?.checked_out_at !== null &&
+              attendance?.checked_out_at !== undefined;
+            const hasRating =
+              attendance &&
+              (attendance.class_rating || attendance.trainer_rating);
 
             // Only show refund for cancelled bookings to avoid duplicate with refund tab
             const showRefund =
@@ -884,13 +969,18 @@ export default function MyBookingsScreen() {
                       onPress={() => {
                         setRatingModalData({
                           scheduleId: item.schedule_id,
-                          className: item.schedule?.gym_class?.name || 'Lớp học',
-                          trainerName: item.schedule?.trainer?.full_name || 'Huấn luyện viên',
+                          className:
+                            item.schedule?.gym_class?.name || 'Lớp học',
+                          trainerName:
+                            item.schedule?.trainer?.full_name ||
+                            'Huấn luyện viên',
                           existingRating: attendance
                             ? {
                                 class_rating: attendance.class_rating || null,
-                                trainer_rating: attendance.trainer_rating || null,
-                                feedback_notes: attendance.feedback_notes || null,
+                                trainer_rating:
+                                  attendance.trainer_rating || null,
+                                feedback_notes:
+                                  attendance.feedback_notes || null,
                               }
                             : undefined,
                         });
@@ -900,8 +990,14 @@ export default function MyBookingsScreen() {
                       <View style={styles.ratingButtonContent}>
                         <Star
                           size={18}
-                          color={hasRating ? theme.colors.warning : theme.colors.textSecondary}
-                          fill={hasRating ? theme.colors.warning : 'transparent'}
+                          color={
+                            hasRating
+                              ? theme.colors.warning
+                              : theme.colors.textSecondary
+                          }
+                          fill={
+                            hasRating ? theme.colors.warning : 'transparent'
+                          }
                         />
                         <Text
                           style={[
@@ -910,7 +1006,10 @@ export default function MyBookingsScreen() {
                           ]}
                         >
                           {hasRating
-                            ? t('classes.rating.viewOrEdit', 'Xem/Chỉnh sửa đánh giá')
+                            ? t(
+                                'classes.rating.viewOrEdit',
+                                'Xem/Chỉnh sửa đánh giá'
+                              )
                             : t('classes.rating.rateClass', 'Đánh giá lớp học')}
                         </Text>
                       </View>
@@ -1081,7 +1180,9 @@ export default function MyBookingsScreen() {
         actionButton={
           refundInfo?.refundId
             ? {
-                label: t('classes.refund.viewRefund', 'Xem hoàn tiền') || 'Xem hoàn tiền',
+                label:
+                  t('classes.refund.viewRefund', 'Xem hoàn tiền') ||
+                  'Xem hoàn tiền',
                 onPress: () => {
                   setShowSuccessModal(false);
                   router.push({
@@ -1116,10 +1217,10 @@ export default function MyBookingsScreen() {
             if (result.success) {
               setShowRatingModal(false);
               setRatingModalData(null);
-              
+
               // Reload bookings to update attendance data
               await loadBookings(true);
-              
+
               Alert.alert(
                 t('common.success'),
                 t('classes.rating.submitSuccess', 'Cảm ơn bạn đã đánh giá!')
@@ -1127,14 +1228,16 @@ export default function MyBookingsScreen() {
             } else {
               Alert.alert(
                 t('common.error'),
-                result.error || t('classes.rating.submitError', 'Không thể gửi đánh giá')
+                result.error ||
+                  t('classes.rating.submitError', 'Không thể gửi đánh giá')
               );
             }
           } catch (error: any) {
             console.error('[ERROR] Submit class rating error:', error);
             Alert.alert(
               t('common.error'),
-              error.message || t('classes.rating.submitError', 'Không thể gửi đánh giá')
+              error.message ||
+                t('classes.rating.submitError', 'Không thể gửi đánh giá')
             );
           }
         }}

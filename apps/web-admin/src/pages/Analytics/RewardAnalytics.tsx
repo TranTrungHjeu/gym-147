@@ -1,4 +1,14 @@
-import { BarChart3, CheckCircle2, Clock, DollarSign, Gift, RefreshCw, TrendingUp, Trophy, XCircle } from 'lucide-react';
+import {
+  BarChart3,
+  CheckCircle2,
+  Clock,
+  DollarSign,
+  Gift,
+  RefreshCw,
+  TrendingUp,
+  Trophy,
+  XCircle,
+} from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import AdminButton from '../../components/common/AdminButton';
 import AdminCard from '../../components/common/AdminCard';
@@ -116,18 +126,18 @@ const RewardAnalytics: React.FC = () => {
             Phân tích Gamification
           </h1>
           <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
-            Tổng quan hiệu quả chương trình đổi thưởng và tương tác thành viên
+            Tổng quan hiệu quả chương trình đổi thưởng và tương tác hội viên
           </p>
         </div>
         <div className='flex items-center gap-3'>
-          <AdminButton 
-            onClick={(e) => {
+          <AdminButton
+            onClick={e => {
               e.preventDefault();
               e.stopPropagation();
               loadStats();
             }}
-            icon={RefreshCw} 
-            variant='outline' 
+            icon={RefreshCw}
+            variant='outline'
             size='sm'
             type='button'
             disabled={loading}
@@ -141,13 +151,23 @@ const RewardAnalytics: React.FC = () => {
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
         {statsCards.map((stat, index) => (
           <AdminCard key={index} padding='sm' className='relative overflow-hidden group'>
-            <div className={`absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10`}></div>
-            <div className={`absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r`}></div>
+            <div
+              className={`absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10`}
+            ></div>
+            <div
+              className={`absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r`}
+            ></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className={`relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}>
-                  <div className={`absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300`}></div>
-                  <stat.icon className={`relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110`} />
+                <div
+                  className={`relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md`}
+                >
+                  <div
+                    className={`absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300`}
+                  ></div>
+                  <stat.icon
+                    className={`relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110`}
+                  />
                 </div>
                 <div className='flex-1 min-w-0'>
                   <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -189,11 +209,7 @@ const RewardAnalytics: React.FC = () => {
 
       {/* Popular Rewards Chart */}
       <div className='grid grid-cols-1 gap-6'>
-        <PopularRewardsChart
-          data={stats?.popular_rewards || []}
-          loading={loading}
-          height={400}
-        />
+        <PopularRewardsChart data={stats?.popular_rewards || []} loading={loading} height={400} />
       </div>
 
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-6'>

@@ -369,7 +369,9 @@ export default function StatsScreen() {
 
           {bodyFatMetrics.length > 0 && (
             <TouchableOpacity
-              onPress={() => router.push(`/health/metric/${MetricType.BODY_FAT}`)}
+              onPress={() =>
+                router.push(`/health/metric/${MetricType.BODY_FAT}`)
+              }
               activeOpacity={0.7}
             >
               <HealthMetricChart
@@ -383,7 +385,9 @@ export default function StatsScreen() {
 
           {heartRateMetrics.length > 0 && (
             <TouchableOpacity
-              onPress={() => router.push(`/health/metric/${MetricType.HEART_RATE}`)}
+              onPress={() =>
+                router.push(`/health/metric/${MetricType.HEART_RATE}`)
+              }
               activeOpacity={0.7}
             >
               <HealthMetricChart
@@ -433,64 +437,65 @@ export default function StatsScreen() {
 
             {otherTrends.map((trend, index) => {
               const metricType = (trend as any).metric_type;
-              const trendId = (trend as any).id || (trend as any).type || metricType;
+              const trendId =
+                (trend as any).id || (trend as any).type || metricType;
               // Create unique key by combining metric_type and index to avoid duplicates
               const uniqueKey = `${trendId}-${index}`;
-              
+
               return (
-              <TouchableOpacity
-                key={uniqueKey}
-                style={[
-                  themedStyles.trendItem,
-                  { borderColor: theme.colors.border },
-                ]}
-                onPress={() => {
-                  if (metricType) {
-                    router.push(`/health/metric/${metricType}`);
-                  }
-                }}
-                activeOpacity={0.7}
-              >
-                <View style={themedStyles.trendInfo}>
-                  <Text
-                    style={[
-                      Typography.bodyRegular,
-                      { color: theme.colors.text },
-                    ]}
-                  >
-                    {(trend as any).metric_type
-                      ? t(
-                          `health.metricTypes.${getMetricTranslationKey(
-                            (trend as any).metric_type
-                          )}`
-                        )
-                      : t('common.unknown')}
-                  </Text>
-                  <Text
-                    style={[
-                      Typography.caption,
-                      { color: theme.colors.textSecondary },
-                    ]}
-                  >
-                    {(trend as any).recorded_at
-                      ? new Date((trend as any).recorded_at).toLocaleDateString(
-                          i18n.language
-                        )
-                      : t('common.recent')}
-                  </Text>
-                </View>
-                <View style={themedStyles.trendValue}>
-                  <Text
-                    style={[Typography.h5, { color: theme.colors.secondary }]}
-                  >
-                    {(trend as any).value != null
-                      ? `${(trend as any).value.toFixed(1)} ${
-                          (trend as any).unit || ''
-                        }`
-                      : t('common.notAvailable')}
-                  </Text>
-                </View>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  key={uniqueKey}
+                  style={[
+                    themedStyles.trendItem,
+                    { borderColor: theme.colors.border },
+                  ]}
+                  onPress={() => {
+                    if (metricType) {
+                      router.push(`/health/metric/${metricType}`);
+                    }
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <View style={themedStyles.trendInfo}>
+                    <Text
+                      style={[
+                        Typography.bodyRegular,
+                        { color: theme.colors.text },
+                      ]}
+                    >
+                      {(trend as any).metric_type
+                        ? t(
+                            `health.metricTypes.${getMetricTranslationKey(
+                              (trend as any).metric_type
+                            )}`
+                          )
+                        : t('common.unknown')}
+                    </Text>
+                    <Text
+                      style={[
+                        Typography.caption,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {(trend as any).recorded_at
+                        ? new Date(
+                            (trend as any).recorded_at
+                          ).toLocaleDateString(i18n.language)
+                        : t('common.recent')}
+                    </Text>
+                  </View>
+                  <View style={themedStyles.trendValue}>
+                    <Text
+                      style={[Typography.h5, { color: theme.colors.secondary }]}
+                    >
+                      {(trend as any).value != null
+                        ? `${(trend as any).value.toFixed(1)} ${
+                            (trend as any).unit || ''
+                          }`
+                        : t('common.notAvailable')}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               );
             })}
           </View>

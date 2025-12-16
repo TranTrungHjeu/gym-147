@@ -6,6 +6,8 @@ import {
   Clock,
   MapPin,
   Save,
+  Calendar,
+  Eye,
 } from 'lucide-react';
 import React, { useEffect, useMemo, useState } from 'react';
 import { scheduleService } from '../../services/schedule.service';
@@ -75,7 +77,9 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [currentStep, setCurrentStep] = useState(1);
-
+  const [showRoomScheduleModal, setShowRoomScheduleModal] = useState(false);
+  const [roomSchedules, setRoomSchedules] = useState<any[]>([]);
+  const [loadingRoomSchedules, setLoadingRoomSchedules] = useState(false);
 
   // Load initial data
   useEffect(() => {
@@ -169,6 +173,70 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
     }
   };
 
+  // Load room schedules for viewing
+  const loadRoomSchedules = async () => {
+    if (!formData.date) {
+      setRoomSchedules([]);
+      return;
+    }
+
+    try {
+      setLoadingRoomSchedules(true);
+
+      // Get all rooms with their schedules for the selected date
+      const allRoomsResponse = await scheduleService.getAllRooms();
+      if (!allRoomsResponse.success) {
+        setRoomSchedules([]);
+        return;
+      }
+
+      const rooms = Array.isArray(allRoomsResponse.data)
+        ? allRoomsResponse.data
+        : allRoomsResponse.data?.rooms || [];
+
+      // Load schedules for each room
+      const schedulesPromises = rooms.map(async (room: Room) => {
+        try {
+          const roomResponse = await scheduleService.getRoomById(room.id);
+          if (roomResponse.success && roomResponse.data?.room?.schedules) {
+            const schedules = roomResponse.data.room.schedules;
+
+            // Filter schedules by selected date if date is provided
+            let filteredSchedules = schedules;
+            if (formData.date) {
+              const selectedDate = new Date(formData.date);
+              filteredSchedules = schedules.filter((schedule: any) => {
+                const scheduleDate = new Date(schedule.start_time || schedule.date);
+                return (
+                  scheduleDate.getFullYear() === selectedDate.getFullYear() &&
+                  scheduleDate.getMonth() === selectedDate.getMonth() &&
+                  scheduleDate.getDate() === selectedDate.getDate()
+                );
+              });
+            }
+
+            return {
+              room,
+              schedules: filteredSchedules,
+            };
+          }
+          return { room, schedules: [] };
+        } catch (error) {
+          console.error(`Error loading schedules for room ${room.id}:`, error);
+          return { room, schedules: [] };
+        }
+      });
+
+      const results = await Promise.all(schedulesPromises);
+      setRoomSchedules(results);
+    } catch (error) {
+      console.error('Error loading room schedules:', error);
+      setRoomSchedules([]);
+    } finally {
+      setLoadingRoomSchedules(false);
+    }
+  };
+
   const loadAllRooms = async () => {
     try {
       // Get all rooms from the rooms endpoint
@@ -200,6 +268,13 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
       loadAllRooms();
     }
   }, [isOpen, currentStep]);
+
+  // Load room schedules when modal opens or date changes
+  useEffect(() => {
+    if (showRoomScheduleModal && formData.date) {
+      loadRoomSchedules();
+    }
+  }, [showRoomScheduleModal, formData.date]);
 
   const getAvailableDifficulties = (category: string): string[] => {
     const categoryCert = certifications.find(cert => cert.category === category);
@@ -337,11 +412,14 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
         return;
       }
 
+      // Create datetime strings in local timezone (Vietnam timezone)
+      // Don't add .000Z (UTC) - let backend handle timezone conversion
+      // Format: YYYY-MM-DDTHH:mm:ss (local time, no timezone indicator)
       const submitData = {
         ...formData,
         date: dateForServer, // Ensure date is in DD/MM/YYYY format for server
-        start_time: `${isoDate}T${formData.start_time}:00.000Z`,
-        end_time: `${isoDate}T${formData.end_time}:00.000Z`,
+        start_time: `${isoDate}T${formData.start_time}:00`,
+        end_time: `${isoDate}T${formData.end_time}:00`,
       };
 
       const response = await scheduleService.createTrainerSchedule(userId, submitData);
@@ -721,7 +799,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     <div className='relative'>
                       <DatePicker
                         value={formData.date}
-                        onChange={(date) => {
+                        onChange={date => {
                           if (typeof date === 'string') {
                             setFormData(prev => ({ ...prev, date }));
                           }
@@ -745,8 +823,10 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     </label>
                     <div className='relative'>
                       <DatePicker
-                        value={formData.start_time ? `2000-01-01 ${formData.start_time}` : undefined}
-                        onChange={(date) => {
+                        value={
+                          formData.start_time ? `2000-01-01 ${formData.start_time}` : undefined
+                        }
+                        onChange={date => {
                           if (typeof date === 'string') {
                             const timePart = date.split(' ')[1]?.substring(0, 5);
                             if (timePart) {
@@ -779,7 +859,7 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                     <div className='relative'>
                       <DatePicker
                         value={formData.end_time ? `2000-01-01 ${formData.end_time}` : undefined}
-                        onChange={(date) => {
+                        onChange={date => {
                           if (typeof date === 'string') {
                             const timePart = date.split(' ')[1]?.substring(0, 5);
                             if (timePart) {
@@ -809,9 +889,21 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
                 {/* Room and Capacity */}
                 <div className='grid grid-cols-2 gap-3'>
                   <div>
-                    <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white mb-2'>
-                      Phòng học *
-                    </label>
+                    <div className='flex items-center justify-between mb-2'>
+                      <label className='block text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
+                        Phòng học *
+                      </label>
+                      {formData.date && (
+                        <button
+                          type='button'
+                          onClick={() => setShowRoomScheduleModal(true)}
+                          className='flex items-center gap-1 text-[10px] text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 font-medium'
+                        >
+                          <Eye className='w-3 h-3' />
+                          Xem lịch phòng
+                        </button>
+                      )}
+                    </div>
                     <CustomSelect
                       options={roomOptions}
                       value={formData.room_id}
@@ -959,6 +1051,138 @@ const CreateScheduleModal: React.FC<CreateScheduleModalProps> = ({
             )}
           </div>
         </form>
+      </AdminModal>
+
+      {/* Room Schedule Modal */}
+      <AdminModal
+        isOpen={showRoomScheduleModal}
+        onClose={() => setShowRoomScheduleModal(false)}
+        title='Lịch các phòng'
+        size='lg'
+      >
+        <div className='space-y-4'>
+          {!formData.date ? (
+            <div className='text-center py-8 text-sm text-gray-500 dark:text-gray-400'>
+              Vui lòng chọn ngày để xem lịch phòng
+            </div>
+          ) : loadingRoomSchedules ? (
+            <div className='text-center py-8 text-sm text-gray-500 dark:text-gray-400'>
+              Đang tải lịch phòng...
+            </div>
+          ) : (
+            <div className='space-y-4 max-h-[60vh] overflow-y-auto'>
+              {roomSchedules.map(({ room, schedules }) => (
+                <div
+                  key={room.id}
+                  className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'
+                >
+                  <div className='flex items-center justify-between mb-3'>
+                    <div className='flex items-center gap-2'>
+                      <MapPin className='w-4 h-4 text-orange-600 dark:text-orange-400' />
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-white'>
+                        {room.name}
+                      </h3>
+                      <span className='text-xs text-gray-500 dark:text-gray-400'>
+                        (Sức chứa: {room.capacity})
+                      </span>
+                    </div>
+                    <span
+                      className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                        room.id === formData.room_id
+                          ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border border-orange-200 dark:border-orange-800'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400'
+                      }`}
+                    >
+                      {schedules.length} lịch
+                    </span>
+                  </div>
+
+                  {schedules.length === 0 ? (
+                    <p className='text-xs text-gray-500 dark:text-gray-400 text-center py-2'>
+                      Phòng trống trong ngày này
+                    </p>
+                  ) : (
+                    <div className='space-y-2'>
+                      {schedules.map((schedule: any) => {
+                        const startTime = new Date(schedule.start_time || schedule.date);
+                        const endTime = new Date(schedule.end_time);
+                        const isConflict =
+                          formData.start_time &&
+                          formData.end_time &&
+                          startTime < new Date(`${formData.date}T${formData.end_time}`) &&
+                          endTime > new Date(`${formData.date}T${formData.start_time}`);
+
+                        return (
+                          <div
+                            key={schedule.id}
+                            className={`p-2.5 rounded-lg border ${
+                              isConflict
+                                ? 'bg-red-50 dark:bg-red-900/20 border-red-200 dark:border-red-800'
+                                : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
+                            }`}
+                          >
+                            <div className='flex items-start justify-between gap-2'>
+                              <div className='flex-1 min-w-0'>
+                                <p className='text-xs font-semibold text-gray-900 dark:text-white truncate'>
+                                  {schedule.gym_class?.name || 'Lớp học không xác định'}
+                                </p>
+                                <p className='text-[10px] text-gray-600 dark:text-gray-400 mt-0.5'>
+                                  {startTime.toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}{' '}
+                                  -{' '}
+                                  {endTime.toLocaleTimeString('vi-VN', {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </p>
+                                {schedule.trainer?.full_name && (
+                                  <p className='text-[10px] text-gray-500 dark:text-gray-500 mt-0.5'>
+                                    HLV: {schedule.trainer.full_name}
+                                  </p>
+                                )}
+                                {isConflict && (
+                                  <p className='text-[10px] text-red-600 dark:text-red-400 mt-1 font-medium'>
+                                    ⚠ Trùng giờ với lịch bạn đang tạo
+                                  </p>
+                                )}
+                              </div>
+                              <span
+                                className={`px-2 py-0.5 text-[10px] font-semibold rounded-full border flex-shrink-0 ${
+                                  schedule.status === 'SCHEDULED'
+                                    ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 border-blue-200 dark:border-blue-800'
+                                    : schedule.status === 'IN_PROGRESS'
+                                    ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800'
+                                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border-gray-200 dark:border-gray-600'
+                                }`}
+                              >
+                                {schedule.status}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {room.id !== formData.room_id && (
+                    <button
+                      type='button'
+                      onClick={() => {
+                        handleInputChange('room_id', room.id);
+                        setShowRoomScheduleModal(false);
+                      }}
+                      className='mt-3 w-full px-3 py-1.5 text-xs font-medium text-orange-600 dark:text-orange-400 hover:text-orange-700 dark:hover:text-orange-300 border border-orange-200 dark:border-orange-800 rounded-lg hover:bg-orange-50 dark:hover:bg-orange-900/20 transition-colors'
+                    >
+                      Chọn phòng này
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </AdminModal>
     </>
   );

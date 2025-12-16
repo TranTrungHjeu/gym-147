@@ -368,33 +368,36 @@ class BulkNotificationService {
         `[STATS] [BULK_NOTIFICATION] Notification map size: ${notificationMap.size}, Total userIds: ${userIds.length}`
       );
 
-      // Emit to each user's room with notification_id (only if notification was created)
+      // Emit to each user's room with notification_id
+      // Emit even if notification was enqueued (use temporary ID for enqueued notifications)
       let emittedCount = 0;
+      const timestamp = Date.now();
+
       userIds.forEach(userId => {
         const notificationId = notificationMap.get(userId);
         const roomName = `user:${userId}`;
 
-        // Only emit if notification_id exists (notification was created, not just enqueued)
-        if (!notificationId) {
-          console.log(
-            `[SKIP] [BULK_NOTIFICATION] Skipping socket emit for user ${userId} - notification was enqueued (not yet created)`
-          );
-          return;
-        }
+        // Use actual notification ID if available, otherwise use temporary ID for enqueued notifications
+        // The worker will create the real notification later, but users will receive real-time notification
+        const finalNotificationId = notificationId || `queued_${userId}_${timestamp}`;
+        const isEnqueued = !notificationId;
 
         const socketPayload = {
-          notification_id: notificationId,
+          notification_id: finalNotificationId,
           type: notificationData.type || 'GENERAL',
           title: notificationData.title,
           message: notificationData.message,
           data: notificationData.data || {},
           created_at: new Date().toISOString(),
+          // Add flag to indicate if notification was enqueued (will be created by worker)
+          queued: isEnqueued,
         };
 
         // Log payload before emitting
         console.log(
           `[EMIT] [BULK_NOTIFICATION] Emitting to user ${userId} in room ${roomName}. Payload:`,
-          JSON.stringify(socketPayload, null, 2)
+          JSON.stringify(socketPayload, null, 2),
+          isEnqueued ? '(enqueued - will be created by worker)' : '(created immediately)'
         );
 
         // Emit both notification:new (for compatibility) and admin:bulk:notification (specific event)
@@ -403,7 +406,9 @@ class BulkNotificationService {
         emittedCount++;
 
         console.log(
-          `[SUCCESS] [BULK_NOTIFICATION] Emitted notification:new and admin:bulk:notification to user ${userId} with notification_id: ${notificationId}`
+          `[SUCCESS] [BULK_NOTIFICATION] Emitted notification:new and admin:bulk:notification to user ${userId} with notification_id: ${finalNotificationId}${
+            isEnqueued ? ' (enqueued)' : ''
+          }`
         );
       });
 

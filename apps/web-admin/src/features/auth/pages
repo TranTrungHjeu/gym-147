@@ -46,8 +46,8 @@ export default function Login() {
   const features = [
     {
       icon: Users,
-      title: 'Quản lý thành viên',
-      description: 'Theo dõi và quản lý thông tin thành viên một cách hiệu quả',
+      title: 'Quản lý hội viên',
+      description: 'Theo dõi và quản lý thông tin hội viên một cách hiệu quả',
     },
     {
       icon: Calendar,

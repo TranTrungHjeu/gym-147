@@ -5,9 +5,14 @@ export interface Member {
   full_name: string;
   phone: string;
   email: string;
-  date_of_birth?: Date;
+  date_of_birth?: Date | string;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  address?: string;
+  height?: number;
+  weight?: number;
+  body_fat_percent?: number;
   emergency_contact?: string;
+  emergency_phone?: string;
   membership_status: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
   rfid_tag?: string;
   joined_at: Date;
@@ -34,7 +39,12 @@ export interface UpdateMemberRequest {
   email?: string;
   date_of_birth?: Date;
   gender?: 'MALE' | 'FEMALE' | 'OTHER';
+  address?: string;
+  height?: number;
+  weight?: number;
+  body_fat_percent?: number;
   emergency_contact?: string;
+  emergency_phone?: string;
   membership_status?: 'ACTIVE' | 'EXPIRED' | 'SUSPENDED';
 }
 

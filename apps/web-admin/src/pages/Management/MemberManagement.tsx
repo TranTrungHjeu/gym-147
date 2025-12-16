@@ -836,171 +836,179 @@ export default function MemberManagement() {
                 isPageTransitioning ? 'opacity-0' : 'opacity-100'
               }`}
             >
-              <AdminTable>
-                <AdminTableHeader>
-                  <AdminTableRow>
-                    <AdminTableCell header className='w-[5%]'>
-                      <input
-                        type='checkbox'
-                        checked={
-                          selectedUserIds.length === filteredAndSortedUsers.length &&
-                          filteredAndSortedUsers.length > 0
-                        }
-                        onChange={
-                          selectedUserIds.length === filteredAndSortedUsers.length
-                            ? handleDeselectAll
-                            : handleSelectAll
-                        }
-                        className='w-4 h-4'
-                      />
-                    </AdminTableCell>
-                    <AdminTableCell header className='w-[15%]'>
-                      <span className='whitespace-nowrap'>{t('memberManagement.table.name')}</span>
-                    </AdminTableCell>
-                    <AdminTableCell header className='w-[20%]'>
-                      <span className='whitespace-nowrap'>{t('memberManagement.table.email')}</span>
-                    </AdminTableCell>
-                    <AdminTableCell header className='w-[15%] hidden md:table-cell'>
-                      <span className='whitespace-nowrap'>{t('memberManagement.table.phone')}</span>
-                    </AdminTableCell>
-                    <AdminTableCell header className='w-[12%]'>
-                      <span className='whitespace-nowrap'>
-                        {t('memberManagement.table.status')}
-                      </span>
-                    </AdminTableCell>
-                    <AdminTableCell header className='w-[12%] hidden md:table-cell'>
-                      <span className='whitespace-nowrap'>
-                        {t('memberManagement.table.membershipType')}
-                      </span>
-                    </AdminTableCell>
-                  </AdminTableRow>
-                </AdminTableHeader>
-                <AdminTableBody>
-                  {filteredAndSortedUsers.map((user, index) => {
-                    const firstName = user.firstName || user.first_name || '';
-                    const lastName = user.lastName || user.last_name || '';
-                    const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
-                    const isActive = user.isActive ?? true;
-                    const avatar = userAvatars[user.id];
-                    const isHighlighted = highlightedUserId.current === user.id;
+              <div className='overflow-x-auto overflow-y-hidden scrollbar-hide'>
+                <AdminTable>
+                  <AdminTableHeader>
+                    <AdminTableRow>
+                      <AdminTableCell header className='w-[5%]'>
+                        <input
+                          type='checkbox'
+                          checked={
+                            selectedUserIds.length === filteredAndSortedUsers.length &&
+                            filteredAndSortedUsers.length > 0
+                          }
+                          onChange={
+                            selectedUserIds.length === filteredAndSortedUsers.length
+                              ? handleDeselectAll
+                              : handleSelectAll
+                          }
+                          className='w-4 h-4'
+                        />
+                      </AdminTableCell>
+                      <AdminTableCell header className='w-[15%]'>
+                        <span className='whitespace-nowrap'>
+                          {t('memberManagement.table.name')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell header className='w-[20%]'>
+                        <span className='whitespace-nowrap'>
+                          {t('memberManagement.table.email')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell header className='w-[15%] hidden md:table-cell'>
+                        <span className='whitespace-nowrap'>
+                          {t('memberManagement.table.phone')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell header className='w-[12%]'>
+                        <span className='whitespace-nowrap'>
+                          {t('memberManagement.table.status')}
+                        </span>
+                      </AdminTableCell>
+                      <AdminTableCell header className='w-[12%] hidden md:table-cell'>
+                        <span className='whitespace-nowrap'>
+                          {t('memberManagement.table.membershipType')}
+                        </span>
+                      </AdminTableCell>
+                    </AdminTableRow>
+                  </AdminTableHeader>
+                  <AdminTableBody>
+                    {filteredAndSortedUsers.map((user, index) => {
+                      const firstName = user.firstName || user.first_name || '';
+                      const lastName = user.lastName || user.last_name || '';
+                      const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
+                      const isActive = user.isActive ?? true;
+                      const avatar = userAvatars[user.id];
+                      const isHighlighted = highlightedUserId.current === user.id;
 
-                    return (
-                      <AdminTableRow
-                        key={user.id}
-                        data-user-id={user.id}
-                        className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
-                          isHighlighted
-                            ? 'border-l-orange-500 bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500/50'
-                            : 'border-l-transparent hover:border-l-orange-500'
-                        } ${
-                          selectedUserIds.includes(user.id)
-                            ? 'bg-orange-50 dark:bg-orange-900/10'
-                            : isHighlighted
-                            ? 'bg-orange-100 dark:bg-orange-900/30'
-                            : ''
-                        }`}
-                        onClick={() => handleToggleSelect(user.id)}
-                      >
-                        <AdminTableCell>
-                          <input
-                            type='checkbox'
-                            checked={selectedUserIds.includes(user.id)}
-                            onChange={() => handleToggleSelect(user.id)}
-                            onClick={e => e.stopPropagation()}
-                            className='w-4 h-4'
-                          />
-                        </AdminTableCell>
-                        <AdminTableCell className='overflow-hidden'>
-                          <div className='flex items-center gap-1.5 sm:gap-2'>
-                            <div className='relative flex-shrink-0'>
-                              {avatar ? (
-                                <>
-                                  <img
-                                    src={avatar}
-                                    alt={fullName}
-                                    className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
-                                    onError={e => {
-                                      e.currentTarget.style.display = 'none';
-                                      const fallback = e.currentTarget
-                                        .nextElementSibling as HTMLElement;
-                                      if (fallback) {
-                                        fallback.classList.remove('hidden');
-                                        fallback.classList.add('flex');
-                                      }
-                                    }}
-                                  />
-                                  <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                      return (
+                        <AdminTableRow
+                          key={user.id}
+                          data-user-id={user.id}
+                          className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
+                            isHighlighted
+                              ? 'border-l-orange-500 bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500/50'
+                              : 'border-l-transparent hover:border-l-orange-500'
+                          } ${
+                            selectedUserIds.includes(user.id)
+                              ? 'bg-orange-50 dark:bg-orange-900/10'
+                              : isHighlighted
+                              ? 'bg-orange-100 dark:bg-orange-900/30'
+                              : ''
+                          }`}
+                          onClick={() => handleToggleSelect(user.id)}
+                        >
+                          <AdminTableCell>
+                            <input
+                              type='checkbox'
+                              checked={selectedUserIds.includes(user.id)}
+                              onChange={() => handleToggleSelect(user.id)}
+                              onClick={e => e.stopPropagation()}
+                              className='w-4 h-4'
+                            />
+                          </AdminTableCell>
+                          <AdminTableCell className='overflow-hidden'>
+                            <div className='flex items-center gap-1.5 sm:gap-2'>
+                              <div className='relative flex-shrink-0'>
+                                {avatar ? (
+                                  <>
+                                    <img
+                                      src={avatar}
+                                      alt={fullName}
+                                      className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
+                                      onError={e => {
+                                        e.currentTarget.style.display = 'none';
+                                        const fallback = e.currentTarget
+                                          .nextElementSibling as HTMLElement;
+                                        if (fallback) {
+                                          fallback.classList.remove('hidden');
+                                          fallback.classList.add('flex');
+                                        }
+                                      }}
+                                    />
+                                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
+                                      <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                                    </div>
+                                  </>
+                                ) : (
+                                  <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
                                     <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
                                   </div>
-                                </>
-                              ) : (
-                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
-                                  <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                                </div>
-                              )}
-                            </div>
-                            <div className='min-w-0 flex-1 overflow-hidden'>
-                              <div className='flex items-center gap-1.5'>
-                                <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
-                                  {fullName}
+                                )}
+                              </div>
+                              <div className='min-w-0 flex-1 overflow-hidden'>
+                                <div className='flex items-center gap-1.5'>
+                                  <div className='text-[9px] sm:text-[10px] md:text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate leading-tight'>
+                                    {fullName}
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        </AdminTableCell>
-                        <AdminTableCell className='overflow-hidden'>
-                          {user.email ? (
-                            <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
-                              <Mail className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
-                              <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
-                                {user.email}
-                              </span>
+                          </AdminTableCell>
+                          <AdminTableCell className='overflow-hidden'>
+                            {user.email ? (
+                              <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                                <Mail className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                                <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                                  {user.email}
+                                </span>
+                              </div>
+                            ) : null}
+                          </AdminTableCell>
+                          <AdminTableCell className='overflow-hidden hidden md:table-cell'>
+                            {user.phone ? (
+                              <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
+                                <Phone className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
+                                <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
+                                  {user.phone}
+                                </span>
+                              </div>
+                            ) : null}
+                          </AdminTableCell>
+                          <AdminTableCell>
+                            <EnumBadge
+                              type='MEMBERSHIP_STATUS'
+                              value={isActive ? 'ACTIVE' : 'INACTIVE'}
+                              size='sm'
+                              showIcon={true}
+                            />
+                          </AdminTableCell>
+                          <AdminTableCell className='hidden md:table-cell align-middle'>
+                            <div className='flex items-center justify-center h-[40px] overflow-hidden'>
+                              {memberMembershipTypes[user.id] ? (
+                                <MembershipBadge
+                                  tier={
+                                    memberMembershipTypes[user.id] as
+                                      | 'BASIC'
+                                      | 'PREMIUM'
+                                      | 'VIP'
+                                      | 'STUDENT'
+                                  }
+                                  size='medium'
+                                />
+                              ) : (
+                                <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-inter'>
+                                  -
+                                </span>
+                              )}
                             </div>
-                          ) : null}
-                        </AdminTableCell>
-                        <AdminTableCell className='overflow-hidden hidden md:table-cell'>
-                          {user.phone ? (
-                            <div className='flex items-center gap-1 sm:gap-1.5 min-w-0'>
-                              <Phone className='w-2.5 h-2.5 sm:w-3 sm:h-3 text-gray-400 dark:text-gray-500 flex-shrink-0' />
-                              <span className='text-[9px] sm:text-[10px] md:text-[11px] font-medium font-heading text-gray-700 dark:text-gray-300 truncate leading-tight'>
-                                {user.phone}
-                              </span>
-                            </div>
-                          ) : null}
-                        </AdminTableCell>
-                        <AdminTableCell>
-                          <EnumBadge
-                            type='MEMBERSHIP_STATUS'
-                            value={isActive ? 'ACTIVE' : 'INACTIVE'}
-                            size='sm'
-                            showIcon={true}
-                          />
-                        </AdminTableCell>
-                        <AdminTableCell className='hidden md:table-cell'>
-                          <div className='flex items-center justify-center'>
-                            {memberMembershipTypes[user.id] ? (
-                              <MembershipBadge
-                                tier={
-                                  memberMembershipTypes[user.id] as
-                                    | 'BASIC'
-                                    | 'PREMIUM'
-                                    | 'VIP'
-                                    | 'STUDENT'
-                                }
-                                size='medium'
-                              />
-                            ) : (
-                              <span className='text-[9px] sm:text-[10px] md:text-[11px] text-gray-400 dark:text-gray-500 font-inter'>
-                                -
-                              </span>
-                            )}
-                          </div>
-                        </AdminTableCell>
-                      </AdminTableRow>
-                    );
-                  })}
-                </AdminTableBody>
-              </AdminTable>
+                          </AdminTableCell>
+                        </AdminTableRow>
+                      );
+                    })}
+                  </AdminTableBody>
+                </AdminTable>
+              </div>
             </div>
           </AdminCard>
 

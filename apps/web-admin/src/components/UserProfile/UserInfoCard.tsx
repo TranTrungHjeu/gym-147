@@ -6,6 +6,8 @@ import { EnumBadge } from '../../shared/components/ui';
 import Button from '../ui/Button/Button';
 import ChangeEmailPhoneModal from '../modals/ChangeEmailPhoneModal';
 import { memberApi, scheduleApi } from '@/services/api';
+import { trainerService, Trainer } from '@/services/trainer.service';
+import { MemberService, Member } from '@/services/member.service';
 interface UserInfoCardProps {
   userId: string;
   onUpdate?: (user: User) => void;
@@ -49,6 +51,25 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
   const [newPassword, setNewPassword] = useState<string>('');
   const [confirmPassword, setConfirmPassword] = useState<string>('');
   const [isAdmin, setIsAdmin] = useState<boolean>(false);
+
+  // Trainer-specific state
+  const [trainer, setTrainer] = useState<Trainer | null>(null);
+  const [trainerLoading, setTrainerLoading] = useState(false);
+
+  // Member-specific state
+  const [member, setMember] = useState<Member | null>(null);
+  const [memberLoading, setMemberLoading] = useState(false);
+  const [memberFormData, setMemberFormData] = useState<{
+    date_of_birth: string;
+    gender: 'MALE' | 'FEMALE' | 'OTHER' | '';
+    address: string;
+    height: number | null;
+    weight: number | null;
+    body_fat_percent: number | null;
+    emergency_contact: string;
+    emergency_phone: string;
+  } | null>(null);
+  const [memberErrors, setMemberErrors] = useState<Record<string, string>>({});
 
   // Track user state changes
   useEffect(() => {
@@ -174,6 +195,16 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         } else {
           await fetchUserAvatar(mappedUser.id, mappedUser.role);
         }
+
+        // Fetch trainer info if user is TRAINER
+        if (mappedUser.role === 'TRAINER') {
+          await fetchTrainerInfo(mappedUser.id);
+        }
+
+        // Fetch member info if user is MEMBER
+        if (mappedUser.role === 'MEMBER') {
+          await fetchMemberInfo(mappedUser.id);
+        }
       }
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -186,6 +217,61 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchTrainerInfo = async (userId: string) => {
+    try {
+      setTrainerLoading(true);
+      const response = await trainerService.getTrainerByUserId(userId);
+      console.log('[TRAINER] Fetch trainer response:', response);
+      if (response.success && response.data) {
+        // API returns Trainer directly, not wrapped in { trainer: {...} }
+        const trainerData = response.data as Trainer;
+        console.log('[TRAINER] Trainer data:', trainerData);
+        console.log('[TRAINER] Hourly rate:', trainerData.hourly_rate);
+        setTrainer(trainerData);
+      } else {
+        console.warn('[TRAINER] Failed to fetch trainer:', response);
+      }
+    } catch (error) {
+      console.error('Error fetching trainer info:', error);
+    } finally {
+      setTrainerLoading(false);
+    }
+  };
+
+  const fetchMemberInfo = async (userId: string) => {
+    try {
+      setMemberLoading(true);
+      // Get member by user_id
+      const response = await memberApi.get(`/members/user/${userId}`);
+      if (response.data?.success && response.data?.data) {
+        const memberData = response.data.data.member || response.data.data;
+        setMember(memberData as Member);
+
+        // Format date_of_birth for input (YYYY-MM-DD)
+        const dateOfBirth = memberData.date_of_birth
+          ? new Date(memberData.date_of_birth).toISOString().split('T')[0]
+          : '';
+
+        setMemberFormData({
+          date_of_birth: dateOfBirth,
+          gender: memberData.gender || '',
+          address: memberData.address || '',
+          height: memberData.height ? Number(memberData.height) : null,
+          weight: memberData.weight ? Number(memberData.weight) : null,
+          body_fat_percent: memberData.body_fat_percent
+            ? Number(memberData.body_fat_percent)
+            : null,
+          emergency_contact: memberData.emergency_contact || '',
+          emergency_phone: memberData.emergency_phone || '',
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching member info:', error);
+    } finally {
+      setMemberLoading(false);
     }
   };
 
@@ -241,9 +327,131 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
   };
 
-  const handleSave = async () => {
+  // Validation functions for member form
+  const validateMemberForm = (): boolean => {
+    const errors: Record<string, string> = {};
+
+    if (!memberFormData) return false;
+
+    // Date of birth: Must be valid date and not in the future
+    if (memberFormData.date_of_birth) {
+      const dob = new Date(memberFormData.date_of_birth);
+      const today = new Date();
+      if (dob > today) {
+        errors.date_of_birth = 'Ngày sinh không được ở tương lai';
+      } else {
+        const age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+          const actualAge = age - 1;
+          if (actualAge < 13 || actualAge > 120) {
+            errors.date_of_birth = 'Tuổi phải từ 13 đến 120';
+          }
+        } else if (age < 13 || age > 120) {
+          errors.date_of_birth = 'Tuổi phải từ 13 đến 120';
+        }
+      }
+    }
+
+    // Height: If provided, must be between 50-250 cm
+    if (memberFormData.height !== null && memberFormData.height !== undefined) {
+      if (memberFormData.height < 50 || memberFormData.height > 250) {
+        errors.height = 'Chiều cao phải từ 50 đến 250 cm';
+      }
+    }
+
+    // Weight: If provided, must be between 20-300 kg
+    if (memberFormData.weight !== null && memberFormData.weight !== undefined) {
+      if (memberFormData.weight < 20 || memberFormData.weight > 300) {
+        errors.weight = 'Cân nặng phải từ 20 đến 300 kg';
+      }
+    }
+
+    // Body fat percent: If provided, must be between 0-100
+    if (memberFormData.body_fat_percent !== null && memberFormData.body_fat_percent !== undefined) {
+      if (memberFormData.body_fat_percent < 0 || memberFormData.body_fat_percent > 100) {
+        errors.body_fat_percent = 'Tỷ lệ mỡ cơ thể phải từ 0 đến 100%';
+      }
+    }
+
+    // Emergency phone: If emergency contact is provided, phone should also be provided
+    if (memberFormData.emergency_contact && !memberFormData.emergency_phone) {
+      errors.emergency_phone = 'Vui lòng nhập số điện thoại liên hệ khẩn cấp';
+    }
+
+    // Emergency phone format: Vietnamese phone number format
+    if (memberFormData.emergency_phone) {
+      const phoneRegex = /^(0|\+84)[1-9][0-9]{8,9}$/;
+      const cleanPhone = memberFormData.emergency_phone.trim().replace(/\s/g, '');
+      if (!phoneRegex.test(cleanPhone)) {
+        errors.emergency_phone = 'Số điện thoại không hợp lệ. Ví dụ: 0912345678 hoặc +84912345678';
+      }
+    }
+
+    // Address: Max 500 chars
+    if (memberFormData.address && memberFormData.address.length > 500) {
+      errors.address = 'Địa chỉ không được vượt quá 500 ký tự';
+    }
+
+    setMemberErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleSaveMember = async () => {
+    if (!member || !memberFormData) return;
+
+    if (!validateMemberForm()) {
+      if (window.showToast) {
+        window.showToast({
+          type: 'error',
+          message: 'Vui lòng kiểm tra lại các trường thông tin',
+          duration: 3000,
+        });
+      }
+      throw new Error('Validation failed');
+    }
+
+    const updateData: any = {
+      date_of_birth: memberFormData.date_of_birth
+        ? new Date(memberFormData.date_of_birth)
+        : undefined,
+      gender: memberFormData.gender || undefined,
+      address: memberFormData.address.trim() || undefined,
+      height: memberFormData.height !== null ? memberFormData.height : undefined,
+      weight: memberFormData.weight !== null ? memberFormData.weight : undefined,
+      body_fat_percent:
+        memberFormData.body_fat_percent !== null ? memberFormData.body_fat_percent : undefined,
+      emergency_contact: memberFormData.emergency_contact.trim() || undefined,
+      emergency_phone: memberFormData.emergency_phone.trim().replace(/\s/g, '') || undefined,
+    };
+
+    const updatedMember = await MemberService.updateMember(member.id, updateData);
+    setMember(updatedMember);
+
+    // Update form data
+    const dateOfBirth = updatedMember.date_of_birth
+      ? new Date(updatedMember.date_of_birth).toISOString().split('T')[0]
+      : '';
+
+    setMemberFormData({
+      date_of_birth: dateOfBirth,
+      gender: updatedMember.gender || '',
+      address: updatedMember.address || '',
+      height: updatedMember.height ? Number(updatedMember.height) : null,
+      weight: updatedMember.weight ? Number(updatedMember.weight) : null,
+      body_fat_percent: updatedMember.body_fat_percent
+        ? Number(updatedMember.body_fat_percent)
+        : null,
+      emergency_contact: updatedMember.emergency_contact || '',
+      emergency_phone: updatedMember.emergency_phone || '',
+    });
+  };
+
+  const handleSave = async (skipSavingState = false) => {
     try {
-      setSaving(true);
+      if (!skipSavingState) {
+        setSaving(true);
+      }
 
       if (!user) {
         throw new Error('No user data to save');
@@ -392,26 +600,31 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           }
         }
 
-        if (window.showToast) {
+        if (window.showToast && !skipSavingState) {
           window.showToast({
             type: 'success',
             message: 'Cập nhật thông tin thành công!',
             duration: 3000,
           });
         }
-        closeModal();
+        if (!skipSavingState) {
+          closeModal();
+        }
       }
     } catch (error: any) {
       console.error('Error updating user:', error);
-      if (window.showToast) {
+      if (window.showToast && !skipSavingState) {
         window.showToast({
           type: 'error',
           message: `Lỗi cập nhật: ${error.message}`,
           duration: 3000,
         });
       }
+      throw error; // Re-throw to let caller handle
     } finally {
-      setSaving(false);
+      if (!skipSavingState) {
+        setSaving(false);
+      }
     }
   };
 
@@ -667,6 +880,126 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         </div>
       </div>
 
+      {/* Member Information Section */}
+      {user.role === 'MEMBER' && (
+        <div className='mt-4 p-4 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)] rounded-xl bg-gradient-to-br from-[var(--color-green-50)]/30 to-[var(--color-green-100)]/20 dark:from-[var(--color-green-900)]/10 dark:to-[var(--color-green-800)]/10'>
+          <h3 className='text-lg font-bold font-heading text-gray-900 dark:text-white mb-4 flex items-center gap-2'>
+            <svg
+              className='w-5 h-5 text-green-600 dark:text-green-400'
+              fill='none'
+              viewBox='0 0 24 24'
+              stroke='currentColor'
+            >
+              <path
+                strokeLinecap='round'
+                strokeLinejoin='round'
+                strokeWidth={2}
+                d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+              />
+            </svg>
+            Thông tin Cá nhân
+          </h3>
+          {memberLoading ? (
+            <div className='text-center py-4 text-gray-500'>Đang tải...</div>
+          ) : member ? (
+            <div className='grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3'>
+              {member.date_of_birth && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Ngày sinh
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {new Date(member.date_of_birth).toLocaleDateString('vi-VN')}
+                    {(() => {
+                      const dob = new Date(member.date_of_birth);
+                      const today = new Date();
+                      let age = today.getFullYear() - dob.getFullYear();
+                      const monthDiff = today.getMonth() - dob.getMonth();
+                      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+                        age--;
+                      }
+                      return ` (${age} tuổi)`;
+                    })()}
+                  </p>
+                </div>
+              )}
+              {member.gender && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Giới tính
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {member.gender === 'MALE' ? 'Nam' : member.gender === 'FEMALE' ? 'Nữ' : 'Khác'}
+                  </p>
+                </div>
+              )}
+              {member.address && (
+                <div className='lg:col-span-2 group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Địa chỉ
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {member.address}
+                  </p>
+                </div>
+              )}
+              {member.height && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Chiều cao
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {Number(member.height)} cm
+                  </p>
+                </div>
+              )}
+              {member.weight && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Cân nặng
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {Number(member.weight)} kg
+                  </p>
+                </div>
+              )}
+              {member.body_fat_percent && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Tỷ lệ mỡ cơ thể
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {Number(member.body_fat_percent).toFixed(1)}%
+                  </p>
+                </div>
+              )}
+              {member.emergency_contact && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    Liên hệ khẩn cấp
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {member.emergency_contact}
+                  </p>
+                </div>
+              )}
+              {member.emergency_phone && (
+                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                    SĐT liên hệ khẩn cấp
+                  </p>
+                  <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                    {member.emergency_phone}
+                  </p>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className='text-center py-4 text-gray-500'>Không tìm thấy thông tin member</div>
+          )}
+        </div>
+      )}
+
       {isOpen && (
         <Modal
           isOpen={isOpen}
@@ -676,11 +1009,28 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
             if (user) {
               setIsActiveToggle(user.isActive ?? true);
             }
+            // Reset member form data and errors
+            if (member) {
+              const dateOfBirth = member.date_of_birth
+                ? new Date(member.date_of_birth).toISOString().split('T')[0]
+                : '';
+              setMemberFormData({
+                date_of_birth: dateOfBirth,
+                gender: member.gender || '',
+                address: member.address || '',
+                height: member.height ? Number(member.height) : null,
+                weight: member.weight ? Number(member.weight) : null,
+                body_fat_percent: member.body_fat_percent ? Number(member.body_fat_percent) : null,
+                emergency_contact: member.emergency_contact || '',
+                emergency_phone: member.emergency_phone || '',
+              });
+            }
+            setMemberErrors({});
             closeModal();
           }}
-          className='max-w-[700px] m-4'
+          className='max-w-[900px] m-4'
         >
-          <div className='relative w-full max-w-[700px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl'>
+          <div className='relative w-full max-w-[700px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-h-[90vh]'>
             {/* Header */}
             <div className='sticky top-0 z-10 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
               <div className='flex items-start justify-between gap-4'>
@@ -1018,6 +1368,243 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               </div>
 
+              {/* Member Information Form */}
+              {user.role === 'MEMBER' && memberFormData && (
+                <div className='p-6 border-t border-gray-200 dark:border-gray-700 mt-4'>
+                  <h4 className='text-lg font-bold font-heading text-gray-900 dark:text-white mb-4 flex items-center gap-2'>
+                    <svg
+                      className='w-5 h-5 text-green-600 dark:text-green-400'
+                      fill='none'
+                      viewBox='0 0 24 24'
+                      stroke='currentColor'
+                    >
+                      <path
+                        strokeLinecap='round'
+                        strokeLinejoin='round'
+                        strokeWidth={2}
+                        d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
+                      />
+                    </svg>
+                    Thông tin Cá nhân
+                  </h4>
+                  <div className='grid grid-cols-1 gap-5 lg:grid-cols-2'>
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Ngày sinh
+                      </label>
+                      <input
+                        type='date'
+                        value={memberFormData.date_of_birth}
+                        onChange={e => {
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, date_of_birth: e.target.value } : null
+                          );
+                          if (memberErrors.date_of_birth) {
+                            setMemberErrors(prev => ({ ...prev, date_of_birth: '' }));
+                          }
+                        }}
+                        max={new Date().toISOString().split('T')[0]}
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                          memberErrors.date_of_birth
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      {memberErrors.date_of_birth && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.date_of_birth}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Giới tính
+                      </label>
+                      <select
+                        value={memberFormData.gender}
+                        onChange={e => {
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, gender: e.target.value as any } : null
+                          );
+                        }}
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
+                      >
+                        <option value=''>Chọn giới tính</option>
+                        <option value='MALE'>Nam</option>
+                        <option value='FEMALE'>Nữ</option>
+                        <option value='OTHER'>Khác</option>
+                      </select>
+                    </div>
+
+                    <div className='lg:col-span-2'>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Địa chỉ
+                      </label>
+                      <textarea
+                        value={memberFormData.address}
+                        onChange={e => {
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, address: e.target.value } : null
+                          );
+                          if (memberErrors.address) {
+                            setMemberErrors(prev => ({ ...prev, address: '' }));
+                          }
+                        }}
+                        rows={2}
+                        maxLength={500}
+                        placeholder='Nhập địa chỉ (tối đa 500 ký tự)'
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm resize-none ${
+                          memberErrors.address
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      <p className='mt-1 text-xs text-gray-500'>
+                        {memberFormData.address.length}/500 ký tự
+                      </p>
+                      {memberErrors.address && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.address}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Chiều cao (cm)
+                      </label>
+                      <input
+                        type='number'
+                        min='50'
+                        max='250'
+                        step='0.1'
+                        value={memberFormData.height ?? ''}
+                        onChange={e => {
+                          const value = e.target.value === '' ? null : parseFloat(e.target.value);
+                          setMemberFormData(prev => (prev ? { ...prev, height: value } : null));
+                          if (memberErrors.height) {
+                            setMemberErrors(prev => ({ ...prev, height: '' }));
+                          }
+                        }}
+                        placeholder='Nhập chiều cao (cm)'
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                          memberErrors.height
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      {memberErrors.height && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.height}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Cân nặng (kg)
+                      </label>
+                      <input
+                        type='number'
+                        min='20'
+                        max='300'
+                        step='0.1'
+                        value={memberFormData.weight ?? ''}
+                        onChange={e => {
+                          const value = e.target.value === '' ? null : parseFloat(e.target.value);
+                          setMemberFormData(prev => (prev ? { ...prev, weight: value } : null));
+                          if (memberErrors.weight) {
+                            setMemberErrors(prev => ({ ...prev, weight: '' }));
+                          }
+                        }}
+                        placeholder='Nhập cân nặng (kg)'
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                          memberErrors.weight
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      {memberErrors.weight && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.weight}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Tỷ lệ mỡ cơ thể (%)
+                      </label>
+                      <input
+                        type='number'
+                        min='0'
+                        max='100'
+                        step='0.1'
+                        value={memberFormData.body_fat_percent ?? ''}
+                        onChange={e => {
+                          const value = e.target.value === '' ? null : parseFloat(e.target.value);
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, body_fat_percent: value } : null
+                          );
+                          if (memberErrors.body_fat_percent) {
+                            setMemberErrors(prev => ({ ...prev, body_fat_percent: '' }));
+                          }
+                        }}
+                        placeholder='Nhập tỷ lệ mỡ cơ thể (%)'
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                          memberErrors.body_fat_percent
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      {memberErrors.body_fat_percent && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.body_fat_percent}</p>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        Tên liên hệ khẩn cấp
+                      </label>
+                      <input
+                        type='text'
+                        value={memberFormData.emergency_contact}
+                        onChange={e => {
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, emergency_contact: e.target.value } : null
+                          );
+                          if (memberErrors.emergency_contact) {
+                            setMemberErrors(prev => ({ ...prev, emergency_contact: '' }));
+                          }
+                        }}
+                        placeholder='Nhập tên người liên hệ khẩn cấp'
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
+                      />
+                    </div>
+
+                    <div>
+                      <label className='block text-theme-xs font-semibold text-gray-700 dark:text-gray-300 font-heading mb-2.5'>
+                        SĐT liên hệ khẩn cấp
+                      </label>
+                      <input
+                        type='tel'
+                        value={memberFormData.emergency_phone}
+                        onChange={e => {
+                          setMemberFormData(prev =>
+                            prev ? { ...prev, emergency_phone: e.target.value } : null
+                          );
+                          if (memberErrors.emergency_phone) {
+                            setMemberErrors(prev => ({ ...prev, emergency_phone: '' }));
+                          }
+                        }}
+                        placeholder='0912345678 hoặc +84912345678'
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                          memberErrors.emergency_phone
+                            ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
+                            : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
+                        }`}
+                      />
+                      {memberErrors.emergency_phone && (
+                        <p className='mt-1 text-xs text-red-500'>{memberErrors.emergency_phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Footer */}
               <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'>
                 <Button
@@ -1031,7 +1618,39 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </Button>
                 <Button
                   size='sm'
-                  onClick={handleSave}
+                  onClick={() => {
+                    (async () => {
+                    try {
+                      setSaving(true);
+                      // Save user info first (skip setting saving state as we handle it here)
+                      await handleSave(true);
+                      // Then save member info if user is member
+                      if (user.role === 'MEMBER' && memberFormData && member) {
+                        await handleSaveMember();
+                      }
+                      // Show success message and close modal
+                      if (window.showToast) {
+                        window.showToast({
+                          type: 'success',
+                          message: 'Cập nhật thông tin thành công!',
+                          duration: 3000,
+                        });
+                      }
+                      closeModal();
+                    } catch (error: any) {
+                      console.error('Error saving:', error);
+                      if (window.showToast) {
+                        window.showToast({
+                          type: 'error',
+                          message: error.message || 'Có lỗi xảy ra khi lưu',
+                          duration: 3000,
+                        });
+                      }
+                    } finally {
+                      setSaving(false);
+                    }
+                    })();
+                  }}
                   disabled={saving}
                   className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-orange-600 hover:bg-orange-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
                 >

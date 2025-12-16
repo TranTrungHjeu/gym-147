@@ -44,7 +44,13 @@ router.put('/payments/:id', (req, res) => billingController.updatePayment(req, r
 router.post('/payments/initiate', (req, res) => billingController.initiatePayment(req, res));
 // IMPROVEMENT: Payment retry and history routes
 router.post('/payments/:id/retry', (req, res) => billingController.retryPayment(req, res));
-router.get('/payments/history/:member_id', (req, res) => billingController.getPaymentHistory(req, res));
+router.get('/payments/history/:member_id', (req, res) =>
+  billingController.getPaymentHistory(req, res)
+);
+// Alias routes for mobile app compatibility
+router.get('/members/:member_id/payments', (req, res) =>
+  billingController.getPaymentHistory(req, res)
+);
 // Webhook routes with signature verification
 const { verifyWebhookSignature } = require('../middleware/webhook.middleware.js');
 router.post('/payments/webhook', verifyWebhookSignature, (req, res) =>
@@ -56,7 +62,9 @@ router.post('/refunds', (req, res) => billingController.createRefund(req, res));
 // IMPROVEMENT: Get all refunds (must come before /refunds/:id routes)
 router.get('/refunds', (req, res) => billingController.getAllRefunds(req, res));
 // IMPROVEMENT: Get refund by booking ID (must come before /refunds/:id routes)
-router.get('/refunds/booking/:booking_id', (req, res) => billingController.getRefundByBookingId(req, res));
+router.get('/refunds/booking/:booking_id', (req, res) =>
+  billingController.getRefundByBookingId(req, res)
+);
 // IMPROVEMENT: Get refund by ID
 router.get('/refunds/:id', (req, res) => billingController.getRefundById(req, res));
 // IMPROVEMENT: Refund status update (admin can update status after processing)
@@ -70,9 +78,23 @@ router.get('/refunds/:id/timeline', (req, res) => billingController.getRefundTim
 // Invoices Routes
 router.get('/invoices', (req, res) => billingController.getAllInvoices(req, res));
 router.post('/invoices', (req, res) => billingController.createInvoice(req, res));
+// Alias route for mobile app compatibility
+router.get('/members/:member_id/invoices', (req, res) =>
+  billingController.getMemberInvoices(req, res)
+);
 
 // Discount Codes Routes
+// IMPORTANT: More specific routes must be defined BEFORE less specific ones
 router.post('/validate-coupon', (req, res) => billingController.validateCoupon(req, res));
+router.get('/discount-codes', (req, res) => billingController.getAllDiscountCodes(req, res));
+router.post('/discount-codes', (req, res) => billingController.createDiscountCode(req, res));
+// Specific routes with additional path must come before /:id routes
+router.get('/discount-codes/:id/usage-history', (req, res) =>
+  billingController.getDiscountCodeUsageHistory(req, res)
+);
+router.get('/discount-codes/:id', (req, res) => billingController.getDiscountCodeById(req, res));
+router.put('/discount-codes/:id', (req, res) => billingController.updateDiscountCode(req, res));
+router.delete('/discount-codes/:id', (req, res) => billingController.deleteDiscountCode(req, res));
 
 // Statistics Routes
 router.get('/stats', (req, res) => billingController.getStats(req, res));

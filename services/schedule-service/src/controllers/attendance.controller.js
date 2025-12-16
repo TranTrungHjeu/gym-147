@@ -562,7 +562,9 @@ const memberCheckOut = async (req, res) => {
       );
 
       if (pointsResult.success) {
-        console.log(`[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`);
+        console.log(
+          `[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`
+        );
       } else {
         console.warn(`[WARNING] Failed to award points for attendance: ${pointsResult.error}`);
       }
@@ -964,7 +966,9 @@ const trainerCheckOutMember = async (req, res) => {
       );
 
       if (pointsResult.success) {
-        console.log(`[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`);
+        console.log(
+          `[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`
+        );
       } else {
         console.warn(`[WARNING] Failed to award points for attendance: ${pointsResult.error}`);
       }
@@ -1129,7 +1133,7 @@ const getCheckInStatus = async (req, res) => {
     const timezone = require('dayjs/plugin/timezone');
     dayjs.extend(utc);
     dayjs.extend(timezone);
-    
+
     const vnTime = dayjs().tz('Asia/Ho_Chi_Minh');
     const now = vnTime.utc().toDate(); // Convert to UTC for comparison
     const startTime = new Date(schedule.start_time);
@@ -1554,7 +1558,9 @@ const scanQRCodeCheckInOut = async (req, res) => {
         );
 
         if (pointsResult.success) {
-          console.log(`[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`);
+          console.log(
+            `[POINTS] Awarded 20 points to member ${member_id} for completing class: ${className}`
+          );
         } else {
           console.warn(`[WARNING] Failed to award points for attendance: ${pointsResult.error}`);
         }
@@ -1641,7 +1647,7 @@ const scanQRCodeCheckInOut = async (req, res) => {
     }
   } catch (error) {
     console.error('Scan QR code check-in/out error:', error);
-    
+
     if (error.message === 'ALREADY_CHECKED_IN') {
       return res.status(400).json({
         success: false,
@@ -1765,8 +1771,7 @@ const submitRating = async (req, res) => {
 
       if (allClassRatings.length > 0) {
         const averageRating =
-          allClassRatings.reduce((sum, a) => sum + a.class_rating, 0) /
-          allClassRatings.length;
+          allClassRatings.reduce((sum, a) => sum + a.class_rating, 0) / allClassRatings.length;
 
         await prisma.gymClass.update({
           where: { id: attendance.schedule.gym_class_id },
@@ -1780,7 +1785,10 @@ const submitRating = async (req, res) => {
     try {
       const members = await memberService.getMembersByIds([member_id]);
       if (members && members.length > 0) {
-        memberName = members[0].full_name || members[0].first_name + ' ' + (members[0].last_name || '') || 'Hội viên';
+        memberName =
+          members[0].full_name ||
+          members[0].first_name + ' ' + (members[0].last_name || '') ||
+          'Hội viên';
       }
     } catch (memberError) {
       console.error('[ERROR] Failed to get member info for notification:', memberError);
@@ -1803,7 +1811,9 @@ const submitRating = async (req, res) => {
         }
 
         if (ratingParts.length > 0) {
-          notificationMessage = `${memberName} đã đánh giá ${ratingParts.join(' và ')} cho lớp ${attendance.schedule.gym_class?.name || 'lớp học'}`;
+          notificationMessage = `${memberName} đã đánh giá ${ratingParts.join(' và ')} cho lớp ${
+            attendance.schedule.gym_class?.name || 'lớp học'
+          }`;
         }
 
         // Create notification in database
@@ -1844,7 +1854,10 @@ const submitRating = async (req, res) => {
             .to(`user:${attendance.schedule.trainer.user_id}`)
             .emit('class:rating_received', socketPayload);
 
-          console.log(`[SOCKET] Emitted class:rating_received to trainer user:${attendance.schedule.trainer.user_id}`, socketPayload);
+          console.log(
+            `[SOCKET] Emitted class:rating_received to trainer user:${attendance.schedule.trainer.user_id}`,
+            socketPayload
+          );
         }
       } catch (notifError) {
         console.error('[ERROR] Failed to notify trainer about rating:', notifError);

@@ -43,7 +43,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastErrorTimeRef = useRef(0);
-  
+
   // Points earned modal state
   const [showPointsModal, setShowPointsModal] = useState(false);
   const [pointsModalData, setPointsModalData] = useState<{
@@ -238,7 +238,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             // Play notification sound if app is in foreground
             if (AppState.currentState === 'active') {
               playNotificationSound().catch((soundError) => {
-                console.warn('[BELL] Failed to play notification sound:', soundError);
+                console.warn(
+                  '[BELL] Failed to play notification sound:',
+                  soundError
+                );
               });
             }
 
@@ -332,7 +335,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         // Listen for points updates
         socket.on('points:updated', (data: any) => {
           console.log('[POINTS] Points updated event received:', data);
-          
+
           // Check if points are for current member
           if (member?.id && data.member_id === member.id) {
             // Show points earned modal
@@ -344,7 +347,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             });
             setShowPointsModal(true);
           }
-          
+
           // Emit event for other components to listen
           AppEvents.emit('points:updated', data);
         });
@@ -367,12 +370,15 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         });
         socket.on('queue:your_turn', async (data: any) => {
           console.log('[QUEUE] Queue your turn event received:', data);
-          
+
           // Play notification sound
           try {
             await playNotificationSound();
           } catch (soundError) {
-            console.error('[ERROR] Failed to play notification sound:', soundError);
+            console.error(
+              '[ERROR] Failed to play notification sound:',
+              soundError
+            );
           }
 
           // Show modal if user is in app
@@ -389,8 +395,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             const { useTranslation } = require('react-i18next');
             // Get translation function - we'll use a simple approach
             const title = 'Đến lượt bạn!';
-            const body = `${data.equipment_name || 'Thiết bị'} đã có sẵn. Bạn có ${data.expires_in_minutes || 5} phút để sử dụng.`;
-            
+            const body = `${
+              data.equipment_name || 'Thiết bị'
+            } đã có sẵn. Bạn có ${
+              data.expires_in_minutes || 5
+            } phút để sử dụng.`;
+
             await Notifications.scheduleNotificationAsync({
               content: {
                 title,
@@ -407,15 +417,20 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
               },
               trigger: null, // Show immediately
             });
-            
-            console.log('[NOTIFICATION] Queue your turn notification scheduled with sound');
+
+            console.log(
+              '[NOTIFICATION] Queue your turn notification scheduled with sound'
+            );
           } catch (notifError) {
-            console.error('[ERROR] Failed to show local notification:', notifError);
+            console.error(
+              '[ERROR] Failed to show local notification:',
+              notifError
+            );
           }
 
           // Emit event for other components to listen (for optimistic updates)
           AppEvents.emit('queue:your_turn', data);
-          
+
           refreshCount();
         });
         socket.on('queue:expired', (data: any) => {
@@ -617,7 +632,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             // Play notification sound if app is in foreground
             if (AppState.currentState === 'active') {
               playNotificationSound().catch((soundError) => {
-                console.warn('[BELL] Failed to play notification sound:', soundError);
+                console.warn(
+                  '[BELL] Failed to play notification sound:',
+                  soundError
+                );
               });
             }
 
@@ -655,7 +673,10 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             // Play notification sound if app is in foreground
             if (AppState.currentState === 'active') {
               playNotificationSound().catch((soundError) => {
-                console.warn('[BELL] Failed to play notification sound:', soundError);
+                console.warn(
+                  '[BELL] Failed to play notification sound:',
+                  soundError
+                );
               });
             }
 
@@ -672,6 +693,27 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
           } catch (error) {
             console.error(
               '[BELL] ❌ Error handling notification:new event from identity service:',
+              error
+            );
+          }
+        });
+
+        // Listen for schedule:updated events from identity service
+        // This event is emitted when trainer updates schedule that member has booked
+        identitySocket.on('schedule:updated', (data: any) => {
+          try {
+            console.log(
+              '[BELL] 📅 schedule:updated received from identity service:',
+              JSON.stringify(data, null, 2)
+            );
+
+            // Emit event for screens to listen and update optimistic UI
+            // This allows ClassCard and booking lists to update immediately
+            AppEvents.emit('schedule:updated', data);
+            console.log('[BELL] ✅ Emitted schedule:updated AppEvent');
+          } catch (error) {
+            console.error(
+              '[BELL] ❌ Error handling schedule:updated event:',
               error
             );
           }
@@ -730,6 +772,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         console.log('[BELL] Cleaning up identity service socket');
         identitySocketRef.current.off('admin:bulk:notification');
         identitySocketRef.current.off('notification:new');
+        identitySocketRef.current.off('schedule:updated');
         identitySocketRef.current.disconnect();
         identitySocketRef.current = null;
       }

@@ -730,7 +730,7 @@ class AdminController {
         user_id: admin.user_id,
         type: 'PAYMENT_SUCCESS',
         title: 'Thanh toán gói đăng ký thành công',
-        message: `${member_name || 'Thành viên'} đã thanh toán ${formattedAmount} cho gói ${
+        message: `${member_name || 'Hội viên'} đã thanh toán ${formattedAmount} cho gói ${
           plan_name || plan_type || 'đăng ký'
         }`,
         data: {

@@ -1,6 +1,7 @@
 import { PaymentSummary } from '@/components/PaymentSummary';
 import { useAuth } from '@/contexts/AuthContext';
 import { billingService } from '@/services/billing/billing.service';
+import { paymentService } from '@/services/billing/payment.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
 import type {
   DiscountCode,
@@ -39,6 +40,7 @@ export default function SubscriptionPaymentScreen() {
     subscriptionId?: string;
     action: PaymentAction;
     amount?: string;
+    paymentId?: string; // Existing payment ID (from upgradeDowngradeSubscription)
   }>();
 
   const [loading, setLoading] = useState(false);
@@ -229,30 +231,105 @@ export default function SubscriptionPaymentScreen() {
         });
       } else if (action === 'UPGRADE' && subscriptionId) {
         // For upgrade with payment:
-        // 1. Create payment first (with PENDING status)
-        // 2. Update subscription after payment is created
-        // This ensures payment exists before subscription is updated
+        // If paymentId is provided, use existing payment (created by upgradeDowngradeSubscription)
+        // Otherwise, create new payment
 
         const priceDifference = amount; // Amount is already the difference
 
         if (priceDifference > 0) {
-          // Step 1: Create payment first
-          paymentResponse = await billingService.initiatePayment({
-            member_id: member.id,
-            subscription_id: subscriptionId,
-            amount: priceDifference,
-            payment_method: selectedMethod,
-          });
+          // Check if we have an existing payment ID from upgradeDowngradeSubscription
+          if (params.paymentId) {
+            // Use existing payment - no need to create new one
+            console.log(
+              '[PAYMENT] Using existing payment from upgradeDowngradeSubscription:',
+              {
+                paymentId: params.paymentId,
+                subscriptionId,
+              }
+            );
+            // Get payment details to use for bank transfer
+            try {
+              const existingPaymentResponse =
+                await paymentService.getPaymentById(params.paymentId);
+              if (
+                existingPaymentResponse.success &&
+                existingPaymentResponse.data
+              ) {
+                const paymentData = existingPaymentResponse.data;
 
-          // Step 2: Update subscription after payment is created
-          // Note: Subscription will be fully activated when payment is completed
-          subscription = await subscriptionService.updateSubscription(
-            subscriptionId,
-            {
-              plan_id: plan.id,
-              ...(discount?.code ? { discount_code: discount.code } : {}),
+                // Check if payment already has bank_transfer
+                if (paymentData.bank_transfer) {
+                  // Payment already has bank transfer - use it
+                  paymentResponse = {
+                    success: true,
+                    payment: paymentData,
+                    gatewayData: {
+                      bankTransferId: paymentData.bank_transfer.id,
+                      qrCodeDataURL: paymentData.bank_transfer.qr_code_url,
+                    },
+                  };
+                  console.log(
+                    '[PAYMENT] Using existing bank transfer for payment:',
+                    {
+                      paymentId: params.paymentId,
+                      bankTransferId: paymentData.bank_transfer.id,
+                    }
+                  );
+                } else {
+                  // Payment doesn't have bank transfer yet
+                  // Need to create bank transfer for this existing payment
+                  // Since initiatePayment creates new payment, we'll call it
+                  // Backend should handle duplicate detection (already has logic in upgradeDowngradeSubscription)
+                  console.log(
+                    '[PAYMENT] Payment exists but no bank transfer. Will create payment with bank transfer...',
+                    {
+                      existingPaymentId: params.paymentId,
+                      note: 'Backend will handle duplicate payment detection',
+                    }
+                  );
+                  // Don't throw error - set paymentResponse to null so it will be created below
+                  paymentResponse = null;
+                }
+              } else {
+                throw new Error('Failed to get existing payment');
+              }
+            } catch (error) {
+              console.error(
+                '[PAYMENT] Error getting existing payment, creating new one:',
+                error
+              );
+              // Fallback: create new payment if getting existing one fails
+              paymentResponse = null; // Will be created below
             }
-          );
+
+            // If paymentResponse is null (payment exists but no bank transfer, or error getting payment),
+            // create new payment with bank transfer
+            if (!paymentResponse) {
+              console.log(
+                '[PAYMENT] Creating payment with bank transfer (payment may already exist, backend will handle duplicate)'
+              );
+              paymentResponse = await billingService.initiatePayment({
+                member_id: member.id,
+                subscription_id: subscriptionId,
+                amount: priceDifference,
+                payment_method: selectedMethod,
+              });
+            }
+          } else {
+            // No existing payment - create new one
+            console.log(
+              '[PAYMENT] No existing paymentId, creating new payment for upgrade'
+            );
+            paymentResponse = await billingService.initiatePayment({
+              member_id: member.id,
+              subscription_id: subscriptionId,
+              amount: priceDifference,
+              payment_method: selectedMethod,
+            });
+          }
+
+          // Note: Subscription was already updated by upgradeDowngradeSubscription
+          // No need to update again here
         } else {
           // No payment needed for downgrade or same price
           // Update subscription directly
@@ -410,17 +487,17 @@ export default function SubscriptionPaymentScreen() {
       case 'SUBSCRIBE':
         return (
           t('payment.subscribeSubtitle') ||
-          'Chọn phương thức thanh toán để đăng ký gói thành viên'
+          'Chọn phương thức thanh toán để đăng ký gói hội viên'
         );
       case 'UPGRADE':
         return (
           t('payment.upgradeSubtitle') ||
-          'Chọn phương thức thanh toán để nâng cấp gói thành viên'
+          'Chọn phương thức thanh toán để nâng cấp gói hội viên'
         );
       case 'RENEW':
         return (
           t('payment.renewSubtitle') ||
-          'Chọn phương thức thanh toán để gia hạn gói thành viên'
+          'Chọn phương thức thanh toán để gia hạn gói hội viên'
         );
       default:
         return (

@@ -208,33 +208,71 @@ const RegisterScreen = () => {
       setIsGoogleLoading(true);
 
       // For mobile, we'll use a web-based OAuth flow
-      const redirectUri = AuthSession.makeRedirectUri({
+      // Force use 'gym147' scheme even in Expo development mode
+      let redirectUri = AuthSession.makeRedirectUri({
         scheme: 'gym147',
         path: 'auth/callback',
       });
+      
+      // In Expo development, makeRedirectUri might return exp:// scheme
+      // Force it to use gym147:// scheme
+      if (redirectUri.startsWith('exp://')) {
+        redirectUri = redirectUri.replace('exp://', 'gym147://');
+        console.log('[GOOGLE_OAUTH_REGISTER] Converted exp:// to gym147://:', redirectUri);
+      }
+      
+      console.log('[GOOGLE_OAUTH_REGISTER] Using redirect URI:', redirectUri);
 
-      // Get OAuth URL from backend
-      const response = await fetch(
-        `${
-          process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
-        }/auth/oauth/google`,
-        {
-          method: 'GET',
-        }
+      // Get OAuth URL from backend using API service (consistent with login.tsx)
+      // Pass redirect_uri so backend can redirect back to mobile app
+      const { identityApiService } = await import(
+        '@/services/identity/api.service'
       );
+      const response = await identityApiService.get<{
+        authUrl: string;
+        state: string;
+      }>('/auth/oauth/google', {
+        redirect_uri: redirectUri,
+      });
 
-      if (!response.ok) {
-        throw new Error('Failed to get OAuth URL');
+      console.log(
+        '[GOOGLE_OAUTH_REGISTER] Full response:',
+        JSON.stringify(response, null, 2)
+      );
+      console.log(
+        '[GOOGLE_OAUTH_REGISTER] Response success:',
+        response.success
+      );
+      console.log('[GOOGLE_OAUTH_REGISTER] Response data:', response.data);
+
+      if (!response.success) {
+        throw new Error(response.message || 'Failed to get OAuth URL');
       }
 
-      const data = await response.json();
-      if (!data.success || !data.data?.authUrl) {
-        throw new Error('Invalid OAuth response');
+      if (!response.data) {
+        throw new Error('Response data is null or undefined');
+      }
+
+      // Handle both nested and flat response structures
+      const authUrl =
+        (response.data as any).authUrl || (response.data as any).data?.authUrl;
+
+      if (!authUrl) {
+        console.error(
+          '[GOOGLE_OAUTH_REGISTER] authUrl not found in response:',
+          {
+            responseData: response.data,
+            responseDataType: typeof response.data,
+            responseDataKeys: response.data ? Object.keys(response.data) : [],
+          }
+        );
+        throw new Error('authUrl not found in response');
       }
 
       // Open OAuth URL in browser
+      console.log('[GOOGLE_OAUTH_REGISTER] Opening auth URL:', authUrl);
       const result = await WebBrowser.openAuthSessionAsync(
-        data.data.authUrl,
+        authUrl,
         redirectUri
       );
 
@@ -248,37 +286,23 @@ const RegisterScreen = () => {
         if (token && refreshToken) {
           // Store tokens
           const { storeTokens } = await import('@/utils/auth/storage');
-          await storeTokens({
-            token,
-            refreshToken,
-          });
+          await storeTokens(token, refreshToken);
 
-          // Get user profile
-          const profileResponse = await fetch(
-            `${
-              process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001'
-            }/auth/profile`,
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }
+          // Get user profile using API service
+          const { identityApiService } = await import(
+            '@/services/identity/api.service'
           );
+          const profileResponse = await identityApiService.get('/auth/profile');
 
-          if (profileResponse.ok) {
-            const profileData = await profileResponse.json();
-            if (profileData.success) {
-              // If new user, navigate to onboarding/profile completion
-              // If existing user, navigate to tabs
-              if (isNewUser) {
-                // Navigate to profile completion or onboarding
-                router.replace('/(auth)/register-profile');
-              } else {
-                // Existing user, go to main app
-                router.replace('/(tabs)');
-              }
+          if (profileResponse.success && profileResponse.data) {
+            // If new user, navigate to onboarding/profile completion
+            // If existing user, navigate to tabs
+            if (isNewUser) {
+              // Navigate to profile completion or onboarding
+              router.replace('/(auth)/register-profile');
             } else {
-              Alert.alert(t('common.error'), t('auth.oauthFailed'));
+              // Existing user, go to main app
+              router.replace('/(tabs)');
             }
           } else {
             Alert.alert(t('common.error'), t('auth.oauthFailed'));
@@ -322,13 +346,19 @@ const RegisterScreen = () => {
       // Frontend normalization is optional - mainly for UX (auto-format on blur)
       const identifier = primaryMethod === 'EMAIL' ? email : phone;
 
-      const response = await identityApiService.post('/auth/send-otp', {
-        identifier,
-        type: primaryMethod,
-      });
+      const response = await identityApiService.post<{ retryAfter?: number }>(
+        '/auth/send-otp',
+        {
+          identifier,
+          type: primaryMethod,
+        }
+      );
 
       // Set cooldown from response or default to 60 seconds
-      const retryAfter = response.data?.data?.retryAfter || 60;
+      const retryAfter =
+        (response.data as any)?.retryAfter ||
+        (response.data as any)?.data?.retryAfter ||
+        60;
       setOtpCooldown(retryAfter);
 
       // Show success modal

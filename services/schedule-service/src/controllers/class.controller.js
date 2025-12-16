@@ -326,13 +326,13 @@ class ClassController {
       try {
         console.log(`[EMBEDDING] Generating class embedding for class ${gymClass.id}...`);
         const classDescriptionText = embeddingService.buildClassDescriptionText(gymClass);
-        
+
         if (classDescriptionText && classDescriptionText.trim().length > 0) {
           const embedding = await embeddingService.generateEmbedding(classDescriptionText);
-          
+
           // Format vector for PostgreSQL
           const vectorString = embeddingService.formatVectorForPostgres(embedding);
-          
+
           // Update class_embedding using raw query (Prisma doesn't support vector type directly)
           // Use parameterized query to prevent SQL injection
           await prisma.$executeRaw`
@@ -340,10 +340,12 @@ class ClassController {
             SET class_embedding = ${vectorString}::vector 
             WHERE id = ${gymClass.id}
           `;
-          
+
           console.log(`[SUCCESS] [EMBEDDING] Updated class_embedding for class ${gymClass.id}`);
         } else {
-          console.warn(`[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`);
+          console.warn(
+            `[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`
+          );
         }
       } catch (embeddingError) {
         // Don't fail the creation if embedding generation fails
@@ -550,7 +552,14 @@ class ClassController {
 
       // Generate and update class_embedding if class data changed
       // Check if any embedding-relevant fields were updated
-      const embeddingRelevantFields = ['name', 'description', 'category', 'difficulty', 'equipment_needed', 'duration'];
+      const embeddingRelevantFields = [
+        'name',
+        'description',
+        'category',
+        'difficulty',
+        'equipment_needed',
+        'duration',
+      ];
       const hasEmbeddingRelevantChanges = embeddingRelevantFields.some(
         field => req.body[field] !== undefined
       );
@@ -559,13 +568,13 @@ class ClassController {
         try {
           console.log(`[EMBEDDING] Regenerating class embedding for class ${gymClass.id}...`);
           const classDescriptionText = embeddingService.buildClassDescriptionText(gymClass);
-          
+
           if (classDescriptionText && classDescriptionText.trim().length > 0) {
             const embedding = await embeddingService.generateEmbedding(classDescriptionText);
-            
+
             // Format vector for PostgreSQL
             const vectorString = embeddingService.formatVectorForPostgres(embedding);
-            
+
             // Update class_embedding using raw query (Prisma doesn't support vector type directly)
             // Use parameterized query to prevent SQL injection
             await prisma.$executeRaw`
@@ -573,10 +582,12 @@ class ClassController {
               SET class_embedding = ${vectorString}::vector 
               WHERE id = ${gymClass.id}
             `;
-            
+
             console.log(`[SUCCESS] [EMBEDDING] Updated class_embedding for class ${gymClass.id}`);
           } else {
-            console.warn(`[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`);
+            console.warn(
+              `[WARNING] [EMBEDDING] Class description text is empty for class ${gymClass.id}, skipping embedding generation`
+            );
           }
         } catch (embeddingError) {
           // Don't fail the update if embedding generation fails
@@ -1001,6 +1012,43 @@ class ClassController {
   }
 
   /**
+   * Invalidate recommendations cache for a member
+   * POST /classes/members/:memberId/recommendations/invalidate
+   */
+  async invalidateRecommendationsCache(req, res) {
+    try {
+      const { memberId } = req.params;
+
+      if (!memberId) {
+        return res.status(400).json({
+          success: false,
+          message: 'Member ID is required',
+          data: null,
+        });
+      }
+
+      // Invalidate all recommendation cache entries for this member
+      const invalidated = await cacheService.invalidateMemberRecommendations(memberId);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Recommendations cache invalidated successfully',
+        data: {
+          memberId,
+          invalidated,
+        },
+      });
+    } catch (error) {
+      console.error('Invalidate recommendations cache error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Internal server error',
+        data: null,
+      });
+    }
+  }
+
+  /**
    * Generate recommendations using vector embedding and scoring formula
    * Implements: Vector Search -> Filtering -> Scoring -> Ranking
    */
@@ -1168,8 +1216,48 @@ class ClassController {
         `[STATS] [generateVectorBasedRecommendations] Ranked ${rankedClasses.length} classes`
       );
 
-      // Step 6: Convert to recommendation format (top 5)
-      const recommendations = rankedClasses.slice(0, 5).map((classItem, index) => ({
+      // Step 6: Filter classes that have upcoming schedules (not past)
+      const now = new Date();
+      const classesWithUpcomingSchedules = await Promise.all(
+        rankedClasses.slice(0, 10).map(async classItem => {
+          // Check if this class has any upcoming schedules
+          const upcomingSchedule = await prisma.schedule.findFirst({
+            where: {
+              class_id: classItem.id,
+              start_time: {
+                gte: now, // Only future schedules
+              },
+              status: {
+                in: ['SCHEDULED', 'IN_PROGRESS'], // Only active schedules
+              },
+            },
+            orderBy: {
+              start_time: 'asc', // Get the earliest upcoming schedule
+            },
+            select: {
+              id: true,
+              start_time: true,
+            },
+          });
+
+          return {
+            ...classItem,
+            upcomingSchedule,
+          };
+        })
+      );
+
+      // Filter out classes without upcoming schedules
+      const validClasses = classesWithUpcomingSchedules.filter(
+        item => item.upcomingSchedule !== null
+      );
+
+      console.log(
+        `[STATS] [generateVectorBasedRecommendations] After filtering for upcoming schedules: ${validClasses.length} classes with upcoming schedules out of ${classesWithUpcomingSchedules.length}`
+      );
+
+      // Step 7: Convert to recommendation format (top 5 with upcoming schedules)
+      const recommendations = validClasses.slice(0, 5).map((classItem, index) => ({
         type: 'VECTOR_RECOMMENDATION',
         priority: index < 2 ? 'HIGH' : 'MEDIUM',
         title: classItem.name,
@@ -1182,6 +1270,7 @@ class ClassController {
           classCategory: classItem.category,
           similarity: classItem.similarity,
           finalScore: classItem.finalScore,
+          scheduleId: classItem.upcomingSchedule?.id, // Include scheduleId if available
         },
         reasoning: `Cosine similarity: ${(classItem.similarity * 100).toFixed(1)}%, Popularity: ${(
           classItem.popularity * 100

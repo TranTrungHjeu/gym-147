@@ -141,12 +141,12 @@ const ReportsManagement: React.FC = () => {
             // Calculate month range from date range
             const fromDateObj = new Date(fromDate);
             const toDateObj = new Date(toDate);
-            
+
             // Get all months in the range
             const months: Array<{ month: number; year: number }> = [];
             const current = new Date(fromDateObj.getFullYear(), fromDateObj.getMonth(), 1);
             const end = new Date(toDateObj.getFullYear(), toDateObj.getMonth(), 1);
-            
+
             while (current <= end) {
               months.push({
                 month: current.getMonth() + 1,
@@ -163,11 +163,11 @@ const ReportsManagement: React.FC = () => {
               }))
             );
 
-            // Get processed refunds (only PROCESSED refunds are subtracted from revenue)
+            // Get all refunds (APPROVED and PROCESSED) for display
+            // Note: Refunds are displayed but NOT subtracted from net revenue
             const refundsResponse = await billingService
-              .getProcessedRefunds({
-                from: fromDate,
-                to: toDate,
+              .getAllRefunds({
+                all: true, // Admin view: get all refunds
                 limit: 1000,
               })
               .catch(() => ({
@@ -190,10 +190,16 @@ const ReportsManagement: React.FC = () => {
 
             // Calculate revenue per month from trends data
             const revenuePerMonth: { [key: string]: number } = {};
-            if (trendsResponse?.success && trendsResponse.data?.dates && trendsResponse.data?.revenues) {
+            if (
+              trendsResponse?.success &&
+              trendsResponse.data?.dates &&
+              trendsResponse.data?.revenues
+            ) {
               trendsResponse.data.dates.forEach((date: string, index: number) => {
                 const dateObj = new Date(date);
-                const monthKey = `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}`;
+                const monthKey = `${dateObj.getFullYear()}-${String(
+                  dateObj.getMonth() + 1
+                ).padStart(2, '0')}`;
                 if (!revenuePerMonth[monthKey]) {
                   revenuePerMonth[monthKey] = 0;
                 }
@@ -215,11 +221,23 @@ const ReportsManagement: React.FC = () => {
                 const monthKey = `${monthData.year}-${String(monthData.month).padStart(2, '0')}`;
                 const monthRevenue = revenuePerMonth[monthKey] || 0;
 
-                // Get refunds for this month (use processed_at if available, otherwise created_at)
+                // Get refunds for this month (only PROCESSED status)
                 const monthRefunds = refundsResponse.data?.refunds
                   ? refundsResponse.data.refunds
                       .filter((refund: any) => {
+                        // Only count PROCESSED refunds
+                        if (refund.status !== 'PROCESSED') {
+                          return false;
+                        }
+                        // Filter by date (use processed_at if available, otherwise created_at)
                         const refundDate = new Date(refund.processed_at || refund.created_at);
+                        const fromDateObj = new Date(fromDate);
+                        const toDateObj = new Date(toDate);
+                        toDateObj.setHours(23, 59, 59, 999);
+                        if (refundDate < fromDateObj || refundDate > toDateObj) {
+                          return false;
+                        }
+                        // Check if it's in this month
                         return (
                           refundDate.getFullYear() === monthData.year &&
                           refundDate.getMonth() + 1 === monthData.month
@@ -236,36 +254,57 @@ const ReportsManagement: React.FC = () => {
                   revenue: monthRevenue,
                   salaries: monthSalary,
                   refunds: monthRefunds,
-                  net: monthRevenue - monthSalary - monthRefunds,
+                  net: monthRevenue - monthSalary, // Không trừ hoàn tiền
                 });
               }
             });
 
-            // Calculate total processed refunds
-            const totalRefunds = refundsResponse.data?.totalAmount || 0;
-            
+            // Calculate total refunds (only PROCESSED) for display
+            // Filter by date range
+            const allRefunds = refundsResponse.data?.refunds || [];
+            const filteredRefunds = allRefunds.filter((refund: any) => {
+              // Only count PROCESSED refunds
+              if (refund.status !== 'PROCESSED') {
+                return false;
+              }
+              // Filter by date range (use processed_at if available, otherwise created_at)
+              const refundDate = new Date(refund.processed_at || refund.created_at);
+              const fromDateObj = new Date(fromDate);
+              const toDateObj = new Date(toDate);
+              toDateObj.setHours(23, 59, 59, 999);
+              return refundDate >= fromDateObj && refundDate <= toDateObj;
+            });
+            const totalRefunds = filteredRefunds.reduce(
+              (sum: number, refund: any) => sum + (Number(refund.amount) || 0),
+              0
+            );
+
             // Calculate total revenue from monthly breakdown (more accurate than revenueData)
             // This ensures consistency between summary cards and monthly breakdown table
             const totalRevenueFromBreakdown = monthlyBreakdown.reduce(
               (sum, month) => sum + month.revenue,
               0
             );
-            
+
             // Calculate total revenue from trends data (sum of all revenues)
-            const totalRevenueFromTrends = trendsResponse?.success && trendsResponse.data?.revenues
-              ? trendsResponse.data.revenues.reduce((sum: number, rev: number) => sum + (rev || 0), 0)
-              : 0;
-            
+            const totalRevenueFromTrends =
+              trendsResponse?.success && trendsResponse.data?.revenues
+                ? trendsResponse.data.revenues.reduce(
+                    (sum: number, rev: number) => sum + (rev || 0),
+                    0
+                  )
+                : 0;
+
             // Priority: breakdown > trends > revenueData
             // This ensures the total matches what's shown in the monthly breakdown table
-            const totalRevenue = 
+            const totalRevenue =
               totalRevenueFromBreakdown > 0
-                ? totalRevenueFromBreakdown  // Use breakdown if available (most accurate for monthly view)
+                ? totalRevenueFromBreakdown // Use breakdown if available (most accurate for monthly view)
                 : totalRevenueFromTrends > 0
-                ? totalRevenueFromTrends     // Fallback to trends sum
-                : revenueData?.total_revenue || 0;  // Last resort: revenueData
-            
-            const netRevenue = totalRevenue - totalSalaries - totalRefunds;
+                ? totalRevenueFromTrends // Fallback to trends sum
+                : revenueData?.total_revenue || 0; // Last resort: revenueData
+
+            const netRevenue = totalRevenue - totalSalaries; // Không trừ hoàn tiền
 
             setNetRevenueData({
               totalRevenue,
@@ -611,7 +650,7 @@ const ReportsManagement: React.FC = () => {
           {/* Stats Cards */}
           {isLoading ? (
             <TableLoading text={t('reportsManagement.messages.loadingRevenue')} />
-          ) : (revenueTrendData || revenueData || netRevenueData) ? (
+          ) : revenueTrendData || revenueData || netRevenueData ? (
             <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
               <AdminCard padding='sm' className='relative overflow-hidden group'>
                 <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl'></div>
@@ -627,7 +666,10 @@ const ReportsManagement: React.FC = () => {
                           {formatCurrency(
                             netRevenueData?.totalRevenue ||
                               (revenueTrendData?.revenues
-                                ? revenueTrendData.revenues.reduce((sum: number, rev: number) => sum + (rev || 0), 0)
+                                ? revenueTrendData.revenues.reduce(
+                                    (sum: number, rev: number) => sum + (rev || 0),
+                                    0
+                                  )
                                 : revenueData?.total_revenue || 0)
                           )}
                         </div>
@@ -654,13 +696,20 @@ const ReportsManagement: React.FC = () => {
                             const totalRevenue =
                               netRevenueData?.totalRevenue ||
                               (revenueTrendData?.revenues
-                                ? revenueTrendData.revenues.reduce((sum: number, rev: number) => sum + (rev || 0), 0)
+                                ? revenueTrendData.revenues.reduce(
+                                    (sum: number, rev: number) => sum + (rev || 0),
+                                    0
+                                  )
                                 : revenueData?.total_revenue || 0);
-                            const totalTransactions =
-                              revenueTrendData?.transactions
-                                ? revenueTrendData.transactions.reduce((sum: number, trans: number) => sum + (trans || 0), 0)
-                                : revenueData?.total_transactions || 0;
-                            return formatCurrency(totalTransactions > 0 ? totalRevenue / totalTransactions : 0);
+                            const totalTransactions = revenueTrendData?.transactions
+                              ? revenueTrendData.transactions.reduce(
+                                  (sum: number, trans: number) => sum + (trans || 0),
+                                  0
+                                )
+                              : revenueData?.total_transactions || 0;
+                            return formatCurrency(
+                              totalTransactions > 0 ? totalRevenue / totalTransactions : 0
+                            );
                           })()}
                         </div>
                       </div>
@@ -683,7 +732,10 @@ const ReportsManagement: React.FC = () => {
                       <div className='flex items-baseline gap-1.5 mb-0.5'>
                         <div className='text-xl font-bold font-heading text-gray-900 dark:text-white leading-none tracking-tight'>
                           {revenueTrendData?.transactions
-                            ? revenueTrendData.transactions.reduce((sum: number, trans: number) => sum + (trans || 0), 0)
+                            ? revenueTrendData.transactions.reduce(
+                                (sum: number, trans: number) => sum + (trans || 0),
+                                0
+                              )
                             : revenueData?.total_transactions || 0}
                         </div>
                       </div>
@@ -731,7 +783,10 @@ const ReportsManagement: React.FC = () => {
                       -{formatCurrency(netRevenueData.approvedRefunds)}
                     </p>
                   </AdminCard>
-                  <AdminCard padding='sm' className='border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20'>
+                  <AdminCard
+                    padding='sm'
+                    className='border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20'
+                  >
                     <p className='text-theme-xs font-medium text-gray-600 dark:text-gray-400 font-inter mb-1'>
                       Doanh thu sau chi
                     </p>
@@ -849,7 +904,7 @@ const ReportsManagement: React.FC = () => {
                   />
                 </div>
               )}
-              
+
               {/* Net Revenue Chart */}
               {netRevenueData && netRevenueData.monthlyBreakdown.length > 0 && (
                 <div className='grid grid-cols-1 gap-6'>
@@ -883,11 +938,11 @@ const ReportsManagement: React.FC = () => {
         <div className='space-y-3'>
           {/* Stats Cards */}
           {isLoading ? (
-            <TableLoading text='Đang tải dữ liệu thành viên...' />
+            <TableLoading text='Đang tải dữ liệu hội viên...' />
           ) : memberStats && Array.isArray(memberStats) && memberStats.length > 0 ? (
             <AdminCard>
               <h3 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white mb-4'>
-                Thống kê thành viên
+                Thống kê hội viên
               </h3>
               <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
                 {memberStats.map((stat: any, index: number) => (
@@ -918,7 +973,7 @@ const ReportsManagement: React.FC = () => {
               <div className='text-center py-12'>
                 <Users className='w-12 h-12 text-gray-400 dark:text-gray-500 mx-auto mb-3' />
                 <p className='text-theme-sm font-heading text-gray-700 dark:text-gray-300'>
-                  Chưa có dữ liệu thành viên
+                  Chưa có dữ liệu hội viên
                 </p>
                 <p className='text-theme-xs text-gray-500 dark:text-gray-400 mt-1'>
                   Vui lòng đảm bảo dashboard service đang chạy hoặc chọn khoảng thời gian để xem báo

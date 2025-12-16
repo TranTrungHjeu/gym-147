@@ -100,10 +100,7 @@ const RefundManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error loading refunds:', error);
-      showToast(
-        error.message || t('refundManagement.errors.loadDataError'),
-        'error'
-      );
+      showToast(error.message || t('refundManagement.errors.loadDataError'), 'error');
     } finally {
       setIsLoading(false);
     }
@@ -136,10 +133,7 @@ const RefundManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error approving refund:', error);
-      showToast(
-        error.message || t('refundManagement.errors.approveError'),
-        'error'
-      );
+      showToast(error.message || t('refundManagement.errors.approveError'), 'error');
     } finally {
       setProcessingRefundId(null);
     }
@@ -172,10 +166,7 @@ const RefundManagement: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Error processing refund:', error);
-      showToast(
-        error.message || t('refundManagement.errors.processError'),
-        'error'
-      );
+      showToast(error.message || t('refundManagement.errors.processError'), 'error');
     } finally {
       setProcessingRefundId(null);
     }
@@ -260,9 +251,9 @@ const RefundManagement: React.FC = () => {
   // Prepare export data
   const getExportData = useCallback(() => {
     return filteredRefunds.map(refund => ({
-      'ID': refund.id,
-      'Thành viên': refund.payment?.member?.full_name || 'N/A',
-      'Email': refund.payment?.member?.email || 'N/A',
+      ID: refund.id,
+      'Hội viên': refund.payment?.member?.full_name || 'N/A',
+      Email: refund.payment?.member?.email || 'N/A',
       'Số tiền (VND)': refund.amount || 0,
       'Số tiền (đã format)': formatCurrency(refund.amount),
       'Lý do': refund.reason || 'N/A',
@@ -272,9 +263,7 @@ const RefundManagement: React.FC = () => {
       'Người xử lý': refund.processed_by || 'N/A',
       'Ghi chú': refund.notes || 'N/A',
       'Mã giao dịch': refund.transaction_id || 'N/A',
-      'Ngày tạo': refund.created_at
-        ? formatVietnamDateTime(refund.created_at, 'datetime')
-        : 'N/A',
+      'Ngày tạo': refund.created_at ? formatVietnamDateTime(refund.created_at, 'datetime') : 'N/A',
       'Ngày xử lý': refund.processed_at
         ? formatVietnamDateTime(refund.processed_at, 'datetime')
         : 'N/A',
@@ -283,7 +272,7 @@ const RefundManagement: React.FC = () => {
 
   const exportColumns = [
     { key: 'ID', label: 'ID' },
-    { key: 'Thành viên', label: 'Thành viên' },
+    { key: 'Hội viên', label: 'Hội viên' },
     { key: 'Email', label: 'Email' },
     { key: 'Số tiền (VND)', label: 'Số tiền (VND)' },
     { key: 'Số tiền (đã format)', label: 'Số tiền (đã format)' },
@@ -367,9 +356,7 @@ const RefundManagement: React.FC = () => {
               <RotateCcw className='w-4 h-4 text-orange-600 dark:text-orange-400' />
             </div>
             <div>
-              <div className='text-xl font-bold text-gray-900 dark:text-white'>
-                {total}
-              </div>
+              <div className='text-xl font-bold text-gray-900 dark:text-white'>{total}</div>
               <div className='text-theme-xs text-gray-500 dark:text-gray-400'>
                 {t('refundManagement.stats.total')}
               </div>
@@ -439,7 +426,7 @@ const RefundManagement: React.FC = () => {
             <AdminTable>
               <AdminTableHeader>
                 <AdminTableRow>
-                  <AdminTableCell>Thành viên</AdminTableCell>
+                  <AdminTableCell>Hội viên</AdminTableCell>
                   <AdminTableCell>Số tiền</AdminTableCell>
                   <AdminTableCell>Lý do</AdminTableCell>
                   <AdminTableCell>Trạng thái</AdminTableCell>
@@ -588,9 +575,7 @@ const RefundManagement: React.FC = () => {
       <ConfirmModal
         isOpen={confirmModal.isOpen}
         onClose={() => setConfirmModal({ isOpen: false, type: null, refund: null })}
-        onConfirm={
-          confirmModal.type === 'approve' ? handleConfirmApprove : handleConfirmProcess
-        }
+        onConfirm={confirmModal.type === 'approve' ? handleConfirmApprove : handleConfirmProcess}
         title={
           confirmModal.type === 'approve'
             ? t('refundManagement.confirm.approveTitle')
@@ -617,4 +602,3 @@ const RefundManagement: React.FC = () => {
 };
 
 export default RefundManagement;
-

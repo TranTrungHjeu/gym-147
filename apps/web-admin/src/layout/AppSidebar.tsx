@@ -18,6 +18,7 @@ import { useNavigation } from '../context/NavigationContext';
 import { useSidebar } from '../context/SidebarContext';
 import { getCurrentUser, getDashboardPath } from '../utils/auth';
 import { chatService } from '../services/chat.service';
+import { billingService } from '../services/billing.service';
 import SidebarWidget from './SidebarWidget';
 
 // Add CSS keyframes for animations (only once)
@@ -80,7 +81,7 @@ type NavItem = {
   name: string;
   icon: React.ReactNode;
   path?: string;
-  subItems?: { name: string; path: string; pro?: boolean; new?: boolean }[];
+  subItems?: { name: string; path: string; pro?: boolean; new?: boolean; badge?: number }[];
   badge?: number;
 };
 
@@ -89,6 +90,7 @@ const AppSidebar: React.FC = () => {
   const { setIsNavigating } = useNavigation();
   const location = useLocation();
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [pendingRefundsCount, setPendingRefundsCount] = useState(0);
   const user = getCurrentUser();
 
   // Get dashboard path dynamically based on current user
@@ -137,6 +139,53 @@ const AppSidebar: React.FC = () => {
     };
   }, [user?.id]);
 
+  // Load pending refunds count
+  useEffect(() => {
+    const loadPendingRefundsCount = async () => {
+      try {
+        const response = await billingService.getAllRefunds({
+          status: 'PENDING',
+          limit: 100, // Get more to ensure we get accurate count
+          all: true,
+        });
+        if (response.success) {
+          // Handle different response structures
+          let total = 0;
+          if (response.data?.pagination?.total !== undefined) {
+            total = response.data.pagination.total;
+          } else if (response.data?.refunds && Array.isArray(response.data.refunds)) {
+            // Count PENDING refunds from the array
+            total = response.data.refunds.filter((r: any) => r.status === 'PENDING').length;
+          } else if (Array.isArray(response.data)) {
+            // If response.data is array, count PENDING items
+            total = response.data.filter((r: any) => r.status === 'PENDING').length;
+          } else if (response.data?.total !== undefined) {
+            total = response.data.total;
+          }
+
+          console.log(
+            '[SIDEBAR] Pending refunds count:',
+            total,
+            'Response data:',
+            JSON.stringify(response.data, null, 2)
+          );
+          setPendingRefundsCount(total);
+          console.log('[SIDEBAR] Updated pendingRefundsCount state to:', total);
+        } else {
+          console.warn('[SIDEBAR] Failed to load pending refunds count:', response.error);
+        }
+      } catch (error) {
+        console.error('[SIDEBAR] Error loading pending refunds count:', error);
+      }
+    };
+
+    loadPendingRefundsCount();
+    // Poll every 30 seconds to keep count updated
+    const interval = setInterval(loadPendingRefundsCount, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   // Create nav items with dynamic dashboard path - memoized to prevent re-creation on every render
   const navItems: NavItem[] = useMemo(() => {
     const dashboardPath = getDashboardPathForCurrentUser();
@@ -162,9 +211,8 @@ const AppSidebar: React.FC = () => {
         name: 'Quản lý người dùng',
         subItems: [
           { name: 'Tất cả tài khoản', path: '/management/users' },
-          { name: 'Thành viên', path: '/management/members' },
+          { name: 'Hội viên', path: '/management/members' },
           { name: 'Huấn luyện viên', path: '/management/trainers' },
-          { name: 'Quản lý yêu cầu lương', path: '/management/salary-requests' },
           // Personal Training and Guest Pass removed - not needed
         ],
       },
@@ -183,7 +231,12 @@ const AppSidebar: React.FC = () => {
         name: 'Thanh toán',
         subItems: [
           { name: 'Quản lý thanh toán', path: '/management/billing' },
-          { name: 'Quản lý hoàn tiền', path: '/management/refunds' },
+          {
+            name: 'Quản lý hoàn tiền',
+            path: '/management/refunds',
+            badge: pendingRefundsCount > 0 ? pendingRefundsCount : undefined,
+          },
+          { name: 'Quản lý mã giảm giá', path: '/management/coupons' },
         ],
       },
       {
@@ -202,7 +255,7 @@ const AppSidebar: React.FC = () => {
         subItems: [
           { name: 'Tổng quan', path: '/management/reports' },
           { name: 'Báo cáo người dùng', path: '/management/reports/users' },
-          { name: 'Báo cáo thành viên', path: '/management/reports/members' },
+          { name: 'Báo cáo hội viên', path: '/management/reports/members' },
           { name: 'Báo cáo lớp học', path: '/management/reports/classes' },
           { name: 'Báo cáo doanh thu', path: '/management/reports/revenue' },
           { name: 'Báo cáo thiết bị', path: '/management/reports/equipment' },
@@ -212,7 +265,21 @@ const AppSidebar: React.FC = () => {
         ],
       },
     ];
-  }, [getDashboardPathForCurrentUser]);
+  }, [getDashboardPathForCurrentUser, pendingRefundsCount]);
+
+  // Debug: Log navItems to check badge value
+  useEffect(() => {
+    const refundsItem = navItems.find(item => item.name === 'Thanh toán');
+    if (refundsItem?.subItems) {
+      const refundsSubItem = refundsItem.subItems.find(sub => sub.path === '/management/refunds');
+      console.log(
+        '[SIDEBAR] Refunds subItem badge:',
+        refundsSubItem?.badge,
+        'pendingRefundsCount:',
+        pendingRefundsCount
+      );
+    }
+  }, [navItems, pendingRefundsCount]);
 
   // Other items - System settings and development tools
   const othersItems: NavItem[] = useMemo(
@@ -449,6 +516,11 @@ const AppSidebar: React.FC = () => {
                             {subItem.name}
                           </span>
                           <span className='flex items-center gap-1 ml-auto'>
+                            {subItem.badge !== undefined && subItem.badge > 0 && (
+                              <span className='bg-orange-500 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center animate-pulse'>
+                                {subItem.badge > 99 ? '99+' : subItem.badge}
+                              </span>
+                            )}
                             {subItem.new && (
                               <span
                                 className={`px-2 py-0.5 text-xs rounded-full font-medium font-space-grotesk ${

@@ -20,8 +20,8 @@ try {
 }
 
 // BILLING_SERVICE_URL with fallback for Docker environment
-const BILLING_SERVICE_URL = 
-  process.env.BILLING_SERVICE_URL || 
+const BILLING_SERVICE_URL =
+  process.env.BILLING_SERVICE_URL ||
   (process.env.DOCKER_ENV === 'true' ? 'http://billing:3004' : 'http://localhost:3004');
 
 if (!BILLING_SERVICE_URL) {
@@ -70,7 +70,7 @@ const attachMemberDetails = async (bookings, { strict = false } = {}) => {
 };
 
 // Helper function to add date field to schedule (computed from start_time)
-const addScheduleDate = (schedule) => {
+const addScheduleDate = schedule => {
   if (!schedule || !schedule.start_time) {
     return schedule;
   }
@@ -83,7 +83,7 @@ const addScheduleDate = (schedule) => {
 };
 
 // Helper function to add date field to schedules in bookings
-const addScheduleDateToBookings = (bookings) => {
+const addScheduleDateToBookings = bookings => {
   return bookings.map(booking => ({
     ...booking,
     schedule: booking.schedule ? addScheduleDate(booking.schedule) : null,
@@ -154,7 +154,7 @@ class BookingController {
       }
 
       const [bookingWithMember] = await attachMemberDetails([booking]);
-      const bookingWithScheduleDate = bookingWithMember.schedule 
+      const bookingWithScheduleDate = bookingWithMember.schedule
         ? { ...bookingWithMember, schedule: addScheduleDate(bookingWithMember.schedule) }
         : bookingWithMember;
 
@@ -240,7 +240,7 @@ class BookingController {
       if (!member) {
         return res.status(404).json({
           success: false,
-          message: 'Member không tồn tại. Vui lòng đăng ký thành viên trước khi đặt lịch.',
+          message: 'Member không tồn tại. Vui lòng đăng ký hội viên trước khi đặt lịch.',
           data: null,
         });
       }
@@ -303,6 +303,54 @@ class BookingController {
           data: {
             schedule_id: schedule_id,
             end_time: schedule.end_time,
+          },
+        });
+      }
+
+      // Check booking deadline: Cannot book within 1.5 hours (90 minutes) before class starts
+      const now = new Date();
+      const startTime = new Date(schedule.start_time);
+      const timeUntilStart = startTime.getTime() - now.getTime();
+      const deadlineMinutes = 90; // 1.5 hours = 90 minutes
+      const deadlineMs = deadlineMinutes * 60 * 1000;
+
+      if (timeUntilStart < deadlineMs && timeUntilStart > 0) {
+        const remainingMinutes = Math.ceil(timeUntilStart / (60 * 1000));
+        console.error('[BOOKING] Booking deadline passed:', {
+          schedule_id,
+          start_time: schedule.start_time,
+          now: now.toISOString(),
+          timeUntilStartMs: timeUntilStart,
+          remainingMinutes,
+          deadlineMinutes,
+        });
+        return res.status(400).json({
+          success: false,
+          message: `Không thể đặt chỗ. Lớp học bắt đầu trong ${remainingMinutes} phút. Vui lòng đăng ký trước ${deadlineMinutes} phút khi lớp học bắt đầu.`,
+          errorCode: 'BOOKING_DEADLINE_PASSED',
+          data: {
+            schedule_id: schedule_id,
+            start_time: schedule.start_time,
+            remaining_minutes: remainingMinutes,
+            deadline_minutes: deadlineMinutes,
+          },
+        });
+      }
+
+      // Also check if class has already started
+      if (timeUntilStart <= 0) {
+        console.error('[BOOKING] Class already started:', {
+          schedule_id,
+          start_time: schedule.start_time,
+          now: now.toISOString(),
+        });
+        return res.status(400).json({
+          success: false,
+          message: 'Không thể đặt chỗ cho lớp học đã bắt đầu',
+          errorCode: 'CLASS_ALREADY_STARTED',
+          data: {
+            schedule_id: schedule_id,
+            start_time: schedule.start_time,
           },
         });
       }
@@ -639,7 +687,9 @@ class BookingController {
                 },
               },
             });
-            console.log(`[BOOKING] Updated cancelled booking ${cancelledBooking.id} to new booking`);
+            console.log(
+              `[BOOKING] Updated cancelled booking ${cancelledBooking.id} to new booking`
+            );
           } else {
             // Create new booking (with PENDING payment status if price > 0)
             newBooking = await tx.booking.create({
@@ -689,8 +739,28 @@ class BookingController {
           await distributedLock.release('booking', schedule_id, lockId);
         }
 
+        // Handle Prisma transaction error (P2028) - transaction not found/timeout
+        if (txError.code === 'P2028') {
+          console.error(
+            '[BOOKING] Transaction error (P2028):',
+            txError.message,
+            'Schedule ID:',
+            schedule_id
+          );
+          return res.status(500).json({
+            success: false,
+            message: 'Lỗi kết nối cơ sở dữ liệu. Vui lòng thử lại sau.',
+            errorCode: 'TRANSACTION_ERROR',
+            data: null,
+          });
+        }
+
         // Handle Prisma unique constraint error (P2002) - duplicate booking
-        if (txError.code === 'P2002' && txError.meta?.target?.includes('schedule_id') && txError.meta?.target?.includes('member_id')) {
+        if (
+          txError.code === 'P2002' &&
+          txError.meta?.target?.includes('schedule_id') &&
+          txError.meta?.target?.includes('member_id')
+        ) {
           // Check if existing booking exists (including cancelled bookings)
           const existingBooking = await prisma.booking.findFirst({
             where: {
@@ -710,7 +780,9 @@ class BookingController {
             // If booking is CANCELLED, this should not happen (we handle it in transaction)
             // But if it does, allow re-booking by updating the cancelled booking
             if (existingBooking.status === 'CANCELLED') {
-              console.log(`[BOOKING] Found CANCELLED booking ${existingBooking.id}, should have been handled in transaction`);
+              console.log(
+                `[BOOKING] Found CANCELLED booking ${existingBooking.id}, should have been handled in transaction`
+              );
               // This case should be rare - retry the booking
               return res.status(409).json({
                 success: false,
@@ -885,14 +957,14 @@ class BookingController {
               user_id: booking.schedule.trainer.user_id,
               type: 'CLASS_BOOKING',
               title: 'Đặt lớp mới',
-              message: `${member?.full_name || 'Thành viên'} đã đặt lớp ${
+              message: `${member?.full_name || 'Hội viên'} đã đặt lớp ${
                 booking.schedule.gym_class?.name || 'Lớp học'
               }`,
               data: {
                 booking_id: booking.id,
                 schedule_id: schedule_id,
                 class_name: booking.schedule.gym_class?.name || 'Lớp học',
-                member_name: member?.full_name || 'Thành viên',
+                member_name: member?.full_name || 'Hội viên',
                 member_id: member?.id,
                 booked_at: booking.booked_at,
                 role: 'MEMBER', // Add role to identify notification source
@@ -907,7 +979,7 @@ class BookingController {
             booking_id: booking.id,
             schedule_id: schedule_id,
             class_name: booking.schedule.gym_class?.name || 'Lớp học',
-            member_name: member?.full_name || 'Thành viên',
+            member_name: member?.full_name || 'Hội viên',
             booked_at: booking.booked_at,
             payment_status: 'PAID', // Free booking is auto-paid
             current_bookings: booking.schedule.current_bookings + 1,
@@ -995,7 +1067,7 @@ class BookingController {
             memberId: payment.member_id,
             amount: payment.amount,
           });
-          
+
           // Verify reference_id was saved correctly
           if (!payment.reference_id || payment.reference_id !== booking.id) {
             console.error('[ERROR] Payment reference_id mismatch!', {
@@ -1009,10 +1081,10 @@ class BookingController {
         const errorCode = paymentError.code || '';
         const errorMessage = (paymentError.message || '').toLowerCase();
         const errorResponse = paymentError.response?.data;
-        
+
         // Check if error is due to billing service being unavailable (connection/timeout errors)
-        const isConnectionError = 
-          errorCode === 'ECONNREFUSED' || 
+        const isConnectionError =
+          errorCode === 'ECONNREFUSED' ||
           errorCode === 'ETIMEDOUT' ||
           errorCode === 'ENOTFOUND' ||
           errorCode === 'ECONNRESET' ||
@@ -1028,7 +1100,9 @@ class BookingController {
         if (isConnectionError) {
           // If billing service is unavailable, allow booking to be created with PENDING payment
           // Payment can be created later when billing service is available
-          console.warn('[WARNING] Billing service unavailable. Booking created with PENDING payment status.');
+          console.warn(
+            '[WARNING] Billing service unavailable. Booking created with PENDING payment status.'
+          );
           console.warn('[WARNING] Error details:', {
             code: errorCode,
             message: paymentError.message,
@@ -1036,25 +1110,27 @@ class BookingController {
             billingServiceUrl: BILLING_SERVICE_URL,
           });
           console.warn('[WARNING] Payment will need to be created manually or retried later.');
-          
+
           // Update booking payment status to PENDING (already set during creation, but ensure it's correct)
           booking.payment_status = 'PENDING';
           booking.amount_paid = 0;
-          
+
           // Continue with booking creation - don't delete it
           // Payment can be handled later via webhook or manual retry
         } else {
           // For other payment errors (validation, business logic, 4xx errors, etc.), delete booking
-          console.error('[ERROR] Payment creation failed due to business logic error. Rolling back booking.');
+          console.error(
+            '[ERROR] Payment creation failed due to business logic error. Rolling back booking.'
+          );
           console.error('[ERROR] Error details:', {
             code: errorCode,
             message: paymentError.message,
             status: paymentError.response?.status,
             response: errorResponse,
           });
-          
+
           await prisma.booking.delete({ where: { id: booking.id } });
-          
+
           // Return appropriate error message based on error type
           let errorMessage = 'Không thể tạo thanh toán. Vui lòng thử lại.';
           if (errorResponse?.message) {
@@ -1064,7 +1140,7 @@ class BookingController {
           } else if (paymentError.response?.status === 404) {
             errorMessage = 'Không tìm thấy dịch vụ thanh toán. Vui lòng liên hệ quản trị viên.';
           }
-          
+
           return res.status(paymentError.response?.status || 500).json({
             success: false,
             message: errorMessage,
@@ -1117,14 +1193,14 @@ class BookingController {
             user_id: booking.schedule.trainer.user_id,
             type: 'CLASS_BOOKING',
             title: 'Đặt lớp mới',
-            message: `${member?.full_name || 'Thành viên'} đã đặt lớp ${
+            message: `${member?.full_name || 'Hội viên'} đã đặt lớp ${
               booking.schedule.gym_class?.name || 'Lớp học'
             }${bookingPrice > 0 ? ' - Đang chờ thanh toán' : ''}`,
             data: {
               booking_id: booking.id,
               schedule_id: schedule_id,
               class_name: booking.schedule.gym_class?.name || 'Lớp học',
-              member_name: member?.full_name || 'Thành viên',
+              member_name: member?.full_name || 'Hội viên',
               member_id: member?.id,
               booked_at: booking.booked_at,
               payment_amount: bookingPrice,
@@ -1146,7 +1222,7 @@ class BookingController {
           booking_id: booking.id,
           schedule_id: schedule_id,
           class_name: booking.schedule.gym_class?.name || 'Lớp học',
-          member_name: member?.full_name || 'Thành viên',
+          member_name: member?.full_name || 'Hội viên',
           booked_at: booking.booked_at,
           payment_amount: bookingPrice,
           payment_status: bookingPrice > 0 ? 'PENDING' : 'PAID',
@@ -1181,10 +1257,10 @@ class BookingController {
       // Return booking with payment information
       // If payment was not created due to billing service being unavailable, inform client
       const paymentUnavailable = !payment && bookingPrice > 0;
-      
+
       res.status(201).json({
         success: true,
-        message: paymentUnavailable 
+        message: paymentUnavailable
           ? 'Booking created successfully. Payment service is temporarily unavailable. Payment will be processed when service is available.'
           : 'Booking created successfully. Payment required.',
         data: {
@@ -1469,7 +1545,14 @@ class BookingController {
       let member = null;
       try {
         member = await memberService.getMemberById(booking.member_id);
+        if (!member) {
+          console.warn(
+            `[WARNING] Member not found for booking ${id}, member_id: ${booking.member_id}`
+          );
+        }
       } catch (err) {
+        console.error(`[ERROR] Failed to get member info for booking ${id}:`, err.message);
+        // Try to get member name from booking if available
         // Silent fail - member info not critical for notification
       }
 
@@ -1485,12 +1568,23 @@ class BookingController {
         const result = await prisma.$transaction(
           async tx => {
             // Check if booking is still in waitlist (may have been auto-promoted already)
+            // Also check previous payment_status and waitlist history to determine if current_bookings was already incremented
             const currentBooking = await tx.booking.findUnique({
               where: { id },
-              select: { is_waitlist: true, waitlist_position: true },
+              select: {
+                is_waitlist: true,
+                waitlist_position: true,
+                payment_status: true, // Check previous payment status
+              },
             });
 
             const stillInWaitlist = currentBooking?.is_waitlist === true;
+            const wasPending = currentBooking?.payment_status === 'PENDING';
+            // If booking has waitlist_position = null but wasPending, it means:
+            // - Either it was created as non-waitlist with pending payment (not counted yet)
+            // - Or it was auto-promoted from waitlist (already counted during promotion)
+            // We can't distinguish these cases easily, so we use a safer approach:
+            // Only increment if booking is still in waitlist OR if it was never in waitlist (waitlist_position is null from creation)
 
             // If this is a waitlist booking that hasn't been promoted yet, promote it
             const updateData = {
@@ -1521,21 +1615,57 @@ class BookingController {
             });
 
             // Update schedule capacity atomically
-            // Only increment current_bookings if booking was still in waitlist (promoted now)
-            // If booking was already promoted (e.g., auto-promoted when someone cancelled),
-            // current_bookings was already incremented during promotion, so don't increment again
+            // Increment current_bookings in these cases:
+            // 1. Booking was in waitlist and is being promoted now (increment + decrement waitlist_count)
+            // 2. Booking was NOT in waitlist (confirmed from start) but payment was pending - now increment when paid
+            //
+            // Important: When a booking is auto-promoted from waitlist, current_bookings is already incremented
+            // during promotion. However, we can't easily distinguish between:
+            // - Booking created as non-waitlist with pending payment (not counted yet - NEED to increment)
+            // - Booking auto-promoted from waitlist with pending payment (already counted - DON'T increment again)
+            //
+            // Solution: Check the schedule's current_bookings against confirmed bookings count
+            // If they match, booking was likely already counted (from waitlist promotion)
+            // If current_bookings < confirmed bookings, we need to increment
             const scheduleUpdateData = {};
 
             if (stillInWaitlist) {
-              // Booking was just promoted now, so increment current_bookings and decrement waitlist_count
+              // Booking was just promoted from waitlist now, so increment current_bookings and decrement waitlist_count
               scheduleUpdateData.current_bookings = {
                 increment: 1,
               };
               scheduleUpdateData.waitlist_count = {
                 decrement: 1,
               };
+            } else if (wasPending) {
+              // Booking was NOT in waitlist (confirmed from start) but payment was pending
+              // Check if current_bookings needs to be incremented by comparing with actual confirmed bookings
+              const schedule = await tx.schedule.findUnique({
+                where: { id: booking.schedule_id },
+                select: { current_bookings: true },
+              });
+
+              // Count actual confirmed bookings (excluding waitlist and cancelled)
+              const confirmedBookingsCount = await tx.booking.count({
+                where: {
+                  schedule_id: booking.schedule_id,
+                  status: 'CONFIRMED',
+                  payment_status: { in: ['PAID', 'PENDING'] },
+                  is_waitlist: false,
+                },
+              });
+
+              // If current_bookings is less than actual confirmed bookings, we need to increment
+              // This handles the case where booking was created with payment_status='PENDING'
+              // and current_bookings was not incremented at creation time
+              if (schedule.current_bookings < confirmedBookingsCount) {
+                scheduleUpdateData.current_bookings = {
+                  increment: 1,
+                };
+              }
+              // If current_bookings >= confirmedBookingsCount, booking was likely already counted
+              // (e.g., from waitlist promotion), so don't increment again
             }
-            // If booking was already promoted, don't update schedule counts (already done during promotion)
 
             if (Object.keys(scheduleUpdateData).length > 0) {
               await tx.schedule.update({
@@ -1567,9 +1697,7 @@ class BookingController {
           try {
             const waitlistService = require('../services/waitlist.service.js');
             await waitlistService.updateWaitlistPositions(booking.schedule_id);
-            console.log(
-              `[WAITLIST] Promoted waitlist booking ${id} after payment confirmation`
-            );
+            console.log(`[WAITLIST] Promoted waitlist booking ${id} after payment confirmation`);
           } catch (waitlistError) {
             console.error('[ERROR] Failed to update waitlist positions:', waitlistError);
             // Don't fail payment confirmation if waitlist update fails
@@ -1633,14 +1761,14 @@ class BookingController {
             user_id: trainerUserId,
             type: 'CLASS_BOOKING',
             title: 'Thanh toán thành công',
-            message: `${member?.full_name || 'Thành viên'} đã thanh toán và xác nhận đặt lớp ${
+            message: `${member?.full_name || 'Hội viên'} đã thanh toán và xác nhận đặt lớp ${
               booking.schedule.gym_class?.name || 'Lớp học'
             }`,
             data: {
               booking_id: updatedBooking.id,
               schedule_id: updatedBooking.schedule_id,
               class_name: updatedBooking.schedule.gym_class?.name || 'Lớp học',
-              member_name: member?.full_name || 'Thành viên',
+              member_name: member?.full_name || 'Hội viên',
               booked_at: updatedBooking.booked_at,
               payment_amount: amount,
             },
@@ -1652,11 +1780,25 @@ class BookingController {
         }
 
         // Emit socket event to trainer
+        // Ensure we have member name - try to get it if not already loaded
+        let memberName = member?.full_name;
+        if (!memberName && booking.member_id) {
+          try {
+            const memberData = await memberService.getMemberById(booking.member_id);
+            memberName = memberData?.full_name;
+            if (memberName) {
+              member = memberData; // Update member object for consistency
+            }
+          } catch (err) {
+            console.error(`[ERROR] Failed to get member name for socket event:`, err.message);
+          }
+        }
+
         const socketPayload = {
           booking_id: updatedBooking.id,
           schedule_id: updatedBooking.schedule_id,
           class_name: updatedBooking.schedule.gym_class?.name || 'Lớp học',
-          member_name: member?.full_name || 'Thành viên',
+          member_name: memberName || 'Hội viên',
           booked_at: updatedBooking.booked_at,
           current_bookings:
             updatedSchedule?.current_bookings || booking.schedule.current_bookings + 1,
@@ -1703,7 +1845,7 @@ class BookingController {
             user_id: admin.user_id,
             type: 'CLASS_BOOKING',
             title: 'Thanh toán lớp học thành công',
-            message: `${member?.full_name || 'Thành viên'} đã thanh toán ${new Intl.NumberFormat(
+            message: `${member?.full_name || 'Hội viên'} đã thanh toán ${new Intl.NumberFormat(
               'vi-VN',
               { style: 'currency', currency: 'VND' }
             ).format(amount)} cho lớp ${booking.schedule.gym_class?.name || 'Lớp học'}`,
@@ -1711,7 +1853,7 @@ class BookingController {
               booking_id: updatedBooking.id,
               schedule_id: updatedBooking.schedule_id,
               class_name: booking.schedule.gym_class?.name || 'Lớp học',
-              member_name: member?.full_name || 'Thành viên',
+              member_name: member?.full_name || 'Hội viên',
               member_id: member?.id,
               trainer_name: booking.schedule.trainer?.full_name || 'Trainer',
               booked_at: updatedBooking.booked_at,
@@ -1772,7 +1914,7 @@ class BookingController {
                   booking_id: updatedBooking.id,
                   schedule_id: updatedBooking.schedule_id,
                   class_name: booking.schedule.gym_class?.name || 'Lớp học',
-                  member_name: member?.full_name || 'Thành viên',
+                  member_name: member?.full_name || 'Hội viên',
                   payment_amount: amount,
                   payment_status: 'PAID',
                   booked_at: updatedBooking.booked_at,
@@ -1932,22 +2074,22 @@ class BookingController {
         hoursUntilStart: refundInfo.hoursUntilStart,
         originalAmount: refundInfo.originalAmount,
       });
-      
+
       // Check if payment is paid (can be 'PAID' or 'COMPLETED')
       const isPaid = booking.payment_status === 'PAID' || booking.payment_status === 'COMPLETED';
-      
+
       console.log('[REFUND] Eligibility check:', {
         refundAmount: refundInfo.refundAmount,
         isPaid,
         payment_status: booking.payment_status,
         willProcess: refundInfo.refundAmount > 0 && isPaid,
       });
-      
+
       if (refundInfo.refundAmount > 0 && isPaid) {
         console.log('[REFUND] Processing refund for booking:', booking.id);
         refundResult = await bookingImprovementsService.processRefund(booking, refundInfo);
         console.log('[REFUND] Refund result:', JSON.stringify(refundResult, null, 2));
-        
+
         // Note: Admin notification will be sent by billing service when refund is created
         // The billing service's createRefund method will call notifyAdminsAboutRefundRequest
         // when shouldAutoProcess = false (which is the case for system-initiated refunds)
@@ -2038,7 +2180,7 @@ class BookingController {
       if (scheduleWithTrainer?.trainer?.user_id && global.io) {
         try {
           const member = bookingWithMember?.member || null;
-          const memberName = member?.full_name || 'Thành viên';
+          const memberName = member?.full_name || 'Hội viên';
 
           const notificationService = require('../services/notification.service.js');
           await notificationService.sendNotification({
@@ -2085,6 +2227,57 @@ class BookingController {
         }
       }
 
+      // Notify member about booking cancellation (if cancelled by trainer/admin)
+      if (bookingWithMember?.member?.user_id) {
+        try {
+          const member = bookingWithMember.member;
+          const memberName = member.full_name || 'Hội viên';
+          const className = scheduleWithTrainer?.gym_class?.name || 'Lớp học';
+
+          const notificationService = require('../services/notification.service.js');
+          await notificationService.sendNotification({
+            user_id: member.user_id,
+            member_id: booking.member_id,
+            type: 'BOOKING_CANCELLED',
+            title: 'Đặt lớp đã bị hủy',
+            message: `Đặt lớp ${className} của bạn đã bị hủy bởi trainer. Lý do: ${
+              cancellation_reason || 'Chưa thanh toán'
+            }`,
+            data: {
+              booking_id: booking.id,
+              schedule_id: booking.schedule_id,
+              class_name: className,
+              cancellation_reason: cancellation_reason || 'Chưa thanh toán',
+              cancelled_by: 'TRAINER',
+              role: 'MEMBER',
+            },
+            channels: ['IN_APP', 'PUSH'],
+          });
+
+          // Also emit socket event directly for real-time update
+          if (global.io) {
+            const socketPayload = {
+              booking_id: booking.id,
+              schedule_id: booking.schedule_id,
+              class_name: className,
+              cancelled_at: updatedBooking.cancelled_at,
+              cancellation_reason: cancellation_reason || 'Chưa thanh toán',
+              cancelled_by: 'TRAINER',
+            };
+
+            console.log(`[EMIT] Emitting booking:cancelled to member user:${member.user_id}`);
+            global.io.to(`user:${member.user_id}`).emit('booking:cancelled', socketPayload);
+            console.log(`[SUCCESS] Socket event booking:cancelled emitted successfully to member`);
+          }
+        } catch (memberNotifError) {
+          console.error(
+            '[ERROR] Error notifying member about booking cancellation:',
+            memberNotifError
+          );
+          // Don't fail cancellation if notification fails
+        }
+      }
+
       // Auto-promote first person from waitlist when a regular booking is cancelled (theo nghiệp vụ)
       // Chỉ promote nếu cancel booking thường (không phải waitlist booking)
       let waitlistPromoteResult = null;
@@ -2101,7 +2294,10 @@ class BookingController {
             console.log('[WAITLIST] No one in waitlist to promote after cancellation');
           }
         } catch (promoteError) {
-          console.error('[ERROR] Failed to promote from waitlist after cancellation:', promoteError);
+          console.error(
+            '[ERROR] Failed to promote from waitlist after cancellation:',
+            promoteError
+          );
           // Don't fail cancellation if promotion fails
         }
       }

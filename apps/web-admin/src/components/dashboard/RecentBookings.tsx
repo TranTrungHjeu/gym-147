@@ -54,7 +54,7 @@ const RecentBookings: React.FC<RecentBookingsProps> = ({ limit = 5 }) => {
           const bookingsList = Array.isArray(response.data)
             ? response.data
             : (response.data as any)?.bookings || [];
-          
+
           // Sort by booked_at descending and take limit
           const sortedBookings = bookingsList
             .sort((a: Booking, b: Booking) => {
@@ -149,7 +149,7 @@ const RecentBookings: React.FC<RecentBookingsProps> = ({ limit = 5 }) => {
           </h3>
         </div>
         <div className='space-y-2'>
-          {bookings.map((booking) => (
+          {bookings.map(booking => (
             <div
               key={booking.id}
               className='flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800/50 transition-colors group'
@@ -164,7 +164,7 @@ const RecentBookings: React.FC<RecentBookingsProps> = ({ limit = 5 }) => {
                       {booking.schedule?.gym_class?.name || 'Lớp học không xác định'}
                     </p>
                     <p className='text-[11px] text-gray-600 dark:text-gray-400 font-inter truncate mt-0.5'>
-                      {booking.member?.full_name || 'Thành viên không xác định'}
+                      {booking.member?.full_name || 'Hội viên không xác định'}
                     </p>
                     <div className='flex items-center gap-2 mt-1'>
                       <div className='flex items-center gap-1'>
@@ -208,4 +208,3 @@ const RecentBookings: React.FC<RecentBookingsProps> = ({ limit = 5 }) => {
 };
 
 export default RecentBookings;
-

@@ -2,6 +2,7 @@ import PlanCard from '@/components/PlanCard';
 import PremiumFeatureCard from '@/components/PremiumFeatureCard';
 import UpgradeDowngradeModal from '@/components/UpgradeDowngradeModal'; // IMPROVEMENT: Upgrade/downgrade modal
 import { useAuth } from '@/contexts/AuthContext';
+import { billingService } from '@/services/billing/billing.service';
 import { subscriptionService } from '@/services/billing/subscription.service';
 import { memberService } from '@/services/member/member.service';
 import type { MembershipPlan, Subscription } from '@/types/billingTypes';
@@ -138,10 +139,78 @@ export default function PlansScreen() {
         console.warn('Could not load member profile in plans:', err);
       }
 
-      const [plansData, subscriptionData] = await Promise.all([
+      const [plansData, subscriptionsData] = await Promise.all([
         subscriptionService.getMembershipPlans(),
-        subscriptionService.getMemberSubscription(member.id),
+        billingService.getMemberSubscriptions(member.id),
       ]);
+
+      // Select best active subscription (highest tier) - same logic as login
+      let subscriptionData = null;
+      if (subscriptionsData && subscriptionsData.length > 0) {
+        // Find all active subscriptions (còn hạn)
+        const activeSubscriptions = subscriptionsData.filter((sub: any) => {
+          // Check if subscription is ACTIVE/TRIAL and not expired
+          if (!['ACTIVE', 'TRIAL'].includes(sub.status)) return false;
+
+          const expirationDate = sub.current_period_end || sub.end_date;
+          if (expirationDate) {
+            const expiration = new Date(expirationDate);
+            const now = new Date();
+            if (expiration < now) return false; // Expired
+          } else {
+            return false; // No expiration date
+          }
+
+          // For ACTIVE: must have at least one COMPLETED payment
+          if (sub.status === 'ACTIVE') {
+            const payments = sub.payments || [];
+            const completedPayments = payments.filter(
+              (p: any) => p.status === 'COMPLETED'
+            );
+            if (completedPayments.length === 0) return false;
+          }
+
+          return true;
+        });
+
+        // If multiple active subscriptions, choose the one with highest plan tier
+        if (activeSubscriptions.length > 0) {
+          const planTierOrder: { [key: string]: number } = {
+            VIP: 4,
+            PREMIUM: 3,
+            BASIC: 2,
+            STUDENT: 1,
+          };
+
+          subscriptionData = activeSubscriptions.reduce(
+            (highest: any, current: any) => {
+              const currentTier =
+                planTierOrder[current.plan?.type || 'BASIC'] || 0;
+              const highestTier =
+                planTierOrder[highest.plan?.type || 'BASIC'] || 0;
+              return currentTier > highestTier ? current : highest;
+            }
+          );
+
+          console.log('[PLANS] Selected best subscription for upgrade check:', {
+            totalSubscriptions: subscriptionsData.length,
+            totalActive: activeSubscriptions.length,
+            selectedPlanType: subscriptionData.plan?.type,
+            selectedSubscriptionId: subscriptionData.id,
+            allActivePlans: activeSubscriptions.map((s: any) => s.plan?.type),
+          });
+        } else {
+          // Fallback: use first subscription if no active ones found
+          subscriptionData = subscriptionsData[0];
+          console.log(
+            '[PLANS] No active subscriptions found, using first subscription:',
+            {
+              subscriptionId: subscriptionData?.id,
+              planType: subscriptionData?.plan?.type,
+            }
+          );
+        }
+      }
 
       // Correct subscription plan based on member's actual membership_type
       if (subscriptionData && memberProfileData?.membership_type) {
@@ -337,11 +406,19 @@ export default function PlansScreen() {
 
     // IMPROVEMENT: Calculate prorated amount
     const now = new Date();
-    const periodStart = new Date(currentSubscription.current_period_start || currentSubscription.start_date);
-    const periodEnd = new Date(currentSubscription.current_period_end || currentSubscription.end_date || new Date());
-    const totalPeriodDays = (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
-    const daysRemaining = (periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    
+    const periodStart = new Date(
+      currentSubscription.current_period_start || currentSubscription.start_date
+    );
+    const periodEnd = new Date(
+      currentSubscription.current_period_end ||
+        currentSubscription.end_date ||
+        new Date()
+    );
+    const totalPeriodDays =
+      (periodEnd.getTime() - periodStart.getTime()) / (1000 * 60 * 60 * 24);
+    const daysRemaining =
+      (periodEnd.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
+
     const oldPrice = currentPlanData.price;
     const newPrice = selectedPlanData.price;
     const unusedAmount = (daysRemaining / totalPeriodDays) * oldPrice;
@@ -412,11 +489,24 @@ export default function PlansScreen() {
         }
       );
 
+      console.log('[UPGRADE] upgradeDowngradeSubscription result:', {
+        change_type: result.change_type,
+        price_difference: result.price_difference,
+        payment: result.payment,
+        payment_id: result.payment?.id,
+      });
+
       await loadData();
 
       // Show success message
       if (result.change_type === 'UPGRADE' && result.price_difference > 0) {
         // Navigate to payment for upgrade
+        // Pass paymentId if available (payment was created by upgradeDowngradeSubscription)
+        const paymentId = result.payment?.id;
+        console.log(
+          '[UPGRADE] Passing paymentId to payment screen:',
+          paymentId
+        );
         router.push({
           pathname: '/subscription/payment',
           params: {
@@ -424,6 +514,7 @@ export default function PlansScreen() {
             subscriptionId: currentSubscription.id,
             action: 'UPGRADE',
             amount: result.price_difference.toString(),
+            ...(paymentId ? { paymentId: String(paymentId) } : {}),
           },
         });
       } else {
@@ -431,7 +522,9 @@ export default function PlansScreen() {
         Alert.alert(
           t('common.success'),
           t('subscription.plans.subscriptionUpgraded') ||
-            `Successfully ${upgradeData.isUpgrade ? 'upgraded' : 'downgraded'} to ${upgradeData.newPlan.name}!`,
+            `Successfully ${
+              upgradeData.isUpgrade ? 'upgraded' : 'downgraded'
+            } to ${upgradeData.newPlan.name}!`,
           [
             {
               text: t('common.ok'),
@@ -482,10 +575,58 @@ export default function PlansScreen() {
   };
 
   // Helper function to get current plan ID consistently
+  // IMPORTANT: Use plan from last COMPLETED payment, not subscription.plan_id
+  // Because subscription.plan_id may be updated by upgrade but payment not completed yet
   const getCurrentPlanId = (): string | null => {
     if (!currentSubscription) return null;
 
-    // Check both plan_id (from API) and plan?.id (from populated plan object)
+    // Check payments to find the plan from last COMPLETED payment
+    // Note: payments may not be included in subscription object, so use type assertion
+    const payments = (currentSubscription as any).payments || [];
+    const completedPayments = payments.filter(
+      (p: any) => p.status === 'COMPLETED'
+    );
+
+    // If there's a COMPLETED payment, check if it has plan info
+    // Otherwise, use subscription.plan_id as fallback
+    if (completedPayments.length > 0) {
+      // Get the latest COMPLETED payment
+      const latestCompletedPayment = completedPayments[0];
+
+      // Check if payment has subscription info with plan
+      if (latestCompletedPayment.subscription?.plan_id) {
+        const planIdFromPayment = latestCompletedPayment.subscription.plan_id;
+        console.log('[PLANS] Using plan from COMPLETED payment:', {
+          paymentId: latestCompletedPayment.id,
+          planIdFromPayment,
+          subscriptionPlanId: currentSubscription.plan_id,
+          match: planIdFromPayment === currentSubscription.plan_id,
+        });
+        return String(planIdFromPayment);
+      }
+    }
+
+    // Fallback: Check both plan_id (from API) and plan?.id (from populated plan object)
+    // But also check if there are PENDING payments for upgrade
+    const pendingPayments = payments.filter(
+      (p: any) => p.status === 'PENDING' || p.status === 'PROCESSING'
+    );
+
+    if (pendingPayments.length > 0) {
+      console.log(
+        '[PLANS] Warning: Subscription has PENDING payments, plan_id may be updated but not paid:',
+        {
+          subscriptionPlanId: currentSubscription.plan_id,
+          pendingPaymentsCount: pendingPayments.length,
+          completedPaymentsCount: completedPayments.length,
+        }
+      );
+      // If there are PENDING payments, the subscription.plan_id might be from an unpaid upgrade
+      // In this case, we should use the plan from the last COMPLETED payment's subscription
+      // But if we don't have that info, we'll use subscription.plan_id as is
+      // The backend will handle the duplicate upgrade check
+    }
+
     const planId = currentSubscription.plan_id || currentSubscription.plan?.id;
     return planId ? String(planId) : null;
   };

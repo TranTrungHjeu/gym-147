@@ -162,6 +162,52 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     return false;
   };
 
+  /**
+   * Helper function to select the best active subscription from a list
+   * Returns the subscription with highest plan tier (VIP > PREMIUM > BASIC > STUDENT)
+   */
+  const selectBestActiveSubscription = (subscriptions: any[]): any | null => {
+    // Find all active subscriptions (còn hạn)
+    const activeSubscriptions = subscriptions.filter((sub: any) => {
+      return isSubscriptionActive(sub);
+    });
+
+    if (activeSubscriptions.length === 0) {
+      return null;
+    }
+
+    // If only one active subscription, return it
+    if (activeSubscriptions.length === 1) {
+      return activeSubscriptions[0];
+    }
+
+    // If multiple active subscriptions, choose the one with highest plan tier
+    // Plan tier order: VIP > PREMIUM > BASIC > STUDENT
+    const planTierOrder: { [key: string]: number } = {
+      VIP: 4,
+      PREMIUM: 3,
+      BASIC: 2,
+      STUDENT: 1,
+    };
+
+    const bestSubscription = activeSubscriptions.reduce(
+      (highest: any, current: any) => {
+        const currentTier = planTierOrder[current.plan?.type || 'BASIC'] || 0;
+        const highestTier = planTierOrder[highest.plan?.type || 'BASIC'] || 0;
+        return currentTier > highestTier ? current : highest;
+      }
+    );
+
+    console.log('[SUBSCRIPTION] Selected highest tier subscription:', {
+      totalActive: activeSubscriptions.length,
+      selectedPlanType: bestSubscription.plan?.type,
+      selectedSubscriptionId: bestSubscription.id,
+      allActivePlans: activeSubscriptions.map((s: any) => s.plan?.type),
+    });
+
+    return bestSubscription;
+  };
+
   // Check for existing auth session on mount
   useEffect(() => {
     checkAuthStatus();
@@ -174,32 +220,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Event listener is handled in AppContent component
     // This effect is kept for potential future use
   }, []);
-
-  // IMPORTANT: Auto-load member profile when user.id changes
-  // This ensures member data is available for workout recommendations and subscription plans
-  useEffect(() => {
-    if (user?.id && !member?.id) {
-      // Load member profile when user is set but member is not
-      (async () => {
-        try {
-          const memberExists = await memberService.checkMemberExists();
-          setHasMember(memberExists);
-          if (memberExists) {
-            await loadMemberProfile();
-          } else {
-            setMember(null);
-          }
-        } catch (err) {
-          console.error('[ERROR] Failed to auto-load member profile:', err);
-          // Silent fail - member profile can be loaded later
-        }
-      })();
-    } else if (!user?.id) {
-      // Clear member when user is cleared
-      setMember(null);
-      setHasMember(null);
-    }
-  }, [user?.id]); // Only depend on user.id
 
   const checkAuthStatus = async () => {
     try {
@@ -460,9 +480,36 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
                 const subscriptions =
                   await billingService.getMemberSubscriptions(profile.id);
 
-                const activeSubscription = subscriptions.find((sub: any) => {
-                  return isSubscriptionActive(sub);
-                });
+                // Find pending subscriptions (có thể là upgrade đang chờ thanh toán) - chỉ để log
+                const pendingSubscriptions = subscriptions.filter(
+                  (sub: any) => {
+                    return (
+                      sub.status === 'PENDING' &&
+                      (sub.current_period_end || sub.end_date) &&
+                      new Date(sub.current_period_end || sub.end_date) >
+                        new Date()
+                    );
+                  }
+                );
+
+                // Select best active subscription (highest tier)
+                const activeSubscription =
+                  selectBestActiveSubscription(subscriptions);
+
+                // Log pending subscriptions for debugging
+                if (pendingSubscriptions.length > 0 && activeSubscription) {
+                  console.log('[SUBSCRIPTION] Found pending subscriptions:', {
+                    totalPending: pendingSubscriptions.length,
+                    pendingPlans: pendingSubscriptions.map(
+                      (s: any) => s.plan?.type
+                    ),
+                    activePlan: activeSubscription.plan?.type,
+                  });
+                }
+
+                // Note: PENDING subscriptions are not used for access
+                // User must use active subscription. PENDING subscription will be activated
+                // when payment is completed.
 
                 registrationStatus.hasSubscription = !!activeSubscription;
               } catch (err) {
@@ -656,35 +703,26 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
           storeUser(response.user),
         ]);
         setUser(response.user);
-        setToken(response.token);
+        setToken(response.token); // Set token state immediately
+        console.log('[REGISTER] Token and user set, will load member profile');
 
-        // Register push notification token
-        try {
-          const { pushNotificationService } = await import(
-            '@/services/notification/push.service'
-          );
-          await pushNotificationService.registerPushToken(response.user.id);
-        } catch (pushError) {
-          // Don't fail registration if push registration fails
-        }
-
-        // Check if user has member record and load member profile
-        // This is important for loading workout recommendations and subscription plans
-        try {
-          const memberExists = await memberService.checkMemberExists();
-          setHasMember(memberExists);
-
-          if (memberExists) {
-            // Load member profile to get member.id
+        // Load member profile after registration with delay
+        // This ensures token is fully set in storage before making API calls
+        setTimeout(async () => {
+          try {
+            console.log(
+              '[REGISTER] Loading member profile after registration...'
+            );
             await loadMemberProfile();
-          } else {
-            setMember(null);
+            console.log('[REGISTER] Member profile loaded successfully');
+          } catch (memberError) {
+            // Silent fail - member profile can be loaded later
+            console.log(
+              '[REGISTER] Member profile not available yet, will load later:',
+              memberError
+            );
           }
-        } catch (memberError) {
-          console.error('[ERROR] Failed to check/load member after registration:', memberError);
-          // Don't fail registration if member check fails
-          // Member might be created later during profile completion
-        }
+        }, 1000); // 1 second delay to ensure token is set
       } else {
         throw new Error(response.message || 'Registration failed');
       }
@@ -801,20 +839,48 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
    */
   const loadMemberProfile = async () => {
     if (!user?.id) {
+      console.log('[AUTH] loadMemberProfile: No user ID, clearing member');
       setMember(null);
       return;
     }
 
+    if (!token) {
+      console.log('[AUTH] loadMemberProfile: No token available, waiting...');
+      // Wait a bit for token to be set
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Check again after delay
+      const currentToken = await getToken();
+      if (!currentToken) {
+        console.log('[AUTH] loadMemberProfile: Still no token after delay');
+        return;
+      }
+    }
+
     try {
+      console.log('[AUTH] loadMemberProfile: Loading member profile...');
       const profileResponse = await memberService.getMemberProfile();
+      console.log('[AUTH] loadMemberProfile: Response received', {
+        success: profileResponse.success,
+        hasData: !!profileResponse.data,
+        memberId: profileResponse.data?.id,
+      });
+
       if (profileResponse.success && profileResponse.data?.id) {
         // Store member.id (actual member_id from member service, not user_id from identity service)
-        setMember({ id: profileResponse.data.id });
+        const memberId = profileResponse.data.id;
+        console.log('[AUTH] loadMemberProfile: Setting member ID', memberId);
+        setMember({ id: memberId });
       } else {
+        console.log(
+          '[AUTH] loadMemberProfile: No member ID in response, clearing member'
+        );
         setMember(null);
       }
     } catch (error: any) {
-      console.error('Error loading member profile:', error);
+      console.error(
+        '[AUTH] loadMemberProfile: Error loading member profile:',
+        error
+      );
       setMember(null);
     }
   };
@@ -823,6 +889,83 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setToken(accessToken);
     // Store tokens
     await storeTokens(accessToken, refreshToken);
+
+    // Load user profile after setting tokens to update AuthContext state
+    try {
+      const userProfileResponse = await userService.getProfile();
+      console.log('[AUTH] User profile response in setTokens:', {
+        success: userProfileResponse?.success,
+        hasData: !!userProfileResponse?.data,
+        dataKeys: userProfileResponse?.data
+          ? Object.keys(userProfileResponse.data)
+          : [],
+      });
+
+      // Handle different response formats
+      let userProfile = null;
+      if (userProfileResponse?.success && userProfileResponse?.data) {
+        // Response format: {success: true, data: {user: {...}}} or {success: true, data: User}
+        userProfile = userProfileResponse.data.user || userProfileResponse.data;
+      } else if (userProfileResponse?.data) {
+        // Response format: {data: {user: {...}}}
+        userProfile = userProfileResponse.data.user || userProfileResponse.data;
+      } else if (userProfileResponse) {
+        // Direct user object
+        userProfile = userProfileResponse;
+      }
+
+      if (userProfile && userProfile.id) {
+        console.log('[AUTH] Setting user from setTokens:', userProfile.id);
+        setUser(userProfile);
+        await storeUser(userProfile);
+
+        // Wait a bit for state to update, then load member profile
+        // Use a small delay to ensure user state is set before loadMemberProfile checks it
+        setTimeout(async () => {
+          try {
+            // Double-check user is set before loading member profile
+            const currentUser = await getUser();
+            if (currentUser?.id) {
+              console.log(
+                '[AUTH] User confirmed set, loading member profile...'
+              );
+              await loadMemberProfile();
+            } else {
+              console.log('[AUTH] User not yet set in storage, will retry...');
+              // Retry after another delay
+              setTimeout(async () => {
+                try {
+                  await loadMemberProfile();
+                } catch (memberError) {
+                  console.log(
+                    '[AUTH] Member profile not available after retry:',
+                    memberError
+                  );
+                }
+              }, 500);
+            }
+          } catch (memberError) {
+            // Silent fail - member profile can be loaded later
+            console.log(
+              '[AUTH] Member profile not available yet after setTokens:',
+              memberError
+            );
+          }
+        }, 300);
+      } else {
+        console.log(
+          '[AUTH] No valid user profile in response after setTokens:',
+          {
+            hasResponse: !!userProfileResponse,
+            hasData: !!userProfileResponse?.data,
+            userProfile,
+          }
+        );
+      }
+    } catch (error) {
+      // Silent fail - user profile can be loaded later
+      console.log('[AUTH] Failed to load user profile after setTokens:', error);
+    }
   };
 
   /**
@@ -871,34 +1014,41 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
               profile.id
             );
 
-            const activeSubscription = subscriptions.find((sub: any) => {
-              const latestPayment = sub.payments?.[0]; // Get latest payment
+            // Select best active subscription (highest tier)
+            let activeSubscription =
+              selectBestActiveSubscription(subscriptions);
 
-              // Check if subscription is ACTIVE and payment is COMPLETED
-              const isActive =
-                sub.status === 'ACTIVE' &&
-                latestPayment?.status === 'COMPLETED';
+            if (!activeSubscription) {
+              // Fallback: Check old logic for backward compatibility
+              activeSubscription = subscriptions.find((sub: any) => {
+                const latestPayment = sub.payments?.[0]; // Get latest payment
 
-              if (!isActive) return false;
+                // Check if subscription is ACTIVE and payment is COMPLETED
+                const isActive =
+                  sub.status === 'ACTIVE' &&
+                  latestPayment?.status === 'COMPLETED';
 
-              // Also check if subscription hasn't expired based on current_period_end or end_date
-              const expirationDate = sub.current_period_end || sub.end_date;
-              if (expirationDate) {
-                const expiration = new Date(expirationDate);
-                const now = new Date();
-                // Subscription is considered expired if expiration date is in the past
-                if (expiration < now) {
-                  console.log('[SUBSCRIPTION] Subscription expired:', {
-                    subscriptionId: sub.id,
-                    expirationDate: expiration,
-                    now: now,
-                  });
-                  return false; // Subscription has expired
+                if (!isActive) return false;
+
+                // Also check if subscription hasn't expired based on current_period_end or end_date
+                const expirationDate = sub.current_period_end || sub.end_date;
+                if (expirationDate) {
+                  const expiration = new Date(expirationDate);
+                  const now = new Date();
+                  // Subscription is considered expired if expiration date is in the past
+                  if (expiration < now) {
+                    console.log('[SUBSCRIPTION] Subscription expired:', {
+                      subscriptionId: sub.id,
+                      expirationDate: expiration,
+                      now: now,
+                    });
+                    return false; // Subscription has expired
+                  }
                 }
-              }
 
-              return true;
-            });
+                return true;
+              });
+            }
 
             registrationStatus.hasSubscription = !!activeSubscription;
           } catch (err) {

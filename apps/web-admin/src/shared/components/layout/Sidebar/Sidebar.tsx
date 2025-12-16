@@ -25,10 +25,10 @@ const menuItems: MenuItem[] = [
   },
   {
     id: 'members',
-    label: 'Thành viên',
+    label: 'Hội viên',
     path: '/members',
     icon: Users2,
-    description: 'Quản lý thành viên',
+    description: 'Quản lý hội viên',
   },
   {
     id: 'packages',

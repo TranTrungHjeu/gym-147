@@ -380,7 +380,7 @@ const RegisterPlanScreen = () => {
               ]}
             >
               {t('subscription.expiredMessage') ||
-                'Gói thành viên của bạn đã hết hạn. Vui lòng chọn gói mới để tiếp tục sử dụng dịch vụ.'}
+                'Gói hội viên của bạn đã hết hạn. Vui lòng chọn gói mới để tiếp tục sử dụng dịch vụ.'}
             </Text>
 
             {/* OK Button */}

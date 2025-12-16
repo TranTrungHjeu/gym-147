@@ -148,10 +148,14 @@ export function RevenueReports({ period = 30 }: RevenueReportsProps) {
               </div>
             </div>
             <div className='flex items-end'>
-              <Button variant='outline' size='sm' onClick={() => {
-                setStartDate('');
-                setEndDate('');
-              }}>
+              <Button
+                variant='outline'
+                size='sm'
+                onClick={() => {
+                  setStartDate('');
+                  setEndDate('');
+                }}
+              >
                 <RefreshCw className='h-4 w-4' />
                 Reset
               </Button>
@@ -233,7 +237,7 @@ export function RevenueReports({ period = 30 }: RevenueReportsProps) {
                   className='text-xs font-medium uppercase tracking-wider text-text-muted'
                   style={{ fontFamily: 'Inter, sans-serif' }}
                 >
-                  Thành viên mới
+                  Hội viên mới
                 </p>
               </div>
               <p
@@ -341,7 +345,7 @@ export function RevenueReports({ period = 30 }: RevenueReportsProps) {
                     className='px-6 py-4 text-xs font-bold uppercase tracking-wider text-text-muted'
                     style={{ fontFamily: 'Inter, sans-serif' }}
                   >
-                    Thành viên mới
+                    Hội viên mới
                   </th>
                   <th
                     className='px-6 py-4 text-xs font-bold uppercase tracking-wider text-text-muted'

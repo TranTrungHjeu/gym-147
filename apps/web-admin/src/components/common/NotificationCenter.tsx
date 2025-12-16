@@ -274,16 +274,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
       onNotificationClick(notification);
     }
     
-    // Handle SALARY_REQUEST notification
-    if ((notification as any).notificationType === 'SALARY_REQUEST' && (notification as any).notificationData) {
-      const data = (notification as any).notificationData;
-      const trainerId = data.trainer_id;
-      if (trainerId) {
-        navigate(`/management/salary-requests?trainer_id=${trainerId}&action=set_salary`);
-        setIsOpen(false);
-        return;
-      }
-    }
     
     // Handle other notifications with actionUrl
     if (notification.actionUrl) {
@@ -361,7 +351,6 @@ const NotificationCenter: React.FC<NotificationCenterProps> = ({
                       { value: 'all', label: t('notificationCenter.filters.allTypes') },
                       { value: 'PAYMENT_SUCCESS', label: t('notificationCenter.filters.payment') },
                       { value: 'CLASS_BOOKING', label: t('notificationCenter.filters.booking') },
-                      { value: 'SALARY_REQUEST', label: 'Yêu cầu xét lương' },
                       { value: 'SYSTEM_ANNOUNCEMENT', label: t('notificationCenter.filters.system') },
                     ]}
                     value={filterType}

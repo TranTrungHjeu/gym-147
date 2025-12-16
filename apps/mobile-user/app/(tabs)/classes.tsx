@@ -35,6 +35,7 @@ import {
 } from 'lucide-react-native';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
+import { AppEvents } from '@/utils/eventEmitter';
 import {
   ActivityIndicator,
   Alert,
@@ -161,7 +162,9 @@ export default function ClassesScreen() {
   const [classRecommendations, setClassRecommendations] = useState<
     ClassRecommendation[]
   >([]);
-  const [recommendationMethod, setRecommendationMethod] = useState<string | null>(null);
+  const [recommendationMethod, setRecommendationMethod] = useState<
+    string | null
+  >(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
 
   // UI state
@@ -253,6 +256,99 @@ export default function ClassesScreen() {
   // Load trainers for advanced filters
   useEffect(() => {
     loadTrainers();
+  }, []);
+
+  // Listen for schedule:updated events from socket (emitted by cron job or manual updates)
+  useEffect(() => {
+    const handleScheduleUpdated = (data: any) => {
+      try {
+        console.log('[CLASSES] schedule:updated event received:', data);
+
+        if (!data?.schedule_id && !data?.schedule?.id) {
+          console.warn('[CLASSES] schedule:updated event missing schedule_id');
+          return;
+        }
+
+        const updatedScheduleId = data.schedule_id || data.schedule?.id;
+        const newStatus = data.status || data.schedule?.status;
+
+        if (!newStatus) {
+          console.warn('[CLASSES] schedule:updated event missing status');
+          return;
+        }
+
+        // Update schedule in current schedules list
+        setSchedules((prevSchedules) => {
+          const updatedSchedules = prevSchedules.map((schedule) => {
+            if (schedule.id === updatedScheduleId) {
+              console.log(
+                `[CLASSES] Updating schedule ${updatedScheduleId} status to ${newStatus}`
+              );
+              return {
+                ...schedule,
+                status: newStatus,
+                // Update other fields if provided
+                ...(data.schedule && {
+                  current_bookings:
+                    data.schedule.current_bookings ?? schedule.current_bookings,
+                  max_capacity:
+                    data.schedule.max_capacity ?? schedule.max_capacity,
+                  waitlist_count:
+                    data.schedule.waitlist_count ?? schedule.waitlist_count,
+                }),
+              };
+            }
+            return schedule;
+          });
+          return updatedSchedules;
+        });
+
+        // Also update in cache
+        setSchedulesCache((prevCache) => {
+          const updatedCache: Record<string, Schedule[]> = {};
+          Object.keys(prevCache).forEach((dateKey) => {
+            updatedCache[dateKey] = prevCache[dateKey].map((schedule) => {
+              if (schedule.id === updatedScheduleId) {
+                return {
+                  ...schedule,
+                  status: newStatus,
+                  ...(data.schedule && {
+                    current_bookings:
+                      data.schedule.current_bookings ??
+                      schedule.current_bookings,
+                    max_capacity:
+                      data.schedule.max_capacity ?? schedule.max_capacity,
+                    waitlist_count:
+                      data.schedule.waitlist_count ?? schedule.waitlist_count,
+                  }),
+                };
+              }
+              return schedule;
+            });
+          });
+          return updatedCache;
+        });
+
+        console.log(
+          `[CLASSES] ✅ Updated schedule ${updatedScheduleId} status to ${newStatus}`
+        );
+      } catch (error) {
+        console.error(
+          '[CLASSES] Error handling schedule:updated event:',
+          error
+        );
+      }
+    };
+
+    // Subscribe to schedule:updated events
+    const unsubscribe = AppEvents.on('schedule:updated', handleScheduleUpdated);
+    console.log('[CLASSES] Subscribed to schedule:updated events');
+
+    // Cleanup on unmount
+    return () => {
+      console.log('[CLASSES] Unsubscribing from schedule:updated events');
+      unsubscribe();
+    };
   }, []);
 
   const loadTrainers = async () => {
@@ -646,7 +742,8 @@ export default function ClassesScreen() {
       if (!member?.id) {
         Alert.alert(
           t('common.error'),
-          t('classes.errors.memberRegistrationRequired') || 'Vui lòng đăng ký thành viên trước khi đặt lịch'
+          t('classes.errors.memberRegistrationRequired') ||
+            'Vui lòng đăng ký hội viên trước khi đặt lịch'
         );
         return;
       }
@@ -667,19 +764,26 @@ export default function ClassesScreen() {
         hasNotes: !!bookingDataWithMember.notes,
       });
 
-      const response = await bookingService.createBooking(bookingDataWithMember);
+      const response = await bookingService.createBooking(
+        bookingDataWithMember
+      );
 
       if (response.success) {
         setShowBookingModal(false);
         setSelectedSchedule(null);
-        
+
         // Check if this is a waitlist booking
-        const isWaitlistBooking = (response as any).is_waitlist || response.data?.is_waitlist;
-        const waitlistPosition = (response as any).waitlist_position || response.data?.waitlist_position;
-        
+        const isWaitlistBooking =
+          (response as any).is_waitlist || response.data?.is_waitlist;
+        const waitlistPosition =
+          (response as any).waitlist_position ||
+          response.data?.waitlist_position;
+
         if (isWaitlistBooking) {
           const message = waitlistPosition
-            ? t('classes.booking.waitlistSuccessWithPosition', { position: waitlistPosition }) ||
+            ? t('classes.booking.waitlistSuccessWithPosition', {
+                position: waitlistPosition,
+              }) ||
               `Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ ở vị trí ${waitlistPosition}`
             : t('classes.booking.waitlistSuccess') ||
               'Lớp học đã đầy. Bạn đã được thêm vào danh sách chờ';
@@ -687,7 +791,7 @@ export default function ClassesScreen() {
         } else {
           Alert.alert(t('common.success'), t('classes.booking.bookingSuccess'));
         }
-        
+
         // Refresh data
         await loadData();
       } else {
@@ -1381,184 +1485,264 @@ export default function ClassesScreen() {
               <Text
                 style={[
                   themedStyles.filterModalSectionTitle,
-                  { color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
+                  {
+                    color: theme.colors.textSecondary,
+                    marginBottom: theme.spacing.md,
+                  },
                 ]}
               >
-                {t('classes.vectorRecommendationsDescription') || 'Gợi ý lớp học dựa trên vector embedding, phân tích sâu về mục tiêu và sở thích của bạn'}
+                {t('classes.vectorRecommendationsDescription') ||
+                  'Gợi ý lớp học dựa trên vector embedding, phân tích sâu về mục tiêu và sở thích của bạn'}
               </Text>
 
               {/* Loading State */}
               {loadingRecommendations ? (
                 <View style={themedStyles.loadingEmptyState}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.colors.primary}
+                  />
                   <Text
                     style={[
                       themedStyles.loadingEmptyStateText,
                       { color: theme.colors.textSecondary },
                     ]}
                   >
-                    {t('classes.loadingVectorRecommendations') || 'Đang tải gợi ý AI...'}
+                    {t('classes.loadingVectorRecommendations') ||
+                      'Đang tải gợi ý AI...'}
                   </Text>
                 </View>
-              ) : (() => {
-                // Filter vector recommendations - check type, method, and data fields
-                const vectorRecommendations = classRecommendations.filter(
-                  (rec) => 
-                    rec.type === 'VECTOR_RECOMMENDATION' || 
-                    rec.data?.similarity !== undefined ||
-                    rec.data?.finalScore !== undefined ||
+              ) : (
+                (() => {
+                  // Filter vector recommendations - check type, method, and data fields
+                  const vectorRecommendations = classRecommendations.filter(
+                    (rec) =>
+                      rec.type === 'VECTOR_RECOMMENDATION' ||
+                      rec.data?.similarity !== undefined ||
+                      rec.data?.finalScore !== undefined ||
+                      recommendationMethod === 'vector_embedding'
+                  );
+
+                  console.log('[VECTOR_MODAL] Filtered recommendations:', {
+                    total: classRecommendations.length,
+                    vector: vectorRecommendations.length,
+                    method: recommendationMethod,
+                    allTypes: classRecommendations.map((r) => r.type),
+                    allData: classRecommendations.map((r) => ({
+                      type: r.type,
+                      hasSimilarity: !!r.data?.similarity,
+                      hasFinalScore: !!r.data?.finalScore,
+                      classId: r.data?.classId,
+                    })),
+                  });
+
+                  // If method is vector_embedding, show all recommendations (they're all vector-based)
+                  // Otherwise, only show filtered vector recommendations
+                  const recommendationsToShow =
                     recommendationMethod === 'vector_embedding'
-                );
-                
-                console.log('[VECTOR_MODAL] Filtered recommendations:', {
-                  total: classRecommendations.length,
-                  vector: vectorRecommendations.length,
-                  method: recommendationMethod,
-                  allTypes: classRecommendations.map(r => r.type),
-                  allData: classRecommendations.map(r => ({
-                    type: r.type,
-                    hasSimilarity: !!r.data?.similarity,
-                    hasFinalScore: !!r.data?.finalScore,
-                    classId: r.data?.classId,
-                  })),
-                });
+                      ? classRecommendations
+                      : vectorRecommendations;
 
-                // If method is vector_embedding, show all recommendations (they're all vector-based)
-                // Otherwise, only show filtered vector recommendations
-                const recommendationsToShow = recommendationMethod === 'vector_embedding' 
-                  ? classRecommendations 
-                  : vectorRecommendations;
+                  console.log('[VECTOR_MODAL] Rendering recommendations:', {
+                    method: recommendationMethod,
+                    recommendationsToShowCount: recommendationsToShow.length,
+                    willRender: recommendationsToShow.length > 0,
+                    firstRec: recommendationsToShow[0]
+                      ? {
+                          type: recommendationsToShow[0].type,
+                          title: recommendationsToShow[0].title,
+                          data: recommendationsToShow[0].data,
+                        }
+                      : null,
+                  });
 
-                console.log('[VECTOR_MODAL] Rendering recommendations:', {
-                  method: recommendationMethod,
-                  recommendationsToShowCount: recommendationsToShow.length,
-                  willRender: recommendationsToShow.length > 0,
-                  firstRec: recommendationsToShow[0] ? {
-                    type: recommendationsToShow[0].type,
-                    title: recommendationsToShow[0].title,
-                    data: recommendationsToShow[0].data,
-                  } : null,
-                });
+                  return recommendationsToShow.length > 0 ? (
+                    <View style={{ gap: theme.spacing.md }}>
+                      {recommendationsToShow.map((recommendation, index) => {
+                        console.log(
+                          `[VECTOR_MODAL] Rendering recommendation ${index}:`,
+                          {
+                            type: recommendation.type,
+                            title: recommendation.title,
+                            hasData: !!recommendation.data,
+                          }
+                        );
+                        return (
+                          <ClassRecommendationCard
+                            key={`vector-${index}-${
+                              recommendation.data?.classId ||
+                              recommendation.type
+                            }`}
+                            recommendation={recommendation}
+                            onPress={async () => {
+                              console.log(
+                                '[VECTOR_MODAL] Recommendation pressed:',
+                                {
+                                  action: recommendation.action,
+                                  data: recommendation.data,
+                                  type: recommendation.type,
+                                }
+                              );
+                              setShowVectorRecommendationsModal(false);
 
-                return recommendationsToShow.length > 0 ? (
-                  <View style={{ gap: theme.spacing.md }}>
-                    {recommendationsToShow.map((recommendation, index) => {
-                      console.log(`[VECTOR_MODAL] Rendering recommendation ${index}:`, {
-                        type: recommendation.type,
-                        title: recommendation.title,
-                        hasData: !!recommendation.data,
-                      });
-                      return (
-                        <ClassRecommendationCard
-                          key={`vector-${index}-${recommendation.data?.classId || recommendation.type}`}
-                          recommendation={recommendation}
-                          onPress={async () => {
-                            console.log('[VECTOR_MODAL] Recommendation pressed:', {
-                              action: recommendation.action,
-                              data: recommendation.data,
-                              type: recommendation.type,
-                            });
-                            setShowVectorRecommendationsModal(false);
-                            
-                            try {
-                              // Handle navigation based on recommendation action and data
-                              // Priority: scheduleId > find schedule from classId > classId > category
-                              if (recommendation.data?.scheduleId) {
-                                // Navigate to schedule detail page (for booking)
-                                console.log('[VECTOR_MODAL] Navigating to schedule:', recommendation.data.scheduleId);
-                                router.push(`/classes/${recommendation.data.scheduleId}`);
-                              } else if (recommendation.data?.classId) {
-                                // Find the earliest upcoming schedule for this class
-                                console.log('[VECTOR_MODAL] Finding schedule for class:', recommendation.data.classId);
-                                try {
-                                  const filters = {
-                                    class_category: recommendation.data?.classCategory,
-                                    date_from: new Date().toISOString().split('T')[0],
-                                    available_only: true,
-                                  };
-                                  const response = await scheduleService.getSchedules(filters);
-                                  
-                                  if (response.success && response.data) {
-                                    // Find schedule for this specific class
-                                    const classSchedules = Array.isArray(response.data)
-                                      ? response.data.filter(
-                                          (s: Schedule) => s.gym_class?.id === recommendation.data.classId || s.class_id === recommendation.data.classId
-                                        )
-                                      : [];
-                                    
-                                    if (classSchedules.length > 0) {
-                                      // Sort by start_time and get the earliest one
-                                      const sortedSchedules = classSchedules.sort(
-                                        (a: Schedule, b: Schedule) => 
-                                          new Date(a.start_time).getTime() - new Date(b.start_time).getTime()
+                              try {
+                                // Handle navigation based on recommendation action and data
+                                // Priority: scheduleId > find schedule from classId > classId > category
+                                if (recommendation.data?.scheduleId) {
+                                  // Navigate to schedule detail page (for booking)
+                                  console.log(
+                                    '[VECTOR_MODAL] Navigating to schedule:',
+                                    recommendation.data.scheduleId
+                                  );
+                                  router.push(
+                                    `/classes/${recommendation.data.scheduleId}`
+                                  );
+                                } else if (recommendation.data?.classId) {
+                                  // Find the earliest upcoming schedule for this class
+                                  console.log(
+                                    '[VECTOR_MODAL] Finding schedule for class:',
+                                    recommendation.data.classId
+                                  );
+                                  try {
+                                    const filters = {
+                                      class_category:
+                                        recommendation.data?.classCategory,
+                                      date_from: new Date()
+                                        .toISOString()
+                                        .split('T')[0],
+                                      available_only: true,
+                                    };
+                                    const response =
+                                      await scheduleService.getSchedules(
+                                        filters
                                       );
-                                      const earliestSchedule = sortedSchedules[0];
-                                      console.log('[VECTOR_MODAL] Found schedule, navigating:', earliestSchedule.id);
-                                      router.push(`/classes/${earliestSchedule.id}`);
+
+                                    if (response.success && response.data) {
+                                      // Find schedule for this specific class
+                                      const classSchedules = Array.isArray(
+                                        response.data
+                                      )
+                                        ? response.data.filter(
+                                            (s: Schedule) =>
+                                              s.gym_class?.id ===
+                                                recommendation.data.classId ||
+                                              s.class_id ===
+                                                recommendation.data.classId
+                                          )
+                                        : [];
+
+                                      if (classSchedules.length > 0) {
+                                        // Sort by start_time and get the earliest one
+                                        const sortedSchedules =
+                                          classSchedules.sort(
+                                            (a: Schedule, b: Schedule) =>
+                                              new Date(a.start_time).getTime() -
+                                              new Date(b.start_time).getTime()
+                                          );
+                                        const earliestSchedule =
+                                          sortedSchedules[0];
+                                        console.log(
+                                          '[VECTOR_MODAL] Found schedule, navigating:',
+                                          earliestSchedule.id
+                                        );
+                                        router.push(
+                                          `/classes/${earliestSchedule.id}`
+                                        );
+                                      } else {
+                                        // No schedule found, navigate to classes list with category filter
+                                        console.log(
+                                          '[VECTOR_MODAL] No schedule found, navigating to category:',
+                                          recommendation.data.classCategory
+                                        );
+                                        if (
+                                          recommendation.data?.classCategory
+                                        ) {
+                                          router.push(
+                                            `/classes?category=${recommendation.data.classCategory}`
+                                          );
+                                        } else {
+                                          router.push('/classes');
+                                        }
+                                      }
                                     } else {
-                                      // No schedule found, navigate to classes list with category filter
-                                      console.log('[VECTOR_MODAL] No schedule found, navigating to category:', recommendation.data.classCategory);
+                                      // Fallback: navigate to classes list
                                       if (recommendation.data?.classCategory) {
-                                        router.push(`/classes?category=${recommendation.data.classCategory}`);
+                                        router.push(
+                                          `/classes?category=${recommendation.data.classCategory}`
+                                        );
                                       } else {
                                         router.push('/classes');
                                       }
                                     }
-                                  } else {
-                                    // Fallback: navigate to classes list
+                                  } catch (error) {
+                                    console.error(
+                                      '[VECTOR_MODAL] Error finding schedule:',
+                                      error
+                                    );
+                                    // Fallback: navigate to classes list with category
                                     if (recommendation.data?.classCategory) {
-                                      router.push(`/classes?category=${recommendation.data.classCategory}`);
+                                      router.push(
+                                        `/classes?category=${recommendation.data.classCategory}`
+                                      );
                                     } else {
                                       router.push('/classes');
                                     }
                                   }
-                                } catch (error) {
-                                  console.error('[VECTOR_MODAL] Error finding schedule:', error);
-                                  // Fallback: navigate to classes list with category
-                                  if (recommendation.data?.classCategory) {
-                                    router.push(`/classes?category=${recommendation.data.classCategory}`);
-                                  } else {
-                                    router.push('/classes');
-                                  }
+                                } else if (recommendation.data?.classCategory) {
+                                  // Navigate to classes list with category filter
+                                  console.log(
+                                    '[VECTOR_MODAL] Navigating to category:',
+                                    recommendation.data.classCategory
+                                  );
+                                  router.push(
+                                    `/classes?category=${recommendation.data.classCategory}`
+                                  );
+                                } else {
+                                  console.warn(
+                                    '[VECTOR_MODAL] No valid navigation data in recommendation:',
+                                    recommendation
+                                  );
+                                  router.push('/classes');
                                 }
-                              } else if (recommendation.data?.classCategory) {
-                                // Navigate to classes list with category filter
-                                console.log('[VECTOR_MODAL] Navigating to category:', recommendation.data.classCategory);
-                                router.push(`/classes?category=${recommendation.data.classCategory}`);
-                              } else {
-                                console.warn('[VECTOR_MODAL] No valid navigation data in recommendation:', recommendation);
+                              } catch (error) {
+                                console.error(
+                                  '[VECTOR_MODAL] Navigation error:',
+                                  error
+                                );
                                 router.push('/classes');
                               }
-                            } catch (error) {
-                              console.error('[VECTOR_MODAL] Navigation error:', error);
-                              router.push('/classes');
-                            }
-                          }}
-                        />
-                      );
-                    })}
-                  </View>
-                ) : (
-                  <View style={themedStyles.loadingEmptyState}>
-                    <Text
-                      style={[
-                        themedStyles.loadingEmptyStateText,
-                        { color: theme.colors.textSecondary },
-                      ]}
-                    >
-                      {t('classes.noVectorRecommendations') || 'Chưa có gợi ý vector embedding. Vui lòng cập nhật profile để nhận gợi ý.'}
-                    </Text>
-                    <Text
-                      style={[
-                        themedStyles.loadingEmptyStateText,
-                        { color: theme.colors.textSecondary, marginTop: theme.spacing.sm, fontSize: 12 },
-                      ]}
-                    >
-                      {`Tổng số recommendations: ${classRecommendations.length}`}
-                    </Text>
-                  </View>
-                );
-              })()}
+                            }}
+                          />
+                        );
+                      })}
+                    </View>
+                  ) : (
+                    <View style={themedStyles.loadingEmptyState}>
+                      <Text
+                        style={[
+                          themedStyles.loadingEmptyStateText,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('classes.noVectorRecommendations') ||
+                          'Chưa có gợi ý vector embedding. Vui lòng cập nhật profile để nhận gợi ý.'}
+                      </Text>
+                      <Text
+                        style={[
+                          themedStyles.loadingEmptyStateText,
+                          {
+                            color: theme.colors.textSecondary,
+                            marginTop: theme.spacing.sm,
+                            fontSize: 12,
+                          },
+                        ]}
+                      >
+                        {`Tổng số recommendations: ${classRecommendations.length}`}
+                      </Text>
+                    </View>
+                  );
+                })()
+              )}
             </ScrollView>
           </SafeAreaView>
         </View>
@@ -1628,16 +1812,23 @@ export default function ClassesScreen() {
               <Text
                 style={[
                   themedStyles.filterModalSectionTitle,
-                  { color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
+                  {
+                    color: theme.colors.textSecondary,
+                    marginBottom: theme.spacing.md,
+                  },
                 ]}
               >
-                {t('classes.recommendationsDescription') || 'Dựa trên lịch sử tham gia và sở thích của bạn'}
+                {t('classes.recommendationsDescription') ||
+                  'Dựa trên lịch sử tham gia và sở thích của bạn'}
               </Text>
 
               {/* Loading State */}
               {loadingRecommendations ? (
                 <View style={themedStyles.loadingEmptyState}>
-                  <ActivityIndicator size="large" color={theme.colors.primary} />
+                  <ActivityIndicator
+                    size="large"
+                    color={theme.colors.primary}
+                  />
                   <Text
                     style={[
                       themedStyles.loadingEmptyStateText,
@@ -1657,9 +1848,13 @@ export default function ClassesScreen() {
                         setShowRecommendationsModal(false);
                         // Handle navigation based on recommendation action
                         if (recommendation.data?.scheduleId) {
-                          router.push(`/classes/${recommendation.data.scheduleId}`);
+                          router.push(
+                            `/classes/${recommendation.data.scheduleId}`
+                          );
                         } else if (recommendation.data?.classId) {
-                          router.push(`/classes/${recommendation.data.classId}`);
+                          router.push(
+                            `/classes/${recommendation.data.classId}`
+                          );
                         }
                       }}
                     />

@@ -154,7 +154,7 @@ export const MaxPlansLimitModal: React.FC<MaxPlansLimitModalProps> = ({
                 >
                   {t(
                     'workouts.maxPlansReachedDesc',
-                    'Bạn đã sử dụng hết số lượt tạo kế hoạch tập luyện AI cho gói thành viên hiện tại của bạn.'
+                    'Bạn đã sử dụng hết số lượt tạo kế hoạch tập luyện AI cho gói hội viên hiện tại của bạn.'
                   )}
                 </Text>
 
@@ -204,7 +204,7 @@ export const MaxPlansLimitModal: React.FC<MaxPlansLimitModalProps> = ({
                     { color: theme.colors.textSecondary },
                   ]}
                 >
-                  {t('workouts.membershipType', 'Loại thành viên')}:
+                  {t('workouts.membershipType', 'Loại hội viên')}:
                 </Text>
                 <Text
                   style={[

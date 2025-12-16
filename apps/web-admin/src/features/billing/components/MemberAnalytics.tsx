@@ -269,7 +269,7 @@ export function MemberAnalytics({ viewType = 'at-risk' }: MemberAnalyticsProps) 
           className='mb-6 text-xl font-bold text-text-primary'
           style={{ fontFamily: 'Space Grotesk, sans-serif' }}
         >
-          {currentView === 'at-risk' ? 'Thành viên có nguy cơ rời bỏ' : 'Top thành viên theo LTV'}
+          {currentView === 'at-risk' ? 'Hội viên có nguy cơ rời bỏ' : 'Top hội viên theo LTV'}
         </h2>
         {loading ? (
           <div className='flex items-center justify-center py-16'>
@@ -304,7 +304,7 @@ export function MemberAnalytics({ viewType = 'at-risk' }: MemberAnalyticsProps) 
                     className='px-6 py-4 text-xs font-bold uppercase tracking-wider text-text-muted'
                     style={{ fontFamily: 'Inter, sans-serif' }}
                   >
-                    Thành viên
+                    Hội viên
                   </th>
                   <th
                     className='px-6 py-4 text-xs font-bold uppercase tracking-wider text-text-muted'
@@ -364,7 +364,9 @@ export function MemberAnalytics({ viewType = 'at-risk' }: MemberAnalyticsProps) 
                     </td>
                     <td className='px-6 py-4'>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${getEngagementBadgeColor(member.engagement_score)}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${getEngagementBadgeColor(
+                          member.engagement_score
+                        )}`}
                         style={{ fontFamily: 'Inter, sans-serif' }}
                       >
                         <Activity className='h-3 w-3' />
@@ -373,7 +375,9 @@ export function MemberAnalytics({ viewType = 'at-risk' }: MemberAnalyticsProps) 
                     </td>
                     <td className='px-6 py-4'>
                       <span
-                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${getRiskBadgeColor(member.churn_risk_score)}`}
+                        className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${getRiskBadgeColor(
+                          member.churn_risk_score
+                        )}`}
                         style={{ fontFamily: 'Inter, sans-serif' }}
                       >
                         <AlertTriangle className='h-3 w-3' />

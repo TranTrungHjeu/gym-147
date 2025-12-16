@@ -29,9 +29,7 @@ router.get('/members/:id/workout-frequency', (req, res) =>
 );
 
 // Get calories data for charts
-router.get('/members/:id/calories-data', (req, res) =>
-  sessionController.getCaloriesData(req, res)
-);
+router.get('/members/:id/calories-data', (req, res) => sessionController.getCaloriesData(req, res));
 
 // Get session details with equipment usage
 router.get('/sessions/:sessionId', (req, res) => {

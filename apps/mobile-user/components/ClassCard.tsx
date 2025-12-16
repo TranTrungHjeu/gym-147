@@ -182,6 +182,25 @@ export default function ClassCard({
     userBooking?.is_waitlist ||
     userBooking?.status === 'WAITLIST';
 
+  // Check booking deadline: Cannot book within 1.5 hours (90 minutes) before class starts
+  const now = new Date();
+  const startTime = schedule.start_time ? new Date(schedule.start_time) : null;
+  const deadlineMinutes = 90; // 1.5 hours = 90 minutes
+  const deadlineMs = deadlineMinutes * 60 * 1000;
+  
+  let isBookingDeadlinePassed = false;
+  let timeUntilDeadline: number | null = null;
+  let remainingMinutes: number | null = null;
+  
+  if (startTime) {
+    const timeUntilStart = startTime.getTime() - now.getTime();
+    timeUntilDeadline = timeUntilStart - deadlineMs;
+    remainingMinutes = timeUntilDeadline > 0 ? Math.ceil(timeUntilDeadline / (60 * 1000)) : null;
+    
+    // Deadline passed if class starts within 90 minutes (and hasn't started yet)
+    isBookingDeadlinePassed = timeUntilStart > 0 && timeUntilStart < deadlineMs;
+  }
+
   const themedStyles = styles(theme);
 
   // Animation values
@@ -531,6 +550,32 @@ export default function ClassCard({
 
                   // If booking is cancelled, allow re-booking
                   if (userBooking.status === 'CANCELLED') {
+                    // Check if booking deadline has passed
+                    if (isBookingDeadlinePassed) {
+                      return (
+                        <View
+                          style={[
+                            themedStyles.actionButton,
+                            {
+                              backgroundColor: theme.colors.textSecondary + '20',
+                              borderWidth: 1,
+                              borderColor: theme.colors.textSecondary,
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              themedStyles.actionButtonText,
+                              { color: theme.colors.textSecondary },
+                            ]}
+                          >
+                            {t('classes.booking.deadlinePassed') ||
+                              'Hết thời gian đăng ký'}
+                          </Text>
+                        </View>
+                      );
+                    }
+                    
                     // Show book button if class is not fully booked
                     if (!isFullyBooked && onBook) {
                       return (
@@ -883,6 +928,37 @@ export default function ClassCard({
                   );
                 }
 
+                // Check if booking deadline has passed
+                if (isBookingDeadlinePassed) {
+                  return (
+                    <View
+                      style={[
+                        themedStyles.actionButton,
+                        {
+                          backgroundColor: theme.colors.textSecondary + '20',
+                          borderWidth: 1,
+                          borderColor: theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {remainingMinutes !== null && remainingMinutes > 0
+                          ? t('classes.booking.deadlineSoon', {
+                              minutes: remainingMinutes,
+                            }) ||
+                            `Còn ${remainingMinutes} phút để đăng ký`
+                          : t('classes.booking.deadlinePassed') ||
+                            'Hết thời gian đăng ký'}
+                      </Text>
+                    </View>
+                  );
+                }
+
                 if (!isFullyBooked) {
                   return (
                     <TouchableOpacity
@@ -902,6 +978,32 @@ export default function ClassCard({
                         {t('classes.booking.book') || 'Đặt lịch ngay'}
                       </Text>
                     </TouchableOpacity>
+                  );
+                }
+
+                // If fully booked, check deadline before showing waitlist button
+                if (isBookingDeadlinePassed) {
+                  return (
+                    <View
+                      style={[
+                        themedStyles.actionButton,
+                        {
+                          backgroundColor: theme.colors.textSecondary + '20',
+                          borderWidth: 1,
+                          borderColor: theme.colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          themedStyles.actionButtonText,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {t('classes.booking.deadlinePassed') ||
+                          'Hết thời gian đăng ký'}
+                      </Text>
+                    </View>
                   );
                 }
 

@@ -1718,13 +1718,16 @@ header form input[type='text'].header-search-input:focus[class*='brand'] {
 /* Hide scrollbar but allow scrolling */
 .scrollbar-hide {
   /* Chrome, Safari and Opera */
-  &::-webkit-scrollbar {
-    display: none;
-  }
-  /* IE and Edge */
-  -ms-overflow-style: none;
-  /* Firefox */
-  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none; /* Chrome, Safari and Opera */
+  width: 0;
+  height: 0;
+  background: transparent;
 }
 
 /* Modal Scrollbar - Extra small and subtle */

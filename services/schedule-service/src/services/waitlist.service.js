@@ -5,6 +5,12 @@
 
 const { prisma } = require('../lib/prisma.js');
 const notificationService = require('./notification.service.js');
+const axios = require('axios');
+
+// BILLING_SERVICE_URL with fallback for Docker environment
+const BILLING_SERVICE_URL =
+  process.env.BILLING_SERVICE_URL ||
+  (process.env.DOCKER_ENV === 'true' ? 'http://billing:3004' : 'http://localhost:3004');
 
 class WaitlistService {
   /**
@@ -406,6 +412,85 @@ class WaitlistService {
 
       // Update waitlist positions for remaining members (outside transaction)
       await this.updateWaitlistPositions(scheduleId);
+
+      // Create payment if booking has price > 0 and payment doesn't exist yet
+      const bookingPrice = parseFloat(
+        promotedBooking.schedule.price_override || promotedBooking.schedule.gym_class?.price || 0
+      );
+
+      if (bookingPrice > 0 && promotedBooking.payment_status === 'PENDING') {
+        try {
+          // Check if payment already exists
+          const existingPaymentResponse = await axios.get(
+            `${BILLING_SERVICE_URL}/payments?reference_id=${promotedBooking.id}&payment_type=CLASS_BOOKING`,
+            {
+              timeout: 10000,
+            }
+          );
+
+          const hasExistingPayment =
+            existingPaymentResponse.data?.success && existingPaymentResponse.data?.data?.length > 0;
+
+          if (!hasExistingPayment) {
+            // Create payment for promoted waitlist booking
+            const paymentRequestData = {
+              member_id: promotedBooking.member_id,
+              amount: bookingPrice,
+              payment_method: 'BANK_TRANSFER',
+              payment_type: 'CLASS_BOOKING',
+              reference_id: promotedBooking.id,
+              description: `Thanh toán đặt lớp (từ waitlist): ${
+                promotedBooking.schedule.gym_class?.name || 'Lớp học'
+              }`,
+            };
+
+            console.log('💰 Creating payment for promoted waitlist booking:', {
+              booking_id: promotedBooking.id,
+              member_id: promotedBooking.member_id,
+              amount: bookingPrice,
+              payment_type: 'CLASS_BOOKING',
+              reference_id: promotedBooking.id,
+            });
+
+            const paymentResponse = await axios.post(
+              `${BILLING_SERVICE_URL}/payments/initiate`,
+              paymentRequestData,
+              {
+                headers: {
+                  'Content-Type': 'application/json',
+                },
+                timeout: 10000,
+              }
+            );
+
+            if (paymentResponse.data?.success && paymentResponse.data?.data?.payment) {
+              const payment = paymentResponse.data.data.payment;
+              console.log('[SUCCESS] Payment created for promoted waitlist booking:', {
+                paymentId: payment.id,
+                bookingId: promotedBooking.id,
+                amount: payment.amount,
+              });
+            } else {
+              console.warn(
+                '[WARNING] Failed to create payment for promoted waitlist booking, but promotion succeeded'
+              );
+            }
+          } else {
+            console.log(
+              '[INFO] Payment already exists for promoted waitlist booking, skipping creation'
+            );
+          }
+        } catch (paymentError) {
+          // Don't fail promotion if payment creation fails
+          console.error(
+            '[ERROR] Failed to create payment for promoted waitlist booking:',
+            paymentError.message
+          );
+          console.warn(
+            '[WARNING] Booking promoted but payment creation failed. Payment can be created later via initiateWaitlistPayment.'
+          );
+        }
+      }
 
       // IMPROVEMENT: Send waitlist auto-promote notification using booking improvements service
       try {

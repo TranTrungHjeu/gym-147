@@ -32,7 +32,7 @@ const AdminTable: React.FC<AdminTableProps> = ({ children, className = '' }) => 
       className={`bg-white dark:bg-gray-900 rounded-lg shadow-theme-md overflow-hidden border border-gray-200 dark:border-gray-800 ${className}`}
     >
       <div className='overflow-x-auto md:overflow-x-hidden'>
-        <table className='w-full divide-y divide-gray-200 dark:divide-gray-800 table-fixed min-w-[800px] md:min-w-0'>
+        <table className='w-full divide-y divide-gray-200 dark:divide-gray-800 table-auto min-w-[1200px] md:min-w-0'>
           {children}
         </table>
       </div>

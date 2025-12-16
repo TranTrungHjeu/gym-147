@@ -21,11 +21,40 @@
     "next": "Sau",
     "page": "Trang",
     "of": "trong",
+    "all": "Tất cả",
+    "unlimited": "Vô hạn",
     "status": {
       "active": "Hoạt động",
       "inactive": "Không hoạt động",
       "onLeave": "Nghỉ phép",
-      "terminated": "Đã chấm dứt"
+      "terminated": "Đã chấm dứt",
+      "ACTIVE": "Hoạt động",
+      "EXPIRED": "Hết hạn",
+      "SUSPENDED": "Tạm ngưng"
+    },
+    "membershipTypes": {
+      "BASIC": "Cơ bản",
+      "PREMIUM": "Premium",
+      "VIP": "VIP",
+      "STUDENT": "Sinh viên"
+    },
+    "trainerStatus": {
+      "active": "Hoạt động",
+      "inactive": "Không hoạt động",
+      "onLeave": "Nghỉ phép",
+      "terminated": "Chấm dứt"
+    },
+    "classCategory": {
+      "cardio": "Tim mạch",
+      "strength": "Sức mạnh",
+      "yoga": "Yoga",
+      "pilates": "Pilates",
+      "dance": "Khiêu vũ",
+      "martialArts": "Võ thuật",
+      "aqua": "Bơi lội",
+      "functional": "Chức năng",
+      "recovery": "Phục hồi",
+      "specialized": "Chuyên biệt"
     },
     "yes": "Có",
     "no": "Không",
@@ -153,7 +182,7 @@
       "title": "Admin Dashboard",
       "subtitle": "Quản lý phòng gym và nhân viên",
       "metrics": {
-        "trainer": "Trainer",
+        "trainer": "Huấn luyện viên",
         "member": "Member",
         "equipment": "Equipment",
         "monthlyRevenue": "Doanh thu tháng",
@@ -166,8 +195,8 @@
           "subtitle": "Biểu đồ doanh thu và thống kê tài chính"
         },
         "memberGrowth": {
-          "title": "Tăng trưởng Thành viên",
-          "subtitle": "Biểu đồ tăng trưởng thành viên theo thời gian"
+          "title": "Tăng trưởng Hội viên",
+          "subtitle": "Biểu đồ tăng trưởng hội viên theo thời gian"
         },
         "equipment": {
           "title": "Sử dụng Thiết bị",
@@ -183,7 +212,7 @@
         "subtitle": "Các chức năng quản trị phòng gym",
         "viewDashboard": "Dashboard",
         "viewDashboardDesc": "Xem tổng quan phòng gym",
-        "createTrainer": "Tạo Trainer",
+        "createTrainer": "Tạo Huấn luyện viên",
         "createTrainerDesc": "Tạo tài khoản huấn luyện viên"
       },
       "activity": {
@@ -193,7 +222,7 @@
         "recentActivitySubtitle": "5 hoạt động mới nhất",
         "noActivity": "Chưa có hoạt động",
         "types": {
-          "newTrainerRegistered": "Trainer mới đăng ký",
+          "newTrainerRegistered": "Huấn luyện viên mới đăng ký",
           "newMemberRegistered": "Member mới đăng ký",
           "newAdminRegistered": "Admin mới đăng ký",
           "loggedIn": "Đã đăng nhập bằng",
@@ -202,7 +231,7 @@
         },
         "roles": {
           "member": "Member",
-          "trainer": "Trainer",
+          "trainer": "Huấn luyện viên",
           "admin": "Admin",
           "superAdmin": "Super Admin"
         }
@@ -233,7 +262,7 @@
     },
     "real": {
       "subtitle": "Tổng quan hệ thống Gym 147",
-      "totalMembers": "Tổng thành viên",
+      "totalMembers": "Tổng hội viên",
       "todayRevenue": "Doanh thu hôm nay",
       "todaySchedule": "Lịch tập hôm nay",
       "activeEquipment": "Thiết bị hoạt động",
@@ -254,7 +283,7 @@
       "metrics": {
         "totalUsers": "Tổng Users",
         "admin": "Admin",
-        "trainer": "Trainer",
+        "trainer": "Huấn luyện viên",
         "member": "Member",
         "newRegistrations": "Đăng ký mới (30 ngày)",
         "activeSessions": "Phiên hoạt động (24h)"
@@ -266,7 +295,7 @@
         "viewDashboardDesc": "Xem tổng quan hệ thống",
         "createAdmin": "Tạo Admin",
         "createAdminDesc": "Tạo tài khoản quản trị viên",
-        "createTrainer": "Tạo Trainer",
+        "createTrainer": "Tạo Huấn luyện viên",
         "createTrainerDesc": "Tạo tài khoản huấn luyện viên"
       },
       "activity": {
@@ -286,7 +315,7 @@
         },
         "roles": {
           "member": "Member",
-          "trainer": "Trainer",
+          "trainer": "Huấn luyện viên",
           "admin": "Admin",
           "superAdmin": "Super Admin"
         }
@@ -299,7 +328,7 @@
   },
   "userManagement": {
     "title": "Quản lý Tài khoản",
-    "subtitle": "Quản lý tất cả tài khoản trong hệ thống (Admin, Trainer, Member)",
+    "subtitle": "Quản lý tất cả tài khoản trong hệ thống (Admin, Huấn luyện viên, Hội viên)",
     "loading": "Đang tải danh sách tài khoản...",
     "stats": {
       "total": "Tổng số tài khoản",
@@ -319,7 +348,7 @@
       "roles": {
         "superAdmin": "Super Admin",
         "admin": "Admin",
-        "trainer": "Trainer",
+        "trainer": "Huấn luyện viên",
         "member": "Member"
       },
       "statuses": {
@@ -467,10 +496,10 @@
     },
     "usersModal": {
       "title": "Người dùng Thiết bị",
-      "subtitle": "Danh sách thành viên đã sử dụng thiết bị này",
+      "subtitle": "Danh sách hội viên đã sử dụng thiết bị này",
       "noUsers": "Chưa có người dùng",
       "unknownUser": "Người dùng không xác định",
-      "membershipNumber": "Số thẻ thành viên",
+      "membershipNumber": "Số thẻ hội viên",
       "minutes": "phút"
     },
     "delete": {
@@ -513,9 +542,9 @@
       "iot": "Thiết bị IoT thông minh",
       "iotDescription": "Hệ thống theo dõi thiết bị tự động, cảnh báo bảo trì và tối ưu hóa hiệu suất máy tập.",
       "ai": "AI Coaching cá nhân",
-      "aiDescription": "Hướng dẫn tập luyện thông minh dựa trên dữ liệu cá nhân và mục tiêu của từng thành viên.",
+      "aiDescription": "Hướng dẫn tập luyện thông minh dựa trên dữ liệu cá nhân và mục tiêu của từng hội viên.",
       "management": "Quản lý thông minh",
-      "managementDescription": "Hệ thống quản lý toàn diện từ thành viên, lịch tập đến thanh toán và báo cáo.",
+      "managementDescription": "Hệ thống quản lý toàn diện từ hội viên, lịch tập đến thanh toán và báo cáo.",
       "security": "Bảo mật cao",
       "securityDescription": "Kiểm soát ra vào bằng RFID, QR Code và nhận diện khuôn mặt đảm bảo an toàn tuyệt đối."
     },
@@ -620,8 +649,8 @@
     "about": {
       "span": "Giới thiệu",
       "title": "VỀ GYM 147",
-      "description1": "GYM 147 là hệ thống quản lý phòng gym thông minh được xây dựng với mục tiêu mang đến trải nghiệm tập luyện hiện đại và hiệu quả nhất cho các thành viên. Chúng tôi kết hợp công nghệ IoT tiên tiến với các giải pháp quản lý thông minh để tối ưu hóa mọi khía cạnh của việc tập luyện.",
-      "description2": "Với đội ngũ chuyên nghiệp và giàu kinh nghiệm, GYM 147 cam kết cung cấp dịch vụ chất lượng cao, đảm bảo an toàn và hiệu quả cho mọi thành viên. Chúng tôi không chỉ là một phòng gym thông thường, mà là một hệ sinh thái tập luyện toàn diện.",
+      "description1": "GYM 147 là hệ thống quản lý phòng gym thông minh được xây dựng với mục tiêu mang đến trải nghiệm tập luyện hiện đại và hiệu quả nhất cho các hội viên. Chúng tôi kết hợp công nghệ IoT tiên tiến với các giải pháp quản lý thông minh để tối ưu hóa mọi khía cạnh của việc tập luyện.",
+      "description2": "Với đội ngũ chuyên nghiệp và giàu kinh nghiệm, GYM 147 cam kết cung cấp dịch vụ chất lượng cao, đảm bảo an toàn và hiệu quả cho mọi hội viên. Chúng tôi không chỉ là một phòng gym thông thường, mà là một hệ sinh thái tập luyện toàn diện.",
       "description3": "Từ việc theo dõi hiệu suất tập luyện đến quản lý lịch trình và thanh toán, mọi thứ đều được tự động hóa và tối ưu hóa để mang lại trải nghiệm tốt nhất cho bạn.",
       "missionTitle": "Sứ mệnh của chúng tôi",
       "mission": "Mang đến giải pháp tập luyện thông minh, hiện đại và hiệu quả nhất, giúp mọi người đạt được mục tiêu sức khỏe và thể hình của mình."
@@ -699,7 +728,7 @@
       "title": "DỊCH VỤ CỦA CHÚNG TÔI",
       "iotDetails": "Hệ thống giám sát thiết bị tự động, cảnh báo bảo trì và tối ưu hóa hiệu suất máy tập trong thời gian thực.",
       "aiDetails": "Phân tích dữ liệu tập luyện cá nhân và đưa ra chương trình tập luyện tối ưu dựa trên mục tiêu và thể trạng của bạn.",
-      "managementDetails": "Quản lý toàn diện từ đăng ký thành viên, lịch tập, thanh toán đến báo cáo thống kê chi tiết.",
+      "managementDetails": "Quản lý toàn diện từ đăng ký hội viên, lịch tập, thanh toán đến báo cáo thống kê chi tiết.",
       "securityDetails": "Hệ thống kiểm soát ra vào bằng RFID, QR Code và nhận diện khuôn mặt đảm bảo an toàn tuyệt đối."
     },
     "pricing": {
@@ -742,14 +771,14 @@
     },
     "testimonials": {
       "span": "Đánh giá",
-      "title": "PHẢN HỒI TỪ THÀNH VIÊN",
+      "title": "PHẢN HỒI TỪ HỘI VIÊN",
       "testimonial1": "Huấn luyện viên rất chuyên nghiệp và tận tâm. Tôi đã đạt được mục tiêu giảm cân nhờ sự hướng dẫn của họ.",
       "testimonial2": "Chương trình tập luyện được cá nhân hóa rất phù hợp với tôi. Kết quả vượt ngoài mong đợi!",
       "testimonial3": "Đội ngũ huấn luyện viên tại GYM 147 là tốt nhất mà tôi từng gặp. Rất khuyến khích!",
       "client1": "Nguyễn Văn A",
       "client2": "Trần Thị B",
       "client3": "Lê Văn C",
-      "member": "Thành viên"
+      "member": "Hội viên"
     },
     "cta": {
       "title": "Sẵn sàng bắt đầu với huấn luyện viên?",
@@ -797,7 +826,7 @@
     "menu": {
       "userManagement": "Quản lý người dùng",
       "allAccounts": "Tất cả tài khoản",
-      "members": "Thành viên",
+      "members": "Hội viên",
       "trainers": "Huấn luyện viên",
       "personalTraining": "Huấn luyện cá nhân",
       "guestPasses": "Thẻ Khách",
@@ -815,7 +844,7 @@
       "reportsAnalytics": "Báo cáo & Phân tích",
       "overview": "Tổng quan",
       "userReports": "Báo cáo người dùng",
-      "memberReports": "Báo cáo thành viên",
+      "memberReports": "Báo cáo hội viên",
       "classReports": "Báo cáo lớp học",
       "revenueReports": "Báo cáo doanh thu",
       "equipmentReports": "Báo cáo thiết bị",
@@ -905,7 +934,7 @@
       "superAdmin": "Super Admin",
       "admin": "Admin",
       "trainer": "Huấn luyện viên",
-      "member": "Thành viên"
+      "member": "Hội viên"
     },
     "equipmentStatus": {
       "available": "Sẵn sàng",
@@ -1071,16 +1100,16 @@
     }
   },
   "memberManagement": {
-    "title": "Quản lý Khách hàng",
-    "subtitle": "Quản lý tất cả khách hàng (thành viên) trong hệ thống",
+    "title": "Quản lý Hội viên",
+    "subtitle": "Quản lý tất cả hội viên trong hệ thống",
     "stats": {
-      "total": "Tổng số khách hàng",
+      "total": "Tổng số hội viên",
       "active": "Đang hoạt động",
       "inactive": "Không hoạt động",
       "newThisMonth": "Mới trong tháng"
     },
     "search": {
-      "placeholder": "Tìm kiếm khách hàng..."
+      "placeholder": "Tìm kiếm hội viên..."
     },
     "filter": {
       "allStatuses": "Tất cả trạng thái",
@@ -1088,10 +1117,10 @@
       "inactive": "Không hoạt động"
     },
     "table": {
-      "name": "Khách hàng",
+      "name": "Hội viên",
       "email": "Email",
       "phone": "Số điện thoại",
-      "membershipType": "Gói thành viên",
+      "membershipType": "Gói hội viên",
       "status": "Trạng thái",
       "createdAt": "Ngày tạo",
       "actions": "Thao tác"
@@ -1106,35 +1135,35 @@
       "bulkEmail": "Gửi email"
     },
     "empty": {
-      "noMembers": "Không có khách hàng nào",
-      "noResults": "Không tìm thấy khách hàng nào",
-      "noMembersDescription": "Chưa có khách hàng trong hệ thống"
+      "noMembers": "Không có hội viên nào",
+      "noResults": "Không tìm thấy hội viên nào",
+      "noMembersDescription": "Chưa có hội viên trong hệ thống"
     },
     "messages": {
-      "loadError": "Không thể tải danh sách thành viên",
-      "loading": "Đang tải danh sách thành viên...",
-      "deleteSuccess": "Xóa khách hàng thành công",
-      "deleteError": "Không thể xóa khách hàng",
-      "exportSuccess": "Xuất danh sách thành viên thành công",
-      "confirmDelete": "Bạn có chắc chắn muốn xóa {{count}} khách hàng?",
-      "bulkDeleteSuccess": "Đã xóa {{count}} khách hàng thành công",
-      "bulkDeleteError": "Không thể xóa một số khách hàng",
-      "bulkActivateSuccess": "Đã kích hoạt {{count}} khách hàng",
-      "bulkActivateError": "Không thể kích hoạt một số khách hàng",
-      "bulkDeactivateSuccess": "Đã vô hiệu hóa {{count}} khách hàng",
-      "bulkDeactivateError": "Không thể vô hiệu hóa một số khách hàng",
+      "loadError": "Không thể tải danh sách hội viên",
+      "loading": "Đang tải danh sách hội viên...",
+      "deleteSuccess": "Xóa hội viên thành công",
+      "deleteError": "Không thể xóa hội viên",
+      "exportSuccess": "Xuất danh sách hội viên thành công",
+      "confirmDelete": "Bạn có chắc chắn muốn xóa {{count}} hội viên?",
+      "bulkDeleteSuccess": "Đã xóa {{count}} hội viên thành công",
+      "bulkDeleteError": "Không thể xóa một số hội viên",
+      "bulkActivateSuccess": "Đã kích hoạt {{count}} hội viên",
+      "bulkActivateError": "Không thể kích hoạt một số hội viên",
+      "bulkDeactivateSuccess": "Đã vô hiệu hóa {{count}} hội viên",
+      "bulkDeactivateError": "Không thể vô hiệu hóa một số hội viên",
       "bulkEmailSuccess": "Đã mở email client với {{count}} người nhận",
       "bulkEmailError": "Không có email nào để gửi"
     },
     "delete": {
-      "confirmTitle": "Xác nhận xóa khách hàng",
-      "confirmMessage": "Bạn có chắc chắn muốn xóa khách hàng \"{{name}}\"? Hành động này không thể hoàn tác."
+      "confirmTitle": "Xác nhận xóa hội viên",
+      "confirmMessage": "Bạn có chắc chắn muốn xóa hội viên \"{{name}}\"? Hành động này không thể hoàn tác."
     },
     "details": {
       "title": "Chi tiết Khách hàng"
     },
     "export": {
-      "title": "Danh sách Khách hàng"
+      "title": "Danh sách Hội viên"
     }
   },
   "trainerManagement": {
@@ -1192,7 +1221,7 @@
     "empty": {
       "noTrainers": "Không tìm thấy huấn luyện viên nào",
       "noResults": "Không có huấn luyện viên nào phù hợp với tiêu chí tìm kiếm",
-      "noTrainersDescription": "Tạo tài khoản trainer mới để bắt đầu quản lý huấn luyện viên"
+      "noTrainersDescription": "Tạo tài khoản huấn luyện viên mới để bắt đầu quản lý huấn luyện viên"
     },
     "messages": {
       "loadError": "Không thể tải danh sách huấn luyện viên",
@@ -1305,7 +1334,7 @@
   },
   "scheduleManagement": {
     "title": "Quản lý Lịch tập",
-    "subtitle": "Quản lý lịch tập và booking của thành viên",
+    "subtitle": "Quản lý lịch tập và booking của hội viên",
     "createSchedule": "Tạo lịch mới",
     "stats": {
       "totalSchedules": "Tổng lịch tập",
@@ -1477,7 +1506,7 @@
       "pendingPayments": "Thanh toán chờ xử lý"
     },
     "plans": {
-      "title": "Gói Thành viên",
+      "title": "Gói Hội viên",
       "addPlan": "Thêm Gói",
       "table": {
         "name": "Tên Gói",
@@ -1495,7 +1524,7 @@
         "placeholder": "Tìm kiếm đăng ký..."
       },
       "table": {
-        "member": "Thành viên",
+        "member": "Hội viên",
         "plan": "Gói tập",
         "startDate": "Ngày bắt đầu",
         "endDate": "Ngày kết thúc",
@@ -1513,6 +1542,30 @@
       "export": {
         "filename": "danh-sach-dang-ky",
         "title": "Danh sách Đăng ký"
+      },
+      "refundTimeline": {
+        "title": "Lịch sử Hoàn tiền",
+        "noTimeline": "Chưa có lịch sử hoàn tiền",
+        "loading": "Đang tải lịch sử hoàn tiền...",
+        "error": "Không thể tải lịch sử hoàn tiền",
+        "status": {
+          "pending": "Chờ duyệt",
+          "approved": "Đã duyệt",
+          "processed": "Đã xử lý",
+          "failed": "Thất bại",
+          "cancelled": "Đã hủy"
+        },
+        "actions": {
+          "created": "Tạo yêu cầu hoàn tiền",
+          "approved": "Duyệt yêu cầu hoàn tiền",
+          "processed": "Xử lý hoàn tiền",
+          "cancelled": "Hủy yêu cầu hoàn tiền",
+          "failed": "Xử lý hoàn tiền thất bại"
+        },
+        "by": "Bởi",
+        "at": "Lúc",
+        "amount": "Số tiền",
+        "reason": "Lý do"
       }
     },
     "payments": {
@@ -1521,7 +1574,7 @@
         "placeholder": "Tìm kiếm thanh toán..."
       },
       "table": {
-        "member": "Thành viên",
+        "member": "Hội viên",
         "amount": "Số tiền",
         "method": "Phương thức",
         "status": "Trạng thái",
@@ -1632,7 +1685,7 @@
     },
     "detail": {
       "title": "Chi tiết Hoàn tiền",
-      "memberInfo": "Thông tin thành viên",
+      "memberInfo": "Thông tin hội viên",
       "memberName": "Họ tên",
       "memberEmail": "Email",
       "refundInfo": "Thông tin hoàn tiền",
@@ -1654,7 +1707,7 @@
   },
   "challengeManagement": {
     "title": "Quản lý Thử thách",
-    "subtitle": "Tạo động lực cho thành viên với các thử thách hấp dẫn",
+    "subtitle": "Tạo động lực cho hội viên với các thử thách hấp dẫn",
     "addChallenge": "Tạo thử thách mới",
     "search": {
       "placeholder": "Tìm kiếm thử thách..."
@@ -1739,7 +1792,7 @@
   },
   "rewardManagement": {
     "title": "Quản lý Phần thưởng",
-    "subtitle": "Tạo và quản lý các phần thưởng hấp dẫn cho thành viên",
+    "subtitle": "Tạo và quản lý các phần thưởng hấp dẫn cho hội viên",
     "addReward": "Tạo phần thưởng mới",
     "search": {
       "placeholder": "Tìm kiếm phần thưởng..."
@@ -1777,7 +1830,24 @@
       "redemptionLimit": "Giới hạn Đổi thưởng",
       "validFrom": "Có hiệu lực từ",
       "validUntil": "Có hiệu lực đến",
-      "termsConditions": "Điều khoản & Điều kiện"
+      "termsConditions": "Điều khoản & Điều kiện",
+      "titleRequired": "Tiêu đề là bắt buộc",
+      "descriptionRequired": "Mô tả là bắt buộc",
+      "pointsCostRequired": "Điểm phải lớn hơn 0",
+      "onlyOneDiscountType": "Chỉ được chọn một loại giảm giá (phần trăm HOẶC số tiền)",
+      "discountPercentRange": "Phần trăm giảm giá phải từ 0 đến 100",
+      "discountAmountInvalid": "Số tiền giảm giá không được âm",
+      "stockQuantityInvalid": "Số lượng tồn kho không được âm",
+      "redemptionLimitInvalid": "Giới hạn đổi không được âm",
+      "validUntilAfterValidFrom": "Ngày kết thúc phải sau ngày bắt đầu",
+      "selectCategory": "Chọn danh mục",
+      "selectType": "Chọn loại",
+      "changeImage": "Thay đổi",
+      "uploadImage": "Tải lên hình ảnh",
+      "imageUploadHint": "Tối đa 5MB. Định dạng: JPG, PNG, GIF, WebP",
+      "termsConditionsPlaceholder": "Điều khoản và điều kiện...",
+      "imageFileTypeError": "File phải là hình ảnh",
+      "imageFileSizeError": "File không được vượt quá 5MB"
     },
     "stats": {
       "total": "Tổng số phần thưởng",
@@ -1821,23 +1891,6 @@
       "statusUpdateSuccess": "Đã {{action}} phần thưởng \"{{name}}\" thành công!",
       "statusUpdateError": "Không thể cập nhật trạng thái"
     },
-    "form": {
-      "titleRequired": "Tiêu đề là bắt buộc",
-      "descriptionRequired": "Mô tả là bắt buộc",
-      "pointsCostRequired": "Điểm phải lớn hơn 0",
-      "onlyOneDiscountType": "Chỉ được chọn một loại giảm giá (phần trăm HOẶC số tiền)",
-      "discountPercentRange": "Phần trăm giảm giá phải từ 0 đến 100",
-      "discountAmountInvalid": "Số tiền giảm giá không được âm",
-      "stockQuantityInvalid": "Số lượng tồn kho không được âm",
-      "redemptionLimitInvalid": "Giới hạn đổi không được âm",
-      "validUntilAfterValidFrom": "Ngày kết thúc phải sau ngày bắt đầu",
-      "selectCategory": "Chọn danh mục",
-      "selectType": "Chọn loại",
-      "changeImage": "Thay đổi",
-      "uploadImage": "Tải lên hình ảnh",
-      "imageUploadHint": "Tối đa 5MB. Định dạng: JPG, PNG, GIF, WebP",
-      "termsConditionsPlaceholder": "Điều khoản và điều kiện..."
-    },
     "actions": {
       "edit": "Sửa",
       "delete": "Xóa",
@@ -1857,18 +1910,18 @@
   },
   "redemptionManagement": {
     "title": "Quản lý Đổi thưởng",
-    "subtitle": "Theo dõi và quản lý lịch sử đổi quà của thành viên",
+    "subtitle": "Theo dõi và quản lý lịch sử đổi quà của hội viên",
     "search": {
-      "placeholder": "Tìm kiếm theo mã, thành viên, phần thưởng..."
+      "placeholder": "Tìm kiếm theo mã, hội viên, phần thưởng..."
     },
     "filter": {
       "allStatuses": "Tất cả trạng thái",
-      "memberId": "ID Thành viên",
+      "memberId": "ID Hội viên",
       "rewardId": "ID Phần thưởng"
     },
     "table": {
       "code": "Mã đổi",
-      "member": "Thành viên",
+      "member": "Hội viên",
       "reward": "Phần thưởng",
       "pointsSpent": "Điểm đã đổi",
       "redeemedAt": "Ngày đổi",
@@ -1921,7 +1974,7 @@
       "reasonRequired": "Lý do hoàn trả là bắt buộc",
       "reasonPlaceholder": "Nhập lý do hoàn trả...",
       "confirmText": "Hoàn trả ngay",
-      "confirmMessage": "Bạn có chắc chắn muốn hoàn trả {{points}} điểm cho thành viên {{member}}?"
+      "confirmMessage": "Bạn có chắc chắn muốn hoàn trả {{points}} điểm cho hội viên {{member}}?"
     },
     "export": {
       "filename": "danh-sach-doi-thuong",
@@ -2027,7 +2080,7 @@
       "revenue": "Doanh thu"
     },
     "search": {
-      "placeholder": "Tìm kiếm theo thành viên, huấn luyện viên..."
+      "placeholder": "Tìm kiếm theo hội viên, huấn luyện viên..."
     },
     "filter": {
       "allStatuses": "Tất cả trạng thái",
@@ -2042,7 +2095,7 @@
       "NO_SHOW": "Vắng mặt"
     },
     "table": {
-      "member": "Thành viên",
+      "member": "Hội viên",
       "trainer": "Huấn luyện viên",
       "sessionDate": "Ngày buổi tập",
       "duration": "Thời lượng",
@@ -2069,7 +2122,7 @@
     "subtitle": "Gửi thông báo hàng loạt đến members và trainers",
     "tabs": {
       "members": "Gửi đến Members",
-      "trainers": "Gửi đến Trainers",
+      "trainers": "Gửi đến Huấn luyện viên",
       "history": "Lịch sử"
     },
     "form": {
@@ -2130,11 +2183,21 @@
     "success": {
       "title": "Gửi thông báo thành công!",
       "target": "Đối tượng",
-      "members": "Thành viên",
+      "members": "Hội viên",
       "trainers": "Huấn luyện viên",
       "total": "Tổng số",
       "sent": "Gửi thành công",
-      "failed": "Gửi thất bại"
+      "failed": "Gửi thất bại",
+      "sentCount": "Đã gửi: {{count}}",
+      "failedCount": "Thất bại: {{count}}",
+      "totalTargets": "Tổng: {{count}}"
+    },
+    "preview": {
+      "title": "Xem trước",
+      "expandList": "Xem danh sách",
+      "collapseList": "Thu gọn",
+      "loading": "Đang tải danh sách...",
+      "noData": "Chưa có dữ liệu để xem trước"
     },
     "messages": {
       "sendSuccess": "Gửi thông báo thành công đến {{sent}} người nhận",
@@ -2144,28 +2207,30 @@
       "fillRequiredFields": "Vui lòng điền đầy đủ tiêu đề và nội dung",
       "selectAtLeastOneFilter": "Vui lòng chọn ít nhất một filter",
       "enterAtLeastOneMemberId": "Vui lòng nhập ít nhất một member ID",
-      "enterAtLeastOneTrainerId": "Vui lòng nhập ít nhất một trainer ID",
+      "enterAtLeastOneTrainerId": "Vui lòng nhập ít nhất một huấn luyện viên ID",
       "previewError": "Không thể tải danh sách xem trước"
     },
     "members": {
-      "title": "Gửi cho Thành viên",
+      "title": "Gửi cho Hội viên",
       "form": {
         "title": "Tiêu đề",
         "message": "Tin nhắn",
         "type": "Loại",
         "sendTo": "Gửi đến",
-        "all": "Tất cả Thành viên",
-        "filter": "Thành viên đã lọc",
-        "specific": "Thành viên cụ thể"
+        "all": "Tất cả Hội viên",
+        "filter": "Hội viên đã lọc",
+        "specific": "Hội viên cụ thể"
       },
       "filters": {
-        "membershipType": "Loại Thành viên",
-        "membershipStatus": "Trạng thái Thành viên",
+        "membershipType": "Loại Hội viên",
+        "membershipStatus": "Trạng thái Hội viên",
         "search": "Tìm kiếm"
       },
       "preview": {
         "title": "Xem trước Người nhận",
-        "count": "{{count}} thành viên sẽ nhận thông báo này"
+        "count": "{{count}} hội viên sẽ nhận thông báo này",
+        "willSendTo": "Sẽ gửi đến",
+        "moreMembers": "... và {{count}} hội viên khác"
       }
     },
     "trainers": {
@@ -2180,13 +2245,19 @@
         "specific": "Huấn luyện viên cụ thể"
       },
       "filters": {
+        "title": "Bộ lọc",
         "status": "Trạng thái",
         "specialization": "Chuyên môn",
-        "search": "Tìm kiếm"
+        "search": "Tìm kiếm",
+        "statusLabel": "Trạng thái",
+        "specializationLabel": "Chuyên môn",
+        "searchPlaceholder": "Tên, email, phone..."
       },
       "preview": {
         "title": "Xem trước Người nhận",
-        "count": "{{count}} huấn luyện viên sẽ nhận thông báo này"
+        "count": "{{count}} huấn luyện viên sẽ nhận thông báo này",
+        "willSendTo": "Sẽ gửi đến",
+        "moreTrainers": "... và {{count}} huấn luyện viên khác"
       }
     },
     "history": {
@@ -2198,12 +2269,35 @@
         "failedCount": "Thất bại",
         "totalTargets": "Tổng",
         "createdAt": "Ngày tạo",
-        "actions": "Thao tác"
+        "actions": "Thao tác",
+        "sendDate": "Ngày gửi",
+        "sender": "Người gửi",
+        "target": "Đối tượng",
+        "total": "Tổng",
+        "success": "Thành công",
+        "failed": "Thất bại"
       },
       "filters": {
+        "title": "Bộ lọc",
         "targetType": "Loại Đối tượng",
+        "targetTypeLabel": "Đối tượng",
         "startDate": "Từ ngày",
-        "endDate": "Đến ngày"
+        "endDate": "Đến ngày",
+        "all": "Tất cả",
+        "member": "Member",
+        "trainer": "Trainer",
+        "clearAll": "Xóa tất cả",
+        "clearFilter": "Xóa filter"
+      },
+      "detail": {
+        "title": "Tiêu đề",
+        "message": "Nội dung",
+        "target": "Đối tượng",
+        "total": "Tổng số",
+        "success": "Thành công",
+        "failed": "Thất bại",
+        "sender": "Người gửi",
+        "notificationType": "Loại thông báo"
       }
     },
     "actions": {
@@ -2216,12 +2310,6 @@
       "sendError": "Không thể gửi thông báo",
       "loadError": "Không thể tải lịch sử thông báo",
       "previewError": "Không thể tải danh sách xem trước"
-    },
-    "success": {
-      "title": "Đã Gửi Thông báo",
-      "sentCount": "Đã gửi: {{count}}",
-      "failedCount": "Thất bại: {{count}}",
-      "totalTargets": "Tổng: {{count}}"
     }
   },
   "emailTemplatesManagement": {
@@ -2247,7 +2335,7 @@
     "types": {
       "WELCOME": "Chào mừng",
       "PASSWORD_RESET": "Đặt lại mật khẩu",
-      "MEMBERSHIP_EXPIRY": "Hết hạn thành viên",
+      "MEMBERSHIP_EXPIRY": "Hết hạn hội viên",
       "CLASS_REMINDER": "Nhắc nhở lớp học",
       "PAYMENT_RECEIPT": "Hóa đơn thanh toán",
       "CUSTOM": "Tùy chỉnh"
@@ -2388,9 +2476,9 @@
       "isActive": "Hoạt động"
     },
     "events": {
-      "member.created": "Thành viên Đã tạo",
-      "member.updated": "Thành viên Đã cập nhật",
-      "member.deleted": "Thành viên Đã xóa",
+      "member.created": "Hội viên Đã tạo",
+      "member.updated": "Hội viên Đã cập nhật",
+      "member.deleted": "Hội viên Đã xóa",
       "class.booked": "Lớp Đã đặt",
       "class.cancelled": "Lớp Đã hủy",
       "payment.completed": "Thanh toán Hoàn thành",
@@ -2611,7 +2699,7 @@
         "superAdmin": "Super Admin",
         "admin": "Admin",
         "trainer": "Huấn luyện viên",
-        "member": "Thành viên"
+        "member": "Hội viên"
       },
       "roleDistribution": {
         "title": "Phân bổ Người dùng theo Vai trò",
@@ -2643,7 +2731,7 @@
     "subtitle": "Xem các báo cáo và thống kê hệ thống",
     "tabs": {
       "revenue": "Doanh thu",
-      "members": "Thành viên",
+      "members": "Hội viên",
       "classes": "Lớp học",
       "equipment": "Thiết bị"
     },
@@ -2687,7 +2775,7 @@
   },
   "verifyCode": {
     "title": "Verify Mã Đổi thưởng",
-    "subtitle": "Xác minh mã đổi thưởng của thành viên",
+    "subtitle": "Xác minh mã đổi thưởng của hội viên",
     "input": {
       "label": "Nhập mã đổi thưởng",
       "placeholder": "REWARD-XXXX-XXXX",
@@ -2697,10 +2785,10 @@
       "title": "Thông tin Đổi thưởng",
       "subtitle": "Chi tiết mã đổi thưởng",
       "code": "Mã đổi thưởng",
-      "member": "Thành viên",
+      "member": "Hội viên",
       "reward": "Phần thưởng",
       "fullName": "Họ tên",
-      "membershipNumber": "Mã thành viên",
+      "membershipNumber": "Mã hội viên",
       "email": "Email",
       "phone": "SĐT",
       "title": "Tiêu đề",
@@ -2775,11 +2863,11 @@
   },
   "chat": {
     "title": "Chat",
-    "customerSupport": "Hỗ trợ khách hàng",
+    "customerSupport": "Hỗ trợ hội viên",
     "conversations": "Cuộc trò chuyện",
     "noConversations": "Chưa có cuộc trò chuyện nào",
     "selectConversation": "Chọn một cuộc trò chuyện",
-    "selectConversationDesc": "Chọn một thành viên từ danh sách để bắt đầu trò chuyện",
+    "selectConversationDesc": "Chọn một hội viên từ danh sách để bắt đầu trò chuyện",
     "unreadMessages": "{{count}} tin nhắn chưa đọc",
     "today": "Hôm nay",
     "yesterday": "Hôm qua",
@@ -2810,7 +2898,7 @@
     "filters": {
       "allTypes": "Tất cả loại",
       "workoutReminder": "Nhắc nhở tập luyện",
-      "membershipExpiry": "Hết hạn thành viên",
+      "membershipExpiry": "Hết hạn hội viên",
       "paymentDue": "Thanh toán",
       "classBooking": "Đặt lớp",
       "achievement": "Thành tích",
@@ -2839,7 +2927,29 @@
     "noNotifications": "Không có thông báo",
     "newNotification": "Thông báo mới",
     "marking": "Đang đánh dấu...",
-    "empty": "Chưa có thông báo nào"
+    "empty": {
+      "noNotifications": "Chưa có thông báo nào",
+      "noFilterMatch": "Không tìm thấy thông báo phù hợp với bộ lọc"
+    },
+    "bulkActions": {
+      "selectedCount": "Đã chọn {{count}} thông báo"
+    },
+    "timeAgo": {
+      "hoursAgo": "{{hours}}h trước",
+      "daysAgo": "{{days}}d trước"
+    },
+    "loadMore": {
+      "loading": "Đang tải...",
+      "loadMore": "Tải thêm (Trang {{page}}/{{totalPages}})"
+    },
+    "dialogs": {
+      "deleteAllRead": {
+        "title": "Xóa tất cả thông báo đã đọc",
+        "message": "Bạn có chắc chắn muốn xóa tất cả thông báo đã đọc? Hành động này không thể hoàn tác.",
+        "confirm": "Xóa",
+        "cancel": "Hủy"
+      }
+    }
   },
   "blank": {
     "title": "Trang Trống",
@@ -2907,7 +3017,7 @@
       "phonePlaceholder": "0123456789",
       "password": "Mật khẩu *",
       "passwordPlaceholder": "Mật khẩu mạnh",
-      "submit": "Tạo Trainer",
+      "submit": "Tạo Huấn luyện viên",
       "creating": "Đang tạo..."
     },
     "validation": {
@@ -2938,7 +3048,7 @@
       "createErrorRetry": "Có lỗi xảy ra khi tạo trainer. Vui lòng thử lại."
     },
     "successModal": {
-      "title": "Tài khoản Trainer đã được tạo thành công!"
+      "title": "Tài khoản Huấn luyện viên đã được tạo thành công!"
     }
   },
   "userProfiles": {
@@ -2991,8 +3101,8 @@
       "messageWithName": "Lớp \"{{name}}\" đã bị hủy.\n\nLớp học có thể đã bị hủy do không đủ số học viên tối thiểu hoặc lý do khác.\n\nVui lòng chọn lớp học khác."
     },
     "memberNotFound": {
-      "title": "Thông tin thành viên không hợp lệ",
-      "message": "Không tìm thấy thông tin thành viên. Vui lòng đăng ký thành viên trước khi đặt lớp."
+      "title": "Thông tin hội viên không hợp lệ",
+      "message": "Không tìm thấy thông tin hội viên. Vui lòng đăng ký hội viên trước khi đặt lớp."
     },
     "subscriptionExpired": {
       "title": "Gói tập đã hết hạn",
@@ -3172,9 +3282,9 @@
   },
   "comparisonModal": {
     "title": "So sánh hiệu suất",
-    "selectTrainers": "Chọn trainers để so sánh",
-    "loadingTrainers": "Đang tải danh sách trainers...",
-    "noTrainers": "Không có trainer nào để so sánh",
+    "selectTrainers": "Chọn huấn luyện viên để so sánh",
+    "loadingTrainers": "Đang tải danh sách huấn luyện viên...",
+    "noTrainers": "Không có huấn luyện viên nào để so sánh",
     "classes": "lớp",
     "timePeriod": "Khoảng thời gian",
     "selectTimePeriod": "Chọn khoảng thời gian",
@@ -3196,7 +3306,7 @@
       "quantity": "Số lượng"
     },
     "table": {
-      "trainer": "Trainer",
+      "trainer": "Huấn luyện viên",
       "totalClasses": "Tổng lớp",
       "students": "Học viên",
       "rating": "Đánh giá",
@@ -3450,7 +3560,7 @@
       "pending": "Đang chờ"
     },
     "table": {
-      "trainer": "Trainer",
+      "trainer": "Huấn luyện viên",
       "email": "Email",
       "requestTime": "Thời gian yêu cầu",
       "status": "Trạng thái",
@@ -3464,6 +3574,32 @@
     },
     "errors": {
       "loadFailed": "Không thể tải danh sách yêu cầu"
+    }
+  },
+  "subscription": {
+    "refundTimeline": {
+      "title": "Lịch sử Hoàn tiền",
+      "noTimeline": "Chưa có lịch sử hoàn tiền",
+      "loading": "Đang tải lịch sử hoàn tiền...",
+      "error": "Không thể tải lịch sử hoàn tiền",
+      "status": {
+        "pending": "Chờ duyệt",
+        "approved": "Đã duyệt",
+        "processed": "Đã xử lý",
+        "failed": "Thất bại",
+        "cancelled": "Đã hủy"
+      },
+      "actions": {
+        "created": "Tạo yêu cầu hoàn tiền",
+        "approved": "Duyệt yêu cầu hoàn tiền",
+        "processed": "Xử lý hoàn tiền",
+        "cancelled": "Hủy yêu cầu hoàn tiền",
+        "failed": "Xử lý hoàn tiền thất bại"
+      },
+      "by": "Bởi",
+      "at": "Lúc",
+      "amount": "Số tiền",
+      "reason": "Lý do"
     }
   }
 }
