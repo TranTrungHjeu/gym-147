@@ -34,6 +34,7 @@ interface ProgressChartProps {
   };
   metric?: 'weight' | 'bodyFat';
   onMetricChange?: (metric: 'weight' | 'bodyFat') => void;
+  refreshKey?: number; // Key to force reload
 }
 
 const screenWidth = Dimensions.get('window').width;
@@ -42,6 +43,7 @@ export default function ProgressChart({
   data,
   metric = 'weight',
   onMetricChange,
+  refreshKey,
 }: ProgressChartProps) {
   const { theme } = useTheme();
   const { t } = useTranslation();
@@ -58,7 +60,7 @@ export default function ProgressChart({
       if (result) setApiData(result);
     };
     fetchData();
-  }, [member?.id]);
+  }, [member?.id, refreshKey]); // Reload when refreshKey changes
 
   // Get translated labels (last 12 months, same as backend)
   const getLabels = () => {
@@ -90,65 +92,70 @@ export default function ProgressChart({
   };
 
   // Use API data with translated labels (no fallback data)
-  const chartData = apiData && apiData.weight?.datasets?.[0]?.data?.length > 0
-    ? {
-        weight: {
-          labels: getLabels(),
-          datasets: [
-            {
-              data: apiData.weight.datasets[0].data,
-              color: (opacity = 1) =>
-                theme.colors.primary +
-                Math.floor(opacity * 255)
-                  .toString(16)
-                  .padStart(2, '0'),
-              strokeWidth: 3,
-            },
-          ],
-        },
-        bodyFat: {
-          labels: getLabels(),
-          datasets: [
-            {
-              data: apiData.bodyFat?.datasets?.[0]?.data || [],
-              color: (opacity = 1) =>
-                theme.colors.success +
-                Math.floor(opacity * 255)
-                  .toString(16)
-                  .padStart(2, '0'),
-              strokeWidth: 3,
-            },
-          ],
-        },
-      }
-    : data && data.weight?.datasets?.[0]?.data?.length > 0
-    ? data
-    : {
-        weight: {
-          labels: getLabels(),
-          datasets: [{ 
-            data: [], 
-            color: (opacity = 1) =>
-              theme.colors.primary +
-              Math.floor(opacity * 255)
-                .toString(16)
-                .padStart(2, '0'),
-            strokeWidth: 3 
-          }],
-        },
-        bodyFat: {
-          labels: getLabels(),
-          datasets: [{ 
-            data: [], 
-            color: (opacity = 1) =>
-              theme.colors.success +
-              Math.floor(opacity * 255)
-                .toString(16)
-                .padStart(2, '0'),
-            strokeWidth: 3 
-          }],
-        },
-      };
+  const chartData =
+    apiData && apiData.weight?.datasets?.[0]?.data?.length > 0
+      ? {
+          weight: {
+            labels: getLabels(),
+            datasets: [
+              {
+                data: apiData.weight.datasets[0].data,
+                color: (opacity = 1) =>
+                  theme.colors.primary +
+                  Math.floor(opacity * 255)
+                    .toString(16)
+                    .padStart(2, '0'),
+                strokeWidth: 3,
+              },
+            ],
+          },
+          bodyFat: {
+            labels: getLabels(),
+            datasets: [
+              {
+                data: apiData.bodyFat?.datasets?.[0]?.data || [],
+                color: (opacity = 1) =>
+                  theme.colors.success +
+                  Math.floor(opacity * 255)
+                    .toString(16)
+                    .padStart(2, '0'),
+                strokeWidth: 3,
+              },
+            ],
+          },
+        }
+      : data && data.weight?.datasets?.[0]?.data?.length > 0
+      ? data
+      : {
+          weight: {
+            labels: getLabels(),
+            datasets: [
+              {
+                data: [],
+                color: (opacity = 1) =>
+                  theme.colors.primary +
+                  Math.floor(opacity * 255)
+                    .toString(16)
+                    .padStart(2, '0'),
+                strokeWidth: 3,
+              },
+            ],
+          },
+          bodyFat: {
+            labels: getLabels(),
+            datasets: [
+              {
+                data: [],
+                color: (opacity = 1) =>
+                  theme.colors.success +
+                  Math.floor(opacity * 255)
+                    .toString(16)
+                    .padStart(2, '0'),
+                strokeWidth: 3,
+              },
+            ],
+          },
+        };
   const currentData = chartData[selectedMetric];
 
   const chartConfig = {
@@ -273,75 +280,82 @@ export default function ProgressChart({
           </View>
 
           <View style={themedStyles.statsContainer}>
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.text }]}>
-            {startValue.toFixed(1)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {selectedMetric === 'weight'
-              ? t('stats.startingWeight')
-              : t('stats.startingBodyFat')}
-          </Text>
-        </View>
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.text }]}>
+                {startValue.toFixed(1)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {selectedMetric === 'weight'
+                  ? t('stats.startingWeight')
+                  : t('stats.startingBodyFat')}
+              </Text>
+            </View>
 
-        <View style={themedStyles.statDivider} />
+            <View style={themedStyles.statDivider} />
 
-        <View style={themedStyles.statItem}>
-          <Text style={[Typography.h5, { color: theme.colors.text }]}>
-            {endValue.toFixed(1)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {selectedMetric === 'weight'
-              ? t('stats.currentWeight')
-              : t('stats.currentBodyFat')}
-          </Text>
-        </View>
+            <View style={themedStyles.statItem}>
+              <Text style={[Typography.h5, { color: theme.colors.text }]}>
+                {endValue.toFixed(1)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {selectedMetric === 'weight'
+                  ? t('stats.currentWeight')
+                  : t('stats.currentBodyFat')}
+              </Text>
+            </View>
 
-        <View style={themedStyles.statDivider} />
+            <View style={themedStyles.statDivider} />
 
-        <View style={themedStyles.statItem}>
-          <Text
-            style={[
-              Typography.h5,
-              {
-                color:
-                  change >= 0
-                    ? selectedMetric === 'weight'
-                      ? theme.colors.error
-                      : theme.colors.success
-                    : selectedMetric === 'weight'
-                    ? theme.colors.success
-                    : theme.colors.error,
-              },
-            ]}
-          >
-            {change >= 0 ? '+' : ''}
-            {change.toFixed(1)}
-          </Text>
-          <Text
-            style={[
-              Typography.labelSmall,
-              { color: theme.colors.textSecondary, marginTop: 2 },
-            ]}
-          >
-            {t('stats.change')} ({changePercent}%)
-          </Text>
-        </View>
-      </View>
+            <View style={themedStyles.statItem}>
+              <Text
+                style={[
+                  Typography.h5,
+                  {
+                    color:
+                      change >= 0
+                        ? selectedMetric === 'weight'
+                          ? theme.colors.error
+                          : theme.colors.success
+                        : selectedMetric === 'weight'
+                        ? theme.colors.success
+                        : theme.colors.error,
+                  },
+                ]}
+              >
+                {change >= 0 ? '+' : ''}
+                {change.toFixed(1)}
+              </Text>
+              <Text
+                style={[
+                  Typography.labelSmall,
+                  { color: theme.colors.textSecondary, marginTop: 2 },
+                ]}
+              >
+                {t('stats.change')} ({changePercent}%)
+              </Text>
+            </View>
+          </View>
         </>
       ) : (
-        <View style={[themedStyles.chartContainer, { height: 220, justifyContent: 'center', alignItems: 'center' }]}>
-          <Text style={[Typography.body, { color: theme.colors.textSecondary }]}>
+        <View
+          style={[
+            themedStyles.chartContainer,
+            { height: 220, justifyContent: 'center', alignItems: 'center' },
+          ]}
+        >
+          <Text
+            style={[Typography.body, { color: theme.colors.textSecondary }]}
+          >
             {t('stats.noDataAvailable') || 'No data available'}
           </Text>
         </View>

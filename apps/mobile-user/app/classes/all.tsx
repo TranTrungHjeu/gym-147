@@ -4,6 +4,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import {
   bookingService,
   scheduleService,
+  memberService,
   type Booking,
   type Schedule,
   type ScheduleFilters,
@@ -17,6 +18,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   RefreshControl,
   ScrollView,
@@ -119,7 +121,9 @@ export default function AllClassesScreen() {
       const memberIdForBookings = member?.id || user?.id;
       if (!memberIdForBookings) return;
 
-      const response = await bookingService.getMemberBookings(memberIdForBookings);
+      const response = await bookingService.getMemberBookings(
+        memberIdForBookings
+      );
       if (response.success && response.data) {
         setMyBookings(response.data);
       }
@@ -156,7 +160,8 @@ export default function AllClassesScreen() {
       // Create filters - get ALL schedules (no date, no status, no location filter)
       const filters: ScheduleFilters = {
         status: 'all', // Get all statuses (SCHEDULED, IN_PROGRESS, COMPLETED, CANCELLED, etc.)
-        class_category: selectedCategory !== 'ALL' ? selectedCategory : undefined,
+        class_category:
+          selectedCategory !== 'ALL' ? selectedCategory : undefined,
         // Don't filter by date - show all classes from all times
         // Don't filter by room_id - show all classes from all locations
         // Don't filter by trainer_id - show all trainers
@@ -188,9 +193,14 @@ export default function AllClassesScreen() {
         console.log('[ALL_CLASSES] Full API response:', {
           success: response.success,
           hasData: !!response.data,
-          dataType: Array.isArray(response.data) ? 'array' : typeof response.data,
-          dataKeys: Array.isArray(response.data) ? 'array' : Object.keys(response.data || {}),
-          pagination: response.data?.pagination || response.data?.data?.pagination,
+          dataType: Array.isArray(response.data)
+            ? 'array'
+            : typeof response.data,
+          dataKeys: Array.isArray(response.data)
+            ? 'array'
+            : Object.keys(response.data || {}),
+          pagination:
+            response.data?.pagination || response.data?.data?.pagination,
           filters: response.data?.filters || response.data?.data?.filters,
         });
 
@@ -219,7 +229,8 @@ export default function AllClassesScreen() {
                 id: newSchedules[newSchedules.length - 1].id,
                 status: newSchedules[newSchedules.length - 1].status,
                 start_time: newSchedules[newSchedules.length - 1].start_time,
-                class_name: newSchedules[newSchedules.length - 1].gym_class?.name,
+                class_name:
+                  newSchedules[newSchedules.length - 1].gym_class?.name,
               }
             : null,
         });
@@ -235,12 +246,14 @@ export default function AllClassesScreen() {
           console.log('[ALL_CLASSES] Loaded initial schedules:', {
             total: uniqueSchedules.length,
             statuses: uniqueSchedules.map((s) => s.status),
-            dateRange: uniqueSchedules.length > 0
-              ? {
-                  earliest: uniqueSchedules[uniqueSchedules.length - 1]?.start_time,
-                  latest: uniqueSchedules[0]?.start_time,
-                }
-              : null,
+            dateRange:
+              uniqueSchedules.length > 0
+                ? {
+                    earliest:
+                      uniqueSchedules[uniqueSchedules.length - 1]?.start_time,
+                    latest: uniqueSchedules[0]?.start_time,
+                  }
+                : null,
           });
         } else {
           // Remove duplicates when appending - filter out schedules that already exist
@@ -260,7 +273,8 @@ export default function AllClassesScreen() {
         }
 
         // Check if there are more pages
-        const pagination = response.data.pagination || response.data.data?.pagination;
+        const pagination =
+          response.data.pagination || response.data.data?.pagination;
         if (pagination) {
           setHasMore(pagination.page < pagination.pages);
           console.log('[ALL_CLASSES] Pagination info:', {
@@ -469,19 +483,21 @@ export default function AllClassesScreen() {
         <Text style={[themedStyles.headerTitle, { color: theme.colors.text }]}>
           {t('classes.viewAll') || 'Tất cả lớp học'}
         </Text>
-        <TouchableOpacity
-          style={themedStyles.filterButton}
-          onPress={() => setShowFilterModal(!showFilterModal)}
-        >
-          <Filter
-            size={20}
-            color={
-              showFilterModal || selectedCategory !== 'ALL'
-                ? theme.colors.primary
-                : theme.colors.text
-            }
-          />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <TouchableOpacity
+            style={themedStyles.filterButton}
+            onPress={() => setShowFilterModal(!showFilterModal)}
+          >
+            <Filter
+              size={20}
+              color={
+                showFilterModal || selectedCategory !== 'ALL'
+                  ? theme.colors.primary
+                  : theme.colors.text
+              }
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Search Bar */}
@@ -738,4 +754,3 @@ const styles = (theme: any) =>
       ...Typography.buttonMedium,
     },
   });
-

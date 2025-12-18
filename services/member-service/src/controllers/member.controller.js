@@ -2107,6 +2107,85 @@ class MemberController {
     }
   }
 
+  // Generate profile embedding for member
+  async generateMemberEmbedding(req, res) {
+    try {
+      const { id } = req.params;
+
+      // Get member data
+      const member = await prisma.member.findUnique({
+        where: { id },
+        include: {
+          memberships: {
+            orderBy: { start_date: 'desc' },
+            take: 1,
+          },
+        },
+      });
+
+      if (!member) {
+        return res.status(404).json({
+          success: false,
+          message: 'Member not found',
+          data: null,
+        });
+      }
+
+      // Get attendance history for the member
+      const attendanceHistory = await prisma.gymSession.findMany({
+        where: { member_id: id },
+        orderBy: { entry_time: 'desc' },
+        take: 50, // Last 50 sessions
+      });
+
+      // Import embedding service
+      const embeddingService = require('../services/embedding.service.js');
+
+      // Build profile text for embedding
+      const profileText = embeddingService.buildMemberProfileText(member, attendanceHistory);
+
+      if (!profileText || profileText.trim().length === 0) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot generate embedding: profile data is insufficient',
+          data: null,
+        });
+      }
+
+      console.log(`[EMBEDDING] Generating profile embedding for member ${id}...`);
+      const embedding = await embeddingService.generateEmbedding(profileText);
+
+      // Format vector for PostgreSQL
+      const vectorString = embeddingService.formatVectorForPostgres(embedding);
+
+      // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
+      await prisma.$executeRaw`
+        UPDATE member_schema.members
+        SET profile_embedding = ${vectorString}::vector
+        WHERE id = ${id}
+      `;
+
+      console.log(`[SUCCESS] [EMBEDDING] Created profile_embedding for member ${id}`);
+
+      res.json({
+        success: true,
+        message: 'Profile embedding generated successfully',
+        data: {
+          memberId: id,
+          embeddingGenerated: true,
+          embeddingDimensions: embedding.length,
+        },
+      });
+    } catch (error) {
+      console.error('[ERROR] Generate member embedding error:', error);
+      res.status(500).json({
+        success: false,
+        message: error.message || 'Failed to generate embedding',
+        data: null,
+      });
+    }
+  }
+
   // Get multiple members by member_ids (for cross-service integration)
   // memberIds must be array of Member.id (not user_id)
   async getMembersByIds(req, res) {

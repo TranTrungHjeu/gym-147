@@ -8,17 +8,17 @@ let databaseUrl = process.env.DATABASE_URL;
 if (databaseUrl && !databaseUrl.includes('connection_limit')) {
   try {
     const url = new URL(databaseUrl);
-    // Set connection limit to 5 to prevent max clients error
-    // This is conservative but safe for Railway/Supabase Session mode
-    url.searchParams.set('connection_limit', '5');
-    url.searchParams.set('pool_timeout', '20');
-    url.searchParams.set('connect_timeout', '10');
+    // Set connection limit to 10 for better concurrency
+    // Increase pool_timeout to 30s to handle cache warming and embedding generation
+    url.searchParams.set('connection_limit', '10');
+    url.searchParams.set('pool_timeout', '30');
+    url.searchParams.set('connect_timeout', '15');
     databaseUrl = url.toString();
     console.log('[INFO] Added connection pool parameters to DATABASE_URL');
   } catch (error) {
     // If URL parsing fails, append parameters manually
     const separator = databaseUrl.includes('?') ? '&' : '?';
-    databaseUrl = `${databaseUrl}${separator}connection_limit=5&pool_timeout=20&connect_timeout=10`;
+    databaseUrl = `${databaseUrl}${separator}connection_limit=10&pool_timeout=30&connect_timeout=15`;
     console.log('[INFO] Appended connection pool parameters to DATABASE_URL');
   }
 }

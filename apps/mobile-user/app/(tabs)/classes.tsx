@@ -27,6 +27,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Filter,
+  RefreshCw,
   Search,
   Sparkles,
   Users,
@@ -166,6 +167,12 @@ export default function ClassesScreen() {
     string | null
   >(null);
   const [loadingRecommendations, setLoadingRecommendations] = useState(false);
+
+  // Embedding states
+  const [hasEmbedding, setHasEmbedding] = useState(false);
+  const [generatingEmbedding, setGeneratingEmbedding] = useState(false);
+  const [reloadingRecommendations, setReloadingRecommendations] =
+    useState(false);
 
   // UI state
   const [searchQuery, setSearchQuery] = useState('');
@@ -588,9 +595,80 @@ export default function ClassesScreen() {
       if (response.success && response.data) {
         const profile = response.data;
         setMemberProfile(profile);
+        // Check if member has embedding
+        setHasEmbedding(
+          !!profile.profile_embedding &&
+            Array.isArray(profile.profile_embedding) &&
+            profile.profile_embedding.length > 0
+        );
       }
     } catch (err: any) {
       console.error('[ERROR] Error loading member profile:', err);
+    }
+  };
+
+  // Generate member embedding
+  const handleGenerateEmbedding = async () => {
+    if (!member?.id) {
+      Alert.alert(t('common.error'), t('classes.memberNotFound'));
+      return;
+    }
+
+    setGeneratingEmbedding(true);
+    try {
+      const result = await memberService.generateMemberEmbedding(member.id);
+      if (result.success) {
+        setHasEmbedding(true);
+        Alert.alert(t('common.success'), t('classes.embeddingCreated'));
+        // Reload recommendations after embedding created
+        setTimeout(() => {
+          handleReloadRecommendations();
+        }, 2000);
+      } else {
+        Alert.alert(
+          t('common.error'),
+          result.error || t('classes.embeddingError')
+        );
+      }
+    } catch (err: any) {
+      console.error('[ERROR] Error generating embedding:', err);
+      Alert.alert(t('common.error'), t('classes.embeddingError'));
+    } finally {
+      setGeneratingEmbedding(false);
+    }
+  };
+
+  // Reload recommendations with bypass cache
+  const handleReloadRecommendations = async () => {
+    if (!member?.id) return;
+
+    setReloadingRecommendations(true);
+    try {
+      console.log('[RELOAD] Reloading recommendations with bypass cache...');
+      const response = await classService.getClassRecommendations(
+        member.id,
+        true, // useAI
+        true, // useVector
+        true // skipCache - bypass cache
+      );
+
+      if (response.success && response.data?.recommendations) {
+        const recommendations = response.data.recommendations;
+        const method = response.data.method || 'unknown';
+        setClassRecommendations(recommendations);
+        setRecommendationMethod(method);
+        console.log('[SUCCESS] Reloaded recommendations:', {
+          count: recommendations.length,
+          method: method,
+        });
+      } else {
+        console.warn('[WARN] No recommendations found after reload');
+        setClassRecommendations([]);
+      }
+    } catch (err: any) {
+      console.error('[ERROR] Error reloading recommendations:', err);
+    } finally {
+      setReloadingRecommendations(false);
     }
   };
 
@@ -1006,16 +1084,10 @@ export default function ClassesScreen() {
           {t('classes.title')}
         </Text>
         <View style={themedStyles.headerRight}>
+          {/* AI Recommendations Button */}
           <TouchableOpacity
             style={themedStyles.headerIconButton}
             onPress={() => setShowRecommendationsModal(true)}
-            activeOpacity={0.7}
-          >
-            <Sparkles size={20} color={theme.colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={themedStyles.headerIconButton}
-            onPress={() => setShowVectorRecommendationsModal(true)}
             activeOpacity={0.7}
           >
             <Brain size={20} color={theme.colors.primary} />
@@ -1765,81 +1837,281 @@ export default function ClassesScreen() {
             edges={['bottom']}
             style={[
               themedStyles.filterModalContent,
-              { backgroundColor: theme.colors.background },
+              {
+                backgroundColor: theme.colors.background,
+                maxHeight: '92%',
+                flex: 1,
+              },
             ]}
           >
-            {/* Modal Header */}
+            {/* Modal Header - Enhanced Design */}
             <View
               style={[
                 themedStyles.filterModalHeader,
-                { borderBottomColor: theme.colors.border },
+                {
+                  borderBottomColor: theme.colors.border,
+                  paddingVertical: 16,
+                },
               ]}
             >
               <View style={themedStyles.filterModalHeaderLeft}>
                 <View
                   style={[
                     themedStyles.filterModalIconContainer,
-                    { backgroundColor: theme.colors.primary + '15' },
+                    {
+                      backgroundColor: theme.colors.primary + '20',
+                      width: 44,
+                      height: 44,
+                      borderRadius: 22,
+                    },
                   ]}
                 >
-                  <Sparkles size={24} color={theme.colors.primary} />
+                  <Brain size={24} color={theme.colors.primary} />
                 </View>
-                <Text
-                  style={[
-                    themedStyles.filterModalTitle,
-                    { color: theme.colors.text },
-                  ]}
-                >
-                  {t('classes.recommendations') || 'Gợi ý lớp học'}
-                </Text>
+                <View>
+                  <Text
+                    style={[
+                      themedStyles.filterModalTitle,
+                      {
+                        color: theme.colors.text,
+                        fontSize: 18,
+                        fontWeight: '700',
+                      },
+                    ]}
+                  >
+                    {t('classes.recommendations') || 'Gợi ý AI'}
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.colors.textSecondary,
+                      fontSize: 12,
+                      marginTop: 2,
+                    }}
+                  >
+                    {recommendationMethod === 'vector_embedding'
+                      ? 'Vector Embedding'
+                      : recommendationMethod === 'ai_based'
+                      ? 'AI Analysis'
+                      : 'Smart Recommendations'}
+                  </Text>
+                </View>
               </View>
-              <TouchableOpacity
-                style={themedStyles.filterModalCloseButton}
-                onPress={() => setShowRecommendationsModal(false)}
-                activeOpacity={0.7}
+              <View
+                style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}
               >
-                <X size={24} color={theme.colors.text} />
-              </TouchableOpacity>
+                {/* Generate Embedding Button - only show when member doesn't have embedding */}
+                {member?.id && !hasEmbedding && (
+                  <TouchableOpacity
+                    style={[
+                      themedStyles.headerIconButton,
+                      {
+                        backgroundColor:
+                          (theme.colors.warning || '#F59E0B') + '20',
+                        width: 40,
+                        height: 40,
+                        borderRadius: 20,
+                      },
+                    ]}
+                    onPress={handleGenerateEmbedding}
+                    activeOpacity={0.7}
+                    disabled={generatingEmbedding}
+                  >
+                    {generatingEmbedding ? (
+                      <ActivityIndicator
+                        size="small"
+                        color={theme.colors.warning || '#F59E0B'}
+                      />
+                    ) : (
+                      <Sparkles
+                        size={20}
+                        color={theme.colors.warning || '#F59E0B'}
+                      />
+                    )}
+                  </TouchableOpacity>
+                )}
+                {/* Reload Recommendations Button - bypass cache */}
+                <TouchableOpacity
+                  style={[
+                    themedStyles.headerIconButton,
+                    {
+                      backgroundColor: theme.colors.primary + '20',
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                    },
+                  ]}
+                  onPress={handleReloadRecommendations}
+                  activeOpacity={0.7}
+                  disabled={reloadingRecommendations}
+                >
+                  {reloadingRecommendations ? (
+                    <ActivityIndicator
+                      size="small"
+                      color={theme.colors.primary}
+                    />
+                  ) : (
+                    <RefreshCw size={20} color={theme.colors.primary} />
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    themedStyles.filterModalCloseButton,
+                    {
+                      backgroundColor: theme.colors.surface,
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                    },
+                  ]}
+                  onPress={() => setShowRecommendationsModal(false)}
+                  activeOpacity={0.7}
+                >
+                  <X size={22} color={theme.colors.text} />
+                </TouchableOpacity>
+              </View>
             </View>
+
+            {/* Stats Bar */}
+            {classRecommendations.length > 0 &&
+              !loadingRecommendations &&
+              !reloadingRecommendations && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    justifyContent: 'space-around',
+                    paddingVertical: 12,
+                    paddingHorizontal: 16,
+                    backgroundColor: theme.colors.surface,
+                    borderBottomWidth: 1,
+                    borderBottomColor: theme.colors.border,
+                  }}
+                >
+                  <View style={{ alignItems: 'center' }}>
+                    <Text
+                      style={{
+                        color: theme.colors.primary,
+                        fontSize: 20,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {classRecommendations.length}
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.colors.textSecondary,
+                        fontSize: 11,
+                      }}
+                    >
+                      Gợi ý
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text
+                      style={{
+                        color: '#EF4444',
+                        fontSize: 20,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {
+                        classRecommendations.filter(
+                          (r) => r.priority === 'HIGH'
+                        ).length
+                      }
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.colors.textSecondary,
+                        fontSize: 11,
+                      }}
+                    >
+                      Ưu tiên cao
+                    </Text>
+                  </View>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text
+                      style={{
+                        color: '#10B981',
+                        fontSize: 20,
+                        fontWeight: '700',
+                      }}
+                    >
+                      {hasEmbedding ? '✓' : '—'}
+                    </Text>
+                    <Text
+                      style={{
+                        color: theme.colors.textSecondary,
+                        fontSize: 11,
+                      }}
+                    >
+                      Vector AI
+                    </Text>
+                  </View>
+                </View>
+              )}
 
             {/* Modal Body */}
             <ScrollView
-              style={themedStyles.filterModalBody}
-              contentContainerStyle={{ paddingBottom: theme.spacing.lg }}
+              style={[themedStyles.filterModalBody, { flex: 1 }]}
+              contentContainerStyle={{
+                paddingBottom: 120,
+                paddingHorizontal: 16,
+                paddingTop: 16,
+              }}
               showsVerticalScrollIndicator={false}
+              bounces={true}
             >
-              {/* Description */}
-              <Text
-                style={[
-                  themedStyles.filterModalSectionTitle,
-                  {
-                    color: theme.colors.textSecondary,
-                    marginBottom: theme.spacing.md,
-                  },
-                ]}
-              >
-                {t('classes.recommendationsDescription') ||
-                  'Dựa trên lịch sử tham gia và sở thích của bạn'}
-              </Text>
-
               {/* Loading State */}
-              {loadingRecommendations ? (
-                <View style={themedStyles.loadingEmptyState}>
-                  <ActivityIndicator
-                    size="large"
-                    color={theme.colors.primary}
-                  />
+              {loadingRecommendations || reloadingRecommendations ? (
+                <View
+                  style={[
+                    themedStyles.loadingEmptyState,
+                    { paddingVertical: 60 },
+                  ]}
+                >
+                  <View
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      backgroundColor: theme.colors.primary + '15',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <ActivityIndicator
+                      size="large"
+                      color={theme.colors.primary}
+                    />
+                  </View>
                   <Text
                     style={[
                       themedStyles.loadingEmptyStateText,
-                      { color: theme.colors.textSecondary },
+                      {
+                        color: theme.colors.text,
+                        fontSize: 16,
+                        fontWeight: '600',
+                      },
                     ]}
                   >
-                    {t('classes.loadingClasses') || 'Đang tải gợi ý...'}
+                    {reloadingRecommendations
+                      ? 'Đang tải gợi ý mới...'
+                      : t('classes.loadingClasses') || 'Đang phân tích...'}
+                  </Text>
+                  <Text
+                    style={{
+                      color: theme.colors.textSecondary,
+                      fontSize: 13,
+                      marginTop: 8,
+                      textAlign: 'center',
+                    }}
+                  >
+                    AI đang phân tích sở thích và lịch sử tập luyện của bạn
                   </Text>
                 </View>
               ) : classRecommendations.length > 0 ? (
-                <View style={{ gap: theme.spacing.md }}>
+                <View style={{ gap: 0 }}>
                   {classRecommendations.map((recommendation, index) => (
                     <ClassRecommendationCard
                       key={index}
@@ -1861,15 +2133,75 @@ export default function ClassesScreen() {
                   ))}
                 </View>
               ) : (
-                <View style={themedStyles.loadingEmptyState}>
+                <View
+                  style={[
+                    themedStyles.loadingEmptyState,
+                    { paddingVertical: 60 },
+                  ]}
+                >
+                  <View
+                    style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      backgroundColor: theme.colors.surface,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      marginBottom: 16,
+                    }}
+                  >
+                    <Brain size={36} color={theme.colors.textSecondary} />
+                  </View>
                   <Text
                     style={[
                       themedStyles.loadingEmptyStateText,
-                      { color: theme.colors.textSecondary },
+                      {
+                        color: theme.colors.text,
+                        fontSize: 16,
+                        fontWeight: '600',
+                      },
                     ]}
                   >
-                    {t('classes.noRecommendations') || 'Không có gợi ý nào'}
+                    {t('classes.noRecommendations') || 'Chưa có gợi ý'}
                   </Text>
+                  <Text
+                    style={{
+                      color: theme.colors.textSecondary,
+                      fontSize: 13,
+                      marginTop: 8,
+                      textAlign: 'center',
+                      paddingHorizontal: 20,
+                    }}
+                  >
+                    {!hasEmbedding
+                      ? 'Nhấn nút ✨ để tạo Vector AI và nhận gợi ý phù hợp'
+                      : 'Hãy tham gia thêm lớp học để AI có thể hiểu sở thích của bạn'}
+                  </Text>
+                  {!hasEmbedding && (
+                    <TouchableOpacity
+                      style={{
+                        marginTop: 20,
+                        backgroundColor: theme.colors.primary,
+                        paddingHorizontal: 24,
+                        paddingVertical: 12,
+                        borderRadius: 24,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        gap: 8,
+                      }}
+                      onPress={handleGenerateEmbedding}
+                      disabled={generatingEmbedding}
+                    >
+                      {generatingEmbedding ? (
+                        <ActivityIndicator size="small" color="#FFFFFF" />
+                      ) : (
+                        <Sparkles size={18} color="#FFFFFF" />
+                      )}
+                      <Text style={{ color: '#FFFFFF', fontWeight: '600' }}>
+                        Tạo Vector AI
+                      </Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
               )}
             </ScrollView>

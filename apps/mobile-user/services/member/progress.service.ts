@@ -68,16 +68,31 @@ export class ProgressService {
         }
       });
 
-      // Add current month data from profile if available
+      // Add/update current month data from profile if available
+      // This ensures the latest profile values are always used for the current month
       const currentMonth = new Date().toISOString().substring(0, 7);
-      if (profile?.weight && !weightMap[currentMonth]) {
+
+      if (profile?.weight) {
+        // Always use profile weight for current month (it's the most up-to-date)
+        weightMap[currentMonth] = weightMap[currentMonth] || [];
+        // Replace the array with the latest profile value
         weightMap[currentMonth] = [profile.weight];
-        console.log('[SUCCESS] Added current weight from profile:', profile.weight);
+        console.log(
+          '[SUCCESS] Using current weight from profile:',
+          profile.weight
+        );
       }
-      if (profile?.body_fat_percent && !bodyFatMap[currentMonth]) {
+
+      if (
+        profile?.body_fat_percent !== undefined &&
+        profile?.body_fat_percent !== null
+      ) {
+        // Always use profile body fat for current month (it's the most up-to-date)
+        bodyFatMap[currentMonth] = bodyFatMap[currentMonth] || [];
+        // Replace the array with the latest profile value
         bodyFatMap[currentMonth] = [profile.body_fat_percent];
         console.log(
-          '[SUCCESS] Added current body fat from profile:',
+          '[SUCCESS] Using current body fat from profile:',
           profile.body_fat_percent
         );
       }

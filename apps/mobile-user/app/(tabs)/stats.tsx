@@ -12,9 +12,9 @@ import {
 } from '@/types/healthTypes';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { Activity, TrendingUp } from 'lucide-react-native';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   RefreshControl,
@@ -38,6 +38,7 @@ export default function StatsScreen() {
   >('overview');
   const [healthMetrics, setHealthMetrics] = useState<HealthMetric[]>([]);
   const [healthTrends, setHealthTrends] = useState<HealthTrend[]>([]);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const tabs = [
     { key: 'overview', label: t('stats.overview') },
@@ -82,6 +83,18 @@ export default function StatsScreen() {
     loadHealthData();
     setLoading(false);
   }, [member?.id]);
+
+  // Reload data when screen comes into focus (e.g., after updating health info)
+  useFocusEffect(
+    useCallback(() => {
+      if (member?.id) {
+        console.log('[STATS] Screen focused, reloading health data...');
+        loadHealthData();
+        // Force ProgressChart to reload by updating refresh key
+        setRefreshKey((prev) => prev + 1);
+      }
+    }, [member?.id])
+  );
 
   // Helper function to convert SNAKE_CASE to camelCase for translation keys
   const getMetricTranslationKey = (type: string): string => {
@@ -512,7 +525,7 @@ export default function StatsScreen() {
         </Text>
         <WorkoutFrequencyChart />
         <CaloriesChart />
-        <ProgressChart />
+        <ProgressChart key={refreshKey} />
       </View>
     </View>
   );
