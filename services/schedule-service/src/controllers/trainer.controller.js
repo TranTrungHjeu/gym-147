@@ -791,9 +791,9 @@ class TrainerController {
 
       // Calculate stats
       const totalClasses = schedules.length;
-      const completedSessions = schedules.filter(s => s.status === 'completed').length;
+      const completedSessions = schedules.filter(s => s.status === 'COMPLETED').length;
       const upcomingClasses = schedules.filter(
-        s => s.status === 'scheduled' && new Date(s.start_time) >= now
+        s => s.status === 'SCHEDULED' && new Date(s.start_time) >= now
       ).length;
 
       // Get unique students from bookings (excluding cancelled)
@@ -803,7 +803,7 @@ class TrainerController {
       // Calculate monthly revenue (from completed sessions this month)
       const monthlySchedules = schedules.filter(
         s =>
-          s.status === 'completed' &&
+          s.status === 'COMPLETED' &&
           new Date(s.start_time) >= startOfMonth &&
           new Date(s.start_time) <= endOfMonth
       );
