@@ -150,7 +150,7 @@ Download and install the pre-built APK:
 
 | Platform | Download Link                                                                              |
 | -------- | ------------------------------------------------------------------------------------------ |
-| Android  | [gym147-mobile.apk](https://www.mediafire.com/file/i0h9fddke80c3pa/gym147-mobile.apk/file) |
+| Android  | [gym147-mobile.apk](https://github.com/TranTrungHjeu/gym-147/releases/tag/v1.0.0) |
 
 > **Note:** Enable "Install from Unknown Sources" in Android settings before installation.
 
