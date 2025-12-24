@@ -93,55 +93,41 @@ gym-147/
 
 ### Service Communication
 
-```
-@startuml
-title Gym Management System - System Architecture
+```mermaid
+flowchart TB
+    %% ================= CLIENT =================
+    Mobile["Mobile App (React Native)"]
+    Web["Web Admin (React 18)"]
 
-' ================== STYLE ==================
-skinparam backgroundColor #FFFFFF
-skinparam componentStyle rectangle
-skinparam shadowing false
-skinparam defaultFontName Courier
+    %% ================= GATEWAY =================
+    Gateway["API Gateway (Nginx)"]
 
-skinparam rectangle {
-  BackgroundColor #F5F5F5
-  BorderColor #333333
-}
+    %% ================= MICROSERVICES ===========
+    Identity["Identity Service"]
+    Member["Member Service"]
+    Schedule["Schedule Service"]
+    Billing["Billing Service"]
 
-' ================== CLIENT ==================
-rectangle "Mobile App" as Mobile
-rectangle "Web Admin" as Web
+    %% ================= DATA ====================
+    Postgres[(PostgreSQL)]
+    Redis[(Redis Cache)]
 
-' ================== GATEWAY =================
-rectangle "API Gateway\n(Nginx)" as Gateway
+    %% ================= FLOW ====================
+    Mobile --> Gateway
+    Web --> Gateway
 
-' ================== MICROSERVICES ===========
-rectangle "Identity Service\n:3001" as Identity
-rectangle "Member Service\n:3002" as Member
-rectangle "Schedule Service\n:3003" as Schedule
-rectangle "Billing Service\n:3004" as Billing
+    Gateway --> Identity
+    Gateway --> Member
+    Gateway --> Schedule
+    Gateway --> Billing
 
-' ================== DATABASE =================
-database "PostgreSQL" as Postgres
-rectangle "Redis Cache" as Redis
+    Identity --> Postgres
+    Member --> Postgres
+    Schedule --> Postgres
+    Billing --> Postgres
 
-' ================== FLOW =====================
-Mobile --> Gateway
-Web --> Gateway
+    Identity --> Redis
 
-Gateway --> Identity
-Gateway --> Member
-Gateway --> Schedule
-Gateway --> Billing
-
-Identity --> Postgres
-Member --> Postgres
-Schedule --> Postgres
-Billing --> Postgres
-
-Identity --> Redis
-
-@enduml
 
 ```
 
