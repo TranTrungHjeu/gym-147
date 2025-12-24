@@ -94,30 +94,55 @@ gym-147/
 ### Service Communication
 
 ```
-┌─────────────────┐     ┌─────────────────┐
-│   Mobile App    │     │   Web Admin     │
-└────────┬────────┘     └────────┬────────┘
-         │                       │
-         └───────────┬───────────┘
-                     │
-              ┌──────▼──────┐
-              │   Gateway   │
-              │   (Nginx)   │
-              └──────┬──────┘
-                     │
-     ┌───────┬───────┼───────┬───────┐
-     │       │       │       │       │
-┌────▼──┐ ┌──▼───┐ ┌─▼────┐ ┌▼─────┐
-│Identity│ │Member│ │Schedule│ │Billing│
-│ :3001  │ │:3002 │ │ :3003  │ │:3004  │
-└────┬───┘ └──┬───┘ └───┬───┘ └──┬───┘
-     │        │         │        │
-     └────────┴────┬────┴────────┘
-                   │
-            ┌──────▼──────┐
-            │  PostgreSQL │
-            │    Redis    │
-            └─────────────┘
+@startuml
+title Gym Management System - System Architecture
+
+' ================== STYLE ==================
+skinparam backgroundColor #FFFFFF
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam defaultFontName Courier
+
+skinparam rectangle {
+  BackgroundColor #F5F5F5
+  BorderColor #333333
+}
+
+' ================== CLIENT ==================
+rectangle "Mobile App" as Mobile
+rectangle "Web Admin" as Web
+
+' ================== GATEWAY =================
+rectangle "API Gateway\n(Nginx)" as Gateway
+
+' ================== MICROSERVICES ===========
+rectangle "Identity Service\n:3001" as Identity
+rectangle "Member Service\n:3002" as Member
+rectangle "Schedule Service\n:3003" as Schedule
+rectangle "Billing Service\n:3004" as Billing
+
+' ================== DATABASE =================
+database "PostgreSQL" as Postgres
+rectangle "Redis Cache" as Redis
+
+' ================== FLOW =====================
+Mobile --> Gateway
+Web --> Gateway
+
+Gateway --> Identity
+Gateway --> Member
+Gateway --> Schedule
+Gateway --> Billing
+
+Identity --> Postgres
+Member --> Postgres
+Schedule --> Postgres
+Billing --> Postgres
+
+Identity --> Redis
+
+@enduml
+
 ```
 
 ---
