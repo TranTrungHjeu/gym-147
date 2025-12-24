@@ -276,7 +276,7 @@ export default function TrainerHomePage() {
                     textShadow: '0 0 10px rgba(251, 146, 60, 0.5)',
                   }}
                 >
-                  {stats.totalClasses}
+                  {stats.upcomingClasses}
                 </span>{' '}
                 lớp học sắp tới. Hãy chuẩn bị thật tốt nhé!
               </p>
@@ -306,7 +306,7 @@ export default function TrainerHomePage() {
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = 'perspective(1000px) rotateX(0deg)';
                   }}
-                  onClick={() => navigate('/dashboard/calendar')}
+                  onClick={() => navigate('/trainerdashboard/calendar')}
                 >
                   <span
                     style={{
@@ -458,7 +458,7 @@ export default function TrainerHomePage() {
                   onMouseLeave={e => {
                     e.currentTarget.style.transform = 'perspective(1000px) rotateX(0deg)';
                   }}
-                  onClick={() => navigate('/dashboard/classes')}
+                  onClick={() => navigate('/trainerdashboard/classes')}
                 >
                   <span
                     style={{

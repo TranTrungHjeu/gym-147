@@ -1054,6 +1054,7 @@
     "recommendationPriorityLow": "Low Priority",
     "noRecommendations": "No recommendations available",
     "loadingRecommendations": "Loading recommendations...",
+    "viewDetails": "View Details",
     "aiRecommendations": "AI",
     "aiRecommendationsEnabled": "AI recommendations enabled",
     "aiRecommendationsDisabled": "AI recommendations disabled",

@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "cross-env NODE_OPTIONS=--no-experimental-strip-types expo start",
+    "start": "cross-env NODE_OPTIONS=--no-experimental-strip-types EXPO_NO_DOCTOR=1 expo start --offline",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "cross-env NODE_OPTIONS=--no-experimental-strip-types expo start --web",
-    "dev": "cross-env NODE_OPTIONS=--no-experimental-strip-types expo start --dev-client",
+    "web": "cross-env NODE_OPTIONS=--no-experimental-strip-types EXPO_NO_DOCTOR=1 expo start --web --offline",
+    "dev": "cross-env NODE_OPTIONS=--no-experimental-strip-types EXPO_NO_DOCTOR=1 expo start --dev-client --offline",
     "build": "cross-env NODE_OPTIONS=--no-experimental-strip-types expo build",
     "eject": "cross-env NODE_OPTIONS=--no-experimental-strip-types expo eject",
     "test": "jest",
@@ -74,9 +74,6 @@
     "jest-expo": "~52.0.0",
     "react-test-renderer": "19.1.0",
     "typescript": "~5.9.2"
-  },
-  "overrides": {
-    "react-server-dom-webpack": "^19.0.2"
   },
   "private": true
 }

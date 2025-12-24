@@ -1,3 +1,4 @@
+import { useAuth } from '@/contexts/AuthContext';
 import { memberService } from '@/services';
 import { useTheme } from '@/utils/theme';
 import { Typography } from '@/utils/typography';
@@ -37,6 +38,7 @@ export default function EditHealthScreen() {
   const { t } = useTranslation();
   const { theme } = useTheme();
   const router = useRouter();
+  const { loadMemberProfile } = useAuth();
 
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -113,6 +115,14 @@ export default function EditHealthScreen() {
       const response = await memberService.updateMemberProfile(formData);
 
       if (response.success) {
+        // Reload member profile to clear cache and update data in AuthContext
+        try {
+          await loadMemberProfile();
+        } catch (profileError) {
+          console.error('Error reloading member profile:', profileError);
+          // Don't block success message if profile reload fails
+        }
+
         Alert.alert(t('common.success'), t('profile.healthInfoUpdated'), [
           { text: t('common.ok'), onPress: () => router.back() },
         ]);
