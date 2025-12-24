@@ -25,15 +25,15 @@ GYM-147 is a full-stack gym management platform designed for modern fitness cent
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|------------|
+| Layer          | Technology                            |
+| -------------- | ------------------------------------- |
 | **Mobile App** | React Native, Expo SDK 54, TypeScript |
-| **Web Admin** | React 18, Vite, TailwindCSS, MUI |
-| **Backend** | Node.js, Express, Prisma ORM |
-| **Database** | PostgreSQL 16 with pgvector |
-| **Cache** | Redis 7 |
-| **Gateway** | Nginx |
-| **Container** | Docker, Docker Compose |
+| **Web Admin**  | React 18, Vite, TailwindCSS, MUI      |
+| **Backend**    | Node.js, Express, Prisma ORM          |
+| **Database**   | PostgreSQL 16 with pgvector           |
+| **Cache**      | Redis 7                               |
+| **Gateway**    | Nginx                                 |
+| **Container**  | Docker, Docker Compose                |
 
 ---
 
@@ -41,29 +41,29 @@ GYM-147 is a full-stack gym management platform designed for modern fitness cent
 
 ### Member Application (Mobile)
 
-| Module | Description |
-|--------|-------------|
-| **Authentication** | Email/password, Google OAuth, Face ID login |
-| **Profile** | Personal info, health metrics, workout history |
-| **Classes** | Browse, book, cancel classes with trainers |
-| **Check-in** | QR code and RFID access control |
-| **Subscription** | View plans, purchase, payment history |
-| **Workouts** | AI-generated workout plans, exercise library |
-| **Rewards** | Points system, achievements, challenges |
-| **Notifications** | Real-time push notifications |
+| Module             | Description                                    |
+| ------------------ | ---------------------------------------------- |
+| **Authentication** | Email/password, Google OAuth, Face ID login    |
+| **Profile**        | Personal info, health metrics, workout history |
+| **Classes**        | Browse, book, cancel classes with trainers     |
+| **Check-in**       | QR code and RFID access control                |
+| **Subscription**   | View plans, purchase, payment history          |
+| **Workouts**       | AI-generated workout plans, exercise library   |
+| **Rewards**        | Points system, achievements, challenges        |
+| **Notifications**  | Real-time push notifications                   |
 
 ### Admin Dashboard (Web)
 
-| Module | Description |
-|--------|-------------|
-| **Dashboard** | Revenue analytics, member statistics |
-| **Members** | CRUD operations, subscription management |
-| **Trainers** | Profile, schedule, performance tracking |
-| **Classes** | Create, edit, manage class sessions |
-| **Equipment** | Inventory, maintenance, QR tracking |
-| **Payments** | Invoice management, refund processing |
-| **Reports** | Export PDF/Excel, scheduled reports |
-| **Settings** | System configuration, user roles |
+| Module        | Description                              |
+| ------------- | ---------------------------------------- |
+| **Dashboard** | Revenue analytics, member statistics     |
+| **Members**   | CRUD operations, subscription management |
+| **Trainers**  | Profile, schedule, performance tracking  |
+| **Classes**   | Create, edit, manage class sessions      |
+| **Equipment** | Inventory, maintenance, QR tracking      |
+| **Payments**  | Invoice management, refund processing    |
+| **Reports**   | Export PDF/Excel, scheduled reports      |
+| **Settings**  | System configuration, user roles         |
 
 ---
 
@@ -137,9 +137,9 @@ gym-147/
 
 Download and install the pre-built APK:
 
-| Platform | Download Link |
-|----------|---------------|
-| Android | [gym147-mobile.apk](https://www.mediafire.com/file/i0h9fddke80c3pa/gym147-mobile.apk/file) |
+| Platform | Download Link                                                                              |
+| -------- | ------------------------------------------------------------------------------------------ |
+| Android  | [gym147-mobile.apk](https://www.mediafire.com/file/i0h9fddke80c3pa/gym147-mobile.apk/file) |
 
 > **Note:** Enable "Install from Unknown Sources" in Android settings before installation.
 
@@ -169,6 +169,7 @@ npm install --workspaces
 Create `.env` files for each service:
 
 **services/identity-service/.env**
+
 ```env
 DATABASE_URL="postgresql://gym:secret@localhost:5432/gym_identity"
 JWT_SECRET="your-jwt-secret"
@@ -178,6 +179,7 @@ PORT=3001
 ```
 
 **services/member-service/.env**
+
 ```env
 DATABASE_URL="postgresql://gym:secret@localhost:5432/gym_member"
 REDIS_URL="redis://localhost:6380"
@@ -185,6 +187,7 @@ PORT=3002
 ```
 
 **services/schedule-service/.env**
+
 ```env
 DATABASE_URL="postgresql://gym:secret@localhost:5432/gym_schedule"
 REDIS_URL="redis://localhost:6380"
@@ -192,6 +195,7 @@ PORT=3003
 ```
 
 **services/billing-service/.env**
+
 ```env
 DATABASE_URL="postgresql://gym:secret@localhost:5432/gym_billing"
 REDIS_URL="redis://localhost:6380"
@@ -208,6 +212,7 @@ docker-compose up -d
 ```
 
 This starts:
+
 - PostgreSQL (port 5432)
 - Redis (port 6380)
 - All microservices
@@ -310,12 +315,12 @@ eas build --platform android --profile preview
 
 ### Endpoints Overview
 
-| Service | Prefix | Description |
-|---------|--------|-------------|
-| Identity | `/api/auth/*` | Authentication, users |
-| Member | `/api/members/*` | Member management |
-| Schedule | `/api/classes/*` | Classes, bookings |
-| Billing | `/api/billing/*` | Payments, subscriptions |
+| Service  | Prefix           | Description             |
+| -------- | ---------------- | ----------------------- |
+| Identity | `/api/auth/*`    | Authentication, users   |
+| Member   | `/api/members/*` | Member management       |
+| Schedule | `/api/classes/*` | Classes, bookings       |
+| Billing  | `/api/billing/*` | Payments, subscriptions |
 
 ### Authentication
 
@@ -401,11 +406,11 @@ npm run preview       # Preview production
 
 ### Supported Providers
 
-| Provider | Status | Region |
-|----------|--------|--------|
-| VNPay | Active | Vietnam |
+| Provider              | Status | Region  |
+| --------------------- | ------ | ------- |
+| VNPay                 | Active | Vietnam |
 | Sepay (Bank Transfer) | Active | Vietnam |
-| MoMo | Active | Vietnam |
+| MoMo                  | Active | Vietnam |
 
 ---
 
