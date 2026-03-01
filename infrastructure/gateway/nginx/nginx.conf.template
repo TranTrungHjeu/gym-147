@@ -82,19 +82,24 @@ http {
 
         # Identity Service - Socket.IO WebSocket
         location /identity/socket.io/ {
-            proxy_pass http://identity_service/socket.io/;
+            proxy_pass ${IDENTITY_SERVICE_PROTOCOL}://identity_service/socket.io/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
+            proxy_set_header Host ${IDENTITY_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
             proxy_set_header Origin $http_origin;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
             proxy_connect_timeout 60s;
             proxy_buffering off;
+
+            # Add SNI support for HTTPS proxying
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${IDENTITY_SERVICE_HOST};
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
@@ -105,19 +110,24 @@ http {
 
         # Member Service - Socket.IO WebSocket
         location /members/socket.io/ {
-            proxy_pass http://member_service/socket.io/;
+            proxy_pass ${MEMBER_SERVICE_PROTOCOL}://member_service/socket.io/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
+            proxy_set_header Host ${MEMBER_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
             proxy_set_header Origin $http_origin;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
             proxy_connect_timeout 60s;
             proxy_buffering off;
+
+            # Add SNI support for HTTPS proxying
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${MEMBER_SERVICE_HOST};
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
@@ -128,19 +138,24 @@ http {
 
         # Schedule Service - Socket.IO WebSocket
         location /schedule/socket.io/ {
-            proxy_pass http://schedule_service/socket.io/;
+            proxy_pass ${SCHEDULE_SERVICE_PROTOCOL}://schedule_service/socket.io/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
+            proxy_set_header Host ${SCHEDULE_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
             proxy_set_header Origin $http_origin;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
             proxy_connect_timeout 60s;
             proxy_buffering off;
+
+            # Add SNI support for HTTPS proxying
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${SCHEDULE_SERVICE_HOST};
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
@@ -151,19 +166,24 @@ http {
 
         # Billing Service - Socket.IO WebSocket
         location /billing/socket.io/ {
-            proxy_pass http://billing_service/socket.io/;
+            proxy_pass ${BILLING_SERVICE_PROTOCOL}://billing_service/socket.io/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
-            proxy_set_header Host $host;
+            proxy_set_header Host ${BILLING_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            proxy_set_header X-Forwarded-Host $host;
             proxy_set_header Origin $http_origin;
             proxy_read_timeout 86400s;
             proxy_send_timeout 86400s;
             proxy_connect_timeout 60s;
             proxy_buffering off;
+
+            # Add SNI support for HTTPS proxying
+            proxy_ssl_server_name on;
+            proxy_ssl_name ${BILLING_SERVICE_HOST};
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
@@ -193,7 +213,7 @@ http {
             
             # Proxy to backend service
             proxy_pass ${IDENTITY_SERVICE_PROTOCOL}://identity_service/auth/login/face;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${IDENTITY_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -204,6 +224,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${IDENTITY_SERVICE_HOST};
             
             # Extended timeouts for face recognition processing (load models, detect face, etc.)
             proxy_connect_timeout 60s;
@@ -247,7 +268,7 @@ http {
             
             # Proxy to backend service
             proxy_pass ${IDENTITY_SERVICE_PROTOCOL}://identity_service/;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${IDENTITY_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -258,6 +279,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${IDENTITY_SERVICE_HOST};
             
             # Timeout settings for regular requests
             proxy_connect_timeout 30s;
@@ -304,7 +326,7 @@ http {
             # Proxy to backend service - remove /members prefix
             rewrite ^/members/(.*)$ /$1 break;
             proxy_pass ${MEMBER_SERVICE_PROTOCOL}://member_service;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${MEMBER_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -315,6 +337,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${MEMBER_SERVICE_HOST};
             
             # Extended timeouts for AI workout plan generation (10 minutes)
             proxy_connect_timeout 60s;
@@ -361,7 +384,7 @@ http {
             # Proxy to backend service - remove /members prefix
             rewrite ^/members/(.*)$ /$1 break;
             proxy_pass ${MEMBER_SERVICE_PROTOCOL}://member_service;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${MEMBER_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -372,6 +395,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${MEMBER_SERVICE_HOST};
             
             # Timeout settings - extended for potential long-running requests
             # Note: AI workout plan endpoint has its own location with 10min timeout above
@@ -416,7 +440,7 @@ http {
             
             # Proxy to backend service
             proxy_pass ${SCHEDULE_SERVICE_PROTOCOL}://schedule_service/;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${SCHEDULE_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -427,6 +451,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${SCHEDULE_SERVICE_HOST};
             
             # Timeout settings
             proxy_connect_timeout 30s;
@@ -470,7 +495,7 @@ http {
             
             # Proxy to backend service
             proxy_pass ${BILLING_SERVICE_PROTOCOL}://billing_service/;
-            proxy_set_header Host $host;
+            proxy_set_header Host ${BILLING_SERVICE_HOST};
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
@@ -481,6 +506,7 @@ http {
 
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
+            proxy_ssl_name ${BILLING_SERVICE_HOST};
             
             # Timeout settings
             proxy_connect_timeout 30s;
