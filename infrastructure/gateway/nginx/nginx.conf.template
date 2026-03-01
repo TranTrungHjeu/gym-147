@@ -101,6 +101,14 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_name ${IDENTITY_SERVICE_HOST};
 
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Expose-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
+
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
@@ -128,6 +136,14 @@ http {
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
             proxy_ssl_name ${MEMBER_SERVICE_HOST};
+
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Expose-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
@@ -157,6 +173,14 @@ http {
             proxy_ssl_server_name on;
             proxy_ssl_name ${SCHEDULE_SERVICE_HOST};
 
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Expose-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
+
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
             add_header 'Access-Control-Allow-Credentials' 'true' always;
@@ -184,6 +208,14 @@ http {
             # Add SNI support for HTTPS proxying
             proxy_ssl_server_name on;
             proxy_ssl_name ${BILLING_SERVICE_HOST};
+
+            # Hide CORS headers from backend to avoid duplication
+            proxy_hide_header 'Access-Control-Allow-Origin';
+            proxy_hide_header 'Access-Control-Allow-Credentials';
+            proxy_hide_header 'Access-Control-Allow-Methods';
+            proxy_hide_header 'Access-Control-Allow-Headers';
+            proxy_hide_header 'Access-Control-Expose-Headers';
+            proxy_hide_header 'Access-Control-Max-Age';
 
             # CORS for WebSocket handshake
             add_header 'Access-Control-Allow-Origin' $http_origin always;
