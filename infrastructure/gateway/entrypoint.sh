@@ -37,14 +37,16 @@ extract_port() {
     # Remove protocol
     url=${url#http://}
     url=${url#https://}
-    
     # Extract port
     if echo "$url" | grep -q ':'; then
         echo "$url" | cut -d: -f2
     else
-        # No port specified - for Railway, use port 80 for HTTP proxy
-        # Railway public URLs are HTTPS but internal proxy should use HTTP on port 80
-        echo "80"
+        # No port specified
+        if echo "$original_url" | grep -q '^https://'; then
+            echo "443"
+        else
+            echo "80"
+        fi
     fi
 }
 
