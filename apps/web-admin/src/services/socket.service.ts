@@ -93,10 +93,24 @@ class SocketService {
       reconnectAttempts: 0,
     });
 
-    console.log(`[SOCKET] Attempting to connect to ${service} service: ${serviceUrl}`);
+    // Determine socket.io path prefix based on service.
+    // All WebSocket traffic routes through the API gateway using path-based routing.
+    // Gateway nginx routes /schedule/socket.io/ → schedule-service, etc.
+    const getSocketPath = (svc: SocketServiceType): string => {
+      switch (svc) {
+        case 'schedule': return '/schedule/socket.io';
+        case 'member':   return '/members/socket.io';
+        case 'identity': return '/identity/socket.io';
+        default:         return '/socket.io';
+      }
+    };
+    const socketPath = getSocketPath(service);
+
+    console.log(`[SOCKET] Connecting to ${service} via gateway: ${serviceUrl} (path: ${socketPath})`);
 
     try {
       const socket = io(serviceUrl, {
+        path: socketPath,
         transports: ['polling', 'websocket'],
         reconnection: true,
         reconnectionDelay: this.baseReconnectDelay,
