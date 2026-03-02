@@ -72,7 +72,13 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
 
         // Create socket connection to member service
         // If websocket fails, fallback to polling
-        const socket = io(SERVICE_URLS.MEMBER, {
+
+        const url = new URL(SERVICE_URLS.MEMBER);
+        const socketBaseUrl = `${url.protocol}//${url.host}`;
+        const socketPath = '/members/socket.io/';
+
+        const socket = io(socketBaseUrl, {
+          path: socketPath,
           transports: usePolling ? ['polling'] : ['polling', 'websocket'],
           reconnection: true,
           reconnectionDelay: 1000,
@@ -395,11 +401,9 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
             const { useTranslation } = require('react-i18next');
             // Get translation function - we'll use a simple approach
             const title = 'Đến lượt bạn!';
-            const body = `${
-              data.equipment_name || 'Thiết bị'
-            } đã có sẵn. Bạn có ${
-              data.expires_in_minutes || 5
-            } phút để sử dụng.`;
+            const body = `${data.equipment_name || 'Thiết bị'
+              } đã có sẵn. Bạn có ${data.expires_in_minutes || 5
+              } phút để sử dụng.`;
 
             await Notifications.scheduleNotificationAsync({
               content: {
@@ -554,7 +558,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
         const { SERVICE_URLS } = require('@/config/environment');
 
         // Create socket connection to identity service for bulk notifications
-        const identitySocket = io(SERVICE_URLS.IDENTITY, {
+        const identityUrl = new URL(SERVICE_URLS.IDENTITY);
+        const identitySocketBaseUrl = `${identityUrl.protocol}//${identityUrl.host}`;
+        const identitySocketPath = '/identity/socket.io/';
+
+        const identitySocket = io(identitySocketBaseUrl, {
+          path: identitySocketPath,
           transports: ['polling', 'websocket'],
           reconnection: true,
           reconnectionDelay: 1000,

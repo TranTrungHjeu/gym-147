@@ -63,6 +63,7 @@ class ChatService {
     const socketUrl = API_CONFIG.WS_IDENTITY_URL || this.baseUrl;
 
     this.socket = io(socketUrl, {
+      path: '/identity/socket.io',
       auth: {
         token: token,
       },
@@ -175,7 +176,7 @@ class ChatService {
   onMessage(callback: (message: ChatMessage) => void) {
     if (!this.socket) {
       console.warn('Socket not connected. Call connect() first.');
-      return () => {};
+      return () => { };
     }
 
     // Listen for regular messages
@@ -208,7 +209,7 @@ class ChatService {
    */
   onTyping(callback: (data: { sender_id: string; is_typing: boolean }) => void) {
     if (!this.socket) {
-      return () => {};
+      return () => { };
     }
 
     this.socket.on('chat:typing', callback);
