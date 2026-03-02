@@ -41,26 +41,27 @@ server.headersTimeout = 66000; // 66 seconds (must be > keepAliveTimeout)
 const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
-        origin: (origin, callback) => {
-          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-          if (allowedOrigins.includes(origin) || !origin) {
-            callback(null, true);
-          } else {
-            callback(new Error('Not allowed by CORS'));
-          }
-        },
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false,
-        allowedHeaders: ['*'],
-      }
+      origin: (origin, callback) => {
+        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+        if (allowedOrigins.includes(origin) || !origin) {
+          callback(null, true);
+        } else {
+          callback(new Error('Not allowed by CORS'));
+        }
+      },
+      methods: ['GET', 'POST', 'OPTIONS'],
+      credentials: false,
+      allowedHeaders: ['*'],
+    }
     : {
-        origin: '*', // Allow all origins in development
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false,
-        allowedHeaders: ['*'],
-      };
+      origin: '*', // Allow all origins in development
+      methods: ['GET', 'POST', 'OPTIONS'],
+      credentials: false,
+      allowedHeaders: ['*'],
+    };
 
 const io = new Server(server, {
+  path: '/members/socket.io/',
   cors: socketCorsConfig,
   allowEIO3: true, // Allow Engine.IO v3 clients
   transports: ['websocket', 'polling'], // Allow both transports
@@ -182,7 +183,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-      'Please set it in your .env file (comma-separated list of allowed origins).'
+    'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning

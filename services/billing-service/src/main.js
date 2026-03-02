@@ -20,7 +20,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-      'Please set it in your .env file (comma-separated list of allowed origins).'
+    'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   console.warn(
@@ -36,6 +36,7 @@ if (process.env.ALLOWED_ORIGINS) {
 
 // Initialize Socket.IO
 const io = new Server(server, {
+  path: '/billing/socket.io/',
   cors: {
     origin: process.env.NODE_ENV === 'production' ? socketIOOrigins : '*',
     methods: ['GET', 'POST', 'OPTIONS'],
@@ -96,7 +97,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-      'Please set it in your .env file (comma-separated list of allowed origins).'
+    'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning

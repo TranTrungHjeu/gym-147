@@ -23,7 +23,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-      'Please set it in your .env file (comma-separated list of allowed origins).'
+    'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning
@@ -44,6 +44,7 @@ if (process.env.ALLOWED_ORIGINS) {
 
 // Initialize Socket.IO with CORS from environment
 const io = new Server(server, {
+  path: '/schedule/socket.io/',
   cors: {
     origin: socketIOOrigins,
     methods: ['GET', 'POST'],
@@ -191,7 +192,7 @@ async function startServer() {
     : ['09:00', '14:00', '18:00']; // Default: 9:00 AM, 2:00 PM, 6:00 PM
   const useAutoCancelInterval = process.env.AUTO_CANCEL_USE_INTERVAL === 'true';
   const autoCancelIntervalMinutes = parseInt(process.env.AUTO_CANCEL_INTERVAL_MINUTES || '60');
-  
+
   cronService.startAutoCancelLowParticipantsCron(
     autoCancelScheduleTimes,
     useAutoCancelInterval,

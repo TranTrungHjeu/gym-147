@@ -82,7 +82,7 @@ http {
 
         # Identity Service - Socket.IO WebSocket
         location /identity/socket.io/ {
-            proxy_pass ${IDENTITY_SERVICE_PROTOCOL}://identity_service/socket.io/;
+            proxy_pass ${IDENTITY_SERVICE_PROTOCOL}://identity_service;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
@@ -118,7 +118,7 @@ http {
 
         # Member Service - Socket.IO WebSocket
         location /members/socket.io/ {
-            proxy_pass ${MEMBER_SERVICE_PROTOCOL}://member_service/socket.io/;
+            proxy_pass ${MEMBER_SERVICE_PROTOCOL}://member_service;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
@@ -154,7 +154,7 @@ http {
 
         # Schedule Service - Socket.IO WebSocket
         location /schedule/socket.io/ {
-            proxy_pass ${SCHEDULE_SERVICE_PROTOCOL}://schedule_service/socket.io/;
+            proxy_pass ${SCHEDULE_SERVICE_PROTOCOL}://schedule_service;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
@@ -190,7 +190,7 @@ http {
 
         # Billing Service - Socket.IO WebSocket
         location /billing/socket.io/ {
-            proxy_pass ${BILLING_SERVICE_PROTOCOL}://billing_service/socket.io/;
+            proxy_pass ${BILLING_SERVICE_PROTOCOL}://billing_service;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";

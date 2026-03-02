@@ -30,19 +30,20 @@ server.on('request', (req, res) => {
 const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false,
-        allowedHeaders: ['*'],
-      }
+      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+      methods: ['GET', 'POST', 'OPTIONS'],
+      credentials: false,
+      allowedHeaders: ['*'],
+    }
     : {
-        origin: '*', // Allow all origins in development
-        methods: ['GET', 'POST', 'OPTIONS'],
-        credentials: false,
-        allowedHeaders: ['*'],
-      };
+      origin: '*', // Allow all origins in development
+      methods: ['GET', 'POST', 'OPTIONS'],
+      credentials: false,
+      allowedHeaders: ['*'],
+    };
 
 const io = new Server(server, {
+  path: '/identity/socket.io/',
   cors: socketCorsConfig,
   allowEIO3: true, // Allow Engine.IO v3 clients
   transports: ['websocket', 'polling'], // Allow both transports
@@ -163,8 +164,7 @@ io.use((socket, next) => {
 io.on('connection', socket => {
   try {
     console.log(
-      `[SUCCESS] Identity service: Client connected: ${socket.id}, userId: ${
-        socket.userId || 'unknown'
+      `[SUCCESS] Identity service: Client connected: ${socket.id}, userId: ${socket.userId || 'unknown'
       }, transport: ${socket.conn.transport.name}`
     );
 
@@ -306,7 +306,7 @@ async function startServer() {
     } else if (process.env.NODE_ENV === 'production') {
       throw new Error(
         'ALLOWED_ORIGINS environment variable is required in production. ' +
-          'Please set it in your .env file (comma-separated list of allowed origins).'
+        'Please set it in your .env file (comma-separated list of allowed origins).'
       );
     } else {
       // Development fallback with warning
