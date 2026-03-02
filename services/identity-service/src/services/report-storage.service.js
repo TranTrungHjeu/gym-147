@@ -1,82 +1,73 @@
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v2: cloudinary } = require('cloudinary');
 
 /**
  * Report Storage Service
- * Handles uploading reports to S3 and generating download URLs
+ * Handles uploading reports to Cloudinary and generating download URLs
  */
 class ReportStorageService {
   constructor() {
-    // Initialize S3 client if credentials are available
+    // Initialize Cloudinary client if credentials are available
     if (
-      process.env.AWS_ACCESS_KEY_ID &&
-      process.env.AWS_SECRET_ACCESS_KEY &&
-      process.env.AWS_S3_BUCKET_NAME
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
     ) {
-      this.s3Client = new S3Client({
-        region: process.env.AWS_REGION || 'ap-southeast-1',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
       });
-      this.bucketName = process.env.AWS_S3_BUCKET_NAME;
+      this.isConfigured = true;
     } else {
       console.warn(
-        '[WARNING] AWS S3 credentials not configured. Reports will be generated but not stored.'
+        '[WARNING] Cloudinary credentials not configured. Reports will be generated but not stored.'
       );
-      this.s3Client = null;
+      this.isConfigured = false;
     }
   }
 
   /**
-   * Upload report to S3
+   * Upload report to Cloudinary
    * @param {Buffer} fileBuffer - Report file buffer
    * @param {string} reportId - Report ID (can be any report type)
    * @param {string} format - File format (PDF, EXCEL, CSV)
    * @param {string} reportType - Report type
-   * @returns {Promise<string|null>} S3 URL or null if not configured
+   * @returns {Promise<string|null>} Cloudinary URL or null if not configured
    */
   async uploadReport(fileBuffer, reportId, format, reportType) {
-    if (!this.s3Client || !this.bucketName) {
+    if (!this.isConfigured) {
       return null;
     }
 
     try {
       const extension = format.toLowerCase() === 'excel' ? 'xlsx' : format.toLowerCase();
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-      const key = `reports/${reportType.toLowerCase()}/${reportId}_${timestamp}.${extension}`;
+      // For raw files on Cloudinary, the secure_url preserves the provided public_id logic mostly
+      const publicId = `reports/${reportType.toLowerCase()}/${reportId}_${timestamp}.${extension}`;
 
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: this.getContentType(format),
-        CacheControl: 'max-age=31536000', // 1 year
-        Metadata: {
-          reportId,
-          reportType,
-          format,
-          generatedAt: new Date().toISOString(),
-        },
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            public_id: publicId,
+            resource_type: 'raw', // Important for PDF, CSV, Excel
+            metadata: {
+              report_id: reportId,
+              report_type: reportType,
+              format: format,
+            }
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(fileBuffer);
       });
 
-      await this.s3Client.send(command);
-
-      // Generate presigned URL (valid for 1 year)
-      const getCommand = new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      const url = await getSignedUrl(this.s3Client, getCommand, {
-        expiresIn: 31536000, // 1 year
-      });
-
-      console.log(`[SUCCESS] Report uploaded to S3: ${key}`);
-      return url;
+      console.log(`[SUCCESS] Report uploaded to Cloudinary: ${uploadResult.secure_url}`);
+      return uploadResult.secure_url;
     } catch (error) {
-      console.error('[ERROR] Error uploading report to S3:', error);
+      console.error('[ERROR] Error uploading report to Cloudinary:', error);
       throw error;
     }
   }

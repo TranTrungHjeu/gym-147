@@ -1,51 +1,40 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { v2: cloudinary } = require('cloudinary');
 const multer = require('multer');
-const multerS3 = require('multer-s3');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const path = require('path');
 const crypto = require('crypto');
 
 /**
- * AWS S3 Upload Service for User Avatars
- * Handles uploading avatar images to S3 and generating URLs
+ * Cloudinary Upload Service for User Avatars
+ * Handles uploading avatar images and generating URLs
  */
 
 class S3UploadService {
   constructor() {
-    // Initialize S3 client
-    this.s3Client = new S3Client({
-      region: process.env.AWS_REGION || 'us-east-1',
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    // Initialize Cloudinary client
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    this.folder = 'avatars'; // Default folder for avatars
+
+    // Initialize multer with Cloudinary storage
+    const storage = new CloudinaryStorage({
+      cloudinary: cloudinary,
+      params: {
+        folder: this.folder,
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+        public_id: (req, file) => {
+          const uniqueSuffix = crypto.randomBytes(16).toString('hex');
+          return `${uniqueSuffix}`;
+        },
       },
     });
 
-    // S3 bucket configuration
-    this.bucketName = process.env.AWS_S3_BUCKET_NAME;
-    this.folder = 'avatars'; // Default folder for avatars
-
-    // Initialize multer with S3 storage
     this.upload = multer({
-      storage: multerS3({
-        s3: this.s3Client,
-        bucket: this.bucketName,
-        key: (req, file, cb) => {
-          // Generate unique filename
-          const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-          const extension = path.extname(file.originalname);
-          const filename = `${this.folder}/${uniqueSuffix}${extension}`;
-          cb(null, filename);
-        },
-        contentType: multerS3.AUTO_CONTENT_TYPE,
-        metadata: (req, file, cb) => {
-          cb(null, {
-            fieldName: file.fieldname,
-            originalName: file.originalname,
-            uploadedBy: req.user?.id || 'unknown',
-            uploadedAt: new Date().toISOString(),
-          });
-        },
-      }),
+      storage: storage,
       limits: {
         fileSize: 5 * 1024 * 1024, // 5MB limit for avatars
       },
@@ -71,7 +60,7 @@ class S3UploadService {
   }
 
   /**
-   * Upload file to S3 manually
+   * Upload file to Cloudinary manually
    * @param {Buffer} fileBuffer - File buffer
    * @param {string} originalName - Original filename
    * @param {string} mimeType - File MIME type
@@ -97,79 +86,63 @@ class S3UploadService {
         };
       }
 
-      // Generate unique filename
+      // Generate unique public ID
       const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-      const extension = path.extname(originalName) || '.jpg';
-      const key = `${this.folder}/${uniqueSuffix}${extension}`;
 
-      // Upload to S3
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: mimeType,
-        CacheControl: 'public, max-age=31536000', // Cache for 1 year
-        Metadata: {
-          originalName,
-          uploadedBy: userId,
-          uploadedAt: new Date().toISOString(),
-        },
+      // Upload to Cloudinary using upload_stream
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: this.folder,
+            public_id: uniqueSuffix,
+            resource_type: 'image',
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(fileBuffer);
       });
 
-      await this.s3Client.send(command);
-
-      // Generate public URL
-      let url = `https://${this.bucketName}.s3.${process.env.AWS_REGION || 'us-east-1'}.amazonaws.com/${key}`;
-      
-      // If CDN is configured, use CDN URL instead
-      if (process.env.CDN_URL) {
-        url = `${process.env.CDN_URL}/${key}`;
-      }
-
-      console.log(`[SUCCESS] Avatar uploaded successfully: ${url}`);
+      console.log(`[SUCCESS] Avatar uploaded successfully: ${uploadResult.secure_url}`);
 
       return {
         success: true,
-        url,
-        key,
-        bucket: this.bucketName,
+        url: uploadResult.secure_url,
+        key: uploadResult.public_id,
         originalName,
         size: fileBuffer.length,
       };
     } catch (error) {
-      console.error('[ERROR] Error uploading avatar to S3:', error);
+      console.error('[ERROR] Error uploading avatar to Cloudinary:', error);
       return {
         success: false,
-        error: error.message || 'Unknown error during S3 upload',
-        code: error.code,
+        error: error.message || 'Unknown error during Cloudinary upload',
       };
     }
   }
 
   /**
-   * Delete file from S3
-   * @param {string} key - S3 object key
+   * Delete file from Cloudinary
+   * @param {string} publicId - Cloudinary public ID
    * @returns {Object} - Delete result
    */
-  async deleteFile(key) {
+  async deleteFile(publicId) {
     try {
-      console.log(`[DELETE] Deleting avatar from S3: ${key}`);
+      console.log(`[DELETE] Deleting avatar from Cloudinary: ${publicId}`);
 
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
+      const result = await cloudinary.uploader.destroy(publicId);
 
-      await this.s3Client.send(command);
-
-      console.log(`[SUCCESS] Avatar deleted successfully: ${key}`);
+      console.log(`[SUCCESS] Avatar deleted successfully: ${publicId}`);
 
       return {
         success: true,
-        key,
+        key: publicId,
+        result,
       };
     } catch (error) {
-      console.error('[ERROR] Error deleting avatar from S3:', error);
+      console.error('[ERROR] Error deleting avatar from Cloudinary:', error);
       return {
         success: false,
         error: error.message,
@@ -178,21 +151,23 @@ class S3UploadService {
   }
 
   /**
-   * Extract S3 key from URL
-   * @param {string} url - S3 URL
-   * @returns {string} - S3 key
+   * Extract Cloudinary public_id from URL
+   * @param {string} url - Cloudinary URL
+   * @returns {string} - Cloudinary public_id
    */
   extractKeyFromUrl(url) {
     try {
       if (!url) return null;
 
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
+      // Extract the path from the URL, excluding the version number and extension
+      // Format: http://res.cloudinary.com/<cloud_name>/<resource_type>/<type>/<version>/<public_id>.<format>
+      const urlMatches = url.match(/\/v\d+\/(.+?)(?:\.[a-z0-9]+)?$/i);
 
-      // Remove leading slash
-      const key = pathname.substring(1);
+      if (urlMatches && urlMatches[1]) {
+        return urlMatches[1];
+      }
 
-      return key;
+      return null;
     } catch (error) {
       console.error('[ERROR] Error extracting key from URL:', error);
       return null;
@@ -200,11 +175,11 @@ class S3UploadService {
   }
 
   /**
-   * Validate S3 configuration
+   * Validate Cloudinary configuration
    * @returns {Object} - Validation result
    */
   validateConfiguration() {
-    const requiredEnvVars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME'];
+    const requiredEnvVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
 
     const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
@@ -212,14 +187,13 @@ class S3UploadService {
       return {
         valid: false,
         missing,
-        message: `Missing required environment variables: ${missing.join(', ')}`,
+        message: `Missing required environment variables for Cloudinary: ${missing.join(', ')}`,
       };
     }
 
     return {
       valid: true,
-      bucketName: this.bucketName,
-      region: process.env.AWS_REGION || 'us-east-1',
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     };
   }
 }

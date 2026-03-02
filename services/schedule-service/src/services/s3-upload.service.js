@@ -1,54 +1,40 @@
-const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v2: cloudinary } = require('cloudinary');
 const multer = require('multer');
-const multerS3 = require('multer-s3');
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 const path = require('path');
 const crypto = require('crypto');
-const cdnService = require('./cdn.service');
 
 /**
- * AWS S3 Upload Service for Certificate Images
- * Handles uploading certificate images to S3 and generating URLs
+ * Cloudinary Upload Service for Certificate Images
+ * Handles uploading certificate images to Cloudinary and generating URLs
  */
 
 class S3UploadService {
   constructor() {
-    // Initialize S3 client
-    this.s3Client = new S3Client({
-      region: process.env.AWS_REGION,
-      credentials: {
-        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    // Initialize Cloudinary client
+    cloudinary.config({
+      cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+      api_key: process.env.CLOUDINARY_API_KEY,
+      api_secret: process.env.CLOUDINARY_API_SECRET,
+    });
+
+    this.folder = 'certifications';
+
+    // Initialize multer with Cloudinary storage
+    const storage = new CloudinaryStorage({
+      cloudinary: cloudinary,
+      params: {
+        folder: this.folder,
+        allowed_formats: ['jpg', 'png', 'jpeg', 'webp'],
+        public_id: (req, file) => {
+          const uniqueSuffix = crypto.randomBytes(16).toString('hex');
+          return `${uniqueSuffix}`;
+        },
       },
     });
 
-    // S3 bucket configuration
-    this.bucketName = process.env.AWS_S3_BUCKET_NAME;
-    this.folder = 'certifications';
-
-    // Initialize multer with S3 storage (same as equipment - no ACL, bucket policy handles access)
     this.upload = multer({
-      storage: multerS3({
-        s3: this.s3Client,
-        bucket: this.bucketName,
-        cacheControl: 'public, max-age=31536000', // Cache for 1 year (same as equipment)
-        key: (req, file, cb) => {
-          // Generate unique filename
-          const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-          const extension = path.extname(file.originalname);
-          const filename = `${this.folder}/${uniqueSuffix}${extension}`;
-          cb(null, filename);
-        },
-        contentType: multerS3.AUTO_CONTENT_TYPE,
-        metadata: (req, file, cb) => {
-          cb(null, {
-            fieldName: file.fieldname,
-            originalName: file.originalname,
-            uploadedBy: req.user?.id || 'unknown',
-            uploadedAt: new Date().toISOString(),
-          });
-        },
-      }),
+      storage: storage,
       limits: {
         fileSize: 10 * 1024 * 1024, // 10MB limit
       },
@@ -73,7 +59,7 @@ class S3UploadService {
   }
 
   /**
-   * Upload file to S3 manually
+   * Upload file to Cloudinary manually
    * @param {Buffer} fileBuffer - File buffer
    * @param {string} originalName - Original filename
    * @param {string} mimeType - File MIME type
@@ -82,44 +68,38 @@ class S3UploadService {
    */
   async uploadFile(fileBuffer, originalName, mimeType, userId = 'unknown') {
     try {
-      console.log(`Uploading file to S3: ${originalName}`);
+      console.log(`Uploading file to Cloudinary: ${originalName}`);
 
-      // Generate unique filename
+      // Generate unique public ID
       const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-      const extension = path.extname(originalName);
-      const key = `${this.folder}/${uniqueSuffix}${extension}`;
 
-      // Upload to S3 with public-read ACL and cache control (same as equipment images)
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: fileBuffer,
-        ContentType: mimeType,
-        CacheControl: 'public, max-age=31536000', // Cache for 1 year (same as equipment)
-        Metadata: {
-          originalName,
-          uploadedBy: userId,
-          uploadedAt: new Date().toISOString(),
-        },
+      // Upload to Cloudinary
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: this.folder,
+            public_id: uniqueSuffix,
+            resource_type: 'image',
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(fileBuffer);
       });
 
-      await this.s3Client.send(command);
-
-      // Generate public URL (with CDN if configured) - same as equipment images
-      const url = cdnService.getUrl(key);
-
-      console.log(`[SUCCESS] File uploaded successfully: ${url}`);
+      console.log(`[SUCCESS] File uploaded successfully: ${uploadResult.secure_url}`);
 
       return {
         success: true,
-        url,
-        key,
-        bucket: this.bucketName,
+        url: uploadResult.secure_url,
+        key: uploadResult.public_id,
         originalName,
         size: fileBuffer.length,
       };
     } catch (error) {
-      console.error('Error uploading file to S3:', error);
+      console.error('Error uploading file to Cloudinary:', error);
       return {
         success: false,
         error: error.message,
@@ -128,29 +108,25 @@ class S3UploadService {
   }
 
   /**
-   * Delete file from S3
-   * @param {string} key - S3 object key
+   * Delete file from Cloudinary
+   * @param {string} publicId - Cloudinary public ID
    * @returns {Object} - Delete result
    */
-  async deleteFile(key) {
+  async deleteFile(publicId) {
     try {
-      console.log(`Deleting file from S3: ${key}`);
+      console.log(`Deleting file from Cloudinary: ${publicId}`);
 
-      const command = new DeleteObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
+      const result = await cloudinary.uploader.destroy(publicId);
 
-      await this.s3Client.send(command);
-
-      console.log(`File deleted successfully: ${key}`);
+      console.log(`File deleted successfully: ${publicId}`);
 
       return {
         success: true,
-        key,
+        key: publicId,
+        result
       };
     } catch (error) {
-      console.error('Error deleting file from S3:', error);
+      console.error('Error deleting file from Cloudinary:', error);
       return {
         success: false,
         error: error.message,
@@ -160,50 +136,32 @@ class S3UploadService {
 
   /**
    * Generate presigned URL for direct upload from frontend
+   * In Cloudinary, we return the upload signature instead.
    * @param {string} fileName - Original filename
    * @param {string} mimeType - File MIME type
    * @param {string} userId - User ID
-   * @returns {Object} - Presigned URL and key
+   * @returns {Object} - Cloudinary Signature payload
    */
   async generatePresignedUrl(fileName, mimeType, userId = 'unknown') {
     try {
-      console.log(`[LINK] Generating presigned URL for: ${fileName}`);
+      console.log(`[LINK] Generating Cloudinary upload signature for: ${fileName}`);
 
-      // Generate unique filename
-      const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-      const extension = path.extname(fileName);
-      const key = `${this.folder}/${uniqueSuffix}${extension}`;
-
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        ContentType: mimeType,
-        Metadata: {
-          originalName: fileName,
-          uploadedBy: userId,
-          uploadedAt: new Date().toISOString(),
-        },
-      });
-
-      // Generate presigned URL (valid for 1 hour)
-      const presignedUrl = await getSignedUrl(this.s3Client, command, {
-        expiresIn: 3600, // 1 hour
-      });
-
-      // Generate public URL (with CDN if configured) - similar to equipment images
-      const publicUrl = cdnService.getUrl(key);
-
-      console.log(`[SUCCESS] Presigned URL generated: ${key}`);
+      const timestamp = Math.round((new Date).getTime() / 1000);
+      const signature = cloudinary.utils.api_sign_request({
+        timestamp: timestamp,
+        folder: this.folder,
+      }, process.env.CLOUDINARY_API_SECRET);
 
       return {
         success: true,
-        presignedUrl,
-        publicUrl,
-        key,
-        expiresIn: 3600,
+        signature,
+        timestamp,
+        cloudName: process.env.CLOUDINARY_CLOUD_NAME,
+        apiKey: process.env.CLOUDINARY_API_KEY,
+        folder: this.folder,
       };
     } catch (error) {
-      console.error('Error generating presigned URL:', error);
+      console.error('Error generating Cloudinary signature:', error);
       return {
         success: false,
         error: error.message,
@@ -212,18 +170,21 @@ class S3UploadService {
   }
 
   /**
-   * Extract S3 key from URL
-   * @param {string} url - S3 URL
-   * @returns {string} - S3 key
+   * Extract Cloudinary key from URL
+   * @param {string} url - Cloudinary URL
+   * @returns {string} - Cloudinary key
    */
   extractKeyFromUrl(url) {
     try {
-      const urlObj = new URL(url);
-      const pathname = urlObj.pathname;
-      // Remove leading slash to get the key
-      // Example: /certifications/abc123.png -> certifications/abc123.png
-      const key = pathname.startsWith('/') ? pathname.substring(1) : pathname;
-      return key;
+      if (!url) return null;
+
+      const urlMatches = url.match(/\/v\d+\/(.+?)(?:\.[a-z0-9]+)?$/i);
+
+      if (urlMatches && urlMatches[1]) {
+        return urlMatches[1];
+      }
+
+      return null;
     } catch (error) {
       console.error('Error extracting key from URL:', error);
       return null;
@@ -232,8 +193,8 @@ class S3UploadService {
 
 
   /**
-   * Get file info from S3 URL
-   * @param {string} url - S3 URL
+   * Get file info from Cloudinary URL
+   * @param {string} url - Cloudinary URL
    * @returns {Object} - File info
    */
   getFileInfoFromUrl(url) {
@@ -245,9 +206,8 @@ class S3UploadService {
 
       return {
         key,
-        bucket: this.bucketName,
         url,
-        isS3Url: url.includes('amazonaws.com'),
+        isCloudinary: url.includes('cloudinary.com'),
       };
     } catch (error) {
       console.error('Error getting file info from URL:', error);
@@ -256,11 +216,11 @@ class S3UploadService {
   }
 
   /**
-   * Validate S3 configuration
+   * Validate Cloudinary configuration
    * @returns {Object} - Validation result
    */
   validateConfiguration() {
-    const requiredEnvVars = ['AWS_ACCESS_KEY_ID', 'AWS_SECRET_ACCESS_KEY', 'AWS_S3_BUCKET_NAME'];
+    const requiredEnvVars = ['CLOUDINARY_CLOUD_NAME', 'CLOUDINARY_API_KEY', 'CLOUDINARY_API_SECRET'];
 
     const missing = requiredEnvVars.filter(envVar => !process.env[envVar]);
 
@@ -268,27 +228,25 @@ class S3UploadService {
       return {
         valid: false,
         missing,
-        message: `Missing required environment variables: ${missing.join(', ')}`,
+        message: `Missing required environment variables for Cloudinary: ${missing.join(', ')}`,
       };
     }
 
     return {
       valid: true,
-      bucketName: this.bucketName,
-      region: process.env.AWS_REGION || 'us-east-1',
+      cloudName: process.env.CLOUDINARY_CLOUD_NAME,
     };
   }
 
   /**
-   * Test S3 connection
+   * Test Cloudinary connection
    * @returns {Object} - Test result
    */
   async testConnection() {
     try {
-      console.log('Testing S3 connection...');
+      console.log('Testing Cloudinary connection...');
 
-      const testKey = `${this.folder}/test-connection-${Date.now()}.txt`;
-      const testContent = 'S3 connection test';
+      const testContent = 'Cloudinary connection test';
 
       // Try to upload a test file
       const uploadResult = await this.uploadFile(
@@ -312,14 +270,14 @@ class S3UploadService {
         console.warn('Test file uploaded but could not be deleted');
       }
 
-      console.log('S3 connection test successful');
+      console.log('Cloudinary connection test successful');
 
       return {
         success: true,
-        message: 'S3 connection test successful',
+        message: 'Cloudinary connection test successful',
       };
     } catch (error) {
-      console.error('S3 connection test failed:', error);
+      console.error('Cloudinary connection test failed:', error);
       return {
         success: false,
         error: error.message,

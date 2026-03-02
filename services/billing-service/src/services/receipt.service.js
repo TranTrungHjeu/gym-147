@@ -1,29 +1,26 @@
 const PDFDocument = require('pdfkit');
-const { S3Client, PutObjectCommand, GetObjectCommand } = require('@aws-sdk/client-s3');
-const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { v2: cloudinary } = require('cloudinary');
 
 /**
  * Receipt Service - Generate and manage payment receipts
  */
 class ReceiptService {
   constructor() {
-    // Initialize S3 client if credentials are available
+    // Initialize Cloudinary client if credentials are available
     if (
-      process.env.AWS_ACCESS_KEY_ID &&
-      process.env.AWS_SECRET_ACCESS_KEY &&
-      process.env.AWS_S3_BUCKET
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
     ) {
-      this.s3Client = new S3Client({
-        region: process.env.AWS_REGION || 'ap-southeast-1',
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
       });
-      this.bucketName = process.env.AWS_S3_BUCKET;
+      this.isConfigured = true;
     } else {
-      console.warn('[WARNING] AWS S3 credentials not configured. Receipts will be generated but not stored.');
-      this.s3Client = null;
+      console.warn('[WARNING] Cloudinary credentials not configured. Receipts will be generated but not stored.');
+      this.isConfigured = false;
     }
   }
 
@@ -156,69 +153,56 @@ class ReceiptService {
   }
 
   /**
-   * Upload receipt to S3
+   * Upload receipt to Cloudinary
    * @param {Buffer} pdfBuffer - PDF buffer
    * @param {string} paymentId - Payment ID
-   * @returns {Promise<string>} S3 URL or null if not configured
+   * @returns {Promise<string>} Cloudinary URL or null if not configured
    */
-  async uploadToS3(pdfBuffer, paymentId) {
-    if (!this.s3Client || !this.bucketName) {
+  async uploadToCloudinary(pdfBuffer, paymentId) {
+    if (!this.isConfigured) {
       return null;
     }
 
     try {
-      const key = `receipts/${paymentId}.pdf`;
+      const publicId = `receipts/${paymentId}.pdf`;
 
-      const command = new PutObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-        Body: pdfBuffer,
-        ContentType: 'application/pdf',
-        CacheControl: 'max-age=31536000', // 1 year
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            public_id: publicId,
+            resource_type: 'raw', // PDF files
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(pdfBuffer);
       });
 
-      await this.s3Client.send(command);
-
-      // Generate presigned URL (valid for 1 year)
-      const getCommand = new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      const url = await getSignedUrl(this.s3Client, getCommand, {
-        expiresIn: 31536000, // 1 year
-      });
-
-      return url;
+      return uploadResult.secure_url;
     } catch (error) {
-      console.error('Error uploading receipt to S3:', error);
+      console.error('Error uploading receipt to Cloudinary:', error);
       throw error;
     }
   }
 
   /**
-   * Get receipt URL from S3
+   * Get receipt URL from Cloudinary (using known public_id logic)
    * @param {string} paymentId - Payment ID
-   * @returns {Promise<string|null>} Presigned URL or null
+   * @returns {Promise<string|null>} Cloudinary URL or null
    */
   async getReceiptUrl(paymentId) {
-    if (!this.s3Client || !this.bucketName) {
+    if (!this.isConfigured) {
       return null;
     }
 
     try {
-      const key = `receipts/${paymentId}.pdf`;
-
-      const command = new GetObjectCommand({
-        Bucket: this.bucketName,
-        Key: key,
-      });
-
-      // Generate presigned URL (valid for 1 hour)
-      const url = await getSignedUrl(this.s3Client, command, {
-        expiresIn: 3600, // 1 hour
-      });
-
+      // Cloudinary resources uploaded as "raw" don't have transformation URLs out of the box in the same way,
+      // but they are public. We can just construct the URL if needed, or query it.
+      // Usually the URL is static: https://res.cloudinary.com/<cloud_name>/raw/upload/v1/receipts/<paymentId>.pdf
+      // Best to query the resource or assume it exists. For simplicity returning formatted URL.
+      const url = cloudinary.url(`receipts/${paymentId}.pdf`, { resource_type: 'raw', secure: true });
       return url;
     } catch (error) {
       // File doesn't exist or other error
@@ -248,7 +232,7 @@ class ReceiptService {
    */
   async generateAndUploadReceipt(payment, member = null) {
     const pdfBuffer = await this.generateReceipt(payment, member);
-    const url = await this.uploadToS3(pdfBuffer, payment.id);
+    const url = await this.uploadToCloudinary(pdfBuffer, payment.id);
 
     return {
       buffer: pdfBuffer,

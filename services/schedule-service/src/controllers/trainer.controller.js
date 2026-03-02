@@ -2661,7 +2661,7 @@ class TrainerController {
         const isChangingTimeOrLocation =
           (date &&
             new Date(date).toISOString().split('T')[0] !==
-              new Date(schedule.start_time).toISOString().split('T')[0]) ||
+            new Date(schedule.start_time).toISOString().split('T')[0]) ||
           (start_time && start_time !== schedule.start_time) ||
           (end_time && end_time !== schedule.end_time) ||
           (room_id && room_id !== schedule.room_id);
@@ -3010,8 +3010,7 @@ class TrainerController {
             additionalSlots
           );
           console.log(
-            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${
-              waitlistNotificationResult.notified || 0
+            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${waitlistNotificationResult.notified || 0
             } waitlist members.`
           );
         } catch (waitlistError) {
@@ -3078,21 +3077,21 @@ class TrainerController {
         currentSchedule.start_time &&
         updatedSchedule.start_time &&
         new Date(currentSchedule.start_time).toISOString().split('T')[0] !==
-          new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+        new Date(updatedSchedule.start_time).toISOString().split('T')[0]
       ) {
         changes.push('ngày');
       }
       if (
         parsedStartTime &&
         new Date(currentSchedule.start_time).getTime() !==
-          new Date(updatedSchedule.start_time).getTime()
+        new Date(updatedSchedule.start_time).getTime()
       ) {
         changes.push('giờ bắt đầu');
       }
       if (
         parsedEndTime &&
         new Date(currentSchedule.end_time).getTime() !==
-          new Date(updatedSchedule.end_time).getTime()
+        new Date(updatedSchedule.end_time).getTime()
       ) {
         changes.push('giờ kết thúc');
       }
@@ -3500,9 +3499,8 @@ class TrainerController {
           data: {
             status: 'CANCELLED',
             cancelled_at: new Date(),
-            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${
-              cancellation_reason || 'Không có lý do'
-            }`,
+            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${cancellation_reason || 'Không có lý do'
+              }`,
           },
         });
 
@@ -4100,46 +4098,42 @@ class TrainerController {
 
       console.log(`📷 Uploading avatar for trainer: ${trainer.id}`);
 
-      // Upload to S3 with folder 'trainer-avatars'
+      // Upload to Cloudinary with folder 'trainer-avatars'
       const uniqueSuffix = crypto.randomBytes(16).toString('hex');
-      const extension = path.extname(filename) || '.jpg';
-      const key = `trainer-avatars/${uniqueSuffix}${extension}`;
 
-      const { S3Client, PutObjectCommand } = require('@aws-sdk/client-s3');
-      const s3Client = new S3Client({
-        region: process.env.AWS_REGION,
-        credentials: {
-          accessKeyId: process.env.AWS_ACCESS_KEY_ID,
-          secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
-        },
+      const { v2: cloudinary } = require('cloudinary');
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+        api_key: process.env.CLOUDINARY_API_KEY,
+        api_secret: process.env.CLOUDINARY_API_SECRET,
       });
 
-      const command = new PutObjectCommand({
-        Bucket: process.env.AWS_S3_BUCKET_NAME,
-        Key: key,
-        Body: imageBuffer,
-        ContentType: mimeType,
-        CacheControl: 'public, max-age=31536000',
+      const uploadResult = await new Promise((resolve, reject) => {
+        const uploadStream = cloudinary.uploader.upload_stream(
+          {
+            folder: 'trainer-avatars',
+            public_id: uniqueSuffix,
+            resource_type: 'image',
+          },
+          (error, result) => {
+            if (error) return reject(error);
+            resolve(result);
+          }
+        );
+        uploadStream.end(imageBuffer);
       });
 
-      await s3Client.send(command);
-
-      // Generate URL
-      const url = `https://${process.env.AWS_S3_BUCKET_NAME}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+      const url = uploadResult.secure_url;
 
       // Delete old avatar if exists
-      if (trainer.profile_photo) {
+      if (trainer.profile_photo && trainer.profile_photo.includes('cloudinary.com')) {
         try {
-          const oldUrl = new URL(trainer.profile_photo);
-          const oldKey = oldUrl.pathname.substring(1);
-          if (oldKey.startsWith('trainer-avatars/')) {
-            const { DeleteObjectCommand } = require('@aws-sdk/client-s3');
-            const deleteCommand = new DeleteObjectCommand({
-              Bucket: process.env.AWS_S3_BUCKET_NAME,
-              Key: oldKey,
-            });
-            await s3Client.send(deleteCommand);
-            console.log(`[DELETE] Deleted old avatar: ${oldKey}`);
+          // Extract public_id from URL
+          const urlMatches = trainer.profile_photo.match(/\/v\d+\/(.+?)(?:\.[a-z0-9]+)?$/i);
+          if (urlMatches && urlMatches[1]) {
+            const oldPublicId = urlMatches[1];
+            await cloudinary.uploader.destroy(oldPublicId);
+            console.log(`[DELETE] Deleted old avatar: ${oldPublicId}`);
           }
         } catch (deleteError) {
           console.warn('[WARN] Error deleting old avatar (non-critical):', deleteError.message);
