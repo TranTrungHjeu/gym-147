@@ -294,9 +294,6 @@ class ScheduleService {
         !endpoint.includes('/schedules/')
       ) {
         endpoint = endpoint.replace('/schedules', '/schedule');
-        console.warn(
-          '[WARNING] Fixed incorrect endpoint: changed /schedules to /schedule for GET request'
-        );
       }
 
       let response: AxiosResponse<ApiResponse<T>>;
@@ -403,34 +400,10 @@ class ScheduleService {
     // Add filter parameters (if backend supports them)
     if (filters?.status) params.append('status', filters.status);
 
-    // Debug logging
-    console.log('Schedule Service - Fetching trainer calendar:', {
-      userId,
-      viewMode,
-      currentDate: currentDate.toISOString(),
-      startDate: startDate.toISOString(),
-      endDate: endDate.toISOString(),
-      startDateFormatted: startDate.toISOString().split('T')[0],
-      endDateFormatted: endDate.toISOString().split('T')[0],
-      params: params.toString(),
-      url: `/trainers/user/${userId}/schedule?${params}`,
-    });
-
     // Use trainer-specific endpoint that automatically filters by trainer_id
     const response = await this.request<{ schedules: any[] }>(
       `/trainers/user/${userId}/schedule?${params}`
     );
-
-    // Debug logging
-    console.log('Schedule Service - API Response:', {
-      success: response.success,
-      hasData: !!response.data,
-      dataType: typeof response.data,
-      dataKeys: response.data ? Object.keys(response.data) : [],
-      hasSchedules: !!response.data?.schedules,
-      schedulesCount: response.data?.schedules?.length || 0,
-      fullResponse: response,
-    });
 
     // Handle different response structures
     let schedulesArray: any[] = [];
@@ -450,42 +423,9 @@ class ScheduleService {
       }
     }
 
-    console.log('Schedule Service - Extracted schedules array:', {
-      count: schedulesArray.length,
-      firstSchedule: schedulesArray[0],
-      allSchedules: schedulesArray,
-    });
-
-    // If no schedules found, log more details for debugging
-    if (schedulesArray.length === 0) {
-      console.warn('Schedule Service - No schedules found. Possible reasons:', {
-        userId,
-        viewMode,
-        dateRange: {
-          start: startDate.toISOString(),
-          end: endDate.toISOString(),
-        },
-        responseStructure: {
-          success: response.success,
-          hasData: !!response.data,
-          dataKeys: response.data ? Object.keys(response.data) : [],
-          schedulesType: typeof response.data?.schedules,
-          schedulesIsArray: Array.isArray(response.data?.schedules),
-        },
-      });
-    }
-
     // Transform schedule data to calendar event format
     if (schedulesArray.length > 0) {
       let calendarEvents: CalendarEvent[] = schedulesArray.map((schedule: any) => {
-        // Debug each schedule
-        if (!schedule.gym_class) {
-          console.warn('Schedule Service - Schedule missing gym_class:', schedule);
-        }
-        if (!schedule.room) {
-          console.warn('Schedule Service - Schedule missing room:', schedule);
-        }
-
         return {
           id: schedule.id,
           title: schedule.gym_class?.name || schedule.class_name || 'Unknown Class',
@@ -498,11 +438,6 @@ class ScheduleService {
           max_capacity: schedule.max_capacity || 0,
           color: this.getStatusColor(schedule.status || 'SCHEDULED'),
         };
-      });
-
-      console.log('Schedule Service - After mapping:', {
-        count: calendarEvents.length,
-        events: calendarEvents,
       });
 
       // Apply client-side filtering if needed
@@ -522,7 +457,6 @@ class ScheduleService {
 
       // Additional client-side date filtering for precision
       // Note: Backend already filters by date, but we do additional filtering by start_time for precision
-      const beforeDateFilter = calendarEvents.length;
       calendarEvents = calendarEvents.filter(event => {
         if (!event.start) return false;
         const eventDate = new Date(event.start);
@@ -540,14 +474,7 @@ class ScheduleService {
         const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
         return eventDateOnly >= startDateOnly && eventDateOnly <= endDateOnly;
       });
-      console.log('Schedule Service - After date filter:', {
-        before: beforeDateFilter,
-        after: calendarEvents.length,
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      });
 
-      console.log('Schedule Service - Final calendar events:', calendarEvents.length);
 
       return {
         success: true,
@@ -557,11 +484,6 @@ class ScheduleService {
     }
 
     // If no schedules found, return empty array
-    console.warn('Schedule Service - No schedules found:', {
-      success: response.success,
-      data: response.data,
-      message: response.message,
-    });
     return {
       success: true,
       data: [],

@@ -920,31 +920,18 @@ export default function MemberManagement() {
                           <AdminTableCell className='overflow-hidden'>
                             <div className='flex items-center gap-1.5 sm:gap-2'>
                               <div className='relative flex-shrink-0'>
-                                {avatar ? (
-                                  <>
-                                    <img
-                                      src={avatar}
-                                      alt={fullName}
-                                      className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
-                                      onError={e => {
-                                        e.currentTarget.style.display = 'none';
-                                        const fallback = e.currentTarget
-                                          .nextElementSibling as HTMLElement;
-                                        if (fallback) {
-                                          fallback.classList.remove('hidden');
-                                          fallback.classList.add('flex');
-                                        }
-                                      }}
-                                    />
-                                    <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden'>
-                                      <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                                    </div>
-                                  </>
-                                ) : (
-                                  <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm'>
-                                    <Users className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
+                                  <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm overflow-hidden'>
+                                    {avatar ? (
+                                      <img
+                                        src={avatar}
+                                        alt={fullName}
+                                        className='w-full h-full object-cover'
+                                        onError={e => {
+                                          e.currentTarget.style.display = 'none';
+                                        }}
+                                      />
+                                    ) : null}
                                   </div>
-                                )}
                               </div>
                               <div className='min-w-0 flex-1 overflow-hidden'>
                                 <div className='flex items-center gap-1.5'>

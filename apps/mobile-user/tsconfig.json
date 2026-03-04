@@ -25,6 +25,5 @@
     "expo-env.d.ts",
     "nativewind-env.d.ts"
   ],
-  "exclude": ["node_modules"],
-  "extends": "expo/tsconfig.base"
+  "exclude": ["node_modules"]
 }

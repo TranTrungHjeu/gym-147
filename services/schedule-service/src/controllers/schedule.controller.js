@@ -132,8 +132,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedDate = payload.date
     ? parseDateInput(payload.date)
     : currentSchedule && currentSchedule.start_time
-    ? new Date(currentSchedule.start_time)
-    : null;
+      ? new Date(currentSchedule.start_time)
+      : null;
 
   if (!parsedDate) {
     errors.push('date không hợp lệ');
@@ -142,8 +142,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedStart = payload.start_time
     ? parseDateInput(payload.start_time)
     : currentSchedule
-    ? new Date(currentSchedule.start_time)
-    : null;
+      ? new Date(currentSchedule.start_time)
+      : null;
 
   if (!parsedStart) {
     errors.push('start_time không hợp lệ');
@@ -152,8 +152,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const parsedEnd = payload.end_time
     ? parseDateInput(payload.end_time)
     : currentSchedule
-    ? new Date(currentSchedule.end_time)
-    : null;
+      ? new Date(currentSchedule.end_time)
+      : null;
 
   if (!parsedEnd) {
     errors.push('end_time không hợp lệ');
@@ -184,8 +184,8 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
   const normalizedStatus = payload.status
     ? normalizeStatus(payload.status)
     : isUpdate
-    ? normalizeStatus(currentSchedule?.status)
-    : null;
+      ? normalizeStatus(currentSchedule?.status)
+      : null;
 
   if (payload.status && !normalizedStatus) {
     errors.push('status không hợp lệ');
@@ -345,7 +345,7 @@ const validateSchedulePayload = async (payload, { isUpdate = false, currentSched
       special_notes:
         payload.special_notes !== undefined
           ? payload.special_notes
-          : currentSchedule?.special_notes ?? null,
+          : (currentSchedule?.special_notes ?? null),
       status: normalizedStatus || currentSchedule?.status || undefined,
     },
   };
@@ -373,23 +373,7 @@ class ScheduleController {
       const finalFromDate = date_from || from_date;
       const finalToDate = date_to || to_date;
 
-      // Log request parameters for debugging
-      console.log('[GET_ALL_SCHEDULES] Request params:', {
-        status,
-        category,
-        difficulty,
-        trainer_id,
-        room_id,
-        from_date,
-        to_date,
-        date_from,
-        date_to,
-        finalFromDate,
-        finalToDate,
-        page,
-        limit,
-        search,
-      });
+      console.log('[GET_ALL_SCHEDULES] Request received');
 
       // Build where clause
       const whereClause = {};

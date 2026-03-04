@@ -12,14 +12,10 @@ const config = {
       apiKey: process.env.ESMS_API_KEY,
       secretKey: process.env.ESMS_SECRET_KEY,
       brandname: process.env.ESMS_BRANDNAME,
-      apiUrl: process.env.ESMS_API_URL || 'https://rest.esms.vn/MainService.svc/json/SendMultipleMessage_V4_post/',
+      apiUrl:
+        process.env.ESMS_API_URL ||
+        'https://rest.esms.vn/MainService.svc/json/SendMultipleMessage_V4_post/',
     },
-    // Comment out other SMS providers
-    // twilio: {
-    //   accountSid: process.env.TWILIO_ACCOUNT_SID,
-    //   authToken: process.env.TWILIO_AUTH_TOKEN,
-    //   phoneNumber: process.env.TWILIO_PHONE_NUMBER,
-    // },
   },
 
   // Email Configuration
@@ -31,11 +27,6 @@ const config = {
       fromEmail: process.env.RESEND_FROM_EMAIL,
       apiUrl: process.env.RESEND_API_URL || 'https://api.resend.com',
     },
-    // Comment out other email providers
-    // sendgrid: {
-    //   apiKey: process.env.SENDGRID_API_KEY,
-    //   fromEmail: process.env.SENDGRID_FROM_EMAIL,
-    // },
   },
 };
 

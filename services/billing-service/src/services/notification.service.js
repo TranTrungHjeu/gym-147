@@ -13,13 +13,15 @@ class NotificationService {
   async initializeRedis() {
     try {
       const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      
+
       this.redisClient = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
-              console.error('[ERROR] Billing Notification Service Redis: Max reconnection attempts reached');
+              console.error(
+                '[ERROR] Billing Notification Service Redis: Max reconnection attempts reached'
+              );
               return new Error('Max reconnection attempts reached');
             }
             return Math.min(retries * 100, 3000);
@@ -27,7 +29,7 @@ class NotificationService {
         },
       });
 
-      this.redisClient.on('error', (err) => {
+      this.redisClient.on('error', err => {
         console.error('[ERROR] Billing Notification Service Redis Error:', err);
         this.isConnected = false;
       });
@@ -44,7 +46,10 @@ class NotificationService {
 
       await this.redisClient.connect();
     } catch (error) {
-      console.error('[ERROR] Failed to initialize Billing Notification Service Redis:', error.message);
+      console.error(
+        '[ERROR] Failed to initialize Billing Notification Service Redis:',
+        error.message
+      );
       this.isConnected = false;
     }
   }
@@ -81,7 +86,9 @@ class NotificationService {
       };
 
       await this.redisClient.rPush(queueKey, JSON.stringify(notificationPayload));
-      console.log(`[SUCCESS] [BILLING NOTIFICATION] Enqueued notification to Redis: ${type} for user ${user_id} (priority: ${priority})`);
+      console.log(
+        `[SUCCESS] [BILLING NOTIFICATION] Enqueued notification to Redis: ${type} (priority: ${priority})`
+      );
       return true;
     } catch (error) {
       console.error('[ERROR] [BILLING NOTIFICATION] Error enqueueing notification:', error);
@@ -96,13 +103,16 @@ class NotificationService {
   async createInAppNotification({ userId, type, title, message, data = {} }) {
     try {
       const priority = data?.priority || 'normal';
-      const enqueued = await this.enqueueNotification({
-        user_id: userId,
-        type,
-        title,
-        message,
-        data,
-      }, priority);
+      const enqueued = await this.enqueueNotification(
+        {
+          user_id: userId,
+          type,
+          title,
+          message,
+          data,
+        },
+        priority
+      );
 
       if (enqueued) {
         // Return mock notification for backward compatibility
@@ -138,18 +148,26 @@ class NotificationService {
    * Create payment notification
    * @param {Object} params - { userId, paymentId, amount, status, paymentMethod, subscriptionId? }
    */
-  async createPaymentNotification({ userId, paymentId, amount, status, paymentMethod, subscriptionId = null }) {
-    const type = status === 'COMPLETED' || status === 'SUCCESS' 
-      ? 'PAYMENT_SUCCESS' 
-      : 'PAYMENT_FAILED';
-    
-    const title = status === 'COMPLETED' || status === 'SUCCESS'
-      ? 'Thanh toán thành công'
-      : 'Thanh toán thất bại';
-    
-    const message = status === 'COMPLETED' || status === 'SUCCESS'
-      ? `Thanh toán ${amount.toLocaleString('vi-VN')} VND đã được xử lý thành công`
-      : `Thanh toán ${amount.toLocaleString('vi-VN')} VND đã thất bại. Vui lòng thử lại.`;
+  async createPaymentNotification({
+    userId,
+    paymentId,
+    amount,
+    status,
+    paymentMethod,
+    subscriptionId = null,
+  }) {
+    const type =
+      status === 'COMPLETED' || status === 'SUCCESS' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED';
+
+    const title =
+      status === 'COMPLETED' || status === 'SUCCESS'
+        ? 'Thanh toán thành công'
+        : 'Thanh toán thất bại';
+
+    const message =
+      status === 'COMPLETED' || status === 'SUCCESS'
+        ? `Thanh toán ${amount.toLocaleString('vi-VN')} VND đã được xử lý thành công`
+        : `Thanh toán ${amount.toLocaleString('vi-VN')} VND đã thất bại. Vui lòng thử lại.`;
 
     const result = await this.createInAppNotification({
       userId,
@@ -167,9 +185,8 @@ class NotificationService {
 
     // Emit socket event
     if (global.io && result.success) {
-      const socketEvent = status === 'COMPLETED' || status === 'SUCCESS'
-        ? 'payment:success'
-        : 'payment:failed';
+      const socketEvent =
+        status === 'COMPLETED' || status === 'SUCCESS' ? 'payment:success' : 'payment:failed';
 
       global.io.to(`user:${userId}`).emit(socketEvent, {
         payment_id: paymentId,
@@ -267,12 +284,11 @@ class NotificationService {
    */
   async createInvoiceNotification({ userId, invoiceId, invoiceNumber, amount, status }) {
     const type = status === 'OVERDUE' ? 'INVOICE_OVERDUE' : 'INVOICE_GENERATED';
-    const title = status === 'OVERDUE' 
-      ? 'Hóa đơn quá hạn thanh toán'
-      : 'Hóa đơn mới';
-    const message = status === 'OVERDUE'
-      ? `Hóa đơn ${invoiceNumber} với số tiền ${amount.toLocaleString('vi-VN')} VND đã quá hạn thanh toán`
-      : `Hóa đơn ${invoiceNumber} với số tiền ${amount.toLocaleString('vi-VN')} VND đã được tạo`;
+    const title = status === 'OVERDUE' ? 'Hóa đơn quá hạn thanh toán' : 'Hóa đơn mới';
+    const message =
+      status === 'OVERDUE'
+        ? `Hóa đơn ${invoiceNumber} với số tiền ${amount.toLocaleString('vi-VN')} VND đã quá hạn thanh toán`
+        : `Hóa đơn ${invoiceNumber} với số tiền ${amount.toLocaleString('vi-VN')} VND đã được tạo`;
 
     const result = await this.createInAppNotification({
       userId,
@@ -340,7 +356,14 @@ class NotificationService {
    * Send notification (wrapper for createInAppNotification with user_id)
    * @param {Object} params - { user_id, type, title, message, data, channels }
    */
-  async sendNotification({ user_id, type, title, message, data = {}, channels = ['IN_APP', 'PUSH'] }) {
+  async sendNotification({
+    user_id,
+    type,
+    title,
+    message,
+    data = {},
+    channels = ['IN_APP', 'PUSH'],
+  }) {
     try {
       // Include channels in data for enqueueNotification
       const notificationData = {
@@ -368,4 +391,3 @@ class NotificationService {
 }
 
 module.exports = new NotificationService();
-

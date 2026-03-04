@@ -700,32 +700,18 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         {/* Avatar Section with Buttons */}
         <div className='lg:col-span-1 flex flex-col items-center lg:items-start mb-4 lg:mb-0 gap-4'>
           <div className='relative'>
-            {userAvatar ? (
-              <img
-                src={userAvatar}
-                alt={`${user.firstName || user.first_name} ${user.lastName || user.last_name}`}
-                className='w-24 h-24 rounded-full object-cover border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg'
-              />
-            ) : (
-              <div
-                className={`w-24 h-24 rounded-full flex items-center justify-center border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg ${
-                  [
-                    'bg-[var(--color-orange-500)]',
-                    'bg-[var(--color-orange-600)]',
-                    'bg-[var(--color-orange-700)]',
-                    'bg-[var(--color-orange-800)]',
-                  ][
-                    ((user?.firstName || user?.first_name || '').length +
-                      (user?.lastName || user?.last_name || '').length) %
-                      4
-                  ]
-                }`}
-              >
-                <span className='text-2xl font-bold text-white font-heading'>
-                  {getUserInitials(user)}
-                </span>
-              </div>
-            )}
+            <div className='w-24 h-24 rounded-full border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg bg-gray-100 dark:bg-gray-800 overflow-hidden'>
+              {userAvatar ? (
+                <img
+                  src={userAvatar}
+                  alt={`${user.firstName || user.first_name} ${user.lastName || user.last_name}`}
+                  className='w-full h-full object-cover'
+                  onError={e => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
+              ) : null}
+            </div>
             {user.isActive && (
               <div className='absolute bottom-0 right-0 w-6 h-6 bg-success-500 dark:bg-success-400 rounded-full border-4 border-white dark:border-gray-800'></div>
             )}

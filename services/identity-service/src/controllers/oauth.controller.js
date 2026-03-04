@@ -15,29 +15,16 @@ class OAuthController {
       const userId = req.query.userId || null; // Optional: link to existing account
       const redirectUri = req.query.redirect_uri || req.query.redirectUri || null; // Mobile app redirect URI (deep link, stored in state)
 
-      console.log('[OAUTH_INIT] Received request:', {
-        userId: userId,
-        redirectUri: redirectUri,
-        queryParams: {
-          userId: req.query.userId,
-          redirect_uri: req.query.redirect_uri,
-          redirectUri: req.query.redirectUri,
-        },
-        note: 'redirectUri is mobile deep link, will be stored in state and used later for redirect back to mobile app',
-      });
+      console.log('[OAUTH_INIT] OAuth initiation request received');
 
       // Store state token with redirect_uri for callback
       await this.oauthService.storeStateToken(state, userId, redirectUri);
-      console.log('[OAUTH_INIT] Stored state token with redirectUri:', {
-        state: state.substring(0, 20) + '...',
-        hasRedirectUri: !!redirectUri,
-        redirectUri: redirectUri ? redirectUri.substring(0, 50) + '...' : null,
-      });
+      console.log('[OAUTH_INIT] State token stored');
 
       // Get authorization URL (always uses backend callback URL for Google OAuth, not the mobile deep link)
       const authUrl = this.oauthService.getGoogleAuthUrl(state, redirectUri);
 
-      console.log('[OAUTH_INIT] Generated auth URL (first 150 chars):', authUrl.substring(0, 150));
+      console.log('[OAUTH_INIT] Authorization URL generated');
 
       res.json({
         success: true,
@@ -106,17 +93,7 @@ class OAuthController {
 
       // Get redirect_uri from state token (for mobile apps) or use default (for web)
       const redirectUri = stateVerification.data?.redirectUri || null;
-      console.log('[OAUTH_CALLBACK] Retrieved redirect URI from state:', {
-        redirectUri: redirectUri,
-        isDeepLink: redirectUri && redirectUri.includes('://') && !redirectUri.startsWith('http'),
-        stateData: {
-          userId: stateVerification.data?.userId,
-          redirectUri: stateVerification.data?.redirectUri,
-          timestamp: stateVerification.data?.timestamp,
-        },
-        willRedirectToMobile:
-          redirectUri && redirectUri.includes('://') && !redirectUri.startsWith('http'),
-      });
+      console.log('[OAUTH_CALLBACK] State token verified and redirect target resolved');
 
       // Exchange code for access token (pass redirect_uri for mobile apps)
       const tokenResult = await this.oauthService.exchangeGoogleCode(code, redirectUri);
@@ -167,13 +144,7 @@ class OAuthController {
       if (redirectUri && redirectUri.includes('://') && !redirectUri.startsWith('http')) {
         // Mobile app deep link
         const redirectUrl = `${redirectUri}?token=${tokens.token}&refreshToken=${tokens.refreshToken}&isNewUser=${userResult.isNewUser}`;
-        console.log('[OAUTH_CALLBACK] Redirecting to mobile deep link:', {
-          redirectUri: redirectUri,
-          redirectUrl: redirectUrl.substring(0, 100) + '...',
-          hasToken: !!tokens.token,
-          hasRefreshToken: !!tokens.refreshToken,
-          isNewUser: userResult.isNewUser,
-        });
+        console.log('[OAUTH_CALLBACK] Redirecting to mobile deep link');
         res.redirect(redirectUrl);
       } else {
         // Web frontend
@@ -182,11 +153,7 @@ class OAuthController {
           ? frontendUrl
           : `${frontendUrl}/auth/callback`;
         const redirectUrl = `${callbackUrl}?token=${tokens.token}&refreshToken=${tokens.refreshToken}&isNewUser=${userResult.isNewUser}`;
-        console.log('[OAUTH_CALLBACK] Redirecting to web frontend:', {
-          frontendUrl: frontendUrl,
-          callbackUrl: callbackUrl,
-          redirectUrl: redirectUrl.substring(0, 100) + '...',
-        });
+        console.log('[OAUTH_CALLBACK] Redirecting to web frontend callback');
         res.redirect(redirectUrl);
       }
     } catch (error) {

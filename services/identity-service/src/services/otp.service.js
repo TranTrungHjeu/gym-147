@@ -103,7 +103,7 @@ class OTPService {
   // Verify OTP (check Redis first, fallback to database)
   async verifyOTP(identifier, inputOTP, type = 'PHONE') {
     try {
-      console.log('Verifying OTP for:', identifier, 'type:', type, 'otp:', inputOTP);
+      console.log('Verifying OTP request');
       const otpKey = `otp:${identifier}:${type}`;
       const attemptsKey = `otp:attempts:${identifier}:${type}`;
 
@@ -111,21 +111,21 @@ class OTPService {
       if (redisService.isConnected && redisService.client) {
         try {
           const storedOTPHash = await redisService.client.get(otpKey);
-          
+
           if (storedOTPHash) {
             // OTP exists in Redis
             const hashedInputOTP = await this.hashOTP(inputOTP);
             const isValid = hashedInputOTP === storedOTPHash;
 
             // Get current attempts
-            const attemptsStr = await redisService.client.get(attemptsKey) || '0';
+            const attemptsStr = (await redisService.client.get(attemptsKey)) || '0';
             const attempts = parseInt(attemptsStr, 10);
 
             if (attempts >= this.maxAttempts) {
               // Max attempts exceeded, delete OTP
               await redisService.client.del(otpKey);
               await redisService.client.del(attemptsKey);
-              
+
               // Also delete from database
               await prisma.oTPVerification.deleteMany({
                 where: { identifier, type, verified_at: null },
@@ -153,7 +153,7 @@ class OTPService {
                 data: { verified_at: new Date() },
               });
 
-              console.log('[SUCCESS] OTP verified successfully for:', identifier);
+              console.log('[SUCCESS] OTP verified successfully');
               return {
                 success: true,
                 message: 'Xác thực thành công',
@@ -176,7 +176,7 @@ class OTPService {
                 data: { attempts: newAttempts },
               });
 
-              console.log('[ERROR] OTP verification failed for:', identifier, '- Attempts:', newAttempts);
+              console.log('[ERROR] OTP verification failed', { attempts: newAttempts });
               return {
                 success: false,
                 message: 'Mã OTP không đúng',
@@ -250,7 +250,7 @@ class OTPService {
           data: { verified_at: new Date() },
         });
 
-        console.log('[SUCCESS] OTP verified successfully for:', identifier);
+        console.log('[SUCCESS] OTP verified successfully');
         return {
           success: true,
           message: 'Xác thực thành công',
@@ -262,12 +262,9 @@ class OTPService {
           data: { attempts: otpRecord.attempts + 1 },
         });
 
-        console.log(
-          '[ERROR] OTP verification failed for:',
-          identifier,
-          '- Attempts:',
-          otpRecord.attempts + 1
-        );
+        console.log('[ERROR] OTP verification failed', {
+          attempts: otpRecord.attempts + 1,
+        });
         return {
           success: false,
           message: 'Mã OTP không đúng',
@@ -284,12 +281,12 @@ class OTPService {
   async sendPasswordResetSMS(phoneNumber, resetToken, resetLink) {
     try {
       const message = `Mã đặt lại mật khẩu của bạn: ${resetToken}. Link: ${resetLink}. Mã có hiệu lực 5 phút.`;
-      
+
       // Reuse sendSMSOTP logic but with custom message
       if (config.sms.provider === 'speedsms') {
         if (!config.sms.speedsms.accessToken) {
           console.warn('SpeedSMS access token is not configured. Falling back to mock mode.');
-          console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+          console.log('[MOCK SMS] Password reset SMS generated in mock mode');
           return {
             success: true,
             message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
@@ -343,7 +340,7 @@ class OTPService {
         // ESMS implementation
         if (!config.sms.esms.apiKey || !config.sms.esms.secretKey) {
           console.warn('ESMS credentials are not configured. Falling back to mock mode.');
-          console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+          console.log('[MOCK SMS] Password reset SMS generated in mock mode');
           return {
             success: true,
             message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
@@ -358,7 +355,7 @@ class OTPService {
         };
       } else {
         // Mock mode
-        console.log(`[MOCK SMS] Password reset sent to ${phoneNumber}: ${resetToken}`);
+        console.log('[MOCK SMS] Password reset SMS generated in mock mode');
         return {
           success: true,
           message: 'Mã đặt lại mật khẩu đã được gửi qua SMS (Mock)',
@@ -382,7 +379,7 @@ class OTPService {
         // SpeedSMS implementation - Uses HTTP Basic Authentication
         if (!config.sms.speedsms.accessToken) {
           console.warn('SpeedSMS access token is not configured. Falling back to mock mode.');
-          console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+          console.log('[MOCK SMS] OTP generated in mock mode');
           return {
             success: true,
             message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS token not configured)',
@@ -427,11 +424,10 @@ class OTPService {
           requestData.sender = sender;
         }
 
-        console.log('SpeedSMS request:', {
+        console.log('SpeedSMS request prepared', {
           url: config.sms.speedsms.apiUrl,
-          phone: formattedPhone,
           hasToken: !!config.sms.speedsms.accessToken,
-          sender: sender && sender.trim() !== '' ? sender : '(not included in request)',
+          hasSender: !!(sender && sender.trim() !== ''),
         });
 
         try {
@@ -484,7 +480,7 @@ class OTPService {
             // Nếu vẫn lỗi, fallback về mock
             if (response.data.status === 'error') {
               console.warn('SpeedSMS API returned error. Falling back to mock mode.');
-              console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+              console.log('[MOCK SMS] OTP generated in mock mode');
               return {
                 success: true,
                 message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS error)',
@@ -510,7 +506,7 @@ class OTPService {
               'SpeedSMS authentication failed (401). Access token may be invalid or expired.'
             );
             console.warn('Falling back to mock mode for this request.');
-            console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+            console.log('[MOCK SMS] OTP generated in mock mode');
             return {
               success: true,
               message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS auth failed)',
@@ -524,7 +520,7 @@ class OTPService {
             error.response?.data?.status === 'error'
           ) {
             console.warn('SpeedSMS sender/brandname error. Falling back to mock mode.');
-            console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+            console.log('[MOCK SMS] OTP generated in mock mode');
             return {
               success: true,
               message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS sender error)',
@@ -534,7 +530,7 @@ class OTPService {
 
           // Với các lỗi khác, cũng fallback về mock để không làm crash hệ thống
           console.warn('SpeedSMS API error. Falling back to mock mode.');
-          console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+          console.log('[MOCK SMS] OTP generated in mock mode');
           return {
             success: true,
             message: 'Mã OTP đã được gửi qua SMS (Mock - SpeedSMS error)',
@@ -569,7 +565,7 @@ class OTPService {
         }
       } else {
         // Mock implementation
-        console.log(`[MOCK SMS] OTP sent to ${phoneNumber}: ${otp}`);
+        console.log('[MOCK SMS] OTP generated in mock mode');
         return {
           success: true,
           message: 'Mã OTP đã được gửi qua SMS (Mock)',
@@ -633,7 +629,7 @@ class OTPService {
   </head>
   <body style="margin: 0; font-family: 'Inter', 'Space Grotesk', sans-serif; background: #ffffff; font-size: 14px;">
     <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url('https://i.postimg.cc/dtP6cK19/Orange-Geometic-Modern-Zoom-Virtual-Background.png'); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; font-size: 14px; color: #434343;">
-      
+
       <!-- Header -->
       <header>
         <table style="width: 100%">
@@ -659,8 +655,8 @@ class OTPService {
             <h1 style="margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f; font-family: 'Space Grotesk', sans-serif;">Mã OTP Xác Thực</h1>
             <p style="margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500; font-family: 'Inter', sans-serif;">Xin chào ${displayName},</p>
             <p style="margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px; font-family: 'Inter', sans-serif;">
-              Cảm ơn bạn đã chọn Gym147. Sử dụng mã OTP sau để hoàn tất quá trình xác thực tài khoản. 
-              Mã OTP có hiệu lực trong <span style="font-weight: 600; color: #1f1f1f">5 phút</span>. 
+              Cảm ơn bạn đã chọn Gym147. Sử dụng mã OTP sau để hoàn tất quá trình xác thực tài khoản.
+              Mã OTP có hiệu lực trong <span style="font-weight: 600; color: #1f1f1f">5 phút</span>.
               Không chia sẻ mã này với người khác, kể cả nhân viên Gym147.
             </p>
             <p style="margin: 0; margin-top: 60px; font-size: 40px; font-weight: 600; letter-spacing: 25px; color: #ba3d4f; font-family: 'Space Grotesk', sans-serif;">${otp}</p>
@@ -668,9 +664,9 @@ class OTPService {
         </div>
 
         <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c; font-family: 'Inter', sans-serif;">
-          Cần hỗ trợ? Liên hệ tại 
-          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a> 
-          hoặc truy cập 
+          Cần hỗ trợ? Liên hệ tại
+          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a>
+          hoặc truy cập
           <a href="https://gym147.com/help" target="_blank" style="color: #499fb6; text-decoration: none">Trung tâm trợ giúp</a>
         </p>
       </main>
@@ -737,7 +733,7 @@ class OTPService {
   </head>
   <body style="margin: 0; font-family: 'Inter', 'Space Grotesk', sans-serif; background: #ffffff; font-size: 14px;">
     <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url('https://i.postimg.cc/dtP6cK19/Orange-Geometic-Modern-Zoom-Virtual-Background.png'); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; font-size: 14px; color: #434343;">
-      
+
       <!-- Header -->
       <header>
         <table style="width: 100%">
@@ -778,9 +774,9 @@ class OTPService {
         </div>
 
         <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c; font-family: 'Inter', sans-serif;">
-          Cần hỗ trợ? Liên hệ tại 
-          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a> 
-          hoặc truy cập 
+          Cần hỗ trợ? Liên hệ tại
+          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a>
+          hoặc truy cập
           <a href="https://gym147.com/help" target="_blank" style="color: #499fb6; text-decoration: none">Trung tâm trợ giúp</a>
         </p>
       </main>
@@ -968,7 +964,7 @@ class OTPService {
   </head>
   <body style="margin: 0; font-family: 'Inter', 'Space Grotesk', sans-serif; background: #ffffff; font-size: 14px;">
     <div style="max-width: 680px; margin: 0 auto; padding: 45px 30px 60px; background: #f4f7ff; background-image: url('https://i.postimg.cc/dtP6cK19/Orange-Geometic-Modern-Zoom-Virtual-Background.png'); background-repeat: no-repeat; background-size: 800px 452px; background-position: top center; font-size: 14px; color: #434343;">
-      
+
       <!-- Header -->
       <header>
         <table style="width: 100%">
@@ -994,8 +990,8 @@ class OTPService {
             <h1 style="margin: 0; font-size: 24px; font-weight: 500; color: #1f1f1f; font-family: 'Space Grotesk', sans-serif;">Đặt Lại Mật Khẩu</h1>
             <p style="margin: 0; margin-top: 17px; font-size: 16px; font-weight: 500; font-family: 'Inter', sans-serif;">Xin chào ${displayName},</p>
             <p style="margin: 0; margin-top: 17px; font-weight: 500; letter-spacing: 0.56px; font-family: 'Inter', sans-serif;">
-              Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Gym147 của bạn. 
-              Nhấn vào nút bên dưới để tạo mật khẩu mới. 
+              Chúng tôi nhận được yêu cầu đặt lại mật khẩu cho tài khoản Gym147 của bạn.
+              Nhấn vào nút bên dưới để tạo mật khẩu mới.
               Link này có hiệu lực trong <span style="font-weight: 600; color: #1f1f1f">5 phút</span>.
             </p>
             <div style="text-align: center; margin: 60px 0;">
@@ -1014,9 +1010,9 @@ class OTPService {
         </div>
 
         <p style="max-width: 400px; margin: 0 auto; margin-top: 90px; text-align: center; font-weight: 500; color: #8c8c8c; font-family: 'Inter', sans-serif;">
-          Cần hỗ trợ? Liên hệ tại 
-          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a> 
-          hoặc truy cập 
+          Cần hỗ trợ? Liên hệ tại
+          <a href="mailto:support@gym147.com" style="color: #499fb6; text-decoration: none">support@gym147.com</a>
+          hoặc truy cập
           <a href="https://gym147.com/help" target="_blank" style="color: #499fb6; text-decoration: none">Trung tâm trợ giúp</a>
         </p>
       </main>

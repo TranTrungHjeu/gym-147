@@ -55,15 +55,10 @@ router.post('/user/:user_id/avatar', (req, res) => trainerController.uploadAvata
 // Note: Routes with specific patterns (like /certifications) must come before generic routes (like /:id)
 router.get('/:trainerId/certifications', (req, res, next) => {
   console.log('[SUCCESS] GET /trainers/:trainerId/certifications route matched');
-  console.log('[LOCATION] Request params:', req.params);
-  console.log('[LOCATION] Request query:', req.query);
   certificationController.getTrainerCertifications(req, res, next);
 });
 router.post('/:trainerId/certifications', (req, res, next) => {
   console.log('[SUCCESS] POST /trainers/:trainerId/certifications route matched');
-  console.log('[LOCATION] Request params:', req.params);
-  console.log('[LOCATION] Request body:', req.body);
-  console.log('[LOCATION] TrainerId from params:', req.params.trainerId);
   certificationController.createCertification(req, res, next);
 });
 router.post('/:trainerId/upload-certificate', certificationController.uploadCertificateToS3);
@@ -95,7 +90,12 @@ router.get('/user/:user_id/revenue', (req, res) => trainerController.getTrainerR
 
 // Salary routes
 router.get('/:trainer_id/salary-status', salaryController.getTrainerSalaryStatus);
-router.put('/:trainer_id/salary', authenticateToken, requireRole(['ADMIN', 'SUPER_ADMIN']), salaryController.setTrainerSalary);
+router.put(
+  '/:trainer_id/salary',
+  authenticateToken,
+  requireRole(['ADMIN', 'SUPER_ADMIN']),
+  salaryController.setTrainerSalary
+);
 
 router.put('/user/:user_id', (req, res) => trainerController.updateTrainerByUserId(req, res));
 router.put('/:id', (req, res) => trainerController.updateTrainer(req, res));

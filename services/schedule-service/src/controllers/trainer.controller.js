@@ -959,16 +959,7 @@ class TrainerController {
         endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
       }
 
-      // Debug logging
-      console.log('GetTrainerScheduleList - Query params:', {
-        user_id,
-        trainer_id: trainer.id,
-        date: req.query.date,
-        viewMode: req.query.viewMode,
-        baseDate: baseDate.toISOString(),
-        startDate: startDate.toISOString(),
-        endDate: endDate.toISOString(),
-      });
+      console.log('GetTrainerScheduleList request prepared');
 
       const schedules = await prisma.schedule.findMany({
         where: {
@@ -2661,7 +2652,7 @@ class TrainerController {
         const isChangingTimeOrLocation =
           (date &&
             new Date(date).toISOString().split('T')[0] !==
-            new Date(schedule.start_time).toISOString().split('T')[0]) ||
+              new Date(schedule.start_time).toISOString().split('T')[0]) ||
           (start_time && start_time !== schedule.start_time) ||
           (end_time && end_time !== schedule.end_time) ||
           (room_id && room_id !== schedule.room_id);
@@ -3010,7 +3001,8 @@ class TrainerController {
             additionalSlots
           );
           console.log(
-            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${waitlistNotificationResult.notified || 0
+            `[WAITLIST] Trainer increased capacity for schedule ${updatedSchedule.id}. Notified ${
+              waitlistNotificationResult.notified || 0
             } waitlist members.`
           );
         } catch (waitlistError) {
@@ -3077,21 +3069,21 @@ class TrainerController {
         currentSchedule.start_time &&
         updatedSchedule.start_time &&
         new Date(currentSchedule.start_time).toISOString().split('T')[0] !==
-        new Date(updatedSchedule.start_time).toISOString().split('T')[0]
+          new Date(updatedSchedule.start_time).toISOString().split('T')[0]
       ) {
         changes.push('ngày');
       }
       if (
         parsedStartTime &&
         new Date(currentSchedule.start_time).getTime() !==
-        new Date(updatedSchedule.start_time).getTime()
+          new Date(updatedSchedule.start_time).getTime()
       ) {
         changes.push('giờ bắt đầu');
       }
       if (
         parsedEndTime &&
         new Date(currentSchedule.end_time).getTime() !==
-        new Date(updatedSchedule.end_time).getTime()
+          new Date(updatedSchedule.end_time).getTime()
       ) {
         changes.push('giờ kết thúc');
       }
@@ -3499,8 +3491,9 @@ class TrainerController {
           data: {
             status: 'CANCELLED',
             cancelled_at: new Date(),
-            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${cancellation_reason || 'Không có lý do'
-              }`,
+            cancellation_reason: `Lịch dạy bị hủy bởi trainer: ${
+              cancellation_reason || 'Không có lý do'
+            }`,
           },
         });
 

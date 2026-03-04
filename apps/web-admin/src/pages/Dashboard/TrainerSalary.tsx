@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { DollarSign, Calendar, Clock, Users, TrendingUp, FileText } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
-import { TableLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../hooks/useToast';
 import { salaryService, type TrainerSalaryStatistics } from '../../services/salary.service';
 
@@ -113,7 +112,9 @@ export default function TrainerSalary() {
         </div>
 
         {isLoading ? (
-          <TableLoading />
+          <div className='rounded-xl border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-8 text-center text-gray-600 dark:text-gray-400'>
+            Đang tải dữ liệu...
+          </div>
         ) : statistics ? (
           <div className='space-y-6'>
             {/* Summary Cards */}

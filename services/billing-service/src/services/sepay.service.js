@@ -119,11 +119,6 @@ class SepayService {
       headers['X-Merchant-Id'] = this.merchantId;
     }
 
-    console.log('📤 Request headers:', {
-      Authorization: headers.Authorization?.substring(0, 20) + '...',
-      'X-Merchant-Id': headers['X-Merchant-Id'],
-    });
-
     return headers;
   }
 

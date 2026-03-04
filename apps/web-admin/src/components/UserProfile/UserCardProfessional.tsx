@@ -29,13 +29,6 @@ export default function UserCardProfessional({
   const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
   const isActive = user.isActive ?? user.is_active ?? true;
 
-  // Get initials for avatar fallback
-  const getInitials = () => {
-    const firstInitial = firstName.charAt(0).toUpperCase();
-    const lastInitial = lastName.charAt(0).toUpperCase();
-    return `${firstInitial}${lastInitial}` || 'U';
-  };
-
   return (
     <div
       onClick={onClick}
@@ -66,7 +59,7 @@ export default function UserCardProfessional({
         <div className='relative flex items-start justify-between'>
           {/* Avatar */}
           <div className='relative'>
-            <div className='relative w-16 h-16 rounded-full overflow-hidden ring-4 ring-white dark:ring-gray-800 shadow-md'>
+            <div className='relative w-16 h-16 rounded-full overflow-hidden ring-4 ring-white dark:ring-gray-800 shadow-md bg-gray-100 dark:bg-gray-700'>
               {avatar ? (
                 <img
                   data-flip-id={`avatar-${user.id}`}
@@ -75,24 +68,9 @@ export default function UserCardProfessional({
                   className='w-full h-full object-cover'
                   onError={e => {
                     e.currentTarget.style.display = 'none';
-                    const parent = e.currentTarget.parentElement;
-                    if (parent && !parent.querySelector('.avatar-fallback')) {
-                      const fallback = document.createElement('div');
-                      fallback.className =
-                        'avatar-fallback w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 text-white font-semibold text-lg';
-                      fallback.textContent = getInitials();
-                      parent.appendChild(fallback);
-                    }
                   }}
                 />
-              ) : (
-                <div
-                  data-flip-id={`avatar-${user.id}`}
-                  className='w-full h-full flex items-center justify-center bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-500 dark:to-orange-700 text-white font-semibold text-lg'
-                >
-                  {getInitials()}
-                </div>
-              )}
+              ) : null}
             </div>
             {/* Active Status Indicator */}
             {isActive && (

@@ -132,7 +132,9 @@ class DashboardController {
       try {
         const axios = require('axios');
         if (!process.env.MEMBER_SERVICE_URL) {
-          throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+          throw new Error(
+            'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+          );
         }
         const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
 
@@ -454,10 +456,14 @@ class DashboardController {
 
       // Get profile photos from member-service for members and schedule-service for trainers
       if (!process.env.MEMBER_SERVICE_URL) {
-        throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        throw new Error(
+          'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+        );
       }
       if (!process.env.SCHEDULE_SERVICE_URL) {
-        throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+        throw new Error(
+          'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+        );
       }
       const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
       const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
@@ -472,14 +478,7 @@ class DashboardController {
         .filter(user => user.role === 'TRAINER')
         .map(user => user.id);
 
-      console.log(`[SEARCH] Fetching profile photos:`, {
-        memberUserIds,
-        trainerUserIds,
-        memberCount: memberUserIds.length,
-        trainerCount: trainerUserIds.length,
-        memberServiceUrl,
-        scheduleServiceUrl,
-      });
+      console.log('[SEARCH] Fetching profile photos from downstream services');
 
       // Fetch profile photos from member-service if there are members
       if (memberUserIds.length > 0) {
@@ -487,16 +486,8 @@ class DashboardController {
           const profilePhotosResponse = await Promise.allSettled(
             memberUserIds.map(async userId => {
               try {
-                console.log(`[SEARCH] Fetching member profile photo for user: ${userId}`);
                 const response = await axios.get(`${memberServiceUrl}/members/user/${userId}`, {
                   timeout: 2000,
-                });
-                console.log(`[DATA] Member service response for ${userId}:`, {
-                  success: response.data.success,
-                  hasData: !!response.data.data,
-                  hasMember: !!response.data.data?.member,
-                  profile_photo: response.data.data?.member?.profile_photo,
-                  fullResponse: response.data,
                 });
                 if (response.data.success && response.data.data?.member?.profile_photo) {
                   return { userId, profilePhoto: response.data.data.member.profile_photo };
@@ -507,17 +498,16 @@ class DashboardController {
                   error.response?.status === 404
                     ? '404_NOT_FOUND'
                     : error.code === 'ECONNREFUSED'
-                    ? 'ECONNREFUSED'
-                    : error.code === 'ETIMEDOUT'
-                    ? 'ETIMEDOUT'
-                    : 'OTHER_ERROR';
+                      ? 'ECONNREFUSED'
+                      : error.code === 'ETIMEDOUT'
+                        ? 'ETIMEDOUT'
+                        : 'OTHER_ERROR';
 
-                console.log(`[WARNING] Member profile photo fetch error for ${userId}:`, {
+                console.log('[WARNING] Member profile photo fetch error:', {
                   errorType,
                   status: error.response?.status,
                   code: error.code,
                   message: error.message,
-                  url: `${memberServiceUrl}/members/user/${userId}`,
                 });
 
                 // Silently fail for common cases:
@@ -531,7 +521,7 @@ class DashboardController {
                   error.code !== 'ETIMEDOUT';
 
                 if (shouldLog) {
-                  console.warn(`Failed to fetch profile photo for user ${userId}:`, error.message);
+                  console.warn('Failed to fetch member profile photo:', error.message);
                 }
               }
               return null;
@@ -541,24 +531,20 @@ class DashboardController {
           profilePhotosResponse.forEach((result, index) => {
             if (result.status === 'fulfilled' && result.value) {
               profilePhotosMap[result.value.userId] = result.value.profilePhoto;
-              console.log(
-                `[SUCCESS] Member profile photo fetched: ${result.value.userId} -> ${result.value.profilePhoto}`
-              );
             } else if (result.status === 'rejected') {
               console.warn(
-                `[ERROR] Member profile photo fetch rejected for ${memberUserIds[index]}:`,
+                '[ERROR] Member profile photo fetch rejected:',
                 result.reason?.message || result.reason
               );
             } else if (result.status === 'fulfilled' && !result.value) {
-              console.warn(
-                `[WARNING] Member profile photo fetch returned null for ${memberUserIds[index]}`
-              );
+              console.warn('[WARNING] Member profile photo fetch returned null');
             }
           });
 
-          console.log(`[STATS] Member profile photos map after fetch:`, profilePhotosMap);
-          console.log(`[STATS] Member profile photos map keys:`, Object.keys(profilePhotosMap));
-          console.log(`[STATS] Member profile photos map size:`, Object.keys(profilePhotosMap).length);
+          console.log(
+            `[STATS] Member profile photos fetched:`,
+            Object.keys(profilePhotosMap).length
+          );
         } catch (error) {
           console.warn('Failed to fetch profile photos from member-service:', error.message);
         }
@@ -570,16 +556,8 @@ class DashboardController {
           const trainerPhotosResponse = await Promise.allSettled(
             trainerUserIds.map(async userId => {
               try {
-                console.log(`[SEARCH] Fetching trainer profile photo for user: ${userId}`);
                 const response = await axios.get(`${scheduleServiceUrl}/trainers/user/${userId}`, {
                   timeout: 2000,
-                });
-                console.log(`[DATA] Schedule service response for ${userId}:`, {
-                  success: response.data.success,
-                  hasData: !!response.data.data,
-                  hasTrainer: !!response.data.data?.trainer,
-                  profile_photo: response.data.data?.trainer?.profile_photo,
-                  fullResponse: response.data,
                 });
                 if (response.data.success && response.data.data?.trainer?.profile_photo) {
                   return { userId, profilePhoto: response.data.data.trainer.profile_photo };
@@ -590,10 +568,10 @@ class DashboardController {
                   error.response?.status === 404
                     ? '404_NOT_FOUND'
                     : error.code === 'ECONNREFUSED'
-                    ? 'ECONNREFUSED'
-                    : error.code === 'ETIMEDOUT'
-                    ? 'ETIMEDOUT'
-                    : 'OTHER_ERROR';
+                      ? 'ECONNREFUSED'
+                      : error.code === 'ETIMEDOUT'
+                        ? 'ETIMEDOUT'
+                        : 'OTHER_ERROR';
 
                 console.log(`[WARNING] Trainer profile photo fetch error for ${userId}:`, {
                   errorType,
@@ -663,11 +641,14 @@ class DashboardController {
           // For trainer and member: use profile_photo from their respective services
           const profilePhotoFromService = profilePhotosMap[user.id];
           avatar = profilePhotoFromService || null;
-          console.log(`[SEARCH] Trainer/Member avatar for ${user.role} ${user.email} (${user.id}):`, {
-            hasInMap: profilePhotosMap.hasOwnProperty(user.id),
-            mapValue: profilePhotoFromService,
-            final_avatar: avatar,
-          });
+          console.log(
+            `[SEARCH] Trainer/Member avatar for ${user.role} ${user.email} (${user.id}):`,
+            {
+              hasInMap: profilePhotosMap.hasOwnProperty(user.id),
+              mapValue: profilePhotoFromService,
+              final_avatar: avatar,
+            }
+          );
         } else {
           // Fallback for other roles: use face_photo_url
           avatar = user.face_photo_url || null;
@@ -759,7 +740,9 @@ class DashboardController {
         if (loginMemberUserIds.length > 0) {
           try {
             if (!process.env.MEMBER_SERVICE_URL) {
-              throw new Error('MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              throw new Error(
+                'MEMBER_SERVICE_URL environment variable is required. Please set it in your .env file.'
+              );
             }
             const memberServiceUrl = process.env.MEMBER_SERVICE_URL;
             const loginProfilePhotosResponse = await Promise.allSettled(
@@ -815,7 +798,9 @@ class DashboardController {
         if (loginTrainerUserIds.length > 0) {
           try {
             if (!process.env.SCHEDULE_SERVICE_URL) {
-              throw new Error('SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.');
+              throw new Error(
+                'SCHEDULE_SERVICE_URL environment variable is required. Please set it in your .env file.'
+              );
             }
             const scheduleServiceUrl = process.env.SCHEDULE_SERVICE_URL;
             const loginTrainerPhotosResponse = await Promise.allSettled(
@@ -987,7 +972,7 @@ class DashboardController {
   async getSystemActivityData(req, res) {
     let daysCount = 30;
     let startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    
+
     try {
       const { period = '30d' } = req.query;
 
@@ -1009,7 +994,9 @@ class DashboardController {
           startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
       }
 
-      console.log(`[STATS] Fetching system activity data for period: ${period}, daysCount: ${daysCount}, startDate: ${startDate.toISOString()}`);
+      console.log(
+        `[STATS] Fetching system activity data for period: ${period}, daysCount: ${daysCount}, startDate: ${startDate.toISOString()}`
+      );
 
       // First, check total count of access logs (for debugging)
       const totalCount = await prisma.accessLog.count();
@@ -1083,7 +1070,7 @@ class DashboardController {
         const month = String(date.getUTCMonth() + 1).padStart(2, '0');
         const day = String(date.getUTCDate()).padStart(2, '0');
         const dateKey = `${year}-${month}-${day}`;
-        
+
         if (!activityByDate[dateKey]) {
           activityByDate[dateKey] = 0;
         }
@@ -1098,10 +1085,12 @@ class DashboardController {
       const allDates = [];
       const allActivities = [];
       const today = new Date();
-      
-      console.log(`[STATS] Generating dates for ${daysCount} days, starting from today: ${today.toISOString()}`);
+
+      console.log(
+        `[STATS] Generating dates for ${daysCount} days, starting from today: ${today.toISOString()}`
+      );
       console.log(`[STATS] daysCount value: ${daysCount}, type: ${typeof daysCount}`);
-      
+
       for (let i = daysCount - 1; i >= 0; i--) {
         const date = new Date(today);
         date.setUTCDate(date.getUTCDate() - i);
@@ -1112,10 +1101,18 @@ class DashboardController {
         allDates.push(dateKey);
         allActivities.push(activityByDate[dateKey] || 0);
       }
-      
-      console.log(`[STATS] Generated ${allDates.length} dates, first: ${allDates[0]}, last: ${allDates[allDates.length - 1]}`);
-      console.log(`[STATS] All dates array length: ${allDates.length}, first 5:`, allDates.slice(0, 5));
-      console.log(`[STATS] All activities array length: ${allActivities.length}, first 5:`, allActivities.slice(0, 5));
+
+      console.log(
+        `[STATS] Generated ${allDates.length} dates, first: ${allDates[0]}, last: ${allDates[allDates.length - 1]}`
+      );
+      console.log(
+        `[STATS] All dates array length: ${allDates.length}, first 5:`,
+        allDates.slice(0, 5)
+      );
+      console.log(
+        `[STATS] All activities array length: ${allActivities.length}, first 5:`,
+        allActivities.slice(0, 5)
+      );
 
       // Format dates for display (short format)
       const formattedDates = allDates.map(dateKey => {
@@ -1144,12 +1141,12 @@ class DashboardController {
     } catch (error) {
       console.error('Get system activity data error:', error);
       console.error('Error stack:', error.stack);
-      
+
       // Even on error, return default empty data structure
       const allDates = [];
       const allActivities = [];
       const today = new Date();
-      
+
       for (let i = daysCount - 1; i >= 0; i--) {
         const date = new Date(today);
         date.setUTCDate(date.getUTCDate() - i);
@@ -1160,13 +1157,13 @@ class DashboardController {
         allDates.push(dateKey);
         allActivities.push(0);
       }
-      
+
       const formattedDates = allDates.map(dateKey => {
         const [year, month, day] = dateKey.split('-');
         const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
         return date.toLocaleDateString('vi-VN', { month: 'short', day: 'numeric' });
       });
-      
+
       res.status(500).json({
         success: false,
         message: 'Internal server error',

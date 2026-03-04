@@ -495,14 +495,6 @@ const SuperAdminDashboard: React.FC = () => {
                           const userName = activity.user?.name || t('common.unknown');
                           const userAvatar = activity.user?.avatar;
 
-                          const userInitials =
-                            userName
-                              .split(' ')
-                              .map(n => n[0])
-                              .join('')
-                              .toUpperCase()
-                              .slice(0, 2) || 'U';
-
                           return (
                             <div
                               key={activity.id}
@@ -521,22 +513,9 @@ const SuperAdminDashboard: React.FC = () => {
                                       className='w-full h-full object-cover'
                                       onError={e => {
                                         e.currentTarget.style.display = 'none';
-                                        const fallback = e.currentTarget
-                                          .nextElementSibling as HTMLElement;
-                                        if (fallback) fallback.style.display = 'flex';
                                       }}
                                     />
                                   ) : null}
-                                  <div
-                                    className={`w-full h-full rounded-full flex items-center justify-center text-white text-[10px] font-semibold font-heading ${
-                                      userAvatar ? 'hidden' : 'flex'
-                                    }`}
-                                    style={{
-                                      backgroundColor: userAvatar ? 'transparent' : '#fb6514',
-                                    }}
-                                  >
-                                    {userInitials}
-                                  </div>
                                 </div>
                                 {/* Activity type badge */}
                                 <div

@@ -6,7 +6,9 @@ try {
   const pushNotificationUtils = require('../utils/push-notification');
   sendPushNotification = pushNotificationUtils.sendPushNotification;
 } catch (e) {
-  console.warn('[WARNING] Push notification utility not available, push notifications will be skipped');
+  console.warn(
+    '[WARNING] Push notification utility not available, push notifications will be skipped'
+  );
   sendPushNotification = async () => {
     console.log('[MOBILE] Push notification skipped (utility not available)');
   };
@@ -32,11 +34,11 @@ class NotificationWorker {
   async initialize() {
     try {
       const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-      
+
       this.client = createClient({
         url: redisUrl,
         socket: {
-          reconnectStrategy: (retries) => {
+          reconnectStrategy: retries => {
             if (retries > 10) {
               console.error('[ERROR] Notification Worker: Max reconnection attempts reached');
               return new Error('Max reconnection attempts reached');
@@ -46,7 +48,7 @@ class NotificationWorker {
         },
       });
 
-      this.client.on('error', (err) => {
+      this.client.on('error', err => {
         console.error('[ERROR] Notification Worker Redis Error:', err);
         this.isConnected = false;
       });
@@ -74,7 +76,16 @@ class NotificationWorker {
   async processNotification(notificationData) {
     try {
       // Support both user_id and userId (from member-service)
-      const { user_id, userId, memberId, type, title, message, data, channels = ['IN_APP'] } = notificationData;
+      const {
+        user_id,
+        userId,
+        memberId,
+        type,
+        title,
+        message,
+        data,
+        channels = ['IN_APP'],
+      } = notificationData;
 
       // Get actual user_id (support both naming conventions)
       let actualUserId = user_id || userId;
@@ -88,7 +99,8 @@ class NotificationWorker {
             timeout: 5000,
           });
           if (memberResponse.data?.data?.member?.user_id || memberResponse.data?.data?.user_id) {
-            actualUserId = memberResponse.data.data.member?.user_id || memberResponse.data.data.user_id;
+            actualUserId =
+              memberResponse.data.data.member?.user_id || memberResponse.data.data.user_id;
           }
         } catch (memberError) {
           console.error('[ERROR] Failed to get user_id from member service:', memberError.message);
@@ -151,7 +163,9 @@ class NotificationWorker {
         global.io.to(roomName).emit('notification:new', socketPayload);
         // Also emit admin:bulk:notification for consistency with bulk notification service
         global.io.to(roomName).emit('admin:bulk:notification', socketPayload);
-        console.log(`[SOCKET] [WORKER] Emitted notification:new and admin:bulk:notification to ${roomName} with notification_id: ${notification.id}`);
+        console.log(
+          `[SOCKET] [WORKER] Emitted notification:new and admin:bulk:notification to ${roomName} with notification_id: ${notification.id}`
+        );
       }
 
       return { success: true, notification };
@@ -173,7 +187,7 @@ class NotificationWorker {
 
     try {
       const queueKey = `notifications:queue:${priority}`;
-      
+
       // Get notification from queue (blocking pop with timeout)
       // In redis v4+, blPop takes key and timeout as separate arguments
       const result = await this.client.blPop(
@@ -187,7 +201,7 @@ class NotificationWorker {
       }
 
       const notificationData = JSON.parse(result.element);
-      console.log(`📬 Processing ${priority} priority notification for user ${notificationData.user_id}`);
+      console.log(`📬 Processing ${priority} priority notification`);
 
       // Process notification
       const result_process = await this.processNotification(notificationData);
@@ -195,23 +209,28 @@ class NotificationWorker {
       if (!result_process.success) {
         // Retry logic
         const retryCount = (notificationData._retryCount || 0) + 1;
-        
+
         if (retryCount < this.maxRetries) {
           console.log(`[SYNC] Retrying notification (attempt ${retryCount}/${this.maxRetries})`);
           notificationData._retryCount = retryCount;
-          
+
           // Add back to queue with delay
           setTimeout(async () => {
             await this.enqueueNotification(notificationData, priority);
           }, this.retryDelay * retryCount);
         } else {
           // Move to dead letter queue
-          console.error(`[ERROR] Notification failed after ${this.maxRetries} retries, moving to DLQ`);
-          await this.client.lPush('notifications:dlq', JSON.stringify({
-            ...notificationData,
-            failed_at: new Date().toISOString(),
-            error: result_process.error,
-          }));
+          console.error(
+            `[ERROR] Notification failed after ${this.maxRetries} retries, moving to DLQ`
+          );
+          await this.client.lPush(
+            'notifications:dlq',
+            JSON.stringify({
+              ...notificationData,
+              failed_at: new Date().toISOString(),
+              error: result_process.error,
+            })
+          );
         }
       }
     } catch (error) {
@@ -305,4 +324,3 @@ if (require.main === module) {
 }
 
 module.exports = { NotificationWorker, notificationWorker };
-

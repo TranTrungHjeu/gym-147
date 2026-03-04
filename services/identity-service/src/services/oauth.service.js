@@ -34,11 +34,7 @@ class OAuthService {
     const key = `oauth:state:${state}`;
     const data = { userId, redirectUri, timestamp: Date.now() };
     await redisService.set(key, JSON.stringify(data), 600); // 10 minutes
-    console.log('[OAUTH_SERVICE] Stored state token in Redis:', {
-      key: key.substring(0, 30) + '...',
-      hasRedirectUri: !!redirectUri,
-      redirectUri: redirectUri ? redirectUri.substring(0, 50) + '...' : null,
-    });
+    console.log('[OAUTH_SERVICE] Stored state token in Redis');
   }
 
   /**
@@ -76,12 +72,7 @@ class OAuthService {
   getGoogleAuthUrl(state, customRedirectUri = null) {
     // Always use backend callback URL for Google OAuth (Google only accepts HTTP/HTTPS)
     // The customRedirectUri (deep link) is stored in state token and will be used when redirecting back to mobile app
-    console.log('[OAUTH] Google OAuth Configuration:', {
-      clientId: this.googleClientId ? `${this.googleClientId.substring(0, 20)}...` : 'NOT SET',
-      redirectUri: this.googleRedirectUri,
-      customRedirectUri: customRedirectUri,
-      note: 'Google OAuth requires redirect_uri to match exactly with registered URIs in Google Cloud Console',
-    });
+    console.log('[OAUTH] Google OAuth configuration loaded');
 
     const params = new URLSearchParams({
       client_id: this.googleClientId,
@@ -98,15 +89,7 @@ class OAuthService {
     // Verify that redirect_uri in the URL is the backend callback URL, not the mobile deep link
     const urlObj = new URL(authUrl);
     const redirectUriInUrl = urlObj.searchParams.get('redirect_uri');
-    console.log('[OAUTH] Generated Google OAuth URL:', {
-      redirectUriInUrl: redirectUriInUrl,
-      expectedBackendRedirectUri: this.googleRedirectUri,
-      matches: redirectUriInUrl === this.googleRedirectUri,
-      warning:
-        redirectUriInUrl !== this.googleRedirectUri
-          ? 'WARNING: redirect_uri does not match backend callback URL!'
-          : 'OK',
-    });
+    console.log('[OAUTH] Generated Google OAuth URL');
 
     return authUrl;
   }

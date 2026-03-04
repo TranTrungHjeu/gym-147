@@ -102,6 +102,9 @@ export default function RootLayout() {
     'SpaceGrotesk-SemiBold': SpaceGrotesk_600SemiBold,
     'SpaceGrotesk-Bold': SpaceGrotesk_700Bold,
   });
+  if (!__DEV__) {
+    console.log = () => undefined;
+  }
 
   useEffect(() => {
     if (fontsLoaded || fontError) {

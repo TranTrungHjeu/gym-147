@@ -36,7 +36,7 @@ if (!document.getElementById('sidebar-animations')) {
         opacity: 1;
       }
     }
-    
+
     @keyframes bounceIn {
       0% {
         transform: scale(0.3);
@@ -53,7 +53,7 @@ if (!document.getElementById('sidebar-animations')) {
         opacity: 1;
       }
     }
-    
+
     @keyframes ripple {
       0% {
         transform: scale(0);
@@ -64,7 +64,7 @@ if (!document.getElementById('sidebar-animations')) {
         opacity: 0;
       }
     }
-    
+
     @keyframes glow {
       0%, 100% {
         box-shadow: 0 0 5px rgba(249, 115, 22, 0.3);
@@ -562,7 +562,7 @@ const AppSidebar: React.FC = () => {
       className={`fixed mt-16 flex flex-col lg:mt-0 top-0 px-0 left-0 bg-white/95 backdrop-blur-sm dark:bg-gray-900/95 text-gray-900 dark:text-gray-100 h-screen transition-all duration-300 ease-in-out z-50 border-r border-gray-200 dark:border-gray-700 shadow-xl no-scrollbar ${
         !isExpanded && !isHovered && !isMobileOpen ? 'items-center' : 'items-start'
       }
-        ${isExpanded || isMobileOpen ? 'w-[280px]' : isHovered ? 'w-[280px]' : 'w-[80px]'}  
+        ${isExpanded || isMobileOpen ? 'w-[280px]' : isHovered ? 'w-[280px]' : 'w-[80px]'}
         ${isMobileOpen ? 'translate-x-0' : '-translate-x-full'}
         lg:translate-x-0 overflow-y-auto overflow-x-visible`}
       onMouseEnter={() => !isExpanded && setIsHovered(true)}

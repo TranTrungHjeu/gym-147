@@ -528,8 +528,8 @@ class MemberController {
 
           // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
           await prisma.$executeRaw`
-            UPDATE member_schema.members 
-            SET profile_embedding = ${vectorString}::vector 
+            UPDATE member_schema.members
+            SET profile_embedding = ${vectorString}::vector
             WHERE id = ${newMember.id}
           `;
 
@@ -572,21 +572,12 @@ class MemberController {
   // Get current member profile (for mobile app)
   async getCurrentMemberProfile(req, res) {
     try {
-      // Debug: Log headers
-      console.log('[SEARCH] Request headers:', {
-        authorization: req.headers.authorization
-          ? `${req.headers.authorization.substring(0, 20)}...`
-          : 'NOT SET',
-        'content-type': req.headers['content-type'],
-      });
+      console.log('[SEARCH] Get current member profile request received');
 
       // Get user_id from JWT token
       const userId = this.getUserIdFromToken(req);
       if (!userId) {
-        console.log(
-          '[ERROR] No userId extracted from token. Auth header:',
-          req.headers.authorization ? 'EXISTS' : 'MISSING'
-        );
+        console.log('[ERROR] No userId extracted from token');
         return res.status(401).json({
           success: false,
           message: 'No token provided',
@@ -594,8 +585,7 @@ class MemberController {
         });
       }
 
-      console.log('[CONFIG] Extracted userId:', userId);
-      console.log('[SEARCH] Searching for member with user_id:', userId);
+      console.log('[SEARCH] Searching member profile by authenticated user context');
 
       const member = await prisma.member.findUnique({
         where: { user_id: userId },
@@ -1172,8 +1162,8 @@ class MemberController {
             // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
             // Use parameterized query to prevent SQL injection
             await prisma.$executeRaw`
-              UPDATE member_schema.members 
-              SET profile_embedding = ${vectorString}::vector 
+              UPDATE member_schema.members
+              SET profile_embedding = ${vectorString}::vector
               WHERE id = ${member.id}
             `;
 
@@ -1477,8 +1467,8 @@ class MemberController {
 
           // Update profile_embedding using raw query (Prisma doesn't support vector type directly)
           await prisma.$executeRaw`
-            UPDATE member_schema.members 
-            SET profile_embedding = ${vectorString}::vector 
+            UPDATE member_schema.members
+            SET profile_embedding = ${vectorString}::vector
             WHERE id = ${member.id}
           `;
 

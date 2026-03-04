@@ -4,6 +4,11 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { ThemeProvider } from './context/ThemeContext';
 import './locales/i18n'; // Initialize i18n
+
+if (import.meta.env.PROD) {
+  console.log = () => undefined;
+}
+
 createRoot(document.getElementById('root')!).render(
   <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
     <HelmetProvider>

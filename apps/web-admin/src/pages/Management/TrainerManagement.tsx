@@ -69,6 +69,11 @@ const TrainerManagement: React.FC = () => {
   const [selectedTrainerForReview, setSelectedTrainerForReview] = useState<Trainer | null>(null);
   const [isViewCertificationsModalOpen, setIsViewCertificationsModalOpen] = useState(false);
   const highlightedTrainerId = useRef<string | null>(null);
+  const debugTrainerLog = (...args: unknown[]) => {
+    if (import.meta.env.DEV) {
+      console.debug(...args);
+    }
+  };
 
   useEffect(() => {
     loadTrainers();
@@ -81,9 +86,7 @@ const TrainerManagement: React.FC = () => {
     const trainerId = searchParams.get('trainer_id');
 
     if (certificationId && trainerId) {
-      console.log(
-        `[LINK] [TRAINER_MGMT] Opening certification modal from query params: certification_id=${certificationId}, trainer_id=${trainerId}`
-      );
+      debugTrainerLog('[LINK] [TRAINER_MGMT] Opening certification modal from query params');
 
       // Find trainer in the list
       const trainer = trainers.find(t => t.id === trainerId);
@@ -110,9 +113,7 @@ const TrainerManagement: React.FC = () => {
         setSearchParams({}, { replace: true });
       } else {
         // Trainer not loaded yet, wait for trainers to load
-        console.log(
-          `[WAIT] [TRAINER_MGMT] Trainer ${trainerId} not found yet, waiting for trainers to load...`
-        );
+        debugTrainerLog('[WAIT] [TRAINER_MGMT] Trainer not found yet, waiting for trainers');
       }
     }
   }, [searchParams, trainers, trainerPendingCerts, setSearchParams]);
@@ -364,10 +365,7 @@ const TrainerManagement: React.FC = () => {
     };
 
     const handleCertificationUpdated = (event: CustomEvent) => {
-      console.log(
-        '[NOTIFY] certification:updated event received in TrainerManagement:',
-        event.detail
-      );
+      debugTrainerLog('[NOTIFY] certification:updated event received in TrainerManagement');
       const data = event.detail;
 
       // Clear any pending reload
@@ -650,11 +648,8 @@ const TrainerManagement: React.FC = () => {
 
     const handleCertificationCreated = (event: Event) => {
       const customEvent = event as CustomEvent;
-      console.log(
-        '[NOTIFY] [TRAINER_MGMT] certification:created event received:',
-        customEvent.detail
-      );
-      console.log('[NOTIFY] [TRAINER_MGMT] Current trainers count:', trainers.length);
+      debugTrainerLog('[NOTIFY] [TRAINER_MGMT] certification:created event received');
+      debugTrainerLog('[NOTIFY] [TRAINER_MGMT] Current trainers count:', trainers.length);
       const data = customEvent.detail;
 
       // Verify event has required data
@@ -680,18 +675,14 @@ const TrainerManagement: React.FC = () => {
         data?.data?.status ||
         'PENDING'; // Default to PENDING for new certifications
 
-      console.log(
+      debugTrainerLog(
         `[SEARCH] [TRAINER_MGMT] Processing certification:created - trainerId: ${trainerId}, status: ${status}`
-      );
-      console.log(
-        `[LIST] [TRAINER_MGMT] Current trainers list (${trainers.length} trainers):`,
-        trainers.map(t => ({ id: t.id, user_id: t.user_id, name: t.full_name }))
       );
 
       if (trainerId) {
         // Find trainer in current list to normalize trainerId to trainer.id
         // This ensures trainerPendingCerts is keyed by the same ID used in the UI
-        console.log(
+        debugTrainerLog(
           `[SEARCH] [TRAINER_MGMT] Searching for trainer with trainerId: ${trainerId} in ${trainers.length} trainers`
         );
 
@@ -701,19 +692,18 @@ const TrainerManagement: React.FC = () => {
         if (trainer) {
           // Use trainer.id to ensure consistency with UI lookup
           normalizedTrainerId = trainer.id;
-          console.log(
+          debugTrainerLog(
             `[SUCCESS] [TRAINER_MGMT] Found trainer ${trainer.full_name} (id: ${trainer.id}, user_id: ${trainer.user_id}), normalizing trainerId: ${trainerId} -> ${normalizedTrainerId}`
           );
         } else {
           console.warn(
-            `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers). Available IDs:`,
-            trainers.map(t => ({ id: t.id, user_id: t.user_id, name: t.full_name }))
+            `[WARNING] [TRAINER_MGMT] Trainer ${trainerId} not found in current list (${trainers.length} trainers).`
           );
           // Try to find by user_id if trainerId is actually a user_id
           const trainerByUserId = trainers.find(t => t.user_id === trainerId);
           if (trainerByUserId) {
             normalizedTrainerId = trainerByUserId.id;
-            console.log(
+            debugTrainerLog(
               `[SUCCESS] [TRAINER_MGMT] Found trainer by user_id: ${trainerByUserId.full_name} (id: ${trainerByUserId.id}), using trainer.id: ${normalizedTrainerId}`
             );
           } else {
@@ -732,7 +722,7 @@ const TrainerManagement: React.FC = () => {
           };
 
           // Update pending certs optimistically - this will update the badge immediately
-          console.log(
+          debugTrainerLog(
             `[SYNC] [TRAINER_MGMT] Calling updatePendingCertsOptimistically with normalized trainerId: ${normalizedTrainerId}, data:`,
             {
               certification_id: normalizedData?.certification_id || normalizedData?.id,
@@ -745,24 +735,9 @@ const TrainerManagement: React.FC = () => {
           // The state update will trigger a re-render and the badge will update
           updatePendingCertsOptimistically(normalizedData, 'add');
 
-          console.log(
+          debugTrainerLog(
             `[SUCCESS] [TRAINER_MGMT] Certification created (PENDING) - added to pending certs optimistically (no reload)`
           );
-
-          // Log current state to verify update (after a short delay to allow state to update)
-          setTimeout(() => {
-            setTrainerPendingCerts(prev => {
-              console.log(
-                `[STATS] [TRAINER_MGMT] State verification - trainerPendingCerts keys:`,
-                Object.keys(prev),
-                `Count for ${normalizedTrainerId}:`,
-                prev[normalizedTrainerId]?.length || 0,
-                `All trainer counts:`,
-                Object.keys(prev).map(key => ({ trainerId: key, count: prev[key]?.length || 0 }))
-              );
-              return prev; // Don't modify state, just log
-            });
-          }, 100);
 
           // State update is handled by updatePendingCertsOptimistically
           // The badge will update automatically when trainerPendingCerts state changes
@@ -1038,7 +1013,7 @@ const TrainerManagement: React.FC = () => {
 
     // Listen to custom events (dispatched by AppLayout from socket events)
     // This is more reliable than accessing socket directly
-    console.log('[CONFIG] [TRAINER_MGMT] Registering event listeners for certification events');
+    debugTrainerLog('[CONFIG] [TRAINER_MGMT] Registering event listeners for certification events');
 
     // Add listeners to both window and document for better compatibility
     const handleCreated = handleCertificationCreated as EventListener;
@@ -1053,7 +1028,7 @@ const TrainerManagement: React.FC = () => {
     document.addEventListener('certification:created', handleCreated);
     document.addEventListener('certification:deleted', handleDeleted);
 
-    console.log(
+    debugTrainerLog(
       '[SUCCESS] [TRAINER_MGMT] Event listeners registered successfully on both window and document'
     );
 
@@ -1100,8 +1075,8 @@ const TrainerManagement: React.FC = () => {
             : [],
         }));
 
-        console.log('[LIST] Loaded trainers:', trainersList.length);
-        console.log('[LIST] Sample trainer specializations:', trainersList[0]?.specializations);
+        debugTrainerLog('[LIST] Loaded trainers:', trainersList.length);
+        debugTrainerLog('[LIST] Sample trainer specializations:', trainersList[0]?.specializations);
 
         setTrainers(trainersList);
 
@@ -1671,44 +1646,23 @@ const TrainerManagement: React.FC = () => {
                       <AdminTableCell className='overflow-hidden'>
                         <div className='flex items-center gap-1.5 sm:gap-2'>
                           <div className='relative flex-shrink-0 group'>
-                            {trainer.profile_photo ? (
-                              <>
+                            <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm cursor-help overflow-hidden'>
+                              {trainer.profile_photo ? (
                                 <img
                                   src={trainer.profile_photo}
                                   alt={trainer.full_name}
-                                  className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm cursor-help'
+                                  className='w-full h-full object-cover'
                                   onError={e => {
                                     e.currentTarget.style.display = 'none';
-                                    const fallback = e.currentTarget
-                                      .nextElementSibling as HTMLElement;
-                                    if (fallback) {
-                                      fallback.classList.remove('hidden');
-                                      fallback.classList.add('flex');
-                                    }
                                   }}
                                 />
-                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 items-center justify-center shadow-sm hidden cursor-help'>
-                                  <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                                </div>
-                                {(trainer.bio || trainer.full_name) && (
-                                  <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
-                                    {trainer.bio || trainer.full_name}
-                                    <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
-                                  </div>
-                                )}
-                              </>
-                            ) : (
-                              <>
-                                <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900/40 dark:to-orange-800/40 flex items-center justify-center shadow-sm cursor-help'>
-                                  <User className='w-4 h-4 sm:w-5 sm:h-5 md:w-6 md:h-6 text-orange-600 dark:text-orange-400' />
-                                </div>
-                                {(trainer.bio || trainer.full_name) && (
-                                  <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
-                                    {trainer.bio || trainer.full_name}
-                                    <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
-                                  </div>
-                                )}
-                              </>
+                              ) : null}
+                            </div>
+                            {(trainer.bio || trainer.full_name) && (
+                              <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
+                                {trainer.bio || trainer.full_name}
+                                <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
+                              </div>
                             )}
                           </div>
                           <div className='min-w-0 flex-1 overflow-hidden'>

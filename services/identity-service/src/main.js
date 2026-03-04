@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { setupSecureLogging } = require('../../shared/logger');
+setupSecureLogging();
+
 const cors = require('cors');
 const express = require('express');
 const http = require('http');
@@ -20,9 +23,7 @@ const server = http.createServer(app);
 // Log all incoming requests to debug Socket.IO connections
 server.on('request', (req, res) => {
   if (req.url && req.url.includes('socket.io')) {
-    console.log('[HTTP] Socket.IO request:', req.method, req.url, {
-      headers: req.headers,
-    });
+    console.log('[HTTP] Socket.IO request:', req.method, req.url);
   }
 });
 
@@ -30,17 +31,17 @@ server.on('request', (req, res) => {
 const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
-      origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    }
+        origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      }
     : {
-      origin: '*', // Allow all origins in development
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    };
+        origin: '*', // Allow all origins in development
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      };
 
 const io = new Server(server, {
   path: '/identity/socket.io/',
@@ -55,7 +56,6 @@ const io = new Server(server, {
       url: req.url,
       method: req.method,
       origin: req.headers.origin,
-      headers: req.headers,
     });
 
     // Always allow in development, check origin in production
@@ -113,12 +113,10 @@ io.engine.on('headers', (headers, req) => {
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth?.token;
-    const query = socket.handshake.query;
     const headers = socket.handshake.headers;
 
-    console.log(`[AUTH] Socket connection attempt: ${socket.id}`, {
+    console.log('[AUTH] Socket connection attempt', {
       hasToken: !!token,
-      query: query,
       origin: headers.origin,
       userAgent: headers['user-agent'],
       remoteAddress: socket.handshake.address,
@@ -126,7 +124,7 @@ io.use((socket, next) => {
 
     // If no token provided, allow connection (same as NotificationContext)
     if (!token) {
-      console.log(`[AUTH] Socket connection without token: ${socket.id} - allowing connection`);
+      console.log('[AUTH] Socket connection without token - allowing connection');
       return next();
     }
 
@@ -143,14 +141,12 @@ io.use((socket, next) => {
       // Attach user info to socket for later use
       socket.userId = decoded.userId || decoded.id || decoded.sub;
       socket.userRole = decoded.role;
-      console.log(
-        `[AUTH] Socket authenticated: ${socket.id}, userId: ${socket.userId}, role: ${socket.userRole}`
-      );
+      console.log('[AUTH] Socket authenticated');
       next();
     } catch (error) {
       // If token is invalid, still allow connection but log warning
       // This allows the app to work even if token expires
-      console.log(`[AUTH] Socket connection with invalid token: ${socket.id}`, error.message);
+      console.log('[AUTH] Socket connection with invalid token', error.message);
       next();
     }
   } catch (error) {
@@ -163,18 +159,15 @@ io.use((socket, next) => {
 // Socket.IO connection handling
 io.on('connection', socket => {
   try {
-    console.log(
-      `[SUCCESS] Identity service: Client connected: ${socket.id}, userId: ${socket.userId || 'unknown'
-      }, transport: ${socket.conn.transport.name}`
-    );
+    console.log('[SUCCESS] Identity service: Client connected');
 
     // Subscribe to user-specific notifications
     socket.on('subscribe:user', user_id => {
       try {
         socket.join(`user:${user_id}`);
-        console.log(`[USER] Identity service: Client ${socket.id} subscribed to user:${user_id}`);
+        console.log('[USER] Identity service: Client subscribed to user channel');
       } catch (error) {
-        console.error(`[ERROR] Failed to subscribe user ${user_id}:`, error);
+        console.error('[ERROR] Failed to subscribe user channel:', error);
       }
     });
 
@@ -182,11 +175,9 @@ io.on('connection', socket => {
     socket.on('unsubscribe:user', user_id => {
       try {
         socket.leave(`user:${user_id}`);
-        console.log(
-          `[USER] Identity service: Client ${socket.id} unsubscribed from user:${user_id}`
-        );
+        console.log('[USER] Identity service: Client unsubscribed from user channel');
       } catch (error) {
-        console.error(`[ERROR] Failed to unsubscribe user ${user_id}:`, error);
+        console.error('[ERROR] Failed to unsubscribe user channel:', error);
       }
     });
 
@@ -194,11 +185,7 @@ io.on('connection', socket => {
     socket.on('subscribe:admin', () => {
       try {
         socket.join('admin');
-        const adminRoom = io.sockets.adapter.rooms.get('admin');
-        const adminCount = adminRoom ? adminRoom.size : 0;
-        console.log(
-          `[ADMIN] Identity service: Client ${socket.id} subscribed to admin room (total: ${adminCount} admins)`
-        );
+        console.log('[ADMIN] Identity service: Client subscribed to admin room');
       } catch (error) {
         console.error(`[ERROR] Failed to subscribe admin:`, error);
       }
@@ -208,7 +195,7 @@ io.on('connection', socket => {
     socket.on('unsubscribe:admin', () => {
       try {
         socket.leave('admin');
-        console.log(`[ADMIN] Identity service: Client ${socket.id} unsubscribed from admin room`);
+        console.log('[ADMIN] Identity service: Client unsubscribed from admin room');
       } catch (error) {
         console.error(`[ERROR] Failed to unsubscribe admin:`, error);
       }
@@ -306,7 +293,7 @@ async function startServer() {
     } else if (process.env.NODE_ENV === 'production') {
       throw new Error(
         'ALLOWED_ORIGINS environment variable is required in production. ' +
-        'Please set it in your .env file (comma-separated list of allowed origins).'
+          'Please set it in your .env file (comma-separated list of allowed origins).'
       );
     } else {
       // Development fallback with warning

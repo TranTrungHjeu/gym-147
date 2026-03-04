@@ -42,7 +42,10 @@ class TrainerService {
           response = await scheduleApi.put<ApiResponse<T>>(endpoint, data);
           break;
         case 'DELETE':
-          response = await scheduleApi.delete<ApiResponse<T>>(endpoint);
+          response = await scheduleApi.delete<ApiResponse<T>>(
+            endpoint,
+            data !== undefined ? { data } : undefined
+          );
           break;
         default:
           response = await scheduleApi.get<ApiResponse<T>>(endpoint);
@@ -79,8 +82,11 @@ class TrainerService {
     return this.request<any[]>(`/trainers/${trainerId}/certifications`);
   }
 
-  async syncTrainerSpecializations(trainerId: string): Promise<ApiResponse<Trainer>> {
-    return this.request<Trainer>(`/trainers/${trainerId}/sync-specializations`, 'POST');
+  async syncTrainerSpecializations(trainerId: string): Promise<ApiResponse<{ trainer: Trainer }>> {
+    return this.request<{ trainer: Trainer }>(
+      `/trainers/${trainerId}/sync-specializations`,
+      'POST'
+    );
   }
 
   async uploadAvatar(
@@ -125,7 +131,9 @@ class TrainerService {
     userId: string,
     scheduleId: string,
     cancellationReason?: string
-  ): Promise<ApiResponse<{ schedule: any; cancelled_bookings: number; notified_members: string[] }>> {
+  ): Promise<
+    ApiResponse<{ schedule: any; cancelled_bookings: number; notified_members: string[] }>
+  > {
     return this.request<{ schedule: any; cancelled_bookings: number; notified_members: string[] }>(
       `/trainers/user/${userId}/schedules/${scheduleId}`,
       'DELETE',

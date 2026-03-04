@@ -220,14 +220,7 @@ async function main() {
   // Gym Memberships removed - not needed for single gym system
 
   console.log('\n[CELEBRATE] Hoàn thành seed data cho Identity Service!');
-  console.log('[LIST] Thông tin đăng nhập:');
-  console.log('   Super Admin:');
-  console.log('     Email: superadmin@gym147.dev');
-  console.log('     Password: 123abcC@');
-  console.log('\n   Members (12):');
-  memberData.forEach(m => console.log(`     ${m.email} / 123abcC@`));
-  console.log('\n   Trainers (4):');
-  trainerData.forEach(t => console.log(`     ${t.email} / 123abcC@`));
+  console.log('[LIST] Seed user data created successfully');
   console.log('\n[LINK] Member IDs cho các services khác:');
   memberData.forEach(m => console.log(`   - ${m.user_id}`));
   console.log('\n[LINK] Trainer IDs cho schedule service:');

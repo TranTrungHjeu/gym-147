@@ -92,7 +92,7 @@ export default function TrainerCertifications() {
       }
 
       const certId = certData.certification_id || certData.id;
-      
+
       setCertifications(prev => {
         // Check if certification already exists
         const exists = prev.some(cert => cert.id === certId);
@@ -138,10 +138,10 @@ export default function TrainerCertifications() {
       if (data?.certification_id || data?.id) {
         const certId = data.certification_id || data.id;
         const status = data.verification_status || data.status || 'PENDING';
-        
+
         // Update certification status optimistically
         updateCertificationStatus(certId, status, data);
-        
+
         // Background sync after delay to ensure data consistency
         setTimeout(() => {
           fetchCertifications(false);
@@ -163,7 +163,7 @@ export default function TrainerCertifications() {
       // Optimistically add certification to the list
       if (data?.certification_id || data?.id) {
         const certId = data.certification_id || data.id;
-        
+
         // Check if certification already exists
         setCertifications(prev => {
           const exists = prev.some(cert => cert.id === certId);
@@ -187,7 +187,7 @@ export default function TrainerCertifications() {
               return cert;
             });
           }
-          
+
           // Add new certification at the beginning
           const newCert: Certification = {
             id: certId,
@@ -204,11 +204,11 @@ export default function TrainerCertifications() {
             created_at: data.created_at || new Date().toISOString(),
             updated_at: data.updated_at || new Date().toISOString(),
           };
-          
+
           console.log(`[SUCCESS] [TRAINER_CERTS] Added certification ${certId} optimistically`);
           return [newCert, ...prev];
         });
-        
+
         // Background sync after delay to ensure data consistency
         setTimeout(() => {
           fetchCertifications(false);
@@ -230,7 +230,7 @@ export default function TrainerCertifications() {
       // Remove certification optimistically (no reload)
       if (data?.certification_id || data?.id) {
         const certId = data.certification_id || data.id;
-        
+
         // Check if certification exists before removing
         setCertifications(prev => {
           const exists = prev.some(cert => cert.id === certId);
@@ -238,7 +238,7 @@ export default function TrainerCertifications() {
             console.log(`[INFO] [TRAINER_CERTS] Certification ${certId} not found in list, skipping removal`);
             return prev;
           }
-          
+
           const filtered = prev.filter(cert => cert.id !== certId);
           console.log(`[SUCCESS] [TRAINER_CERTS] Removed certification ${certId} optimistically. Remaining: ${filtered.length}`);
           return filtered;
@@ -388,7 +388,7 @@ export default function TrainerCertifications() {
         // URL is already public/CDN URL from backend
         const imageUrl = cert.certificate_file_url;
         console.log('Using certificate URL directly (like equipment):', imageUrl);
-        
+
         setCertificateImageUrl(imageUrl);
         setCertificateName(cert.certification_name || 'Chứng chỉ');
         setViewCertificateModal(true);
@@ -424,12 +424,7 @@ export default function TrainerCertifications() {
     return (
       <div className='p-3 space-y-3'>
         <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center'>
-            <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4'></div>
-            <p className='text-gray-600 dark:text-gray-400 font-inter'>
-              Đang tải danh sách chứng chỉ...
-            </p>
-          </div>
+          <div className='text-center text-gray-600 dark:text-gray-400 font-inter'>Đang tải dữ liệu...</div>
         </div>
       </div>
     );
@@ -585,11 +580,11 @@ export default function TrainerCertifications() {
                   ></div>
 
                   {/* Card Header with Certificate Image Background */}
-                  <div 
+                  <div
                     className='relative overflow-hidden'
                     style={{
-                      backgroundImage: cert.certificate_file_url 
-                        ? `url(${cert.certificate_file_url})` 
+                      backgroundImage: cert.certificate_file_url
+                        ? `url(${cert.certificate_file_url})`
                         : 'linear-gradient(to bottom right, rgb(249, 250, 251), rgb(255, 255, 255))',
                       backgroundSize: 'cover',
                       backgroundPosition: 'center',
@@ -599,18 +594,18 @@ export default function TrainerCertifications() {
                   >
                     {/* Overlay for better text readability */}
                     <div className='absolute inset-0 bg-gradient-to-b from-black/70 via-black/50 to-black/80 dark:from-black/80 dark:via-black/60 dark:to-black/90'></div>
-                    
+
                     {/* Content with relative positioning */}
                     <div className='relative z-10 p-4'>
                       {/* Status Badge - Top Right */}
                       <div className='flex items-start justify-between gap-2 mb-3'>
                         <div className='flex-1 min-w-0'>
                           {/* Certification Name with Gradient Animation */}
-                          <h3 
+                          <h3
                             className='text-sm font-bold font-heading mb-2 line-clamp-2 leading-tight drop-shadow-md'
-                            style={{ 
-                              backgroundImage: cert.is_active === false 
-                                ? 'none' 
+                            style={{
+                              backgroundImage: cert.is_active === false
+                                ? 'none'
                                 : 'linear-gradient(90deg, #f06f05, #fbbf24, #fd8d47, #fbbf24, #f06f05)',
                               backgroundSize: cert.is_active === false ? 'auto' : '300% 100%',
                               backgroundPosition: cert.is_active === false ? 'center' : '200% center',
@@ -653,10 +648,10 @@ export default function TrainerCertifications() {
 
                   {/* Inactive Overlay - Centered (on top of everything) */}
                   {cert.is_active === false && (
-                    <div 
+                    <div
                       className='absolute inset-0 z-50 pointer-events-none flex items-center justify-center'
                     >
-                      <img 
+                      <img
                         src='/images/cetificate/inactive.png'
                         alt='Inactive'
                         className='w-40 h-40 object-contain opacity-90'

@@ -400,7 +400,7 @@ class NotificationController {
         ];
       }
 
-      console.log(`[LIST] [NOTIFICATION] Query filters:`, whereClause);
+      console.log('[LIST] [NOTIFICATION] Query filters prepared');
 
       // Use Promise.allSettled to handle partial failures gracefully
       // Wrap each query with timeout and retry logic

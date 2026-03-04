@@ -17,7 +17,6 @@ export default function TrainerCalendarWithFilters() {
   });
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [userId, setUserId] = useState<string>('');
-  const [showAllSchedules, setShowAllSchedules] = useState(false);
 
   useEffect(() => {
     fetchEvents();
@@ -32,18 +31,9 @@ export default function TrainerCalendarWithFilters() {
     try {
       setLoading(true);
 
-      // Debug logging
-      console.log('Fetching events with:', {
-        currentDate: currentDate.toISOString(),
-        viewMode,
-        filters,
-        dateRange: getDateRangeInfo(),
-      });
-
       const response = await scheduleService.getTrainerCalendar(currentDate, viewMode, filters);
 
       if (response.success) {
-        console.log('Received events:', response.data.length);
         setEvents(response.data);
       } else {
         throw new Error(response.message || 'Lỗi tải lịch dạy');
@@ -159,18 +149,13 @@ export default function TrainerCalendarWithFilters() {
     });
   }, [events, filters]);
 
-  // Events to display - either all or filtered based on toggle
-  const displayEvents = useMemo(() => {
-    return showAllSchedules ? events : filteredEvents;
-  }, [showAllSchedules, events, filteredEvents]);
+  // Events to display - always filtered view
+  const displayEvents = filteredEvents;
 
   if (loading) {
     return (
       <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4'></div>
-          <p className='text-gray-600 dark:text-gray-400'>Đang tải lịch dạy...</p>
-        </div>
+        <div className='text-center text-gray-600 dark:text-gray-400'>Đang tải dữ liệu...</div>
       </div>
     );
   }
@@ -257,27 +242,7 @@ export default function TrainerCalendarWithFilters() {
       <div className='bg-white dark:bg-gray-800 rounded-lg shadow-sm border border-gray-200 dark:border-gray-700 p-6 mb-6'>
         <div className='flex items-center justify-between mb-4'>
           <h3 className='text-lg font-semibold text-gray-800 dark:text-white/90'>Bộ lọc</h3>
-          <div className='flex items-center gap-2'>
-            <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-              Xem tất cả lịch:
-            </label>
-            <button
-              type='button'
-              onClick={() => setShowAllSchedules(!showAllSchedules)}
-              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
-                showAllSchedules ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
-              }`}
-            >
-              <span
-                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                  showAllSchedules ? 'translate-x-6' : 'translate-x-1'
-                }`}
-              />
-            </button>
-            <span className='text-xs text-gray-600 dark:text-gray-400'>
-              {showAllSchedules ? 'Tất cả' : 'Đã lọc'}
-            </span>
-          </div>
+          <div></div>
         </div>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-4'>
           <div>

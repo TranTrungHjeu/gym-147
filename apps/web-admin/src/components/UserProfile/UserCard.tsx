@@ -36,13 +36,6 @@ export default function UserCard({
   const fullName = `${firstName} ${lastName}`.trim() || 'Unknown User';
   const isActive = user.isActive ?? user.is_active ?? true;
 
-  // Get initials for avatar fallback
-  const getInitials = () => {
-    const firstInitial = firstName.charAt(0).toUpperCase();
-    const lastInitial = lastName.charAt(0).toUpperCase();
-    return `${firstInitial}${lastInitial}` || 'U';
-  };
-
   return (
     <div
       onClick={onClick}
@@ -74,26 +67,9 @@ export default function UserCard({
             className='h-full w-full object-cover object-center'
             onError={e => {
               e.currentTarget.style.display = 'none';
-              const parent = e.currentTarget.parentElement;
-              if (parent && !parent.querySelector('.avatar-fallback')) {
-                const initialsDiv = document.createElement('div');
-                initialsDiv.className =
-                  'avatar-fallback absolute inset-0 flex items-center justify-center';
-                initialsDiv.innerHTML = `<div class="h-16 w-16 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center text-white text-lg font-heading font-semibold shadow-md border-2 border-white dark:border-gray-800">${getInitials()}</div>`;
-                parent.appendChild(initialsDiv);
-              }
             }}
           />
-        ) : (
-          <div className='absolute inset-0 flex items-center justify-center'>
-            <div
-              data-flip-id={`avatar-${user.id}`}
-              className='h-16 w-16 rounded-full bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] flex items-center justify-center text-white text-lg font-heading font-semibold shadow-md border-2 border-white dark:border-gray-800'
-            >
-              {getInitials()}
-            </div>
-          </div>
-        )}
+        ) : null}
         {/* Active Status Badge - Top right corner */}
         {isActive && (
           <div className='absolute top-2 right-2 z-10'>

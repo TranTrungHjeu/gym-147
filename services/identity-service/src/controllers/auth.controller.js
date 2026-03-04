@@ -167,13 +167,16 @@ class AuthController {
    */
   startPasswordResetCleanupJob() {
     // Run cleanup every 2 minutes
-    this.passwordResetCleanupInterval = setInterval(async () => {
-      try {
-        await this.cleanupExpiredPasswordResetTokens();
-      } catch (error) {
-        console.error('Password reset cleanup job error:', error);
-      }
-    }, 2 * 60 * 1000); // 2 minutes
+    this.passwordResetCleanupInterval = setInterval(
+      async () => {
+        try {
+          await this.cleanupExpiredPasswordResetTokens();
+        } catch (error) {
+          console.error('Password reset cleanup job error:', error);
+        }
+      },
+      2 * 60 * 1000
+    ); // 2 minutes
 
     // Run initial cleanup
     this.cleanupExpiredPasswordResetTokens();
@@ -411,7 +414,7 @@ class AuthController {
       });
 
       if (push_token) {
-        console.log(`[BELL] Push token registered for user ${user.id}`);
+        console.log('[BELL] Push token registered');
       }
 
       // TC-AUTH-003: Create session with retry mechanism (prevent partial login state)
@@ -636,7 +639,7 @@ class AuthController {
             push_platform: null,
           },
         });
-        console.log(`[BELL] Push token cleared for user ${userId}`);
+        console.log('[BELL] Push token cleared');
       }
 
       res.json({
@@ -914,7 +917,7 @@ class AuthController {
             timeout: 5000, // 5 second timeout
           }
         );
-        console.log(`[SUCCESS] Member table updated for user ${newUser.id}`);
+        console.log('[SUCCESS] Member table updated');
       } catch (memberError) {
         console.error('[WARNING] Error updating member table (non-critical):', memberError.message);
         // Don't fail the entire request if member update fails
@@ -2501,10 +2504,7 @@ class AuthController {
         },
       });
 
-      console.log('[SUCCESS] User password changed by admin:', {
-        userId: id,
-        email: existingUser.email,
-      });
+      console.log('[SUCCESS] User password changed by admin');
 
       res.json({
         success: true,
@@ -2580,7 +2580,7 @@ class AuthController {
       // If user is TRAINER, delete trainer from schedule service first
       if (existingUser.role === 'TRAINER') {
         try {
-          console.log('[DELETE] Deleting trainer from schedule service for user:', id);
+          console.log('[DELETE] Deleting trainer from schedule service');
           const trainerResult = await scheduleService.deleteTrainer(id);
 
           if (trainerResult.success) {
@@ -2624,9 +2624,7 @@ class AuthController {
                 const subscription = subscriptionResponse.data.data.subscription;
                 // Only cancel if subscription is ACTIVE or TRIAL
                 if (subscription.status === 'ACTIVE' || subscription.status === 'TRIAL') {
-                  console.log(
-                    `[DELETE] Cancelling active subscription ${subscription.id} for member ${memberId}`
-                  );
+                  console.log('[DELETE] Cancelling active subscription for member');
                   await axios.patch(
                     `${billingServiceUrl}/subscriptions/${subscription.id}/cancel`,
                     { reason: 'User account deleted by administrator' },
@@ -2652,7 +2650,7 @@ class AuthController {
 
         // TC-USER-001: Delete member with retry mechanism
         try {
-          console.log('[DELETE] Deleting member from member service for user:', id);
+          console.log('[DELETE] Deleting member from member service');
           const memberResult = await memberService.deleteMember(id);
 
           if (memberResult.success) {
@@ -2721,7 +2719,7 @@ class AuthController {
 
                 if (pendingBookings.length > 0) {
                   console.log(
-                    `[DELETE] Cancelling ${pendingBookings.length} pending bookings for member ${memberId}`
+                    `[DELETE] Cancelling ${pendingBookings.length} pending bookings for member`
                   );
 
                   // Cancel each pending booking
@@ -2766,7 +2764,7 @@ class AuthController {
         await prisma.session.deleteMany({
           where: { user_id: id },
         });
-        console.log('[SUCCESS] Revoked all sessions and tokens for user:', id);
+        console.log('[SUCCESS] Revoked all sessions and tokens for user');
       } catch (sessionError) {
         console.warn('[WARNING] Error revoking sessions:', sessionError.message);
         // Continue with deletion even if session revocation fails
@@ -2778,7 +2776,7 @@ class AuthController {
         await prisma.accessLog.deleteMany({
           where: { user_id: id },
         });
-        console.log('[SUCCESS] Deleted access logs for user:', id);
+        console.log('[SUCCESS] Deleted access logs for user');
       } catch (error) {
         console.warn('[WARNING] Error deleting access logs (may not exist):', error.message);
       }
@@ -2884,13 +2882,7 @@ class AuthController {
       const { role, page = 1, limit = 10 } = req.query;
       const parsedLimit = parseInt(limit);
       const parsedPage = parseInt(page);
-      console.log('getAllUsers - Received query params:', {
-        role,
-        page,
-        limit,
-        parsedLimit,
-        parsedPage,
-      });
+      console.log('getAllUsers request received');
       const skip = (parsedPage - 1) * parsedLimit;
 
       const whereClause = role ? { role: role.toUpperCase() } : {};
@@ -3007,7 +2999,6 @@ class AuthController {
       console.log('📞 getAdmins endpoint called', {
         method: req.method,
         url: req.url,
-        headers: req.headers,
         ip: req.ip,
       });
 
@@ -3140,7 +3131,7 @@ class AuthController {
         },
       });
 
-      console.log(`[BELL] Push token updated for user ${id}`);
+      console.log('[BELL] Push token updated');
 
       res.json({
         success: true,
@@ -3181,7 +3172,7 @@ class AuthController {
         },
       });
 
-      console.log(`[BELL] Push preference updated for user ${id}: ${push_enabled}`);
+      console.log(`[BELL] Push preference updated: ${push_enabled}`);
 
       res.json({
         success: true,

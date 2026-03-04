@@ -1,4 +1,11 @@
 {
+  "name": "gym-147",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "services/*"
+  ],
   "dependencies": {
     "@prisma/client": "^6.19.0",
     "axios": "^1.13.2",

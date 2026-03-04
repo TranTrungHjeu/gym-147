@@ -1,4 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  ReactNode,
+  useRef,
+  useCallback,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 import { PageLoading } from '../components/ui/AppLoading';
 
@@ -24,21 +32,48 @@ interface NavigationProviderProps {
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
   const [isNavigating, setIsNavigating] = useState(false);
   const location = useLocation();
+  const fallbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearFallbackTimer = useCallback(() => {
+    if (fallbackTimerRef.current) {
+      clearTimeout(fallbackTimerRef.current);
+      fallbackTimerRef.current = null;
+    }
+  }, []);
+
+  const setNavigationLoading = useCallback(
+    (loading: boolean) => {
+      clearFallbackTimer();
+      setIsNavigating(loading);
+
+      if (loading) {
+        fallbackTimerRef.current = setTimeout(() => {
+          setIsNavigating(false);
+          fallbackTimerRef.current = null;
+        }, 2500);
+      }
+    },
+    [clearFallbackTimer]
+  );
 
   useEffect(() => {
-    // Show loading when route changes
-    setIsNavigating(true);
+    setNavigationLoading(true);
 
-    // Hide loading after a short delay for smooth transition
     const timer = setTimeout(() => {
-      setIsNavigating(false);
-    }, 1000); // 1s for professional feel - matches PageLoading duration
+      setNavigationLoading(false);
+    }, 700);
 
     return () => clearTimeout(timer);
-  }, [location]);
+  }, [location.pathname, location.search, location.hash, setNavigationLoading]);
+
+  useEffect(() => {
+    return () => {
+      clearFallbackTimer();
+    };
+  }, [clearFallbackTimer]);
 
   return (
-    <NavigationContext.Provider value={{ isNavigating, setIsNavigating }}>
+    <NavigationContext.Provider value={{ isNavigating, setIsNavigating: setNavigationLoading }}>
       {isNavigating && <PageLoading />}
       {children}
     </NavigationContext.Provider>

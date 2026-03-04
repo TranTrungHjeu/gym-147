@@ -13,12 +13,12 @@ try {
   const { createHttpClient } = require('../services/http-client.js');
   const { MEMBER_SERVICE_URL } = require('../config/serviceUrls.js');
   const memberClient = createHttpClient(MEMBER_SERVICE_URL);
-  
+
   embeddingService = {
-    generateEmbedding: async (text) => {
+    generateEmbedding: async text => {
       const response = await memberClient.post('/ai/embeddings', { text });
       return response.data.data.embedding;
-    }
+    },
   };
 }
 
@@ -41,7 +41,7 @@ class SearchController {
       }
 
       // Step 1: Generate embedding từ query
-      console.log('[SEARCH] Generating embedding for query:', query);
+      console.log('[SEARCH] Generating embedding');
       const queryVector = await embeddingService.generateEmbedding(query);
 
       // Step 2: Vector search
@@ -69,4 +69,3 @@ class SearchController {
 }
 
 module.exports = new SearchController();
-

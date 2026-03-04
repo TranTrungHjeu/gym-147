@@ -2805,8 +2805,8 @@ class BillingController {
           processed_at: processed_at
             ? new Date(processed_at)
             : status === 'COMPLETED'
-            ? new Date()
-            : null, // Set processed_at if status is COMPLETED
+              ? new Date()
+              : null, // Set processed_at if status is COMPLETED
         },
       });
 
@@ -4525,9 +4525,9 @@ class BillingController {
   // Enhanced subscription creation with discount support
   async createSubscriptionWithDiscount(req, res) {
     try {
-      console.log('[DATA] Request body:', req.body);
+      console.log('[DATA] createSubscriptionWithDiscount request received');
       const { member_id, plan_id, start_date, discount_code, bonus_days = 0 } = req.body;
-      console.log('[CONFIG] Extracted member_id:', member_id, 'plan_id:', plan_id);
+      console.log('[CONFIG] Subscription identifiers extracted');
 
       // Check if member already has a subscription
       const existingSubscription = await prisma.subscription.findUnique({

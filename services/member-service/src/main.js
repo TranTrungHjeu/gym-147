@@ -1,3 +1,6 @@
+const { setupSecureLogging } = require('../../shared/logger');
+setupSecureLogging();
+
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
@@ -41,24 +44,24 @@ server.headersTimeout = 66000; // 66 seconds (must be > keepAliveTimeout)
 const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
-      origin: (origin, callback) => {
-        const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
-        if (allowedOrigins.includes(origin) || !origin) {
-          callback(null, true);
-        } else {
-          callback(new Error('Not allowed by CORS'));
-        }
-      },
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    }
+        origin: (origin, callback) => {
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+          if (allowedOrigins.includes(origin) || !origin) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        },
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      }
     : {
-      origin: '*', // Allow all origins in development
-      methods: ['GET', 'POST', 'OPTIONS'],
-      credentials: false,
-      allowedHeaders: ['*'],
-    };
+        origin: '*', // Allow all origins in development
+        methods: ['GET', 'POST', 'OPTIONS'],
+        credentials: false,
+        allowedHeaders: ['*'],
+      };
 
 const io = new Server(server, {
   path: '/members/socket.io/',
@@ -118,57 +121,51 @@ io.engine.on('headers', (headers, req) => {
   headers['Access-Control-Expose-Headers'] = '*';
   headers['Access-Control-Max-Age'] = '86400'; // 24 hours
 
-  // Log for debugging in development
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[SOCKET] Socket.IO engine headers:', {
-      origin: origin || 'none',
-      setOrigin: corsOrigin,
-    });
-  }
+  // Debug logging removed to avoid noisy request-metadata traces
 });
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log('[SUCCESS] Client connected:', socket.id);
+  console.log('[SUCCESS] Client connected');
 
   // Subscribe to user-specific notifications (for queue, etc.)
   socket.on('subscribe:user', user_id => {
     socket.join(`user:${user_id}`);
-    console.log(`[USER] Client ${socket.id} subscribed to user:${user_id}`);
+    console.log('[USER] Client subscribed to user channel');
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`[USER] Client ${socket.id} unsubscribed from user:${user_id}`);
+    console.log('[USER] Client unsubscribed from user channel');
   });
 
   // Subscribe to equipment updates
   socket.on('subscribe:equipment', equipment_id => {
     socket.join(`equipment:${equipment_id}`);
-    console.log(`[SOCKET] Client ${socket.id} subscribed to equipment:${equipment_id}`);
+    console.log('[SOCKET] Client subscribed to equipment channel');
   });
 
   // Unsubscribe from equipment updates
   socket.on('unsubscribe:equipment', equipment_id => {
     socket.leave(`equipment:${equipment_id}`);
-    console.log(`[SOCKET] Client ${socket.id} unsubscribed from equipment:${equipment_id}`);
+    console.log('[SOCKET] Client unsubscribed from equipment channel');
   });
 
   // Subscribe to admin notifications (for admin/super admin users)
   socket.on('subscribe:admin', () => {
     socket.join('admin');
-    console.log(`[ADMIN] Client ${socket.id} subscribed to admin room`);
+    console.log('[ADMIN] Client subscribed to admin room');
   });
 
   // Unsubscribe from admin notifications
   socket.on('unsubscribe:admin', () => {
     socket.leave('admin');
-    console.log(`[ADMIN] Client ${socket.id} unsubscribed from admin room`);
+    console.log('[ADMIN] Client unsubscribed from admin room');
   });
 
   socket.on('disconnect', () => {
-    console.log('[ERROR] Client disconnected:', socket.id);
+    console.log('[ERROR] Client disconnected');
   });
 });
 
@@ -183,7 +180,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-    'Please set it in your .env file (comma-separated list of allowed origins).'
+      'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning

@@ -52,11 +52,8 @@ class ApiService {
       const refreshToken = await getRefreshToken();
 
       if (!refreshToken) {
-        console.log('[ERROR] No refresh token found');
         return null;
       }
-
-      console.log('[REFRESH] Refreshing access token...');
 
       const { controller, timeoutId } = this.createTimeoutController();
 
@@ -75,14 +72,13 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;
       }
 
       if (!response.ok) {
-        console.log('[ERROR] Token refresh failed:', response.status);
         return null;
       }
 
@@ -93,8 +89,6 @@ class ApiService {
 
         // Store new tokens
         await storeTokens(accessToken, newRefreshToken);
-
-        console.log('[SUCCESS] Access token refreshed successfully');
         return accessToken;
       }
 
@@ -158,12 +152,7 @@ class ApiService {
       const token = await getToken();
       if (token) {
         headers.Authorization = `Bearer ${token}`;
-        console.log('[AUTH] Token found, added to headers');
-      } else {
-        console.log('[WARN] No token found for protected endpoint:', endpoint);
       }
-    } else {
-      console.log('🔓 Public endpoint, skipping token:', endpoint);
     }
 
     return headers;
@@ -175,7 +164,7 @@ class ApiService {
   private async handleResponse<T>(
     response: Response,
     originalRequest?: () => Promise<Response>,
-    endpoint?: string
+    endpoint?: string,
   ): Promise<ApiResponse<T>> {
     const contentType = response.headers.get('content-type');
     const isJson = contentType && contentType.includes('application/json');
@@ -206,8 +195,6 @@ class ApiService {
       endpoint && publicEndpoints.some((pe) => endpoint.includes(pe));
 
     if (response.status === 401 && originalRequest && !isPublicEndpoint) {
-      console.log('🔒 Token expired (401), attempting refresh...');
-
       // If already refreshing, wait for it
       if (this.isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -218,7 +205,7 @@ class ApiService {
               const result = await this.handleResponse<T>(
                 retryResponse,
                 undefined,
-                endpoint
+                endpoint,
               );
               resolve(result);
             } catch (error) {
@@ -243,12 +230,11 @@ class ApiService {
           return await this.handleResponse<T>(
             retryResponse,
             undefined,
-            endpoint
+            endpoint,
           );
         } else {
           // Refresh failed - clear tokens and redirect to login
           this.isRefreshing = false;
-          console.log('[ERROR] Token refresh failed, please login again');
 
           // Import and call logout
           const { clearAuthData } = await import('@/utils/auth/storage');
@@ -281,10 +267,10 @@ class ApiService {
           errors: data?.errors,
         });
         console.error(
-          '   → This usually means the backend service is not running or unreachable'
+          '   → This usually means the backend service is not running or unreachable',
         );
         console.error(
-          '   → Check if the service container is running: docker ps'
+          '   → Check if the service container is running: docker ps',
         );
         console.error('   → Check service logs: docker logs <service-name>');
       }
@@ -302,10 +288,10 @@ class ApiService {
           errors: data?.errors,
         });
         console.error(
-          '   → This usually means the database query took too long'
+          '   → This usually means the database query took too long',
         );
         console.error(
-          '   → The request may have timed out but data might still be loading'
+          '   → The request may have timed out but data might still be loading',
         );
       }
 
@@ -331,7 +317,7 @@ class ApiService {
    */
   async get<T>(
     endpoint: string,
-    params?: Record<string, any> | { baseURL?: string; [key: string]: any }
+    params?: Record<string, any> | { baseURL?: string; [key: string]: any },
   ): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
       const baseURL =
@@ -343,7 +329,7 @@ class ApiService {
       const queryParams =
         params && 'baseURL' in params
           ? Object.fromEntries(
-              Object.entries(params).filter(([key]) => key !== 'baseURL')
+              Object.entries(params).filter(([key]) => key !== 'baseURL'),
             )
           : params;
 
@@ -356,7 +342,7 @@ class ApiService {
           if (key && value) {
             url.searchParams.append(
               decodeURIComponent(key),
-              decodeURIComponent(value)
+              decodeURIComponent(value),
             );
           }
         });
@@ -374,12 +360,6 @@ class ApiService {
       const headers = await this.getHeaders(endpointPath);
 
       console.log('[API] API GET Request:', url.toString());
-      console.log('[AUTH] Headers:', {
-        'Content-Type': headers['Content-Type'],
-        Authorization: headers.Authorization
-          ? `${headers.Authorization.substring(0, 20)}...`
-          : 'NOT SET',
-      });
 
       const { controller, timeoutId } = this.createTimeoutController();
 
@@ -395,7 +375,7 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;
@@ -412,7 +392,7 @@ class ApiService {
   async post<T>(
     endpoint: string,
     data?: any,
-    options?: { timeout?: number }
+    options?: { timeout?: number },
   ): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
       const url = `${this.baseURL}${endpoint}`;
@@ -465,7 +445,7 @@ class ApiService {
   async put<T>(
     endpoint: string,
     data?: any,
-    options?: { baseURL?: string }
+    options?: { baseURL?: string },
   ): Promise<ApiResponse<T>> {
     const makeRequest = async () => {
       const baseURL = options?.baseURL || this.baseURL;
@@ -492,7 +472,7 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;
@@ -534,7 +514,7 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;
@@ -565,7 +545,7 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;
@@ -603,7 +583,7 @@ class ApiService {
         clearTimeout(timeoutId);
         if (error.name === 'AbortError') {
           throw new Error(
-            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`
+            `Request timeout after ${REQUEST_TIMEOUT / 1000} seconds`,
           );
         }
         throw error;

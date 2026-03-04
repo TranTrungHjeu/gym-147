@@ -5,6 +5,7 @@ import { Activity, Calendar } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import trainerBackground from '../../assets/images/trainerhome-background.jpg';
+import { PageLoading } from '../../components/ui/AppLoading';
 import { useSidebar } from '../../context/SidebarContext';
 import { userService } from '../../services/user.service';
 
@@ -24,6 +25,11 @@ interface TrainerStats {
 export default function TrainerHomePage() {
   const navigate = useNavigate();
   const { isExpanded, isHovered, isMobileOpen } = useSidebar();
+  const debugTrainerHomeLog = (...args: unknown[]) => {
+    if (import.meta.env.DEV) {
+      console.debug(...args);
+    }
+  };
   const [user, setUser] = useState<any>(null);
   const [stats, setStats] = useState<TrainerStats>({
     totalClasses: 0,
@@ -135,8 +141,7 @@ export default function TrainerHomePage() {
       const response = await userService.getProfile();
       if (response.success) {
         setUser(response.data);
-        console.log('User profile:', response.data);
-        console.log('User role:', response.data.user.role);
+        debugTrainerHomeLog('User profile fetched successfully');
       }
     } catch (error) {
       console.error('Error fetching user profile:', error);
@@ -146,12 +151,12 @@ export default function TrainerHomePage() {
   const fetchTrainerStats = async () => {
     try {
       // Fetch real trainer stats from API
-      console.log('Fetching trainer stats...');
+      debugTrainerHomeLog('Fetching trainer stats...');
       const response = await userService.getTrainerStats();
-      console.log('Trainer stats response:', response);
+      debugTrainerHomeLog('Trainer stats response received');
       if (response.success) {
         setStats(response.data);
-        console.log('Stats set:', response.data);
+        debugTrainerHomeLog('Trainer stats state updated');
       } else {
         // Fallback to default values if API fails
         setStats({
@@ -184,11 +189,7 @@ export default function TrainerHomePage() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='animate-spin rounded-full h-32 w-32 border-b-2 border-blue-500'></div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (

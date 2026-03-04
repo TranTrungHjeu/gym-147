@@ -6,6 +6,7 @@ WORKDIR /app
 
 # Copy shared packages first (needed by services)
 COPY packages ./packages
+COPY services/shared ./services/shared
 
 # Install dependencies for shared packages
 WORKDIR /app/packages/shared-config

@@ -17,7 +17,7 @@ dayjs.extend(timezone);
 /**
  * Map certification level to Vietnamese
  */
-const getLevelLabel = (level) => {
+const getLevelLabel = level => {
   const levelMap = {
     BASIC: 'Cơ bản',
     INTERMEDIATE: 'Trung cấp',
@@ -30,7 +30,7 @@ const getLevelLabel = (level) => {
 /**
  * Map category to Vietnamese
  */
-const getCategoryLabel = (category) => {
+const getCategoryLabel = category => {
   const categoryMap = {
     CARDIO: 'Tim mạch',
     STRENGTH: 'Sức mạnh',
@@ -136,19 +136,10 @@ const getTrainerCertifications = async (req, res) => {
  */
 const createCertification = async (req, res) => {
   try {
-    console.log('\n[START] [CREATE_CERT] ========== CERTIFICATION CREATION REQUEST RECEIVED ==========');
-    console.log('[START] [CREATE_CERT] Request method:', req.method);
-    console.log('[START] [CREATE_CERT] Request URL:', req.url);
-    console.log('[START] [CREATE_CERT] Request params:', JSON.stringify(req.params, null, 2));
-    console.log('[START] [CREATE_CERT] Request body keys:', Object.keys(req.body || {}));
-    console.log('[START] [CREATE_CERT] Request body:', JSON.stringify({
-      ...req.body,
-      certificate_file_url: req.body?.certificate_file_url ? 'PRESENT' : 'MISSING',
-      aiScanResult: req.body?.aiScanResult ? 'PRESENT' : 'MISSING',
-    }, null, 2));
+    console.log('[START] [CREATE_CERT] Certification creation request received');
 
     const { trainerId } = req.params;
-    console.log('[LOCATION] [CREATE_CERT] trainerId from params:', trainerId);
+    console.log('[LOCATION] [CREATE_CERT] Trainer context resolved');
 
     const {
       category,
@@ -162,16 +153,7 @@ const createCertification = async (req, res) => {
       skipAiScan, // Flag to skip AI scan for manual entry
     } = req.body;
 
-    console.log('[LOCATION] [CREATE_CERT] Extracted data:', {
-      category,
-      certification_name,
-      certification_level,
-      hasCertificateFile: !!certificate_file_url,
-      skipAiScan: skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1,
-      skipAiScanType: typeof skipAiScan,
-      skipAiScanValue: skipAiScan,
-      hasAiScanResult: !!aiScanResult,
-    });
+    console.log('[LOCATION] [CREATE_CERT] Certification payload parsed');
 
     // Validate required fields
     if (
@@ -232,9 +214,7 @@ const createCertification = async (req, res) => {
       if (higherLevelCerts.length > 0) {
         // Reject if there's a higher level VERIFIED cert
         const highestCert = higherLevelCerts.reduce((prev, curr) =>
-          levelOrder[curr.certification_level] > levelOrder[prev.certification_level]
-            ? curr
-            : prev
+          levelOrder[curr.certification_level] > levelOrder[prev.certification_level] ? curr : prev
         );
         const levelLabel = getLevelLabel(highestCert.certification_level);
         const categoryLabel = getCategoryLabel(category);
@@ -278,8 +258,11 @@ const createCertification = async (req, res) => {
     let aiScanPerformed = false;
 
     // Normalize skipAiScan flag (handle boolean, string, number)
-    const shouldSkipAiScan = skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
-    console.log(`[SEARCH] [CREATE_CERT] AI Scan Logic: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScan}, hasFile=${!!certificate_file_url}`);
+    const shouldSkipAiScan =
+      skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
+    console.log(
+      `[SEARCH] [CREATE_CERT] AI Scan Logic: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScan}, hasFile=${!!certificate_file_url}`
+    );
 
     // Validate and normalize aiScanResult from frontend (only if not skipping AI scan)
     if (!shouldSkipAiScan && aiScanResult && typeof aiScanResult === 'object') {
@@ -298,14 +281,19 @@ const createCertification = async (req, res) => {
           source: aiScanResult.source || 'Frontend',
           extractedData: aiScanResult.extractedData || undefined,
         };
-        console.log('[SUCCESS] [CREATE_CERT] Using AI scan result from frontend (already scanned during upload)');
+        console.log(
+          '[SUCCESS] [CREATE_CERT] Using AI scan result from frontend (already scanned during upload)'
+        );
         console.log('[LOCATION] [CREATE_CERT] AI scan result summary:', {
           hasRedSeal: finalAiScanResult.hasRedSeal,
           confidence: finalAiScanResult.confidence,
           source: finalAiScanResult.source,
         });
       } catch (parseError) {
-        console.error('[ERROR] [CREATE_CERT] Error parsing aiScanResult from frontend:', parseError);
+        console.error(
+          '[ERROR] [CREATE_CERT] Error parsing aiScanResult from frontend:',
+          parseError
+        );
         finalAiScanResult = null; // Will trigger backend scan
       }
     }
@@ -314,7 +302,9 @@ const createCertification = async (req, res) => {
     if (shouldSkipAiScan) {
       // Manual entry - skip AI scan, always set to PENDING for admin review
       verificationStatus = 'PENDING';
-      console.log('[INFO] [CREATE_CERT] Manual entry detected (skipAiScan=true) - Skipping AI scan, requires admin review (PENDING)');
+      console.log(
+        '[INFO] [CREATE_CERT] Manual entry detected (skipAiScan=true) - Skipping AI scan, requires admin review (PENDING)'
+      );
       console.log('[INFO] [CREATE_CERT] skipAiScan value:', skipAiScan, 'type:', typeof skipAiScan);
       // Don't perform AI scan, even if file exists
     } else if (certificate_file_url) {
@@ -326,7 +316,9 @@ const createCertification = async (req, res) => {
         // Only auto-verify if AI scan is successful with high confidence
         if (finalAiScanResult.hasRedSeal && finalAiScanResult.confidence > 0.7) {
           verificationStatus = 'VERIFIED';
-          console.log('[SUCCESS] [CREATE_CERT] AI auto-verification successful - Certification automatically approved');
+          console.log(
+            '[SUCCESS] [CREATE_CERT] AI auto-verification successful - Certification automatically approved'
+          );
         } else {
           verificationStatus = 'PENDING';
           console.log(
@@ -368,15 +360,21 @@ const createCertification = async (req, res) => {
       }
     } else {
       // No certificate file uploaded (manual entry without file)
-      console.log('[INFO] [CREATE_CERT] No certificate file uploaded - Manual review required (PENDING)');
+      console.log(
+        '[INFO] [CREATE_CERT] No certificate file uploaded - Manual review required (PENDING)'
+      );
       verificationStatus = 'PENDING'; // Ensure PENDING status for manual entry
-      console.log(`[SUCCESS] [CREATE_CERT] Verification status set to PENDING for manual entry (no file)`);
+      console.log(
+        `[SUCCESS] [CREATE_CERT] Verification status set to PENDING for manual entry (no file)`
+      );
     }
 
     // Final verification status check
     const isManualEntryFinal = shouldSkipAiScan || !certificate_file_url;
     console.log(`[DATA] [CREATE_CERT] Final verification status: ${verificationStatus}`);
-    console.log(`[DATA] [CREATE_CERT] Final determination: isManualEntry=${isManualEntryFinal}, hasFile=${!!certificate_file_url}, shouldSkipAiScan=${shouldSkipAiScan}, aiScanPerformed=${aiScanPerformed}`);
+    console.log(
+      `[DATA] [CREATE_CERT] Final determination: isManualEntry=${isManualEntryFinal}, hasFile=${!!certificate_file_url}, shouldSkipAiScan=${shouldSkipAiScan}, aiScanPerformed=${aiScanPerformed}`
+    );
 
     // Helper function to get current date in Vietnam timezone (GMT+7) - date only (no time)
     const getVietnamDateOnly = () => {
@@ -386,7 +384,7 @@ const createCertification = async (req, res) => {
     };
 
     // Helper function to parse date string and convert to Vietnam timezone - date only (no time)
-    const parseDateVietnam = (dateString) => {
+    const parseDateVietnam = dateString => {
       if (!dateString) return null;
 
       try {
@@ -398,7 +396,10 @@ const createCertification = async (req, res) => {
           // Date only format (YYYY-MM-DD) - interpret as Vietnam timezone
           const [year, month, day] = dateString.split('-').map(Number);
           // Create date in Vietnam timezone (GMT+7)
-          const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+          const vnDate = dayjs.tz(
+            `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`,
+            'Asia/Ho_Chi_Minh'
+          );
           if (vnDate.isValid()) {
             return vnDate.toDate();
           }
@@ -423,7 +424,10 @@ const createCertification = async (req, res) => {
               const year = dateObj.getFullYear();
               const month = dateObj.getMonth() + 1;
               const day = dateObj.getDate();
-              vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+              vnDate = dayjs.tz(
+                `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`,
+                'Asia/Ho_Chi_Minh'
+              );
             } else {
               return null;
             }
@@ -447,7 +451,9 @@ const createCertification = async (req, res) => {
     let expirationDate = null;
 
     try {
-      console.log(`\n[CREATE_CERT] ========== VALIDATING DATES WITH VIETNAM TIMEZONE (GMT+7) ==========`);
+      console.log(
+        `\n[CREATE_CERT] ========== VALIDATING DATES WITH VIETNAM TIMEZONE (GMT+7) ==========`
+      );
       console.log(`[CREATE_CERT] issued_date input: ${issued_date}`);
       console.log(`[CREATE_CERT] expiration_date input: ${expiration_date}`);
 
@@ -495,7 +501,9 @@ const createCertification = async (req, res) => {
 
         // Convert to Date object for database storage
         expirationDate = expirationDateVietnam;
-        const expirationDateStr = dayjs(expirationDateVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+        const expirationDateStr = dayjs(expirationDateVietnam)
+          .tz('Asia/Ho_Chi_Minh')
+          .format('YYYY-MM-DD');
         console.log(`[CREATE_CERT] Expiration date (Vietnam GMT+7): ${expirationDateStr}`);
 
         // Validate expiration_date is after issued_date (compare dates only)
@@ -576,9 +584,8 @@ const createCertification = async (req, res) => {
         console.log(
           `[SYNC] Starting specialization sync for trainer ${actualTrainerId} after certification creation with status VERIFIED`
         );
-        const syncResult = await specializationSyncService.updateTrainerSpecializations(
-          actualTrainerId
-        );
+        const syncResult =
+          await specializationSyncService.updateTrainerSpecializations(actualTrainerId);
         if (syncResult && syncResult.success) {
           console.log(
             `[SUCCESS] Auto-synced specializations for trainer ${actualTrainerId} after certification creation`
@@ -605,7 +612,8 @@ const createCertification = async (req, res) => {
     // IMPORTANT: Always send notification for PENDING certifications (manual entry, AI scan failed, or no file)
     // Also send notification for VERIFIED certifications (AI auto-verified)
     // Manual entry is determined by: skipAiScan flag is true OR no certificate file URL
-    const shouldSkipAiScanFinal = skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
+    const shouldSkipAiScanFinal =
+      skipAiScan === true || skipAiScan === 'true' || skipAiScan === 1 || skipAiScan === '1';
     const isManualEntry = shouldSkipAiScanFinal || !certificate_file_url;
 
     console.log(`\n[NOTIFY] [CREATE_CERT] ========== STARTING NOTIFICATION PROCESS ==========`);
@@ -624,11 +632,15 @@ const createCertification = async (req, res) => {
       hasAiScanResult: !!finalAiScanResult,
       aiScanPerformed,
     });
-    console.log(`[NOTIFY] [CREATE_CERT] Manual entry determination: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScanFinal}, hasFile=${!!certificate_file_url}, isManualEntry=${isManualEntry}`);
+    console.log(
+      `[NOTIFY] [CREATE_CERT] Manual entry determination: skipAiScan=${skipAiScan} (type: ${typeof skipAiScan}), shouldSkipAiScan=${shouldSkipAiScanFinal}, hasFile=${!!certificate_file_url}, isManualEntry=${isManualEntry}`
+    );
 
     // Send notification to admins (for PENDING or VERIFIED certifications)
     // This should ALWAYS be called for PENDING certifications (including manual entry)
-    console.log(`\n[NOTIFY] [CREATE_CERT] ========== STEP 1: SENDING NOTIFICATION TO ADMINS ==========`);
+    console.log(
+      `\n[NOTIFY] [CREATE_CERT] ========== STEP 1: SENDING NOTIFICATION TO ADMINS ==========`
+    );
     console.log(`[NOTIFY] [CREATE_CERT] Step 1: Sending notification to admins...`);
     console.log(`[NOTIFY] [CREATE_CERT] Step 1: Parameters:`, {
       trainerId: actualTrainerId,
@@ -653,11 +665,17 @@ const createCertification = async (req, res) => {
         isManualEntry, // Flag to indicate manual entry
       });
       console.log(`[SUCCESS] [CREATE_CERT] Step 1: Admin notification sent successfully`);
-      console.log(`[SUCCESS] [CREATE_CERT] Step 1: Result:`, notificationResult || 'No return value');
+      console.log(
+        `[SUCCESS] [CREATE_CERT] Step 1: Result:`,
+        notificationResult || 'No return value'
+      );
       console.log(`[NOTIFY] [CREATE_CERT] ========== END STEP 1 ==========\n`);
     } catch (adminNotifError) {
       console.error('\n[ERROR] [CREATE_CERT] ========== STEP 1: CRITICAL ERROR ==========');
-      console.error('[ERROR] [CREATE_CERT] Step 1: Error sending admin notification:', adminNotifError);
+      console.error(
+        '[ERROR] [CREATE_CERT] Step 1: Error sending admin notification:',
+        adminNotifError
+      );
       console.error('[ERROR] [CREATE_CERT] Step 1: Error stack:', adminNotifError.stack);
       console.error('[ERROR] [CREATE_CERT] Step 1: Error details:', {
         message: adminNotifError.message,
@@ -708,7 +726,9 @@ const createCertification = async (req, res) => {
 
       if (verificationStatus === 'VERIFIED' && finalAiScanResult) {
         // AI auto-verified: send "AI duyệt" notification to trainer (role: AI)
-        console.log(`[NOTIFY] [CREATE_CERT] Step 2: Sending AI verification notification to trainer...`);
+        console.log(
+          `[NOTIFY] [CREATE_CERT] Step 2: Sending AI verification notification to trainer...`
+        );
         await notificationService.notifyCertificationAutoVerified(
           actualTrainerId,
           certification.id,
@@ -717,8 +737,12 @@ const createCertification = async (req, res) => {
         console.log(`[SUCCESS] [CREATE_CERT] Step 2: AI verification notification sent to trainer`);
       } else if (verificationStatus === 'PENDING') {
         // PENDING: send notification to trainer about pending status
-        console.log(`[NOTIFY] [CREATE_CERT] Step 2: Sending pending status notification to trainer...`);
-        console.log(`[NOTIFY] [CREATE_CERT] Step 2: isManualEntry=${isManualEntry}, aiScanPerformed=${aiScanPerformed}`);
+        console.log(
+          `[NOTIFY] [CREATE_CERT] Step 2: Sending pending status notification to trainer...`
+        );
+        console.log(
+          `[NOTIFY] [CREATE_CERT] Step 2: isManualEntry=${isManualEntry}, aiScanPerformed=${aiScanPerformed}`
+        );
 
         await notificationService.sendCertificationStatusNotification({
           trainerId: actualTrainerId,
@@ -728,19 +752,25 @@ const createCertification = async (req, res) => {
           certificationLevel: certification_level,
           verificationStatus: 'PENDING',
           isManualEntry,
-          message:
-            isManualEntry
-              ? `Chứng chỉ ${category} (${certification_level}) của bạn đã được gửi và đang chờ quản trị viên duyệt`
-              : aiScanPerformed
-                ? `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (AI scan không đạt yêu cầu)`
-                : `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (không có quét AI)`,
+          message: isManualEntry
+            ? `Chứng chỉ ${category} (${certification_level}) của bạn đã được gửi và đang chờ quản trị viên duyệt`
+            : aiScanPerformed
+              ? `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (AI scan không đạt yêu cầu)`
+              : `Chứng chỉ ${category} (${certification_level}) của bạn đang chờ xem xét thủ công bởi quản trị viên (không có quét AI)`,
         });
-        console.log(`[SUCCESS] [CREATE_CERT] Step 2: Pending status notification sent to trainer (isManualEntry: ${isManualEntry})`);
+        console.log(
+          `[SUCCESS] [CREATE_CERT] Step 2: Pending status notification sent to trainer (isManualEntry: ${isManualEntry})`
+        );
       } else {
-        console.log(`[INFO] [CREATE_CERT] Step 2: Skipping trainer notification - verificationStatus is ${verificationStatus}`);
+        console.log(
+          `[INFO] [CREATE_CERT] Step 2: Skipping trainer notification - verificationStatus is ${verificationStatus}`
+        );
       }
     } catch (trainerNotifError) {
-      console.error('[ERROR] [CREATE_CERT] Step 2: Error sending trainer notification:', trainerNotifError);
+      console.error(
+        '[ERROR] [CREATE_CERT] Step 2: Error sending trainer notification:',
+        trainerNotifError
+      );
       console.error('[ERROR] [CREATE_CERT] Step 2: Error stack:', trainerNotifError.stack);
       console.error('[ERROR] [CREATE_CERT] Step 2: Error details:', {
         message: trainerNotifError.message,
@@ -834,10 +864,9 @@ const updateCertification = async (req, res) => {
       updateData.expiration_date !== undefined &&
       (!certBeforeUpdate.expiration_date ||
         new Date(updateData.expiration_date).getTime() !==
-        new Date(certBeforeUpdate.expiration_date).getTime());
+          new Date(certBeforeUpdate.expiration_date).getTime());
     const isActiveChanged =
-      updateData.is_active !== undefined &&
-      updateData.is_active !== certBeforeUpdate.is_active;
+      updateData.is_active !== undefined && updateData.is_active !== certBeforeUpdate.is_active;
 
     const isBeingVerified =
       statusChanged &&
@@ -922,13 +951,17 @@ const updateCertification = async (req, res) => {
         certification.verification_status === 'VERIFIED'
       ) {
         // Helper function to parse date in Vietnam timezone
-        const parseDateVietnamForUpdate = (dateValue) => {
+        const parseDateVietnamForUpdate = dateValue => {
           if (!dateValue) return null;
           try {
-            const dateString = dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : String(dateValue);
+            const dateString =
+              dateValue instanceof Date ? dateValue.toISOString().split('T')[0] : String(dateValue);
             if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) {
               const [year, month, day] = dateString.split('-').map(Number);
-              const vnDate = dayjs.tz(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`, 'Asia/Ho_Chi_Minh');
+              const vnDate = dayjs.tz(
+                `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')} 00:00:00`,
+                'Asia/Ho_Chi_Minh'
+              );
               return vnDate.isValid() ? vnDate.toDate() : null;
             }
             const vnDate = dayjs.tz(dateString, 'Asia/Ho_Chi_Minh');
@@ -951,7 +984,9 @@ const updateCertification = async (req, res) => {
 
         // Compare dates only (not time) in Vietnam timezone
         if (newExpiration && newExpiration < nowVietnam) {
-          const expirationDateStr = dayjs(newExpiration).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
+          const expirationDateStr = dayjs(newExpiration)
+            .tz('Asia/Ho_Chi_Minh')
+            .format('YYYY-MM-DD');
           const nowStr = dayjs(nowVietnam).tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD');
           console.log(
             `[SYNC] Certification expired after expiration_date update (${expirationDateStr} < ${nowStr} Vietnam GMT+7) - removing specialization ${certBeforeUpdate.category}`
@@ -1423,10 +1458,10 @@ const checkCategoryAccess = async (req, res) => {
         hasAccess: !!certification,
         certification: certification
           ? {
-            level: certification.certification_level,
-            issuedDate: certification.issued_date,
-            expirationDate: certification.expiration_date,
-          }
+              level: certification.certification_level,
+              issuedDate: certification.issued_date,
+              expirationDate: certification.expiration_date,
+            }
           : null,
       },
       message: 'Category access checked successfully',

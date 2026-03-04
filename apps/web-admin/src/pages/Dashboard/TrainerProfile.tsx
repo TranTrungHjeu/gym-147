@@ -96,30 +96,6 @@ export default function TrainerProfile() {
     window.location.href = '/login';
   };
 
-  // Function to generate avatar based on name - unified orange theme
-  const generateAvatar = (firstName: string, lastName: string) => {
-    const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
-    const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
-    const initials = firstInitial + lastInitial;
-
-    // Use only orange colors for consistency
-    const colors = [
-      'bg-[var(--color-orange-500)]',
-      'bg-[var(--color-orange-600)]',
-      'bg-[var(--color-orange-700)]',
-      'bg-[var(--color-orange-800)]',
-    ];
-    const colorIndex = (firstName + lastName).length % colors.length;
-
-    return (
-      <div
-        className={`w-full h-full ${colors[colorIndex]} flex items-center justify-center text-[var(--color-white)] font-bold text-xl lg:text-2xl`}
-      >
-        {initials}
-      </div>
-    );
-  };
-
   const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -249,10 +225,7 @@ export default function TrainerProfile() {
   if (loading) {
     return (
       <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center'>
-          <div className='animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4'></div>
-          <p className='text-gray-600 dark:text-gray-400'>Đang tải thông tin hồ sơ...</p>
-        </div>
+        <div className='text-center text-gray-600 dark:text-gray-400'>Đang tải dữ liệu...</div>
       </div>
     );
   }
@@ -295,40 +268,19 @@ export default function TrainerProfile() {
                 <div className='flex items-center gap-4'>
                   {/* Avatar */}
                   <div className='relative group flex-shrink-0'>
-                    <div className='relative w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--color-white)] dark:border-[var(--color-gray-700)] shadow-sm'>
+                    <div className='relative w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--color-white)] dark:border-[var(--color-gray-700)] shadow-sm bg-gray-100 dark:bg-gray-800'>
                       {trainer?.profile_photo ? (
-                        <>
-                          <img
-                            src={trainer.profile_photo}
-                            alt={`${user?.firstName || user?.first_name || ''} ${
-                              user?.lastName || user?.last_name || ''
-                            }`.trim()}
-                            className='w-full h-full object-cover'
-                            onError={e => {
-                              // Hide image and show fallback
-                              e.currentTarget.style.display = 'none';
-                              const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                              if (fallback) {
-                                fallback.classList.remove('hidden');
-                                fallback.classList.add('flex');
-                              }
-                            }}
-                          />
-                          <div className='hidden w-full h-full'>
-                            {generateAvatar(
-                              user?.firstName || user?.first_name || 'U',
-                              user?.lastName || user?.last_name || 'S'
-                            )}
-                          </div>
-                        </>
-                      ) : (
-                        <div className='w-full h-full flex'>
-                          {generateAvatar(
-                            user?.firstName || user?.first_name || 'U',
-                            user?.lastName || user?.last_name || 'S'
-                          )}
-                        </div>
-                      )}
+                        <img
+                          src={trainer.profile_photo}
+                          alt={`${user?.firstName || user?.first_name || ''} ${
+                            user?.lastName || user?.last_name || ''
+                          }`.trim()}
+                          className='w-full h-full object-cover'
+                          onError={e => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : null}
                     </div>
                     <label className='absolute -bottom-0.5 -right-0.5 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] p-1 rounded-full shadow-sm transition-all duration-300 hover:scale-110 cursor-pointer'>
                       <Camera className='w-2.5 h-2.5' />

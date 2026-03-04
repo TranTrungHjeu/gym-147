@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { setupSecureLogging } = require('../../shared/logger');
+setupSecureLogging();
+
 const cors = require('cors');
 const express = require('express');
 const http = require('http');
@@ -20,7 +23,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-    'Please set it in your .env file (comma-separated list of allowed origins).'
+      'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   console.warn(
@@ -54,34 +57,34 @@ global.io = io;
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log(`[SUCCESS] Billing service: Client connected: ${socket.id}`);
+  console.log('[SUCCESS] Billing service: Client connected');
 
   // Subscribe to user-specific notifications
   socket.on('subscribe:user', user_id => {
     socket.join(`user:${user_id}`);
-    console.log(`[USER] Billing service: Client ${socket.id} subscribed to user:${user_id}`);
+    console.log('[USER] Billing service: Client subscribed to user channel');
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`[USER] Billing service: Client ${socket.id} unsubscribed from user:${user_id}`);
+    console.log('[USER] Billing service: Client unsubscribed from user channel');
   });
 
   // Subscribe to admin notifications
   socket.on('subscribe:admin', () => {
     socket.join('admin');
-    console.log(`[ADMIN] Billing service: Client ${socket.id} subscribed to admin room`);
+    console.log('[ADMIN] Billing service: Client subscribed to admin room');
   });
 
   // Unsubscribe from admin notifications
   socket.on('unsubscribe:admin', () => {
     socket.leave('admin');
-    console.log(`[ADMIN] Billing service: Client ${socket.id} unsubscribed from admin room`);
+    console.log('[ADMIN] Billing service: Client unsubscribed from admin room');
   });
 
   socket.on('disconnect', () => {
-    console.log(`[ERROR] Billing service: Client disconnected: ${socket.id}`);
+    console.log('[ERROR] Billing service: Client disconnected');
   });
 });
 
@@ -97,7 +100,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-    'Please set it in your .env file (comma-separated list of allowed origins).'
+      'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning

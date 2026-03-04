@@ -97,9 +97,9 @@ export default {
           900: '#1e3a8a',
         },
         fontFamily: {
-          sans: ['Inter', 'system-ui', 'sans-serif'],
-          display: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
-          heading: ['Space Grotesk', 'Inter', 'system-ui', 'sans-serif'],
+          sans: ['Space Grotesk', 'system-ui', 'sans-serif'],
+          display: ['Space Grotesk', 'system-ui', 'sans-serif'],
+          heading: ['Space Grotesk', 'system-ui', 'sans-serif'],
         },
         boxShadow: {
           brand: '0 10px 30px -12px rgba(255, 107, 53, 0.35)',

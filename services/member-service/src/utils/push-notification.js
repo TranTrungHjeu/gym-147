@@ -84,17 +84,17 @@ async function sendPushNotification(userId, title, body, data = {}) {
     }
 
     if (!user) {
-      console.log(`[ERROR] User not found: ${userId}`);
+      console.log('[ERROR] User not found for push notification');
       return { success: false, error: 'User not found' };
     }
 
     if (!user.push_token) {
-      console.log(`[ERROR] No push token for user: ${userId}`);
+      console.log('[ERROR] No push token for user');
       return { success: false, error: 'No push token' };
     }
 
     if (!user.push_enabled) {
-      console.log(`[ERROR] Push notifications disabled for user: ${userId}`);
+      console.log('[ERROR] Push notifications disabled for user');
       return { success: false, error: 'Push disabled' };
     }
 
@@ -121,10 +121,10 @@ async function sendPushNotification(userId, title, body, data = {}) {
     const result = response.data;
 
     if (result.data && result.data.status === 'ok') {
-      console.log(`[SUCCESS] Push notification sent to user ${userId}: ${title}`);
+      console.log('[SUCCESS] Push notification sent successfully');
       return { success: true, result };
     } else {
-      console.log(`[WARNING] Push notification failed for user ${userId}:`, result);
+      console.log('[WARNING] Push notification failed', result);
       return { success: false, error: result };
     }
   } catch (error) {

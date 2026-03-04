@@ -172,30 +172,6 @@ export default function UserDropdown() {
     closeDropdown();
   };
 
-  // Function to generate avatar based on name - unified orange theme
-  const generateAvatar = (firstName: string, lastName: string) => {
-    const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
-    const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
-    const initials = firstInitial + lastInitial;
-
-    // Use only orange colors for consistency
-    const colors = [
-      'bg-[var(--color-orange-500)]',
-      'bg-[var(--color-orange-600)]',
-      'bg-[var(--color-orange-700)]',
-      'bg-[var(--color-orange-800)]',
-    ];
-    const colorIndex = (firstName + lastName).length % colors.length;
-
-    return (
-      <div
-        className={`w-full h-full ${colors[colorIndex]} flex items-center justify-center text-[var(--color-white)] font-bold text-sm`}
-        style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-      >
-        {initials}
-      </div>
-    );
-  };
   return (
     <div className='relative'>
       <button
@@ -211,36 +187,17 @@ export default function UserDropdown() {
         }}
         className='dropdown-toggle flex items-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-400)] hover:text-[var(--color-orange-600)] dark:hover:text-[var(--color-orange-400)] transition-colors duration-200'
       >
-        <span className='mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
+        <span className='mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-gray-100 dark:bg-gray-800'>
           {trainer?.profile_photo ? (
-            <>
-              <img
-                src={trainer.profile_photo}
-                alt={user ? `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim() : 'User'}
-                className='w-full h-full object-cover'
-                onError={e => {
-                  // Hide image and show fallback
-                  e.currentTarget.style.display = 'none';
-                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (fallback) {
-                    fallback.classList.remove('hidden');
-                    fallback.classList.add('flex');
-                  }
-                }}
-              />
-              <div className='hidden w-full h-full'>
-                {generateAvatar(
-                    user?.firstName || user?.first_name || 'U',
-                    user?.lastName || user?.last_name || 'S'
-                )}
-              </div>
-            </>
-          ) : (
-            generateAvatar(
-              user?.firstName || user?.first_name || 'U',
-              user?.lastName || user?.last_name || 'S'
-            )
-          )}
+            <img
+              src={trainer.profile_photo}
+              alt={user ? `${user?.firstName || user?.first_name || ''} ${user?.lastName || user?.last_name || ''}`.trim() : 'User'}
+              className='w-full h-full object-cover'
+              onError={e => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
         </span>
 
         <span

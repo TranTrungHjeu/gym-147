@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { DollarSign, Calendar, TrendingUp, Users, Clock, Download } from 'lucide-react';
+import { DollarSign, Calendar, Users, Clock, Download } from 'lucide-react';
 import AdminCard from '../../components/common/AdminCard';
 import {
   AdminTable,
@@ -32,7 +32,7 @@ const TrainerSalaryStatistics: React.FC = () => {
         setStatistics(response.data.statistics || []);
       }
     } catch (error: any) {
-      showToast('error', error.message || 'Không thể tải thống kê lương');
+      showToast(error.message || 'Không thể tải thống kê lương', 'error');
     } finally {
       setIsLoading(false);
     }
@@ -40,7 +40,7 @@ const TrainerSalaryStatistics: React.FC = () => {
 
   const handleExport = () => {
     // TODO: Implement Excel export
-    showToast('info', 'Tính năng export đang được phát triển');
+    showToast('Tính năng export đang được phát triển', 'info');
   };
 
   const formatCurrency = (amount: number | null) => {

@@ -2812,32 +2812,17 @@ export default function TrainerSchedule() {
                                 <div className='flex items-center gap-3'>
                                   {/* Avatar - Left Side */}
                                   <div className='flex-shrink-0'>
-                                    {member?.profile_photo ? (
-                                      <img
-                                        src={member.profile_photo}
-                                        alt={member.full_name}
-                                        className='w-10 h-10 rounded-full object-cover border border-gray-200 dark:border-gray-700 shadow-sm'
-                                        onError={e => {
-                                          e.currentTarget.style.display = 'none';
-                                          const fallback = e.currentTarget
-                                            .nextElementSibling as HTMLElement;
-                                          if (fallback) fallback.style.display = 'flex';
-                                        }}
-                                      />
-                                    ) : null}
-                                    <div
-                                      className={`w-10 h-10 rounded-full flex items-center justify-center text-white text-[11px] font-heading font-bold border border-gray-200 dark:border-gray-700 shadow-sm ${
-                                        member?.profile_photo ? 'hidden' : 'flex'
-                                      }`}
-                                      style={{
-                                        backgroundColor: member?.profile_photo
-                                          ? 'transparent'
-                                          : '#fb6514',
-                                      }}
-                                    >
-                                      {member?.full_name?.charAt(0) ||
-                                        record.member_id?.charAt(0) ||
-                                        '?'}
+                                    <div className='w-10 h-10 rounded-full border border-gray-200 dark:border-gray-700 shadow-sm bg-gray-100 dark:bg-gray-800 overflow-hidden'>
+                                      {member?.profile_photo ? (
+                                        <img
+                                          src={member.profile_photo}
+                                          alt={member.full_name}
+                                          className='w-full h-full object-cover'
+                                          onError={e => {
+                                            e.currentTarget.style.display = 'none';
+                                          }}
+                                        />
+                                      ) : null}
                                     </div>
                                   </div>
 

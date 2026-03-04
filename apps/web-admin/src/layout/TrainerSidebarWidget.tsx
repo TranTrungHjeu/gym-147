@@ -140,30 +140,6 @@ export default function TrainerSidebarWidget() {
     return '/trainerdashboard/homepage'; // fallback for trainer
   };
 
-  // Function to generate avatar based on name
-  const generateAvatar = (firstName: string, lastName: string) => {
-    const firstInitial = firstName?.charAt(0)?.toUpperCase() || '';
-    const lastInitial = lastName?.charAt(0)?.toUpperCase() || '';
-    const initials = firstInitial + lastInitial;
-
-    // Use only orange colors for consistency
-    const colors = [
-      'bg-orange-500',
-      'bg-orange-600',
-      'bg-orange-700',
-      'bg-orange-800',
-    ];
-    const colorIndex = (firstName + lastName).length % colors.length;
-
-    return (
-      <div
-        className={`w-full h-full ${colors[colorIndex]} flex items-center justify-center text-white font-bold text-sm font-space-grotesk`}
-      >
-        {initials}
-      </div>
-    );
-  };
-
   const firstName = user?.firstName || user?.first_name || '';
   const lastName = user?.lastName || user?.last_name || '';
   const fullName = `${firstName} ${lastName}`.trim() || 'Trainer';
@@ -173,32 +149,17 @@ export default function TrainerSidebarWidget() {
     <div className='mx-auto mb-6 w-full max-w-[220px] rounded-2xl bg-gray-50 dark:bg-white/[0.03] px-4 py-5 text-center border border-gray-200 dark:border-gray-700'>
       {/* Avatar */}
       <div className='flex justify-center mb-3'>
-        <div className='relative w-16 h-16 rounded-full overflow-hidden border-2 border-orange-200 dark:border-orange-700 shadow-sm'>
+        <div className='relative w-16 h-16 rounded-full overflow-hidden border-2 border-orange-200 dark:border-orange-700 shadow-sm bg-gray-100 dark:bg-gray-800'>
           {trainer?.profile_photo ? (
-            <>
-              <img
-                src={trainer.profile_photo}
-                alt={fullName}
-                className='w-full h-full object-cover'
-                onError={e => {
-                  // Hide image and show fallback
-                  e.currentTarget.style.display = 'none';
-                  const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                  if (fallback) {
-                    fallback.classList.remove('hidden');
-                    fallback.classList.add('flex');
-                  }
-                }}
-              />
-              <div className='hidden w-full h-full'>
-                {generateAvatar(firstName || 'T', lastName || 'R')}
-              </div>
-            </>
-          ) : (
-            <div className='w-full h-full flex'>
-              {generateAvatar(firstName || 'T', lastName || 'R')}
-            </div>
-          )}
+            <img
+              src={trainer.profile_photo}
+              alt={fullName}
+              className='w-full h-full object-cover'
+              onError={e => {
+                e.currentTarget.style.display = 'none';
+              }}
+            />
+          ) : null}
         </div>
       </div>
 

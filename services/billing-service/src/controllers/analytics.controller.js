@@ -401,7 +401,7 @@ class AnalyticsController {
         // Frontend sends 'from' and 'to'
         start = new Date(from);
         end = new Date(to);
-        
+
         // Validate dates
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
           return res.status(400).json({
@@ -429,7 +429,7 @@ class AnalyticsController {
         // Backward compatibility
         start = new Date(startDate);
         end = new Date(endDate);
-        
+
         // Validate dates
         if (isNaN(start.getTime()) || isNaN(end.getTime())) {
           return res.status(400).json({
@@ -493,7 +493,10 @@ class AnalyticsController {
 
       // Calculate totals
       // Include all payments (even refunded ones) because refunds will be subtracted separately
-      const total_revenue = payments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+      const total_revenue = payments.reduce(
+        (sum, payment) => sum + parseFloat(payment.amount || 0),
+        0
+      );
       const total_transactions = payments.length;
       const average_revenue = total_transactions > 0 ? total_revenue / total_transactions : 0;
 
@@ -504,7 +507,7 @@ class AnalyticsController {
         15000, // 15 seconds timeout
         'Get revenue reports service',
         1 // 1 retry for connection errors
-      ).catch((error) => {
+      ).catch(error => {
         console.warn('[WARNING] Revenue report service failed:', error.message);
         return { success: false };
       });
@@ -829,7 +832,7 @@ class AnalyticsController {
    */
   async getRevenueTrends(req, res) {
     try {
-      console.log('[STATS] Getting revenue trends...', { query: req.query });
+      console.log('[STATS] Getting revenue trends');
       const { from, to } = req.query;
 
       let startDate, endDate;
@@ -941,7 +944,7 @@ class AnalyticsController {
    */
   async getRevenueByPlan(req, res) {
     try {
-      console.log('[STATS] Getting revenue by plan...', { query: req.query });
+      console.log('[STATS] Getting revenue by plan');
       const { from, to, period = '30' } = req.query;
 
       let startDate, endDate;

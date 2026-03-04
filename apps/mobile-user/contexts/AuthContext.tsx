@@ -893,13 +893,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     // Load user profile after setting tokens to update AuthContext state
     try {
       const userProfileResponse = await userService.getProfile();
-      console.log('[AUTH] User profile response in setTokens:', {
-        success: userProfileResponse?.success,
-        hasData: !!userProfileResponse?.data,
-        dataKeys: userProfileResponse?.data
-          ? Object.keys(userProfileResponse.data)
-          : [],
-      });
 
       // Handle different response formats
       let userProfile = null;
@@ -915,7 +908,6 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       if (userProfile && userProfile.id) {
-        console.log('[AUTH] Setting user from setTokens:', userProfile.id);
         setUser(userProfile);
         await storeUser(userProfile);
 
@@ -955,11 +947,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       } else {
         console.log(
           '[AUTH] No valid user profile in response after setTokens:',
-          {
-            hasResponse: !!userProfileResponse,
-            hasData: !!userProfileResponse?.data,
-            userProfile,
-          }
+          'missing expected user data'
         );
       }
     } catch (error) {

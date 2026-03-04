@@ -33,20 +33,9 @@ const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
       return;
     }
 
-    // Generate iCal file first
-    const iCalEvents = events
-      .filter(e => e.start && e.end)
-      .map(event => ({
-        title: event.class_name || event.title || 'Lớp học',
-        description: `Phòng: ${event.room || 'N/A'}\nSố người tham gia: ${event.attendees || 0}/${
-          event.max_capacity || 0
-        }`,
-        start: event.start,
-        end: event.end,
-        location: event.room || '',
-      }));
-
-    if (iCalEvents.length === 0) {
+    // Open Google Calendar with prefilled events (first valid event)
+    const validEvent = events.find(event => event.start && event.end);
+    if (!validEvent) {
       if (window.showToast) {
         window.showToast({
           type: 'info',
@@ -57,17 +46,31 @@ const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
       return;
     }
 
-    // For Google Calendar, we can use the webcal:// protocol or direct URL
-    // Generate iCal file and provide download link
-    const filename = `trainer-calendar-${new Date().toISOString().split('T')[0]}`;
-    ExportUtils.exportToiCal(iCalEvents, filename);
+    const startDate = new Date(validEvent.start);
+    const endDate = new Date(validEvent.end);
+    const formatGoogleDate = (date: Date) =>
+      date
+        .toISOString()
+        .replace(/[-:]/g, '')
+        .replace(/\.\d{3}/, '');
 
-    // Also provide option to add to Google Calendar via URL
+    const title = encodeURIComponent(validEvent.class_name || validEvent.title || 'Lớp học');
+    const details = encodeURIComponent(
+      `Phòng: ${validEvent.room || 'N/A'}\nSố người tham gia: ${validEvent.attendees || 0}/${
+        validEvent.max_capacity || 0
+      }`
+    );
+    const location = encodeURIComponent(validEvent.room || '');
+    const dates = `${formatGoogleDate(startDate)}/${formatGoogleDate(endDate)}`;
+    const googleUrl = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&details=${details}&location=${location}&dates=${dates}`;
+
+    window.open(googleUrl, '_blank', 'noopener,noreferrer');
+
     if (window.showToast) {
       window.showToast({
         type: 'success',
-        message: 'Đã tải file iCal. Bạn có thể import vào Google Calendar hoặc Outlook.',
-        duration: 5000,
+        message: 'Đã mở Google Calendar để đồng bộ sự kiện.',
+        duration: 3000,
       });
     }
   };
@@ -160,7 +163,6 @@ export default function TrainerCalendarSplitView() {
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [userId, setUserId] = useState<string>('');
-  const [showAllSchedules, setShowAllSchedules] = useState(false);
 
   // Database data for filter options - will be updated from API
   const [classTypes, setClassTypes] = useState<string[]>([]);
@@ -207,10 +209,8 @@ export default function TrainerCalendarSplitView() {
     });
   }, [events, filters]);
 
-  // Events to display - either all or filtered based on toggle
-  const displayEvents = useMemo(() => {
-    return showAllSchedules ? events : filteredEvents;
-  }, [showAllSchedules, events, filteredEvents]);
+  // Events to display - always filtered view
+  const displayEvents = filteredEvents;
 
   // Memoized statistics - based on display events
   const statistics = useMemo(() => {
@@ -257,7 +257,6 @@ export default function TrainerCalendarSplitView() {
     try {
       // Fetch class types
       const classTypesResponse = await scheduleService.getTrainerClasses();
-      console.log('[CLASS] Class types response:', classTypesResponse);
 
       // Handle different response structures
       // Response structure: { success: true, data: { classes: [...] } }
@@ -275,11 +274,6 @@ export default function TrainerCalendarSplitView() {
         classTypesData = classTypesResponse;
       }
 
-      console.log('[CLASS] Extracted class types data:', {
-        count: classTypesData.length,
-        firstItem: classTypesData[0],
-      });
-
       if (Array.isArray(classTypesData) && classTypesData.length > 0) {
         const uniqueClassTypes = [
           ...new Set(
@@ -288,24 +282,17 @@ export default function TrainerCalendarSplitView() {
               .filter(Boolean)
           ),
         ];
-        console.log('[SUCCESS] Unique class types found:', uniqueClassTypes);
         if (uniqueClassTypes.length > 0) {
           setClassTypes(uniqueClassTypes);
         } else {
           setClassTypes([]);
-          console.warn('[WARNING] No class types found after mapping');
         }
       } else {
-        console.warn('[WARNING] No class types data from API', {
-          response: classTypesResponse,
-          extractedData: classTypesData,
-        });
         setClassTypes([]);
       }
 
       // Fetch rooms directly from /rooms API
       const roomsResponse = await scheduleService.getAllRooms();
-      console.log('🏠 Rooms API response:', roomsResponse);
 
       // Handle response structure: { success, data: { rooms: [...] } }
       let roomsData = [];
@@ -320,15 +307,12 @@ export default function TrainerCalendarSplitView() {
       if (Array.isArray(roomsData) && roomsData.length > 0) {
         // Extract room names from Room objects
         const roomNames = roomsData.map((room: any) => room.name).filter(Boolean);
-        console.log('[SUCCESS] Rooms found from API:', roomNames);
         if (roomNames.length > 0) {
           setRooms(roomNames);
         } else {
           setRooms([]);
-          console.warn('[WARNING] No room names found');
         }
       } else {
-        console.warn('[WARNING] No rooms data from API');
         setRooms([]);
       }
     } catch (error) {
@@ -367,28 +351,9 @@ export default function TrainerCalendarSplitView() {
         setLoading(true);
       }
 
-      // Debug logging
-      console.log('Fetching events with:', {
-        currentDate: currentDate.toISOString(),
-        viewMode,
-        filters,
-        dateRange: getDateRangeInfo(),
-        isInitialLoad,
-      });
-
       const response = await scheduleService.getTrainerCalendar(currentDate, viewMode, filters);
 
-      console.log('TrainerCalendarSplitView - Calendar response:', {
-        success: response.success,
-        dataLength: response.data?.length || 0,
-        data: response.data,
-        message: response.message,
-        fullResponse: response,
-      });
-
       if (response.success) {
-        console.log('Received events:', response.data.length);
-        console.log('Sample event:', response.data[0]);
         setEvents(response.data || []);
         // filteredEvents will be computed automatically via useMemo
       } else {
@@ -762,28 +727,7 @@ export default function TrainerCalendarSplitView() {
 
         {/* Filters Section */}
         <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
-          <div className='flex items-center justify-between mb-3'>
-            <div className='flex items-center gap-2'>
-              <label className='text-sm font-medium text-gray-700 dark:text-gray-300'>
-                Xem tất cả lịch:
-              </label>
-              <button
-                type='button'
-                onClick={() => setShowAllSchedules(!showAllSchedules)}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
-                  showAllSchedules ? 'bg-orange-600' : 'bg-gray-300 dark:bg-gray-600'
-                }`}
-              >
-                <span
-                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                    showAllSchedules ? 'translate-x-6' : 'translate-x-1'
-                  }`}
-                />
-              </button>
-              <span className='text-xs text-gray-600 dark:text-gray-400'>
-                {showAllSchedules ? 'Tất cả' : 'Đã lọc'}
-              </span>
-            </div>
+          <div className='flex items-center justify-end mb-3'>
             {Object.values(filters).some(f => f) && (
               <button
                 onClick={clearFilters}
@@ -1040,7 +984,7 @@ export default function TrainerCalendarSplitView() {
                 font-family: 'Space Grotesk', sans-serif !important;
                 line-height: 1.1 !important;
               }
-              
+
               /* Apply Space Grotesk font to all calendar text */
               .fc,
               .fc *,
@@ -1054,21 +998,21 @@ export default function TrainerCalendarSplitView() {
               .fc-event-time {
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               /* ========== WEEK/DAY VIEW - COMPACT HEIGHT ========== */
-              
+
               /* Giảm slot height (mỗi 30 phút) */
               .fc-timegrid-slot {
                 height: 30px !important;
                 min-height: 30px !important;
               }
-              
+
               /* Giảm time axis width */
               .fc-timegrid-axis {
                 width: 36px !important;
                 min-width: 36px !important;
               }
-              
+
               /* Compact time labels */
               .fc-timegrid-slot-label {
                 font-size: 8px !important;
@@ -1076,65 +1020,65 @@ export default function TrainerCalendarSplitView() {
                 font-family: 'Space Grotesk', sans-serif !important;
                 line-height: 1.1 !important;
               }
-              
+
               .fc-timegrid-slot-label-cushion {
                 font-family: 'Space Grotesk', sans-serif !important;
                 font-size: 8px !important;
               }
-              
+
               /* Compact event styling */
               .fc-timegrid-event {
                 font-size: 10px !important;
                 padding: 1px 3px !important;
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               .fc-timegrid .fc-event-title {
                 font-size: 10px !important;
                 line-height: 1.2 !important;
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               .fc-timegrid .fc-event-time {
                 font-size: 9px !important;
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               /* Compact column headers */
               .fc-timegrid .fc-col-header-cell {
                 padding: 4px 2px !important;
               }
-              
+
               .fc-timegrid .fc-col-header-cell-cushion {
                 font-size: 10px !important;
                 padding: 2px !important;
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               .fc-timegrid .fc-daygrid-day-number {
                 font-family: 'Space Grotesk', sans-serif !important;
               }
-              
+
               /* Giảm divider */
               .fc-timegrid-divider {
                 padding: 1px 0 !important;
               }
-              
+
               /* Enable scroll dọc - BỎ scroll ngang */
               .fc-timegrid-body {
                 max-height: 400px !important;
                 overflow-y: auto !important;
                 overflow-x: hidden !important;
               }
-              
+
               .fc-scroller {
                 overflow-x: hidden !important;
               }
-              
+
               .fc-scroller-liquid-absolute {
                 overflow-x: hidden !important;
               }
-              
+
               /* Custom scrollbar dọc - NHỎ HƠN */
               .fc-timegrid-body::-webkit-scrollbar {
                 width: 4px !important;
@@ -1149,32 +1093,32 @@ export default function TrainerCalendarSplitView() {
               .fc-timegrid-body::-webkit-scrollbar-thumb:hover {
                 background: rgba(251, 146, 60, 0.5) !important;
               }
-              
+
               /* Firefox scrollbar */
               .fc-timegrid-body {
                 scrollbar-width: thin !important;
                 scrollbar-color: rgba(251, 146, 60, 0.3) transparent !important;
               }
-              
+
               /* Force calendar width - KHÔNG CHO scroll ngang */
               .custom-calendar {
                 overflow-x: hidden !important;
                 max-width: 100% !important;
               }
-              
+
               .fc-view-harness {
                 overflow-x: hidden !important;
               }
-              
+
               .fc-timegrid {
                 max-width: 100% !important;
               }
-              
+
               /* Ensure columns fit */
               .fc-timegrid-cols {
                 width: 100% !important;
               }
-              
+
               .fc-timegrid-col {
                 min-width: 0 !important;
               }
@@ -1622,75 +1566,45 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
 
   // Determine tooltip position based on day of week
   const getTooltipPosition = (currentViewMode: string) => {
-    console.log('=== getTooltipPosition called ===');
-    console.log('eventInfo:', eventInfo);
-    console.log('eventInfo.el:', eventInfo.el);
-
     // Get the day of week and time from the event date
     const eventDate = event.start;
     const eventDateTime = new Date(eventDate);
     const dayOfWeek = eventDateTime.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
     const hour = eventDateTime.getHours(); // 0-23
 
-    console.log('Event date string:', eventDate);
-    console.log('Parsed date:', eventDateTime);
-    console.log('Day of week:', dayOfWeek);
-    console.log('Hour:', hour);
-    console.log(
-      'Day name:',
-      ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][dayOfWeek]
-    );
-
     // Check if it's week view or day view using FullCalendar view type
     const fullCalendarViewType = eventInfo.view?.type;
     const isWeekView = fullCalendarViewType === 'timeGridWeek';
     const isDayView = fullCalendarViewType === 'timeGridDay';
 
-    console.log('Current view mode (state):', currentViewMode);
-    console.log('FullCalendar view type:', fullCalendarViewType);
-    console.log('Is week view:', isWeekView);
-    console.log('Is day view:', isDayView);
-    console.log('FullCalendar view title:', eventInfo.view?.title);
-
     if (isWeekView) {
       // For week view: 12am-12pm (0-12) → bottom, others → top
       if (hour >= 0 && hour <= 12) {
-        console.log('Week view - Morning (12am-12pm), returning bottom');
         return 'bottom';
       } else {
-        console.log('Week view - Afternoon/Evening, returning top');
         return 'top';
       }
     } else if (isDayView) {
       // For day view: default to right
-      console.log('Day view - Default to right');
       return 'right';
     } else {
       // For month view: use day-based logic for Vietnamese calendar
       // Monday (1) → tooltip right
       if (dayOfWeek === 1) {
-        console.log('Month view - Monday detected, returning right');
         return 'right';
       }
       // Sunday (0) → tooltip left
       else if (dayOfWeek === 0) {
-        console.log('Month view - Sunday detected, returning left');
         return 'left';
       }
       // Other days → tooltip top
       else {
-        console.log('Month view - Other day detected, returning top');
         return 'top';
       }
     }
   };
 
   const tooltipPosition = getTooltipPosition(currentViewMode);
-
-  // Debug: log tooltip position
-  console.log('Tooltip position:', tooltipPosition);
-  console.log('Event object:', event);
-  console.log('Event start:', event.start);
 
   // Status-based animations
   const getStatusAnimation = (status: string) => {

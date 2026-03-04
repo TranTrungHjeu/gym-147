@@ -96,7 +96,7 @@ class PushNotificationService {
     // Push notifications are not supported in Expo Go
     if (isExpoGo()) {
       console.log(
-        '[BELL] Push notifications not supported in Expo Go. Use a development build instead.'
+        '[BELL] Push notifications not supported in Expo Go. Use a development build instead.',
       );
       return false;
     }
@@ -172,7 +172,7 @@ class PushNotificationService {
 
       const token = await Notifications.getExpoPushTokenAsync(tokenOptions);
 
-      console.log('[SUCCESS] Expo Push Token:', token.data);
+      console.log('[SUCCESS] Expo push token acquired');
       return token.data;
     } catch (error: any) {
       console.error('[ERROR] Get push token error:', error);
@@ -188,7 +188,7 @@ class PushNotificationService {
         const fallbackToken = await Notifications.getExpoPushTokenAsync();
         console.log(
           '[SUCCESS] Expo Push Token (fallback):',
-          fallbackToken.data
+          fallbackToken.data,
         );
         return fallbackToken.data;
       } catch (fallbackError) {
@@ -223,8 +223,6 @@ class PushNotificationService {
       const pushPlatform = Platform.OS; // 'ios' only
 
       console.log('[BELL] Registering push token with backend...');
-      console.log('   User ID:', userId);
-      console.log('   Token:', pushToken.substring(0, 30) + '...');
       console.log('   Platform:', pushPlatform);
 
       const response = await identityApiService.put(
@@ -232,7 +230,7 @@ class PushNotificationService {
         {
           push_token: pushToken,
           push_platform: pushPlatform,
-        }
+        },
       );
 
       if (response.success) {
@@ -253,14 +251,14 @@ class PushNotificationService {
    */
   async updatePushPreference(
     userId: string,
-    enabled: boolean
+    enabled: boolean,
   ): Promise<boolean> {
     try {
       const response = await identityApiService.put(
         `/auth/users/${userId}/push-preference`,
         {
           push_enabled: enabled,
-        }
+        },
       );
 
       if (response.success) {
@@ -269,7 +267,7 @@ class PushNotificationService {
       } else {
         console.log(
           '[ERROR] Failed to update push preference:',
-          response.message
+          response.message,
         );
         return false;
       }
@@ -288,7 +286,7 @@ class PushNotificationService {
   }> {
     try {
       const response = await identityApiService.get(
-        `/auth/users/${userId}/push-settings`
+        `/auth/users/${userId}/push-settings`,
       );
 
       if (response.success && response.data) {
@@ -347,14 +345,14 @@ class PushNotificationService {
   async setupNotificationChannels() {
     if (isExpoGo()) {
       console.log(
-        '[BELL] Running in Expo Go - push notifications not supported'
+        '[BELL] Running in Expo Go - push notifications not supported',
       );
       return;
     }
 
     if (Platform.OS === 'android') {
       console.log(
-        '[BELL] Push notifications disabled on Android - skipping channel setup'
+        '[BELL] Push notifications disabled on Android - skipping channel setup',
       );
       return;
     }

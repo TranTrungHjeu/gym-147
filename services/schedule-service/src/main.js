@@ -1,4 +1,7 @@
 require('dotenv').config();
+const { setupSecureLogging } = require('../../shared/logger');
+setupSecureLogging();
+
 const cors = require('cors');
 const express = require('express');
 const helmet = require('helmet');
@@ -23,7 +26,7 @@ if (process.env.ALLOWED_ORIGINS) {
 } else if (process.env.NODE_ENV === 'production') {
   throw new Error(
     'ALLOWED_ORIGINS environment variable is required in production. ' +
-    'Please set it in your .env file (comma-separated list of allowed origins).'
+      'Please set it in your .env file (comma-separated list of allowed origins).'
   );
 } else {
   // Development fallback with warning
@@ -62,43 +65,39 @@ global.io = io;
 
 // Socket.IO connection handling
 io.on('connection', socket => {
-  console.log(`Socket connected: ${socket.id}`);
+  console.log('Socket connected');
 
   // Subscribe to user-specific notifications (for trainers, admins, etc.)
   socket.on('subscribe:user', user_id => {
     const roomName = `user:${user_id}`;
     socket.join(roomName);
-    const room = io.sockets.adapter.rooms.get(roomName);
-    const socketCount = room ? room.size : 0;
-    console.log(
-      `[EMIT] Socket ${socket.id} subscribed to ${roomName} (total: ${socketCount} socket(s) in room)`
-    );
+    console.log('[EMIT] Client subscribed to user channel');
   });
 
   // Unsubscribe from user notifications
   socket.on('unsubscribe:user', user_id => {
     socket.leave(`user:${user_id}`);
-    console.log(`Socket ${socket.id} unsubscribed from user:${user_id}`);
+    console.log('Client unsubscribed from user channel');
   });
 
   // Subscribe to schedule updates
   socket.on('subscribe:schedule', schedule_id => {
     socket.join(`schedule:${schedule_id}`);
-    console.log(`Socket ${socket.id} subscribed to schedule:${schedule_id}`);
+    console.log('Client subscribed to schedule channel');
   });
 
   // Unsubscribe from schedule updates
   socket.on('unsubscribe:schedule', schedule_id => {
     socket.leave(`schedule:${schedule_id}`);
-    console.log(`Socket ${socket.id} unsubscribed from schedule:${schedule_id}`);
+    console.log('Client unsubscribed from schedule channel');
   });
 
   socket.on('disconnect', reason => {
-    console.log(`Socket disconnected: ${socket.id}, reason: ${reason}`);
+    console.log(`Socket disconnected, reason: ${reason}`);
   });
 
   socket.on('error', error => {
-    console.error(`Socket error: ${socket.id}`, error);
+    console.error('Socket error', error);
   });
 });
 
@@ -208,9 +207,13 @@ async function startServer() {
     console.log(`Booking reminder cron job started (every 1 minute)`);
     console.log(`Auto-cancel warning cron job started (every 1 hour)`);
     if (useAutoCancelInterval) {
-      console.log(`Auto-cancel low participants cron job started (TEST MODE: every ${autoCancelIntervalMinutes} minutes)`);
+      console.log(
+        `Auto-cancel low participants cron job started (TEST MODE: every ${autoCancelIntervalMinutes} minutes)`
+      );
     } else {
-      console.log(`Auto-cancel low participants cron job started (PRODUCTION MODE: daily at ${autoCancelScheduleTimes.join(', ')} GMT+7)`);
+      console.log(
+        `Auto-cancel low participants cron job started (PRODUCTION MODE: daily at ${autoCancelScheduleTimes.join(', ')} GMT+7)`
+      );
     }
 
     // Start certification expiry warning cron job

@@ -38,13 +38,7 @@ services:
       - DOCKER_ENV=true
       - MEMBER_SERVICE_URL=http://member:3002
       - SCHEDULE_SERVICE_URL=http://schedule:3003
-      - REDIS_URL=redis://redis:6379
     ports: ["3001:3001"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
@@ -57,13 +51,7 @@ services:
     environment:
       - DOCKER_ENV=true
       - IDENTITY_SERVICE_URL=http://identity:3001
-      - REDIS_URL=redis://redis:6379
     ports: ["3002:3002"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
@@ -76,13 +64,8 @@ services:
     environment:
       - DOCKER_ENV=true
       - BILLING_SERVICE_URL=http://billing:3004
-      - REDIS_URL=redis://redis:6379
     ports: ["3003:3003"]
     depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
       billing:
         condition: service_started
     volumes:
@@ -99,53 +82,7 @@ services:
       - MEMBER_SERVICE_URL=http://member:3002
       - IDENTITY_SERVICE_URL=http://identity:3001
       - SCHEDULE_SERVICE_URL=http://schedule:3003
-      - REDIS_URL=redis://redis:6379
     ports: ["3004:3004"]
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     volumes:
       - ../../packages:/packages:ro
     restart: unless-stopped
-  # Single PostgreSQL Server with Multiple Databases
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: gym-database
-    environment:
-      POSTGRES_USER: gym
-      POSTGRES_PASSWORD: secret
-      POSTGRES_DB: gym_main
-      TZ: Asia/Ho_Chi_Minh
-    command: >
-      postgres 
-        -c timezone=Asia/Ho_Chi_Minh
-        -c log_timezone=Asia/Ho_Chi_Minh
-    ports: ["5432:5432"]
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ../database/init:/docker-entrypoint-initdb.d
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U gym"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    restart: unless-stopped
-  redis:
-    image: redis:7-alpine
-    container_name: gym-redis
-    ports: ["6380:6379"]
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 3s
-      retries: 5
-    restart: unless-stopped
-
-volumes:
-  postgres_data:
-  redis_data:
