@@ -577,7 +577,7 @@ const ScheduleManagement: React.FC = () => {
           <div className='flex gap-2 flex-wrap'>
             <button
               onClick={loadSchedules}
-              className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+              className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm  transition-colors duration-200 '
             >
               <RefreshCw className='w-4 h-4' />
               {t('equipmentManagement.filter.refresh')}
@@ -594,7 +594,7 @@ const ScheduleManagement: React.FC = () => {
             )}
             <button
               onClick={handleCreate}
-              className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+              className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm  transition-colors duration-200 '
             >
               <Plus className='w-4 h-4' />
               {t('scheduleManagement.createSchedule')}
@@ -609,7 +609,7 @@ const ScheduleManagement: React.FC = () => {
             <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                   <Calendar className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                 </div>
                 <div className='flex-1 min-w-0'>
@@ -631,7 +631,7 @@ const ScheduleManagement: React.FC = () => {
             <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                   <Clock className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                 </div>
                 <div className='flex-1 min-w-0'>
@@ -653,7 +653,7 @@ const ScheduleManagement: React.FC = () => {
             <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                   <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                 </div>
                 <div className='flex-1 min-w-0'>
@@ -675,7 +675,7 @@ const ScheduleManagement: React.FC = () => {
             <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                   <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                 </div>
                 <div className='flex-1 min-w-0'>
@@ -697,7 +697,7 @@ const ScheduleManagement: React.FC = () => {
             <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-error-100 dark:bg-error-900/30 opacity-20 rounded-r'></div>
             <div className='relative'>
               <div className='flex items-center gap-3'>
-                <div className='relative w-9 h-9 bg-error-100 dark:bg-error-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                <div className='relative w-9 h-9 bg-error-100 dark:bg-error-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                   <XCircle className='relative w-[18px] h-[18px] text-error-600 dark:text-error-400' />
                 </div>
                 <div className='flex-1 min-w-0'>
@@ -716,7 +716,7 @@ const ScheduleManagement: React.FC = () => {
         </div>
 
         {/* Search and Filters */}
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md p-4'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm  p-4'>
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-3'>
             {/* Search Input */}
             <div className='md:col-span-2 group relative'>
@@ -726,7 +726,7 @@ const ScheduleManagement: React.FC = () => {
                 placeholder={t('scheduleManagement.search.placeholder')}
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
 
@@ -818,7 +818,7 @@ const ScheduleManagement: React.FC = () => {
                           filteredSchedules.length > 0
                         }
                         onChange={handleSelectAll}
-                        className='w-4 h-4 rounded accent-orange-600 focus:ring-orange-500 dark:bg-gray-900 transition-all duration-200'
+                        className='w-4 h-4 rounded accent-orange-600 focus:ring-orange-500 dark:bg-gray-900 transition-colors duration-200'
                       />
                     </AdminTableCell>
                     <AdminTableCell header>{t('scheduleManagement.table.class')}</AdminTableCell>
@@ -834,11 +834,11 @@ const ScheduleManagement: React.FC = () => {
                     return (
                       <AdminTableRow
                         key={item.id}
-                        className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                        className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 cursor-pointer ${
                           index % 2 === 0
                             ? 'bg-white dark:bg-gray-900'
                             : 'bg-gray-50/50 dark:bg-gray-800/50'
-                        } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10 ${
+                        } hover:bg-orange-50/70 dark:hover:bg-orange-900/20 ${
                           isSelected
                             ? 'bg-orange-50/50 dark:bg-orange-900/10 border-l-orange-500'
                             : ''
@@ -862,7 +862,7 @@ const ScheduleManagement: React.FC = () => {
                             type='checkbox'
                             checked={isSelected}
                             onChange={() => handleToggleSelect(item.id)}
-                            className='w-4 h-4 rounded accent-orange-600 focus:ring-orange-500 dark:bg-gray-900 transition-all duration-200'
+                            className='w-4 h-4 rounded accent-orange-600 focus:ring-orange-500 dark:bg-gray-900 transition-colors duration-200'
                             onClick={e => e.stopPropagation()}
                           />
                         </AdminTableCell>
@@ -907,7 +907,7 @@ const ScheduleManagement: React.FC = () => {
                         </AdminTableCell>
                         <AdminTableCell>
                           <span
-                            className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                            className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-none border transition-colors duration-200 ${getStatusColor(
                               item.status
                             )}`}
                           >
@@ -961,7 +961,7 @@ const ScheduleManagement: React.FC = () => {
             />
             {/* Popup */}
             <div
-              className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 w-[180px]'
+              className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-none shadow-2xl py-2 w-[180px]'
               style={{
                 left: `${Math.min(menuPosition.x, window.innerWidth - 200)}px`,
                 top: `${Math.min(menuPosition.y + 10, window.innerHeight - 150)}px`,
@@ -1028,3 +1028,8 @@ const ScheduleManagement: React.FC = () => {
 };
 
 export default ScheduleManagement;
+
+
+
+
+

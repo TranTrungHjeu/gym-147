@@ -3,6 +3,8 @@ import React from 'react';
 interface AdminTableProps {
   children: React.ReactNode;
   className?: string;
+  scrollable?: boolean;
+  tableClassName?: string;
 }
 
 interface AdminTableHeaderProps {
@@ -26,13 +28,22 @@ interface AdminTableCellProps {
   header?: boolean;
 }
 
-const AdminTable: React.FC<AdminTableProps> = ({ children, className = '' }) => {
+const AdminTable: React.FC<AdminTableProps> = ({
+  children,
+  className = '',
+  scrollable = true,
+  tableClassName = '',
+}) => {
   return (
     <div
       className={`bg-white dark:bg-gray-900 rounded-lg shadow-theme-md overflow-hidden border border-gray-200 dark:border-gray-800 ${className}`}
     >
-      <div className='overflow-x-auto md:overflow-x-hidden'>
-        <table className='w-full divide-y divide-gray-200 dark:divide-gray-800 table-auto min-w-[1200px] md:min-w-0'>
+      <div className={scrollable ? 'overflow-x-auto md:overflow-x-hidden' : 'overflow-x-hidden'}>
+        <table
+          className={`w-full divide-y divide-gray-200 dark:divide-gray-800 table-auto ${
+            scrollable ? 'min-w-[1200px] md:min-w-0' : 'min-w-0'
+          } ${tableClassName}`}
+        >
           {children}
         </table>
       </div>

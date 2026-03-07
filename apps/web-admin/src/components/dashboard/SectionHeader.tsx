@@ -14,15 +14,15 @@ interface SectionHeaderProps {
  */
 const SectionHeader: React.FC<SectionHeaderProps> = ({ icon: Icon, title, subtitle, action }) => {
   return (
-    <div className='flex items-center justify-between mb-3 pb-2 border-b border-gray-100 dark:border-gray-800/50'>
+    <div className='flex items-center justify-between mb-2.5 pb-2 border-b border-gray-200 dark:border-gray-700'>
       <div className='flex items-center gap-2'>
-        {Icon && <Icon className='w-4 h-4 text-gray-400 dark:text-gray-600' />}
+        {Icon && <Icon className='w-3.5 h-3.5 text-orange-500 dark:text-orange-400' />}
         <div>
-          <h2 className='text-theme-sm font-semibold font-heading text-gray-900 dark:text-white leading-tight'>
+          <h2 className='text-xs font-semibold font-heading text-gray-900 dark:text-white leading-tight uppercase tracking-wide'>
             {title}
           </h2>
           {subtitle && (
-            <p className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
+            <p className='text-[11px] text-gray-600 dark:text-gray-400 font-inter leading-tight mt-0.5'>
               {subtitle}
             </p>
           )}

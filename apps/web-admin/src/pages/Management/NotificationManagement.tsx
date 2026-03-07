@@ -1040,7 +1040,7 @@ const NotificationManagement: React.FC = () => {
                 }, 150);
               }
             }}
-            className={`flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-300 ${
+            className={`flex-1 px-4 py-2.5 rounded-none font-semibold text-sm transition-colors duration-200 ${
               activeTab === 'members'
                 ? 'bg-orange-500 text-white shadow-sm scale-105'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105'
@@ -1067,7 +1067,7 @@ const NotificationManagement: React.FC = () => {
                 }, 150);
               }
             }}
-            className={`flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-300 ${
+            className={`flex-1 px-4 py-2.5 rounded-none font-semibold text-sm transition-colors duration-200 ${
               activeTab === 'trainers'
                 ? 'bg-orange-500 text-white shadow-sm scale-105'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105'
@@ -1094,7 +1094,7 @@ const NotificationManagement: React.FC = () => {
                 }, 150);
               }
             }}
-            className={`flex-1 px-4 py-2.5 rounded-lg font-semibold text-sm transition-all duration-300 ${
+            className={`flex-1 px-4 py-2.5 rounded-none font-semibold text-sm transition-colors duration-200 ${
               activeTab === 'history'
                 ? 'bg-orange-500 text-white shadow-sm scale-105'
                 : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 hover:scale-105'
@@ -1116,7 +1116,7 @@ const NotificationManagement: React.FC = () => {
       {/* Tab Content */}
       {activeTab === 'members' && (
         <div
-          className={`grid grid-cols-1 lg:grid-cols-3 gap-3 transition-all duration-300 ${
+          className={`grid grid-cols-1 lg:grid-cols-3 gap-3 transition-colors duration-200 ${
             isTabTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
           }`}
         >
@@ -1132,7 +1132,7 @@ const NotificationManagement: React.FC = () => {
                     type='text'
                     value={memberForm.title}
                     onChange={e => setMemberForm({ ...memberForm, title: e.target.value })}
-                    className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                    className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     placeholder={t('notificationManagement.form.titlePlaceholder')}
                   />
                 </div>
@@ -1146,7 +1146,7 @@ const NotificationManagement: React.FC = () => {
                     value={memberForm.message}
                     onChange={e => setMemberForm({ ...memberForm, message: e.target.value })}
                     rows={4}
-                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     placeholder={t('notificationManagement.form.messagePlaceholder')}
                   />
                 </div>
@@ -1179,7 +1179,7 @@ const NotificationManagement: React.FC = () => {
                   <div className='grid grid-cols-3 gap-2'>
                     <button
                       onClick={() => setMemberForm({ ...memberForm, sendTo: 'all' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         memberForm.sendTo === 'all'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1189,7 +1189,7 @@ const NotificationManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setMemberForm({ ...memberForm, sendTo: 'filter' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         memberForm.sendTo === 'filter'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1199,7 +1199,7 @@ const NotificationManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setMemberForm({ ...memberForm, sendTo: 'specific' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         memberForm.sendTo === 'specific'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1212,7 +1212,7 @@ const NotificationManagement: React.FC = () => {
 
                 {/* Filter Section */}
                 {memberForm.sendTo === 'filter' && (
-                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700'>
                     <div className='flex items-center justify-between mb-3'>
                       <div className='flex items-center space-x-2'>
                         <Filter className='w-4 h-4 text-orange-500' />
@@ -1280,7 +1280,7 @@ const NotificationManagement: React.FC = () => {
                                 filters: { ...memberForm.filters, search: e.target.value },
                               })
                             }
-                            className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                            className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                             placeholder={t('notificationManagement.filters.searchPlaceholder')}
                           />
                         </div>
@@ -1291,7 +1291,7 @@ const NotificationManagement: React.FC = () => {
 
                 {/* Specific IDs Section */}
                 {memberForm.sendTo === 'specific' && (
-                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700'>
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                       {t('notificationManagement.form.memberIds')}
                     </label>
@@ -1307,7 +1307,7 @@ const NotificationManagement: React.FC = () => {
                             .filter(id => id),
                         })
                       }
-                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                       placeholder={t('notificationManagement.form.memberIdsPlaceholder')}
                     />
                   </div>
@@ -1316,7 +1316,7 @@ const NotificationManagement: React.FC = () => {
                 <button
                   onClick={handleSendToMembers}
                   disabled={sending || !memberForm.title || !memberForm.message}
-                  className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-all duration-200 text-sm'
+                  className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-none font-semibold shadow-sm  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-colors duration-200 text-sm'
                 >
                   <Send className='w-4 h-4' />
                   <span>
@@ -1362,10 +1362,10 @@ const NotificationManagement: React.FC = () => {
                   </div>
                 ) : memberPreviewList.length > 0 ? (
                   <>
-                    <div className='p-3.5 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-xl border border-orange-200 dark:border-orange-700/50 shadow-sm animate-fade-in-up'>
+                    <div className='p-3.5 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-none border border-orange-200 dark:border-orange-700/50 shadow-sm animate-fade-in-up'>
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center space-x-2.5'>
-                          <div className='p-1.5 bg-orange-200 dark:bg-orange-800/50 rounded-lg'>
+                          <div className='p-1.5 bg-orange-200 dark:bg-orange-800/50 rounded-none'>
                             <CheckCircle2 className='w-4 h-4 text-orange-600 dark:text-orange-400' />
                           </div>
                           <div>
@@ -1383,17 +1383,17 @@ const NotificationManagement: React.FC = () => {
                     </div>
 
                     {showPreviewList && (
-                      <div className='max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl custom-scrollbar shadow-inner bg-gray-50/50 dark:bg-gray-900/50'>
+                      <div className='max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-none custom-scrollbar shadow-inner bg-gray-50/50 dark:bg-gray-900/50'>
                         <div className='divide-y divide-gray-200 dark:divide-gray-700'>
                           {memberPreviewList.slice(0, 100).map((member, index) => (
                             <div
                               key={member.id || index}
-                              className='group p-2.5 hover:bg-gradient-to-r hover:from-orange-50 hover:to-white dark:hover:from-orange-900/20 dark:hover:to-gray-800 transition-all duration-200 animate-fade-in-up hover:shadow-sm border-l-2 border-l-transparent hover:border-l-orange-500'
+                              className='group p-2.5 hover:bg-orange-50/70 dark:hover:bg-orange-900/20 transition-colors duration-200 animate-fade-in-up -sm border-l-2 border-l-transparent hover:border-l-orange-500'
                               style={{ animationDelay: `${index * 15}ms` }}
                             >
                               <div className='flex items-center justify-between gap-3'>
                                 <div className='flex items-center gap-2.5 flex-1 min-w-0'>
-                                  <div className='flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 flex items-center justify-center text-white text-[10px] font-bold shadow-sm group-hover:scale-110 transition-transform duration-200'>
+                                  <div className='flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-orange-400 to-orange-600 dark:from-orange-600 dark:to-orange-800 flex items-center justify-center text-white text-[10px] font-bold shadow-sm  transition-transform duration-200'>
                                     {member.full_name?.charAt(0)?.toUpperCase() || 'M'}
                                   </div>
                                   <p className='text-xs font-semibold text-gray-900 dark:text-white truncate font-inter group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
@@ -1401,11 +1401,11 @@ const NotificationManagement: React.FC = () => {
                                   </p>
                                 </div>
                                 <div className='flex items-center gap-1.5 flex-shrink-0'>
-                                  <span className='text-[9px] px-2 py-1 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 text-blue-700 dark:text-blue-300 font-semibold whitespace-nowrap border border-blue-200 dark:border-blue-700/50 shadow-sm group-hover:scale-105 transition-transform duration-200'>
+                                  <span className='text-[9px] px-2 py-1 rounded-full bg-gradient-to-r from-blue-100 to-blue-200 dark:from-blue-900/40 dark:to-blue-800/40 text-blue-700 dark:text-blue-300 font-semibold whitespace-nowrap border border-blue-200 dark:border-blue-700/50 shadow-sm  transition-transform duration-200'>
                                     {member.membership_type}
                                   </span>
                                   <span
-                                    className={`text-[9px] px-2 py-1 rounded-full font-semibold whitespace-nowrap border shadow-sm group-hover:scale-105 transition-transform duration-200 ${
+                                    className={`text-[9px] px-2 py-1 rounded-full font-semibold whitespace-nowrap border shadow-sm  transition-transform duration-200 ${
                                       member.membership_status === 'ACTIVE'
                                         ? 'bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/50'
                                         : member.membership_status === 'EXPIRED'
@@ -1454,7 +1454,7 @@ const NotificationManagement: React.FC = () => {
 
       {activeTab === 'trainers' && (
         <div
-          className={`grid grid-cols-1 lg:grid-cols-3 gap-3 transition-all duration-300 ${
+          className={`grid grid-cols-1 lg:grid-cols-3 gap-3 transition-colors duration-200 ${
             isTabTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
           }`}
         >
@@ -1471,7 +1471,7 @@ const NotificationManagement: React.FC = () => {
                     type='text'
                     value={trainerForm.title}
                     onChange={e => setTrainerForm({ ...trainerForm, title: e.target.value })}
-                    className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                    className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     placeholder={t('notificationManagement.form.titlePlaceholder')}
                   />
                 </div>
@@ -1485,7 +1485,7 @@ const NotificationManagement: React.FC = () => {
                     value={trainerForm.message}
                     onChange={e => setTrainerForm({ ...trainerForm, message: e.target.value })}
                     rows={4}
-                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                    className='w-full px-3 py-2 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-sm resize-none shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     placeholder={t('notificationManagement.form.messagePlaceholder')}
                   />
                 </div>
@@ -1518,7 +1518,7 @@ const NotificationManagement: React.FC = () => {
                   <div className='grid grid-cols-3 gap-2'>
                     <button
                       onClick={() => setTrainerForm({ ...trainerForm, sendTo: 'all' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         trainerForm.sendTo === 'all'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1528,7 +1528,7 @@ const NotificationManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setTrainerForm({ ...trainerForm, sendTo: 'filter' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         trainerForm.sendTo === 'filter'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1538,7 +1538,7 @@ const NotificationManagement: React.FC = () => {
                     </button>
                     <button
                       onClick={() => setTrainerForm({ ...trainerForm, sendTo: 'specific' })}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      className={`px-3 py-2 rounded-none text-sm font-medium transition-colors duration-200 ${
                         trainerForm.sendTo === 'specific'
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
@@ -1551,7 +1551,7 @@ const NotificationManagement: React.FC = () => {
 
                 {/* Filter Section */}
                 {trainerForm.sendTo === 'filter' && (
-                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700'>
                     <div className='flex items-center justify-between mb-3'>
                       <div className='flex items-center space-x-2'>
                         <Filter className='w-4 h-4 text-orange-500' />
@@ -1576,7 +1576,7 @@ const NotificationManagement: React.FC = () => {
                                 filters: { ...trainerForm.filters, search: e.target.value },
                               })
                             }
-                            className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                            className='w-full h-[30px] pl-8 pr-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                             placeholder={t(
                               'notificationManagement.trainers.filters.searchPlaceholder'
                             )}
@@ -1639,7 +1639,7 @@ const NotificationManagement: React.FC = () => {
 
                 {/* Specific IDs Section */}
                 {trainerForm.sendTo === 'specific' && (
-                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                  <div className='p-3 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700'>
                     <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
                       {t('notificationManagement.form.trainerIds')}
                     </label>
@@ -1655,7 +1655,7 @@ const NotificationManagement: React.FC = () => {
                             .filter(id => id),
                         })
                       }
-                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                       placeholder={t('notificationManagement.form.trainerIdsPlaceholder')}
                     />
                   </div>
@@ -1664,7 +1664,7 @@ const NotificationManagement: React.FC = () => {
                 <button
                   onClick={handleSendToTrainers}
                   disabled={sending || !trainerForm.title || !trainerForm.message}
-                  className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-semibold shadow-sm hover:shadow disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-all duration-200 text-sm'
+                  className='w-full px-4 py-2.5 bg-orange-500 hover:bg-orange-600 text-white rounded-none font-semibold shadow-sm  disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center space-x-2 transition-colors duration-200 text-sm'
                 >
                   <Send className='w-4 h-4' />
                   <span>
@@ -1710,10 +1710,10 @@ const NotificationManagement: React.FC = () => {
                   </div>
                 ) : trainerPreviewList.length > 0 ? (
                   <>
-                    <div className='p-3.5 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-xl border border-orange-200 dark:border-orange-700/50 shadow-sm animate-fade-in-up'>
+                    <div className='p-3.5 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/20 rounded-none border border-orange-200 dark:border-orange-700/50 shadow-sm animate-fade-in-up'>
                       <div className='flex items-center justify-between'>
                         <div className='flex items-center space-x-2.5'>
-                          <div className='p-1.5 bg-orange-200 dark:bg-orange-800/50 rounded-lg'>
+                          <div className='p-1.5 bg-orange-200 dark:bg-orange-800/50 rounded-none'>
                             <CheckCircle2 className='w-4 h-4 text-orange-600 dark:text-orange-400' />
                           </div>
                           <div>
@@ -1731,17 +1731,17 @@ const NotificationManagement: React.FC = () => {
                     </div>
 
                     {showPreviewList && (
-                      <div className='max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-xl custom-scrollbar shadow-inner bg-gray-50/50 dark:bg-gray-900/50'>
+                      <div className='max-h-[500px] overflow-y-auto border border-gray-200 dark:border-gray-700 rounded-none custom-scrollbar shadow-inner bg-gray-50/50 dark:bg-gray-900/50'>
                         <div className='divide-y divide-gray-200 dark:divide-gray-700'>
                           {trainerPreviewList.slice(0, 100).map((trainer, index) => (
                             <div
                               key={trainer.id || index}
-                              className='group p-2.5 hover:bg-gradient-to-r hover:from-orange-50 hover:to-white dark:hover:from-orange-900/20 dark:hover:to-gray-800 transition-all duration-200 animate-fade-in-up hover:shadow-sm border-l-2 border-l-transparent hover:border-l-orange-500'
+                              className='group p-2.5 hover:bg-orange-50/70 dark:hover:bg-orange-900/20 transition-colors duration-200 animate-fade-in-up -sm border-l-2 border-l-transparent hover:border-l-orange-500'
                               style={{ animationDelay: `${index * 15}ms` }}
                             >
                               <div className='flex items-center justify-between gap-3'>
                                 <div className='flex items-center gap-2.5 flex-1 min-w-0'>
-                                  <div className='flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 flex items-center justify-center text-white text-[10px] font-bold shadow-sm group-hover:scale-110 transition-transform duration-200'>
+                                  <div className='flex-shrink-0 w-7 h-7 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 dark:from-blue-600 dark:to-blue-800 flex items-center justify-center text-white text-[10px] font-bold shadow-sm  transition-transform duration-200'>
                                     {trainer.full_name?.charAt(0)?.toUpperCase() || 'T'}
                                   </div>
                                   <p className='text-xs font-semibold text-gray-900 dark:text-white truncate font-inter group-hover:text-orange-600 dark:group-hover:text-orange-400 transition-colors duration-200'>
@@ -1750,7 +1750,7 @@ const NotificationManagement: React.FC = () => {
                                 </div>
                                 <div className='flex flex-col items-end gap-1 flex-shrink-0 justify-center'>
                                   <span
-                                    className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap border shadow-sm group-hover:scale-105 transition-transform duration-200 h-[16px] flex items-center ${
+                                    className={`text-[8px] px-1.5 py-0.5 rounded-full font-semibold whitespace-nowrap border shadow-sm  transition-transform duration-200 h-[16px] flex items-center ${
                                       trainer.status === 'ACTIVE'
                                         ? 'bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 border-green-200 dark:border-green-700/50'
                                         : trainer.status === 'INACTIVE'
@@ -1764,7 +1764,7 @@ const NotificationManagement: React.FC = () => {
                                   </span>
                                   {trainer.specializations &&
                                     trainer.specializations.length > 0 && (
-                                      <span className='text-[8px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/40 dark:to-purple-800/40 text-purple-700 dark:text-purple-300 font-semibold whitespace-nowrap border border-purple-200 dark:border-purple-700/50 shadow-sm group-hover:scale-105 transition-transform duration-200 h-[16px] flex items-center'>
+                                      <span className='text-[8px] px-1.5 py-0.5 rounded-full bg-gradient-to-r from-purple-100 to-purple-200 dark:from-purple-900/40 dark:to-purple-800/40 text-purple-700 dark:text-purple-300 font-semibold whitespace-nowrap border border-purple-200 dark:border-purple-700/50 shadow-sm  transition-transform duration-200 h-[16px] flex items-center'>
                                         {trainer.specializations[0]}
                                       </span>
                                     )}
@@ -1807,7 +1807,7 @@ const NotificationManagement: React.FC = () => {
 
       {activeTab === 'history' && (
         <div
-          className={`space-y-3 transition-all duration-300 ${
+          className={`space-y-3 transition-colors duration-200 ${
             isTabTransitioning ? 'opacity-0 translate-y-4' : 'opacity-100 translate-y-0'
           }`}
         >
@@ -1815,7 +1815,7 @@ const NotificationManagement: React.FC = () => {
           {!loading && (history.length > 0 || allHistory.length > 0) && historyStats && (
             <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
               <div style={{ minHeight: '100px' }}>
-                <AdminCard className='p-3 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/10 border border-orange-200 dark:border-orange-700/50 hover:scale-[1.02] hover:shadow-lg transition-all duration-300'>
+                <AdminCard className='p-3 bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/10 border border-orange-200 dark:border-orange-700/50 hover:scale-[1.02]  transition-colors duration-200'>
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-[10px] font-medium text-orange-700 dark:text-orange-300 uppercase tracking-wide mb-1'>
@@ -1825,14 +1825,14 @@ const NotificationManagement: React.FC = () => {
                         <AnimatedNumber value={historyStats.total} />
                       </p>
                     </div>
-                    <div className='p-2 bg-orange-200 dark:bg-orange-800/50 rounded-lg'>
+                    <div className='p-2 bg-orange-200 dark:bg-orange-800/50 rounded-none'>
                       <History className='w-5 h-5 text-orange-700 dark:text-orange-300' />
                     </div>
                   </div>
                 </AdminCard>
               </div>
               <div style={{ minHeight: '100px' }}>
-                <AdminCard className='p-3 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 border border-blue-200 dark:border-blue-700/50 hover:scale-[1.02] hover:shadow-lg transition-all duration-300'>
+                <AdminCard className='p-3 bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/10 border border-blue-200 dark:border-blue-700/50 hover:scale-[1.02]  transition-colors duration-200'>
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-[10px] font-medium text-blue-700 dark:text-blue-300 uppercase tracking-wide mb-1'>
@@ -1842,14 +1842,14 @@ const NotificationManagement: React.FC = () => {
                         <AnimatedNumber value={historyStats.totalSent} />
                       </p>
                     </div>
-                    <div className='p-2 bg-blue-200 dark:bg-blue-800/50 rounded-lg'>
+                    <div className='p-2 bg-blue-200 dark:bg-blue-800/50 rounded-none'>
                       <CheckCircle2 className='w-5 h-5 text-blue-700 dark:text-blue-300' />
                     </div>
                   </div>
                 </AdminCard>
               </div>
               <div style={{ minHeight: '100px' }}>
-                <AdminCard className='p-3 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/10 border border-green-200 dark:border-green-700/50 hover:scale-[1.02] hover:shadow-lg transition-all duration-300'>
+                <AdminCard className='p-3 bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/10 border border-green-200 dark:border-green-700/50 hover:scale-[1.02]  transition-colors duration-200'>
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-[10px] font-medium text-green-700 dark:text-green-300 uppercase tracking-wide mb-1'>
@@ -1859,14 +1859,14 @@ const NotificationManagement: React.FC = () => {
                         <AnimatedNumber value={historyStats.totalSuccess} />
                       </p>
                     </div>
-                    <div className='p-2 bg-green-200 dark:bg-green-800/50 rounded-lg'>
+                    <div className='p-2 bg-green-200 dark:bg-green-800/50 rounded-none'>
                       <CheckCircle2 className='w-5 h-5 text-green-700 dark:text-green-300' />
                     </div>
                   </div>
                 </AdminCard>
               </div>
               <div style={{ minHeight: '100px' }}>
-                <AdminCard className='p-3 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/10 border border-red-200 dark:border-red-700/50 hover:scale-[1.02] hover:shadow-lg transition-all duration-300'>
+                <AdminCard className='p-3 bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/10 border border-red-200 dark:border-red-700/50 hover:scale-[1.02]  transition-colors duration-200'>
                   <div className='flex items-center justify-between'>
                     <div>
                       <p className='text-[10px] font-medium text-red-700 dark:text-red-300 uppercase tracking-wide mb-1'>
@@ -1876,7 +1876,7 @@ const NotificationManagement: React.FC = () => {
                         <AnimatedNumber value={historyStats.totalFailed} />
                       </p>
                     </div>
-                    <div className='p-2 bg-red-200 dark:bg-red-800/50 rounded-lg'>
+                    <div className='p-2 bg-red-200 dark:bg-red-800/50 rounded-none'>
                       <X className='w-5 h-5 text-red-700 dark:text-red-300' />
                     </div>
                   </div>
@@ -1888,7 +1888,7 @@ const NotificationManagement: React.FC = () => {
           <AdminCard>
             <div className='space-y-4'>
               {/* Filters */}
-              <div className='p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-xl border border-gray-200 dark:border-gray-700 animate-fade-in'>
+              <div className='p-4 bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-900 rounded-none border border-gray-200 dark:border-gray-700 animate-fade-in'>
                 <div className='flex items-center justify-between mb-3'>
                   <div className='flex items-center space-x-2'>
                     <Filter className='w-4 h-4 text-orange-500' />
@@ -1947,7 +1947,7 @@ const NotificationManagement: React.FC = () => {
                         setHistoryFilters({ ...historyFilters, startDate: e.target.value });
                         setHistoryPagination(prev => ({ ...prev, page: 1 }));
                       }}
-                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     />
                   </div>
                   <div>
@@ -1962,7 +1962,7 @@ const NotificationManagement: React.FC = () => {
                         setHistoryFilters({ ...historyFilters, endDate: e.target.value });
                         setHistoryPagination(prev => ({ ...prev, page: 1 }));
                       }}
-                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200'
+                      className='w-full h-[30px] px-3 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white text-[11px] shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200'
                     />
                   </div>
                   <div className='flex items-end'>
@@ -1971,7 +1971,7 @@ const NotificationManagement: React.FC = () => {
                         setHistoryFilters({ target_type: '', startDate: '', endDate: '' });
                         setHistoryPagination(prev => ({ ...prev, page: 1 }));
                       }}
-                      className='w-full h-[30px] px-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-all duration-200 text-[11px] flex items-center justify-center'
+                      className='w-full h-[30px] px-3 bg-gray-200 hover:bg-gray-300 dark:bg-gray-700 dark:hover:bg-gray-600 text-gray-700 dark:text-gray-300 rounded-none font-medium transition-colors duration-200 text-[11px] flex items-center justify-center'
                     >
                       <X className='w-3 h-3 mr-1' />
                       {t('notificationManagement.history.filters.clearFilter')}
@@ -1986,7 +1986,7 @@ const NotificationManagement: React.FC = () => {
               ) : (
                 <>
                   <div
-                    className='overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm'
+                    className='overflow-x-auto rounded-none border border-gray-200 dark:border-gray-700 shadow-sm'
                     style={{
                       minHeight: '400px',
                       willChange: 'contents',
@@ -2049,11 +2049,11 @@ const NotificationManagement: React.FC = () => {
                                 setSelectedHistoryItem(item);
                                 setShowDetailModal(true);
                               }}
-                              className={`group border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 ease-out cursor-pointer ${
+                              className={`group border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 ease-out cursor-pointer ${
                                 index % 2 === 0
                                   ? 'bg-white dark:bg-gray-900'
                                   : 'bg-gray-50/50 dark:bg-gray-800/50'
-                              } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10 hover:shadow-sm`}
+                              } hover:bg-orange-50/70 dark:hover:bg-orange-900/20 -sm`}
                             >
                               <AdminTableCell className='text-[11px] font-inter'>
                                 <div className='flex flex-col'>
@@ -2093,19 +2093,19 @@ const NotificationManagement: React.FC = () => {
                                 </div>
                               </AdminTableCell>
                               <AdminTableCell className='text-center'>
-                                <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-heading'>
+                                <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-none text-[11px] font-bold bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 font-heading'>
                                   {item.total_targets}
                                 </span>
                               </AdminTableCell>
                               <AdminTableCell className='text-center'>
-                                <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700/50'>
+                                <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-none text-[11px] font-bold bg-gradient-to-r from-green-100 to-green-200 dark:from-green-900/40 dark:to-green-800/40 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-700/50'>
                                   <CheckCircle2 className='w-3 h-3 mr-1' />
                                   {item.sent_count}
                                 </span>
                               </AdminTableCell>
                               <AdminTableCell className='text-center'>
                                 {item.failed_count > 0 ? (
-                                  <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-[11px] font-bold bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900/40 dark:to-red-800/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50'>
+                                  <span className='inline-flex items-center justify-center px-2.5 py-1 rounded-none text-[11px] font-bold bg-gradient-to-r from-red-100 to-red-200 dark:from-red-900/40 dark:to-red-800/40 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-700/50'>
                                     <X className='w-3 h-3 mr-1' />
                                     {item.failed_count}
                                   </span>
@@ -2167,7 +2167,7 @@ const NotificationManagement: React.FC = () => {
           }}
         >
           <div
-            className='bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-md w-full mx-4 p-6 animate-modal-slide-up'
+            className='bg-white dark:bg-gray-800 rounded-none shadow-xl max-w-md w-full mx-4 p-6 animate-modal-slide-up'
             onClick={e => e.stopPropagation()}
           >
             {/* Success Icon */}
@@ -2183,7 +2183,7 @@ const NotificationManagement: React.FC = () => {
             </h2>
 
             {/* Stats */}
-            <div className='bg-gray-50 dark:bg-gray-700/50 rounded-lg p-4 mb-4 space-y-2'>
+            <div className='bg-gray-50 dark:bg-gray-700/50 rounded-none p-4 mb-4 space-y-2'>
               <div className='flex items-center justify-between'>
                 <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
                   {t('notificationManagement.success.target')}:
@@ -2228,7 +2228,7 @@ const NotificationManagement: React.FC = () => {
                 setShowSuccessModal(false);
                 setSuccessData(null);
               }}
-              className='w-full bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-2.5 px-4 rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 font-heading'
+              className='w-full bg-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold py-2.5 px-4 rounded-none transition-colors duration-200 shadow-md   font-heading'
             >
               {t('common.close')}
             </button>
@@ -2252,7 +2252,7 @@ const NotificationManagement: React.FC = () => {
           }}
         >
           <div
-            className='bg-white dark:bg-gray-800 rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col animate-modal-slide-up'
+            className='bg-white dark:bg-gray-800 rounded-none shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-hidden flex flex-col animate-modal-slide-up'
             onClick={e => e.stopPropagation()}
           >
             {/* Header */}
@@ -2276,7 +2276,7 @@ const NotificationManagement: React.FC = () => {
                     setShowDetailModal(false);
                     setSelectedHistoryItem(null);
                   }}
-                  className='p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition-colors duration-200'
+                  className='p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none transition-colors duration-200'
                 >
                   <X className='w-5 h-5 text-gray-500 dark:text-gray-400' />
                 </button>
@@ -2291,7 +2291,7 @@ const NotificationManagement: React.FC = () => {
                   <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
                     {t('notificationManagement.history.detail.title')}
                   </label>
-                  <div className='px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                  <div className='px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-none border border-gray-200 dark:border-gray-700'>
                     <p className='text-sm font-medium text-gray-900 dark:text-white font-inter'>
                       {selectedHistoryItem.title}
                     </p>
@@ -2303,7 +2303,7 @@ const NotificationManagement: React.FC = () => {
                   <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
                     Nội dung
                   </label>
-                  <div className='px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700 min-h-[100px]'>
+                  <div className='px-4 py-3 bg-gray-50 dark:bg-gray-700/50 rounded-none border border-gray-200 dark:border-gray-700 min-h-[100px]'>
                     <p className='text-sm text-gray-900 dark:text-white whitespace-pre-wrap font-inter leading-relaxed'>
                       {selectedHistoryItem.message}
                     </p>
@@ -2312,7 +2312,7 @@ const NotificationManagement: React.FC = () => {
 
                 {/* Stats Grid */}
                 <div className='grid grid-cols-2 md:grid-cols-4 gap-3'>
-                  <div className='bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10 rounded-lg p-3 border border-blue-200 dark:border-blue-700/50'>
+                  <div className='bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-900/20 dark:to-blue-800/10 rounded-none p-3 border border-blue-200 dark:border-blue-700/50'>
                     <div className='text-xs text-blue-600 dark:text-blue-400 font-medium font-heading mb-1'>
                       {t('notificationManagement.history.detail.target')}
                     </div>
@@ -2325,7 +2325,7 @@ const NotificationManagement: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className='bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-lg p-3 border border-gray-200 dark:border-gray-700'>
+                  <div className='bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-700/50 dark:to-gray-800/50 rounded-none p-3 border border-gray-200 dark:border-gray-700'>
                     <div className='text-xs text-gray-600 dark:text-gray-400 font-medium font-heading mb-1'>
                       {t('notificationManagement.history.detail.total')}
                     </div>
@@ -2333,7 +2333,7 @@ const NotificationManagement: React.FC = () => {
                       {selectedHistoryItem.total_targets}
                     </div>
                   </div>
-                  <div className='bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 rounded-lg p-3 border border-green-200 dark:border-green-700/50'>
+                  <div className='bg-gradient-to-br from-green-50 to-green-100/50 dark:from-green-900/20 dark:to-green-800/10 rounded-none p-3 border border-green-200 dark:border-green-700/50'>
                     <div className='text-xs text-green-600 dark:text-green-400 font-medium font-heading mb-1'>
                       Thành công
                     </div>
@@ -2341,7 +2341,7 @@ const NotificationManagement: React.FC = () => {
                       {selectedHistoryItem.sent_count}
                     </div>
                   </div>
-                  <div className='bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 rounded-lg p-3 border border-red-200 dark:border-red-700/50'>
+                  <div className='bg-gradient-to-br from-red-50 to-red-100/50 dark:from-red-900/20 dark:to-red-800/10 rounded-none p-3 border border-red-200 dark:border-red-700/50'>
                     <div className='text-xs text-red-600 dark:text-red-400 font-medium font-heading mb-1'>
                       {t('notificationManagement.history.detail.failed')}
                     </div>
@@ -2357,7 +2357,7 @@ const NotificationManagement: React.FC = () => {
                     <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
                       {t('notificationManagement.history.detail.sender')}
                     </label>
-                    <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                    <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-none border border-gray-200 dark:border-gray-700'>
                       <EnumBadge
                         type='ROLE'
                         value={selectedHistoryItem.sender_role}
@@ -2370,7 +2370,7 @@ const NotificationManagement: React.FC = () => {
                     <label className='text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide font-heading mb-1.5 block'>
                       {t('notificationManagement.history.detail.notificationType')}
                     </label>
-                    <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                    <div className='px-4 py-2 bg-gray-50 dark:bg-gray-700/50 rounded-none border border-gray-200 dark:border-gray-700'>
                       <span className='text-sm text-gray-900 dark:text-white font-inter'>
                         {selectedHistoryItem.notification_type}
                       </span>
@@ -2387,7 +2387,7 @@ const NotificationManagement: React.FC = () => {
                   setShowDetailModal(false);
                   setSelectedHistoryItem(null);
                 }}
-                className='px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg transition-all duration-200 shadow-md hover:shadow-lg active:scale-95 font-heading text-sm'
+                className='px-4 py-2 bg-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-none transition-colors duration-200 shadow-md   font-heading text-sm'
               >
                 {t('common.close')}
               </button>
@@ -2400,3 +2400,6 @@ const NotificationManagement: React.FC = () => {
 };
 
 export default NotificationManagement;
+
+
+

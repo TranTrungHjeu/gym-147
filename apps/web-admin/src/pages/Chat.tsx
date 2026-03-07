@@ -1,8 +1,9 @@
-import { MessageCircle, Send, User } from 'lucide-react';
+import { MessageCircle, Send } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { chatService, ChatMessage, Conversation } from '../services/chat.service';
 import { getCurrentUser } from '../utils/auth';
 import AdminCard from '../components/common/AdminCard';
+import { SimpleLoading } from '../components/ui/AppLoading';
 import useTranslation from '../hooks/useTranslation';
 
 export default function ChatPage() {
@@ -235,58 +236,58 @@ export default function ChatPage() {
   };
 
   return (
-    <div className='flex h-[calc(100vh-8rem)] gap-4'>
+    <div className='flex h-[calc(100vh-10rem)] gap-2 bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)] p-0'>
       {/* Conversations List */}
-      <AdminCard className='w-80 flex-shrink-0 flex flex-col p-0 overflow-hidden'>
-        <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
-          <h2 className='text-lg font-semibold text-gray-900 dark:text-gray-100'>
+      <AdminCard className='w-64 flex-shrink-0 flex flex-col p-0 overflow-hidden min-h-0 rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+        <div className='p-2.5 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+          <h2 className='text-base font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-heading'>
             {t('chat.customerSupport')}
           </h2>
           {unreadCount > 0 && (
-            <p className='text-sm text-gray-500 dark:text-gray-400 mt-1'>
+            <p className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] mt-1 font-sans'>
               {t('chat.unreadMessages', { count: unreadCount })}
             </p>
           )}
         </div>
-        <div className='flex-1 overflow-y-auto'>
+        <div className='flex-1 overflow-y-auto [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-300)] dark:[&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-600)] [&::-webkit-scrollbar-thumb]:rounded-full'>
           {conversations.length === 0 ? (
-            <div className='p-4 text-center text-gray-500 dark:text-gray-400'>
+            <div className='p-4 text-center text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
               <MessageCircle className='w-12 h-12 mx-auto mb-2 opacity-50' />
-              <p>{t('chat.noConversations')}</p>
+              <p className='text-sm font-sans'>{t('chat.noConversations')}</p>
             </div>
           ) : (
-            <div className='divide-y divide-gray-200 dark:divide-gray-700'>
+            <div className='divide-y divide-[var(--color-gray-200)] dark:divide-[var(--color-gray-700)]'>
               {conversations.map(conversation => (
                 <button
                   key={conversation.user.id}
                   onClick={() => handleSelectConversation(conversation)}
-                  className={`w-full p-4 text-left hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors ${
+                  className={`w-full p-2.5 text-left hover:bg-[var(--color-gray-50)] dark:hover:bg-[var(--color-gray-800)] transition-colors ${
                     selectedConversation?.user.id === conversation.user.id
-                      ? 'bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500'
+                      ? 'bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 border-l-2 border-[var(--color-orange-500)]'
                       : ''
                   }`}
                 >
-                  <div className='flex items-center gap-3'>
-                    <div className='w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold'>
+                  <div className='flex items-center gap-2'>
+                    <div className='w-8 h-8 rounded-full bg-[var(--color-orange-500)] flex items-center justify-center text-white font-semibold text-xs font-heading'>
                       {conversation.user.first_name?.[0]?.toUpperCase() ||
                         conversation.user.email?.[0]?.toUpperCase() ||
                         'U'}
                     </div>
                     <div className='flex-1 min-w-0'>
                       <div className='flex items-center justify-between'>
-                        <p className='font-semibold text-gray-900 dark:text-gray-100 truncate'>
+                        <p className='font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] truncate text-xs font-heading'>
                           {conversation.user.first_name} {conversation.user.last_name}
                         </p>
                         {conversation.unreadCount > 0 && (
-                          <span className='bg-orange-500 text-white text-xs font-semibold rounded-full px-2 py-0.5 min-w-[20px] text-center'>
+                          <span className='bg-[var(--color-orange-500)] text-white text-[11px] font-semibold rounded-none px-1.5 py-0.5 min-w-[18px] text-center font-heading'>
                             {conversation.unreadCount}
                           </span>
                         )}
                       </div>
-                      <p className='text-sm text-gray-500 dark:text-gray-400 truncate mt-1'>
+                      <p className='text-[11px] text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] truncate mt-1 font-sans'>
                         {conversation.lastMessage.message}
                       </p>
-                      <p className='text-xs text-gray-400 dark:text-gray-500 mt-1'>
+                      <p className='text-[11px] text-[var(--color-gray-400)] dark:text-[var(--color-gray-500)] mt-1 font-sans'>
                         {formatTime(conversation.lastMessage.created_at)}
                       </p>
                     </div>
@@ -299,27 +300,27 @@ export default function ChatPage() {
       </AdminCard>
 
       {/* Chat Messages */}
-      <AdminCard className='flex-1 flex flex-col p-0 overflow-hidden'>
+      <AdminCard className='flex-1 flex flex-col p-0 overflow-hidden min-h-0 rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
         {selectedConversation ? (
           <>
             {/* Header */}
-            <div className='p-4 border-b border-gray-200 dark:border-gray-700'>
-              <div className='flex items-center gap-3'>
-                <div className='w-10 h-10 rounded-full bg-orange-500 flex items-center justify-center text-white font-semibold'>
+            <div className='p-2.5 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+              <div className='flex items-center gap-2'>
+                <div className='w-8 h-8 rounded-full bg-[var(--color-orange-500)] flex items-center justify-center text-white font-semibold text-xs font-heading'>
                   {selectedConversation.user.first_name?.[0]?.toUpperCase() ||
                     selectedConversation.user.email?.[0]?.toUpperCase() ||
                     'U'}
                 </div>
                 <div className='flex-1'>
-                  <h3 className='font-semibold text-gray-900 dark:text-gray-100'>
+                  <h3 className='font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] text-xs font-heading'>
                     {selectedConversation.user.first_name} {selectedConversation.user.last_name}
                   </h3>
-                  <p className='text-sm text-gray-500 dark:text-gray-400'>
+                  <p className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] font-sans'>
                     {selectedConversation.user.email}
                   </p>
                 </div>
                 {isTyping && (
-                  <div className='text-sm text-gray-500 dark:text-gray-400 italic'>
+                  <div className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] italic font-sans'>
                     {t('chat.typing')}
                   </div>
                 )}
@@ -327,18 +328,16 @@ export default function ChatPage() {
             </div>
 
             {/* Messages */}
-            <div className='flex-1 overflow-y-auto p-4 space-y-4'>
+            <div className='flex-1 overflow-y-auto p-2.5 space-y-2.5 min-h-0 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-300)] dark:[&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-600)] [&::-webkit-scrollbar-thumb]:rounded-full'>
               {loading ? (
-                <div className='flex items-center justify-center h-full'>
-                  <div className='text-gray-500 dark:text-gray-400'>
-                    {t('chat.loadingMessages')}
-                  </div>
+                <div className='h-full min-h-[220px] flex items-center justify-center'>
+                  <SimpleLoading size='small' />
                 </div>
               ) : messages.length === 0 ? (
                 <div className='flex items-center justify-center h-full'>
-                  <div className='text-center text-gray-500 dark:text-gray-400'>
+                  <div className='text-center text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
                     <MessageCircle className='w-12 h-12 mx-auto mb-2 opacity-50' />
-                    <p>{t('chat.noMessages')}</p>
+                    <p className='text-sm font-sans'>{t('chat.noMessages')}</p>
                   </div>
                 </div>
               ) : (
@@ -352,22 +351,24 @@ export default function ChatPage() {
                   return (
                     <div key={msg.id}>
                       {showDate && (
-                        <div className='text-center text-xs text-gray-400 dark:text-gray-500 my-4'>
+                        <div className='text-center text-[11px] text-[var(--color-gray-400)] dark:text-[var(--color-gray-500)] my-3 font-sans'>
                           {formatDate(msg.created_at)}
                         </div>
                       )}
                       <div className={`flex ${myMessage ? 'justify-end' : 'justify-start'} mb-2`}>
                         <div
-                          className={`max-w-[70%] rounded-lg px-4 py-2 ${
+                          className={`max-w-[68%] rounded-2xl px-2.5 py-1.5 border ${
                             myMessage
-                              ? 'bg-orange-500 text-white'
-                              : 'bg-gray-100 dark:bg-gray-800 text-gray-900 dark:text-gray-100'
+                              ? 'bg-[var(--color-orange-500)] border-[var(--color-orange-500)] text-white'
+                              : 'bg-[var(--color-gray-100)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] text-[var(--color-gray-900)] dark:text-[var(--color-white)]'
                           }`}
                         >
-                          <p className='text-sm'>{msg.message}</p>
+                          <p className='text-xs font-sans leading-relaxed'>{msg.message}</p>
                           <p
-                            className={`text-xs mt-1 ${
-                              myMessage ? 'text-orange-100' : 'text-gray-500 dark:text-gray-400'
+                            className={`text-[11px] mt-1 ${
+                              myMessage
+                                ? 'text-orange-100'
+                                : 'text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'
                             }`}
                           >
                             {formatTime(msg.created_at)}
@@ -382,7 +383,7 @@ export default function ChatPage() {
             </div>
 
             {/* Input */}
-            <div className='p-4 border-t border-gray-200 dark:border-gray-700'>
+            <div className='p-2.5 border-t border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)]'>
               <div className='flex items-end gap-2'>
                 <textarea
                   value={message}
@@ -394,26 +395,28 @@ export default function ChatPage() {
                     }
                   }}
                   placeholder={t('chat.input.placeholder')}
-                  className='flex-1 resize-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-4 py-2 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent'
+                  className='flex-1 resize-none max-h-24 overflow-y-auto rounded-none border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] bg-white dark:bg-[var(--color-gray-900)] px-3 py-2 text-[var(--color-gray-900)] dark:text-[var(--color-white)] text-sm font-sans focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)]/30 focus:border-[var(--color-orange-500)] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-300)] dark:[&::-webkit-scrollbar-thumb]:bg-[var(--color-gray-600)] [&::-webkit-scrollbar-thumb]:rounded-full'
                   rows={1}
                   maxLength={1000}
                 />
                 <button
                   onClick={handleSend}
                   disabled={!message.trim() || sending}
-                  className='p-2 rounded-lg bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors'
+                  className='h-[34px] w-[34px] rounded-none bg-[var(--color-orange-500)] text-white hover:bg-[var(--color-orange-600)] disabled:opacity-50 disabled:cursor-not-allowed transition-colors border border-[var(--color-orange-500)]'
                 >
-                  <Send className='w-5 h-5' />
+                  <Send className='w-4 h-4 mx-auto' />
                 </button>
               </div>
             </div>
           </>
         ) : (
           <div className='flex items-center justify-center h-full'>
-            <div className='text-center text-gray-500 dark:text-gray-400'>
+            <div className='text-center text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
               <MessageCircle className='w-16 h-16 mx-auto mb-4 opacity-50' />
-              <p className='text-lg font-semibold mb-2'>{t('chat.selectConversation')}</p>
-              <p>{t('chat.selectConversationDesc')}</p>
+              <p className='text-base font-semibold mb-2 text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-heading'>
+                {t('chat.selectConversation')}
+              </p>
+              <p className='text-sm font-sans'>{t('chat.selectConversationDesc')}</p>
             </div>
           </div>
         )}

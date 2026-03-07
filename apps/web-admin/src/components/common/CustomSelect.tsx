@@ -200,7 +200,7 @@ export default function CustomSelect({
           hasFullHeight ? 'h-full' : fixedHeight ? '' : 'h-[30px]'
         } ${
           fixedHeight ? 'py-1.5' : ''
-        } pl-9 pr-9 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-left transition-all duration-200 font-inter appearance-none shadow-sm ${
+        } pl-9 pr-9 text-[11px] border rounded-none bg-white dark:bg-gray-900 text-left transition-all duration-200 font-inter appearance-none shadow-sm ${
           disabled
             ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
             : 'cursor-pointer hover:shadow-md hover:bg-gray-50 dark:hover:bg-gray-800/50 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500'
@@ -246,7 +246,7 @@ export default function CustomSelect({
         typeof document !== 'undefined' &&
         createPortal(
           <div
-            className='fixed bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg overflow-hidden'
+            className='fixed bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-none shadow-lg overflow-hidden'
             style={{
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,

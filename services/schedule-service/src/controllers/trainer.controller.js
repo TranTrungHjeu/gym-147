@@ -1115,11 +1115,14 @@ class TrainerController {
           attendanceRecords: hydratedAttendance.map(record => ({
             id: record.id,
             schedule_id: record.schedule_id,
+            member_id: record.member_id,
             class_name: record.class_name,
             class_date: record.class_date,
             class_time: record.class_time,
             member_name: record.member?.full_name || 'Unknown Member',
             member_email: record.member?.email || 'unknown@example.com',
+            member_phone: record.member?.phone || null,
+            membership_status: record.member?.membership_status || null,
             checked_in_at: record.checked_in_at,
             checked_out_at: record.checked_out_at,
             attendance_method: record.attendance_method,
@@ -3389,9 +3392,7 @@ class TrainerController {
         message: 'Cập nhật lịch dạy thành công',
         data: {
           schedule: updatedSchedule,
-          cancelled_bookings: cancelledBookings.length,
-          refunds_processed: refundResults.filter(r => r.refundResult?.success).length,
-          refunds_failed: refundResults.filter(r => !r.refundResult?.success).length,
+          waitlist_notification: waitlistNotificationResult,
         },
       });
     } catch (error) {

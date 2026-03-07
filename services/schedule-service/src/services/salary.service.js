@@ -27,6 +27,11 @@ class SalaryService {
         },
         include: {
           attendance: true,
+          gym_class: {
+            select: {
+              name: true,
+            },
+          },
         },
         orderBy: {
           start_time: 'asc',
@@ -58,7 +63,8 @@ class SalaryService {
 
         breakdown.push({
           schedule_id: schedule.id,
-          class_name: schedule.gym_class?.name || 'Unknown',
+          class_name:
+            schedule.gym_class?.name || schedule.class_name || schedule.title || 'Unknown class',
           start_time: schedule.start_time,
           end_time: schedule.end_time,
           hours: parseFloat(hours.toFixed(2)),

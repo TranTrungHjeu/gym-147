@@ -5,6 +5,7 @@ import AdminCard from '../../components/common/AdminCard';
 import ComparisonModal from '../../components/common/ComparisonModal';
 import ExportButton from '../../components/common/ExportButton';
 import MetricCard from '../../components/dashboard/MetricCard';
+import { PageLoading } from '../../components/ui/AppLoading';
 import { userService } from '../../services/user.service';
 
 interface TrainerStats {
@@ -85,16 +86,12 @@ export default function TrainerStats() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
-    <div className='min-h-screen-full bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 h-full flex flex-col'>
+    <div className='min-h-screen-full bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
+      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 h-full flex flex-col'>
         {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -176,7 +173,7 @@ export default function TrainerStats() {
           className='mb-3'
         >
           {/* Performance Summary */}
-          <AdminCard>
+          <AdminCard className='rounded-none'>
             <h3 className='text-xl font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-4 font-heading'>
               Tóm tắt hiệu suất
             </h3>
@@ -211,39 +208,43 @@ export default function TrainerStats() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6, delay: 0.4 }}
-          className='flex flex-wrap gap-3'
+          className='mt-1'
         >
-          <ExportButton
-            data={[
-              {
-                'Tổng số lớp đã dạy': stats.totalClasses,
-                'Tổng học viên': stats.totalStudents,
-                'Đánh giá trung bình': stats.rating.toFixed(1),
-                'Buổi học hoàn thành': stats.completedSessions,
-                'Lớp sắp tới': stats.upcomingClasses,
-                'Doanh thu tháng': formatCurrency(stats.monthlyRevenue),
-              },
-            ]}
-            columns={[
-              { key: 'Tổng số lớp đã dạy', label: 'Tổng số lớp đã dạy' },
-              { key: 'Tổng học viên', label: 'Tổng học viên' },
-              { key: 'Đánh giá trung bình', label: 'Đánh giá trung bình' },
-              { key: 'Buổi học hoàn thành', label: 'Buổi học hoàn thành' },
-              { key: 'Lớp sắp tới', label: 'Lớp sắp tới' },
-              { key: 'Doanh thu tháng', label: 'Doanh thu tháng' },
-            ]}
-            filename='trainer-stats'
-            title='Báo cáo thống kê Trainer'
-            variant='primary'
-            size='sm'
-          />
-          <button
-            onClick={() => setIsComparisonModalOpen(true)}
-            className='px-4 py-2 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] rounded-lg transition-all duration-200 flex items-center gap-2 font-sans text-sm'
-          >
-            <TrendingUp className='w-4 h-4' />
-            So sánh hiệu suất
-          </button>
+          <AdminCard className='rounded-none p-3'>
+            <div className='flex flex-wrap gap-3'>
+              <ExportButton
+                data={[
+                  {
+                    'Tổng số lớp đã dạy': stats.totalClasses,
+                    'Tổng học viên': stats.totalStudents,
+                    'Đánh giá trung bình': stats.rating.toFixed(1),
+                    'Buổi học hoàn thành': stats.completedSessions,
+                    'Lớp sắp tới': stats.upcomingClasses,
+                    'Doanh thu tháng': formatCurrency(stats.monthlyRevenue),
+                  },
+                ]}
+                columns={[
+                  { key: 'Tổng số lớp đã dạy', label: 'Tổng số lớp đã dạy' },
+                  { key: 'Tổng học viên', label: 'Tổng học viên' },
+                  { key: 'Đánh giá trung bình', label: 'Đánh giá trung bình' },
+                  { key: 'Buổi học hoàn thành', label: 'Buổi học hoàn thành' },
+                  { key: 'Lớp sắp tới', label: 'Lớp sắp tới' },
+                  { key: 'Doanh thu tháng', label: 'Doanh thu tháng' },
+                ]}
+                filename='trainer-stats'
+                title='Báo cáo thống kê Trainer'
+                variant='primary'
+                size='sm'
+              />
+              <button
+                onClick={() => setIsComparisonModalOpen(true)}
+                className='px-2 py-1.5 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] rounded-none transition-all duration-200 flex items-center gap-2 font-space-grotesk text-xs font-medium'
+              >
+                <TrendingUp className='w-4 h-4' />
+                So sánh hiệu suất
+              </button>
+            </div>
+          </AdminCard>
         </motion.div>
       </div>
 

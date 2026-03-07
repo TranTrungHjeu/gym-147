@@ -7,6 +7,7 @@ import CustomSelect from '../../components/common/CustomSelect';
 import DatePicker from '../../components/common/DatePicker';
 import ExportButton from '../../components/common/ExportButton';
 import MetricCard from '../../components/dashboard/MetricCard';
+import { PageLoading, SimpleLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 import { MemberService } from '../../services/member.service';
 import { scheduleService } from '../../services/schedule.service';
@@ -291,11 +292,7 @@ export default function TrainerBookings() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
@@ -715,9 +712,7 @@ export default function TrainerBookings() {
         size='lg'
       >
         {loadingDetails ? (
-          <div className='flex items-center justify-center py-8'>
-            <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-orange-600)]'></div>
-          </div>
+          <SimpleLoading size='medium' className='py-8' />
         ) : (
           <div className='space-y-6'>
             {/* Member Profile Section */}

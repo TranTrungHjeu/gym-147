@@ -11,6 +11,7 @@ interface AdminModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   showCloseButton?: boolean;
   footer?: React.ReactNode;
+  square?: boolean;
 }
 
 const AdminModal: React.FC<AdminModalProps> = ({
@@ -21,6 +22,7 @@ const AdminModal: React.FC<AdminModalProps> = ({
   size = 'md',
   showCloseButton = true,
   footer,
+  square = false,
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
 
@@ -92,7 +94,10 @@ const AdminModal: React.FC<AdminModalProps> = ({
             aria-modal='true'
             aria-labelledby={title ? 'modal-title' : undefined}
           >
-            <AdminCard className='overflow-hidden max-h-[90vh] flex flex-col' padding='none'>
+            <AdminCard
+              className={`overflow-hidden max-h-[90vh] flex flex-col ${square ? 'rounded-none' : ''}`}
+              padding='none'
+            >
               {/* Header */}
               {(title || showCloseButton) && (
                 <motion.div
@@ -112,7 +117,7 @@ const AdminModal: React.FC<AdminModalProps> = ({
                   {showCloseButton && (
                     <button
                       onClick={onClose}
-                      className='ml-auto p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors duration-200'
+                      className={`ml-auto p-2 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200 ${square ? 'rounded-none' : 'rounded-lg'}`}
                       aria-label='Close modal'
                     >
                       <X className='w-5 h-5' />

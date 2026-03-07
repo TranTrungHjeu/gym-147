@@ -1,12 +1,13 @@
 import { scheduleApi } from '@/services/api';
 import { motion } from 'framer-motion';
-import { Camera, Download, FileSpreadsheet, FileText, Key, Mail, Phone, User } from 'lucide-react';
+import { Download, FileSpreadsheet, FileText, Key, User } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import UserInfoCard from '../../components/UserProfile/UserInfoCard';
 import { ExportUtils } from '../../components/common/ExportButton';
 import ChangePasswordModal from '../../components/modals/ChangePasswordModal';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
-import { Trainer, trainerService } from '../../services/trainer.service';
+import { Trainer } from '../../services/trainer.service';
 import { User as UserType, userService } from '../../services/user.service';
 
 export default function TrainerProfile() {
@@ -96,138 +97,8 @@ export default function TrainerProfile() {
     window.location.href = '/login';
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith('image/')) {
-      if (window.showToast) {
-        window.showToast({
-          type: 'error',
-          message: 'Chỉ chấp nhận file ảnh',
-          duration: 3000,
-        });
-      }
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      if (window.showToast) {
-        window.showToast({
-          type: 'error',
-          message: 'Kích thước file không được vượt quá 5MB',
-          duration: 3000,
-        });
-      }
-      return;
-    }
-
-    try {
-      // Resize and compress image before upload
-      const resizeImage = (
-        file: File,
-        maxWidth: number = 800,
-        maxHeight: number = 800,
-        quality: number = 0.8
-      ): Promise<string> => {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = e => {
-            const img = new Image();
-            img.onload = () => {
-              const canvas = document.createElement('canvas');
-              let width = img.width;
-              let height = img.height;
-
-              // Calculate new dimensions
-              if (width > height) {
-                if (width > maxWidth) {
-                  height = (height * maxWidth) / width;
-                  width = maxWidth;
-                }
-              } else {
-                if (height > maxHeight) {
-                  width = (width * maxHeight) / height;
-                  height = maxHeight;
-                }
-              }
-
-              canvas.width = width;
-              canvas.height = height;
-
-              const ctx = canvas.getContext('2d');
-              if (!ctx) {
-                reject(new Error('Could not get canvas context'));
-                return;
-              }
-
-              ctx.drawImage(img, 0, 0, width, height);
-              const resizedBase64 = canvas.toDataURL('image/jpeg', quality);
-              resolve(resizedBase64);
-            };
-            img.onerror = reject;
-            img.src = e.target?.result as string;
-          };
-          reader.onerror = reject;
-          reader.readAsDataURL(file);
-        });
-      };
-
-      // Resize image before upload
-      const resizedBase64 = await resizeImage(file, 800, 800, 0.8);
-
-      if (!user?.id) return;
-
-      const response = await trainerService.uploadAvatar(
-        user.id,
-        resizedBase64,
-        'image/jpeg', // Always use JPEG after resize
-        'avatar.jpg'
-      );
-
-      if (response.success && response.data) {
-        const newAvatarUrl = response.data.avatarUrl;
-        setTrainer({ profile_photo: newAvatarUrl } as Trainer);
-
-        // Optimistic update: Dispatch event to update avatars in other components
-        window.dispatchEvent(
-          new CustomEvent('avatarUpdated', {
-            detail: {
-              userId: user.id,
-              avatarUrl: newAvatarUrl,
-              role: user.role,
-            },
-          })
-        );
-
-        if (window.showToast) {
-          window.showToast({
-            type: 'success',
-            message: 'Đổi ảnh đại diện thành công!',
-            duration: 3000,
-          });
-        }
-      }
-    } catch (error: any) {
-      console.error('Error reading file:', error);
-      if (window.showToast) {
-        window.showToast({
-          type: 'error',
-          message: 'Lỗi khi đọc file',
-          duration: 3000,
-        });
-      }
-    }
-  };
-
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-gray-600 dark:text-gray-400'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   if (!user) {
@@ -241,280 +112,46 @@ export default function TrainerProfile() {
     );
   }
 
+  const fullName = `${user?.firstName || user?.first_name || ''} ${
+    user?.lastName || user?.last_name || ''
+  }`.trim();
+  const roleLabel = user?.role === 'TRAINER' ? 'Huấn luyện viên' : user?.role || 'N/A';
+  const joinedDate = user?.createdAt
+    ? new Date(user.createdAt).toLocaleDateString('vi-VN')
+    : 'Không có thông tin';
+
   return (
-    <div className='min-h-screen-full bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-      <div className='max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-2 h-full flex flex-col'>
+    <div className='min-h-screen-full bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
+      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 h-full flex flex-col gap-3'>
         {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
-          className='mb-2 flex-shrink-0'
+          className='flex-shrink-0'
         >
-          <div className='grid grid-cols-1 lg:grid-cols-5 gap-4'>
-            {/* Title Section */}
-            <div className='lg:col-span-1 space-y-0.5'>
-              <h1 className='text-xl lg:text-2xl font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
-                Hồ sơ cá nhân
-              </h1>
-              <p className='text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] text-xs font-sans'>
-                Quản lý thông tin cá nhân và cài đặt tài khoản
-              </p>
-            </div>
-
-            {/* Profile Overview + Account Status - Combined */}
-            <div className='lg:col-span-3'>
-              <div className='relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg shadow-sm border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] p-3'>
-                <div className='flex items-center gap-4'>
-                  {/* Avatar */}
-                  <div className='relative group flex-shrink-0'>
-                    <div className='relative w-12 h-12 rounded-full overflow-hidden border-2 border-[var(--color-white)] dark:border-[var(--color-gray-700)] shadow-sm bg-gray-100 dark:bg-gray-800'>
-                      {trainer?.profile_photo ? (
-                        <img
-                          src={trainer.profile_photo}
-                          alt={`${user?.firstName || user?.first_name || ''} ${
-                            user?.lastName || user?.last_name || ''
-                          }`.trim()}
-                          className='w-full h-full object-cover'
-                          onError={e => {
-                            e.currentTarget.style.display = 'none';
-                          }}
-                        />
-                      ) : null}
-                    </div>
-                    <label className='absolute -bottom-0.5 -right-0.5 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] p-1 rounded-full shadow-sm transition-all duration-300 hover:scale-110 cursor-pointer'>
-                      <Camera className='w-2.5 h-2.5' />
-                      <input
-                        type='file'
-                        accept='image/*'
-                        onChange={handleAvatarUpload}
-                        className='hidden'
-                      />
-                    </label>
-                  </div>
-
-                  {/* User Info */}
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2 flex-wrap'>
-                      <h2 className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] truncate font-sans'>
-                        {user?.firstName || user?.first_name} {user?.lastName || user?.last_name}
-                      </h2>
-                      <span className='inline-flex items-center px-2 py-0.5 rounded-full bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
-                        <span className='text-xs font-semibold text-[var(--color-orange-700)] dark:text-[var(--color-orange-300)] font-sans'>
-                          {user?.role === 'TRAINER' ? 'Huấn luyện viên' : user?.role}
-                        </span>
-                      </span>
-                    </div>
-                    <div className='flex items-center gap-4 mt-2'>
-                      <div className='flex items-center gap-1'>
-                        <Mail
-                          className={`w-4 h-4 ${
-                            user?.emailVerified
-                              ? 'text-[var(--color-orange-500)]'
-                              : 'text-[var(--color-gray-400)]'
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-medium ${
-                            user?.emailVerified
-                              ? 'text-[var(--color-orange-600)]'
-                              : 'text-[var(--color-gray-500)]'
-                          }`}
-                        >
-                          Email
-                        </span>
-                      </div>
-                      <div className='flex items-center gap-1'>
-                        <Phone
-                          className={`w-4 h-4 ${
-                            user?.phone
-                              ? 'text-[var(--color-orange-500)]'
-                              : 'text-[var(--color-gray-400)]'
-                          }`}
-                        />
-                        <span
-                          className={`text-xs font-medium ${
-                            user?.phone
-                              ? 'text-[var(--color-orange-600)]'
-                              : 'text-[var(--color-gray-500)]'
-                          }`}
-                        >
-                          SĐT
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Account Status */}
-                  <div className='flex-shrink-0'>
-                    <div className='flex items-center justify-between'>
-                      <div className='flex items-center space-x-2'>
-                        <div className='w-2 h-2 bg-[var(--color-orange-500)] rounded-full animate-pulse'></div>
-                        <span className='text-xs font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] font-sans'>
-                          Trạng thái
-                        </span>
-                      </div>
-                      <div className='text-right ml-4'>
-                        <div
-                          className='text-sm font-bold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)]'
-                          style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-                        >
-                          Hoạt động
-                        </div>
-                      </div>
-                    </div>
-                    <div className='mt-2 pt-2 border-t border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)]'>
-                      <div className='flex justify-between text-xs'>
-                        <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] font-sans'>
-                          Tham gia:
-                        </span>
-                        <span className='text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] font-medium font-sans'>
-                          {user?.createdAt
-                            ? new Date(user.createdAt).toLocaleDateString('vi-VN')
-                            : 'Không có thông tin'}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className='lg:col-span-1'>
-              <div className='relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg shadow-sm border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] p-3'>
-                <div className='text-center mb-3'>
-                  <h3 className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
-                    Quản lý
-                  </h3>
-                </div>
-                <div className='space-y-2'>
-                  <Button
-                    onClick={() => setIsChangePasswordModalOpen(true)}
-                    className='w-full group relative overflow-hidden bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] border-0 shadow-sm hover:shadow-md transition-all duration-300 h-8'
-                  >
-                    <span className='relative z-10 flex items-center justify-center font-semibold text-xs font-sans'>
-                      <Key className='w-3 h-3 mr-1' />
-                      Đổi mật khẩu
-                    </span>
-                    <div className='absolute inset-0 bg-gradient-to-r from-[var(--color-orange-500)]/0 via-[var(--color-orange-500)]/20 to-[var(--color-orange-500)]/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700'></div>
-                  </Button>
-
-                  {user ? (
-                    <div className='w-full space-y-2'>
-                      <Button
-                        onClick={() => {
-                          ExportUtils.exportToPDF({
-                            format: 'pdf',
-                            filename: 'trainer-profile',
-                            title: 'Thông tin Trainer',
-                            data: [
-                              {
-                                'Họ và tên':
-                                  `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-                                Email: user.email || 'N/A',
-                                'Số điện thoại': user.phone || 'N/A',
-                                'Vai trò': user.role || 'N/A',
-                                'Email đã xác thực': user.emailVerified ? 'Có' : 'Không',
-                                'Số điện thoại đã xác thực': user.phoneVerified ? 'Có' : 'Không',
-                                'Ảnh đại diện': trainer?.profile_photo || 'N/A',
-                              },
-                            ],
-                            columns: [
-                              { key: 'Họ và tên', label: 'Họ và tên' },
-                              { key: 'Email', label: 'Email' },
-                              { key: 'Số điện thoại', label: 'Số điện thoại' },
-                              { key: 'Vai trò', label: 'Vai trò' },
-                              { key: 'Email đã xác thực', label: 'Email đã xác thực' },
-                              {
-                                key: 'Số điện thoại đã xác thực',
-                                label: 'Số điện thoại đã xác thực',
-                              },
-                              { key: 'Ảnh đại diện', label: 'Ảnh đại diện' },
-                            ],
-                          });
-                        }}
-                        className='w-full group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-300 h-8'
-                      >
-                        <span className='relative z-10 flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
-                          <FileText className='w-3 h-3 mr-1' />
-                          Xuất PDF
-                        </span>
-                        <div className='absolute inset-0 bg-gradient-to-r from-[var(--color-orange-500)]/0 via-[var(--color-orange-500)]/20 to-[var(--color-orange-500)]/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700'></div>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          ExportUtils.exportToExcel({
-                            format: 'excel',
-                            filename: 'trainer-profile',
-                            data: [
-                              {
-                                'Họ và tên':
-                                  `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
-                                Email: user.email || 'N/A',
-                                'Số điện thoại': user.phone || 'N/A',
-                                'Vai trò': user.role || 'N/A',
-                                'Email đã xác thực': user.emailVerified ? 'Có' : 'Không',
-                                'Số điện thoại đã xác thực': user.phoneVerified ? 'Có' : 'Không',
-                                'Ảnh đại diện': trainer?.profile_photo || 'N/A',
-                              },
-                            ],
-                            columns: [
-                              { key: 'Họ và tên', label: 'Họ và tên' },
-                              { key: 'Email', label: 'Email' },
-                              { key: 'Số điện thoại', label: 'Số điện thoại' },
-                              { key: 'Vai trò', label: 'Vai trò' },
-                              { key: 'Email đã xác thực', label: 'Email đã xác thực' },
-                              {
-                                key: 'Số điện thoại đã xác thực',
-                                label: 'Số điện thoại đã xác thực',
-                              },
-                              { key: 'Ảnh đại diện', label: 'Ảnh đại diện' },
-                            ],
-                          });
-                        }}
-                        className='w-full group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-300 h-8'
-                      >
-                        <span className='relative z-10 flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
-                          <FileSpreadsheet className='w-3 h-3 mr-1' />
-                          Xuất Excel
-                        </span>
-                        <div className='absolute inset-0 bg-gradient-to-r from-[var(--color-orange-500)]/0 via-[var(--color-orange-500)]/20 to-[var(--color-orange-500)]/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700'></div>
-                      </Button>
-                    </div>
-                  ) : (
-                    <Button
-                      variant='outline'
-                      disabled
-                      className='w-full group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-300 h-8'
-                    >
-                      <span className='relative z-10 flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
-                        <Download className='w-3 h-3 mr-1' />
-                        Xuất dữ liệu
-                      </span>
-                    </Button>
-                  )}
-                </div>
-              </div>
-            </div>
+          <div className='space-y-0.5'>
+            <h1 className='text-xl lg:text-2xl font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
+              Hồ sơ cá nhân
+            </h1>
+            <p className='text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] text-xs font-sans'>
+              Quản lý thông tin cá nhân và cài đặt tài khoản
+            </p>
           </div>
         </motion.div>
 
         {/* Main Content Grid */}
-        <div className='grid grid-cols-1 gap-3'>
-          {/* Personal Info - Full Width */}
-          <div className='space-y-3 flex flex-col'>
-            {/* Personal Information */}
+        <div className='grid grid-cols-1 lg:grid-cols-12 gap-3'>
+          <div className='lg:col-span-8'>
             <motion.div
               initial={{ opacity: 0, x: -20 }}
               animate={{ opacity: 1, x: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              className='relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-xl shadow-md border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'
+              className='relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none shadow-sm border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'
             >
-              {/* Card Header */}
-              <div className='relative bg-gradient-to-r from-[var(--color-orange-50)] to-[var(--color-orange-100)] dark:from-[var(--color-orange-900)]/20 dark:to-[var(--color-orange-800)]/20 px-4 py-3 border-b border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
+              <div className='relative bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 px-4 py-3 border-b border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
                 <div className='flex items-center space-x-3'>
-                  <div className='p-2 rounded-xl bg-gradient-to-br from-[var(--color-orange-500)] to-[var(--color-orange-600)] shadow-md hover:shadow-lg transition-all duration-300'>
+                  <div className='p-2 rounded-none bg-[var(--color-orange-600)] shadow-sm'>
                     <User className='w-5 h-5 text-[var(--color-white)]' />
                   </div>
                   <div>
@@ -528,9 +165,180 @@ export default function TrainerProfile() {
                 </div>
               </div>
 
-              {/* Card Content */}
-              <div className='p-2 flex-1'>
+              <div className='p-3 flex-1'>
                 <UserInfoCard userId='current' onUpdate={handleUserUpdate} />
+              </div>
+            </motion.div>
+          </div>
+
+          <div className='lg:col-span-4 space-y-3'>
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.25 }}
+              className='bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none shadow-sm border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] p-3 min-h-[200px]'
+            >
+              <h3 className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'>
+                Tổng quan tài khoản
+              </h3>
+              <div className='space-y-2 text-xs'>
+                <div className='flex justify-between border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] pb-2'>
+                  <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
+                    Họ tên
+                  </span>
+                  <span className='font-semibold text-[var(--color-gray-800)] dark:text-[var(--color-gray-200)] text-right'>
+                    {fullName || 'N/A'}
+                  </span>
+                </div>
+                <div className='flex justify-between border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] pb-2'>
+                  <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
+                    Vai trò
+                  </span>
+                  <span className='font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)]'>
+                    {roleLabel}
+                  </span>
+                </div>
+                <div className='flex justify-between border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] pb-2'>
+                  <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
+                    Email xác thực
+                  </span>
+                  <span className='font-semibold text-[var(--color-gray-800)] dark:text-[var(--color-gray-200)]'>
+                    {user.emailVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+                  </span>
+                </div>
+                <div className='flex justify-between border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] pb-2'>
+                  <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
+                    SĐT xác thực
+                  </span>
+                  <span className='font-semibold text-[var(--color-gray-800)] dark:text-[var(--color-gray-200)]'>
+                    {user.phoneVerified ? 'Đã xác thực' : 'Chưa xác thực'}
+                  </span>
+                </div>
+                <div className='flex justify-between'>
+                  <span className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>
+                    Ngày tham gia
+                  </span>
+                  <span className='font-semibold text-[var(--color-gray-800)] dark:text-[var(--color-gray-200)]'>
+                    {joinedDate}
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.6, delay: 0.35 }}
+              className='relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none shadow-sm border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] p-3 min-h-[200px]'
+            >
+              <div className='mb-3 pb-2 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+                <h3 className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
+                  Hành động nhanh
+                </h3>
+              </div>
+              <div className='space-y-2 flex flex-col items-center'>
+                <Button
+                  onClick={() => setIsChangePasswordModalOpen(true)}
+                  className='w-full max-w-[240px] bg-[var(--color-orange-600)] hover:bg-[var(--color-orange-700)] text-[var(--color-white)] border border-[var(--color-orange-700)] shadow-sm transition-all duration-200 h-8 rounded-none'
+                >
+                  <span className='flex items-center justify-center font-semibold text-xs font-sans'>
+                    <Key className='w-3 h-3 mr-1' />
+                    Đổi mật khẩu
+                  </span>
+                </Button>
+
+                {user ? (
+                  <div className='w-full max-w-[240px] space-y-2'>
+                    <Button
+                      onClick={() => {
+                        ExportUtils.exportToPDF({
+                          format: 'pdf',
+                          filename: 'trainer-profile',
+                          title: 'Thông tin Trainer',
+                          data: [
+                            {
+                              'Họ và tên':
+                                `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+                              Email: user.email || 'N/A',
+                              'Số điện thoại': user.phone || 'N/A',
+                              'Vai trò': user.role || 'N/A',
+                              'Email đã xác thực': user.emailVerified ? 'Có' : 'Không',
+                              'Số điện thoại đã xác thực': user.phoneVerified ? 'Có' : 'Không',
+                              'Ảnh đại diện': trainer?.profile_photo || 'N/A',
+                            },
+                          ],
+                          columns: [
+                            { key: 'Họ và tên', label: 'Họ và tên' },
+                            { key: 'Email', label: 'Email' },
+                            { key: 'Số điện thoại', label: 'Số điện thoại' },
+                            { key: 'Vai trò', label: 'Vai trò' },
+                            { key: 'Email đã xác thực', label: 'Email đã xác thực' },
+                            {
+                              key: 'Số điện thoại đã xác thực',
+                              label: 'Số điện thoại đã xác thực',
+                            },
+                            { key: 'Ảnh đại diện', label: 'Ảnh đại diện' },
+                          ],
+                        });
+                      }}
+                      className='w-full bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-200 h-8 rounded-none'
+                    >
+                      <span className='flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
+                        <FileText className='w-3 h-3 mr-1' />
+                        Xuất PDF
+                      </span>
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        ExportUtils.exportToExcel({
+                          format: 'excel',
+                          filename: 'trainer-profile',
+                          data: [
+                            {
+                              'Họ và tên':
+                                `${user.firstName || ''} ${user.lastName || ''}`.trim() || 'N/A',
+                              Email: user.email || 'N/A',
+                              'Số điện thoại': user.phone || 'N/A',
+                              'Vai trò': user.role || 'N/A',
+                              'Email đã xác thực': user.emailVerified ? 'Có' : 'Không',
+                              'Số điện thoại đã xác thực': user.phoneVerified ? 'Có' : 'Không',
+                              'Ảnh đại diện': trainer?.profile_photo || 'N/A',
+                            },
+                          ],
+                          columns: [
+                            { key: 'Họ và tên', label: 'Họ và tên' },
+                            { key: 'Email', label: 'Email' },
+                            { key: 'Số điện thoại', label: 'Số điện thoại' },
+                            { key: 'Vai trò', label: 'Vai trò' },
+                            { key: 'Email đã xác thực', label: 'Email đã xác thực' },
+                            {
+                              key: 'Số điện thoại đã xác thực',
+                              label: 'Số điện thoại đã xác thực',
+                            },
+                            { key: 'Ảnh đại diện', label: 'Ảnh đại diện' },
+                          ],
+                        });
+                      }}
+                      className='w-full bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-200 h-8 rounded-none'
+                    >
+                      <span className='flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
+                        <FileSpreadsheet className='w-3 h-3 mr-1' />
+                        Xuất Excel
+                      </span>
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant='outline'
+                    disabled
+                    className='w-full max-w-[240px] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] border border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10 transition-all duration-200 h-8 rounded-none'
+                  >
+                    <span className='flex items-center justify-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] group-hover:text-[var(--color-orange-600)] dark:group-hover:text-[var(--color-orange-400)] font-semibold text-xs font-sans'>
+                      <Download className='w-3 h-3 mr-1' />
+                      Xuất dữ liệu
+                    </span>
+                  </Button>
+                )}
               </div>
             </motion.div>
           </div>

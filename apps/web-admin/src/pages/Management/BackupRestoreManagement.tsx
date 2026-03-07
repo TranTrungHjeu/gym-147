@@ -322,7 +322,7 @@ const BackupRestoreManagement: React.FC = () => {
               }
             />
           </div>
-          <div className='p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg'>
+          <div className='p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-none'>
             <p className='text-sm text-blue-800 dark:text-blue-300'>
               {t('backupRestoreManagement.form.warning')}
             </p>
@@ -351,7 +351,7 @@ const BackupRestoreManagement: React.FC = () => {
         size='md'
       >
         <div className='space-y-4'>
-          <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
+          <div className='p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-none'>
             <p className='text-sm text-red-800 dark:text-red-300 font-medium mb-2'>
               {t('backupRestoreManagement.form.restoreWarningTitle')}
             </p>
@@ -366,7 +366,7 @@ const BackupRestoreManagement: React.FC = () => {
             <select
               value={restoreFormData.backup_id}
               onChange={e => setRestoreFormData({ ...restoreFormData, backup_id: e.target.value })}
-              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
+              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
             >
               <option value=''>{t('backupRestoreManagement.form.selectBackupPlaceholder')}</option>
               {backups
@@ -390,7 +390,7 @@ const BackupRestoreManagement: React.FC = () => {
                   restore_type: e.target.value as 'FULL' | 'PARTIAL',
                 })
               }
-              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
+              className='w-full px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white'
             >
               <option value='FULL'>{t('backupRestoreManagement.restoreTypes.FULL')}</option>
               <option value='PARTIAL'>{t('backupRestoreManagement.restoreTypes.PARTIAL')}</option>
@@ -433,3 +433,5 @@ const BackupRestoreManagement: React.FC = () => {
 };
 
 export default BackupRestoreManagement;
+
+

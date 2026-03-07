@@ -711,9 +711,9 @@ const RewardManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Gift className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Gift className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -734,9 +734,9 @@ const RewardManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Trophy className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Trophy className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -757,9 +757,9 @@ const RewardManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Package className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Package className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -780,9 +780,9 @@ const RewardManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -884,7 +884,7 @@ const RewardManagement: React.FC = () => {
       {isLoading ? (
         <TableLoading text={t('rewardManagement.messages.loading')} />
       ) : filteredRewards.length === 0 ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Gift className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
@@ -901,7 +901,7 @@ const RewardManagement: React.FC = () => {
             {paginatedRewards.map(reward => (
               <div
                 key={reward.id}
-                className='group relative bg-white dark:bg-gray-900 rounded-xl border-2 border-orange-200 dark:border-orange-800/50 shadow-md hover:shadow-xl hover:shadow-orange-500/20 dark:hover:shadow-orange-500/30 transition-all duration-300 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full'
+                className='group relative bg-white dark:bg-gray-900 rounded-none border-2 border-orange-200 dark:border-orange-800/50 shadow-md transition-colors duration-200 overflow-hidden flex flex-col h-full'
               >
                 {/* Voucher Card - Split Layout */}
                 <div className='flex flex-col h-full'>
@@ -925,7 +925,7 @@ const RewardManagement: React.FC = () => {
                           <img
                             src={reward.image_url}
                             alt={reward.title}
-                            className='w-full h-full object-cover group-hover:scale-110 transition-transform duration-500'
+                            className='w-full h-full object-cover  transition-transform duration-500'
                           />
                           <div className='absolute inset-0 bg-gradient-to-t from-orange-900/60 via-orange-800/30 to-transparent'></div>
                         </div>
@@ -963,7 +963,7 @@ const RewardManagement: React.FC = () => {
 
                       {/* Discount Value Badge - Compact Display */}
                       <div className='absolute bottom-2 left-1/2 -translate-x-1/2 z-10'>
-                        <div className='bg-white dark:bg-gray-900 rounded-xl px-3 py-2 shadow-xl border-2 border-white/50 dark:border-gray-800/50'>
+                        <div className='bg-white dark:bg-gray-900 rounded-none px-3 py-2 shadow-xl border-2 border-white/50 dark:border-gray-800/50'>
                           {reward.discount_percent ? (
                             <div className='text-center'>
                               <div className='flex items-baseline justify-center gap-0.5'>
@@ -1057,7 +1057,7 @@ const RewardManagement: React.FC = () => {
                           </div>
                           <div className='w-full h-1.5 bg-orange-100 dark:bg-orange-900/30 rounded-full overflow-hidden'>
                             <div
-                              className='h-full bg-gradient-to-r from-orange-500 to-orange-600 rounded-full transition-all duration-500'
+                              className='h-full bg-orange-600 rounded-full transition-colors duration-200 duration-500'
                               style={{
                                 width: `${Math.min(
                                   100,
@@ -1129,14 +1129,14 @@ const RewardManagement: React.FC = () => {
                   <div className='px-3 py-2.5 bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-orange-900/20 dark:to-orange-800/20 border-t border-orange-200 dark:border-orange-800/50 flex items-center gap-2 mt-auto'>
                     <button
                       onClick={() => handleEdit(reward)}
-                      className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-md shadow-sm hover:shadow-md hover:shadow-orange-500/30 transition-all duration-200 active:scale-95'
+                      className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-orange-600 hover:from-orange-600 hover:to-orange-700 rounded-md shadow-sm  -orange-500/30 transition-colors duration-200 '
                     >
                       <Edit className='w-3 h-3' />
                       {t('rewardManagement.actions.edit')}
                     </button>
                     <button
                       onClick={() => handleDelete(reward)}
-                      className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-md shadow-sm hover:shadow-md hover:shadow-red-500/30 transition-all duration-200 active:scale-95'
+                      className='flex-1 inline-flex items-center justify-center gap-1 px-2.5 py-2 text-[11px] font-bold font-heading text-white bg-gradient-to-r from-red-500 to-red-600 hover:from-red-600 hover:to-red-700 rounded-md shadow-sm  -red-500/30 transition-colors duration-200 '
                     >
                       <Trash2 className='w-3 h-3' />
                       {t('rewardManagement.actions.delete')}
@@ -1527,7 +1527,7 @@ const RewardManagement: React.FC = () => {
               value={formData.description}
               onChange={e => setFormData({ ...formData, description: e.target.value })}
               rows={2}
-              className={`w-full px-3 py-1.5 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+              className={`w-full px-3 py-1.5 text-[11px] border rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
                 formErrors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
               }`}
             />
@@ -1735,7 +1735,7 @@ const RewardManagement: React.FC = () => {
                   type='text'
                   placeholder='dd/mm/yyyy HH:mm'
                   readOnly
-                  className='w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer'
+                  className='w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer'
                 />
                 <Calendar className='absolute right-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-hover:text-orange-500 dark:group-hover:text-orange-400 transition-colors duration-200 pointer-events-none' />
               </div>
@@ -1756,7 +1756,7 @@ const RewardManagement: React.FC = () => {
                   type='text'
                   placeholder='dd/mm/yyyy HH:mm'
                   readOnly
-                  className={`w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer ${
+                  className={`w-full h-[30px] px-3 py-1.5 pr-9 text-[11px] border rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 cursor-pointer ${
                     formErrors.valid_until
                       ? 'border-red-500'
                       : 'border-gray-300 dark:border-gray-700'
@@ -1782,7 +1782,7 @@ const RewardManagement: React.FC = () => {
                   <img
                     src={imagePreview}
                     alt='Preview'
-                    className='w-32 h-32 object-cover rounded-lg border-2 border-gray-300 dark:border-gray-700'
+                    className='w-32 h-32 object-cover rounded-none border-2 border-gray-300 dark:border-gray-700'
                   />
                   <button
                     type='button'
@@ -1795,7 +1795,7 @@ const RewardManagement: React.FC = () => {
               ) : (
                 <div
                   onClick={() => fileInputRef.current?.click()}
-                  className='w-32 h-32 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-lg flex items-center justify-center cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-50 dark:bg-gray-900'
+                  className='w-32 h-32 border-2 border-dashed border-gray-300 dark:border-gray-700 rounded-none flex items-center justify-center cursor-pointer hover:border-orange-500 dark:hover:border-orange-500 transition-colors bg-gray-50 dark:bg-gray-900'
                 >
                   <Gift className='w-8 h-8 text-gray-400 dark:text-gray-500' />
                 </div>
@@ -1840,7 +1840,7 @@ const RewardManagement: React.FC = () => {
               onChange={e => setFormData({ ...formData, terms_conditions: e.target.value })}
               rows={2}
               placeholder={t('rewardManagement.form.termsConditionsPlaceholder')}
-              className='w-full px-3 py-1.5 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full px-3 py-1.5 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
 
@@ -1903,3 +1903,6 @@ const RewardManagement: React.FC = () => {
 };
 
 export default RewardManagement;
+
+
+

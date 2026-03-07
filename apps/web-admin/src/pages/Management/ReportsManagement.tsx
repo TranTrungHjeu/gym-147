@@ -567,14 +567,14 @@ const ReportsManagement: React.FC = () => {
         <div className='flex gap-2'>
           <button
             onClick={() => exportReport('pdf')}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm '
           >
             <Download className='w-4 h-4' />
             {t('reportsManagement.actions.exportPDF')}
           </button>
           <button
             onClick={() => exportReport('excel')}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm '
           >
             <Download className='w-4 h-4' />
             {t('reportsManagement.actions.exportExcel')}
@@ -583,7 +583,7 @@ const ReportsManagement: React.FC = () => {
       </div>
 
       {/* Date Range Filter */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm  p-4'>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
           <div>
             <label className='block text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 mb-1.5'>
@@ -593,7 +593,7 @@ const ReportsManagement: React.FC = () => {
               type='date'
               value={dateRange.from}
               onChange={e => setDateRange({ ...dateRange, from: e.target.value })}
-              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
           <div>
@@ -604,13 +604,13 @@ const ReportsManagement: React.FC = () => {
               type='date'
               value={dateRange.to}
               onChange={e => setDateRange({ ...dateRange, to: e.target.value })}
-              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 px-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
           <div className='flex items-end'>
             <button
               onClick={loadData}
-              className='w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md'
+              className='w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm '
             >
               <Filter className='w-4 h-4' />
               {t('reportsManagement.actions.filter')}
@@ -620,7 +620,7 @@ const ReportsManagement: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
         <nav className='flex space-x-1'>
           {[
             { id: 'revenue', name: t('reportsManagement.tabs.revenue'), icon: DollarSign },
@@ -631,7 +631,7 @@ const ReportsManagement: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-semibold text-theme-xs font-heading transition-all ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-none font-semibold text-theme-xs font-heading transition-colors duration-200 ${
                 activeTab === tab.id
                   ? 'bg-orange-600 text-white dark:bg-orange-500 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -657,7 +657,7 @@ const ReportsManagement: React.FC = () => {
                 <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                 <div className='relative'>
                   <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                       <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                     </div>
                     <div className='flex-1 min-w-0'>
@@ -686,7 +686,7 @@ const ReportsManagement: React.FC = () => {
                 <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                 <div className='relative'>
                   <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                       <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                     </div>
                     <div className='flex-1 min-w-0'>
@@ -725,7 +725,7 @@ const ReportsManagement: React.FC = () => {
                 <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                 <div className='relative'>
                   <div className='flex items-center gap-3'>
-                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                    <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                       <BarChart3 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                     </div>
                     <div className='flex-1 min-w-0'>
@@ -999,7 +999,7 @@ const ReportsManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <FileText className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -1020,7 +1020,7 @@ const ReportsManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -1045,7 +1045,7 @@ const ReportsManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -1169,3 +1169,6 @@ const ReportsManagement: React.FC = () => {
 };
 
 export default ReportsManagement;
+
+
+

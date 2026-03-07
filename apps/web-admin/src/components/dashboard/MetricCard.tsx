@@ -33,13 +33,13 @@ const MetricCard: React.FC<MetricCardProps> = ({
   const displayValue = isLoading ? '...' : (value ?? 0);
 
   return (
-    <AdminCard variant='compact' className='relative'>
+    <AdminCard variant='compact' className='relative rounded-none'>
       <div className='flex items-center gap-2.5'>
         {/* Icon Container - Compact */}
-        <div className={`w-8 h-8 ${iconBgColor} rounded-lg flex items-center justify-center flex-shrink-0`}>
+        <div className={`w-8 h-8 ${iconBgColor} rounded-none flex items-center justify-center flex-shrink-0`}>
           <Icon className={`w-4 h-4 ${iconColor}`} />
         </div>
-        
+
         {/* Value and Label Container */}
         <div className='flex-1 min-w-0'>
           <div className={`text-xl font-bold font-heading ${valueColor} leading-tight mb-0.5`}>

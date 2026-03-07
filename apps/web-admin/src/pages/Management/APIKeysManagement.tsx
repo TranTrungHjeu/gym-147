@@ -302,7 +302,7 @@ const APIKeysManagement: React.FC = () => {
             <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
               {t('apiKeysManagement.form.permissions')}
             </label>
-            <div className='grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg max-h-48 overflow-y-auto'>
+            <div className='grid grid-cols-2 gap-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-none max-h-48 overflow-y-auto'>
               {availablePermissions.map(permission => (
                 <label key={permission} className='flex items-center gap-2 cursor-pointer'>
                   <input
@@ -349,7 +349,7 @@ const APIKeysManagement: React.FC = () => {
         size='md'
       >
         <div className='space-y-4'>
-          <div className='p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg'>
+          <div className='p-4 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-none'>
             <p className='text-sm text-orange-800 dark:text-orange-300 font-medium mb-2'>
               {t('apiKeysManagement.viewKey.warningTitle')}
             </p>
@@ -366,7 +366,7 @@ const APIKeysManagement: React.FC = () => {
                 type={showKey['new'] ? 'text' : 'password'}
                 value={newKey}
                 readOnly
-                className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-50 dark:bg-gray-800 font-mono text-sm'
+                className='flex-1 px-4 py-2 border border-gray-300 dark:border-gray-700 rounded-none bg-gray-50 dark:bg-gray-800 font-mono text-sm'
               />
               <AdminButton
                 variant='outline'
@@ -411,3 +411,5 @@ const APIKeysManagement: React.FC = () => {
 };
 
 export default APIKeysManagement;
+
+

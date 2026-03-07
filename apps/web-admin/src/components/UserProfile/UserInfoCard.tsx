@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import Modal from '../../components/Modal/Modal';
 import { useModal } from '../../hooks/useModal';
 import { User, userService } from '../../services/user.service';
-import { EnumBadge } from '../../shared/components/ui';
 import Button from '../ui/Button/Button';
+import { SimpleLoading } from '../ui/AppLoading';
 import ChangeEmailPhoneModal from '../modals/ChangeEmailPhoneModal';
 import { memberApi, scheduleApi } from '@/services/api';
 import { trainerService, Trainer } from '@/services/trainer.service';
@@ -14,7 +14,6 @@ interface UserInfoCardProps {
 }
 
 export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
-  console.log('[SYNC] UserInfoCard render:', { userId });
   const { isOpen, openModal, closeModal } = useModal();
   const {
     isOpen: isDeleteOpen,
@@ -37,7 +36,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
   const [deleting, setDeleting] = useState(false);
   const [deleteConfirm, setDeleteConfirm] = useState('');
   const [userAvatar, setUserAvatar] = useState<string | null>(null);
-  const [lastFetchedUserId, setLastFetchedUserId] = useState<string | null>(null);
+  const loadedUserIdRef = useRef<string | null>(null);
+  const fetchingUserIdRef = useRef<string | null>(null);
   const isEditingRef = useRef(false);
   // Local state for form inputs to prevent reset on re-render
   const [formData, setFormData] = useState<{
@@ -71,15 +71,16 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
   } | null>(null);
   const [memberErrors, setMemberErrors] = useState<Record<string, string>>({});
 
-  // Track user state changes
-  useEffect(() => {
-    console.log('👤 User state changed:', {
-      userId: user?.id,
-      firstName: user?.firstName || user?.first_name,
-      lastName: user?.lastName || user?.last_name,
-      isEditing: isEditingRef.current,
-    });
-  }, [user]);
+  const summaryCardClass =
+    'group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]';
+  const memberSummaryCardClass =
+    'group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]';
+  const editInputClass =
+    'w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600';
+  const readonlyInputClass =
+    'w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed';
+  const editOutlineActionClass =
+    'px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-none transition-all duration-200 whitespace-nowrap';
 
   // Listen for avatar update events (optimistic update)
   useEffect(() => {
@@ -98,47 +99,27 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
   // Only fetch when userId actually changes (not when modal opens/closes or during editing)
   useEffect(() => {
-    console.log('[SEARCH] useEffect triggered:', {
-      userId,
-      lastFetchedUserId,
-      isEditing: isEditingRef.current,
-      isOpen,
-      shouldFetch: userId && userId !== lastFetchedUserId && !isEditingRef.current && !isOpen,
-    });
-
-    // Don't fetch if:
-    // 1. No userId
-    // 2. Same userId as last fetch
-    // 3. Currently editing
-    // 4. Modal is open (we already have the data)
-    if (userId && userId !== lastFetchedUserId && !isEditingRef.current && !isOpen) {
-      console.log('[SUCCESS] Fetching user data...');
-      fetchUser();
-      setLastFetchedUserId(userId);
-    } else {
-      console.log('[ERROR] Skipping fetch:', {
-        reason: !userId
-          ? 'No userId'
-          : userId === lastFetchedUserId
-          ? 'Same userId'
-          : isEditingRef.current
-          ? 'Currently editing'
-          : isOpen
-          ? 'Modal is open'
-          : 'Unknown',
-      });
+    if (!userId || isEditingRef.current || isOpen) {
+      return;
     }
+
+    // Guard against duplicate fetches (including React StrictMode double effect invoke)
+    if (loadedUserIdRef.current === userId || fetchingUserIdRef.current === userId) {
+      return;
+    }
+
+    fetchingUserIdRef.current = userId;
+    void fetchUser(userId);
   }, [userId, isOpen]); // Include isOpen to track modal state changes
 
-  const fetchUser = async () => {
-    console.log('[DATA] fetchUser called for userId:', userId);
+  const fetchUser = async (targetUserId: string) => {
     try {
       setLoading(true);
       // Use profile API for current user, getUserById for other users
       const response =
-        userId === 'current'
+        targetUserId === 'current'
           ? await userService.getProfile()
-          : await userService.getUserById(userId);
+          : await userService.getUserById(targetUserId);
 
       if (response.success) {
         // Map backend fields to frontend fields
@@ -163,15 +144,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           console.error('Error checking admin status:', error);
         }
 
-        console.log('[DATA] Fetched user data:', {
-          userId: mappedUser.id,
-          firstName: mappedUser.firstName,
-          lastName: mappedUser.lastName,
-        });
-
         // CRITICAL: Don't reset user state if currently editing
         if (!isEditingRef.current) {
-          console.log('[SUCCESS] Setting user state (not editing)');
           setUser(mappedUser);
           setIsActiveToggle(mappedUser.isActive ?? true);
           // Also update formData when not editing
@@ -182,8 +156,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
             phone: mappedUser.phone || '',
             isActive: mappedUser.isActive ?? true,
           });
-        } else {
-          console.log('[WARNING] SKIPPING setUser - currently editing!');
         }
 
         // Priority 1: Check if profile_photo exists in user data (from member/trainer service)
@@ -217,6 +189,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       }
     } finally {
       setLoading(false);
+      loadedUserIdRef.current = targetUserId;
+      fetchingUserIdRef.current = null;
     }
   };
 
@@ -224,12 +198,9 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     try {
       setTrainerLoading(true);
       const response = await trainerService.getTrainerByUserId(userId);
-      console.log('[TRAINER] Fetch trainer response:', response);
       if (response.success && response.data) {
         // API returns Trainer directly, not wrapped in { trainer: {...} }
         const trainerData = response.data as Trainer;
-        console.log('[TRAINER] Trainer data:', trainerData);
-        console.log('[TRAINER] Hourly rate:', trainerData.hourly_rate);
         setTrainer(trainerData);
       } else {
         console.warn('[TRAINER] Failed to fetch trainer:', response);
@@ -318,13 +289,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       // Silently fail
       setUserAvatar(null);
     }
-  };
-
-  const getUserInitials = (user: User | null) => {
-    if (!user) return 'U';
-    const firstName = user.firstName || user.first_name || '';
-    const lastName = user.lastName || user.last_name || '';
-    return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase() || 'U';
   };
 
   // Validation functions for member form
@@ -465,18 +429,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       // Use toggle state for isActive (only allow for non-current users)
       const isActive = userId !== 'current' ? isActiveToggle : undefined;
 
-      console.log('💾 handleSave - values to send:', {
-        firstName,
-        lastName,
-        email,
-        phone,
-        isActive,
-        formDataEmail: formData?.email,
-        userEmail: user.email,
-        formDataPhone: formData?.phone,
-        userPhone: user.phone,
-      });
-
       // For admin editing other users, allow direct update without OTP
       // For admin editing other users, allow direct update without OTP
       const response =
@@ -494,26 +446,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               phone,
               isActive,
             });
-
-      // If admin is changing password for another user
-      if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
-        if (newPassword !== confirmPassword) {
-          throw new Error('Mật khẩu xác nhận không khớp');
-        }
-        await userService.changeUserPassword(user.id, newPassword);
-        setNewPassword('');
-        setConfirmPassword('');
-      }
-
-      // If admin is changing password for another user
-      if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
-        if (newPassword !== confirmPassword) {
-          throw new Error('Mật khẩu xác nhận không khớp');
-        }
-        await userService.changeUserPassword(user.id, newPassword);
-        setNewPassword('');
-        setConfirmPassword('');
-      }
 
       // If admin is changing password for another user
       if (userId !== 'current' && isAdmin && newPassword && newPassword.trim() !== '') {
@@ -548,31 +480,14 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
         // Update toggle state to match normalized user
         setIsActiveToggle(finalIsActive);
 
-        console.log('💾 Saving user:', {
-          userId,
-          currentLastFetched: lastFetchedUserId,
-          normalizedUser: {
-            id: normalizedUser.id,
-            firstName: normalizedUser.firstName,
-            lastName: normalizedUser.lastName,
-            isActive: normalizedUser.isActive,
-            isActiveToggle,
-            finalIsActive,
-          },
-        });
-
-        // CRITICAL: Update lastFetchedUserId FIRST before calling onUpdate
-        // This prevents race condition where onUpdate triggers parent re-render
-        // and parent might cause useEffect to run again
-        setLastFetchedUserId(userId);
-        console.log('[SUCCESS] Updated lastFetchedUserId to:', userId);
+        // Mark current user data as already loaded to avoid immediate refetch loops
+        loadedUserIdRef.current = userId;
+        fetchingUserIdRef.current = null;
         setUser(normalizedUser);
         isEditingRef.current = false; // Reset editing flag after save
-        console.log('[SUCCESS] Reset isEditingRef to false');
 
-        // Call onUpdate AFTER updating lastFetchedUserId
+        // Call onUpdate AFTER updating loaded state
         // This ensures that any parent re-render won't trigger fetch
-        console.log('📤 Calling onUpdate callback...');
         onUpdate?.(normalizedUser as User);
 
         // Update localStorage ONLY when updating the logged-in user
@@ -677,9 +592,9 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
   if (loading) {
     return (
-      <div className='p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6'>
+      <div className='p-5 border border-gray-200 rounded-none dark:border-gray-800 lg:p-6'>
         <div className='flex items-center justify-center h-32'>
-          <div className='text-gray-500'>Đang tải...</div>
+          <SimpleLoading size='small' />
         </div>
       </div>
     );
@@ -687,7 +602,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
   if (!user) {
     return (
-      <div className='p-5 border border-gray-200 rounded-2xl dark:border-gray-800 lg:p-6'>
+      <div className='p-5 border border-gray-200 rounded-none dark:border-gray-800 lg:p-6'>
         <div className='flex items-center justify-center h-32'>
           <div className='text-red-500'>Không tìm thấy user</div>
         </div>
@@ -695,11 +610,11 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
     );
   }
   return (
-    <div className='p-4 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] rounded-xl bg-gradient-to-br from-[var(--color-orange-50)]/30 to-[var(--color-orange-100)]/20 dark:from-[var(--color-orange-900)]/10 dark:to-[var(--color-orange-800)]/10'>
-      <div className='grid grid-cols-1 lg:grid-cols-3 gap-4'>
+    <div className='p-4 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] rounded-none bg-gradient-to-br from-[var(--color-orange-50)]/30 to-[var(--color-orange-100)]/20 dark:from-[var(--color-orange-900)]/10 dark:to-[var(--color-orange-800)]/10'>
+      <div className='grid grid-cols-1 lg:grid-cols-12 gap-4'>
         {/* Avatar Section with Buttons */}
-        <div className='lg:col-span-1 flex flex-col items-center lg:items-start mb-4 lg:mb-0 gap-4'>
-          <div className='relative'>
+        <div className='lg:col-span-4 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-[var(--color-white)]/90 dark:bg-[var(--color-gray-900)]/50 p-4 rounded-none'>
+          <div className='flex flex-col items-center gap-4'>
             <div className='w-24 h-24 rounded-full border-4 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-lg bg-gray-100 dark:bg-gray-800 overflow-hidden'>
               {userAvatar ? (
                 <img
@@ -712,15 +627,27 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 />
               ) : null}
             </div>
-            {user.isActive && (
-              <div className='absolute bottom-0 right-0 w-6 h-6 bg-success-500 dark:bg-success-400 rounded-full border-4 border-white dark:border-gray-800'></div>
-            )}
-          </div>
 
-          <div className='space-y-2 w-full'>
+            <div className='text-center'>
+              <p
+                className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                {(user.firstName || user.first_name || '').trim()}{' '}
+                {(user.lastName || user.last_name || '').trim()}
+              </p>
+              <p
+                className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] mt-1 break-all'
+                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+              >
+                {user.email}
+              </p>
+            </div>
+
+            <div className='space-y-2 w-full max-w-[260px]'>
             <button
               onClick={openModal}
-              className='group relative overflow-hidden flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--color-orange-500)] to-[var(--color-orange-600)] hover:from-[var(--color-orange-600)] hover:to-[var(--color-orange-700)] text-[var(--color-white)] px-4 py-3 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105'
+              className='group relative overflow-hidden flex w-full items-center justify-center gap-2 rounded-none bg-gradient-to-r from-[var(--color-orange-500)] to-[var(--color-orange-600)] hover:from-[var(--color-orange-600)] hover:to-[var(--color-orange-700)] text-[var(--color-white)] px-4 py-3 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105'
               style={{ fontFamily: 'Space Grotesk, sans-serif' }}
             >
               <svg
@@ -743,7 +670,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
             <button
               onClick={openDeleteModal}
               disabled={userId === 'current'}
-              className='group relative overflow-hidden flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[var(--color-red-500)] to-[var(--color-red-600)] hover:from-[var(--color-red-600)] hover:to-[var(--color-red-700)] text-[var(--color-white)] px-4 py-3 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
+              className='group relative overflow-hidden flex w-full items-center justify-center gap-2 rounded-none bg-gradient-to-r from-[var(--color-red-500)] to-[var(--color-red-600)] hover:from-[var(--color-red-600)] hover:to-[var(--color-red-700)] text-[var(--color-white)] px-4 py-3 text-xs font-semibold shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:scale-100'
               style={{ fontFamily: 'Space Grotesk, sans-serif' }}
             >
               <svg
@@ -762,12 +689,21 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               <span className='relative z-10'>Xóa tài khoản</span>
               <div className='absolute inset-0 bg-gradient-to-r from-[var(--color-red-400)]/0 via-[var(--color-red-400)]/20 to-[var(--color-red-400)]/0 transform -skew-x-12 -translate-x-full group-hover:translate-x-full transition-transform duration-700'></div>
             </button>
+            </div>
           </div>
         </div>
 
-        <div className='lg:col-span-2'>
-          <div className='grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3'>
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
+        <div className='lg:col-span-8 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-[var(--color-white)]/90 dark:bg-[var(--color-gray-900)]/50 p-4 rounded-none'>
+          <div className='flex items-center justify-between mb-3'>
+            <h3
+              className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'
+              style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+            >
+              Thông tin cơ bản
+            </h3>
+          </div>
+          <div className='grid grid-cols-1 gap-2 sm:grid-cols-2 lg:gap-3'>
+            <div className={summaryCardClass}>
               <p
                 className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
@@ -782,7 +718,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               </p>
             </div>
 
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
+            <div className={summaryCardClass}>
               <p
                 className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
@@ -797,22 +733,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               </p>
             </div>
 
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
-              <p
-                className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                Email
-              </p>
-              <p
-                className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'
-                style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-              >
-                {user.email}
-              </p>
-            </div>
-
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
+            <div className={summaryCardClass}>
               <p
                 className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
@@ -827,40 +748,19 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               </p>
             </div>
 
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
+            <div className={summaryCardClass}>
               <p
                 className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
               >
-                Vai trò
+                Email
               </p>
-              <div className='flex items-center gap-2'>
-                <EnumBadge type='ROLE' value={user.role} size='sm' showIcon={true} />
-              </div>
-            </div>
-
-            <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] hover:shadow-md transition-all duration-300 hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'>
               <p
-                className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'
+                className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] break-all'
                 style={{ fontFamily: 'Space Grotesk, sans-serif' }}
               >
-                Trạng thái
+                {user.email}
               </p>
-              <div className='flex items-center gap-2'>
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    user.isActive ? 'bg-green-500' : 'bg-red-500'
-                  } animate-pulse`}
-                ></div>
-                <p
-                  className={`text-sm font-bold ${
-                    user.isActive ? 'text-green-600' : 'text-red-600'
-                  }`}
-                  style={{ fontFamily: 'Space Grotesk, sans-serif' }}
-                >
-                  {user.isActive ? 'Hoạt động' : 'Tạm khóa'}
-                </p>
-              </div>
             </div>
           </div>
         </div>
@@ -868,30 +768,22 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
       {/* Member Information Section */}
       {user.role === 'MEMBER' && (
-        <div className='mt-4 p-4 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)] rounded-xl bg-gradient-to-br from-[var(--color-green-50)]/30 to-[var(--color-green-100)]/20 dark:from-[var(--color-green-900)]/10 dark:to-[var(--color-green-800)]/10'>
-          <h3 className='text-lg font-bold font-heading text-gray-900 dark:text-white mb-4 flex items-center gap-2'>
-            <svg
-              className='w-5 h-5 text-green-600 dark:text-green-400'
-              fill='none'
-              viewBox='0 0 24 24'
-              stroke='currentColor'
-            >
-              <path
-                strokeLinecap='round'
-                strokeLinejoin='round'
-                strokeWidth={2}
-                d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
-              />
-            </svg>
+        <div className='mt-4 p-4 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] rounded-none bg-[var(--color-white)]/90 dark:bg-[var(--color-gray-900)]/50'>
+          <h3
+            className='text-sm font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'
+            style={{ fontFamily: 'Space Grotesk, sans-serif' }}
+          >
             Thông tin Cá nhân
           </h3>
           {memberLoading ? (
-            <div className='text-center py-4 text-gray-500'>Đang tải...</div>
+            <div className='py-4 flex items-center justify-center'>
+              <SimpleLoading size='small' />
+            </div>
           ) : member ? (
             <div className='grid grid-cols-1 gap-2 lg:grid-cols-2 lg:gap-3'>
               {member.date_of_birth && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Ngày sinh
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -910,8 +802,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.gender && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Giới tính
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -920,8 +812,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.address && (
-                <div className='lg:col-span-2 group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={`lg:col-span-2 ${memberSummaryCardClass}`}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Địa chỉ
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -930,8 +822,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.height && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Chiều cao
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -940,8 +832,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.weight && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Cân nặng
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -950,8 +842,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.body_fat_percent && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Tỷ lệ mỡ cơ thể
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -960,8 +852,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.emergency_contact && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     Liên hệ khẩn cấp
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -970,8 +862,8 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
               )}
               {member.emergency_phone && (
-                <div className='group relative overflow-hidden bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-lg p-2 border border-[var(--color-green-200)] dark:border-[var(--color-green-700)]'>
-                  <p className='mb-2 text-xs font-semibold text-[var(--color-green-600)] dark:text-[var(--color-green-400)] uppercase tracking-wide'>
+                <div className={memberSummaryCardClass}>
+                  <p className='mb-2 text-xs font-semibold text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] uppercase tracking-wide'>
                     SĐT liên hệ khẩn cấp
                   </p>
                   <p className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
@@ -1016,9 +908,9 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
           }}
           className='max-w-[900px] m-4'
         >
-          <div className='relative w-full max-w-[700px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-h-[90vh]'>
+          <div className='relative w-full max-w-[700px] overflow-y-auto rounded-none bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 shadow-xl [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] max-h-[90vh]'>
             {/* Header */}
-            <div className='sticky top-0 z-10 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
+            <div className='sticky top-0 z-10 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-none'>
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex-1'>
                   <h4 className='text-xl font-bold font-heading text-gray-900 dark:text-white mb-1'>
@@ -1043,7 +935,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       type='text'
                       value={formData?.firstName ?? user?.firstName ?? user?.first_name ?? ''}
                       onFocus={() => {
-                        console.log('👆 Input focused, setting isEditingRef to true');
                         isEditingRef.current = true;
                         // Initialize formData if not exists
                         if (!formData && user) {
@@ -1058,12 +949,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       }}
                       onChange={e => {
                         const newValue = e.target.value;
-                        console.log('[EDIT] firstName onChange:', {
-                          newValue,
-                          currentUserState: user?.firstName || user?.first_name,
-                          fullUserState: user,
-                          isEditingBefore: isEditingRef.current,
-                        });
                         isEditingRef.current = true;
                         // Update formData first (immediate UI update, won't reset on re-render)
                         setFormData(prev => ({
@@ -1079,24 +964,12 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         // Also update user state for consistency
                         setUser(prev => {
                           if (!prev) {
-                            console.log('[WARNING] prev is null in onChange!');
                             return null;
                           }
-                          const newUser = { ...prev, firstName: newValue };
-                          console.log('[EDIT] Updated user state:', {
-                            oldFirstName: prev?.firstName || prev?.first_name,
-                            newFirstName: newUser?.firstName,
-                          });
-                          return newUser;
+                          return { ...prev, firstName: newValue };
                         });
                       }}
-                      onBlur={() => {
-                        console.log(
-                          '👋 Input blurred, current value:',
-                          user?.firstName || user?.first_name
-                        );
-                      }}
-                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                      className={editInputClass}
                     />
                   </div>
 
@@ -1108,7 +981,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       type='text'
                       value={formData?.lastName ?? user?.lastName ?? user?.last_name ?? ''}
                       onFocus={() => {
-                        console.log('👆 lastName input focused, setting isEditingRef to true');
                         isEditingRef.current = true;
                         // Initialize formData if not exists
                         if (!formData && user) {
@@ -1123,12 +995,6 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                       }}
                       onChange={e => {
                         const newValue = e.target.value;
-                        console.log('[EDIT] lastName onChange:', {
-                          newValue,
-                          currentUserState: user?.lastName || user?.last_name,
-                          fullUserState: user,
-                          isEditingBefore: isEditingRef.current,
-                        });
                         isEditingRef.current = true;
                         // Update formData first (immediate UI update, won't reset on re-render)
                         setFormData(prev => ({
@@ -1144,24 +1010,12 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         // Also update user state for consistency
                         setUser(prev => {
                           if (!prev) {
-                            console.log('[WARNING] prev is null in onChange!');
                             return null;
                           }
-                          const newUser = { ...prev, lastName: newValue };
-                          console.log('[EDIT] Updated user state:', {
-                            oldLastName: prev?.lastName || prev?.last_name,
-                            newLastName: newUser?.lastName,
-                          });
-                          return newUser;
+                          return { ...prev, lastName: newValue };
                         });
                       }}
-                      onBlur={() => {
-                        console.log(
-                          '👋 lastName input blurred, current value:',
-                          user?.lastName || user?.last_name
-                        );
-                      }}
-                      className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                      className={editInputClass}
                     />
                   </div>
 
@@ -1186,7 +1040,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             email: e.target.value,
                           }));
                         }}
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                        className={editInputClass}
                       />
                     ) : (
                       <div className='flex gap-2'>
@@ -1194,7 +1048,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           type='email'
                           value={formData?.email ?? user?.email ?? ''}
                           readOnly
-                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                          className={readonlyInputClass}
                         />
                         <Button
                           type='button'
@@ -1204,7 +1058,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             isEditingRef.current = true;
                             openChangeEmailModal();
                           }}
-                          className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                          className={editOutlineActionClass}
                         >
                           Đổi Email
                         </Button>
@@ -1233,7 +1087,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             phone: e.target.value,
                           }));
                         }}
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                        className={editInputClass}
                       />
                     ) : (
                       <div className='flex gap-2'>
@@ -1241,7 +1095,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           type='tel'
                           value={formData?.phone ?? user?.phone ?? ''}
                           readOnly
-                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-gray-50 dark:bg-gray-800/50 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none transition-all duration-200 font-inter shadow-sm cursor-not-allowed'
+                          className={readonlyInputClass}
                         />
                         <Button
                           type='button'
@@ -1251,7 +1105,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             isEditingRef.current = true;
                             openChangePhoneModal();
                           }}
-                          className='px-4 py-3 text-theme-xs font-semibold font-inter border border-orange-300 dark:border-orange-600 text-orange-600 dark:text-orange-400 hover:bg-orange-50 dark:hover:bg-orange-900/20 rounded-xl transition-all duration-200 whitespace-nowrap'
+                          className={editOutlineActionClass}
                         >
                           Đổi SĐT
                         </Button>
@@ -1274,7 +1128,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             setNewPassword(e.target.value);
                           }}
                           placeholder='Nhập mật khẩu mới'
-                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                          className={editInputClass}
                         />
                       </div>
                       <div>
@@ -1289,7 +1143,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             setConfirmPassword(e.target.value);
                           }}
                           placeholder='Nhập lại mật khẩu mới'
-                          className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
+                          className={editInputClass}
                         />
                       </div>
                     </>
@@ -1331,14 +1185,14 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                               isActive: newValue,
                             }));
                           }}
-                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
+                          className={`relative inline-flex h-6 w-11 items-center rounded-none transition-colors focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 ${
                             isActiveToggle
                               ? 'bg-green-500 dark:bg-green-600'
                               : 'bg-red-500 dark:bg-red-600'
                           }`}
                         >
                           <span
-                            className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                            className={`inline-block h-4 w-4 transform rounded-none bg-white transition-transform ${
                               isActiveToggle ? 'translate-x-6' : 'translate-x-1'
                             }`}
                           />
@@ -1357,20 +1211,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               {/* Member Information Form */}
               {user.role === 'MEMBER' && memberFormData && (
                 <div className='p-6 border-t border-gray-200 dark:border-gray-700 mt-4'>
-                  <h4 className='text-lg font-bold font-heading text-gray-900 dark:text-white mb-4 flex items-center gap-2'>
-                    <svg
-                      className='w-5 h-5 text-green-600 dark:text-green-400'
-                      fill='none'
-                      viewBox='0 0 24 24'
-                      stroke='currentColor'
-                    >
-                      <path
-                        strokeLinecap='round'
-                        strokeLinejoin='round'
-                        strokeWidth={2}
-                        d='M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z'
-                      />
-                    </svg>
+                  <h4 className='text-sm font-bold font-heading text-gray-900 dark:text-white mb-4'>
                     Thông tin Cá nhân
                   </h4>
                   <div className='grid grid-cols-1 gap-5 lg:grid-cols-2'>
@@ -1390,7 +1231,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         max={new Date().toISOString().split('T')[0]}
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
                           memberErrors.date_of_birth
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1412,7 +1253,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                             prev ? { ...prev, gender: e.target.value as any } : null
                           );
                         }}
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
                       >
                         <option value=''>Chọn giới tính</option>
                         <option value='MALE'>Nam</option>
@@ -1438,7 +1279,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                         rows={2}
                         maxLength={500}
                         placeholder='Nhập địa chỉ (tối đa 500 ký tự)'
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm resize-none ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm resize-none ${
                           memberErrors.address
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1470,7 +1311,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         placeholder='Nhập chiều cao (cm)'
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
                           memberErrors.height
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1499,7 +1340,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         placeholder='Nhập cân nặng (kg)'
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
                           memberErrors.weight
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1530,7 +1371,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         placeholder='Nhập tỷ lệ mỡ cơ thể (%)'
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
                           memberErrors.body_fat_percent
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1557,7 +1398,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         placeholder='Nhập tên người liên hệ khẩn cấp'
-                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
+                        className='w-full px-4 py-3 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500 transition-all duration-200 font-inter shadow-sm'
                       />
                     </div>
 
@@ -1577,7 +1418,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                           }
                         }}
                         placeholder='0912345678 hoặc +84912345678'
-                        className={`w-full px-4 py-3 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
+                        className={`w-full px-4 py-3 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 transition-all duration-200 font-inter shadow-sm ${
                           memberErrors.emergency_phone
                             ? 'border-red-500 focus:ring-red-500/30 focus:border-red-500'
                             : 'border-gray-300 dark:border-gray-700 focus:ring-green-500/30 focus:border-green-500 dark:focus:border-green-500'
@@ -1592,13 +1433,13 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
               )}
 
               {/* Footer */}
-              <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'>
+              <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-none flex items-center justify-end gap-3'>
                 <Button
                   size='sm'
                   variant='outline'
                   onClick={closeModal}
                   disabled={saving}
-                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
+                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none transition-all duration-200'
                 >
                   Hủy
                 </Button>
@@ -1638,7 +1479,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                     })();
                   }}
                   disabled={saving}
-                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-orange-600 hover:bg-orange-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
+                  className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-orange-600 hover:bg-orange-700 text-white border-0 rounded-none shadow-sm hover:shadow-md transition-all duration-200'
                 >
                   {saving ? 'Đang lưu...' : 'Lưu thay đổi'}
                 </Button>
@@ -1651,12 +1492,12 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
       {/* Delete Confirmation Modal */}
       {isDeleteOpen && (
         <Modal isOpen={isDeleteOpen} onClose={closeDeleteModal} className='max-w-[500px] m-4'>
-          <div className='relative w-full max-w-[500px] overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 shadow-xl'>
+          <div className='relative w-full max-w-[500px] overflow-y-auto rounded-none bg-white dark:bg-gray-900 border border-red-200 dark:border-red-800 shadow-xl'>
             {/* Header */}
-            <div className='sticky top-0 z-10 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-b border-red-200 dark:border-red-700 px-6 py-4 rounded-t-2xl'>
+            <div className='sticky top-0 z-10 bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 border-b border-red-200 dark:border-red-700 px-6 py-4 rounded-none'>
               <div className='flex items-start justify-between gap-4'>
                 <div className='flex items-center gap-3 flex-1'>
-                  <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-xl flex items-center justify-center flex-shrink-0'>
+                  <div className='w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                     <svg
                       className='w-5 h-5 text-red-600 dark:text-red-400'
                       fill='none'
@@ -1682,7 +1523,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 </div>
                 <button
                   onClick={closeDeleteModal}
-                  className='w-8 h-8 flex items-center justify-center rounded-lg hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex-shrink-0'
+                  className='w-8 h-8 flex items-center justify-center rounded-none hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors duration-200 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex-shrink-0'
                 >
                   <svg className='w-5 h-5' fill='none' viewBox='0 0 24 24' stroke='currentColor'>
                     <path
@@ -1698,7 +1539,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
 
             {/* Content */}
             <div className='p-6 space-y-4'>
-              <div className='bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-xl p-4'>
+              <div className='bg-red-50 dark:bg-red-900/10 border border-red-200 dark:border-red-800 rounded-none p-4'>
                 <p className='text-theme-xs text-gray-700 dark:text-gray-300 font-inter mb-3'>
                   Bạn đang xóa user:{' '}
                   <span className='font-semibold text-gray-900 dark:text-white'>
@@ -1721,20 +1562,20 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                   value={deleteConfirm}
                   onChange={e => setDeleteConfirm(e.target.value)}
                   placeholder='delete'
-                  className='w-full px-4 py-3 text-theme-xs border border-red-300 dark:border-red-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 dark:focus:border-red-500 transition-all duration-200 font-inter shadow-sm'
+                  className='w-full px-4 py-3 text-theme-xs border border-red-300 dark:border-red-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 dark:focus:border-red-500 transition-all duration-200 font-inter shadow-sm'
                   autoFocus
                 />
               </div>
             </div>
 
             {/* Footer */}
-            <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-b-2xl flex items-center justify-end gap-3'>
+            <div className='sticky bottom-0 bg-gray-50 dark:bg-gray-800/50 border-t border-gray-200 dark:border-gray-700 px-6 py-4 rounded-none flex items-center justify-end gap-3'>
               <Button
                 size='sm'
                 variant='outline'
                 onClick={closeDeleteModal}
                 disabled={deleting}
-                className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-all duration-200'
+                className='px-5 py-2.5 text-theme-xs font-semibold font-inter border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-none transition-all duration-200'
               >
                 Hủy
               </Button>
@@ -1742,7 +1583,7 @@ export default function UserInfoCard({ userId, onUpdate }: UserInfoCardProps) {
                 size='sm'
                 onClick={handleDelete}
                 disabled={deleting || deleteConfirm.toLowerCase() !== 'delete'}
-                className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-red-600 hover:bg-red-700 text-white border-0 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
+                className='px-5 py-2.5 text-theme-xs font-semibold font-inter bg-red-600 hover:bg-red-700 text-white border-0 rounded-none shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed'
               >
                 {deleting ? 'Đang xóa...' : 'Xóa user'}
               </Button>

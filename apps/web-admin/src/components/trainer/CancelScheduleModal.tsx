@@ -88,17 +88,17 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
     : 0;
 
   return (
-    <AdminModal isOpen={isOpen} onClose={handleClose} title='Hủy lịch dạy'>
+    <AdminModal isOpen={isOpen} onClose={handleClose} title='Hủy lịch dạy' square>
       <div className='space-y-4'>
         {/* Warning Message */}
-        <div className='bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-lg p-4'>
+        <div className='bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-none p-4'>
           <div className='flex items-start gap-3'>
             <AlertTriangle className='w-5 h-5 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5' />
             <div className='flex-1'>
-              <h3 className='text-sm font-semibold text-orange-900 dark:text-orange-200 mb-1'>
+              <h3 className='text-sm font-semibold text-orange-900 dark:text-orange-200 mb-1 font-heading'>
                 Xác nhận hủy lịch dạy
               </h3>
-              <p className='text-xs text-orange-800 dark:text-orange-300'>
+              <p className='text-xs text-orange-800 dark:text-orange-300 font-heading'>
                 {scheduleCanBeCancelled ? (
                   <>
                     Bạn đang hủy lớp <strong>{schedule.gym_class?.name}</strong>. Tất cả hội viên đã
@@ -122,13 +122,13 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
         </div>
 
         {/* Schedule Info */}
-        <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-4 space-y-2'>
-          <div className='text-xs font-medium text-gray-700 dark:text-gray-300'>
+        <div className='bg-gray-50 dark:bg-gray-800 rounded-none p-4 space-y-2 border border-gray-200 dark:border-gray-700'>
+          <div className='text-xs font-medium text-gray-700 dark:text-gray-300 font-heading'>
             Thông tin lớp học:
           </div>
-          <div className='text-sm text-gray-900 dark:text-gray-100'>
+          <div className='text-sm text-gray-900 dark:text-gray-100 font-heading'>
             <div className='font-semibold'>{schedule.gym_class?.name || 'N/A'}</div>
-            <div className='text-xs text-gray-600 dark:text-gray-400 mt-1'>
+            <div className='text-xs text-gray-600 dark:text-gray-400 mt-1 font-heading'>
               {schedule.date &&
                 new Date(schedule.date).toLocaleDateString('vi-VN', {
                   weekday: 'long',
@@ -137,7 +137,7 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
                   day: 'numeric',
                 })}
             </div>
-            <div className='text-xs text-gray-600 dark:text-gray-400'>
+            <div className='text-xs text-gray-600 dark:text-gray-400 font-heading'>
               {schedule.start_time &&
                 new Date(schedule.start_time).toLocaleTimeString('vi-VN', {
                   hour: '2-digit',
@@ -150,7 +150,7 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
                   minute: '2-digit',
                 })}
             </div>
-            <div className='text-xs text-gray-600 dark:text-gray-400'>
+            <div className='text-xs text-gray-600 dark:text-gray-400 font-heading'>
               Phòng: {schedule.room?.name || 'N/A'} | Đã đăng ký: {schedule.current_bookings || 0}/
               {schedule.max_capacity || 0}
             </div>
@@ -160,14 +160,14 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
         {/* Cancellation Reason */}
         {scheduleCanBeCancelled && (
           <div>
-            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2'>
+            <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 font-heading'>
               Lý do hủy (tùy chọn)
             </label>
             <textarea
               value={cancellationReason}
               onChange={e => setCancellationReason(e.target.value)}
               placeholder='Nhập lý do hủy lớp (nếu có)...'
-              className='w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none'
+              className='w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-none bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-transparent resize-none font-heading'
               rows={3}
               disabled={loading}
             />
@@ -176,8 +176,8 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
 
         {/* Error Message */}
         {error && (
-          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3'>
-            <p className='text-xs text-red-800 dark:text-red-300'>{error}</p>
+          <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-none p-3'>
+            <p className='text-xs text-red-800 dark:text-red-300 font-heading'>{error}</p>
           </div>
         )}
 
@@ -188,17 +188,17 @@ const CancelScheduleModal: React.FC<CancelScheduleModalProps> = ({
             size='sm'
             onClick={handleClose}
             disabled={loading}
-            className='text-xs'
+            className='text-xs font-heading rounded-none'
           >
             Đóng
           </Button>
           {scheduleCanBeCancelled && (
             <Button
-              variant='destructive'
+              variant='danger'
               size='sm'
               onClick={handleCancel}
               disabled={loading}
-              className='text-xs'
+              className='text-xs font-heading rounded-none'
             >
               {loading ? 'Đang xử lý...' : 'Xác nhận hủy'}
             </Button>

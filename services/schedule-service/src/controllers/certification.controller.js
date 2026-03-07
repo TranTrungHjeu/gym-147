@@ -1237,25 +1237,41 @@ const uploadCertificateToS3 = async (req, res) => {
         });
       }
 
-      // Convert S3 URL to CDN URL if CDN is configured (similar to equipment images)
-      const url = cdnService.convertS3UrlToCDN(req.file.location) || req.file.location;
+      try {
+        const url = req.file.path || req.file.secure_url || req.file.url || req.file.location;
 
-      const fileInfo = {
-        url,
-        key: req.file.key,
-        originalName: req.file.originalname,
-        size: req.file.size,
-        mimeType: req.file.mimetype,
-        bucket: req.file.bucket,
-      };
+        if (!url) {
+          return res.status(500).json({
+            success: false,
+            data: null,
+            message: 'Upload completed but file URL is missing',
+          });
+        }
 
-      console.log(`[SUCCESS] File uploaded to S3: ${fileInfo.url}`);
+        const fileInfo = {
+          url,
+          key: req.file.key || req.file.filename || req.file.public_id,
+          originalName: req.file.originalname,
+          size: req.file.size,
+          mimeType: req.file.mimetype,
+          bucket: req.file.bucket || null,
+        };
 
-      res.json({
-        success: true,
-        data: fileInfo,
-        message: 'File uploaded successfully to S3',
-      });
+        console.log(`[SUCCESS] File uploaded: ${fileInfo.url}`);
+
+        return res.json({
+          success: true,
+          data: fileInfo,
+          message: 'File uploaded successfully',
+        });
+      } catch (callbackError) {
+        console.error('Error processing uploaded file metadata:', callbackError);
+        return res.status(500).json({
+          success: false,
+          data: null,
+          message: 'Internal server error while processing uploaded file',
+        });
+      }
     });
   } catch (error) {
     console.error('Error uploading file to S3:', error);

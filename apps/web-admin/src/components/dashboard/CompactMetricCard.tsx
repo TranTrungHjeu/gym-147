@@ -26,16 +26,19 @@ const CompactMetricCard: React.FC<CompactMetricCardProps> = ({
   const displayValue = isLoading ? '...' : (value ?? 0);
 
   return (
-    <AdminCard padding='sm' className='bg-gray-50/50 dark:bg-gray-900/50 group'>
+    <AdminCard
+      padding='sm'
+      className='bg-gray-50/60 dark:bg-gray-900/50 group rounded-none border border-gray-200 dark:border-gray-700'
+    >
       <div className='flex items-center gap-2.5'>
-        <div className='flex-shrink-0 transition-transform duration-300 group-hover:scale-125 group-hover:rotate-12'>
+        <div className='flex-shrink-0'>
           <Icon className={`w-4 h-4 ${iconColor}`} />
         </div>
         <div className='flex-1 min-w-0'>
-          <div className={`text-lg font-semibold font-heading ${valueColor} leading-tight mb-0.5`}>
+          <div className={`text-base font-semibold font-heading ${valueColor} leading-tight mb-0.5`}>
             {displayValue}
           </div>
-          <div className='text-theme-xs text-gray-600 dark:text-gray-400 font-inter leading-tight'>
+          <div className='text-[11px] text-gray-600 dark:text-gray-400 font-inter leading-tight'>
             {label}
           </div>
         </div>

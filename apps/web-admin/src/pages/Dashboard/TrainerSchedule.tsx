@@ -22,6 +22,7 @@ import EditScheduleModal from '../../components/trainer/EditScheduleModal';
 import CancelScheduleModal from '../../components/trainer/CancelScheduleModal';
 import ScheduleQRCodeModal from '../../components/trainer/ScheduleQRCodeModal';
 import Button from '../../components/ui/Button/Button';
+import { SimpleLoading } from '../../components/ui/AppLoading';
 import { Dropdown } from '../../components/ui/dropdown/Dropdown';
 import { DropdownItem } from '../../components/ui/dropdown/DropdownItem';
 import { useOptimisticScheduleUpdates } from '@/hooks/useOptimisticScheduleUpdates';
@@ -135,12 +136,13 @@ const ScheduleHeader = React.memo(
           <Button
             onClick={onRefresh}
             disabled={isLoading}
-            variant='outline'
+            variant='primary'
             size='sm'
-            className='flex items-center gap-2'
+            className='h-9 w-9 !px-0 !rounded-full flex items-center justify-center font-heading border-0 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-white shadow-sm hover:shadow-md'
+            title='Làm mới'
+            aria-label='Làm mới'
           >
             <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
-            <span>Làm mới</span>
           </Button>
         </div>
       </div>
@@ -168,7 +170,7 @@ const ScheduleControls = React.memo(
   }) => {
     return (
       <div className='px-6'>
-        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-sm p-3'>
           <DatePickerComponent
             selectedDate={selectedDate}
             onDateChange={onDateChange}
@@ -205,7 +207,7 @@ const ScheduleFilters = React.memo(
   }) => {
     return (
       <div className='px-6'>
-        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-sm p-3'>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
             {/* Search Input */}
             <div className='group relative w-full'>
@@ -215,7 +217,7 @@ const ScheduleFilters = React.memo(
                 placeholder='Tìm kiếm lịch dạy...'
                 value={searchTerm}
                 onChange={e => onSearchChange(e.target.value)}
-                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
 
@@ -354,7 +356,7 @@ const DatePickerComponent = ({
             size='sm'
             variant='outline'
             disabled
-            className='text-[11px] font-heading whitespace-nowrap'
+            className='text-[11px] font-heading whitespace-nowrap rounded-none'
           >
             Xuất lịch
           </Button>
@@ -363,7 +365,7 @@ const DatePickerComponent = ({
           size='sm'
           variant='primary'
           onClick={onShowCreateModal}
-          className='text-[11px] font-heading whitespace-nowrap'
+          className='text-[11px] font-heading whitespace-nowrap rounded-none'
         >
           Mở lớp học
         </Button>
@@ -567,12 +569,10 @@ const ScheduleTable = ({
   };
 
   return (
-    <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden'>
+    <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm overflow-hidden'>
       {loading ? (
-        <div className='p-12'>
-          <div className='text-center text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
-            Đang tải...
-          </div>
+        <div className='flex items-center justify-center py-12'>
+          <SimpleLoading size='medium' />
         </div>
       ) : filteredSchedules.length > 0 ? (
         <>
@@ -802,7 +802,7 @@ const ScheduleTable = ({
                     <button
                       key={page}
                       onClick={() => onPageChange(page)}
-                      className={`px-2 py-1 text-[11px] rounded-lg font-inter transition-colors ${
+                      className={`px-2 py-1 text-[11px] rounded-none font-inter transition-colors ${
                         currentPage === page
                           ? 'bg-orange-500 text-white shadow-sm'
                           : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700'
@@ -825,7 +825,7 @@ const ScheduleTable = ({
           )}
         </>
       ) : (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='text-center'>
             <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mb-2'>
               {searchTerm ? 'Không tìm thấy lịch dạy nào' : 'Không có lịch dạy nào'}
@@ -1311,7 +1311,9 @@ export default function TrainerSchedule() {
           setTableLoading(true);
         }
 
-        const response = await scheduleService.getTrainerScheduleList(selectedDate, viewMode);
+        const response = classIdFilter
+          ? await scheduleService.getTrainerSchedulesByClassId(classIdFilter)
+          : await scheduleService.getTrainerScheduleList(selectedDate, viewMode);
 
         if (response.success) {
           // Handle nested data structure: response.data.schedules
@@ -1345,7 +1347,7 @@ export default function TrainerSchedule() {
         }
       }
     },
-    [selectedDate, viewMode]
+    [selectedDate, viewMode, classIdFilter]
   );
 
   // Track if this is the first render to avoid double fetch
@@ -2292,7 +2294,7 @@ export default function TrainerSchedule() {
       // If member is already checked out
       if (attendance.checked_out_at) {
         return (
-          <span className='text-[10px] font-inter text-gray-600 dark:text-gray-400 px-2 py-0.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-md'>
+          <span className='text-[10px] font-inter text-gray-600 dark:text-gray-400 px-2 py-0.5 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-none'>
             Đã check-out
           </span>
         );
@@ -2304,7 +2306,7 @@ export default function TrainerSchedule() {
           <Button
             size='sm'
             onClick={() => handleMemberCheckOut(record.member_id, schedule)}
-            className='bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 font-inter'
+            className='bg-red-500 hover:bg-red-600 text-white text-[10px] px-2 py-1 font-inter rounded-none'
           >
             Check-out
           </Button>
@@ -2313,7 +2315,7 @@ export default function TrainerSchedule() {
 
       // Member is checked in but can't check out yet
       return (
-        <span className='text-[10px] font-inter text-green-700 dark:text-green-300 px-2 py-0.5 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md'>
+        <span className='text-[10px] font-inter text-orange-700 dark:text-orange-300 px-2 py-0.5 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-none'>
           Đã điểm danh
         </span>
       );
@@ -2325,7 +2327,7 @@ export default function TrainerSchedule() {
         <Button
           size='sm'
           onClick={() => handleMemberCheckIn(record.member_id, schedule)}
-          className='bg-green-500 hover:bg-green-600 text-white text-[10px] px-2 py-1 font-inter'
+          className='bg-orange-500 hover:bg-orange-600 text-white text-[10px] px-2 py-1 font-inter rounded-none'
         >
           Điểm danh
         </Button>
@@ -2457,34 +2459,34 @@ export default function TrainerSchedule() {
     return (
       <div className='p-4 space-y-6 animate-pulse'>
         {/* Header Skeleton */}
-        <div className='bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 rounded-xl p-6'>
+        <div className='bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 rounded-none p-6'>
           <div className='flex items-center justify-between'>
             <div className='flex items-center gap-4'>
-              <div className='w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-xl'></div>
+              <div className='w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-none'></div>
               <div className='space-y-2'>
-                <div className='h-7 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+                <div className='h-7 w-48 bg-gray-200 dark:bg-gray-700 rounded-none'></div>
                 <div className='h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded'></div>
               </div>
             </div>
-            <div className='w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='w-12 h-12 bg-gray-200 dark:bg-gray-700 rounded-none'></div>
           </div>
         </div>
 
         {/* Filters Skeleton */}
-        <div className='bg-white dark:bg-gray-900 rounded-xl p-4'>
+        <div className='bg-white dark:bg-gray-900 rounded-none p-4'>
           <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3'>
             {[1, 2, 3, 4].map(i => (
-              <div key={i} className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+              <div key={i} className='h-10 bg-gray-200 dark:bg-gray-700 rounded-none'></div>
             ))}
           </div>
         </div>
 
         {/* Table Skeleton */}
-        <div className='bg-white dark:bg-gray-900 rounded-xl p-4'>
+        <div className='bg-white dark:bg-gray-900 rounded-none p-4'>
           <div className='space-y-3'>
-            <div className='h-12 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
+            <div className='h-12 bg-gray-200 dark:bg-gray-700 rounded-none'></div>
             {[1, 2, 3, 4, 5].map(i => (
-              <div key={i} className='h-16 bg-gray-100 dark:bg-gray-800 rounded-lg'></div>
+              <div key={i} className='h-16 bg-gray-100 dark:bg-gray-800 rounded-none'></div>
             ))}
           </div>
         </div>
@@ -2558,6 +2560,7 @@ export default function TrainerSchedule() {
             : ''
         }
         size='xl'
+        square
         footer={
           <div className='flex justify-between items-center'>
             <div className='flex gap-2'>
@@ -2587,13 +2590,18 @@ export default function TrainerSchedule() {
                 variant='outline'
                 onClick={handleReloadAttendanceModal}
                 disabled={loadingMembers}
-                className='text-sm font-inter flex items-center gap-2'
+                className='h-9 w-9 !px-0 !rounded-full text-sm font-heading flex items-center justify-center border-0 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-white shadow-sm hover:shadow-md'
+                title='Làm mới'
+                aria-label='Làm mới'
               >
                 <RefreshCw className={`w-4 h-4 ${loadingMembers ? 'animate-spin' : ''}`} />
-                Làm mới
               </Button>
             </div>
-            <Button variant='outline' onClick={closeAttendanceModal} className='text-sm font-inter'>
+            <Button
+              variant='outline'
+              onClick={closeAttendanceModal}
+              className='text-sm font-heading rounded-none'
+            >
               Đóng
             </Button>
           </div>
@@ -2618,7 +2626,7 @@ export default function TrainerSchedule() {
                     placeholder='Tìm kiếm hội viên...'
                     value={modalSearchTerm}
                     onChange={e => setModalSearchTerm(e.target.value)}
-                    className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                    className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                   />
                 </div>
                 <div className='w-40'>
@@ -2656,10 +2664,7 @@ export default function TrainerSchedule() {
                 if (loadingMembers) {
                   return (
                     <div className='flex items-center justify-center py-6'>
-                      <div className='animate-spin rounded-full h-5 w-5 border-b-2 border-orange-600'></div>
-                      <span className='ml-2 text-[11px] font-inter text-gray-600 dark:text-gray-400'>
-                        Đang tải thông tin hội viên...
-                      </span>
+                      <SimpleLoading size='small' className='ml-2' />
                     </div>
                   );
                 }
@@ -2672,14 +2677,14 @@ export default function TrainerSchedule() {
                   return (
                     <div className='space-y-2'>
                       {/* Summary */}
-                      <div className='bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700 p-3 mb-3'>
+                      <div className='bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700 p-3 mb-3'>
                         <div className='flex items-center justify-between'>
                           <div className='flex items-center gap-4 flex-wrap'>
                             <div className='flex items-center gap-2'>
                               <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                 Tổng:
                               </span>
-                              <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                              <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-none font-heading'>
                                 {filteredMembers.length}
                               </span>
                             </div>
@@ -2724,7 +2729,7 @@ export default function TrainerSchedule() {
                                     <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                       Đang tham gia:
                                     </span>
-                                    <span className='px-2 py-0.5 bg-green-500 dark:bg-green-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                    <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-none font-heading'>
                                       {confirmedCount}
                                     </span>
                                   </div>
@@ -2733,7 +2738,7 @@ export default function TrainerSchedule() {
                                       <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                         Danh sách chờ:
                                       </span>
-                                      <span className='px-2 py-0.5 bg-yellow-500 dark:bg-yellow-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                      <span className='px-2 py-0.5 bg-orange-400 dark:bg-orange-500 text-white text-[11px] font-bold rounded-none font-heading'>
                                         {waitlistCount}
                                       </span>
                                     </div>
@@ -2743,7 +2748,7 @@ export default function TrainerSchedule() {
                                       <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                         Đã thanh toán:
                                       </span>
-                                      <span className='px-2 py-0.5 bg-blue-500 dark:bg-blue-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                      <span className='px-2 py-0.5 bg-orange-600 dark:bg-orange-700 text-white text-[11px] font-bold rounded-none font-heading'>
                                         {paidCount}
                                       </span>
                                     </div>
@@ -2753,7 +2758,7 @@ export default function TrainerSchedule() {
                                       <span className='text-[11px] font-inter font-medium text-gray-700 dark:text-gray-300'>
                                         Chưa thanh toán:
                                       </span>
-                                      <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-md font-heading'>
+                                      <span className='px-2 py-0.5 bg-orange-500 dark:bg-orange-600 text-white text-[11px] font-bold rounded-none font-heading'>
                                         {pendingCount}
                                       </span>
                                     </div>
@@ -2771,7 +2776,7 @@ export default function TrainerSchedule() {
                             </div>
                           </div>
                           <span
-                            className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border ${getStatusColor(
+                            className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-none border ${getStatusColor(
                               selectedSchedule.status
                             )}`}
                           >
@@ -2799,12 +2804,12 @@ export default function TrainerSchedule() {
                           return (
                             <div
                               key={record.id}
-                              className={`relative overflow-hidden rounded-lg border-l-4 ${
+                              className={`relative overflow-hidden rounded-none border-l-4 ${
                                 isWaitlist
-                                  ? 'border-l-yellow-500 dark:border-l-yellow-600'
+                                  ? 'border-l-orange-400 dark:border-l-orange-500'
                                   : 'border-l-transparent hover:border-l-orange-500'
                               } border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:shadow-md transition-all duration-200 group ${
-                                isWaitlist ? 'bg-yellow-50/30 dark:bg-yellow-900/10' : ''
+                                isWaitlist ? 'bg-orange-50/30 dark:bg-orange-900/10' : ''
                               }`}
                             >
                               {/* Content */}
@@ -2817,7 +2822,7 @@ export default function TrainerSchedule() {
                                         <img
                                           src={member.profile_photo}
                                           alt={member.full_name}
-                                          className='w-full h-full object-cover'
+                                          className='w-full h-full object-cover rounded-full'
                                           onError={e => {
                                             e.currentTarget.style.display = 'none';
                                           }}
@@ -2868,11 +2873,11 @@ export default function TrainerSchedule() {
 
                                         return (
                                           <span
-                                            className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-full border flex-shrink-0 ${
+                                            className={`px-1.5 sm:px-2 py-0.5 inline-flex items-center gap-0.5 sm:gap-1 text-[8px] sm:text-[9px] font-semibold font-heading rounded-none border flex-shrink-0 ${
                                               attendanceStatus?.text === 'Có mặt'
-                                                ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border-green-200 dark:border-green-800'
+                                                ? 'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border-orange-200 dark:border-orange-800'
                                                 : attendanceStatus?.text === 'Đi muộn'
-                                                ? 'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border-yellow-200 dark:border-yellow-800'
+                                                ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700'
                                                 : attendanceStatus?.text === 'Vắng mặt'
                                                 ? 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border-red-200 dark:border-red-800'
                                                 : 'bg-gray-50 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700'
@@ -2888,7 +2893,7 @@ export default function TrainerSchedule() {
                                     <div className='flex items-center gap-2 mb-1 flex-wrap'>
                                       {/* Waitlist Badge */}
                                       {isWaitlist && (
-                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300 border border-yellow-300 dark:border-yellow-700'>
+                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-none bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'>
                                           {waitlistPosition
                                             ? `Danh sách chờ #${waitlistPosition}`
                                             : 'Danh sách chờ'}
@@ -2896,17 +2901,17 @@ export default function TrainerSchedule() {
                                       )}
                                       {/* Confirmed Badge */}
                                       {!isWaitlist && booking && booking.status === 'CONFIRMED' && (
-                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 border border-green-300 dark:border-green-700'>
+                                        <span className='px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-none bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border border-orange-300 dark:border-orange-700'>
                                           Đang tham gia
                                         </span>
                                       )}
                                       {/* Payment Status Badge */}
                                       {booking && booking.payment_status && (
                                         <span
-                                          className={`px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-md border ${
+                                          className={`px-1.5 py-0.5 text-[9px] font-heading font-semibold rounded-none border ${
                                             booking.payment_status === 'PAID' ||
                                             booking.payment_status === 'COMPLETED'
-                                              ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700'
+                                              ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700'
                                               : booking.payment_status === 'PENDING'
                                               ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300 border-orange-300 dark:border-orange-700'
                                               : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-300 dark:border-gray-700'
@@ -2920,7 +2925,7 @@ export default function TrainerSchedule() {
                                             : booking.payment_status}
                                         </span>
                                       )}
-                                      <span className='text-[9px] font-heading font-medium text-gray-600 dark:text-gray-400 leading-tight px-1.5 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-md border border-gray-200 dark:border-gray-700'>
+                                      <span className='text-[9px] font-heading font-medium text-gray-600 dark:text-gray-400 leading-tight px-1.5 py-0.5 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
                                         {member?.membership_type || 'BASIC'}
                                       </span>
                                       {isAttendanceRecord &&

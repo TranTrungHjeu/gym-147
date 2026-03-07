@@ -328,7 +328,7 @@ const RefundManagement: React.FC = () => {
               placeholder={t('refundManagement.search.placeholder')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className='w-full pl-10 pr-4 py-2 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500'
+              className='w-full pl-10 pr-4 py-2 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white focus:ring-2 focus:ring-orange-500 focus:border-orange-500'
             />
           </div>
           <CustomSelect
@@ -352,7 +352,7 @@ const RefundManagement: React.FC = () => {
       <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
         <AdminCard padding='sm'>
           <div className='flex items-center gap-3'>
-            <div className='w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center'>
+            <div className='w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center'>
               <RotateCcw className='w-4 h-4 text-orange-600 dark:text-orange-400' />
             </div>
             <div>
@@ -365,7 +365,7 @@ const RefundManagement: React.FC = () => {
         </AdminCard>
         <AdminCard padding='sm'>
           <div className='flex items-center gap-3'>
-            <div className='w-9 h-9 bg-warning-100 dark:bg-warning-900/30 rounded-lg flex items-center justify-center'>
+            <div className='w-9 h-9 bg-warning-100 dark:bg-warning-900/30 rounded-none flex items-center justify-center'>
               <Clock className='w-4 h-4 text-warning-600 dark:text-warning-400' />
             </div>
             <div>
@@ -380,7 +380,7 @@ const RefundManagement: React.FC = () => {
         </AdminCard>
         <AdminCard padding='sm'>
           <div className='flex items-center gap-3'>
-            <div className='w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center'>
+            <div className='w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-none flex items-center justify-center'>
               <CheckCircle className='w-4 h-4 text-blue-600 dark:text-blue-400' />
             </div>
             <div>
@@ -395,7 +395,7 @@ const RefundManagement: React.FC = () => {
         </AdminCard>
         <AdminCard padding='sm'>
           <div className='flex items-center gap-3'>
-            <div className='w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-lg flex items-center justify-center'>
+            <div className='w-9 h-9 bg-success-100 dark:bg-success-900/30 rounded-none flex items-center justify-center'>
               <CheckCircle className='w-4 h-4 text-success-600 dark:text-success-400' />
             </div>
             <div>
@@ -602,3 +602,5 @@ const RefundManagement: React.FC = () => {
 };
 
 export default RefundManagement;
+
+

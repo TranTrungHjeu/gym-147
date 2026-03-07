@@ -593,9 +593,9 @@ const CouponManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Tag className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Tag className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -616,9 +616,9 @@ const CouponManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-green-100 dark:bg-green-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-green-500/20'>
-                <div className='absolute inset-0 bg-green-100 dark:bg-green-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <TrendingUp className='relative w-[18px] h-[18px] text-green-600 dark:text-green-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-green-100 dark:bg-green-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--green-500/20'>
+                <div className='absolute inset-0 bg-green-100 dark:bg-green-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <TrendingUp className='relative w-[18px] h-[18px] text-green-600 dark:text-green-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -639,9 +639,9 @@ const CouponManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-blue-100 dark:bg-blue-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-blue-500/20'>
-                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-blue-100 dark:bg-blue-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--blue-500/20'>
+                <div className='absolute inset-0 bg-blue-100 dark:bg-blue-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-blue-600 dark:text-blue-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -662,9 +662,9 @@ const CouponManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-purple-100 dark:bg-purple-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-purple-500/20'>
-                <div className='absolute inset-0 bg-purple-100 dark:bg-purple-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <DollarSign className='relative w-[18px] h-[18px] text-purple-600 dark:text-purple-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-purple-100 dark:bg-purple-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--purple-500/20'>
+                <div className='absolute inset-0 bg-purple-100 dark:bg-purple-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <DollarSign className='relative w-[18px] h-[18px] text-purple-600 dark:text-purple-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -824,7 +824,7 @@ const CouponManagement: React.FC = () => {
                           {coupon.usage_limit && (
                             <div className='w-full max-w-[80px] h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden'>
                               <div
-                                className='h-full bg-orange-500 transition-all'
+                                className='h-full bg-orange-500 transition-colors duration-200'
                                 style={{
                                   width: `${Math.min(
                                     (coupon.usage_count / coupon.usage_limit) * 100,
@@ -1146,6 +1146,8 @@ const CouponManagement: React.FC = () => {
 };
 
 export default CouponManagement;
+
+
 
 
 

@@ -352,7 +352,7 @@ const SuperAdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className='min-h-screen bg-gray-50 dark:bg-gray-900'>
+    <div className='min-h-screen bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
       <div className='p-3 space-y-3'>
         {/* Header */}
         <DashboardHeader
@@ -467,7 +467,7 @@ const SuperAdminDashboard: React.FC = () => {
           rightColumn={
             <>
               {/* Recent Activity */}
-              <AdminCard padding='sm'>
+              <AdminCard padding='sm' className='rounded-none border border-gray-200 dark:border-gray-700'>
                 <SectionHeader
                   icon={Activity}
                   title={t('dashboard.superAdmin.activity.recentActivity')}
@@ -476,7 +476,7 @@ const SuperAdminDashboard: React.FC = () => {
                 <div className='relative mt-4'>
                   {recentActivities.length === 0 ? (
                     <div className='text-center py-10'>
-                      <div className='inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-50 dark:bg-gray-800/50 mb-3'>
+                      <div className='inline-flex items-center justify-center w-10 h-10 rounded-none bg-gray-50 dark:bg-gray-800/50 mb-3 border border-gray-200 dark:border-gray-700'>
                         <Activity className='w-6 h-6 text-gray-400 dark:text-gray-500' />
                       </div>
                       <p className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
@@ -486,7 +486,7 @@ const SuperAdminDashboard: React.FC = () => {
                   ) : (
                     <div className='relative pl-5'>
                       {/* Clean Timeline line */}
-                      <div className='absolute left-2 top-0 bottom-0 w-px bg-gray-200 dark:bg-gray-700'></div>
+                      <div className='absolute left-2 top-0 bottom-0 w-px bg-gray-300 dark:bg-gray-700'></div>
 
                       <div className='space-y-0'>
                         {recentActivities.map(activity => {
@@ -501,11 +501,11 @@ const SuperAdminDashboard: React.FC = () => {
                               className='relative flex items-start gap-3 pb-4 last:pb-0 group'
                             >
                               {/* Timeline dot */}
-                              <div className='absolute left-[7px] top-[22px] w-2 h-2 rounded-full bg-orange-500 dark:bg-orange-400 border-2 border-white dark:border-gray-900 z-10 transform -translate-x-1/2'></div>
+                              <div className='absolute left-[7px] top-[20px] w-2 h-2 rounded-none bg-orange-500 dark:bg-orange-400 border border-white dark:border-gray-900 z-10 transform -translate-x-1/2'></div>
 
                               {/* Avatar container */}
                               <div className='relative z-10 flex-shrink-0'>
-                                <div className='relative w-10 h-10 rounded-full overflow-hidden border-2 border-gray-100 dark:border-gray-700 transition-all duration-200 group-hover:border-orange-300 dark:group-hover:border-orange-600 bg-gray-50 dark:bg-gray-800'>
+                                <div className='relative w-9 h-9 rounded-full overflow-hidden border border-gray-200 dark:border-gray-700 transition-all duration-200 group-hover:border-orange-300 dark:group-hover:border-orange-600 bg-gray-50 dark:bg-gray-800'>
                                   {userAvatar ? (
                                     <img
                                       src={userAvatar}
@@ -519,7 +519,7 @@ const SuperAdminDashboard: React.FC = () => {
                                 </div>
                                 {/* Activity type badge */}
                                 <div
-                                  className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white dark:bg-gray-800 border-2 border-gray-100 dark:border-gray-700 flex items-center justify-center shadow-sm`}
+                                  className={`absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-none bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center shadow-sm`}
                                 >
                                   <ActivityIcon className={`w-2.5 h-2.5 ${iconColor}`} />
                                 </div>

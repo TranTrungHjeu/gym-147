@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import ExportButton from '../../components/common/ExportButton';
 import CreateScheduleModal from '../../components/trainer/CreateScheduleModal';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 import { CalendarEvent, scheduleService } from '../../services/schedule.service';
 import { getCurrentUser } from '../../utils/auth';
@@ -153,11 +154,7 @@ export default function TrainerCalendarWithFilters() {
   const displayEvents = filteredEvents;
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-gray-600 dark:text-gray-400'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (

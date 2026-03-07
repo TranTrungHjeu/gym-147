@@ -120,7 +120,7 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
 
       {/* Modal Content */}
       <div
-        className='relative z-[99999] w-full max-w-md mx-4 my-8 bg-white dark:bg-gray-900 rounded-xl shadow-2xl overflow-hidden'
+        className='relative z-[99999] w-full max-w-md mx-4 my-8 bg-white dark:bg-gray-900 rounded-none shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-700'
         onClick={e => e.stopPropagation()}
         role='dialog'
         aria-modal='true'
@@ -129,7 +129,7 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
         {/* Close Button */}
         <button
           onClick={onClose}
-          className='absolute top-3 right-3 z-50 w-7 h-7 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200'
+          className='absolute top-3 right-3 z-50 w-7 h-7 flex items-center justify-center rounded-none bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200'
         >
           <X className='w-4 h-4' />
         </button>
@@ -138,17 +138,17 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
         <div className='p-6'>
           {/* Title */}
           <div className='flex items-center gap-3 mb-4'>
-            <div className='w-10 h-10 rounded-lg bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center'>
+            <div className='w-10 h-10 rounded-none bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center'>
               <QrCode className='w-5 h-5 text-orange-600 dark:text-orange-400' />
             </div>
             <div>
               <h2
                 id='qr-modal-title'
-                className='text-xl font-bold text-gray-900 dark:text-white'
+                className='text-xl font-bold text-gray-900 dark:text-white font-heading'
               >
                 QR Code {type === 'check-in' ? 'Check-in' : 'Check-out'}
               </h2>
-              <p className='text-sm text-gray-600 dark:text-gray-400'>
+              <p className='text-sm text-gray-600 dark:text-gray-400 font-heading'>
                 {scheduleName}
               </p>
             </div>
@@ -158,7 +158,7 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
           {loading && (
             <div className='flex flex-col items-center justify-center py-12'>
               <RefreshCw className='w-8 h-8 text-orange-600 dark:text-orange-400 animate-spin mb-3' />
-              <p className='text-sm text-gray-600 dark:text-gray-400'>
+              <p className='text-sm text-gray-600 dark:text-gray-400 font-heading'>
                 Đang tạo QR code...
               </p>
             </div>
@@ -166,11 +166,11 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
 
           {/* Error State */}
           {error && !loading && (
-            <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4'>
-              <p className='text-sm text-red-800 dark:text-red-400'>{error}</p>
+            <div className='bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-none p-4 mb-4'>
+              <p className='text-sm text-red-800 dark:text-red-400 font-heading'>{error}</p>
               <button
                 onClick={generateQRCode}
-                className='mt-2 text-sm text-red-600 dark:text-red-400 hover:underline'
+                className='mt-2 text-sm text-red-600 dark:text-red-400 hover:underline font-heading'
               >
                 Thử lại
               </button>
@@ -181,7 +181,7 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
           {!loading && !error && qrCodeDataUrl && (
             <>
               <div className='flex flex-col items-center mb-4'>
-                <div className='bg-white p-4 rounded-lg border-2 border-gray-200 dark:border-gray-700 shadow-md mb-4'>
+                <div className='bg-white p-4 rounded-none border-2 border-gray-200 dark:border-gray-700 shadow-md mb-4'>
                   <img
                     src={qrCodeDataUrl}
                     alt='QR Code'
@@ -195,15 +195,15 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
 
                 {/* Expiry Info */}
                 {expiresAt && (
-                  <div className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4'>
+                  <div className='flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 mb-4 font-heading'>
                     <Clock className='w-4 h-4' />
                     <span>Hết hạn: {formatExpiresAt(expiresAt)}</span>
                   </div>
                 )}
 
                 {/* Instructions */}
-                <div className='bg-gray-50 dark:bg-gray-800 rounded-lg p-4 w-full mb-4'>
-                  <p className='text-sm text-gray-700 dark:text-gray-300 text-center'>
+                <div className='bg-gray-50 dark:bg-gray-800 rounded-none p-4 w-full mb-4 border border-gray-200 dark:border-gray-700'>
+                  <p className='text-sm text-gray-700 dark:text-gray-300 text-center font-heading'>
                     Học viên quét QR code này để {type === 'check-in' ? 'điểm danh' : 'check-out'} vào lớp học
                   </p>
                 </div>
@@ -213,21 +213,21 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
               <div className='flex gap-2'>
                 <button
                   onClick={handleDownload}
-                  className='flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg font-semibold hover:bg-orange-700 transition-colors text-sm'
+                  className='flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-none font-semibold hover:bg-orange-700 transition-colors text-sm font-heading'
                 >
                   <Download className='w-4 h-4' />
                   Tải PNG
                 </button>
                 <button
                   onClick={handleDownloadSVG}
-                  className='flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm'
+                  className='flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-none font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-heading'
                 >
                   <Download className='w-4 h-4' />
                   Tải SVG
                 </button>
                 <button
                   onClick={generateQRCode}
-                  className='flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm'
+                  className='flex items-center justify-center gap-2 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-none font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-heading'
                 >
                   <RefreshCw className='w-4 h-4' />
                 </button>
@@ -238,7 +238,7 @@ const ScheduleQRCodeModal: React.FC<ScheduleQRCodeModalProps> = ({
           {/* Close Button */}
           <button
             onClick={onClose}
-            className='w-full mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-lg font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm'
+            className='w-full mt-4 px-4 py-2 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 rounded-none font-semibold hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors text-sm font-heading'
           >
             Đóng
           </button>

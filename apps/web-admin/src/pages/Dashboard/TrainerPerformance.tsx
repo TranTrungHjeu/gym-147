@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import AdminCard from '../../components/common/AdminCard';
 import ExportButton from '../../components/common/ExportButton';
 import SetGoalModal from '../../components/common/SetGoalModal';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 import {
   PerformanceGoal,
@@ -184,16 +185,12 @@ export default function TrainerPerformance() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
-    <div className='min-h-screen-full bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
-      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 h-full flex flex-col'>
+    <div className='min-h-screen-full bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
+      <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3 h-full flex flex-col'>
         {/* Header Section */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
@@ -213,7 +210,7 @@ export default function TrainerPerformance() {
             </div>
 
             {/* Action Buttons */}
-            <div className='lg:col-span-4 flex justify-end gap-3'>
+            <div className='lg:col-span-4 flex justify-end gap-2'>
               {metrics.length > 0 || goals.length > 0 || reviews.length > 0 ? (
                 <ExportButton
                   data={[
@@ -265,15 +262,16 @@ export default function TrainerPerformance() {
                   filename='trainer-performance'
                   title='Báo cáo hiệu suất Trainer'
                   variant='primary'
-                  size='sm'
+                  size='xs'
                 />
               ) : null}
-              <button
+              <Button
+                size='xs'
                 onClick={handleCreateGoal}
-                className='px-4 py-2 bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] rounded-lg transition-all duration-200 flex items-center gap-2 font-sans text-sm'
+                className='bg-[var(--color-orange-600)] hover:bg-[var(--color-orange-700)] text-[var(--color-white)] border-0 min-h-[30px]'
               >
                 Đặt mục tiêu mới
-              </button>
+              </Button>
             </div>
           </div>
         </motion.div>
@@ -285,8 +283,8 @@ export default function TrainerPerformance() {
           transition={{ duration: 0.6, delay: 0.2 }}
           className='mb-3'
         >
-          <div className='border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
-            <nav className='-mb-px flex space-x-8'>
+          <div className='border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] rounded-none px-3'>
+            <nav className='-mb-px flex flex-wrap gap-x-6'>
               {[
                 { id: 'metrics', name: 'Chỉ số hiệu suất' },
                 { id: 'goals', name: 'Mục tiêu' },
@@ -318,7 +316,11 @@ export default function TrainerPerformance() {
           >
             <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3'>
               {metrics.map(metric => (
-                <AdminCard key={metric.id} hover>
+                <AdminCard
+                  key={metric.id}
+                  hover
+                  className='rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'
+                >
                   <div className='flex items-center justify-between mb-2'>
                     <h3 className='text-sm font-medium text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>
                       {metric.name}
@@ -354,9 +356,9 @@ export default function TrainerPerformance() {
                         {metric.unit}
                       </span>
                     </div>
-                    <div className='mt-1 w-full bg-[var(--color-gray-200)] dark:bg-[var(--color-gray-700)] rounded-full h-2'>
+                    <div className='mt-1 w-full bg-[var(--color-gray-200)] dark:bg-[var(--color-gray-700)] rounded-none h-2'>
                       <div
-                        className={`h-2 rounded-full ${
+                        className={`h-2 rounded-none ${
                           metric.value >= metric.target
                             ? 'bg-[var(--color-orange-500)] dark:bg-[var(--color-orange-400)]'
                             : 'bg-[var(--color-orange-300)] dark:bg-[var(--color-orange-600)]'
@@ -382,7 +384,7 @@ export default function TrainerPerformance() {
             className='space-y-3 flex-1'
           >
             {goals.length === 0 ? (
-              <AdminCard>
+              <AdminCard className='rounded-none'>
                 <div className='text-center py-12'>
                   <svg
                     className='w-16 h-16 text-[var(--color-gray-300)] dark:text-[var(--color-gray-600)] mx-auto mb-4'
@@ -404,9 +406,9 @@ export default function TrainerPerformance() {
                     Tạo mục tiêu mới để theo dõi hiệu suất của bạn
                   </p>
                   <Button
-                    size='sm'
+                    size='xs'
                     onClick={handleCreateGoal}
-                    className='bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] border-0'
+                    className='rounded-none bg-gradient-to-r from-[var(--color-orange-600)] to-[var(--color-orange-700)] hover:from-[var(--color-orange-700)] hover:to-[var(--color-orange-800)] text-[var(--color-white)] border-0'
                   >
                     Tạo mục tiêu đầu tiên
                   </Button>
@@ -414,7 +416,11 @@ export default function TrainerPerformance() {
               </AdminCard>
             ) : (
               goals.map(goal => (
-                <AdminCard key={goal.id} hover>
+                <AdminCard
+                  key={goal.id}
+                  hover
+                  className='rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'
+                >
                   <div className='flex items-start justify-between mb-4'>
                     <div className='flex-1'>
                       <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-2 font-heading'>
@@ -432,7 +438,7 @@ export default function TrainerPerformance() {
                     </div>
                     <div className='flex flex-col items-end gap-2'>
                       <span
-                        className={`px-3 py-1 text-xs rounded-full font-medium font-sans ${getStatusColor(
+                        className={`px-3 py-1 text-xs rounded-none font-medium font-sans ${getStatusColor(
                           goal.status
                         )}`}
                       >
@@ -443,9 +449,9 @@ export default function TrainerPerformance() {
                       </span>
                     </div>
                   </div>
-                  <div className='w-full bg-[var(--color-gray-200)] dark:bg-[var(--color-gray-700)] rounded-full h-3 mb-4'>
+                  <div className='w-full bg-[var(--color-gray-200)] dark:bg-[var(--color-gray-700)] rounded-none h-3 mb-4'>
                     <div
-                      className={`h-3 rounded-full ${
+                      className={`h-3 rounded-none ${
                         goal.progress_percentage >= 100
                           ? 'bg-[var(--color-orange-500)] dark:bg-[var(--color-orange-400)]'
                           : goal.progress_percentage >= 80
@@ -459,14 +465,19 @@ export default function TrainerPerformance() {
                   </div>
                   <div className='flex justify-end gap-2'>
                     <Button
-                      size='sm'
+                      size='xs'
                       variant='outline'
                       onClick={() => handleEditGoal(goal)}
-                      className='border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'
+                      className='rounded-none border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'
                     >
                       Chỉnh sửa
                     </Button>
-                    <Button size='sm' variant='danger' onClick={() => handleDeleteGoal(goal.id)}>
+                    <Button
+                      size='xs'
+                      variant='danger'
+                      onClick={() => handleDeleteGoal(goal.id)}
+                      className='rounded-none'
+                    >
                       Xóa
                     </Button>
                   </div>
@@ -496,7 +507,11 @@ export default function TrainerPerformance() {
             className='space-y-3 flex-1'
           >
             {reviews.map(review => (
-              <AdminCard key={review.id} hover>
+              <AdminCard
+                key={review.id}
+                hover
+                className='rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'
+              >
                 <div className='flex items-start justify-between mb-4'>
                   <div>
                     <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-1 font-heading'>
@@ -516,7 +531,7 @@ export default function TrainerPerformance() {
                   </div>
                 </div>
 
-                <div className='grid grid-cols-1 md:grid-cols-2 gap-6 mb-4'>
+                <div className='grid grid-cols-1 md:grid-cols-2 gap-4 mb-4'>
                   <div>
                     <h4 className='text-sm font-medium text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-2 font-sans'>
                       Điểm mạnh
@@ -576,7 +591,7 @@ export default function TrainerPerformance() {
                   </div>
                 </div>
 
-                <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-700)] rounded-lg p-4'>
+                <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-700)] rounded-none p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)]'>
                   <h4 className='text-sm font-medium text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-2 font-sans'>
                     Nhận xét
                   </h4>

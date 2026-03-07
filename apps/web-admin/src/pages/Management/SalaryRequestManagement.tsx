@@ -135,7 +135,7 @@ const SalaryRequestManagement: React.FC = () => {
               placeholder={t('salaryRequestManagement.searchPlaceholder')}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
         </div>
@@ -186,7 +186,7 @@ const SalaryRequestManagement: React.FC = () => {
                       <AdminTableCell>
                         <button
                           onClick={() => handleSetSalary(request)}
-                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+                          className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-none hover:bg-blue-700 transition-colors"
                         >
                           <DollarSign className="w-4 h-4 mr-1" />
                           {t('salaryRequestManagement.actions.setSalary')}
@@ -227,4 +227,6 @@ const SalaryRequestManagement: React.FC = () => {
 };
 
 export default SalaryRequestManagement;
+
+
 

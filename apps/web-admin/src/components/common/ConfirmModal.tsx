@@ -54,10 +54,16 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
       onClose={onClose}
       title={title}
       size='sm'
+      square
       showCloseButton={!isLoading}
       footer={
         <div className='flex items-center justify-end gap-3'>
-          <AdminButton variant='outline' onClick={onClose} disabled={isLoading}>
+          <AdminButton
+            variant='outline'
+            onClick={onClose}
+            disabled={isLoading}
+            className='font-heading rounded-none'
+          >
             {cancelText}
           </AdminButton>
           <AdminButton
@@ -65,7 +71,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
             onClick={handleConfirm}
             disabled={isLoading}
             isLoading={isLoading}
-            className={variantClasses[variant]}
+            className={`${variantClasses[variant]} font-heading rounded-none`}
           >
             {confirmText}
           </AdminButton>
@@ -75,7 +81,7 @@ const ConfirmModal: React.FC<ConfirmModalProps> = ({
       <div className='flex flex-col items-center text-center space-y-4 py-4'>
         <div className='flex-shrink-0'>{defaultIcon}</div>
         <div className='space-y-2'>
-          <p className='text-theme-sm text-gray-900 dark:text-white font-inter'>{message}</p>
+          <p className='text-theme-sm text-gray-900 dark:text-white font-heading'>{message}</p>
         </div>
       </div>
     </AdminModal>

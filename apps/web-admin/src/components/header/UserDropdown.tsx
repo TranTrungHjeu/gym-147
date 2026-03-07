@@ -7,7 +7,6 @@ import { User as UserType } from '../../services/user.service';
 import { Trainer } from '../../services/trainer.service';
 import { Dropdown } from '../ui/dropdown/Dropdown';
 import { DropdownItem } from '../ui/dropdown/DropdownItem';
-import { API_CONFIG } from '@/config/api.config';
 import { scheduleApi } from '@/services/api';
 
 export default function UserDropdown() {
@@ -172,6 +171,14 @@ export default function UserDropdown() {
     closeDropdown();
   };
 
+  const currentRole = String(user?.role || '').toUpperCase();
+  const isTrainer = currentRole === 'TRAINER';
+  const canAccessSettings = currentRole === 'ADMIN' || currentRole === 'SUPER_ADMIN';
+
+  const profileRoute = isTrainer ? '/trainerdashboard/profile' : '/full-dashboard/profile';
+  const settingsRoute = canAccessSettings ? '/management/settings' : profileRoute;
+  const supportRoute = '/contact';
+
   return (
     <div className='relative'>
       <button
@@ -187,7 +194,7 @@ export default function UserDropdown() {
         }}
         className='dropdown-toggle flex items-center text-[var(--color-gray-700)] dark:text-[var(--color-gray-400)] hover:text-[var(--color-orange-600)] dark:hover:text-[var(--color-orange-400)] transition-colors duration-200'
       >
-        <span className='mr-3 overflow-hidden rounded-full h-11 w-11 border-2 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-gray-100 dark:bg-gray-800'>
+        <span className='mr-2 overflow-hidden rounded-none h-10 w-10 border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-gray-100 dark:bg-gray-800'>
           {trainer?.profile_photo ? (
             <img
               src={trainer.profile_photo}
@@ -236,9 +243,9 @@ export default function UserDropdown() {
       <Dropdown
         isOpen={isOpen}
         onClose={closeDropdown}
-        className='absolute right-0 mt-[17px] flex w-[260px] flex-col rounded-2xl border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] p-3 shadow-lg'
+        className='absolute right-0 mt-3 flex w-[248px] flex-col !rounded-none border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-800)] p-2.5 shadow-lg'
       >
-        <ul className='flex flex-col gap-1 py-2'>
+        <ul className='flex flex-col gap-1 py-1.5'>
           <motion.li
             initial={{ opacity: 0, x: -12, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
@@ -251,9 +258,9 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
-              to='/profile'
+              to={profileRoute}
               baseClassName=''
-              className='user-dropdown-item flex items-center gap-3 px-3 py-2 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-lg group text-sm hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
+              className='user-dropdown-item flex items-center gap-2.5 px-2.5 py-1.5 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-none group text-xs hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
               onMouseEnter={e => {
                 e.currentTarget.style.setProperty('color', 'var(--color-orange-700)', 'important');
                 if (document.documentElement.classList.contains('dark')) {
@@ -305,9 +312,9 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
-              to='/profile'
+              to={settingsRoute}
               baseClassName=''
-              className='user-dropdown-item flex items-center gap-3 px-3 py-2 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-lg group text-sm hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
+              className='user-dropdown-item flex items-center gap-2.5 px-2.5 py-1.5 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-none group text-xs hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
               onMouseEnter={e => {
                 e.currentTarget.style.setProperty('color', 'var(--color-orange-700)', 'important');
                 if (document.documentElement.classList.contains('dark')) {
@@ -359,9 +366,9 @@ export default function UserDropdown() {
             <DropdownItem
               onItemClick={closeDropdown}
               tag='a'
-              to='/profile'
+              to={supportRoute}
               baseClassName=''
-              className='user-dropdown-item flex items-center gap-3 px-3 py-2 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-lg group text-sm hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
+              className='user-dropdown-item flex items-center gap-2.5 px-2.5 py-1.5 font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] rounded-none group text-xs hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20 transition-colors duration-200'
               onMouseEnter={e => {
                 e.currentTarget.style.setProperty('color', 'var(--color-orange-700)', 'important');
                 if (document.documentElement.classList.contains('dark')) {
@@ -410,20 +417,20 @@ export default function UserDropdown() {
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
           >
-            <div className='px-3 py-2'>
-              <div className='flex items-center gap-3 mb-2'>
+            <div className='px-2.5 py-1.5'>
+              <div className='flex items-center gap-2.5 mb-1.5'>
                 <Globe className='w-5 h-5 text-[var(--color-gray-600)] dark:text-[var(--color-gray-300)]' />
                 <span
-                  className='font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] text-sm'
+                  className='font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] text-xs'
                   style={{ fontFamily: 'Space Grotesk, sans-serif' }}
                 >
                   {t('user.menu.language')}
                 </span>
               </div>
-              <div className='flex gap-2 ml-8'>
+              <div className='flex gap-2 ml-7'>
                 <button
                   onClick={() => handleLanguageChange('vi')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-none text-[11px] font-medium transition-colors ${
                     currentLang === 'vi'
                       ? 'bg-[var(--color-orange-500)] text-white'
                       : 'bg-[var(--color-gray-100)] dark:bg-[var(--color-gray-700)] text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20'
@@ -434,7 +441,7 @@ export default function UserDropdown() {
                 </button>
                 <button
                   onClick={() => handleLanguageChange('en')}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-none text-[11px] font-medium transition-colors ${
                     currentLang === 'en'
                       ? 'bg-[var(--color-orange-500)] text-white'
                       : 'bg-[var(--color-gray-100)] dark:bg-[var(--color-gray-700)] text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/20'
@@ -457,7 +464,7 @@ export default function UserDropdown() {
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
             onClick={handleSignOut}
-            className='flex items-center gap-3 px-3 py-2 font-medium text-[var(--color-red-600)] dark:text-[var(--color-red-400)] rounded-lg group text-sm hover:bg-[var(--color-red-50)] dark:hover:bg-[var(--color-red-900)]/20 hover:text-[var(--color-red-700)] dark:hover:text-[var(--color-red-200)] transition-colors duration-200 w-full text-left'
+            className='flex items-center gap-2.5 px-2.5 py-1.5 font-medium text-[var(--color-red-600)] dark:text-[var(--color-red-400)] rounded-none group text-xs hover:bg-[var(--color-red-50)] dark:hover:bg-[var(--color-red-900)]/20 hover:text-[var(--color-red-700)] dark:hover:text-[var(--color-red-200)] transition-colors duration-200 w-full text-left'
             style={{ fontFamily: 'Space Grotesk, sans-serif' }}
           >
             <svg

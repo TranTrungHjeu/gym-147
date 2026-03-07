@@ -7,6 +7,7 @@ import AdminCard from '../../components/common/AdminCard';
 import CustomSelect from '../../components/common/CustomSelect';
 import ExportButton from '../../components/common/ExportButton';
 import MetricCard from '../../components/dashboard/MetricCard';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 
 export default function TrainerFeedback() {
@@ -298,11 +299,7 @@ export default function TrainerFeedback() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (

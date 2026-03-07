@@ -337,7 +337,7 @@ const EquipmentManagement: React.FC = () => {
         <div className='flex items-center gap-3'>
           <button
             onClick={loadEquipment}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm  transition-colors duration-200 '
           >
             <RefreshCw className='w-4 h-4' />
             {t('equipmentManagement.filter.refresh')}
@@ -354,7 +354,7 @@ const EquipmentManagement: React.FC = () => {
           )}
           <button
             onClick={handleCreate}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm  transition-colors duration-200 '
           >
             <Plus className='w-4 h-4' />
             {t('equipmentManagement.addEquipment')}
@@ -363,7 +363,7 @@ const EquipmentManagement: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
         <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
           {/* Search Input */}
           <div className='md:col-span-2 group relative'>
@@ -376,7 +376,7 @@ const EquipmentManagement: React.FC = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
 
@@ -432,7 +432,7 @@ const EquipmentManagement: React.FC = () => {
       {isLoading ? (
         <TableLoading text={t('common.loading')} />
       ) : filteredEquipment.length === 0 ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='text-center text-theme-xs text-gray-500 dark:text-gray-400 font-inter'>
             {searchTerm || statusFilter !== 'all' || categoryFilter !== 'all'
               ? t('equipmentManagement.empty.noResults')
@@ -446,7 +446,7 @@ const EquipmentManagement: React.FC = () => {
             {paginatedEquipment.map(eq => (
               <div
                 key={eq.id}
-                className='group relative bg-white dark:bg-gray-900 rounded-2xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-xl hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-300 overflow-hidden hover:-translate-y-1 flex flex-col h-full'
+                className='group relative bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm    hover:border-orange-300 dark:hover:border-orange-700 transition-colors duration-200 overflow-hidden  flex flex-col h-full'
               >
                 {/* Gradient Accent Bar */}
                 <div className='absolute top-0 left-0 right-0 h-1 bg-gradient-to-r from-orange-500 via-orange-400 to-orange-500 opacity-0 group-hover:opacity-100 transition-opacity duration-300'></div>
@@ -456,10 +456,10 @@ const EquipmentManagement: React.FC = () => {
                   <div className='flex items-start justify-between gap-3 mb-3'>
                     {/* Category Icon - 3D Icon from Figma */}
                     <div
-                      className={`flex-shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${getEnumBackgroundColor(
+                      className={`flex-shrink-0 w-14 h-14 rounded-none flex items-center justify-center ${getEnumBackgroundColor(
                         'EQUIPMENT_CATEGORY',
                         eq.category
-                      )} p-3 shadow-md transition-all duration-300 group-hover:shadow-lg group-hover:scale-105`}
+                      )} p-3 shadow-md transition-colors duration-200 `}
                     >
                       <EquipmentIcon
                         category={eq.category}
@@ -497,7 +497,7 @@ const EquipmentManagement: React.FC = () => {
                 <div className='p-5 space-y-4 flex-1 flex flex-col'>
                   {/* Brand & Model */}
                   {(eq.brand || eq.model) && (
-                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700'>
+                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-100 dark:border-gray-700'>
                       <Hash className='w-4 h-4 flex-shrink-0 text-orange-500 dark:text-orange-400' />
                       <span className='text-theme-xs font-semibold font-heading text-gray-800 dark:text-gray-200 truncate'>
                         {eq.brand && eq.model ? `${eq.brand} ${eq.model}` : eq.brand || eq.model}
@@ -507,7 +507,7 @@ const EquipmentManagement: React.FC = () => {
 
                   {/* Location */}
                   {eq.location && (
-                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-100 dark:border-gray-700'>
+                    <div className='flex items-center gap-2.5 px-3 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-100 dark:border-gray-700'>
                       <MapPin className='w-4 h-4 flex-shrink-0 text-orange-500 dark:text-orange-400' />
                       <span className='text-theme-xs font-medium font-inter text-gray-700 dark:text-gray-300 truncate'>
                         {eq.location}
@@ -518,7 +518,7 @@ const EquipmentManagement: React.FC = () => {
                   {/* Stats Grid */}
                   <div className='grid grid-cols-2 gap-2.5'>
                     {/* Usage Hours */}
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/50'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-none border border-blue-100 dark:border-blue-800/50'>
                       <Clock className='w-4 h-4 flex-shrink-0 text-blue-600 dark:text-blue-400' />
                       <div className='min-w-0'>
                         <div className='text-[11px] font-bold font-heading text-blue-700 dark:text-blue-300'>
@@ -531,7 +531,7 @@ const EquipmentManagement: React.FC = () => {
                     </div>
 
                     {/* Max Weight */}
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-100 dark:border-purple-800/50'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-purple-50 dark:bg-purple-900/20 rounded-none border border-purple-100 dark:border-purple-800/50'>
                       <Weight className='w-4 h-4 flex-shrink-0 text-purple-600 dark:text-purple-400' />
                       <div className='min-w-0'>
                         <div className='text-[11px] font-bold font-heading text-purple-700 dark:text-purple-300'>
@@ -544,7 +544,7 @@ const EquipmentManagement: React.FC = () => {
                     </div>
 
                     {/* Usage Count */}
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-100 dark:border-green-800/50'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-green-50 dark:bg-green-900/20 rounded-none border border-green-100 dark:border-green-800/50'>
                       <Activity className='w-4 h-4 flex-shrink-0 text-green-600 dark:text-green-400' />
                       <div className='min-w-0'>
                         <div className='text-[11px] font-bold font-heading text-green-700 dark:text-green-300'>
@@ -557,7 +557,7 @@ const EquipmentManagement: React.FC = () => {
                     </div>
 
                     {/* Maintenance Count */}
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg border border-yellow-100 dark:border-yellow-800/50'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-yellow-50 dark:bg-yellow-900/20 rounded-none border border-yellow-100 dark:border-yellow-800/50'>
                       <Wrench className='w-4 h-4 flex-shrink-0 text-yellow-600 dark:text-yellow-400' />
                       <div className='min-w-0'>
                         <div className='text-[11px] font-bold font-heading text-yellow-700 dark:text-yellow-300'>
@@ -574,7 +574,7 @@ const EquipmentManagement: React.FC = () => {
 
                   {/* Last Maintenance */}
                   {eq.last_maintenance && (
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-200 dark:border-gray-700'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700'>
                       <Calendar className='w-4 h-4 flex-shrink-0 text-gray-600 dark:text-gray-400' />
                       <div className='min-w-0'>
                         <div className='text-[10px] font-semibold font-heading text-gray-700 dark:text-gray-300 mb-0.5'>
@@ -593,7 +593,7 @@ const EquipmentManagement: React.FC = () => {
                     if (maintenanceStatus && eq.next_maintenance) {
                       return (
                         <div
-                          className={`flex items-center gap-2 px-2.5 py-2 rounded-lg border col-span-2 ${
+                          className={`flex items-center gap-2 px-2.5 py-2 rounded-none border col-span-2 ${
                             maintenanceStatus.isOverdue
                               ? 'bg-error-50 dark:bg-error-900/20 border-error-200 dark:border-error-800'
                               : 'bg-warning-50 dark:bg-warning-900/20 border-warning-200 dark:border-warning-800'
@@ -638,7 +638,7 @@ const EquipmentManagement: React.FC = () => {
 
                   {/* Queue Count */}
                   {eq._count?.queue !== undefined && eq._count.queue > 0 && (
-                    <div className='flex items-center gap-2 px-2.5 py-2 bg-warning-50 dark:bg-warning-900/20 rounded-lg border border-warning-200 dark:border-warning-800 col-span-2 animate-pulse'>
+                    <div className='flex items-center gap-2 px-2.5 py-2 bg-warning-50 dark:bg-warning-900/20 rounded-none border border-warning-200 dark:border-warning-800 col-span-2 animate-pulse'>
                       <Zap className='w-4 h-4 flex-shrink-0 text-warning-600 dark:text-warning-400' />
                       <div className='min-w-0 flex-1'>
                         <div className='text-[11px] font-bold font-heading text-warning-700 dark:text-warning-300'>
@@ -653,7 +653,7 @@ const EquipmentManagement: React.FC = () => {
                     <div className='pt-2 border-t border-gray-100 dark:border-gray-800'>
                       <button
                         onClick={() => handleViewUsers(eq)}
-                        className='w-full flex items-center gap-2.5 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-200 dark:hover:border-blue-700 transition-all duration-200 cursor-pointer group'
+                        className='w-full flex items-center gap-2.5 px-3 py-2 bg-blue-50 dark:bg-blue-900/20 rounded-none border border-blue-100 dark:border-blue-800/50 hover:bg-blue-100 dark:hover:bg-blue-900/30 hover:border-blue-200 dark:hover:border-blue-700 transition-colors duration-200 cursor-pointer group'
                       >
                         <div className='flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center'>
                           <User className='w-4 h-4 text-blue-600 dark:text-blue-400' />
@@ -666,7 +666,7 @@ const EquipmentManagement: React.FC = () => {
                             {eq.usage_logs[0].member.full_name}
                           </div>
                         </div>
-                        <Users className='w-4 h-4 text-blue-600 dark:text-blue-400 group-hover:scale-110 transition-transform duration-200' />
+                        <Users className='w-4 h-4 text-blue-600 dark:text-blue-400  transition-transform duration-200' />
                       </button>
                     </div>
                   )}
@@ -685,25 +685,25 @@ const EquipmentManagement: React.FC = () => {
                       </div>
                       <div className='flex items-center gap-1.5 flex-wrap'>
                         {eq.has_heart_monitor && (
-                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 shadow-sm'>
+                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-none text-[10px] font-semibold font-heading bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-800 shadow-sm'>
                             <Activity className='w-3 h-3' />
                             {t('equipmentManagement.details.heartMonitor')}
                           </span>
                         )}
                         {eq.has_calorie_counter && (
-                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 shadow-sm'>
+                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-none text-[10px] font-semibold font-heading bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800 shadow-sm'>
                             <Zap className='w-3 h-3' />
                             {t('equipmentManagement.details.calorieCounter')}
                           </span>
                         )}
                         {eq.has_rep_counter && (
-                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-sm'>
+                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-none text-[10px] font-semibold font-heading bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 shadow-sm'>
                             <Activity className='w-3 h-3' />
                             {t('equipmentManagement.details.repCounter')}
                           </span>
                         )}
                         {eq.wifi_enabled && (
-                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-sm'>
+                          <span className='inline-flex items-center gap-1 px-2 py-1 rounded-none text-[10px] font-semibold font-heading bg-purple-50 dark:bg-purple-900/20 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shadow-sm'>
                             <Wifi className='w-3 h-3' />
                             {t('equipmentManagement.details.wifiEnabled')}
                           </span>
@@ -720,14 +720,14 @@ const EquipmentManagement: React.FC = () => {
                       setSelectedEquipmentForQR(eq);
                       setIsQRCodeModalOpen(true);
                     }}
-                    className='inline-flex items-center justify-center gap-2 px-3 py-2.5 text-theme-xs font-semibold font-heading text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-xl hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-700 hover:text-blue-800 dark:hover:text-blue-200 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+                    className='inline-flex items-center justify-center gap-2 px-3 py-2.5 text-theme-xs font-semibold font-heading text-blue-700 dark:text-blue-300 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-none hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:border-blue-400 dark:hover:border-blue-700 hover:text-blue-800 dark:hover:text-blue-200 shadow-sm  transition-colors duration-200 '
                     title={t('equipmentManagement.actions.generateQR')}
                   >
                     <QrCode className='w-4 h-4' />
                   </button>
                   <button
                     onClick={() => handleEdit(eq)}
-                    className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 rounded-xl hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:border-orange-400 dark:hover:border-orange-700 hover:text-orange-800 dark:hover:text-orange-200 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+                    className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-orange-700 dark:text-orange-300 bg-white dark:bg-gray-800 border border-orange-200 dark:border-orange-800 rounded-none hover:bg-orange-50 dark:hover:bg-orange-900/30 hover:border-orange-400 dark:hover:border-orange-700 hover:text-orange-800 dark:hover:text-orange-200 shadow-sm  transition-colors duration-200 '
                   >
                     <Edit className='w-4 h-4' />
                     {t('equipmentManagement.actions.edit')}
@@ -737,7 +737,7 @@ const EquipmentManagement: React.FC = () => {
                       setEquipmentToDelete(eq);
                       setIsDeleteDialogOpen(true);
                     }}
-                    className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-error-700 dark:text-error-300 bg-white dark:bg-gray-800 border border-error-200 dark:border-error-800 rounded-xl hover:bg-error-50 dark:hover:bg-error-900/30 hover:border-error-400 dark:hover:border-error-700 hover:text-error-800 dark:hover:text-error-200 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+                    className='flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-error-700 dark:text-error-300 bg-white dark:bg-gray-800 border border-error-200 dark:border-error-800 rounded-none hover:bg-error-50 dark:hover:bg-error-900/30 hover:border-error-400 dark:hover:border-error-700 hover:text-error-800 dark:hover:text-error-200 shadow-sm  transition-colors duration-200 '
                   >
                     <Trash2 className='w-4 h-4' />
                     {t('equipmentManagement.actions.delete')}
@@ -749,7 +749,7 @@ const EquipmentManagement: React.FC = () => {
 
           {/* Pagination */}
           {totalPages > 1 && (
-            <div className='flex items-center justify-between bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm px-6 py-4'>
+            <div className='flex items-center justify-between bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm px-6 py-4'>
               <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter font-medium'>
                 {t('common.page')} {currentPage} {t('common.of')} {totalPages}
               </div>
@@ -757,7 +757,7 @@ const EquipmentManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
                   disabled={currentPage === 1}
-                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
+                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 shadow-sm  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
                 >
                   <ChevronLeft className='w-4 h-4' />
                   {t('common.prev')}
@@ -765,7 +765,7 @@ const EquipmentManagement: React.FC = () => {
                 <button
                   onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
                   disabled={currentPage === totalPages}
-                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
+                  className='inline-flex items-center gap-2 px-4 py-2 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 shadow-sm  disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white dark:disabled:hover:bg-gray-800'
                 >
                   {t('common.next')}
                   <ChevronRight className='w-4 h-4' />
@@ -797,7 +797,7 @@ const EquipmentManagement: React.FC = () => {
         }}
         className='max-w-2xl m-4'
       >
-        <div className='relative w-full max-w-2xl overflow-y-auto rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[80vh]'>
+        <div className='relative w-full max-w-2xl overflow-y-auto rounded-none bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[80vh]'>
           {/* Header */}
           <div className='sticky top-0 z-10 bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 border-b border-blue-200 dark:border-blue-700 px-6 py-4 rounded-t-2xl'>
             <h2 className='text-xl font-bold font-heading text-gray-900 dark:text-white'>
@@ -833,7 +833,7 @@ const EquipmentManagement: React.FC = () => {
                 {equipmentUsers.map((usage, index) => (
                   <div
                     key={usage.id || index}
-                    className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-all duration-200'
+                    className='p-4 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-200'
                   >
                     <div className='flex items-center justify-between'>
                       <div className='flex items-center gap-3 flex-1 min-w-0'>
@@ -884,7 +884,7 @@ const EquipmentManagement: React.FC = () => {
                 setEquipmentUsers([]);
                 setSelectedEquipmentForUsers(null);
               }}
-              className='px-5 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md'
+              className='px-5 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 shadow-sm '
             >
               {t('common.close')}
             </button>
@@ -925,3 +925,8 @@ const EquipmentManagement: React.FC = () => {
 };
 
 export default EquipmentManagement;
+
+
+
+
+

@@ -147,7 +147,7 @@ const VerifyCode: React.FC = () => {
       </div>
 
       {/* Verify Code Input */}
-      <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
+      <div className='bg-white dark:bg-gray-800 rounded-none shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
         <div className='p-6'>
           <div className='space-y-4'>
             <div>
@@ -161,7 +161,7 @@ const VerifyCode: React.FC = () => {
                   onChange={e => setCode(e.target.value.toUpperCase())}
                   onKeyPress={e => e.key === 'Enter' && handleVerify()}
                   placeholder={t('verifyCode.input.placeholder')}
-                  className='flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-xl font-mono text-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all'
+                  className='flex-1 px-4 py-2.5 border border-gray-300 dark:border-gray-600 rounded-none font-mono text-lg focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors duration-200'
                   autoFocus
                 />
                 <AdminButton onClick={handleVerify} icon={Search} isLoading={verifying}>
@@ -175,7 +175,7 @@ const VerifyCode: React.FC = () => {
 
       {/* Redemption Details */}
       {redemption && (
-        <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
+        <div className='bg-white dark:bg-gray-800 rounded-none shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
           <div className='p-6 space-y-6'>
             {/* Header with Status */}
             <div className='flex items-center justify-between'>
@@ -201,7 +201,7 @@ const VerifyCode: React.FC = () => {
             </div>
 
             {/* Code Display */}
-            <div className='bg-gray-50 dark:bg-gray-800/50 rounded-xl p-4 border border-gray-100 dark:border-gray-700'>
+            <div className='bg-gray-50 dark:bg-gray-800/50 rounded-none p-4 border border-gray-100 dark:border-gray-700'>
               <div className='flex items-center justify-between'>
                 <div>
                   <label className='block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1'>
@@ -226,7 +226,7 @@ const VerifyCode: React.FC = () => {
             {/* Status Alert */}
             {redemption.status !== 'ACTIVE' && (
               <div
-                className={`p-4 rounded-xl ${
+                className={`p-4 rounded-none ${
                   redemption.status === 'EXPIRED'
                     ? 'bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800'
                     : redemption.status === 'USED'
@@ -257,7 +257,7 @@ const VerifyCode: React.FC = () => {
             {/* Details Grid */}
             <div className='grid grid-cols-1 md:grid-cols-2 gap-6'>
               {/* Member Info */}
-              <div className='space-y-4 p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
+              <div className='space-y-4 p-4 rounded-none border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
                   <User className='w-5 h-5 text-blue-500' />
                   {t('verifyCode.result.member')}
@@ -299,7 +299,7 @@ const VerifyCode: React.FC = () => {
               </div>
 
               {/* Reward Info */}
-              <div className='space-y-4 p-4 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
+              <div className='space-y-4 p-4 rounded-none border border-gray-100 dark:border-gray-700 bg-gray-50/30 dark:bg-gray-800/50'>
                 <h3 className='text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2'>
                   <Gift className='w-5 h-5 text-orange-500' />
                   {t('verifyCode.result.reward')}
@@ -336,7 +336,7 @@ const VerifyCode: React.FC = () => {
             </div>
 
             {/* Dates */}
-            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700 p-4 rounded-xl bg-gray-50/30 dark:bg-gray-800/50'>
+            <div className='grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t border-gray-200 dark:border-gray-700 p-4 rounded-none bg-gray-50/30 dark:bg-gray-800/50'>
               <div>
                 <label className='block text-sm font-medium text-gray-600 dark:text-gray-400 mb-1 flex items-center gap-2'>
                   <Calendar className='w-4 h-4' />
@@ -395,7 +395,7 @@ const VerifyCode: React.FC = () => {
 
       {/* Empty State */}
       {!redemption && !verifying && code && (
-        <div className='bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
+        <div className='bg-white dark:bg-gray-800 rounded-none shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden'>
           <div className='text-center py-20'>
             <div className='w-24 h-24 bg-gray-50 dark:bg-gray-700/50 rounded-full flex items-center justify-center mx-auto mb-6'>
               <Search className='w-12 h-12 text-gray-400' />
@@ -414,3 +414,5 @@ const VerifyCode: React.FC = () => {
 };
 
 export default VerifyCode;
+
+

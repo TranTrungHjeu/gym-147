@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
 import { MessageSquare, Search, Star, Users } from 'lucide-react';
 import AdminModal from '../../components/common/AdminModal';
 import AdminCard from '../../components/common/AdminCard';
 import CustomSelect from '../../components/common/CustomSelect';
 import MetricCard from '../../components/dashboard/MetricCard';
-import Input from '../../components/form/input/InputField';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 import { scheduleService } from '../../services/schedule.service';
 
@@ -235,26 +234,18 @@ export default function TrainerReviews() {
   };
 
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
-    <div className='min-h-screen-full bg-gradient-to-br from-[var(--color-gray-50)] via-[var(--color-white)] to-[var(--color-gray-100)] dark:from-[var(--color-gray-900)] dark:via-[var(--color-gray-800)] dark:to-[var(--color-gray-900)]'>
+    <div className='min-h-screen-full bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
       <div className='max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2 h-full flex flex-col'>
         {/* Header Section */}
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6 }}
-          className='mb-2 flex-shrink-0'
-        >
-          <div className='grid grid-cols-1 lg:grid-cols-5 gap-4'>
+        <div className='mb-3 flex-shrink-0'>
+          <AdminCard className='p-4 rounded-none border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-white dark:bg-gray-900'>
+            <div className='grid grid-cols-1 lg:grid-cols-12 gap-4'>
             {/* Title Section */}
-            <div className='lg:col-span-1 space-y-0.5'>
+            <div className='lg:col-span-4 space-y-1'>
               <h1 className='text-xl lg:text-2xl font-bold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-heading'>
                 Đánh giá của học viên
               </h1>
@@ -264,7 +255,7 @@ export default function TrainerReviews() {
             </div>
 
             {/* Stats Overview */}
-            <div className='lg:col-span-4'>
+            <div className='lg:col-span-8'>
               <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
                 <MetricCard
                   icon={Star}
@@ -290,31 +281,27 @@ export default function TrainerReviews() {
               </div>
             </div>
           </div>
-        </motion.div>
+          </AdminCard>
+        </div>
 
         {/* Search and Filter */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className='mb-3'
-        >
-          <AdminCard className='p-3'>
-            <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
+        <div className='mb-3'>
+          <AdminCard className='p-3 rounded-none border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] bg-white dark:bg-gray-900'>
+            <div className='grid grid-cols-1 lg:grid-cols-12 gap-3 items-center'>
               {/* Search */}
-              <div className='group relative'>
+              <div className='group relative lg:col-span-8'>
                 <Search className='absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-400 dark:text-gray-500 group-focus-within:text-orange-500 transition-colors duration-200 pointer-events-none z-10' />
                 <input
                   type='text'
                   placeholder='Tìm kiếm đánh giá...'
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                  className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
                 />
               </div>
 
               {/* Rating Filter */}
-              <div>
+              <div className='lg:col-span-4'>
                 <CustomSelect
                   options={[
                     { value: '', label: 'Tất cả đánh giá' },
@@ -332,27 +319,26 @@ export default function TrainerReviews() {
               </div>
             </div>
           </AdminCard>
-        </motion.div>
+        </div>
 
         {/* Reviews List */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.3 }}
-          className='space-y-3 flex-1'
-        >
+        <div className='space-y-3 flex-1'>
           {filteredReviews.length > 0 ? (
             filteredReviews.map(review => (
-              <AdminCard key={review.id} hover className='transition-all duration-200 hover:shadow-md'>
-                <div className='flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4'>
+              <AdminCard
+                key={review.id}
+                hover
+                className='rounded-none border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] transition-all duration-200 hover:shadow-sm bg-white dark:bg-gray-900'
+              >
+                <div className='grid grid-cols-1 xl:grid-cols-12 gap-4'>
                   {/* Review Info */}
-                  <div className='flex-1'>
-                    <div className='flex items-start justify-between mb-2'>
+                  <div className='xl:col-span-9'>
+                    <div className='flex flex-wrap items-start justify-between gap-3 pb-3 border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
                       <div>
-                        <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-heading'>
+                        <h3 className='text-base font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-heading'>
                           {review.member_name}
                         </h3>
-                        <p className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>
+                        <p className='text-xs text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>
                           {review.member_email}
                         </p>
                       </div>
@@ -364,25 +350,28 @@ export default function TrainerReviews() {
                       </div>
                     </div>
 
-                    <div className='mb-3 font-sans'>
-                      <div className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] mb-1'>
-                        <strong className='text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>Lớp học:</strong> {review.class_name}
+                    <div className='my-3 grid grid-cols-1 sm:grid-cols-3 gap-2 font-sans'>
+                      <div className='p-2 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none'>
+                        <div className='text-[10px] uppercase tracking-wide text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>Lớp học</div>
+                        <div className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>{review.class_name}</div>
                       </div>
-                      <div className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] mb-1'>
-                        <strong className='text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>Ngày:</strong> {formatDate(review.schedule_date)}
+                      <div className='p-2 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none'>
+                        <div className='text-[10px] uppercase tracking-wide text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>Ngày học</div>
+                        <div className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>{formatDate(review.schedule_date)}</div>
                       </div>
-                      <div className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)]'>
-                        <strong className='text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>Đánh giá lúc:</strong> {formatDate(review.created_at)}
+                      <div className='p-2 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none'>
+                        <div className='text-[10px] uppercase tracking-wide text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)]'>Đánh giá lúc</div>
+                        <div className='text-xs font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>{formatDate(review.created_at)}</div>
                       </div>
                     </div>
 
-                    <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-700)] rounded-lg p-4 mb-3'>
+                    <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-700)] rounded-none p-4 mb-3 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-600)]'>
                       <p className='text-[var(--color-gray-800)] dark:text-[var(--color-gray-200)] font-sans'>{review.comment}</p>
                     </div>
 
                     {/* Trainer Reply */}
                     {review.trainer_reply && (
-                      <div className='bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 rounded-lg p-4 border-l-4 border-[var(--color-orange-500)]'>
+                      <div className='bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 rounded-none p-4 border-l-4 border-[var(--color-orange-500)]'>
                         <div className='flex items-start justify-between mb-2'>
                           <span className='text-sm font-semibold text-[var(--color-orange-800)] dark:text-[var(--color-orange-200)] font-sans'>
                             Phản hồi của bạn:
@@ -396,12 +385,12 @@ export default function TrainerReviews() {
                   </div>
 
                   {/* Actions */}
-                  <div className='flex flex-col gap-2'>
+                  <div className='xl:col-span-3 flex flex-col gap-2 xl:border-l border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] xl:pl-4 xl:bg-[var(--color-gray-50)] dark:xl:bg-[var(--color-gray-800)] p-2 rounded-none'>
                     <Button
                       size='sm'
                       variant='outline'
                       onClick={() => handleViewDetails(review)}
-                      className='border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'
+                      className='w-full border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] hover:border-[var(--color-orange-300)] dark:hover:border-[var(--color-orange-600)]'
                     >
                       Chi tiết
                     </Button>
@@ -409,7 +398,7 @@ export default function TrainerReviews() {
                       size='sm'
                       variant='outline'
                       onClick={() => handleReply(review)}
-                      className='border-[var(--color-orange-300)] dark:border-[var(--color-orange-600)] text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10'
+                      className='w-full border-[var(--color-orange-300)] dark:border-[var(--color-orange-600)] text-[var(--color-orange-600)] dark:text-[var(--color-orange-400)] hover:bg-[var(--color-orange-50)] dark:hover:bg-[var(--color-orange-900)]/10'
                     >
                       {review.trainer_reply ? 'Chỉnh sửa trả lời' : 'Trả lời'}
                     </Button>
@@ -417,7 +406,7 @@ export default function TrainerReviews() {
                       size='sm'
                       variant='outline'
                       onClick={() => handleReport(review)}
-                      className='border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] hover:border-[var(--color-gray-400)] dark:hover:border-[var(--color-gray-500)]'
+                      className='w-full border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] hover:border-[var(--color-gray-400)] dark:hover:border-[var(--color-gray-500)]'
                     >
                       Báo cáo
                     </Button>
@@ -426,7 +415,7 @@ export default function TrainerReviews() {
               </AdminCard>
             ))
           ) : (
-            <AdminCard>
+            <AdminCard className='rounded-none border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <div className='text-center py-12'>
                 <MessageSquare className='w-16 h-16 text-[var(--color-gray-300)] dark:text-[var(--color-gray-600)] mx-auto mb-4' />
                 <div className='text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] font-sans'>
@@ -435,7 +424,7 @@ export default function TrainerReviews() {
               </div>
             </AdminCard>
           )}
-        </motion.div>
+        </div>
       </div>
 
       {/* Reply Modal */}
@@ -451,7 +440,7 @@ export default function TrainerReviews() {
       >
         <div className='space-y-4'>
           {selectedReview && (
-            <AdminCard className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)]'>
+            <AdminCard className='rounded-none bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <p className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] mb-2 font-sans'>
                 <strong>Đánh giá từ:</strong> {selectedReview.member_name}
               </p>
@@ -466,7 +455,7 @@ export default function TrainerReviews() {
               value={replyMessage}
               onChange={e => setReplyMessage(e.target.value)}
               rows={4}
-              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
+              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-none focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
               placeholder='Nhập nội dung trả lời...'
             />
           </div>
@@ -506,7 +495,7 @@ export default function TrainerReviews() {
         {selectedReview && (
           <div className='space-y-6'>
             {/* Member Info */}
-            <AdminCard>
+            <AdminCard className='rounded-none border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3 font-heading'>
                 Thông tin học viên
               </h3>
@@ -531,7 +520,7 @@ export default function TrainerReviews() {
             </AdminCard>
 
             {/* Review Info */}
-            <AdminCard>
+            <AdminCard className='rounded-none border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <h3 className='text-lg font-semibold text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3 font-heading'>
                 Thông tin đánh giá
               </h3>
@@ -575,7 +564,7 @@ export default function TrainerReviews() {
                   <label className='text-sm font-medium text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] font-sans'>
                     Nội dung đánh giá
                   </label>
-                  <div className='mt-1 bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-lg p-4'>
+                  <div className='mt-1 bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-none p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
                     <p className='text-sm text-[var(--color-gray-900)] dark:text-[var(--color-white)] font-sans'>
                       {selectedReview.comment}
                     </p>
@@ -594,7 +583,7 @@ export default function TrainerReviews() {
 
             {/* Trainer Reply */}
             {selectedReview.trainer_reply && (
-              <AdminCard className='bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
+              <AdminCard className='rounded-none bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20 border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)]'>
                 <h3 className='text-lg font-semibold text-[var(--color-orange-900)] dark:text-[var(--color-orange-200)] mb-3 font-heading'>
                   Phản hồi của bạn
                 </h3>
@@ -655,7 +644,7 @@ export default function TrainerReviews() {
       >
         <div className='space-y-4'>
           {selectedReview && (
-            <AdminCard className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)]'>
+            <AdminCard className='rounded-none bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
               <p className='text-sm text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] mb-2 font-sans'>
                 <strong>Đánh giá từ:</strong> {selectedReview.member_name}
               </p>
@@ -669,7 +658,7 @@ export default function TrainerReviews() {
             <select
               value={reportReason}
               onChange={e => setReportReason(e.target.value)}
-              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
+              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-none focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
             >
               <option value=''>Chọn lý do...</option>
               <option value='SPAM'>Spam hoặc quảng cáo</option>
@@ -687,7 +676,7 @@ export default function TrainerReviews() {
               value={reportNotes}
               onChange={e => setReportNotes(e.target.value)}
               rows={3}
-              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-lg focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
+              className='w-full px-3 py-2 border border-[var(--color-gray-300)] dark:border-[var(--color-gray-600)] rounded-none focus:outline-none focus:ring-2 focus:ring-[var(--color-orange-500)] focus:border-transparent dark:bg-[var(--color-gray-700)] dark:text-[var(--color-white)] font-sans'
               placeholder='Mô tả thêm về lý do báo cáo...'
             />
           </div>

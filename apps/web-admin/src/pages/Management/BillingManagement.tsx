@@ -469,7 +469,7 @@ const BillingManagement: React.FC = () => {
               showToast(t('billingManagement.messages.featureComing'), 'info');
             }
           }}
-          className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200'
+          className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm  transition-colors duration-200'
         >
           <Plus className='w-4 h-4' />
           {activeTab === 'plans'
@@ -479,7 +479,7 @@ const BillingManagement: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
         <nav className='flex space-x-1'>
           {[
             { id: 'overview', name: t('billingManagement.tabs.overview'), icon: TrendingUp },
@@ -490,7 +490,7 @@ const BillingManagement: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-semibold text-theme-xs font-heading transition-all ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-none font-semibold text-theme-xs font-heading transition-colors duration-200 ${
                 activeTab === tab.id
                   ? 'bg-orange-600 text-white dark:bg-orange-500 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -517,7 +517,7 @@ const BillingManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -538,7 +538,7 @@ const BillingManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -559,7 +559,7 @@ const BillingManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -580,7 +580,7 @@ const BillingManagement: React.FC = () => {
                   <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
                   <div className='relative'>
                     <div className='flex items-center gap-3'>
-                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0'>
+                      <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
                         <CreditCard className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
                       </div>
                       <div className='flex-1 min-w-0'>
@@ -648,7 +648,7 @@ const BillingManagement: React.FC = () => {
       {activeTab === 'plans' && (
         <div className='space-y-3'>
           {/* Search and Filters */}
-          <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
+          <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
             <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
               <div className='flex items-center gap-3 flex-1 max-w-md'>
                 <div className='relative flex-1'>
@@ -658,12 +658,12 @@ const BillingManagement: React.FC = () => {
                     placeholder={t('billingManagement.plans.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
+                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 transition-colors duration-200'
                   />
                 </div>
                 <button
                   onClick={loadData}
-                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
+                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm  transition-colors duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
                   {t('equipmentManagement.filter.refresh')}
@@ -715,11 +715,11 @@ const BillingManagement: React.FC = () => {
                   filteredPlans.map((plan, index) => (
                     <AdminTableRow
                       key={plan.id}
-                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 cursor-pointer ${
                         index % 2 === 0
                           ? 'bg-white dark:bg-gray-900'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                       onClick={(e?: React.MouseEvent) => {
                         if (e) {
                           e.stopPropagation();
@@ -764,7 +764,7 @@ const BillingManagement: React.FC = () => {
                       </AdminTableCell>
                       <AdminTableCell>
                         <span
-                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-colors duration-200  ${
                             plan.is_active
                               ? 'bg-success-100 dark:bg-success-900/30 text-success-800 dark:text-success-300 border-success-200 dark:border-success-800'
                               : 'bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-300 border-gray-200 dark:border-gray-700'
@@ -788,7 +788,7 @@ const BillingManagement: React.FC = () => {
       {activeTab === 'subscriptions' && (
         <div className='space-y-3'>
           {/* Search and Filters */}
-          <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
+          <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
             <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
               <div className='flex items-center gap-3 flex-1 max-w-md'>
                 <div className='relative flex-1'>
@@ -798,7 +798,7 @@ const BillingManagement: React.FC = () => {
                     placeholder={t('billingManagement.subscriptions.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
+                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 transition-colors duration-200'
                   />
                 </div>
                 <CustomSelect
@@ -810,7 +810,7 @@ const BillingManagement: React.FC = () => {
                 />
                 <button
                   onClick={loadData}
-                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
+                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm  transition-colors duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
                   {t('equipmentManagement.filter.refresh')}
@@ -871,11 +871,11 @@ const BillingManagement: React.FC = () => {
                   filteredSubscriptions.map((sub, index) => (
                     <AdminTableRow
                       key={sub.id}
-                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 cursor-pointer ${
                         index % 2 === 0
                           ? 'bg-white dark:bg-gray-900'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                       onClick={(e?: React.MouseEvent) => {
                         if (e) {
                           e.stopPropagation();
@@ -927,7 +927,7 @@ const BillingManagement: React.FC = () => {
                       </AdminTableCell>
                       <AdminTableCell>
                         <span
-                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-colors duration-200  ${getStatusColor(
                             sub.status
                           )}`}
                         >
@@ -955,7 +955,7 @@ const BillingManagement: React.FC = () => {
       {activeTab === 'payments' && (
         <div className='space-y-3'>
           {/* Search and Filters */}
-          <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
+          <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
             <div className='flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3'>
               <div className='flex items-center gap-3 flex-1 max-w-md'>
                 <div className='relative flex-1'>
@@ -965,7 +965,7 @@ const BillingManagement: React.FC = () => {
                     placeholder={t('billingManagement.payments.search.placeholder')}
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
-                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 transition-all duration-200'
+                    className='w-full px-4 py-2.5 pl-10 pr-4 text-theme-xs border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 transition-colors duration-200'
                   />
                 </div>
                 <CustomSelect
@@ -977,7 +977,7 @@ const BillingManagement: React.FC = () => {
                 />
                 <button
                   onClick={loadData}
-                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200'
+                  className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm  transition-colors duration-200'
                 >
                   <RefreshCw className='w-4 h-4' />
                   {t('equipmentManagement.filter.refresh')}
@@ -1038,11 +1038,11 @@ const BillingManagement: React.FC = () => {
                   filteredPayments.map((payment, index) => (
                     <AdminTableRow
                       key={payment.id}
-                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                      className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 cursor-pointer ${
                         index % 2 === 0
                           ? 'bg-white dark:bg-gray-900'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                       onClick={(e?: React.MouseEvent) => {
                         if (e) {
                           e.stopPropagation();
@@ -1094,7 +1094,7 @@ const BillingManagement: React.FC = () => {
                       </AdminTableCell>
                       <AdminTableCell>
                         <span
-                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-all duration-200 group-hover:scale-105 ${getStatusColor(
+                          className={`px-2.5 py-1 inline-flex text-theme-xs font-semibold font-heading rounded-full border transition-colors duration-200  ${getStatusColor(
                             payment.status
                           )}`}
                         >
@@ -1131,7 +1131,7 @@ const BillingManagement: React.FC = () => {
           />
           {/* Popup */}
           <div
-            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 w-[180px]'
+            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-none shadow-2xl py-2 w-[180px]'
             style={{
               left: `${Math.min(menuPosition.x, window.innerWidth - 200)}px`,
               top: `${Math.min(menuPosition.y + 10, window.innerHeight - 150)}px`,
@@ -1242,3 +1242,5 @@ const BillingManagement: React.FC = () => {
 };
 
 export default BillingManagement;
+
+

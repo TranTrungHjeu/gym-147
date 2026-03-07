@@ -1,13 +1,14 @@
-import { EventClickArg, EventInput } from '@fullcalendar/core';
+import { DatesSetArg, EventClickArg, EventInput } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import FullCalendar from '@fullcalendar/react';
 import timeGridPlugin from '@fullcalendar/timegrid';
-import { AnimatePresence, motion } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { ExternalLink } from 'lucide-react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AdminButton from '../../components/common/AdminButton';
 import CustomSelect from '../../components/common/CustomSelect';
+import { PageLoading, SimpleLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 // Removed SVG icon imports - using colored dots instead
 import ExportButton, { ExportUtils } from '../../components/common/ExportButton';
@@ -18,6 +19,8 @@ import { getCurrentUser } from '../../utils/auth';
 
 // Import Vietnamese locale
 import viLocale from '@fullcalendar/core/locales/vi';
+
+const DISPLAY_TIME_ZONE = 'Asia/Ho_Chi_Minh';
 
 // Calendar Sync Buttons Component
 const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
@@ -130,7 +133,7 @@ const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
         size='sm'
         icon={ExternalLink}
         onClick={handleGoogleCalendarSync}
-        className='text-[11px] font-heading whitespace-nowrap'
+        className='text-[11px] font-heading whitespace-nowrap rounded-none'
       >
         Sync Google
       </AdminButton>
@@ -139,7 +142,7 @@ const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
         size='sm'
         icon={ExternalLink}
         onClick={handleOutlookSync}
-        className='text-[11px] font-heading whitespace-nowrap'
+        className='text-[11px] font-heading whitespace-nowrap rounded-none'
       >
         Sync Outlook
       </AdminButton>
@@ -150,9 +153,10 @@ const CalendarSyncButtons = ({ events }: { events: CalendarEvent[] }) => {
 export default function TrainerCalendarSplitView() {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filterLoading, setFilterLoading] = useState(false);
+  const [contentLoading, setContentLoading] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isInitialLoad, setIsInitialLoad] = useState(true);
+  const fetchRequestRef = useRef(0);
   const [viewMode, setViewMode] = useState<'month' | 'week' | 'day'>('month');
   const [filters, setFilters] = useState({
     status: '',
@@ -232,25 +236,9 @@ export default function TrainerCalendarSplitView() {
     }
   }, [currentDate, viewMode, filters]);
 
-  // Reset initial load flag when date or view mode changes
-  useEffect(() => {
-    setIsInitialLoad(true);
-  }, [currentDate, viewMode]);
-
   useEffect(() => {
     fetchFilterOptions();
   }, []);
-
-  // Handle filter loading when filters change
-  useEffect(() => {
-    if (filters.status || filters.classType || filters.room) {
-      setFilterLoading(true);
-      const timer = setTimeout(() => {
-        setFilterLoading(false);
-      }, 500);
-      return () => clearTimeout(timer);
-    }
-  }, [filters]);
 
   // Fetch filter options from database
   const fetchFilterOptions = async () => {
@@ -345,16 +333,40 @@ export default function TrainerCalendarSplitView() {
   };
 
   const fetchEvents = async () => {
+    const requestId = ++fetchRequestRef.current;
+
     try {
-      // Only set main loading for initial load, not for filter changes
       if (isInitialLoad) {
         setLoading(true);
+      } else {
+        setContentLoading(true);
       }
 
       const response = await scheduleService.getTrainerCalendar(currentDate, viewMode, filters);
 
+      if (requestId !== fetchRequestRef.current) {
+        return;
+      }
+
       if (response.success) {
-        setEvents(response.data || []);
+        const receivedEvents = response.data || [];
+        if (receivedEvents.length === 0) {
+          console.error('[TrainerCalendarSplitView:fetchEvents] API returned empty events', {
+            viewMode,
+            currentDate: currentDate.toISOString(),
+            filters,
+            message: response.message,
+          });
+        }
+
+        const missingTimeEvent = receivedEvents.find(event => !event.start || !event.end);
+        if (missingTimeEvent) {
+          console.error('[TrainerCalendarSplitView:fetchEvents] Event missing start/end', {
+            event: missingTimeEvent,
+          });
+        }
+
+        setEvents(receivedEvents);
         // filteredEvents will be computed automatically via useMemo
       } else {
         console.error('TrainerCalendarSplitView - Calendar fetch failed:', response.message);
@@ -370,11 +382,16 @@ export default function TrainerCalendarSplitView() {
         });
       }
     } finally {
-      // Only set main loading false if it was set to true
+      if (requestId !== fetchRequestRef.current) {
+        return;
+      }
+
       if (isInitialLoad) {
         setLoading(false);
-        setIsInitialLoad(false); // Mark as no longer initial load
+        setIsInitialLoad(false);
       }
+
+      setContentLoading(false);
     }
   };
 
@@ -473,6 +490,22 @@ export default function TrainerCalendarSplitView() {
     // filteredEvents will auto-reset via useMemo when filters cleared
   }, []);
 
+  const handleDatesSet = useCallback((dateInfo: DatesSetArg) => {
+    const nextViewMode: 'month' | 'week' | 'day' =
+      dateInfo.view.type === 'timeGridWeek'
+        ? 'week'
+        : dateInfo.view.type === 'timeGridDay'
+        ? 'day'
+        : 'month';
+
+    const nextCurrentDate = new Date(dateInfo.view.currentStart);
+
+    setViewMode(prev => (prev === nextViewMode ? prev : nextViewMode));
+    setCurrentDate(prev =>
+      prev.getTime() === nextCurrentDate.getTime() ? prev : nextCurrentDate
+    );
+  }, []);
+
   const handleEventClick = useCallback(
     (clickInfo: EventClickArg) => {
       const eventId = clickInfo.event.id;
@@ -551,10 +584,9 @@ export default function TrainerCalendarSplitView() {
     window.location.href = `/dashboard/trainer-schedule?scheduleId=${selectedEvent.id}`;
   }, [selectedEvent]);
 
-  // Memoized FullCalendar events - chỉ tính lại khi events hoặc displayEvents thay đổi
+  // Memoized FullCalendar events
   const fullCalendarEvents: EventInput[] = useMemo(() => {
-    return events.map(event => {
-      const isFiltered = displayEvents.some(displayEvent => displayEvent.id === event.id);
+    return displayEvents.map(event => {
       return {
         id: event.id,
         title: event.class_name || event.title || 'Lớp học',
@@ -565,7 +597,6 @@ export default function TrainerCalendarSplitView() {
         textColor: '#ffffff',
         classNames: [
           `event-${event.status.toLowerCase()}`,
-          isFiltered ? 'filtered-event' : 'unfiltered-event',
         ],
         extendedProps: {
           status: event.status,
@@ -573,56 +604,13 @@ export default function TrainerCalendarSplitView() {
           room: event.room,
           attendees: event.attendees,
           max_capacity: event.max_capacity,
-          isFiltered: isFiltered,
         },
       };
     });
-  }, [events, displayEvents]);
+  }, [displayEvents]);
 
   if (loading) {
-    return (
-      <div className='p-4 space-y-6 animate-pulse'>
-        {/* Header Skeleton */}
-        <div className='flex items-center justify-between'>
-          <div className='space-y-2'>
-            <div className='h-8 w-48 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-            <div className='h-4 w-64 bg-gray-200 dark:bg-gray-700 rounded'></div>
-          </div>
-          <div className='flex gap-2'>
-            <div className='h-9 w-24 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-            <div className='h-9 w-28 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-          </div>
-        </div>
-
-        {/* Filters Skeleton */}
-        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
-          <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
-            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-            <div className='h-10 bg-gray-200 dark:bg-gray-700 rounded-lg'></div>
-          </div>
-        </div>
-
-        {/* Calendar & Events Skeleton */}
-        <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6'>
-          {/* Calendar Skeleton */}
-          <div className='lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4'>
-            <div className='h-[600px] bg-gray-100 dark:bg-gray-800 rounded-lg'></div>
-          </div>
-
-          {/* Events List Skeleton */}
-          <div className='lg:col-span-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4'>
-            <div className='h-6 w-32 bg-gray-200 dark:bg-gray-700 rounded mb-4'></div>
-            <div className='space-y-3'>
-              {[1, 2, 3, 4, 5].map(i => (
-                <div key={i} className='h-24 bg-gray-100 dark:bg-gray-800 rounded-lg'></div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
@@ -656,18 +644,22 @@ export default function TrainerCalendarSplitView() {
                   data={displayEvents.map(event => ({
                     'Lớp học': event.class_name || 'N/A',
                     'Ngày bắt đầu': event.start
-                      ? new Date(event.start).toLocaleDateString('vi-VN')
+                      ? new Date(event.start).toLocaleDateString('vi-VN', {
+                          timeZone: DISPLAY_TIME_ZONE,
+                        })
                       : 'N/A',
                     'Thời gian bắt đầu': event.start
                       ? new Date(event.start).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
+                          timeZone: DISPLAY_TIME_ZONE,
                         })
                       : 'N/A',
                     'Thời gian kết thúc': event.end
                       ? new Date(event.end).toLocaleTimeString('vi-VN', {
                           hour: '2-digit',
                           minute: '2-digit',
+                          timeZone: DISPLAY_TIME_ZONE,
                         })
                       : 'N/A',
                     Phòng: event.room || 'N/A',
@@ -709,7 +701,7 @@ export default function TrainerCalendarSplitView() {
                 size='sm'
                 variant='outline'
                 disabled
-                className='text-theme-xs font-semibold font-heading'
+                className='text-theme-xs font-semibold font-heading rounded-none'
               >
                 Xuất lịch
               </Button>
@@ -718,7 +710,7 @@ export default function TrainerCalendarSplitView() {
               size='sm'
               variant='primary'
               onClick={() => setIsCreateModalOpen(true)}
-              className='text-theme-xs font-semibold font-heading'
+              className='text-theme-xs font-semibold font-heading rounded-none'
             >
               Tạo lịch mới
             </Button>
@@ -726,7 +718,7 @@ export default function TrainerCalendarSplitView() {
         </div>
 
         {/* Filters Section */}
-        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
           <div className='flex items-center justify-end mb-3'>
             {Object.values(filters).some(f => f) && (
               <button
@@ -799,53 +791,6 @@ export default function TrainerCalendarSplitView() {
               />
             </div>
 
-            {/* Clear Button */}
-            <div>
-              <Button
-                size='sm'
-                variant='outline'
-                onClick={clearFilters}
-                className='w-full text-theme-xs font-semibold font-heading h-full'
-              >
-                Xóa bộ lọc
-              </Button>
-            </div>
-          </div>
-
-          {/* Status Legend */}
-          <div className='mt-3 pt-3 border-t border-gray-200 dark:border-gray-700'>
-            <div className='flex flex-wrap items-center gap-3'>
-              <span className='text-xs font-medium text-gray-600 dark:text-gray-400 font-inter'>
-                Chú giải:
-              </span>
-              <div className='flex items-center gap-1'>
-                <span className='w-3 h-3 rounded-full bg-blue-500'></span>
-                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
-                  Đã lên lịch ({statistics.scheduled})
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='w-3 h-3 rounded-full bg-yellow-500'></span>
-                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
-                  Đang diễn ra ({statistics.inProgress})
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='w-3 h-3 rounded-full bg-green-500'></span>
-                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
-                  Hoàn thành ({statistics.completed})
-                </span>
-              </div>
-              <div className='flex items-center gap-1'>
-                <span className='w-3 h-3 rounded-full bg-red-500'></span>
-                <span className='text-xs text-gray-700 dark:text-gray-300 font-inter'>
-                  Đã hủy ({statistics.cancelled})
-                </span>
-              </div>
-              <div className='ml-auto text-xs font-semibold text-gray-900 dark:text-white font-inter'>
-                Tổng: {statistics.total} lịch
-              </div>
-            </div>
           </div>
         </div>
       </motion.div>
@@ -853,14 +798,11 @@ export default function TrainerCalendarSplitView() {
       {/* Split View */}
       <div className='grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-6'>
         {/* Calendar View */}
-        <div className='lg:col-span-2 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-x-hidden'>
+        <div className='lg:col-span-2 bg-white dark:bg-gray-900 rounded-none shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-x-hidden'>
           {/* Calendar Loading Overlay */}
-          {filterLoading && (
-            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-lg'>
-              <div className='w-10 h-10 border-4 border-orange-200 dark:border-orange-800 border-t-orange-600 dark:border-t-orange-400 rounded-full animate-spin'></div>
-              <p className='mt-3 text-sm text-gray-700 dark:text-gray-300 font-inter font-medium'>
-                Đang lọc...
-              </p>
+          {contentLoading && (
+            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-none'>
+              <SimpleLoading size='small' />
             </div>
           )}
           <div className='custom-calendar'>
@@ -932,16 +874,6 @@ export default function TrainerCalendarSplitView() {
                 font-size: 10px !important;
                 font-weight: 600 !important;
               }
-              .fc-event .group:hover .tooltip {
-                opacity: 1 !important;
-                visibility: visible !important;
-              }
-              .tooltip {
-                position: absolute !important;
-                z-index: 1000 !important;
-                pointer-events: none !important;
-              }
-              /* Tooltip positioning */
               .fc-event .group:hover {
                 z-index: 10 !important;
                 position: relative !important;
@@ -1154,30 +1086,11 @@ export default function TrainerCalendarSplitView() {
                 overflow-x: hidden !important;
                 word-wrap: break-word !important;
               }
-              /* Tooltip font size */
-              .tooltip {
-                font-size: 10px !important;
-                padding: 3px 5px !important;
-                min-width: 150px !important;
-                max-width: 150px !important;
-              }
-              .tooltip * {
-                font-size: 10px !important;
-                line-height: 1.2 !important;
-              }
-              .tooltip .text-xs {
-                font-size: 10px !important;
-              }
-              .tooltip span {
-                font-size: 10px !important;
-              }
-              .tooltip div {
-                font-size: 10px !important;
-              }
             `}</style>
             <FullCalendar
               plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
               locale={viLocale}
+              timeZone={DISPLAY_TIME_ZONE}
               initialView={
                 viewMode === 'month'
                   ? 'dayGridMonth'
@@ -1201,29 +1114,27 @@ export default function TrainerCalendarSplitView() {
                 weekday: 'long',
               }}
               events={fullCalendarEvents}
+              datesSet={handleDatesSet}
               eventClick={handleEventClick}
               height='auto'
-              eventContent={eventInfo => renderEventContent(eventInfo, viewMode)}
+              eventContent={eventInfo => renderEventContent(eventInfo)}
             />
           </div>
         </div>
 
         {/* Events List View */}
-        <div className='lg:col-span-1 bg-white dark:bg-gray-900 rounded-xl shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-hidden'>
+        <div className='lg:col-span-1 bg-white dark:bg-gray-900 rounded-none shadow-sm border border-gray-200 dark:border-gray-800 p-4 relative overflow-hidden'>
           {/* Events List Loading Overlay */}
-          {filterLoading && (
-            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-lg'>
-              <div className='w-8 h-8 border-4 border-orange-200 dark:border-orange-800 border-t-orange-600 dark:border-t-orange-400 rounded-full animate-spin'></div>
-              <p className='mt-2 text-xs text-gray-700 dark:text-gray-300 font-inter font-medium'>
-                Đang lọc...
-              </p>
+          {contentLoading && (
+            <div className='absolute inset-0 bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm z-50 flex flex-col items-center justify-center rounded-none'>
+              <SimpleLoading size='small' />
             </div>
           )}
           <div className='flex items-center justify-between mb-4 pb-3 border-b border-gray-200 dark:border-gray-700'>
             <h2 className='text-lg font-bold text-gray-900 dark:text-white font-heading'>
               Danh sách sự kiện
             </h2>
-            <div className='px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 rounded-lg'>
+            <div className='px-2.5 py-1 bg-orange-50 dark:bg-orange-900/20 rounded-none border border-orange-200 dark:border-orange-800'>
               <span className='text-xs font-bold text-orange-600 dark:text-orange-400 font-heading'>
                 {displayEvents.length}
               </span>
@@ -1233,7 +1144,7 @@ export default function TrainerCalendarSplitView() {
           <div className='events-list-container space-y-3 overflow-hidden'>
             {displayEvents.length === 0 ? (
               <div className='flex flex-col items-center justify-center py-12'>
-                <div className='w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-full flex items-center justify-center mb-4'>
+                <div className='w-16 h-16 bg-gray-100 dark:bg-gray-800 rounded-none flex items-center justify-center mb-4'>
                   <svg
                     className='w-8 h-8 text-gray-400 dark:text-gray-600'
                     fill='none'
@@ -1266,10 +1177,10 @@ export default function TrainerCalendarSplitView() {
               displayEvents.map((event, index) => (
                 <motion.div
                   key={event.id}
-                  className={`event-item group border-l-4 rounded-xl transition-all duration-200 cursor-pointer overflow-hidden ${
+                  className={`event-item group border-l-4 rounded-none border transition-all duration-200 cursor-pointer overflow-hidden ${
                     selectedEvent?.id === event.id
-                      ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-500 dark:border-orange-400 shadow-md ring-2 ring-orange-500/20'
-                      : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-700 hover:border-orange-400 dark:hover:border-orange-600 hover:bg-orange-50/50 dark:hover:bg-orange-900/10 shadow-sm hover:shadow-md'
+                      ? 'bg-white dark:bg-gray-900 border-orange-300 dark:border-orange-700 shadow-sm ring-1 ring-orange-200 dark:ring-orange-800'
+                      : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-800 hover:border-orange-300 dark:hover:border-orange-700 hover:bg-orange-50/30 dark:hover:bg-orange-950/10 shadow-sm'
                   }`}
                   style={{ borderLeftColor: getStatusColor(event.status) }}
                   onClick={() => handleDetailClick(event)}
@@ -1283,12 +1194,12 @@ export default function TrainerCalendarSplitView() {
                 >
                   <div className='p-3'>
                     {/* Header */}
-                    <div className='flex items-start justify-between mb-3'>
-                      <h3 className='text-sm font-bold text-gray-900 dark:text-white line-clamp-2 pr-2 font-heading leading-tight'>
+                    <div className='flex items-start justify-between mb-2'>
+                      <h3 className='text-sm font-semibold text-gray-900 dark:text-white line-clamp-2 pr-2 font-heading leading-snug'>
                         {event.class_name || event.title || 'Lớp học'}
                       </h3>
                       <span
-                        className={`px-2 py-0.5 text-xs rounded-md font-semibold whitespace-nowrap font-heading ${getStatusClass(
+                        className={`px-2 py-0.5 text-[10px] rounded-none font-semibold whitespace-nowrap font-heading tracking-wide ${getStatusClass(
                           event.status
                         )}`}
                       >
@@ -1297,7 +1208,7 @@ export default function TrainerCalendarSplitView() {
                     </div>
 
                     {/* Content */}
-                    <div className='space-y-2 mb-3'>
+                    <div className='space-y-1.5'>
                       {/* Time */}
                       <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
                         <svg
@@ -1317,11 +1228,13 @@ export default function TrainerCalendarSplitView() {
                           {new Date(event.start).toLocaleTimeString('vi-VN', {
                             hour: '2-digit',
                             minute: '2-digit',
+                            timeZone: DISPLAY_TIME_ZONE,
                           })}{' '}
                           -{' '}
                           {new Date(event.end).toLocaleTimeString('vi-VN', {
                             hour: '2-digit',
                             minute: '2-digit',
+                            timeZone: DISPLAY_TIME_ZONE,
                           })}
                         </span>
                       </div>
@@ -1329,7 +1242,7 @@ export default function TrainerCalendarSplitView() {
                       {/* Room */}
                       <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
                         <svg
-                          className='w-3.5 h-3.5 text-blue-500 dark:text-blue-400 mr-2 flex-shrink-0'
+                          className='w-3.5 h-3.5 text-orange-500 dark:text-orange-400 mr-2 flex-shrink-0'
                           fill='none'
                           stroke='currentColor'
                           viewBox='0 0 24 24'
@@ -1347,7 +1260,7 @@ export default function TrainerCalendarSplitView() {
                       {/* Attendees */}
                       <div className='flex items-center text-xs text-gray-700 dark:text-gray-300 font-inter'>
                         <svg
-                          className='w-3.5 h-3.5 text-green-500 dark:text-green-400 mr-2 flex-shrink-0'
+                          className='w-3.5 h-3.5 text-orange-500 dark:text-orange-400 mr-2 flex-shrink-0'
                           fill='none'
                           stroke='currentColor'
                           viewBox='0 0 24 24'
@@ -1365,29 +1278,6 @@ export default function TrainerCalendarSplitView() {
                       </div>
                     </div>
 
-                    {/* Actions */}
-                    <div className='flex gap-2 pt-2 border-t border-gray-200 dark:border-gray-700'>
-                      <Button
-                        size='xs'
-                        variant='outline'
-                        className='flex-1 text-xs font-semibold font-heading'
-                        onClick={() => handleDetailClick(event)}
-                      >
-                        Chi tiết
-                      </Button>
-                      <Button
-                        size='xs'
-                        variant='primary'
-                        className='flex-1 text-xs font-semibold font-heading'
-                        onClick={() => {
-                          setSelectedEvent(event);
-                          handleAttendanceClick();
-                        }}
-                        disabled={event.status === 'CANCELLED'}
-                      >
-                        Điểm danh
-                      </Button>
-                    </div>
                   </div>
                 </motion.div>
               ))
@@ -1414,7 +1304,7 @@ export default function TrainerCalendarSplitView() {
               });
             }
           }}
-          className='text-theme-xs font-semibold font-heading'
+          className='text-theme-xs font-semibold font-heading rounded-none'
         >
           Xem tất cả lịch
         </Button>
@@ -1429,7 +1319,7 @@ export default function TrainerCalendarSplitView() {
               });
             }
           }}
-          className='text-theme-xs font-semibold font-heading'
+          className='text-theme-xs font-semibold font-heading rounded-none'
         >
           Đồng bộ lịch
         </Button>
@@ -1462,7 +1352,7 @@ export default function TrainerCalendarSplitView() {
   );
 }
 
-const renderEventContent = (eventInfo: any, currentViewMode: string) => {
+const renderEventContent = (eventInfo: any) => {
   const status = eventInfo.event.extendedProps?.status || 'SCHEDULED';
   const classType = eventInfo.event.extendedProps?.class_name || '';
 
@@ -1551,60 +1441,10 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
     return { color: 'bg-gray-500', text: 'G', bg: 'bg-gray-50', border: 'border-gray-200' }; // Default
   };
 
-  const statusColors: { [key: string]: string } = {
-    // For the badge in tooltip
-    SCHEDULED: 'bg-blue-600 text-white',
-    IN_PROGRESS: 'bg-green-600 text-white',
-    COMPLETED: 'bg-gray-700 text-white',
-    CANCELLED: 'bg-red-600 text-white',
-  };
-
   const event = eventInfo.event;
   const extendedProps = event.extendedProps || {};
   const iconData = getClassIcon(classType);
-  const { color, text, bg, border } = iconData;
-
-  // Determine tooltip position based on day of week
-  const getTooltipPosition = (currentViewMode: string) => {
-    // Get the day of week and time from the event date
-    const eventDate = event.start;
-    const eventDateTime = new Date(eventDate);
-    const dayOfWeek = eventDateTime.getDay(); // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-    const hour = eventDateTime.getHours(); // 0-23
-
-    // Check if it's week view or day view using FullCalendar view type
-    const fullCalendarViewType = eventInfo.view?.type;
-    const isWeekView = fullCalendarViewType === 'timeGridWeek';
-    const isDayView = fullCalendarViewType === 'timeGridDay';
-
-    if (isWeekView) {
-      // For week view: 12am-12pm (0-12) → bottom, others → top
-      if (hour >= 0 && hour <= 12) {
-        return 'bottom';
-      } else {
-        return 'top';
-      }
-    } else if (isDayView) {
-      // For day view: default to right
-      return 'right';
-    } else {
-      // For month view: use day-based logic for Vietnamese calendar
-      // Monday (1) → tooltip right
-      if (dayOfWeek === 1) {
-        return 'right';
-      }
-      // Sunday (0) → tooltip left
-      else if (dayOfWeek === 0) {
-        return 'left';
-      }
-      // Other days → tooltip top
-      else {
-        return 'top';
-      }
-    }
-  };
-
-  const tooltipPosition = getTooltipPosition(currentViewMode);
+  const { color, text } = iconData;
 
   // Status-based animations
   const getStatusAnimation = (status: string) => {
@@ -1681,7 +1521,7 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
     >
       {/* Class Dot */}
       <motion.div
-        className={`w-4 h-4 ${color} rounded-full shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center text-white text-sm font-bold`}
+        className={`w-4 h-4 ${color} rounded-none shadow-sm hover:shadow-md transition-all duration-300 flex items-center justify-center text-white text-sm font-bold`}
         style={{ width: '16px', height: '16px' }}
         whileHover={{
           boxShadow: '0 8px 25px rgba(0, 0, 0, 0.15)',
@@ -1699,98 +1539,6 @@ const renderEventContent = (eventInfo: any, currentViewMode: string) => {
           {text}
         </motion.span>
       </motion.div>
-
-      {/* Tooltip */}
-      <AnimatePresence>
-        <motion.div
-          className={`tooltip absolute hidden group-hover:block w-max bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-800 dark:text-gray-200 text-xs rounded-sm py-1 px-1.5 shadow-sm min-w-[80px] max-w-[150px] ${
-            tooltipPosition === 'left'
-              ? 'right-full mr-3 top-1/2 -translate-y-1/2'
-              : tooltipPosition === 'right'
-              ? 'left-full ml-3 top-1/2 -translate-y-1/2'
-              : tooltipPosition === 'bottom'
-              ? 'left-1/2 -translate-x-1/2 top-full mt-3'
-              : 'left-1/2 -translate-x-1/2 bottom-full mb-3'
-          }`}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          exit={{ opacity: 0, scale: 0.8 }}
-          transition={{ duration: 0.2, ease: 'easeOut' }}
-        >
-          <div className='flex items-center gap-2 mb-2'>
-            <div className={`w-3 h-3 rounded-full ${bg} border ${border}`}></div>
-            <div className='font-medium text-gray-900 dark:text-white text-xs'>
-              {extendedProps.class_name || event.title}
-            </div>
-          </div>
-          <div className='space-y-1 text-xs'>
-            <div className='flex justify-between'>
-              <span className='text-gray-500'>Lớp:</span>
-              <span className='font-medium'>{extendedProps.class_name}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-gray-500'>Phòng:</span>
-              <span className='font-medium'>{extendedProps.room}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-gray-500'>Thời gian:</span>
-              <span className='font-medium'>{eventInfo.timeText}</span>
-            </div>
-            <div className='flex justify-between'>
-              <span className='text-gray-500'>Học viên:</span>
-              <span className='font-medium'>
-                {extendedProps.attendees}/{extendedProps.max_capacity}
-              </span>
-            </div>
-          </div>
-          <div className='mt-2 pt-2 border-t border-gray-100'>
-            <span
-              className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                statusColors[status] || 'bg-blue-600 text-white'
-              }`}
-            >
-              {status === 'SCHEDULED'
-                ? 'Đã lên lịch'
-                : status === 'IN_PROGRESS'
-                ? 'Đang diễn ra'
-                : status === 'COMPLETED'
-                ? 'Hoàn thành'
-                : 'Đã hủy'}
-            </span>
-          </div>
-          {/* Arrow based on position */}
-          {tooltipPosition === 'left' && (
-            <>
-              <div className='absolute left-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-l-[6px] border-l-white'></div>
-              <div
-                className='absolute left-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-l-[7px] border-l-gray-200'
-                style={{ transform: 'translateY(-50%) translateX(1px)' }}
-              ></div>
-            </>
-          )}
-          {tooltipPosition === 'right' && (
-            <>
-              <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[6px] border-t-transparent border-b-[6px] border-b-transparent border-r-[6px] border-r-white'></div>
-              <div
-                className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[7px] border-t-transparent border-b-[7px] border-b-transparent border-r-[7px] border-r-gray-200'
-                style={{ transform: 'translateY(-50%) translateX(-1px)' }}
-              ></div>
-            </>
-          )}
-          {tooltipPosition === 'top' && (
-            <>
-              <div className='absolute bottom-[-6px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[6px] border-t-white'></div>
-              <div className='absolute bottom-[-7px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-t-[7px] border-t-gray-200'></div>
-            </>
-          )}
-          {tooltipPosition === 'bottom' && (
-            <>
-              <div className='absolute top-[-6px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[6px] border-b-white'></div>
-              <div className='absolute top-[-7px] left-1/2 -translate-x-1/2 w-0 h-0 border-l-[7px] border-l-transparent border-r-[7px] border-r-transparent border-b-[7px] border-b-gray-200'></div>
-            </>
-          )}
-        </motion.div>
-      </AnimatePresence>
     </motion.div>
   );
 };

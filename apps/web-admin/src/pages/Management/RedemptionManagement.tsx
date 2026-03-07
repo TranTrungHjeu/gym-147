@@ -282,9 +282,9 @@ const RedemptionManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Gift className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Gift className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -305,9 +305,9 @@ const RedemptionManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <CheckCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <CheckCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -328,9 +328,9 @@ const RedemptionManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <CheckCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <CheckCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -351,9 +351,9 @@ const RedemptionManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -452,7 +452,7 @@ const RedemptionManagement: React.FC = () => {
       {isLoading ? (
         <TableLoading text={t('redemptionManagement.messages.loading')} />
       ) : filteredRedemptions.length === 0 ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Gift className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
@@ -495,17 +495,17 @@ const RedemptionManagement: React.FC = () => {
                 {paginatedRedemptions.map((redemption, index) => (
                   <AdminTableRow
                     key={redemption.id}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 ${
+                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 ${
                       index % 2 === 0
                         ? 'bg-white dark:bg-gray-900'
                         : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                    } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                   >
                     <AdminTableCell className='overflow-hidden relative'>
-                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
+                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-colors duration-200 pointer-events-none z-0' />
                       <div className='min-w-0 flex-1 relative z-10'>
                         <div className='flex items-center gap-2 group'>
-                          <code className='text-sm font-mono font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1 rounded-lg border border-orange-100 dark:border-orange-900/30'>
+                          <code className='text-sm font-mono font-medium text-orange-600 bg-orange-50 dark:bg-orange-900/20 px-2.5 py-1 rounded-none border border-orange-100 dark:border-orange-900/30'>
                             {redemption.code || 'N/A'}
                           </code>
                           {redemption.code && (
@@ -669,7 +669,7 @@ const RedemptionManagement: React.FC = () => {
       >
         {selectedRedemption && (
           <div className='space-y-3'>
-            <div className='bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+            <div className='bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
               <div className='flex items-center justify-between mb-1.5'>
                 <span className='text-[10px] font-medium text-gray-500 dark:text-gray-400 font-inter uppercase tracking-wide'>
                   {t('redemptionManagement.table.code')}
@@ -703,7 +703,7 @@ const RedemptionManagement: React.FC = () => {
             </div>
 
             <div className='space-y-2.5'>
-              <div className='flex items-start gap-2.5 p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+              <div className='flex items-start gap-2.5 p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                 <div className='w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 flex-shrink-0'>
                   <Gift className='w-3.5 h-3.5' />
                 </div>
@@ -723,7 +723,7 @@ const RedemptionManagement: React.FC = () => {
               </div>
 
               <div className='grid grid-cols-2 gap-2.5'>
-                <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+                <div className='p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
                     {t('redemptionManagement.table.member')}
                   </p>
@@ -734,7 +734,7 @@ const RedemptionManagement: React.FC = () => {
                     #{selectedRedemption.member?.membership_number || 'N/A'}
                   </p>
                 </div>
-                <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+                <div className='p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
                     {t('redemptionManagement.table.pointsSpent')}
                   </p>
@@ -745,7 +745,7 @@ const RedemptionManagement: React.FC = () => {
               </div>
 
               <div className='grid grid-cols-2 gap-2.5'>
-                <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+                <div className='p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                   <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
                     {t('redemptionManagement.table.redeemedAt')}
                   </p>
@@ -754,7 +754,7 @@ const RedemptionManagement: React.FC = () => {
                   </p>
                 </div>
                 {selectedRedemption.expires_at && (
-                  <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+                  <div className='p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                     <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
                       {t('redemptionManagement.table.expiresAt')}
                     </p>
@@ -764,7 +764,7 @@ const RedemptionManagement: React.FC = () => {
                   </div>
                 )}
                 {selectedRedemption.used_at && (
-                  <div className='p-2.5 rounded-lg border border-gray-100 dark:border-gray-700'>
+                  <div className='p-2.5 rounded-none border border-gray-100 dark:border-gray-700'>
                     <p className='text-[10px] font-medium text-gray-500 dark:text-gray-400 mb-0.5 font-inter uppercase tracking-wide'>
                       {t('redemptionManagement.table.usedAt')}
                     </p>
@@ -776,7 +776,7 @@ const RedemptionManagement: React.FC = () => {
               </div>
 
               {selectedRedemption.notes && (
-                <div className='p-2.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg'>
+                <div className='p-2.5 bg-gray-50 dark:bg-gray-800/50 rounded-none'>
                   <p className='text-[10px] font-medium text-gray-900 dark:text-white mb-1 font-inter uppercase tracking-wide'>
                     {t('redemptionManagement.table.notes')}
                   </p>
@@ -814,7 +814,7 @@ const RedemptionManagement: React.FC = () => {
                 value={refundReason}
                 onChange={e => setRefundReason(e.target.value)}
                 rows={3}
-                className='w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-xl focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-all'
+                className='w-full px-4 py-2.5 border border-gray-200 dark:border-gray-600 rounded-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 transition-colors duration-200'
                 placeholder={t('redemptionManagement.refund.reasonPlaceholder')}
               />
             </div>
@@ -830,3 +830,5 @@ const RedemptionManagement: React.FC = () => {
 };
 
 export default RedemptionManagement;
+
+

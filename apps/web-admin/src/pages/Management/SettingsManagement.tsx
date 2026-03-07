@@ -85,7 +85,7 @@ const SettingsManagement: React.FC = () => {
         <button
           onClick={saveSettings}
           disabled={isSaving}
-          className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed'
+          className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm  disabled:opacity-50 disabled:cursor-not-allowed'
         >
           {isSaving ? (
             <>
@@ -102,7 +102,7 @@ const SettingsManagement: React.FC = () => {
       </div>
 
       {/* Tabs */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-1'>
         <nav className='flex space-x-1'>
           {[
             { id: 'general', name: t('settingsManagement.tabs.general'), icon: Settings },
@@ -113,7 +113,7 @@ const SettingsManagement: React.FC = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 py-2 px-4 rounded-lg font-semibold text-theme-xs font-heading transition-all ${
+              className={`flex items-center gap-2 py-2 px-4 rounded-none font-semibold text-theme-xs font-heading transition-colors duration-200 ${
                 activeTab === tab.id
                   ? 'bg-orange-600 text-white dark:bg-orange-500 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
@@ -210,7 +210,7 @@ const SettingsManagement: React.FC = () => {
           </h3>
 
           <div className='space-y-3'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   {t('settingsManagement.notifications.enableNotifications')}
@@ -226,7 +226,7 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   {t('settingsManagement.notifications.enableEmailNotifications')}
@@ -242,7 +242,7 @@ const SettingsManagement: React.FC = () => {
                 className='w-5 h-5 accent-orange-600 rounded focus:ring-orange-500 dark:bg-gray-900'
               />
             </div>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   {t('settingsManagement.notifications.enableSMSNotifications')}
@@ -270,7 +270,7 @@ const SettingsManagement: React.FC = () => {
           </h3>
 
           <div className='space-y-3'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   {t('settingsManagement.security.require2FA')}
@@ -310,7 +310,7 @@ const SettingsManagement: React.FC = () => {
           </h3>
 
           <div className='space-y-3'>
-            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700'>
+            <div className='flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-none border border-gray-200 dark:border-gray-700'>
               <div>
                 <label className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
                   {t('settingsManagement.integrations.enableAPI')}
@@ -335,3 +335,5 @@ const SettingsManagement: React.FC = () => {
 };
 
 export default SettingsManagement;
+
+

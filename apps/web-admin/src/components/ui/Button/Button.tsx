@@ -45,7 +45,7 @@ const Button: React.FC<ButtonProps> = ({
   return (
     <button
       type={type}
-      className={`inline-flex items-center justify-center gap-2 rounded-xl transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 active:scale-95 ${className} ${
+      className={`inline-flex items-center justify-center gap-2 rounded-none transition-all duration-200 ease-out focus:outline-none focus:ring-2 focus:ring-offset-2 dark:focus:ring-offset-gray-900 active:scale-95 ${className} ${
         sizeClasses[size]
       } ${variantClasses[variant]} ${disabled ? 'cursor-not-allowed' : ''}`}
       onClick={onClick}

@@ -47,13 +47,66 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
     }
   }, [isOpen]);
 
+  const normalizeTrainer = (raw: any): Trainer => {
+    const trainer = raw?.trainer || raw;
+    return {
+      id: trainer?.id || trainer?.user_id || '',
+      user_id: trainer?.user_id || trainer?.id || '',
+      full_name: trainer?.full_name || trainer?.name || trainer?.email || 'Huấn luyện viên',
+      email: trainer?.email || '',
+      phone: trainer?.phone || '',
+      specializations: Array.isArray(trainer?.specializations) ? trainer.specializations : [],
+      bio: trainer?.bio,
+      experience_years: trainer?.experience_years || 0,
+      hourly_rate: trainer?.hourly_rate,
+      profile_photo: trainer?.profile_photo,
+      status: trainer?.status,
+      rating_average: trainer?.rating_average,
+      total_classes: trainer?.total_classes,
+      created_at: trainer?.created_at || '',
+      updated_at: trainer?.updated_at || '',
+    };
+  };
+
+  const normalizeStats = (raw: any) => {
+    const stats = raw?.stats || raw;
+    return {
+      totalClasses: Number(stats?.totalClasses ?? stats?.total_classes ?? 0),
+      totalStudents: Number(stats?.totalStudents ?? stats?.total_students ?? 0),
+      rating: Number(stats?.rating ?? stats?.average_rating ?? 0),
+      completedSessions: Number(stats?.completedSessions ?? stats?.completed_classes ?? 0),
+      upcomingClasses: Number(stats?.upcomingClasses ?? stats?.upcoming_classes ?? 0),
+      monthlyRevenue: Number(stats?.monthlyRevenue ?? stats?.monthly_revenue ?? 0),
+      achievements: Number(stats?.achievements ?? 0),
+      goalsCompleted: Number(stats?.goalsCompleted ?? stats?.goals_completed ?? 0),
+    };
+  };
+
+  const resolveTrainerFromList = (userId: string): Trainer | null => {
+    const found = trainers.find(t => t.user_id === userId || t.id === userId);
+    return found ? normalizeTrainer(found) : null;
+  };
+
   const fetchTrainers = async () => {
     try {
       setLoadingTrainers(true);
       const response = await trainerService.getAllTrainers();
       if (response.success) {
+        // Support both response shapes: Trainer[] or { trainers: Trainer[] }
+        let trainersList: Trainer[] = [];
+        if (Array.isArray(response.data)) {
+          trainersList = response.data;
+        } else if (response.data && typeof response.data === 'object') {
+          const data = response.data as any;
+          trainersList = Array.isArray(data.trainers)
+            ? data.trainers
+            : Array.isArray(data.data?.trainers)
+            ? data.data.trainers
+            : [];
+        }
+
         // Filter out current user
-        const filtered = response.data.filter(t => t.user_id !== currentUserId);
+        const filtered = trainersList.filter(t => t.user_id !== currentUserId);
         setTrainers(filtered);
       }
     } catch (error) {
@@ -92,12 +145,23 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         const currentProfile = await userService.getProfile();
         if (currentStats.success && currentProfile.success) {
           const currentTrainer = await trainerService.getTrainerByUserId(currentUserId);
-          if (currentTrainer.success) {
-            data.push({
-              trainer: currentTrainer.data,
-              stats: currentStats.data,
-            });
-          }
+          const fallbackCurrent = resolveTrainerFromList(currentUserId);
+          const profileTrainer = normalizeTrainer({
+            id: currentUserId,
+            user_id: currentUserId,
+            full_name:
+              (currentProfile as any)?.data?.user?.full_name ||
+              (currentProfile as any)?.data?.user?.name ||
+              'Bạn',
+            email: (currentProfile as any)?.data?.user?.email || '',
+          });
+
+          data.push({
+            trainer: currentTrainer.success
+              ? normalizeTrainer(currentTrainer.data)
+              : fallbackCurrent || profileTrainer,
+            stats: normalizeStats(currentStats.data),
+          });
         }
       } catch (error) {
         console.error('Error fetching current user stats:', error);
@@ -108,19 +172,19 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         try {
           const statsResponse = await scheduleService.getTrainerStatsForComparison(userId);
           const trainerResponse = await trainerService.getTrainerByUserId(userId);
-          if (statsResponse.success && trainerResponse.success) {
+          if (statsResponse.success) {
+            const fallbackTrainer = resolveTrainerFromList(userId);
             data.push({
-              trainer: trainerResponse.data,
-              stats: {
-                totalClasses: statsResponse.data.total_classes || 0,
-                totalStudents: statsResponse.data.total_students || 0,
-                rating: statsResponse.data.average_rating || 0,
-                completedSessions: statsResponse.data.completed_classes || 0,
-                upcomingClasses: statsResponse.data.upcoming_classes || 0,
-                monthlyRevenue: statsResponse.data.monthly_revenue || 0,
-                achievements: statsResponse.data.achievements || 0,
-                goalsCompleted: statsResponse.data.goals_completed || 0,
-              },
+              trainer: trainerResponse.success
+                ? normalizeTrainer(trainerResponse.data)
+                :
+                    fallbackTrainer ||
+                    normalizeTrainer({
+                      id: userId,
+                      user_id: userId,
+                      full_name: `Trainer ${userId.slice(0, 6)}`,
+                    }),
+              stats: normalizeStats(statsResponse.data),
             });
           }
         } catch (error) {
@@ -173,7 +237,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
     },
     xAxis: {
       type: 'category',
-      data: comparisonData.map(item => item.trainer.full_name),
+      data: comparisonData.map(item => item.trainer?.full_name || 'N/A'),
       axisLabel: {
         rotate: comparisonData.length > 3 ? 45 : 0,
         interval: 0,
@@ -196,20 +260,20 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         name: t('comparisonModal.chart.totalClasses'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.totalClasses),
-        itemStyle: { color: '#3b82f6' },
+        itemStyle: { color: '#ea580c' },
       },
       {
         name: t('comparisonModal.chart.students'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.totalStudents),
-        itemStyle: { color: '#10b981' },
+        itemStyle: { color: '#fb923c' },
       },
       {
         name: 'Đánh giá',
         type: 'line',
         yAxisIndex: 1,
         data: comparisonData.map(item => item.stats.rating),
-        itemStyle: { color: '#f59e0b' },
+        itemStyle: { color: '#c2410c' },
         symbol: 'circle',
         symbolSize: 8,
       },
@@ -217,29 +281,29 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         name: t('comparisonModal.chart.completed'),
         type: 'bar',
         data: comparisonData.map(item => item.stats.completedSessions),
-        itemStyle: { color: '#8b5cf6' },
+        itemStyle: { color: '#9a3412' },
       },
     ],
     ...getEChartsTheme(theme),
   };
 
   return (
-    <AdminModal isOpen={isOpen} onClose={onClose} title='So sánh hiệu suất' size='xl'>
-      <div className='space-y-4'>
+    <AdminModal isOpen={isOpen} onClose={onClose} title='So sánh hiệu suất' size='xl' square>
+      <div className='space-y-3'>
         {/* Trainer Selection */}
-        <div>
+        <div className='border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] p-3'>
           <label className='block text-xs font-semibold font-heading text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] mb-2'>
             {t('comparisonModal.selectTrainers')}
           </label>
           {loadingTrainers ? (
-            <div className='text-center py-6'>
+            <div className='text-center py-5'>
               <div className='animate-spin rounded-full h-8 w-8 border-b-2 border-[var(--color-orange-600)] mx-auto mb-2'></div>
               <p className='text-xs text-[var(--color-gray-600)] dark:text-[var(--color-gray-400)] font-sans'>
                 {t('comparisonModal.loadingTrainers')}
               </p>
             </div>
           ) : (
-            <div className='max-h-40 overflow-y-auto border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-lg p-2 bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)]'>
+            <div className='max-h-40 overflow-y-auto border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none p-1.5 bg-[var(--color-white)] dark:bg-[var(--color-gray-900)]'>
               {trainers.length === 0 ? (
                 <p className='text-xs text-[var(--color-gray-500)] dark:text-[var(--color-gray-400)] text-center py-4 font-sans'>
                   {t('comparisonModal.noTrainers')}
@@ -248,7 +312,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                 trainers.map(trainer => (
                   <label
                     key={trainer.id}
-                    className='flex items-center gap-2.5 p-2 hover:bg-[var(--color-gray-100)] dark:hover:bg-[var(--color-gray-700)] rounded-lg cursor-pointer transition-colors'
+                    className='flex items-center gap-2.5 p-2 hover:bg-[var(--color-gray-100)] dark:hover:bg-[var(--color-gray-800)] rounded-none cursor-pointer transition-colors border border-transparent hover:border-[var(--color-orange-200)] dark:hover:border-[var(--color-orange-700)]'
                   >
                     <input
                       type='checkbox'
@@ -262,7 +326,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                           );
                         }
                       }}
-                      className='w-4 h-4 text-[var(--color-orange-600)] rounded focus:ring-[var(--color-orange-500)]'
+                      className='w-4 h-4 text-[var(--color-orange-600)] rounded-none focus:ring-[var(--color-orange-500)]'
                     />
                     <div className='flex-1 min-w-0'>
                       <p className='text-sm font-medium font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] truncate'>
@@ -282,7 +346,7 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         </div>
 
         {/* Time Period Selection */}
-        <div>
+        <div className='border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] rounded-none bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] p-3'>
           <label className='block text-xs font-semibold font-heading text-[var(--color-gray-700)] dark:text-[var(--color-gray-300)] mb-2'>
             {t('comparisonModal.timePeriod')}
           </label>
@@ -300,12 +364,13 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
         </div>
 
         {/* Compare Button */}
-        <div className='flex justify-end pt-2'>
+        <div className='flex justify-end pt-1'>
           <Button
             variant='primary'
             size='sm'
             onClick={handleCompare}
             disabled={loading || selectedTrainerIds.length === 0}
+            className='rounded-none text-xs font-heading'
           >
             {loading ? t('comparisonModal.comparing') : t('comparisonModal.compare')}
           </Button>
@@ -313,23 +378,23 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
 
         {/* Comparison Results */}
         {comparisonData.length > 0 && (
-          <div className='space-y-4'>
+          <div className='space-y-3'>
             {/* Chart */}
-            <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-lg p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
-              <h3 className='text-base font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'>
+            <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-none p-3 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+              <h3 className='text-sm font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-2'>
                 {t('comparisonModal.chartTitle')}
               </h3>
-              <ReactECharts option={chartOption} style={{ height: '350px', width: '100%' }} />
+              <ReactECharts option={chartOption} style={{ height: '320px', width: '100%' }} />
             </div>
 
             {/* Comparison Table */}
-            <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-lg p-4 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] overflow-x-auto'>
-              <h3 className='text-base font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-3'>
+            <div className='bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-800)] rounded-none p-3 border border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] overflow-x-auto'>
+              <h3 className='text-sm font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)] mb-2'>
                 {t('comparisonModal.tableTitle')}
               </h3>
               <table className='w-full text-xs'>
                 <thead>
-                  <tr className='border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)]'>
+                  <tr className='border-b border-[var(--color-gray-200)] dark:border-[var(--color-gray-700)] bg-[var(--color-white)] dark:bg-[var(--color-gray-900)]'>
                     <th className='text-left py-2 px-3 font-semibold font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                       {t('comparisonModal.table.trainer')}
                     </th>
@@ -357,13 +422,13 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                   {comparisonData.map((item, index) => (
                     <tr
                       key={item.trainer.id}
-                      className={`border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] ${
+                      className={`border-b border-[var(--color-gray-100)] dark:border-[var(--color-gray-700)] hover:bg-[var(--color-gray-100)] dark:hover:bg-[var(--color-gray-900)] ${
                         index === 0
                           ? 'bg-[var(--color-orange-50)] dark:bg-[var(--color-orange-900)]/20'
                           : ''
                       }`}
                     >
-                      <td className='py-2.5 px-3'>
+                      <td className='py-2 px-3'>
                         <div>
                           <p className='text-sm font-medium font-heading text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                             {item.trainer.full_name}
@@ -381,22 +446,22 @@ export default function ComparisonModal({ isOpen, onClose, currentUserId }: Comp
                             )}
                         </div>
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         {formatNumber(item.stats.totalClasses)}
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         {formatNumber(item.stats.totalStudents)}
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         ⭐ {item.stats.rating.toFixed(1)}
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         {formatNumber(item.stats.completedSessions)}
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         {formatNumber(item.stats.upcomingClasses)}
                       </td>
-                      <td className='text-right py-2.5 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
+                      <td className='text-right py-2 px-3 text-sm font-sans text-[var(--color-gray-900)] dark:text-[var(--color-white)]'>
                         {formatCurrency(item.stats.monthlyRevenue)}
                       </td>
                     </tr>

@@ -61,6 +61,7 @@ const TrainerManagement: React.FC = () => {
   const [menuPosition, setMenuPosition] = useState({ x: 0, y: 0 });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [isPageTransitioning, setIsPageTransitioning] = useState(false);
   const [trainerPendingCerts, setTrainerPendingCerts] = useState<Record<string, Certification[]>>(
     {}
   );
@@ -1202,11 +1203,17 @@ const TrainerManagement: React.FC = () => {
       })
     : [];
 
-  const totalPages = Math.ceil(filteredTrainers.length / itemsPerPage);
+  const totalPages = Math.max(1, Math.ceil(filteredTrainers.length / itemsPerPage));
   const paginatedTrainers = filteredTrainers.slice(
     (currentPage - 1) * itemsPerPage,
     currentPage * itemsPerPage
   );
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   const handleEdit = (trainer: Trainer) => {
     setSelectedTrainer(trainer);
@@ -1264,7 +1271,7 @@ const TrainerManagement: React.FC = () => {
   };
 
   return (
-    <div className='p-6 space-y-6'>
+    <div className='p-6 space-y-6 overflow-x-hidden'>
       {/* Header */}
       <div className='flex justify-between items-start'>
         <div>
@@ -1278,14 +1285,14 @@ const TrainerManagement: React.FC = () => {
         <div className='flex items-center gap-3'>
           <button
             onClick={loadTrainers}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-colors duration-200'
           >
             <RefreshCw className='w-4 h-4' />
             {t('equipmentManagement.filter.refresh')}
           </button>
           <button
             onClick={handleCreate}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm transition-colors duration-200'
           >
             <Plus className='w-4 h-4' />
             {t('trainerManagement.form.addTitle')}
@@ -1295,7 +1302,7 @@ const TrainerManagement: React.FC = () => {
 
       {/* Stats Cards */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           {/* Subtle corner accent */}
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
@@ -1303,9 +1310,9 @@ const TrainerManagement: React.FC = () => {
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <User className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <User className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -1322,7 +1329,7 @@ const TrainerManagement: React.FC = () => {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           {/* Subtle corner accent */}
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
@@ -1330,9 +1337,9 @@ const TrainerManagement: React.FC = () => {
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -1349,7 +1356,7 @@ const TrainerManagement: React.FC = () => {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           {/* Subtle corner accent */}
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
@@ -1357,9 +1364,9 @@ const TrainerManagement: React.FC = () => {
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <XCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <XCircle className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -1376,7 +1383,7 @@ const TrainerManagement: React.FC = () => {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           {/* Subtle corner accent */}
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           {/* Subtle left border accent */}
@@ -1384,9 +1391,9 @@ const TrainerManagement: React.FC = () => {
           <div className='relative'>
             <div className='flex items-center gap-3'>
               {/* Icon Container */}
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <BookOpen className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <BookOpen className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               {/* Value and Label Container */}
               <div className='flex-1 min-w-0'>
@@ -1405,7 +1412,7 @@ const TrainerManagement: React.FC = () => {
       </div>
 
       {/* Search and Filters */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow duration-200 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
         <div className='grid grid-cols-1 md:grid-cols-4 gap-3'>
           {/* Search Input */}
           <div className='md:col-span-2 group relative'>
@@ -1418,7 +1425,7 @@ const TrainerManagement: React.FC = () => {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm hover:border-orange-400 dark:hover:border-orange-600'
             />
           </div>
 
@@ -1538,8 +1545,13 @@ const TrainerManagement: React.FC = () => {
         </AdminCard>
       ) : (
         <>
-          <AdminCard padding='none'>
-            <AdminTable>
+          <AdminCard padding='none' className='overflow-x-hidden'>
+            <div
+              className={`transition-opacity duration-300 ${
+                isPageTransitioning ? 'opacity-0' : 'opacity-100'
+              }`}
+            >
+            <AdminTable scrollable={false}>
               <AdminTableHeader>
                 <AdminTableRow>
                   <AdminTableCell header className='w-[15%]'>
@@ -1615,7 +1627,7 @@ const TrainerManagement: React.FC = () => {
                     <AdminTableRow
                       key={trainer.id}
                       data-trainer-id={trainer.id}
-                      className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
+                      className={`group relative border-l-4 transition-colors duration-200 cursor-pointer ${
                         isHighlighted
                           ? 'border-l-orange-500 bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500/50'
                           : hasPendingCerts
@@ -1633,7 +1645,7 @@ const TrainerManagement: React.FC = () => {
                           : hasPendingCerts
                           ? 'bg-yellow-50/40 dark:bg-yellow-900/15'
                           : 'bg-gray-50/50 dark:bg-gray-800/50'
-                      } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                      } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                       onClick={(e?: React.MouseEvent) => {
                         if (e) {
                           e.stopPropagation();
@@ -1643,7 +1655,7 @@ const TrainerManagement: React.FC = () => {
                         }
                       }}
                     >
-                      <AdminTableCell className='overflow-hidden'>
+                      <AdminTableCell className='overflow-visible'>
                         <div className='flex items-center gap-1.5 sm:gap-2'>
                           <div className='relative flex-shrink-0 group'>
                             <div className='w-8 h-8 sm:w-10 sm:h-10 md:w-12 md:h-12 rounded-full bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm cursor-help overflow-hidden'>
@@ -1659,9 +1671,18 @@ const TrainerManagement: React.FC = () => {
                               ) : null}
                             </div>
                             {(trainer.bio || trainer.full_name) && (
-                              <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 px-3 py-2 bg-gray-900 dark:bg-gray-800 text-white text-xs rounded-lg shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 group-hover:pointer-events-auto pointer-events-none z-[9999] whitespace-normal max-w-[300px] max-h-[100px] overflow-y-auto text-left'>
-                                {trainer.bio || trainer.full_name}
-                                <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-4 border-b-4 border-r-4 border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
+                              <div className='absolute left-full ml-2 top-1/2 -translate-y-1/2 w-[280px] border border-gray-700/80 dark:border-gray-600 bg-gray-900/95 dark:bg-gray-800/95 text-white rounded-none shadow-xl hidden group-hover:block z-[9999] text-left backdrop-blur-sm pointer-events-none'>
+                                <div className='px-3 py-2 border-b border-gray-700/80 dark:border-gray-600'>
+                                  <p className='text-[10px] font-semibold font-heading uppercase tracking-wide text-orange-300'>
+                                    Tiểu sử
+                                  </p>
+                                </div>
+                                <div className='px-3 py-2.5'>
+                                  <p className='text-[11px] leading-relaxed font-medium font-inter text-gray-100 break-words'>
+                                    {trainer.bio || trainer.full_name}
+                                  </p>
+                                </div>
+                                <div className='absolute right-full top-1/2 -translate-y-1/2 w-0 h-0 border-t-[5px] border-b-[5px] border-r-[6px] border-transparent border-r-gray-900 dark:border-r-gray-800'></div>
                               </div>
                             )}
                           </div>
@@ -1796,6 +1817,7 @@ const TrainerManagement: React.FC = () => {
                 })}
               </AdminTableBody>
             </AdminTable>
+            </div>
           </AdminCard>
 
           {totalPages > 1 && (
@@ -1804,10 +1826,24 @@ const TrainerManagement: React.FC = () => {
               totalPages={totalPages}
               totalItems={filteredTrainers.length}
               itemsPerPage={itemsPerPage}
-              onPageChange={setCurrentPage}
+              onPageChange={page => {
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setCurrentPage(page);
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
+              }}
               onItemsPerPageChange={newItemsPerPage => {
-                setItemsPerPage(newItemsPerPage);
-                setCurrentPage(1);
+                setIsPageTransitioning(true);
+                setTimeout(() => {
+                  setItemsPerPage(newItemsPerPage);
+                  setCurrentPage(1);
+                  setTimeout(() => {
+                    setIsPageTransitioning(false);
+                  }, 150);
+                }, 150);
               }}
             />
           )}
@@ -1838,15 +1874,15 @@ const TrainerManagement: React.FC = () => {
           />
           {/* Popup */}
           <div
-            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 min-w-[180px]'
+            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-none shadow-lg py-1.5 min-w-[188px]'
             style={{
               left: `${Math.min(menuPosition.x, window.innerWidth - 200)}px`,
               top: `${Math.min(menuPosition.y + 10, window.innerHeight - 150)}px`,
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800'>
-              <p className='text-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
+            <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/40'>
+              <p className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
                 {selectedTrainerForAction?.full_name}
               </p>
             </div>
@@ -1856,7 +1892,7 @@ const TrainerManagement: React.FC = () => {
                   setActionMenuOpen(false);
                   handleEdit(selectedTrainerForAction!);
                 }}
-                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Edit className='w-3.5 h-3.5' />
                 Sửa
@@ -1867,7 +1903,7 @@ const TrainerManagement: React.FC = () => {
                   setSelectedTrainer(selectedTrainerForAction);
                   setIsViewCertificationsModalOpen(true);
                 }}
-                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Award className='w-3.5 h-3.5' />
                 Xem chứng chỉ
@@ -1879,7 +1915,7 @@ const TrainerManagement: React.FC = () => {
                       setActionMenuOpen(false);
                       handleReviewCertification(selectedTrainerForAction!);
                     }}
-                    className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-warning-600 dark:text-warning-400 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors duration-150'
+                    className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-warning-600 dark:text-warning-400 hover:bg-warning-50 dark:hover:bg-warning-900/20 transition-colors duration-150'
                   >
                     <AlertCircle className='w-3.5 h-3.5' />
                     {t('trainerManagement.actions.reviewCertification')}
@@ -1891,7 +1927,7 @@ const TrainerManagement: React.FC = () => {
                   setTrainerToDelete(selectedTrainerForAction);
                   setIsDeleteDialogOpen(true);
                 }}
-                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
               >
                 <Trash2 className='w-3.5 h-3.5' />
                 {t('trainerManagement.actions.delete')}
@@ -1957,3 +1993,5 @@ const TrainerManagement: React.FC = () => {
 };
 
 export default TrainerManagement;
+
+

@@ -280,6 +280,13 @@ export interface Review {
 }
 
 class ScheduleService {
+  private formatDateParam(date: Date): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
   private async request<T>(
     endpoint: string,
     method: 'GET' | 'POST' | 'PUT' | 'DELETE' = 'GET',
@@ -356,44 +363,39 @@ class ScheduleService {
       throw new Error('User ID not found. Please login again.');
     }
 
-    // Calculate date range based on view mode
-    // Use UTC to avoid timezone issues
+    // Calculate date range based on view mode (local date for accurate API filtering)
     let startDate: Date;
     let endDate: Date;
 
     if (viewMode === 'month') {
-      // First day of month (UTC)
-      const year = currentDate.getUTCFullYear();
-      const month = currentDate.getUTCMonth();
-      startDate = new Date(Date.UTC(year, month, 1, 0, 0, 0, 0));
-      // Last day of month (UTC)
-      endDate = new Date(Date.UTC(year, month + 1, 0, 23, 59, 59, 999));
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      startDate = new Date(year, month, 1, 0, 0, 0, 0);
+      endDate = new Date(year, month + 1, 0, 23, 59, 59, 999);
     } else if (viewMode === 'week') {
-      // Start of week (Monday) - UTC
-      const year = currentDate.getUTCFullYear();
-      const month = currentDate.getUTCMonth();
-      const date = currentDate.getUTCDate();
-      const dayOfWeek = currentDate.getUTCDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const date = currentDate.getDate();
+      const dayOfWeek = currentDate.getDay(); // 0=Sunday, 1=Monday, ..., 6=Saturday
 
       // Calculate Monday of the week
       const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
       const mondayDate = date - daysToSubtract;
 
-      startDate = new Date(Date.UTC(year, month, mondayDate, 0, 0, 0, 0));
+      startDate = new Date(year, month, mondayDate, 0, 0, 0, 0);
       // End of week (Sunday, 6 days after Monday)
-      endDate = new Date(Date.UTC(year, month, mondayDate + 6, 23, 59, 59, 999));
+      endDate = new Date(year, month, mondayDate + 6, 23, 59, 59, 999);
     } else {
-      // Single day (UTC)
-      const year = currentDate.getUTCFullYear();
-      const month = currentDate.getUTCMonth();
-      const date = currentDate.getUTCDate();
-      startDate = new Date(Date.UTC(year, month, date, 0, 0, 0, 0));
-      endDate = new Date(Date.UTC(year, month, date, 23, 59, 59, 999));
+      const year = currentDate.getFullYear();
+      const month = currentDate.getMonth();
+      const date = currentDate.getDate();
+      startDate = new Date(year, month, date, 0, 0, 0, 0);
+      endDate = new Date(year, month, date, 23, 59, 59, 999);
     }
 
     const params = new URLSearchParams({
-      date: startDate.toISOString().split('T')[0],
-      end_date: endDate.toISOString().split('T')[0],
+      date: this.formatDateParam(startDate),
+      end_date: this.formatDateParam(endDate),
       viewMode: viewMode,
     });
 
@@ -409,29 +411,51 @@ class ScheduleService {
     let schedulesArray: any[] = [];
 
     if (response.success && response.data) {
-      // Check if schedules is directly in data.schedules
-      if (response.data.schedules && Array.isArray(response.data.schedules)) {
-        schedulesArray = response.data.schedules;
+      const responseData: any = response.data;
+
+      const scheduleCandidates = [
+        responseData?.schedules,
+        Array.isArray(responseData) ? responseData : undefined,
+        (response as any)?.schedules,
+        responseData?.data?.schedules,
+        responseData?.data?.data?.schedules,
+        Array.isArray(responseData?.data) ? responseData.data : undefined,
+        Array.isArray(responseData?.items) ? responseData.items : undefined,
+      ];
+
+      const firstArray = scheduleCandidates.find(candidate => Array.isArray(candidate));
+      if (Array.isArray(firstArray)) {
+        schedulesArray = firstArray;
       }
-      // Check if data is directly an array
-      else if (Array.isArray(response.data)) {
-        schedulesArray = response.data;
-      }
-      // Check if schedules is at root level
-      else if ((response as any).schedules && Array.isArray((response as any).schedules)) {
-        schedulesArray = (response as any).schedules;
+
+      if (schedulesArray.length === 0) {
+        console.error('[ScheduleService:getTrainerCalendar] Empty schedules after extraction', {
+          userId,
+          viewMode,
+          date: this.formatDateParam(startDate),
+          endDate: this.formatDateParam(endDate),
+          responseDataType: typeof response.data,
+          responseDataKeys: Array.isArray(response.data)
+            ? ['[array]']
+            : Object.keys(response.data || {}),
+          hasSchedulesField: !!(response.data as any)?.schedules,
+        });
       }
     }
 
     // Transform schedule data to calendar event format
     if (schedulesArray.length > 0) {
       let calendarEvents: CalendarEvent[] = schedulesArray.map((schedule: any) => {
+        const startValue =
+          schedule.start_time || schedule.startTime || schedule.start || schedule.date_time;
+        const endValue = schedule.end_time || schedule.endTime || schedule.end;
+
         return {
           id: schedule.id,
           title: schedule.gym_class?.name || schedule.class_name || 'Unknown Class',
           class_name: schedule.gym_class?.name || schedule.class_name || 'Unknown Class',
-          start: schedule.start_time || schedule.start,
-          end: schedule.end_time || schedule.end,
+          start: startValue,
+          end: endValue,
           room: schedule.room?.name || schedule.room_name || 'Unknown Room',
           status: schedule.status || 'SCHEDULED',
           attendees: schedule.bookings?.length || schedule.current_bookings || 0,
@@ -439,6 +463,14 @@ class ScheduleService {
           color: this.getStatusColor(schedule.status || 'SCHEDULED'),
         };
       });
+
+      const invalidTimeEvents = calendarEvents.filter(event => !event.start || !event.end);
+      if (invalidTimeEvents.length > 0) {
+        console.error('[ScheduleService:getTrainerCalendar] Events missing start/end', {
+          invalidCount: invalidTimeEvents.length,
+          sampleEvent: invalidTimeEvents[0],
+        });
+      }
 
       // Apply client-side filtering if needed
       if (filters?.status) {
@@ -454,27 +486,6 @@ class ScheduleService {
           event.room.toLowerCase().includes(filters.room!.toLowerCase())
         );
       }
-
-      // Additional client-side date filtering for precision
-      // Note: Backend already filters by date, but we do additional filtering by start_time for precision
-      calendarEvents = calendarEvents.filter(event => {
-        if (!event.start) return false;
-        const eventDate = new Date(event.start);
-        // Compare dates only (ignore time for date range check)
-        const eventDateOnly = new Date(
-          eventDate.getFullYear(),
-          eventDate.getMonth(),
-          eventDate.getDate()
-        );
-        const startDateOnly = new Date(
-          startDate.getFullYear(),
-          startDate.getMonth(),
-          startDate.getDate()
-        );
-        const endDateOnly = new Date(endDate.getFullYear(), endDate.getMonth(), endDate.getDate());
-        return eventDateOnly >= startDateOnly && eventDateOnly <= endDateOnly;
-      });
-
 
       return {
         success: true,
@@ -883,6 +894,47 @@ class ScheduleService {
       success: response.success,
       message: response.message || 'No schedules found',
       data: [],
+    };
+  }
+
+  async getTrainerSchedulesByClassId(classId: string): Promise<ApiResponse<ScheduleItem[]>> {
+    const user = localStorage.getItem('user');
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const userData = JSON.parse(user);
+
+    const trainerResponse = await this.request<any>(`/trainers/user/${userData.id}`);
+    const trainerId =
+      trainerResponse?.data?.id ||
+      trainerResponse?.data?.trainer?.id ||
+      trainerResponse?.data?.trainer_id;
+
+    if (!trainerId) {
+      throw new Error('Trainer not found');
+    }
+
+    const response = await this.getAllSchedules({
+      trainer_id: trainerId,
+      status: 'all',
+    });
+
+    let schedules: ScheduleItem[] = [];
+    if (Array.isArray(response.data)) {
+      schedules = response.data as ScheduleItem[];
+    } else if (response.data && 'schedules' in response.data) {
+      schedules = Array.isArray(response.data.schedules) ? response.data.schedules : [];
+    }
+
+    const filteredSchedules = schedules.filter(
+      schedule => schedule.class_id === classId || schedule.gym_class?.id === classId
+    );
+
+    return {
+      success: response.success,
+      message: response.message || 'Trainer class schedules retrieved successfully',
+      data: filteredSchedules,
     };
   }
 

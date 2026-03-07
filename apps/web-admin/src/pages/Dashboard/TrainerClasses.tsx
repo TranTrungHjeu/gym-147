@@ -1,7 +1,8 @@
 import { Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import CustomSelect from '../../components/common/CustomSelect';
+import { PageLoading } from '../../components/ui/AppLoading';
 import Button from '../../components/ui/Button/Button';
 import { GymClass, scheduleService } from '../../services/schedule.service';
 import { socketService } from '../../services/socket.service';
@@ -24,7 +25,7 @@ const UsersIcon = () => (
       strokeLinecap='round'
       strokeLinejoin='round'
       strokeWidth={2}
-      d='M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z'
+      d='M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.653-.084-1.287-.24-1.892M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.653.084-1.287.24-1.892m0 0a5.002 5.002 0 019.52 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM5 10a2 2 0 11-4 0 2 2 0 014 0z'
     />
   </svg>
 );
@@ -58,6 +59,7 @@ const TrendingUpIcon = () => (
 );
 
 export default function TrainerClasses() {
+  const navigate = useNavigate();
   const [classes, setClasses] = useState<GymClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -221,18 +223,6 @@ export default function TrainerClasses() {
     return imageUrl;
   };
 
-  // Function to get level image
-  const getLevelImage = (difficulty?: string) => {
-    if (!difficulty) return '/images/level/ALL_LEVELS.png';
-    const levelMap: { [key: string]: string } = {
-      BEGINNER: '/images/level/BEGINNER.png',
-      INTERMEDIATE: '/images/level/INTERMEDIATE.png',
-      ADVANCED: '/images/level/ADVANCED.png',
-      ALL_LEVELS: '/images/level/ALL_LEVELS.png',
-    };
-    return levelMap[difficulty] || '/images/level/ALL_LEVELS.png';
-  };
-
   const formatPrice = (price: number) => {
     return new Intl.NumberFormat('vi-VN', {
       style: 'currency',
@@ -277,16 +267,17 @@ export default function TrainerClasses() {
     return stars;
   };
 
+  const handleViewClassDetails = (classId: string) => {
+    if (!classId) return;
+    navigate(`/trainerdashboard/schedule?classId=${encodeURIComponent(classId)}`);
+  };
+
   if (loading) {
-    return (
-      <div className='flex items-center justify-center min-h-screen'>
-        <div className='text-center text-gray-600 dark:text-gray-400'>Đang tải dữ liệu...</div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
-    <>
+    <div className='min-h-screen-full bg-[var(--color-gray-50)] dark:bg-[var(--color-gray-900)]'>
       {/* Header */}
       <div className='p-6 pb-0'>
         <div className='flex justify-between items-start'>
@@ -303,7 +294,7 @@ export default function TrainerClasses() {
 
       {/* Filters */}
       <div className='px-6'>
-        <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-[var(--color-orange-200)] dark:border-[var(--color-orange-700)] shadow-sm p-3'>
           <div className='grid grid-cols-1 md:grid-cols-3 gap-3 mb-3'>
             {/* Search Input */}
             <div className='group relative w-full'>
@@ -313,7 +304,7 @@ export default function TrainerClasses() {
                 placeholder='Tìm kiếm lớp học...'
                 value={searchTerm}
                 onChange={e => setSearchTerm(e.target.value)}
-                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+                className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
               />
             </div>
 
@@ -390,10 +381,10 @@ export default function TrainerClasses() {
                   className='font-inter'
                 />
               </div>
-              <div className='flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-lg p-1'>
+              <div className='flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-none p-1 border border-gray-200 dark:border-gray-700'>
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-1.5 rounded transition-all duration-200 ${
+                  className={`p-1.5 rounded-none transition-all duration-200 ${
                     viewMode === 'grid'
                       ? 'bg-orange-500 text-white shadow-sm'
                       : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
@@ -410,7 +401,7 @@ export default function TrainerClasses() {
                 </button>
                 <button
                   onClick={() => setViewMode('list')}
-                  className={`p-1.5 rounded transition-all duration-200 ${
+                  className={`p-1.5 rounded-none transition-all duration-200 ${
                     viewMode === 'list'
                       ? 'bg-orange-500 text-white shadow-sm'
                       : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200'
@@ -440,7 +431,7 @@ export default function TrainerClasses() {
             {sortedClasses.map((cls, index) => (
               <div
                 key={cls.id}
-                className={`group bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
+                className={`group bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-all duration-200 overflow-hidden ${
                   viewMode === 'list' ? 'flex' : ''
                 }`}
               >
@@ -452,7 +443,7 @@ export default function TrainerClasses() {
                   <img
                     src={getClassBackgroundImage(cls.category)}
                     alt={cls.name}
-                    className='w-full h-full object-cover group-hover:scale-105 transition-transform duration-300'
+                    className='w-full h-full object-cover transition-transform duration-300'
                     onError={e => {
                       // Fallback to gradient if image fails to load
                       e.currentTarget.style.display = 'none';
@@ -464,7 +455,7 @@ export default function TrainerClasses() {
                   />
 
                   {/* Fallback Gradient */}
-                  <div className='w-full h-full bg-gradient-to-br from-orange-100 to-orange-200 dark:from-orange-900 dark:to-orange-800 items-center justify-center hidden'>
+                  <div className='w-full h-full bg-orange-100 dark:bg-orange-900/30 items-center justify-center hidden'>
                     <div className='text-center'>
                       <svg
                         className='w-12 h-12 text-orange-500 mx-auto mb-2'
@@ -484,44 +475,25 @@ export default function TrainerClasses() {
                       </p>
                     </div>
                   </div>
-
-                  {/* Overlay for better text readability */}
-                  <div className='absolute inset-0 bg-black/20'></div>
-
-                  {/* Category Badge - Top Left */}
-                  <div className='absolute top-2 left-2 z-10'>
-                    <span className='px-2 py-1 rounded-md text-[10px] font-heading font-semibold bg-white/95 dark:bg-gray-900/95 text-orange-600 dark:text-orange-400 shadow-sm'>
-                      {getCategoryLabel(cls.category)}
-                    </span>
-                  </div>
-
-                  {/* Level Image - Top Right */}
-                  <div className='absolute top-2 right-2 z-10'>
-                    <div className='relative animate-bounce'>
-                      <img
-                        src={getLevelImage(cls.difficulty)}
-                        alt={`Level ${getDifficultyLabel(cls.difficulty)}`}
-                        className='w-16 h-14 object-contain drop-shadow-lg'
-                        onError={e => {
-                          // Hide image if it fails to load
-                          e.currentTarget.style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Difficulty Badge - Bottom Right */}
-                  <div className='absolute bottom-2 right-2 z-10'>
-                    <span
-                      className={`px-2 py-1 rounded-md text-[10px] font-heading font-semibold bg-white/95 dark:bg-gray-900/95 ${getDifficultyColor(cls.difficulty)}`}
-                    >
-                      {getDifficultyLabel(cls.difficulty)}
-                    </span>
-                  </div>
                 </div>
 
                 {/* Class Info */}
                 <div className={`${viewMode === 'list' ? 'flex-1' : ''} p-4`}>
+                  <div className='flex items-center justify-between gap-2 mb-3'>
+                    <span
+                      className={`px-2 py-1 text-[10px] font-heading font-semibold border border-gray-200 dark:border-gray-700 ${getCategoryColor(cls.category)}`}
+                    >
+                      {getCategoryLabel(cls.category)}
+                    </span>
+                    <div className='flex items-center'>
+                      <span
+                        className={`px-2 py-1 text-[10px] font-heading font-semibold border border-gray-200 dark:border-gray-700 ${getDifficultyColor(cls.difficulty)}`}
+                      >
+                        {getDifficultyLabel(cls.difficulty)}
+                      </span>
+                    </div>
+                  </div>
+
                   <div className='mb-3'>
                     <h3 className='text-base font-bold font-heading text-gray-900 dark:text-white leading-tight mb-2'>
                       {cls.name || 'Chưa có tên'}
@@ -532,45 +504,45 @@ export default function TrainerClasses() {
                   </div>
 
                   {/* Class Details */}
-                  <div className='space-y-2 mb-4'>
-                    <div className='flex items-center justify-between text-[11px]'>
-                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
+                  <div className='grid grid-cols-2 gap-2 mb-4'>
+                    <div className='bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter text-[11px] mb-1'>
                         <ClockIcon />
-                        <span>Thời lượng:</span>
+                        <span>Thời lượng</span>
                       </div>
-                      <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                      <span className='text-gray-900 dark:text-white font-heading font-semibold text-[11px]'>
                         {cls.duration || 0} phút
                       </span>
                     </div>
-                    <div className='flex items-center justify-between text-[11px]'>
-                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
+                    <div className='bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter text-[11px] mb-1'>
                         <UsersIcon />
-                        <span>Sức chứa:</span>
+                        <span>Sức chứa</span>
                       </div>
-                      <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                      <span className='text-gray-900 dark:text-white font-heading font-semibold text-[11px]'>
                         {cls.max_capacity || 0} người
                       </span>
                     </div>
-                    <div className='flex items-center justify-between text-[11px]'>
-                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
+                    <div className='col-span-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2'>
+                      <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter text-[11px] mb-1'>
                         <CurrencyIcon />
-                        <span>Giá:</span>
+                        <span>Giá lớp học</span>
                       </div>
-                      <span className='text-orange-600 dark:text-orange-400 font-heading font-bold'>
+                      <span className='text-orange-600 dark:text-orange-400 font-heading font-bold text-[11px]'>
                         {formatPrice(cls.price || 0)}
                       </span>
                     </div>
                     {cls.rating_average && cls.rating_average > 0 && (
-                      <div className='flex items-center justify-between text-[11px]'>
-                        <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter'>
+                      <div className='col-span-2 bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-2'>
+                        <div className='flex items-center gap-1.5 text-gray-600 dark:text-gray-400 font-inter text-[11px] mb-1'>
                           <StarIcon />
-                          <span>Đánh giá:</span>
+                          <span>Đánh giá</span>
                         </div>
-                        <div className='flex items-center gap-1'>
+                        <div className='flex items-center justify-between gap-2'>
                           <div className='flex items-center text-yellow-500'>
                             {renderStars(cls.rating_average)}
                           </div>
-                          <span className='text-gray-900 dark:text-white font-heading font-semibold'>
+                          <span className='text-gray-900 dark:text-white font-heading font-semibold text-[11px]'>
                             {cls.rating_average.toFixed(1)}
                           </span>
                         </div>
@@ -580,31 +552,26 @@ export default function TrainerClasses() {
 
                   {/* Status and Actions */}
                   <div className='flex items-center justify-between pt-3 border-t border-gray-200 dark:border-gray-700'>
-                    <div className='flex items-center gap-2'>
-                      <div
-                        className={`w-2 h-2 rounded-full ${cls.is_active ? 'bg-green-500' : 'bg-gray-400'}`}
-                      ></div>
-                      <span className='text-[11px] font-inter text-gray-600 dark:text-gray-400'>
+                    <div>
+                      <span
+                        className={`px-2 py-1 text-[10px] font-heading font-semibold border ${
+                          cls.is_active
+                            ? 'text-orange-700 bg-orange-50 border-orange-200 dark:text-orange-300 dark:bg-orange-900/20 dark:border-orange-700'
+                            : 'text-gray-600 bg-gray-100 border-gray-200 dark:text-gray-300 dark:bg-gray-800 dark:border-gray-700'
+                        }`}
+                      >
                         {cls.is_active ? 'Hoạt động' : 'Tạm dừng'}
                       </span>
                     </div>
-                    <Link
-                      to={`/trainerdashboard/schedule?classId=${cls.id}`}
-                      className='inline-block'
+                    <Button
+                      variant='outline'
+                      size='sm'
+                      className='text-[11px] font-heading px-3 py-1.5'
+                      type='button'
+                      onClick={() => handleViewClassDetails(cls.id)}
                     >
-                      <Button
-                        variant='outline'
-                        size='sm'
-                        className='text-[11px] font-heading px-3 py-1.5'
-                        type='button'
-                        onClick={e => {
-                          // Allow Link navigation
-                          e.stopPropagation();
-                        }}
-                      >
-                        Xem chi tiết
-                      </Button>
-                    </Link>
+                      Xem chi tiết
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -613,7 +580,7 @@ export default function TrainerClasses() {
         ) : (
           <div className='text-center py-12'>
             <div className='max-w-md mx-auto'>
-              <div className='w-16 h-16 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/20 rounded-full flex items-center justify-center'>
+              <div className='w-16 h-16 mx-auto mb-4 bg-orange-100 dark:bg-orange-900/20 rounded-none flex items-center justify-center border border-orange-200 dark:border-orange-700'>
                 <svg
                   className='w-8 h-8 text-orange-500 dark:text-orange-400'
                   fill='none'
@@ -652,6 +619,6 @@ export default function TrainerClasses() {
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

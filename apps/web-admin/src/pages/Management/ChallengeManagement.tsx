@@ -389,9 +389,9 @@ const ChallengeManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Target className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Target className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -412,9 +412,9 @@ const ChallengeManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Trophy className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Trophy className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -435,9 +435,9 @@ const ChallengeManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -458,9 +458,9 @@ const ChallengeManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Award className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- '>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-none transition-opacity duration-300'></div>
+                <Award className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 ' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -555,7 +555,7 @@ const ChallengeManagement: React.FC = () => {
       {isLoading ? (
         <TableLoading text={t('challengeManagement.messages.loading')} />
       ) : filteredChallenges.length === 0 ? (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='flex flex-col items-center justify-center gap-3'>
             <Target className='w-12 h-12 text-gray-300 dark:text-gray-600' />
             <div className='text-theme-xs font-heading text-gray-500 dark:text-gray-400'>
@@ -596,14 +596,14 @@ const ChallengeManagement: React.FC = () => {
                   <AdminTableRow
                     key={challenge.id}
                     onClick={() => handleEdit(challenge)}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 cursor-pointer ${
+                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 cursor-pointer ${
                       index % 2 === 0
                         ? 'bg-white dark:bg-gray-900'
                         : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                    } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                   >
                     <AdminTableCell className='overflow-hidden relative !px-3 !py-2'>
-                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-all duration-200 pointer-events-none z-0' />
+                      <div className='absolute left-0 top-0 bottom-0 w-0 group-hover:w-0.5 bg-orange-500 dark:bg-orange-500 transition-colors duration-200 pointer-events-none z-0' />
                       <div className='min-w-0 flex-1 relative z-10'>
                         <div className='flex items-start gap-2'>
                           <div
@@ -1063,7 +1063,7 @@ const ChallengeManagement: React.FC = () => {
               onChange={e => setFormData({ ...formData, description: e.target.value })}
               rows={2}
               placeholder='Mô tả nội dung và quy tắc của thử thách...'
-              className={`w-full px-3 py-1.5 text-[11px] border rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
+              className={`w-full px-3 py-1.5 text-[11px] border rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm  hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50 ${
                 formErrors.description ? 'border-red-500' : 'border-gray-300 dark:border-gray-700'
               }`}
             />
@@ -1074,7 +1074,7 @@ const ChallengeManagement: React.FC = () => {
             )}
           </div>
 
-          <div className='bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-lg space-y-2.5'>
+          <div className='bg-gray-50 dark:bg-gray-800/50 p-2.5 rounded-none space-y-2.5'>
             <h4 className='text-xs font-semibold text-gray-900 dark:text-white flex items-center gap-1.5 font-heading'>
               <Target className='w-3.5 h-3.5 text-orange-500' />
               Cấu hình Mục tiêu
@@ -1138,7 +1138,7 @@ const ChallengeManagement: React.FC = () => {
             </div>
           </div>
 
-          <div className='bg-yellow-50 dark:bg-yellow-900/10 p-2.5 rounded-lg space-y-2.5'>
+          <div className='bg-yellow-50 dark:bg-yellow-900/10 p-2.5 rounded-none space-y-2.5'>
             <h4 className='text-xs font-semibold text-gray-900 dark:text-white flex items-center gap-1.5 font-heading'>
               <Award className='w-3.5 h-3.5 text-yellow-600' />
               Phần thưởng & Giới hạn
@@ -1295,3 +1295,6 @@ const ChallengeManagement: React.FC = () => {
 };
 
 export default ChallengeManagement;
+
+
+

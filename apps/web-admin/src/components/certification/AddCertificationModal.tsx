@@ -755,11 +755,11 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
 
   return (
     <Modal isOpen={isOpen} onClose={onClose} className='max-w-[900px] min-w-[600px] m-4'>
-      <div className='relative w-full min-w-[600px] max-w-[900px] rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[85vh] flex flex-col'>
+      <div className='relative w-full min-w-[600px] max-w-[900px] rounded-none bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl max-h-[85vh] flex flex-col'>
         {/* Header */}
-        <div className='flex-shrink-0 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-t-2xl'>
+        <div className='flex-shrink-0 bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/20 dark:to-orange-800/20 border-b border-orange-200 dark:border-orange-700 px-6 py-4 rounded-none'>
           <div className='flex items-center gap-3 mb-4'>
-            <div className='w-10 h-10 rounded-xl bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center'>
+            <div className='w-10 h-10 rounded-none bg-orange-500/10 dark:bg-orange-500/20 flex items-center justify-center'>
               <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
             </div>
             <h2 className='text-lg font-semibold font-heading text-gray-900 dark:text-white'>
@@ -802,28 +802,28 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
           className='flex-1 overflow-y-auto p-5'
           style={{
             scrollbarWidth: 'thin',
-            scrollbarColor: '#d1d5db transparent',
+            scrollbarColor: '#fdba74 transparent',
           }}
         >
           <style>{`
             form::-webkit-scrollbar {
-              width: 4px;
+              width: 3px;
             }
             form::-webkit-scrollbar-track {
               background: transparent;
             }
             form::-webkit-scrollbar-thumb {
-              background-color: #d1d5db;
-              border-radius: 2px;
+              background-color: #fdba74;
+              border-radius: 0;
             }
             form::-webkit-scrollbar-thumb:hover {
-              background-color: #9ca3af;
+              background-color: #fb923c;
             }
             .dark form::-webkit-scrollbar-thumb {
-              background-color: #4b5563;
+              background-color: #c2410c;
             }
             .dark form::-webkit-scrollbar-thumb:hover {
-              background-color: #6b7280;
+              background-color: #ea580c;
             }
           `}</style>
 
@@ -843,7 +843,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                       duration: 3000,
                     });
                   }}
-                  className='inline-flex items-center justify-center gap-2 min-w-[120px] h-9 px-4 py-2 text-[11px] font-semibold font-heading text-purple-700 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
+                  className='inline-flex items-center justify-center gap-2 min-w-[120px] h-9 px-4 py-2 text-[11px] font-semibold font-heading text-orange-700 dark:text-orange-300 bg-orange-50 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700 rounded-none hover:bg-orange-100 dark:hover:bg-orange-900/50 transition-all duration-200 shadow-sm hover:shadow-md active:scale-95'
                 >
                   <Edit2 className='w-3.5 h-3.5 flex-shrink-0' />
                   <span>{t('addCertificationModal.edit')}</span>
@@ -916,7 +916,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 onChange={e => handleInputChange('certification_name', e.target.value)}
                 placeholder={t('addCertificationModal.form.namePlaceholder')}
                 disabled={areFieldsDisabled}
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
+                className={`w-full px-4 py-2.5 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
                   areFieldsDisabled
                     ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                     : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
@@ -950,7 +950,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 onChange={e => handleInputChange('certification_issuer', e.target.value)}
                 placeholder={t('addCertificationModal.form.issuerPlaceholder')}
                 disabled={areFieldsDisabled}
-                className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
+                className={`w-full px-4 py-2.5 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 transition-all duration-200 font-inter shadow-sm ${
                   areFieldsDisabled
                     ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                     : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
@@ -994,7 +994,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   }}
                   max={dayjs().tz('Asia/Ho_Chi_Minh').format('YYYY-MM-DD')}
                   disabled={areFieldsDisabled}
-                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
+                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
                     areFieldsDisabled
                       ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                       : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
@@ -1037,7 +1037,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                   }}
                   min={formData.issued_date || undefined}
                   disabled={areFieldsDisabled}
-                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-xl bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
+                  className={`w-full px-4 py-2.5 text-theme-xs border rounded-none bg-white dark:bg-gray-800 text-gray-900 dark:text-white transition-all duration-200 font-inter shadow-sm ${
                     areFieldsDisabled
                       ? 'opacity-60 cursor-not-allowed bg-gray-50 dark:bg-gray-800/50 border-gray-200 dark:border-gray-700'
                       : 'focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600'
@@ -1110,14 +1110,14 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
 
           {/* Auto-fill Notification - Only show for AI tab */}
           {activeTab === 'ai' && autoFilled && scanResult?.extractedData && (
-            <div className='p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl'>
+            <div className='p-3 bg-orange-50 dark:bg-orange-900/20 border border-orange-200 dark:border-orange-800 rounded-none'>
               <div className='flex items-start gap-2'>
-                <CheckCircle className='w-4 h-4 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5' />
+                <CheckCircle className='w-4 h-4 text-orange-600 dark:text-orange-400 flex-shrink-0 mt-0.5' />
                 <div className='flex-1'>
-                  <p className='text-[11px] font-medium text-green-800 dark:text-green-300 font-heading mb-1'>
+                  <p className='text-[11px] font-medium text-orange-800 dark:text-orange-300 font-heading mb-1'>
                     {t('addCertificationModal.autoFill.title')}
                   </p>
-                  <p className='text-[10px] text-green-700 dark:text-green-400 font-inter'>
+                  <p className='text-[10px] text-orange-700 dark:text-orange-400 font-inter'>
                     {t('addCertificationModal.autoFill.message')}
                   </p>
                 </div>
@@ -1127,13 +1127,13 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
         </form>
 
         {/* Footer */}
-        <div className='flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 px-6 py-4 rounded-b-2xl'>
+        <div className='flex-shrink-0 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900/50 px-6 py-4 rounded-none'>
           <div className='flex justify-end gap-3'>
             <button
               type='button'
               onClick={onClose}
               disabled={isSubmitting}
-              className='inline-flex items-center justify-center min-w-[100px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+              className='inline-flex items-center justify-center min-w-[100px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 transition-all duration-200 shadow-sm hover:shadow-md disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
               <span>{t('common.cancel')}</span>
             </button>
@@ -1147,7 +1147,7 @@ const AddCertificationModal: React.FC<AddCertificationModalProps> = ({
                 !formData.certification_issuer ||
                 !formData.issued_date
               }
-              className='inline-flex items-center justify-center gap-2 min-w-[140px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
+              className='inline-flex items-center justify-center gap-2 min-w-[140px] h-10 px-5 py-2.5 text-[11px] font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95'
             >
               {isSubmitting ? (
                 <>

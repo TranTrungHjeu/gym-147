@@ -93,7 +93,8 @@ export class MemberService {
   static async getMemberById(id: string): Promise<Member> {
     const response = await memberApi.get(`/members/${id}`);
     if (response.data.success) {
-      return response.data.data;
+      // API may return either data.member or data depending on route/gateway shape.
+      return response.data.data?.member || response.data.data;
     }
     throw new Error(response.data.message || 'Failed to get member');
   }

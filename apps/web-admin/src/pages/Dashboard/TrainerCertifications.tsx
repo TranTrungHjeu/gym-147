@@ -22,6 +22,7 @@ import MetricCard from '../../components/dashboard/MetricCard';
 import Modal from '../../components/Modal/Modal';
 import CustomSelect from '../../components/common/CustomSelect';
 import Pagination from '../../components/common/Pagination';
+import { PageLoading } from '../../components/ui/AppLoading';
 import { useToast } from '../../context/ToastContext';
 import {
   AvailableCategory,
@@ -42,6 +43,7 @@ export default function TrainerCertifications() {
   const [viewCertificateModal, setViewCertificateModal] = useState(false);
   const [certificateImageUrl, setCertificateImageUrl] = useState<string | null>(null);
   const [certificateName, setCertificateName] = useState<string>('');
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Get current trainer ID from localStorage
   // Prefer trainerId if available (from login), otherwise fallback to user_id
@@ -293,7 +295,12 @@ export default function TrainerCertifications() {
   };
 
   const handleRefresh = async () => {
-    await fetchCertifications(false);
+    try {
+      setIsRefreshing(true);
+      await fetchCertifications(false);
+    } finally {
+      setIsRefreshing(false);
+    }
   };
 
   const fetchAvailableCategories = async () => {
@@ -421,13 +428,7 @@ export default function TrainerCertifications() {
   };
 
   if (loading) {
-    return (
-      <div className='p-3 space-y-3'>
-        <div className='flex items-center justify-center min-h-[400px]'>
-          <div className='text-center text-gray-600 dark:text-gray-400 font-inter'>Đang tải dữ liệu...</div>
-        </div>
-      </div>
-    );
+    return <PageLoading />;
   }
 
   return (
@@ -445,14 +446,16 @@ export default function TrainerCertifications() {
         <div className='flex items-center gap-3'>
           <button
             onClick={handleRefresh}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            disabled={isRefreshing}
+            className='h-9 w-9 !px-0 !rounded-full inline-flex items-center justify-center text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 disabled:opacity-70 disabled:cursor-not-allowed'
+            title='Làm mới'
+            aria-label='Làm mới'
           >
-            <RefreshCw className='w-4 h-4' />
-            Làm mới
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
           </button>
           <button
             onClick={() => setShowAddModal(true)}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-white bg-orange-600 hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600 rounded-none shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
           >
             <Plus className='w-4 h-4' />
             Thêm chứng chỉ
@@ -504,7 +507,7 @@ export default function TrainerCertifications() {
       </div>
 
       {/* Search and Filters */}
-      <div className='bg-white dark:bg-gray-900 rounded-lg border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-3'>
         <div className='grid grid-cols-1 md:grid-cols-2 gap-3'>
           {/* Search Input */}
           <div className='group relative w-full'>
@@ -517,7 +520,7 @@ export default function TrainerCertifications() {
                 setSearchTerm(e.target.value);
                 setCurrentPage(1);
               }}
-              className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full h-[30px] pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
             />
           </div>
 
@@ -560,7 +563,7 @@ export default function TrainerCertifications() {
               return (
                 <div
                   key={cert.id}
-                  className={`group relative bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full animate-fadeInUp`}
+                  className={`group relative bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-lg hover:shadow-orange-500/10 dark:hover:shadow-orange-500/20 hover:border-orange-300 dark:hover:border-orange-700 transition-all duration-200 overflow-hidden hover:-translate-y-0.5 flex flex-col h-full animate-fadeInUp`}
                   style={{
                     animationDelay: `${index * 50}ms`,
                     filter: cert.is_active === false ? 'grayscale(100%)' : 'none',
@@ -621,7 +624,7 @@ export default function TrainerCertifications() {
                         </div>
                         {/* Status Badge */}
                         <div
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-semibold font-heading tracking-wide flex-shrink-0 backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${statusColor}`}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-none text-[10px] font-semibold font-heading tracking-wide flex-shrink-0 backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${statusColor}`}
                         >
                           {getStatusIcon(cert.verification_status)}
                           <span className='hidden sm:inline'>
@@ -633,12 +636,12 @@ export default function TrainerCertifications() {
                       {/* Category and Level Badges */}
                       <div className='flex flex-wrap items-center gap-1.5'>
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${getCategoryColor(cert.category)}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-none text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${getCategoryColor(cert.category)}`}
                         >
                           {getCategoryLabel(cert.category)}
                         </span>
                         <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${certificationService.getLevelColor(cert.certification_level)}`}
+                          className={`inline-flex items-center px-2 py-0.5 rounded-none text-[10px] font-semibold font-heading tracking-wide backdrop-blur-md bg-white/95 dark:bg-gray-900/95 shadow-sm ${certificationService.getLevelColor(cert.certification_level)}`}
                         >
                           {certificationService.formatCertificationLevel(cert.certification_level)}
                         </span>
@@ -662,7 +665,7 @@ export default function TrainerCertifications() {
                   {/* Card Body */}
                   <div className='p-4 space-y-2.5 flex-1 flex flex-col relative z-10'>
                     {/* Issuer */}
-                    <div className='flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-lg border border-gray-100 dark:border-gray-700'>
+                    <div className='flex items-center gap-2 px-2.5 py-1.5 bg-gray-50 dark:bg-gray-800/50 rounded-none border border-gray-100 dark:border-gray-700'>
                       <Building2 className='w-3.5 h-3.5 flex-shrink-0 text-orange-500 dark:text-orange-400' />
                       <span className='text-[11px] font-medium font-heading text-gray-800 dark:text-gray-200 truncate flex-1'>
                         {cert.certification_issuer}
@@ -672,7 +675,7 @@ export default function TrainerCertifications() {
                     {/* Dates Grid */}
                     <div className='grid grid-cols-2 gap-2'>
                       {/* Issued Date */}
-                      <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                      <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-none border border-orange-100 dark:border-orange-800/50'>
                         <CalendarCheck className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                         <div className='min-w-0 flex-1'>
                           <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
@@ -686,7 +689,7 @@ export default function TrainerCertifications() {
 
                       {/* Expiration Date */}
                       {cert.expiration_date ? (
-                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-none border border-orange-100 dark:border-orange-800/50'>
                           <CalendarX className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                           <div className='min-w-0 flex-1'>
                             <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
@@ -698,7 +701,7 @@ export default function TrainerCertifications() {
                           </div>
                         </div>
                       ) : (
-                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-100 dark:border-orange-800/50'>
+                        <div className='flex items-start gap-2 px-2.5 py-1.5 bg-orange-50 dark:bg-orange-900/20 rounded-none border border-orange-100 dark:border-orange-800/50'>
                           <Calendar className='w-3.5 h-3.5 flex-shrink-0 text-orange-600 dark:text-orange-400 mt-0.5' />
                           <div className='min-w-0 flex-1'>
                             <div className='text-[10px] font-medium font-inter text-orange-600 dark:text-orange-400 mb-0.5'>
@@ -716,7 +719,7 @@ export default function TrainerCertifications() {
                     {cert.certificate_file_url && (
                       <button
                         onClick={() => handleViewCertificate(cert)}
-                        className='mt-auto w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 hover:shadow-sm active:scale-95'
+                        className='mt-auto w-full inline-flex items-center justify-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-none transition-all duration-200 hover:shadow-sm active:scale-95'
                       >
                         <Eye className='w-3.5 h-3.5' />
                         <span>Xem chứng chỉ</span>
@@ -742,7 +745,7 @@ export default function TrainerCertifications() {
           )}
         </>
       ) : (
-        <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
+        <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-12'>
           <div className='text-center'>
             <div className='text-theme-xs text-gray-500 dark:text-gray-400 font-inter mb-2'>
               {filterStatus !== 'all' || searchTerm
@@ -778,11 +781,11 @@ export default function TrainerCertifications() {
         onClose={handleCloseCertificateModal}
         className='max-w-6xl m-4'
       >
-        <div className='relative w-full max-w-6xl rounded-2xl bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
+        <div className='relative w-full max-w-6xl rounded-none bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 shadow-xl'>
           {/* Header */}
           <div className='p-4 border-b border-gray-200 dark:border-gray-800 flex items-center justify-between bg-gradient-to-r from-orange-50 to-orange-100/50 dark:from-gray-800 dark:to-gray-800/50 pr-16'>
             <div className='flex items-center gap-3'>
-              <div className='p-2 bg-orange-100 dark:bg-orange-900/30 rounded-lg'>
+              <div className='p-2 bg-orange-100 dark:bg-orange-900/30 rounded-none'>
                 <Award className='w-5 h-5 text-orange-600 dark:text-orange-400' />
               </div>
               <div>
@@ -798,7 +801,7 @@ export default function TrainerCertifications() {
             <button
               type='button'
               onClick={handleDownloadCertificate}
-              className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-lg transition-all duration-200 flex-shrink-0'
+              className='inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20 hover:bg-orange-100 dark:hover:bg-orange-900/30 border border-orange-200 dark:border-orange-800 rounded-none transition-all duration-200 flex-shrink-0'
               title='Tải xuống'
             >
               <Download className='w-4 h-4' />
@@ -813,7 +816,7 @@ export default function TrainerCertifications() {
                 <img
                   src={certificateImageUrl}
                   alt={certificateName}
-                  className='max-w-full max-h-[calc(75vh-120px)] w-auto h-auto object-contain rounded-lg shadow-lg'
+                  className='max-w-full max-h-[calc(75vh-120px)] w-auto h-auto object-contain rounded-none shadow-lg'
                   onError={(e) => {
                     console.error('Error loading certificate image:', {
                       url: certificateImageUrl,

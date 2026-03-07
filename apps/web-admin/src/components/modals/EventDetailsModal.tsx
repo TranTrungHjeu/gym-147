@@ -14,6 +14,8 @@ import AdminModal from '../common/AdminModal';
 import { CalendarEvent } from '../../services/schedule.service';
 import Button from '../ui/Button/Button';
 
+const DISPLAY_TIME_ZONE = 'Asia/Ho_Chi_Minh';
+
 interface EventDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -37,25 +39,25 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         return {
           label: 'Đã lên lịch',
           color:
-            'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800',
+            'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800',
           icon: Calendar,
-          dotColor: 'bg-blue-500',
+          dotColor: 'bg-orange-500',
         };
       case 'IN_PROGRESS':
         return {
           label: 'Đang diễn ra',
           color:
-            'bg-yellow-50 dark:bg-yellow-900/20 text-yellow-700 dark:text-yellow-300 border border-yellow-200 dark:border-yellow-800',
+            'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800',
           icon: Loader2,
-          dotColor: 'bg-yellow-500',
+          dotColor: 'bg-orange-500',
         };
       case 'COMPLETED':
         return {
           label: 'Hoàn thành',
           color:
-            'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300 border border-green-200 dark:border-green-800',
+            'bg-orange-50 dark:bg-orange-900/20 text-orange-700 dark:text-orange-300 border border-orange-200 dark:border-orange-800',
           icon: CheckCircle2,
-          dotColor: 'bg-green-500',
+          dotColor: 'bg-orange-500',
         };
       case 'CANCELLED':
         return {
@@ -86,6 +88,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       year: 'numeric',
       month: 'long',
       day: 'numeric',
+      timeZone: DISPLAY_TIME_ZONE,
     });
   };
 
@@ -94,6 +97,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     return date.toLocaleTimeString('vi-VN', {
       hour: '2-digit',
       minute: '2-digit',
+      timeZone: DISPLAY_TIME_ZONE,
     });
   };
 
@@ -114,15 +118,19 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
     event.max_capacity > 0 ? Math.round((event.attendees / event.max_capacity) * 100) : 0;
 
   const getAttendanceColor = () => {
-    if (attendancePercentage >= 80) return 'text-green-600 dark:text-green-400';
-    if (attendancePercentage >= 50) return 'text-yellow-600 dark:text-yellow-400';
-    return 'text-orange-600 dark:text-orange-400';
+    if (attendancePercentage >= 80) return 'text-orange-700 dark:text-orange-300';
+    if (attendancePercentage >= 50) return 'text-orange-600 dark:text-orange-400';
+    return 'text-gray-600 dark:text-gray-400';
   };
 
   const footer = (
     <div className='flex items-center justify-end gap-3'>
       {onEdit && (
-        <Button variant='outline' onClick={onEdit} className='text-[11px] font-heading px-4 py-2'>
+        <Button
+          variant='outline'
+          onClick={onEdit}
+          className='text-[11px] font-heading px-4 py-2 rounded-none'
+        >
           Chỉnh sửa
         </Button>
       )}
@@ -130,12 +138,16 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         <Button
           variant='primary'
           onClick={onAttendance}
-          className='text-[11px] font-heading px-4 py-2'
+          className='text-[11px] font-heading px-4 py-2 rounded-none'
         >
           Điểm danh
         </Button>
       )}
-      <Button variant='outline' onClick={onClose} className='text-[11px] font-heading px-4 py-2'>
+      <Button
+        variant='outline'
+        onClick={onClose}
+        className='text-[11px] font-heading px-4 py-2 rounded-none'
+      >
         Đóng
       </Button>
     </div>
@@ -147,26 +159,27 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
       onClose={onClose}
       title='Chi tiết lịch dạy'
       size='lg'
+      square
       footer={footer}
     >
-      <div className='space-y-6'>
+      <div className='space-y-5'>
         {/* Header with Title and Status */}
         <div className='flex items-start justify-between gap-4 pb-4 border-b border-gray-200 dark:border-gray-800'>
           <div className='flex-1'>
-            <h3 className='text-xl font-bold font-heading text-gray-900 dark:text-white mb-2'>
+            <h3 className='text-lg font-semibold font-heading text-gray-900 dark:text-white mb-2 leading-tight'>
               {event.class_name || event.title || 'Lớp học'}
             </h3>
             {event.class_name && event.title && event.class_name !== event.title && (
               <div className='flex items-center gap-2'>
-                <BookOpen className='w-4 h-4 text-gray-400 dark:text-gray-500' />
-                <span className='text-sm text-gray-600 dark:text-gray-400 font-inter'>
+                <BookOpen className='w-4 h-4 text-orange-500 dark:text-orange-400' />
+                <span className='text-xs text-gray-600 dark:text-gray-400 font-inter'>
                   {event.title}
                 </span>
               </div>
             )}
           </div>
           <span
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold font-heading tracking-wide flex-shrink-0 ${statusInfo.color}`}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-none text-xs font-semibold font-heading tracking-wide flex-shrink-0 ${statusInfo.color}`}
           >
             <StatusIcon
               className={`w-3.5 h-3.5 ${statusInfo.icon === Loader2 ? 'animate-spin' : ''}`}
@@ -178,57 +191,57 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
         {/* Main Information Grid */}
         <div className='grid grid-cols-1 md:grid-cols-2 gap-4'>
           {/* Date */}
-          <div className='p-4 bg-blue-50 dark:bg-blue-900/20 rounded-xl border border-blue-100 dark:border-blue-800/50'>
+          <div className='p-4 bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800'>
             <div className='flex items-center gap-3 mb-2'>
-              <Calendar className='w-5 h-5 text-blue-600 dark:text-blue-400' />
+              <Calendar className='w-4 h-4 text-orange-500 dark:text-orange-400' />
               <span className='text-xs font-semibold font-heading text-gray-700 dark:text-gray-300'>
                 Ngày diễn ra
               </span>
             </div>
-            <p className='text-base font-bold font-heading text-blue-700 dark:text-blue-300'>
+            <p className='text-sm font-semibold font-heading text-gray-900 dark:text-white'>
               {formatDate(event.start)}
             </p>
           </div>
 
           {/* Time */}
-          <div className='p-4 bg-purple-50 dark:bg-purple-900/20 rounded-xl border border-purple-100 dark:border-purple-800/50'>
+          <div className='p-4 bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800'>
             <div className='flex items-center gap-3 mb-2'>
-              <Clock className='w-5 h-5 text-purple-600 dark:text-purple-400' />
+              <Clock className='w-4 h-4 text-orange-500 dark:text-orange-400' />
               <span className='text-xs font-semibold font-heading text-gray-700 dark:text-gray-300'>
                 Thời gian
               </span>
             </div>
-            <p className='text-base font-bold font-heading text-purple-700 dark:text-purple-300 mb-1'>
+            <p className='text-sm font-semibold font-heading text-gray-900 dark:text-white mb-1'>
               {formatTime(event.start)} - {formatTime(event.end)}
             </p>
-            <p className='text-xs text-purple-600/70 dark:text-purple-400/70 font-inter'>
+            <p className='text-xs text-gray-500 dark:text-gray-400 font-inter'>
               ({getDuration()})
             </p>
           </div>
 
           {/* Room */}
-          <div className='p-4 bg-green-50 dark:bg-green-900/20 rounded-xl border border-green-100 dark:border-green-800/50'>
+          <div className='p-4 bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800'>
             <div className='flex items-center gap-3 mb-2'>
-              <MapPin className='w-5 h-5 text-green-600 dark:text-green-400' />
+              <MapPin className='w-4 h-4 text-orange-500 dark:text-orange-400' />
               <span className='text-xs font-semibold font-heading text-gray-700 dark:text-gray-300'>
                 Phòng học
               </span>
             </div>
-            <p className='text-lg font-bold font-heading text-green-700 dark:text-green-300'>
+            <p className='text-base font-semibold font-heading text-gray-900 dark:text-white'>
               {event.room || 'Chưa xác định'}
             </p>
           </div>
 
           {/* Attendance */}
-          <div className='p-4 bg-orange-50 dark:bg-orange-900/20 rounded-xl border border-orange-100 dark:border-orange-800/50'>
+          <div className='p-4 bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800'>
             <div className='flex items-center gap-3 mb-2'>
-              <Users className='w-5 h-5 text-orange-600 dark:text-orange-400' />
+              <Users className='w-4 h-4 text-orange-500 dark:text-orange-400' />
               <span className='text-xs font-semibold font-heading text-gray-700 dark:text-gray-300'>
                 Số lượng học viên
               </span>
             </div>
             <div className='flex items-baseline gap-2 mb-2'>
-              <p className='text-lg font-bold font-heading text-orange-700 dark:text-orange-300'>
+              <p className='text-base font-semibold font-heading text-gray-900 dark:text-white'>
                 {event.attendees}/{event.max_capacity}
               </p>
               <span className={`text-sm font-semibold font-heading ${getAttendanceColor()}`}>
@@ -236,15 +249,9 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
               </span>
             </div>
             {/* Progress bar */}
-            <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2'>
+            <div className='w-full bg-gray-200 dark:bg-gray-700 rounded-none h-1.5'>
               <div
-                className={`h-2 rounded-full transition-all duration-300 ${
-                  attendancePercentage >= 80
-                    ? 'bg-green-500'
-                    : attendancePercentage >= 50
-                    ? 'bg-yellow-500'
-                    : 'bg-orange-500'
-                }`}
+                className='h-1.5 rounded-none transition-all duration-300 bg-orange-500'
                 style={{ width: `${Math.min(attendancePercentage, 100)}%` }}
               />
             </div>
@@ -267,7 +274,7 @@ const EventDetailsModal: React.FC<EventDetailsModalProps> = ({
                 Trạng thái:
               </span>
               <span
-                className={`${statusInfo.color} px-2 py-0.5 rounded text-xs font-semibold font-heading`}
+                className={`${statusInfo.color} px-2 py-0.5 rounded-none text-xs font-semibold font-heading`}
               >
                 {statusInfo.label}
               </span>

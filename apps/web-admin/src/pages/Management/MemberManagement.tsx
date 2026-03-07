@@ -634,7 +634,7 @@ export default function MemberManagement() {
               fetchUsers();
               fetchStats();
             }}
-            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm hover:shadow-md transition-all duration-200 active:scale-95'
+            className='inline-flex items-center gap-2 px-4 py-2.5 text-theme-xs font-semibold font-heading text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-none hover:bg-gray-50 dark:hover:bg-gray-700 shadow-sm transition-colors duration-200'
           >
             <RefreshCw className='w-4 h-4' />
             {t('common.actions.refresh')}
@@ -654,14 +654,14 @@ export default function MemberManagement() {
 
       {/* Stats Cards */}
       <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4'>
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <Users className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -677,14 +677,14 @@ export default function MemberManagement() {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <UserCheck className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <UserCheck className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -700,14 +700,14 @@ export default function MemberManagement() {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <UserX className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <UserX className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -725,14 +725,14 @@ export default function MemberManagement() {
           </div>
         </AdminCard>
 
-        <AdminCard padding='sm' className='relative overflow-hidden group'>
+        <AdminCard padding='sm' className='relative overflow-hidden'>
           <div className='absolute -top-px -right-px w-12 h-12 bg-orange-100 dark:bg-orange-900/30 opacity-5 rounded-bl-3xl transition-opacity duration-300 group-hover:opacity-10'></div>
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
-                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-0 group-hover:opacity-20 rounded-lg transition-opacity duration-300'></div>
-                <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400 transition-transform duration-300 group-hover:scale-110' />
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0'>
+                <div className='absolute inset-0 bg-orange-100 dark:bg-orange-900/30 opacity-10 rounded-none'></div>
+                <TrendingUp className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
                 <div className='flex items-baseline gap-1.5 mb-0.5'>
@@ -750,7 +750,7 @@ export default function MemberManagement() {
       </div>
 
       {/* Search and Filters */}
-      <div className='bg-white dark:bg-gray-900 rounded-xl border border-gray-200 dark:border-gray-800 shadow-sm hover:shadow-md transition-shadow duration-200 p-4'>
+      <div className='bg-white dark:bg-gray-900 rounded-none border border-gray-200 dark:border-gray-800 shadow-sm p-4'>
         <div className='grid grid-cols-1 md:grid-cols-3 gap-3'>
           {/* Search Input */}
           <div className='md:col-span-2 group relative'>
@@ -760,7 +760,7 @@ export default function MemberManagement() {
               placeholder={t('memberManagement.search.placeholder')}
               value={filters.search}
               onChange={e => setFilters(prev => ({ ...prev, search: e.target.value, page: 1 }))}
-              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-all duration-200 font-inter shadow-sm hover:shadow-md hover:border-orange-400 dark:hover:border-orange-600 hover:bg-gray-50 dark:hover:bg-gray-800/50'
+              className='w-full py-2 pl-9 pr-3 text-[11px] border border-gray-300 dark:border-gray-700 rounded-none bg-white dark:bg-gray-900 text-gray-900 dark:text-white placeholder:text-gray-400 dark:placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-orange-500/30 focus:border-orange-500 dark:focus:border-orange-500 transition-colors duration-200 font-inter shadow-sm hover:border-orange-400 dark:hover:border-orange-600'
             />
           </div>
 
@@ -895,7 +895,7 @@ export default function MemberManagement() {
                         <AdminTableRow
                           key={user.id}
                           data-user-id={user.id}
-                          className={`group relative border-l-4 transition-all duration-200 cursor-pointer ${
+                          className={`group relative border-l-4 transition-colors duration-200 cursor-pointer ${
                             isHighlighted
                               ? 'border-l-orange-500 bg-orange-100 dark:bg-orange-900/30 ring-2 ring-orange-500/50'
                               : 'border-l-transparent hover:border-l-orange-500'
@@ -1041,15 +1041,15 @@ export default function MemberManagement() {
           />
           {/* Popup */}
           <div
-            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-xl shadow-2xl py-2 min-w-[180px]'
+            className='fixed z-50 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-none shadow-lg py-1.5 min-w-[188px]'
             style={{
               left: `${Math.min(menuPosition.x, window.innerWidth - 200)}px`,
               top: `${Math.min(menuPosition.y + 10, window.innerHeight - 150)}px`,
             }}
             onClick={e => e.stopPropagation()}
           >
-            <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800'>
-              <p className='text-xs font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
+            <div className='px-3 py-2 border-b border-gray-200 dark:border-gray-800 bg-gray-50/80 dark:bg-gray-800/40'>
+              <p className='text-[11px] font-semibold font-heading text-gray-900 dark:text-white truncate max-w-[200px]'>
                 {(() => {
                   const firstName =
                     selectedUserForAction.firstName || selectedUserForAction.first_name || '';
@@ -1070,7 +1070,7 @@ export default function MemberManagement() {
                   setSelectedUser(selectedUserForAction);
                   setSelectedUserForAction(null);
                 }}
-                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors duration-150'
               >
                 <Eye className='w-3.5 h-3.5' />
                 {t('memberManagement.actions.view')}
@@ -1082,7 +1082,7 @@ export default function MemberManagement() {
                   setIsDeleteDialogOpen(true);
                   setSelectedUserForAction(null);
                 }}
-                className='w-full text-left inline-flex items-center gap-2 px-3 py-2 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
+                className='w-full text-left inline-flex items-center gap-2 px-3 py-1.5 text-[11px] font-semibold font-heading text-error-600 dark:text-error-400 hover:bg-error-50 dark:hover:bg-error-900/20 transition-colors duration-150'
               >
                 <Trash2 className='w-3.5 h-3.5' />
                 {t('memberManagement.actions.delete')}
@@ -1123,6 +1123,7 @@ export default function MemberManagement() {
           onClose={() => setSelectedUser(null)}
           title={t('memberManagement.details.title')}
           size='xl'
+          square
         >
           <UserInfoCard userId={selectedUser.id} onUpdate={handleUserUpdate} />
         </AdminModal>
@@ -1130,3 +1131,5 @@ export default function MemberManagement() {
     </div>
   );
 }
+
+

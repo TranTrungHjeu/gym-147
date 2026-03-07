@@ -58,6 +58,10 @@ export interface TrainerSalaryStatistics {
     breakdown: Array<{
       schedule_id: string;
       class_name: string;
+      className?: string;
+      class?: {
+        name?: string;
+      };
       start_time: string;
       end_time: string;
       hours: number;

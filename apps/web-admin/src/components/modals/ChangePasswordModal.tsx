@@ -1,4 +1,4 @@
-import { Eye, EyeOff, Key, Mail, Phone, Shield } from 'lucide-react';
+import { Eye, EyeOff, Key, Mail, Phone } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { gsap } from 'gsap';
@@ -39,26 +39,23 @@ export default function ChangePasswordModal({
   const headerRef = useRef<HTMLDivElement>(null);
   const iconRef = useRef<HTMLDivElement>(null);
   const prevStepRef = useRef<number>(currentStep);
-  const modalRef = useRef<HTMLDivElement>(null);
-  const backdropRef = useRef<HTMLDivElement>(null);
-  const contentRef = useRef<HTMLDivElement>(null);
 
   // Load cooldown from localStorage on component mount and when modal opens
   useEffect(() => {
     // Check cooldown for both EMAIL and PHONE methods
     const emailKey = userEmail ? `otp_cooldown_${userEmail}_EMAIL` : null;
     const phoneKey = userPhone ? `otp_cooldown_${userPhone}_PHONE` : null;
-    
+
     // Try to load cooldown for current verification method first
     const currentKey = verificationMethod === 'EMAIL' ? emailKey : phoneKey;
     const savedCooldown = currentKey ? localStorage.getItem(currentKey) : null;
-    
+
     if (savedCooldown) {
       try {
         const { expiresAt } = JSON.parse(savedCooldown);
         const now = Date.now();
         const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
-        
+
         if (remaining > 0) {
           setOtpCooldown(remaining);
         } else {
@@ -79,7 +76,7 @@ export default function ChangePasswordModal({
             const { expiresAt } = JSON.parse(otherCooldown);
             const now = Date.now();
             const remaining = Math.max(0, Math.ceil((expiresAt - now) / 1000));
-            
+
             if (remaining > 0) {
               setOtpCooldown(remaining);
             } else {
@@ -93,27 +90,6 @@ export default function ChangePasswordModal({
       }
     }
   }, [userEmail, userPhone, verificationMethod]); // Load on mount and when user info changes
-
-  // Reset state when modal closes
-  useEffect(() => {
-    if (!isOpen) {
-      // Reset all state when modal closes
-      setCurrentStep(1);
-      setOtp('');
-      setOtpVerified(false);
-      setOtpError('');
-      setOtpLoading(false);
-      setOtpSuccessLoading(false);
-      setNewPassword('');
-      setConfirmPassword('');
-      setShowPassword(false);
-      setShowConfirmPassword(false);
-      setPasswordError('');
-      setIsSubmitting(false);
-      setIdentifier('');
-      setOtpCooldown(0);
-    }
-  }, [isOpen]);
 
   // GSAP step transition animation
   useEffect(() => {
@@ -213,12 +189,17 @@ export default function ChangePasswordModal({
       setOtp('');
       setOtpVerified(false);
       setOtpError('');
+      setOtpLoading(false);
+      setOtpSuccessLoading(false);
       setNewPassword('');
       setConfirmPassword('');
+      setShowPassword(false);
+      setShowConfirmPassword(false);
       setPasswordError('');
+      setIsSubmitting(false);
       setIdentifier('');
       prevStepRef.current = 1;
-      // Don't reset cooldown - keep it running
+      // Keep cooldown in localStorage; it will be restored on next open
     }
   }, [isOpen]);
 
@@ -235,14 +216,14 @@ export default function ChangePasswordModal({
     if (otpCooldown > 0) {
       const cooldownKey = `otp_cooldown_${userEmail || userPhone}_${verificationMethod}`;
       const expiresAt = Date.now() + otpCooldown * 1000;
-      
+
       // Save to localStorage
       localStorage.setItem(cooldownKey, JSON.stringify({ expiresAt }));
-      
+
       const timer = setTimeout(() => {
         setOtpCooldown(otpCooldown - 1);
       }, 1000);
-      
+
       return () => clearTimeout(timer);
     } else {
       // Cooldown finished, remove from localStorage
@@ -289,7 +270,7 @@ export default function ChangePasswordModal({
       setOtpLoading(true);
       setOtpError('');
       const response = await userService.sendOTPForPasswordChange(verificationMethod);
-      
+
       if (response.success) {
         setIdentifier(response.data.identifier);
         setCurrentStep(2);
@@ -302,12 +283,12 @@ export default function ChangePasswordModal({
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || error.message || 'Không thể gửi OTP';
-      
+
       // Handle rate limit error - extract cooldown from response
       if (error.response?.status === 429 && error.response?.data?.data?.retryAfter) {
         setOtpCooldown(error.response.data.data.retryAfter);
       }
-      
+
       setOtpError(errorMessage);
       // No toast - error is already shown in OTPInput component
     } finally {
@@ -363,7 +344,7 @@ export default function ChangePasswordModal({
   const handlePasswordChange = (value: string) => {
     setNewPassword(value);
     setPasswordError('');
-    
+
     if (value) {
       const error = validatePassword(value);
       if (error) {
@@ -375,7 +356,7 @@ export default function ChangePasswordModal({
   const handleConfirmPasswordChange = (value: string) => {
     setConfirmPassword(value);
     setPasswordError('');
-    
+
     if (value && newPassword && value !== newPassword) {
       setPasswordError('Mật khẩu xác nhận không khớp');
     }
@@ -430,7 +411,7 @@ export default function ChangePasswordModal({
     } catch (error: any) {
       const errorMessage =
         error.response?.data?.message || error.message || 'Không thể đổi mật khẩu';
-      
+
       // Check if it's an OTP error
       if (errorMessage.includes('OTP') || errorMessage.includes('otp') || errorMessage.includes('mã')) {
         setOtpError(errorMessage);
@@ -473,7 +454,6 @@ export default function ChangePasswordModal({
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          ref={modalRef}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -482,7 +462,6 @@ export default function ChangePasswordModal({
           onClick={onClose}
         >
           <motion.div
-            ref={backdropRef}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -490,7 +469,6 @@ export default function ChangePasswordModal({
             className='fixed inset-0 bg-black/80 backdrop-blur-sm'
           />
           <motion.div
-            ref={contentRef}
             initial={{ opacity: 0, scale: 0.95, y: 20 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -500,12 +478,12 @@ export default function ChangePasswordModal({
               stiffness: 300,
               duration: 0.3,
             }}
-            className='bg-white dark:bg-gray-800 rounded-xl shadow-2xl w-full max-w-sm relative'
+            className='bg-white dark:bg-gray-800 rounded-none shadow-2xl w-full max-w-sm relative'
             onClick={e => e.stopPropagation()}
           >
             {/* Close Button */}
             <button
-              className='absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200 shadow-sm hover:shadow-md'
+              className='absolute top-4 right-4 z-50 w-8 h-8 flex items-center justify-center rounded-none bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-all duration-200 shadow-sm hover:shadow-md'
               onClick={onClose}
             >
               <svg
@@ -528,7 +506,7 @@ export default function ChangePasswordModal({
               <div ref={headerRef} className='text-center mb-4'>
                 <div
                   ref={iconRef}
-                  className='inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-xl mb-3 shadow-md'
+                  className='inline-flex items-center justify-center w-12 h-12 bg-gradient-to-br from-orange-500 to-orange-600 rounded-none mb-3 shadow-md'
                 >
                   <Key className='w-6 h-6 text-white' />
                 </div>
@@ -551,7 +529,7 @@ export default function ChangePasswordModal({
                           type='button'
                           onClick={() => setVerificationMethod('EMAIL')}
                           disabled={!userEmail}
-                          className={`w-full p-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-2.5 ${
+                          className={`w-full p-3 rounded-none border-2 transition-all duration-200 flex items-center gap-2.5 ${
                             verificationMethod === 'EMAIL'
                               ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                               : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-600'
@@ -583,7 +561,7 @@ export default function ChangePasswordModal({
                         type='button'
                         onClick={() => setVerificationMethod('PHONE')}
                         disabled={!userPhone}
-                        className={`w-full p-3 rounded-lg border-2 transition-all duration-200 flex items-center gap-2.5 ${
+                        className={`w-full p-3 rounded-none border-2 transition-all duration-200 flex items-center gap-2.5 ${
                           verificationMethod === 'PHONE'
                             ? 'border-orange-500 bg-orange-50 dark:bg-orange-900/20'
                             : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:border-orange-300 dark:hover:border-orange-600'
@@ -616,12 +594,12 @@ export default function ChangePasswordModal({
                       type='button'
                       onClick={handleSendOTP}
                       disabled={otpLoading || otpCooldown > 0 || (!userEmail && verificationMethod === 'EMAIL') || (!userPhone && verificationMethod === 'PHONE')}
-                      className='w-full py-2.5 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
+                      className='w-full py-2.5 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-none shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
                     >
-                      {otpLoading 
-                        ? 'Đang gửi...' 
-                        : otpCooldown > 0 
-                          ? `Gửi lại sau ${otpCooldown}s` 
+                      {otpLoading
+                        ? 'Đang gửi...'
+                        : otpCooldown > 0
+                          ? `Gửi lại sau ${otpCooldown}s`
                           : 'Gửi mã OTP'}
                     </button>
                   </div>
@@ -630,14 +608,8 @@ export default function ChangePasswordModal({
 
               {/* Step 2: OTP Verification */}
               {currentStep === 2 && (
-                <div ref={step2Ref} className='space-y-4' style={{ display: 'none' }}>
-                    <div className='text-center'>
-                      <div className='inline-flex items-center justify-center w-10 h-10 bg-gradient-to-br from-orange-500 to-orange-600 rounded-lg mb-2 shadow-sm'>
-                        <Shield className='w-5 h-5 text-white' />
-                      </div>
-                      <h3 className='text-base font-bold text-gray-900 dark:text-white font-space-grotesk mb-1'>
-                        Xác thực {verificationMethod === 'EMAIL' ? 'Email' : 'Số điện thoại'}
-                      </h3>
+                <div ref={step2Ref} className='space-y-4'>
+                    <div className='text-center -mt-1'>
                       <p className='text-xs text-gray-600 dark:text-gray-400 font-space-grotesk'>
                         Mã OTP đã được gửi đến{' '}
                         <span className='font-semibold text-orange-500 dark:text-orange-400'>
@@ -667,7 +639,7 @@ export default function ChangePasswordModal({
                           setOtpVerified(false);
                           setOtpError('');
                         }}
-                        className='flex-1 py-2 text-sm bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-800 dark:text-white font-semibold rounded-lg border border-gray-300 dark:border-white/20 transition-all duration-200 font-space-grotesk'
+                        className='flex-1 py-2 text-sm bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-800 dark:text-white font-semibold rounded-none border border-gray-300 dark:border-white/20 transition-all duration-200 font-space-grotesk'
                       >
                         Quay lại
                       </button>
@@ -679,7 +651,7 @@ export default function ChangePasswordModal({
                           }
                         }}
                         disabled={!otpVerified}
-                        className='flex-1 py-2 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
+                        className='flex-1 py-2 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-none shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
                       >
                         Tiếp theo
                       </button>
@@ -693,7 +665,6 @@ export default function ChangePasswordModal({
                   ref={step3Ref}
                   onSubmit={handleSubmit}
                   className='space-y-3'
-                  style={{ display: 'none' }}
                 >
                     <div className='space-y-1.5'>
                       <label className='block text-xs font-semibold text-gray-700 dark:text-gray-300 font-space-grotesk'>
@@ -704,7 +675,7 @@ export default function ChangePasswordModal({
                           type={showPassword ? 'text' : 'password'}
                           value={newPassword}
                           onChange={e => handlePasswordChange(e.target.value)}
-                          className={`w-full px-3 py-2 pr-10 rounded-lg border-2 transition-all duration-200 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white font-space-grotesk ${
+                          className={`w-full px-3 py-2 pr-10 rounded-none border-2 transition-all duration-200 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white font-space-grotesk ${
                             passwordError
                               ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
                               : 'border-gray-200 dark:border-gray-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500'
@@ -743,7 +714,7 @@ export default function ChangePasswordModal({
                           type={showConfirmPassword ? 'text' : 'password'}
                           value={confirmPassword}
                           onChange={e => handleConfirmPasswordChange(e.target.value)}
-                          className={`w-full px-3 py-2 pr-10 rounded-lg border-2 transition-all duration-200 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white font-space-grotesk ${
+                          className={`w-full px-3 py-2 pr-10 rounded-none border-2 transition-all duration-200 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white font-space-grotesk ${
                             passwordError
                               ? 'border-red-400 focus:border-red-500 focus:ring-1 focus:ring-red-500'
                               : 'border-gray-200 dark:border-gray-700 focus:border-orange-500 focus:ring-1 focus:ring-orange-500'
@@ -761,7 +732,7 @@ export default function ChangePasswordModal({
                     </div>
 
                     {passwordError && (
-                      <div className='p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg'>
+                      <div className='p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-none'>
                         <p className='text-xs text-red-600 dark:text-red-400 font-space-grotesk'>
                           {passwordError}
                         </p>
@@ -775,14 +746,14 @@ export default function ChangePasswordModal({
                           setCurrentStep(2);
                           setPasswordError('');
                         }}
-                        className='flex-1 py-2 text-sm bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-800 dark:text-white font-semibold rounded-lg border border-gray-300 dark:border-white/20 transition-all duration-200 font-space-grotesk'
+                        className='flex-1 py-2 text-sm bg-gray-100 dark:bg-white/10 hover:bg-gray-200 dark:hover:bg-white/20 text-gray-800 dark:text-white font-semibold rounded-none border border-gray-300 dark:border-white/20 transition-all duration-200 font-space-grotesk'
                       >
                         Quay lại
                       </button>
                       <button
                         type='submit'
                         disabled={isSubmitting || !newPassword || !confirmPassword || !!passwordError}
-                        className='flex-1 py-2 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-lg shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
+                        className='flex-1 py-2 text-sm bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white font-semibold rounded-none shadow-md hover:shadow-orange-500/20 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed font-space-grotesk'
                       >
                         {isSubmitting ? 'Đang xử lý...' : 'Đổi mật khẩu'}
                       </button>

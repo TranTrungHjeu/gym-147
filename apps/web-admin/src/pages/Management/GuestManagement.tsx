@@ -205,7 +205,7 @@ const GuestManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
                 <User className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
@@ -225,7 +225,7 @@ const GuestManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
                 <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
@@ -245,7 +245,7 @@ const GuestManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
                 <CheckCircle2 className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
@@ -265,7 +265,7 @@ const GuestManagement: React.FC = () => {
           <div className='absolute left-0 top-0 bottom-0 w-0.5 bg-orange-100 dark:bg-orange-900/30 opacity-20 rounded-r'></div>
           <div className='relative'>
             <div className='flex items-center gap-3'>
-              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-md group-hover:shadow-orange-500/20'>
+              <div className='relative w-9 h-9 bg-orange-100 dark:bg-orange-900/30 rounded-none flex items-center justify-center flex-shrink-0 transition-colors duration-200  group- group--orange-500/20'>
                 <DollarSign className='relative w-[18px] h-[18px] text-orange-600 dark:text-orange-400' />
               </div>
               <div className='flex-1 min-w-0'>
@@ -387,11 +387,11 @@ const GuestManagement: React.FC = () => {
                 {filteredPasses.map((pass, index) => (
                   <AdminTableRow
                     key={pass.id}
-                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-all duration-200 ${
+                    className={`group relative border-l-4 border-l-transparent hover:border-l-orange-500 transition-colors duration-200 ${
                       index % 2 === 0
                         ? 'bg-white dark:bg-gray-900'
                         : 'bg-gray-50/50 dark:bg-gray-800/50'
-                    } hover:bg-gradient-to-r hover:from-orange-50 hover:to-orange-100/50 dark:hover:from-orange-900/20 dark:hover:to-orange-800/10`}
+                    } hover:bg-orange-50/70 dark:hover:bg-orange-900/20`}
                   >
                     <AdminTableCell>
                       <div className='text-theme-xs font-semibold font-heading text-gray-900 dark:text-white'>
@@ -630,3 +630,5 @@ const GuestManagement: React.FC = () => {
 };
 
 export default GuestManagement;
+
+
