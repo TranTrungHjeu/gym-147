@@ -219,8 +219,8 @@ export default function UserDropdown() {
         </span>
         <motion.svg
           animate={{ rotate: isOpen ? 180 : 0 }}
-          transition={{ 
-            duration: 0.3, 
+          transition={{
+            duration: 0.3,
             ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out for smooth rotation
           }}
           className='stroke-[var(--color-gray-500)] dark:stroke-[var(--color-gray-400)]'
@@ -249,8 +249,8 @@ export default function UserDropdown() {
           <motion.li
             initial={{ opacity: 0, x: -12, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.25, 
+            transition={{
+              duration: 0.25,
               delay: 0.06,
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
@@ -303,8 +303,8 @@ export default function UserDropdown() {
           <motion.li
             initial={{ opacity: 0, x: -12, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.25, 
+            transition={{
+              duration: 0.25,
               delay: 0.1,
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
@@ -357,8 +357,8 @@ export default function UserDropdown() {
           <motion.li
             initial={{ opacity: 0, x: -12, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.25, 
+            transition={{
+              duration: 0.25,
               delay: 0.14,
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
@@ -411,8 +411,8 @@ export default function UserDropdown() {
           <motion.li
             initial={{ opacity: 0, x: -12, scale: 0.95 }}
             animate={{ opacity: 1, x: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.25, 
+            transition={{
+              duration: 0.25,
               delay: 0.18,
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}
@@ -458,8 +458,8 @@ export default function UserDropdown() {
           <motion.button
             initial={{ opacity: 0, y: 8, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ 
-              duration: 0.25, 
+            transition={{
+              duration: 0.25,
               delay: 0.22,
               ease: [0.34, 1.56, 0.64, 1] // Elastic ease-out
             }}

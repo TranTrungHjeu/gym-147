@@ -1176,12 +1176,12 @@ const RewardManagement: React.FC = () => {
           padding: 10px !important;
           backdrop-filter: blur(10px) !important;
         }
-        
+
         .dark .flatpickr-calendar {
           background: #1f2937 !important;
           border-color: rgba(249, 115, 22, 0.3) !important;
         }
-        
+
         /* Month Header - Compact with Gradient */
         .flatpickr-months {
           padding: 8px 12px !important;
@@ -1190,19 +1190,19 @@ const RewardManagement: React.FC = () => {
           margin-bottom: 6px !important;
           border-radius: 8px 8px 0 0 !important;
         }
-        
+
         .dark .flatpickr-months {
           background: linear-gradient(135deg, #7c2d12 0%, #9a3412 50%, #c2410c 100%) !important;
           border-bottom-color: rgba(249, 115, 22, 0.3) !important;
         }
-        
+
         .flatpickr-current-month {
           font-size: 11px !important;
           font-weight: 700 !important;
           font-family: 'Inter', sans-serif !important;
           padding: 2px 0 !important;
         }
-        
+
         .flatpickr-current-month .cur-month,
         .flatpickr-current-month input.cur-year {
           font-size: 11px !important;
@@ -1211,12 +1211,12 @@ const RewardManagement: React.FC = () => {
           color: #9a3412 !important;
           padding: 2px 4px !important;
         }
-        
+
         .dark .flatpickr-current-month .cur-month,
         .dark .flatpickr-current-month input.cur-year {
           color: #fed7aa !important;
         }
-        
+
         /* Navigation Arrows - Compact */
         .flatpickr-prev-month,
         .flatpickr-next-month {
@@ -1227,35 +1227,35 @@ const RewardManagement: React.FC = () => {
           height: 20px !important;
           top: 6px !important;
         }
-        
+
         .flatpickr-prev-month:hover,
         .flatpickr-next-month:hover {
           background: rgba(249, 115, 22, 0.15) !important;
         }
-        
+
         .flatpickr-prev-month svg,
         .flatpickr-next-month svg {
           width: 10px !important;
           height: 10px !important;
           fill: #9a3412 !important;
         }
-        
+
         .dark .flatpickr-prev-month svg,
         .dark .flatpickr-next-month svg {
           fill: #fed7aa !important;
         }
-        
+
         /* Weekdays - Compact */
         .flatpickr-weekdays {
           padding: 6px 4px 4px !important;
           background: #fff7ed !important;
           margin-top: 2px !important;
         }
-        
+
         .dark .flatpickr-weekdays {
           background: #7c2d12 !important;
         }
-        
+
         .flatpickr-weekday {
           font-size: 9px !important;
           font-weight: 700 !important;
@@ -1265,16 +1265,16 @@ const RewardManagement: React.FC = () => {
           letter-spacing: 0.3px !important;
           padding: 4px 0 !important;
         }
-        
+
         .dark .flatpickr-weekday {
           color: #fed7aa !important;
         }
-        
+
         /* Days Container - Compact */
         .flatpickr-days {
           padding: 4px 4px !important;
         }
-        
+
         /* Individual Days - Compact */
         .flatpickr-day {
           font-size: 10px !important;
@@ -1289,11 +1289,11 @@ const RewardManagement: React.FC = () => {
           color: #374151 !important;
           border: 1px solid transparent !important;
         }
-        
+
         .dark .flatpickr-day {
           color: #f3f4f6 !important;
         }
-        
+
         .flatpickr-day:hover {
           background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
           border-color: #f97316 !important;
@@ -1301,14 +1301,14 @@ const RewardManagement: React.FC = () => {
           transform: scale(1.08) translateY(-1px) !important;
           box-shadow: 0 2px 4px -1px rgba(249, 115, 22, 0.2) !important;
         }
-        
+
         .dark .flatpickr-day:hover {
           background: linear-gradient(135deg, #9a3412 0%, #c2410c 100%) !important;
           border-color: #f97316 !important;
           color: #fed7aa !important;
           box-shadow: 0 2px 4px -1px rgba(249, 115, 22, 0.3) !important;
         }
-        
+
         /* Selected Day - Gradient */
         .flatpickr-day.selected,
         .flatpickr-day.startRange,
@@ -1320,7 +1320,7 @@ const RewardManagement: React.FC = () => {
           box-shadow: 0 4px 12px -2px rgba(249, 115, 22, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.1) !important;
           transform: scale(1.05) !important;
         }
-        
+
         .flatpickr-day.selected:hover,
         .flatpickr-day.startRange:hover,
         .flatpickr-day.endRange:hover {
@@ -1328,7 +1328,7 @@ const RewardManagement: React.FC = () => {
           transform: scale(1.1) translateY(-1px) !important;
           box-shadow: 0 6px 16px -3px rgba(249, 115, 22, 0.6), 0 4px 6px -2px rgba(0, 0, 0, 0.15) !important;
         }
-        
+
         /* Today - Compact */
         .flatpickr-day.today {
           border: 1.5px solid #f97316 !important;
@@ -1336,25 +1336,25 @@ const RewardManagement: React.FC = () => {
           font-weight: 700 !important;
           background: #fff7ed !important;
         }
-        
+
         .dark .flatpickr-day.today {
           background: #7c2d12 !important;
           border-color: #f97316 !important;
           color: #fed7aa !important;
         }
-        
+
         .flatpickr-day.today:hover {
           background: #fff7ed !important;
           border-color: #ea580c !important;
           color: #ea580c !important;
         }
-        
+
         .dark .flatpickr-day.today:hover {
           background: #9a3412 !important;
           border-color: #f97316 !important;
           color: #ffffff !important;
         }
-        
+
         /* Disabled/Other Month Days */
         .flatpickr-day.flatpickr-disabled,
         .flatpickr-day.prevMonthDay,
@@ -1363,13 +1363,13 @@ const RewardManagement: React.FC = () => {
           opacity: 0.4 !important;
           font-size: 9px !important;
         }
-        
+
         .dark .flatpickr-day.flatpickr-disabled,
         .dark .flatpickr-day.prevMonthDay,
         .dark .flatpickr-day.nextMonthDay {
           color: #6b7280 !important;
         }
-        
+
         /* Time Picker - Compact */
         .flatpickr-time {
           font-size: 10px !important;
@@ -1377,12 +1377,12 @@ const RewardManagement: React.FC = () => {
           border-top: 1px solid rgba(249, 115, 22, 0.2) !important;
           background: #ffffff !important;
         }
-        
+
         .dark .flatpickr-time {
           border-top-color: rgba(249, 115, 22, 0.3) !important;
           background: #1f2937 !important;
         }
-        
+
         .flatpickr-time input {
           font-size: 11px !important;
           font-family: 'Inter', sans-serif !important;
@@ -1398,13 +1398,13 @@ const RewardManagement: React.FC = () => {
           transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
           color: #374151 !important;
         }
-        
+
         .dark .flatpickr-time input {
           background: #374151 !important;
           border-color: #4b5563 !important;
           color: #f3f4f6 !important;
         }
-        
+
         .flatpickr-time input:hover,
         .flatpickr-time input:focus {
           background: linear-gradient(135deg, #fff7ed 0%, #ffedd5 100%) !important;
@@ -1413,7 +1413,7 @@ const RewardManagement: React.FC = () => {
           color: #ea580c !important;
           transform: scale(1.05) !important;
         }
-        
+
         .dark .flatpickr-time input:hover,
         .dark .flatpickr-time input:focus {
           background: linear-gradient(135deg, #9a3412 0%, #c2410c 100%) !important;
@@ -1421,57 +1421,57 @@ const RewardManagement: React.FC = () => {
           color: #fed7aa !important;
           box-shadow: 0 0 0 3px rgba(249, 115, 22, 0.3), 0 2px 4px -1px rgba(249, 115, 22, 0.4) !important;
         }
-        
+
         .flatpickr-time .flatpickr-time-separator {
           font-size: 12px !important;
           font-weight: 700 !important;
           color: #9a3412 !important;
           margin: 0 3px !important;
         }
-        
+
         .dark .flatpickr-time .flatpickr-time-separator {
           color: #fed7aa !important;
         }
-        
+
         .flatpickr-time .arrowUp,
         .flatpickr-time .arrowDown {
           display: none !important;
         }
-        
+
         /* Calendar inner container */
         .flatpickr-innerContainer {
           padding: 0 !important;
           width: 100% !important;
           box-sizing: border-box !important;
         }
-        
+
         .flatpickr-rContainer {
           width: 100% !important;
           box-sizing: border-box !important;
         }
-        
+
         /* Reduce spacing */
         .flatpickr-month {
           height: 28px !important;
         }
-        
+
         /* Ensure proper spacing for all elements */
         .flatpickr-calendar .flatpickr-weekdays {
           margin-bottom: 2px !important;
         }
-        
+
         .flatpickr-calendar .flatpickr-days {
           min-height: 200px !important;
           width: 100% !important;
           box-sizing: border-box !important;
         }
-        
+
         /* Arrow styling */
         .flatpickr-calendar.arrowTop:before,
         .flatpickr-calendar.arrowTop:after {
           border-bottom-color: #ffffff !important;
         }
-        
+
         .dark .flatpickr-calendar.arrowTop:before,
         .dark .flatpickr-calendar.arrowTop:after {
           border-bottom-color: #1f2937 !important;

@@ -142,11 +142,13 @@ class SalaryService {
   /**
    * Get trainer salary status
    */
-  async getTrainerSalaryStatus(trainerId: string): Promise<ApiResponse<{
-    trainer_id: string;
-    hasSalary: boolean;
-    hourly_rate: number | null;
-  }>> {
+  async getTrainerSalaryStatus(trainerId: string): Promise<
+    ApiResponse<{
+      trainer_id: string;
+      hasSalary: boolean;
+      hourly_rate: number | null;
+    }>
+  > {
     return this.request<{
       trainer_id: string;
       hasSalary: boolean;
@@ -160,11 +162,13 @@ class SalaryService {
   async getAllTrainersSalaryStatistics(
     month?: number,
     year?: number
-  ): Promise<ApiResponse<{
-    month: number;
-    year: number;
-    statistics: SalaryStatistics[];
-  }>> {
+  ): Promise<
+    ApiResponse<{
+      month: number;
+      year: number;
+      statistics: SalaryStatistics[];
+    }>
+  > {
     return this.request<{
       month: number;
       year: number;
@@ -195,14 +199,11 @@ class SalaryService {
     month?: number,
     year?: number
   ): Promise<ApiResponse<TrainerSalaryStatistics>> {
-    return this.request<TrainerSalaryStatistics>(
-      `/salary/my-statistics`,
-      'GET',
-      undefined,
-      { month, year }
-    );
+    return this.request<TrainerSalaryStatistics>(`/salary/my-statistics`, 'GET', undefined, {
+      month,
+      year,
+    });
   }
 }
 
 export const salaryService = new SalaryService();
-
