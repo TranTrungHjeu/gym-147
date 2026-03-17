@@ -45,7 +45,7 @@ const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
         origin: (origin, callback) => {
-          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+          const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
           if (allowedOrigins.includes(origin) || !origin) {
             callback(null, true);
           } else {
@@ -75,7 +75,7 @@ const io = new Server(server, {
     // Always allow in development, check origin in production
     if (process.env.NODE_ENV === 'production') {
       const origin = req.headers.origin;
-      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {

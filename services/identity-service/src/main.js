@@ -31,7 +31,7 @@ server.on('request', (req, res) => {
 const socketCorsConfig =
   process.env.NODE_ENV === 'production'
     ? {
-        origin: process.env.ALLOWED_ORIGINS?.split(',') || [],
+        origin: process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [],
         methods: ['GET', 'POST', 'OPTIONS'],
         credentials: false,
         allowedHeaders: ['*'],
@@ -61,7 +61,7 @@ const io = new Server(server, {
     // Always allow in development, check origin in production
     if (process.env.NODE_ENV === 'production') {
       const origin = req.headers.origin;
-      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+      const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
       if (!origin || allowedOrigins.includes(origin)) {
         console.log('[SOCKET.IO] allowRequest: allowing connection');
         callback(null, true);
@@ -86,7 +86,7 @@ io.engine.on('headers', (headers, req) => {
   let corsOrigin = '*';
 
   if (process.env.NODE_ENV === 'production') {
-    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',') || [];
+    const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(',').map(o => o.trim()) || [];
     if (origin && allowedOrigins.includes(origin)) {
       corsOrigin = origin;
     } else if (!origin) {
@@ -105,7 +105,7 @@ io.engine.on('headers', (headers, req) => {
   headers['Access-Control-Allow-Origin'] = corsOrigin;
   headers['Access-Control-Allow-Credentials'] = 'false';
   headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS';
-  headers['Access-Control-Allow-Headers'] = '*';
+  headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, X-Requested-With';
 });
 
 // Socket.IO authentication middleware (optional - verify token if provided)
