@@ -1,44 +1,47 @@
-FROM node:20
+# ================================
+# Member Service Dockerfile
+# Node.js + Prisma Production
+# ================================
+
+FROM node:20-alpine AS builder
+
 WORKDIR /app
 
-# Build context should be from project root
-# When building: docker build -f services/member-service/Dockerfile .
+RUN apk add --no-cache python3 make g++
 
-# Copy shared packages first (needed by services)
-COPY packages ./packages
-COPY services/shared ./services/shared
+COPY services/member-service/package*.json ./
 
-# Install dependencies for shared packages
-WORKDIR /app/packages/shared-config
-RUN if [ -f "package.json" ]; then npm install --production; fi
+RUN npm ci --only=production
 
-WORKDIR /app/packages/shared-middleware
-RUN if [ -f "package.json" ]; then npm install --production; fi
+COPY services/member-service/ ./src/
+COPY services/member-service/prisma/ ./prisma/
+COPY packages/shared-middleware/ ./node_modules/@gym-147/shared-middleware/
+COPY packages/shared-types/ ./node_modules/@gym-147/shared-types/
+COPY packages/shared-config/ ./node_modules/@gym-147/shared-config/
+COPY packages/shared-utils/ ./node_modules/@gym-147/shared-utils/
 
-WORKDIR /app/packages/shared-utils
-RUN if [ -f "package.json" ]; then npm install --production; fi
-
-WORKDIR /app/packages/shared-types
-RUN if [ -f "package.json" ]; then npm install --production; fi
-
-# Back to service directory
-WORKDIR /app/services/member-service
-
-# Copy service package files
-COPY services/member-service/package.json ./
-RUN npm install
-
-# Copy Prisma schema
-COPY services/member-service/prisma ./prisma
-
-# Generate Prisma client
 RUN npx prisma generate
 
-# Copy source code
-COPY services/member-service/src ./src
+FROM node:20-alpine AS production
 
-# Remove dev dependencies for smaller image
-RUN npm prune --production
+WORKDIR /app
+
+RUN apk add --no-cache curl
+
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/src ./src
+
+RUN mkdir -p /app/uploads && chown -R nodejs:nodejs /app
+
+USER nodejs
 
 EXPOSE 3002
-CMD ["node", "src/main.js"]
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost:3002/health || exit 1
+
+CMD ["sh", "-c", "npx prisma migrate deploy && node src/main.js"]

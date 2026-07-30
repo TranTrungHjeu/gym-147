@@ -1,0 +1,57 @@
+#!/bin/sh
+# ================================
+# Gateway Entrypoint - Production
+# VPS Deployment Version
+# ================================
+set -e
+
+# Service host configuration for VPS (Docker network)
+IDENTITY_SERVICE_HOST=${IDENTITY_SERVICE_HOST:-identity}
+IDENTITY_SERVICE_PORT=${IDENTITY_SERVICE_PORT:-3001}
+IDENTITY_SERVICE_PROTOCOL=http
+
+MEMBER_SERVICE_HOST=${MEMBER_SERVICE_HOST:-member}
+MEMBER_SERVICE_PORT=${MEMBER_SERVICE_PORT:-3002}
+MEMBER_SERVICE_PROTOCOL=http
+
+SCHEDULE_SERVICE_HOST=${SCHEDULE_SERVICE_HOST:-schedule}
+SCHEDULE_SERVICE_PORT=${SCHEDULE_SERVICE_PORT:-3003}
+SCHEDULE_SERVICE_PROTOCOL=http
+
+BILLING_SERVICE_HOST=${BILLING_SERVICE_HOST:-billing}
+BILLING_SERVICE_PORT=${BILLING_SERVICE_PORT:-3004}
+BILLING_SERVICE_PROTOCOL=http
+
+# Default PORT
+export PORT=${PORT:-80}
+
+# Export all variables
+export IDENTITY_SERVICE_HOST IDENTITY_SERVICE_PORT IDENTITY_SERVICE_PROTOCOL
+export MEMBER_SERVICE_HOST MEMBER_SERVICE_PORT MEMBER_SERVICE_PROTOCOL
+export SCHEDULE_SERVICE_HOST SCHEDULE_SERVICE_PORT SCHEDULE_SERVICE_PROTOCOL
+export BILLING_SERVICE_HOST BILLING_SERVICE_PORT BILLING_SERVICE_PROTOCOL
+
+echo "=== Gateway Configuration (Production) ==="
+echo "PORT: $PORT"
+echo "IDENTITY_SERVICE: ${IDENTITY_SERVICE_PROTOCOL}://${IDENTITY_SERVICE_HOST}:${IDENTITY_SERVICE_PORT}"
+echo "MEMBER_SERVICE: ${MEMBER_SERVICE_PROTOCOL}://${MEMBER_SERVICE_HOST}:${MEMBER_SERVICE_PORT}"
+echo "SCHEDULE_SERVICE: ${SCHEDULE_SERVICE_PROTOCOL}://${SCHEDULE_SERVICE_HOST}:${SCHEDULE_SERVICE_PORT}"
+echo "BILLING_SERVICE: ${BILLING_SERVICE_PROTOCOL}://${BILLING_SERVICE_HOST}:${BILLING_SERVICE_PORT}"
+echo "=========================================="
+
+# Copy static nginx config (without envsubst for production)
+if [ -f /etc/nginx/templates/nginx.conf.template ]; then
+    # Use envsubst for variable substitution
+    envsubst '${PORT} ${IDENTITY_SERVICE_HOST} ${IDENTITY_SERVICE_PORT} ${IDENTITY_SERVICE_PROTOCOL} ${MEMBER_SERVICE_HOST} ${MEMBER_SERVICE_PORT} ${MEMBER_SERVICE_PROTOCOL} ${SCHEDULE_SERVICE_HOST} ${SCHEDULE_SERVICE_PORT} ${SCHEDULE_SERVICE_PROTOCOL} ${BILLING_SERVICE_HOST} ${BILLING_SERVICE_PORT} ${BILLING_SERVICE_PROTOCOL}' \
+        < /etc/nginx/templates/nginx.conf.template > /etc/nginx/nginx.conf
+    echo "Generated nginx.conf from template"
+else
+    echo "Using existing nginx.conf"
+fi
+
+# Test nginx config
+nginx -t
+
+# Start nginx
+echo "Starting nginx..."
+exec nginx -g 'daemon off;'
