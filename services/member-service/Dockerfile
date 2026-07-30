@@ -3,16 +3,20 @@
 # Node.js + Prisma Production
 # ================================
 
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-RUN apk add --no-cache python3 make g++
+# Install all deps (build tools + runtime libs for canvas)
+RUN apk add --no-cache python3 make g++ cairo-dev jpeg-dev pango-dev giflib-dev librsvg-dev
 
+# Copy package files
 COPY services/member-service/package*.json ./
 
-RUN npm ci --only=production
+# Install dependencies (including optional for canvas)
+RUN npm ci --include=optional --foreground-scripts
 
+# Copy source code
 COPY services/member-service/ ./src/
 COPY services/member-service/prisma/ ./prisma/
 COPY packages/shared-middleware/ ./node_modules/@gym-147/shared-middleware/
@@ -20,20 +24,15 @@ COPY packages/shared-types/ ./node_modules/@gym-147/shared-types/
 COPY packages/shared-config/ ./node_modules/@gym-147/shared-config/
 COPY packages/shared-utils/ ./node_modules/@gym-147/shared-utils/
 
+# Generate Prisma client
 RUN npx prisma generate
 
-FROM node:20-alpine AS production
+# Install runtime libs for canvas and curl for healthcheck
+RUN apk add --no-cache curl libcairo libjpeg-turbo libpango librsvg
 
-WORKDIR /app
-
-RUN apk add --no-cache curl
-
+# Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
-
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src ./src
 
 RUN mkdir -p /app/uploads && chown -R nodejs:nodejs /app
 

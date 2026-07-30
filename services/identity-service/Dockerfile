@@ -3,19 +3,18 @@
 # Node.js + Prisma Production
 # ================================
 
-# Build stage
-FROM node:20-alpine AS builder
+FROM node:20-alpine
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
+# Install all deps (canvas needs build tools and runtime libs)
+RUN apk add --no-cache python3 make g++ cairo-dev jpeg-dev pango-dev giflib-dev librsvg-dev
 
 # Copy package files
 COPY services/identity-service/package*.json ./
 
-# Install dependencies
-RUN npm ci --only=production
+# Install dependencies (including optional for canvas)
+RUN npm ci --include=optional --foreground-scripts
 
 # Copy source code
 COPY services/identity-service/ ./src/
@@ -28,22 +27,12 @@ COPY packages/shared-utils/ ./node_modules/@gym-147/shared-utils/
 # Generate Prisma client
 RUN npx prisma generate
 
-# Production stage
-FROM node:20-alpine AS production
-
-WORKDIR /app
-
-# Install runtime dependencies
-RUN apk add --no-cache curl
+# Install runtime libs for canvas/bcrypt and curl for healthcheck
+RUN apk add --no-cache curl libcairo libjpeg-turbo libpango librsvg
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
-
-# Copy node_modules from builder
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/src ./src
 
 # Create models directory for face recognition
 RUN mkdir -p /app/models && chown -R nodejs:nodejs /app
