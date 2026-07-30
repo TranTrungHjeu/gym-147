@@ -7,7 +7,7 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Install all deps (build tools + runtime libs for canvas)
+# Install build deps
 RUN apk add --no-cache python3 make g++ cairo-dev jpeg-dev pango-dev giflib-dev librsvg-dev
 
 # Copy package files
@@ -27,8 +27,8 @@ COPY packages/shared-utils/ ./node_modules/@gym-147/shared-utils/
 # Generate Prisma client
 RUN npx prisma generate
 
-# Install runtime libs for canvas and curl for healthcheck
-RUN apk add --no-cache curl libcairo libjpeg-turbo libpango librsvg
+# Install runtime libs
+RUN apk add --no-cache curl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \

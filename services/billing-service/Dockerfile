@@ -28,7 +28,7 @@ COPY packages/shared-utils/ ./node_modules/@gym-147/shared-utils/
 RUN npx prisma generate
 
 # Install runtime libs
-RUN apk add --no-cache curl libcairo libjpeg-turbo libpango librsvg
+RUN apk add --no-cache curl
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs && \
