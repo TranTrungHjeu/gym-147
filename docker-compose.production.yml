@@ -1,8 +1,7 @@
 # ================================
-# Production Docker Compose (Pull from Registry)
+# Production Docker Compose (GitLab Registry)
 # GYM-147 Full Stack Deployment
 # ================================
-# Usage: docker compose -f docker-compose.prod.yml -f docker-compose.production.yml up -d
 
 services:
   # ==================== DATABASE ====================
@@ -45,7 +44,7 @@ services:
 
   # ==================== BACKEND SERVICES ====================
   identity-service:
-    image: gym147/identity-service:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/identity-service:latest
     container_name: gym147_identity
     restart: unless-stopped
     environment:
@@ -86,7 +85,7 @@ services:
       retries: 3
 
   member-service:
-    image: gym147/member-service:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/member-service:latest
     container_name: gym147_member
     restart: unless-stopped
     environment:
@@ -112,7 +111,7 @@ services:
       retries: 3
 
   schedule-service:
-    image: gym147/schedule-service:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/schedule-service:latest
     container_name: gym147_schedule
     restart: unless-stopped
     environment:
@@ -136,7 +135,7 @@ services:
       retries: 3
 
   billing-service:
-    image: gym147/billing-service:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/billing-service:latest
     container_name: gym147_billing
     restart: unless-stopped
     environment:
@@ -168,7 +167,7 @@ services:
       retries: 3
 
   web-admin:
-    image: gym147/web-admin:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/web-admin:latest
     container_name: gym147_web_admin
     restart: unless-stopped
     environment:
@@ -189,7 +188,7 @@ services:
       retries: 3
 
   gateway:
-    image: gym147/gateway:latest
+    image: registry.gitlab.com/trantrunghieu/gym-147/gateway:latest
     container_name: gym147_gateway
     restart: unless-stopped
     environment:

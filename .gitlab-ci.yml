@@ -16,7 +16,6 @@ stages:
 variables:
   DOCKER_DRIVER: overlay2
   DOCKER_TLS_CERTDIR: "/certs"
-  DOCKER_REGISTRY: "registry.hub.docker.com"
 
 before_script:
   - docker info
@@ -26,12 +25,11 @@ lint-and-test:
   stage: lint-test
   image: node:20-alpine
   before_script:
-    - apk add --no-cache git
-    - npm install -g npm
+    - apk add --no-cache git curl
   script:
     - npm ci
-    - npm run lint || echo "No lint script found"
-    - npm test --if-present || echo "No tests found"
+    - npm run lint || echo "No lint script"
+    - npm test --if-present || echo "No tests"
   cache:
     key: ${CI_COMMIT_REF_SLUG}
     paths:
@@ -39,100 +37,79 @@ lint-and-test:
   only:
     - main
     - develop
-    - merge_requests
 
-# ==================== JOB 2: BUILD BACKEND ====================
-build-backend:
+# ==================== JOB 2: BUILD ALL IMAGES ====================
+build:
   stage: build
   image: docker:24.0.5
   before_script:
-    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
   script:
-    - |
-      for SERVICE in identity-service member-service schedule-service billing-service; do
-        echo "Building $SERVICE..."
-        docker build
-          --pull
-          --cache-from gym147/$SERVICE:latest
-          -t gym147/$SERVICE:$CI_COMMIT_SHA
-          -t gym147/$SERVICE:latest
-          -f services/$SERVICE/Dockerfile
-          .
-        docker push gym147/$SERVICE:$CI_COMMIT_SHA
-        docker push gym147/$SERVICE:latest
-      done
-  artifacts:
-    paths:
-      - services/*/dist/
+    # Identity Service
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/identity-service:latest -t $CI_REGISTRY_IMAGE/identity-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/identity-service:latest -f services/identity-service/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/identity-service:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/identity-service:latest
+
+    # Member Service
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/member-service:latest -t $CI_REGISTRY_IMAGE/member-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/member-service:latest -f services/member-service/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/member-service:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/member-service:latest
+
+    # Schedule Service
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/schedule-service:latest -t $CI_REGISTRY_IMAGE/schedule-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/schedule-service:latest -f services/schedule-service/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/schedule-service:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/schedule-service:latest
+
+    # Billing Service
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/billing-service:latest -t $CI_REGISTRY_IMAGE/billing-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/billing-service:latest -f services/billing-service/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/billing-service:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/billing-service:latest
+
+    # Web Admin
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/web-admin:latest -t $CI_REGISTRY_IMAGE/web-admin:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/web-admin:latest -f apps/web-admin/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/web-admin:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/web-admin:latest
+
+    # Gateway
+    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/gateway:latest -t $CI_REGISTRY_IMAGE/gateway:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/gateway:latest -f infrastructure/gateway/Dockerfile .
+    - docker push $CI_REGISTRY_IMAGE/gateway:$CI_COMMIT_SHA
+    - docker push $CI_REGISTRY_IMAGE/gateway:latest
   only:
     - main
     - develop
 
-# ==================== JOB 3: BUILD WEB ADMIN ====================
-build-web-admin:
-  stage: build
-  image: docker:24.0.5
-  before_script:
-    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-  script:
-    - echo "Building web-admin..."
-    - docker build
-        --pull
-        --cache-from gym147/web-admin:latest
-        -t gym147/web-admin:$CI_COMMIT_SHA
-        -t gym147/web-admin:latest
-        -f apps/web-admin/Dockerfile
-        .
-    - docker push gym147/web-admin:$CI_COMMIT_SHA
-    - docker push gym147/web-admin:latest
-  only:
-    - main
-    - develop
-
-# ==================== JOB 4: BUILD GATEWAY ====================
-build-gateway:
-  stage: build
-  image: docker:24.0.5
-  before_script:
-    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-  script:
-    - echo "Building gateway..."
-    - docker build
-        --pull
-        --cache-from gym147/gateway:latest
-        -t gym147/gateway:$CI_COMMIT_SHA
-        -t gym147/gateway:latest
-        -f infrastructure/gateway/Dockerfile
-        .
-    - docker push gym147/gateway:$CI_COMMIT_SHA
-    - docker push gym147/gateway:latest
-  only:
-    - main
-    - develop
-
-# ==================== JOB 5: DEPLOY TO VPS ====================
-deploy-vps:
+# ==================== JOB 3: DEPLOY TO VPS ====================
+deploy:
   stage: deploy
   image: alpine:latest
   before_script:
-    - apk add --no-cache openssh-client ca-certificates docker-cli
+    - apk add --no-cache openssh-client ca-certificates docker-cli curl
     - eval $(ssh-agent -s)
     - echo "$VPS_SSH_KEY" | tr -d '\r' | ssh-add -
-    - mkdir -p ~/.ssh
-    - chmod 700 ~/.ssh
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
-    - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
   script:
-    - echo "Deploying to VPS..."
-    - ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST "
-        docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD &&
-        cd $VPS_DEPLOY_PATH &&
-        docker compose -f docker-compose.production.yml pull &&
-        docker compose -f docker-compose.production.yml down &&
-        docker compose -f docker-compose.production.yml up -d &&
-        docker compose -f docker-compose.production.yml logs --tail=50 &&
+    - |
+      ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'ENDSSH'
+        set -e
+        cd $VPS_DEPLOY_PATH
+        
+        # Pull images
+        docker compose -f docker-compose.production.yml pull
+        
+        # Stop old containers
+        docker compose -f docker-compose.production.yml down
+        
+        # Start services
+        docker compose -f docker-compose.production.yml up -d
+        
+        # Show logs
+        docker compose -f docker-compose.production.yml logs --tail=30
+        
+        # Cleanup
         docker image prune -f
-      "
+      ENDSSH
   environment:
     name: production
     url: https://gym-147.example.com
