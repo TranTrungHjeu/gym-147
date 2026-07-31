@@ -1,6 +1,9 @@
 # ================================
 # Web Admin Dockerfile
 # React + Vite Production Build
+# Used by Vercel / local Docker only. The VPS Docker stack
+# (docker-compose.vps-build.yml) does NOT build this image —
+# web-admin is served from Vercel.
 # ================================
 
 # Build stage
@@ -8,24 +11,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy monorepo package files first to leverage Docker layer cache
-COPY package*.json ./
-COPY apps/web-admin/package*.json ./apps/web-admin/
-COPY packages/shared-config/package*.json ./packages/shared-config/
-
-# Install all workspace dependencies (monorepo install)
-RUN npm install --ignore-scripts --workspaces --include-workspace-root=false --no-audit --no-fund
+# Install dependencies
+COPY apps/web-admin/package*.json ./
+RUN npm install --ignore-scripts
 
 # Copy source code
-COPY apps/web-admin/ ./apps/web-admin/
-COPY packages/shared-config/ ./packages/shared-config/
+COPY apps/web-admin/ ./
 
-# Symlink shared-config into web-admin's node_modules so Vite can resolve it
-RUN mkdir -p /app/apps/web-admin/node_modules/@gym-147 && \
-    ln -sfn /app/packages/shared-config /app/apps/web-admin/node_modules/@gym-147/shared-config
+# Copy shared packages
+COPY packages/shared-config/ ./node_modules/@gym-147/shared-config/
 
 # Build the app
-WORKDIR /app/apps/web-admin
 RUN npm run build
 
 # Production stage - Nginx
