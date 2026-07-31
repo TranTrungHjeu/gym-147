@@ -48,7 +48,9 @@ deploy:
 
         # Ensure remote 'origin' points at GitLab for this pipeline.
         # (Working repo on this VPS was cloned from GitHub earlier.)
-        git remote set-url origin "https://gitlab.com/${CI_PROJECT_PATH}.git"
+        # CI_PROJECT_PATH is not always available inside the remote shell,
+        # so use the explicit GitLab URL instead.
+        git remote set-url origin "https://gitlab.com/TranTrungHiu/gym-147.git"
         git fetch origin main
         git reset --hard origin/main
 
