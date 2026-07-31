@@ -8,17 +8,24 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
-COPY apps/web-admin/package*.json ./
-RUN npm install --ignore-scripts
+# Copy monorepo package files first to leverage Docker layer cache
+COPY package*.json ./
+COPY apps/web-admin/package*.json ./apps/web-admin/
+COPY packages/shared-config/package*.json ./packages/shared-config/
+
+# Install all workspace dependencies (monorepo install)
+RUN npm install --ignore-scripts --workspaces --include-workspace-root=false --no-audit --no-fund
 
 # Copy source code
-COPY apps/web-admin/ ./
+COPY apps/web-admin/ ./apps/web-admin/
+COPY packages/shared-config/ ./packages/shared-config/
 
-# Copy shared packages
-COPY packages/shared-config/ ./node_modules/@gym-147/shared-config/
+# Symlink shared-config into web-admin's node_modules so Vite can resolve it
+RUN mkdir -p /app/apps/web-admin/node_modules/@gym-147 && \
+    ln -sfn /app/packages/shared-config /app/apps/web-admin/node_modules/@gym-147/shared-config
 
 # Build the app
+WORKDIR /app/apps/web-admin
 RUN npm run build
 
 # Production stage - Nginx
