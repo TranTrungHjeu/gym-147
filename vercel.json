@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "version": 2,
+  "services": {
+    "webadmin": {
+      "root": "apps/web-admin",
+      "framework": "vite",
+      "buildCommand": "cd ../.. && npm install --ignore-scripts --workspaces --include-workspace-root --no-audit --no-fund && cd apps/web-admin && npm run build",
+      "outputDirectory": "dist",
+      "installCommand": "echo skip"
+    }
+  }
+}
