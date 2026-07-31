@@ -10,7 +10,7 @@ WORKDIR /app
 
 # Install dependencies
 COPY apps/web-admin/package*.json ./
-RUN npm ci
+RUN npm install --ignore-scripts
 
 # Copy source code
 COPY apps/web-admin/ ./
