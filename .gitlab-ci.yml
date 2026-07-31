@@ -3,22 +3,11 @@
 # GYM-147 Full Stack Application
 # ================================
 
-image: docker:24.0.5
-
-services:
-  - docker:24.0.5-dind
+image: alpine:latest
 
 stages:
   - lint-test
-  - build
   - deploy
-
-variables:
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: "/certs"
-
-before_script:
-  - docker info
 
 # ==================== JOB 1: LINT & TEST ====================
 lint-and-test:
@@ -38,47 +27,7 @@ lint-and-test:
     - main
     - develop
 
-# ==================== JOB 2: BUILD ALL IMAGES ====================
-build:
-  stage: build
-  image: docker:24.0.5
-  before_script:
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
-  script:
-    # Identity Service
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/identity-service:latest -t $CI_REGISTRY_IMAGE/identity-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/identity-service:latest -f services/identity-service/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/identity-service:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/identity-service:latest
-
-    # Member Service
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/member-service:latest -t $CI_REGISTRY_IMAGE/member-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/member-service:latest -f services/member-service/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/member-service:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/member-service:latest
-
-    # Schedule Service
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/schedule-service:latest -t $CI_REGISTRY_IMAGE/schedule-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/schedule-service:latest -f services/schedule-service/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/schedule-service:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/schedule-service:latest
-
-    # Billing Service
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/billing-service:latest -t $CI_REGISTRY_IMAGE/billing-service:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/billing-service:latest -f services/billing-service/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/billing-service:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/billing-service:latest
-
-    # Web Admin
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/web-admin:latest -t $CI_REGISTRY_IMAGE/web-admin:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/web-admin:latest -f apps/web-admin/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/web-admin:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/web-admin:latest
-
-    # Gateway
-    - docker build --pull --cache-from $CI_REGISTRY_IMAGE/gateway:latest -t $CI_REGISTRY_IMAGE/gateway:$CI_COMMIT_SHA -t $CI_REGISTRY_IMAGE/gateway:latest -f infrastructure/gateway/Dockerfile .
-    - docker push $CI_REGISTRY_IMAGE/gateway:$CI_COMMIT_SHA
-    - docker push $CI_REGISTRY_IMAGE/gateway:latest
-  only:
-    - main
-    - develop
-
-# ==================== JOB 3: DEPLOY TO VPS ====================
+# ==================== JOB 2: DEPLOY TO VPS ====================
 deploy:
   stage: deploy
   image: alpine:latest
@@ -88,26 +37,27 @@ deploy:
     - echo "$VPS_SSH_KEY" | tr -d '\r' | ssh-add -
     - mkdir -p ~/.ssh && chmod 700 ~/.ssh
     - ssh-keyscan -H $VPS_HOST >> ~/.ssh/known_hosts
-    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD
   script:
     - |
       ssh -o StrictHostKeyChecking=no $VPS_USER@$VPS_HOST << 'ENDSSH'
         set -e
         cd $VPS_DEPLOY_PATH
-        
-        # Pull images
-        docker compose -f docker-compose.production.yml pull
-        
-        # Stop old containers
-        docker compose -f docker-compose.production.yml down
-        
-        # Start services
-        docker compose -f docker-compose.production.yml up -d
-        
+
+        # Pull latest source from git
+        git fetch origin main
+        git reset --hard origin/main
+
+        # Stop old containers (do not remove volumes/networks)
+        docker-compose -f docker-compose.vps-build.yml down --remove-orphans
+
+        # Rebuild & start services locally on VPS (no external registry)
+        docker-compose -f docker-compose.vps-build.yml build --no-cache
+        docker-compose -f docker-compose.vps-build.yml up -d
+
         # Show logs
-        docker compose -f docker-compose.production.yml logs --tail=30
-        
-        # Cleanup
+        docker-compose -f docker-compose.vps-build.yml logs --tail=30
+
+        # Cleanup dangling images
         docker image prune -f
       ENDSSH
   environment:
