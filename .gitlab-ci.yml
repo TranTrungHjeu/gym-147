@@ -50,7 +50,9 @@ deploy:
         # (Working repo on this VPS was cloned from GitHub earlier.)
         # CI_PROJECT_PATH is not always available inside the remote shell,
         # so use the explicit GitLab URL instead.
-        git remote set-url origin "https://gitlab.com/TranTrungHiu/gym-147.git"
+        sudo -n chown -R "$(whoami)" .git 2>/dev/null || chown -R "$(whoami)" .git 2>/dev/null || true
+        git remote remove origin 2>/dev/null || true
+        git remote add origin https://gitlab.com/TranTrungHiu/gym-147.git
         git fetch origin main
         git reset --hard origin/main
 
