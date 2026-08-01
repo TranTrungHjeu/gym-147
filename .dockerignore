@@ -1,0 +1,57 @@
+# Root .dockerignore for gym-147 monorepo
+# Required because docker-compose.vps-build.yml uses `context: .`
+# for every service. Without this file the Docker daemon receives
+# ~1.7 GB of node_modules/.vercel/.git per build, multiplied by 5
+# builds, which exhausts disk on typical CI runners.
+#
+# Each Dockerfile already does its own `COPY services/<self>/package*.json ./`
+# and `npm install`, so excluding these from the build context does NOT
+# change the produced image.
+
+# --- Build artefacts from each workspace ---------------------
+node_modules
+**/node_modules
+**/dist
+**/build
+**/coverage
+**/.next
+**/.turbo
+
+# --- Vercel / CI scratch --------------------------------------
+.vercel
+.vercel-deploy.log
+vercel-deploy.log
+vercel-inspect.json
+
+# --- VCS / editor noise ---------------------------------------
+.git
+.gitignore
+.gitlab-ci.yml
+.github
+.vscode
+.idea
+*.swp
+*.swo
+
+# --- Logs -----------------------------------------------------
+*.log
+logs
+**/*.log
+npm-debug.log*
+
+# --- Env / secrets (must never end up in a layer) -------------
+.env
+.env.*
+!.env.example
+
+# --- Docker scratch (regenerated each `docker compose build`) -
+**/Dockerfile.bak
+docker-compose.override.yml
+
+# --- Heavy / irrelevant for backend builds --------------------
+apps
+docs
+scripts
+**/*.zip
+**/*.tar.gz
+**/*.tgz
